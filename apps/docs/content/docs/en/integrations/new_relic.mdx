@@ -32,7 +32,7 @@ Integrate New Relic into workflows. Run NRQL queries, search monitored entities,
 
 ## Actions
 
-### `new_relic_nrql_query`
+### New Relic NRQL Query
 
 Run a NRQL query against a New Relic account using NerdGraph.
 
@@ -53,7 +53,7 @@ Run a NRQL query against a New Relic account using NerdGraph.
 | `results` | array | NRQL result rows. Row fields depend on the query projection. |
 | `resultCount` | number | Number of NRQL result rows returned |
 
-### `new_relic_search_entities`
+### New Relic Search Entities
 
 Search New Relic entities by name, GUID, domain type, tags, or reporting state.
 
@@ -84,7 +84,7 @@ Search New Relic entities by name, GUID, domain type, tags, or reporting state.
 |     ↳ `values` | array | Tag values |
 | `nextCursor` | string | Cursor for the next page of results |
 
-### `new_relic_get_entity`
+### New Relic Get Entity
 
 Fetch a New Relic entity by GUID.
 
@@ -111,7 +111,7 @@ Fetch a New Relic entity by GUID.
 |     ↳ `key` | string | Tag key |
 |     ↳ `values` | array | Tag values |
 
-### `new_relic_create_deployment_event`
+### New Relic Create Deployment Event
 
 Record a deployment change event in New Relic change tracking.
 

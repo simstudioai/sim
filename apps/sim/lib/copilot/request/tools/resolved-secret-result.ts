@@ -1,112 +1,22 @@
-import { isPlainRecord } from '@sim/utils/object'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
-import {
-  isResolvedSecretModelContentUnchanged,
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelControlMessage,
-  projectResolvedSecretModelJsonContent,
-} from '@/executor/utils/resolved-secret-content-projection'
+import { projectResolvedSecretModelJsonContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export const TOOL_RESULT_UNAVAILABLE_ERROR =
   'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
-export const TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR =
-  'Tool output could not be persisted safely because secret provenance was unavailable.'
 
 function structuralResult(result: ToolExecutionResult): ToolExecutionResult {
   return { success: result.success === true }
 }
 
-function resourceContent(
-  resources: MothershipResource[]
-): Array<{ type: string; id: string; title: string; path?: string }> {
-  return resources.map((resource) => ({
-    type: resource.type,
-    id: resource.id,
-    title: resource.title,
-    ...(resource.path !== undefined ? { path: resource.path } : {}),
-  }))
-}
-
-function modelSafeResources(
-  resources: MothershipResource[],
-  registry: ResolvedSecretTraceRegistry | undefined
-): MothershipResource[] {
-  return resources.filter((resource) =>
-    isResolvedSecretModelContentUnchanged([resource.type, resource.id, resource.path], registry)
-  )
-}
-
-function restoreProjectedResources(
-  resources: MothershipResource[],
-  projectedContent: unknown
-): MothershipResource[] | undefined {
-  if (!Array.isArray(projectedContent) || projectedContent.length !== resources.length) {
-    return undefined
-  }
-
-  const projectedResources: MothershipResource[] = []
-  for (let index = 0; index < resources.length; index += 1) {
-    const resource = resources[index]
-    const content = projectedContent[index]
-    if (
-      !isPlainRecord(content) ||
-      typeof content.type !== 'string' ||
-      typeof content.id !== 'string' ||
-      typeof content.title !== 'string' ||
-      (content.path !== undefined && typeof content.path !== 'string')
-    ) {
-      return undefined
-    }
-    if (content.type !== resource.type || content.id !== resource.id) continue
-
-    projectedResources.push({
-      type: resource.type,
-      id: resource.id,
-      title: content.title,
-      ...(content.path !== undefined ? { path: content.path } : {}),
-    })
-  }
-
-  return projectedResources
-}
-
-function omittedResult(
-  result: ToolExecutionResult,
-  registry: ResolvedSecretTraceRegistry | undefined
-): ToolExecutionResult {
+function omittedResult(result: ToolExecutionResult): ToolExecutionResult {
   if (result.success) return { success: true }
-
-  const error =
-    projectResolvedSecretModelControlMessage(TOOL_RESULT_UNAVAILABLE_ERROR, registry) ??
-    TOOL_RESULT_UNAVAILABLE_ERROR
-  return { success: false, error }
+  return { success: false, error: TOOL_RESULT_UNAVAILABLE_ERROR }
 }
 
 export type CopilotToolResultProjection =
   | { safe: true; result: ToolExecutionResult }
   | { safe: false; result: ToolExecutionResult }
-
-export type CopilotPersistedOutputProjection =
-  | { safe: true; value: unknown }
-  | { safe: false; error: string }
-
-/**
- * Projects only the exact value a Copilot tool is about to persist. The isolated per-tool registry
- * makes this causal: values activated by this tool become canonical `{{NAME}}` aliases, while a
- * public low-entropy value cannot be rewritten merely because an earlier sibling activated the
- * same bytes. Persisting the alias makes later reads safe without a second provenance store.
- */
-export function projectToolOutputForPersistence(
-  value: unknown,
-  registry: ResolvedSecretTraceRegistry | undefined
-): CopilotPersistedOutputProjection {
-  const projection = projectResolvedSecretModelContent(value, registry)
-  return projection.safe
-    ? { safe: true, value: projection.value }
-    : { safe: false, error: TOOL_OUTPUT_PERSISTENCE_UNAVAILABLE_ERROR }
-}
 
 /**
  * Projects terminal tool content and reports whether the complete content was safe to cross.
@@ -119,15 +29,14 @@ export function inspectToolResultForCopilot(
   registry: ResolvedSecretTraceRegistry | undefined
 ): CopilotToolResultProjection {
   try {
+    const resultRegistry = registry?.forkForPropagatedEntries()
     const content: Record<string, unknown> = {}
-    const resources =
-      result.resources !== undefined ? modelSafeResources(result.resources, registry) : undefined
+    const resources = result.resources
     if (Object.hasOwn(result, 'output')) content.output = result.output
     if (Object.hasOwn(result, 'error')) content.error = result.error
-    if (resources !== undefined) content.resources = resourceContent(resources)
-    const projection = projectResolvedSecretModelJsonContent(content, registry)
+    const projection = projectResolvedSecretModelJsonContent(content, resultRegistry)
     if (!projection.safe || !projection.value || typeof projection.value !== 'object') {
-      return { safe: false, result: omittedResult(result, registry) }
+      return { safe: false, result: omittedResult(result) }
     }
 
     const projectedContent = projection.value as Record<string, unknown>
@@ -135,26 +44,19 @@ export function inspectToolResultForCopilot(
     if (Object.hasOwn(projectedContent, 'output')) projected.output = projectedContent.output
     if (Object.hasOwn(projectedContent, 'error')) {
       if (typeof projectedContent.error !== 'string') {
-        return { safe: false, result: omittedResult(result, registry) }
+        return { safe: false, result: omittedResult(result) }
       }
       projected.error = projectedContent.error
     }
     if (resources !== undefined) {
-      const projectedResources = restoreProjectedResources(resources, projectedContent.resources)
-      if (!projectedResources) {
-        return { safe: false, result: omittedResult(result, registry) }
-      }
-      projected.resources = projectedResources
+      projected.resources = resources
     }
     if (!projected.success && !projected.error) {
-      projected.error = projectResolvedSecretModelControlMessage(
-        TOOL_RESULT_UNAVAILABLE_ERROR,
-        registry
-      )
+      projected.error = TOOL_RESULT_UNAVAILABLE_ERROR
     }
     return { safe: true, result: projected }
   } catch {
-    return { safe: false, result: omittedResult(result, registry) }
+    return { safe: false, result: omittedResult(result) }
   }
 }
 

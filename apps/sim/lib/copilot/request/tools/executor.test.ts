@@ -202,7 +202,9 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value')
+        toolContext.resolvedSecretTraceRegistry?.recordResolved('TOKEN', 'secret-value', {
+          propagated: true,
+        })
         return { success: true, output: { value: 'secret-value' } }
       }
     )

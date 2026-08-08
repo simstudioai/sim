@@ -32,7 +32,7 @@ Integrate AWS STS into the workflow. Assume roles, get temporary credentials, ve
 
 ## Actions
 
-### `sts_assume_role`
+### STS Assume Role
 
 Assume an IAM role and receive temporary security credentials
 
@@ -67,7 +67,7 @@ Assume an IAM role and receive temporary security credentials
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 
-### `sts_assume_role_with_web_identity`
+### STS Assume Role With Web Identity
 
 Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actions OIDC, EKS IRSA, Google/Facebook federation) and receive temporary security credentials
 
@@ -100,7 +100,7 @@ Assume an IAM role using an OIDC/OAuth 2.0 web identity token (e.g. GitHub Actio
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 
-### `sts_assume_role_with_saml`
+### STS Assume Role With SAML
 
 Assume an IAM role using a SAML 2.0 authentication response from an enterprise identity provider and receive temporary security credentials
 
@@ -134,7 +134,7 @@ Assume an IAM role using a SAML 2.0 authentication response from an enterprise i
 | `packedPolicySize` | number | Percentage of allowed policy size used |
 | `sourceIdentity` | string | Source identity set on the role session, if any |
 
-### `sts_get_caller_identity`
+### STS Get Caller Identity
 
 Get details about the IAM user or role whose credentials are used to call the API
 
@@ -154,7 +154,7 @@ Get details about the IAM user or role whose credentials are used to call the AP
 | `arn` | string | ARN of the calling entity |
 | `userId` | string | Unique identifier of the calling entity |
 
-### `sts_get_session_token`
+### STS Get Session Token
 
 Get temporary security credentials for an IAM user, optionally with MFA
 
@@ -178,7 +178,7 @@ Get temporary security credentials for an IAM user, optionally with MFA
 | `sessionToken` | string | Temporary session token |
 | `expiration` | string | Credential expiration timestamp |
 
-### `sts_get_access_key_info`
+### STS Get Access Key Info
 
 Get the AWS account ID associated with an access key
 

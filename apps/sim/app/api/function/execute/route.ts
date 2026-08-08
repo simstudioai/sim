@@ -88,6 +88,11 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getWorkflowById } from '@/lib/workflows/utils'
+import {
+  checkWorkspaceAccess,
+  resolveWorkspaceAccess,
+  type WorkspaceAccess,
+} from '@/lib/workspaces/permissions/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -113,8 +118,6 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
 
@@ -984,12 +987,10 @@ interface FunctionRouteExecutionContext {
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
   privateResolvedSecretNamesMetadataType?: ResolvedSecretNamesMetadataType
-  outputProvenanceComplete: boolean
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
-  hasMountedSandboxFiles: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1007,10 +1008,16 @@ function inspectMountedWorkspaceFileProvenance(
 ): MountedWorkspaceFileProvenanceInspection {
   const inspection = inspectPrivateSecretProvenanceRequest(headers, body)
   if (inspection.status === 'unsupported') return { status: 'none' }
+  if (inspection.status !== 'verified' || !isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { status: 'invalid' }
+  }
+  if (!inspection.value.complete) {
+    return {
+      status: 'verified',
+      provenance: { version: 1, complete: false, entries: [] },
+    }
+  }
   if (
-    inspection.status !== 'verified' ||
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
     inspection.value.selections.length !== 1 ||
     inspection.value.selections[0]?.key !== MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY
   ) {
@@ -1188,7 +1195,10 @@ function activateOutputSecretProvenance(
   body: unknown,
   context: FunctionRouteExecutionContext
 ): void {
-  if (!context.outputSecretMatcher) return
+  if (!context.outputSecretMatcher) {
+    activateCompiledSecretProvenance(context)
+    return
+  }
 
   const matchedPlaintexts = new Set<string>()
   const projection = projectResolvedSecretContent(
@@ -1200,7 +1210,7 @@ function activateOutputSecretProvenance(
     }
   )
   if (!projection.safe) {
-    context.outputProvenanceComplete = false
+    activateCompiledSecretProvenance(context)
     return
   }
   for (const plaintext of matchedPlaintexts) {
@@ -1211,19 +1221,24 @@ function activateOutputSecretProvenance(
 }
 
 /**
- * True when any secret material was in scope for this execution — a mounted environment secret, or
- * a secret carried by a mounted input file. When false, nothing secret ever reached the sandbox, so
- * no export of any kind can carry one.
- *
- * Mounted bytes are classified from the caller's provenance envelope. Files mounted *without* one
- * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
- * the mount carried nothing. Those fail closed here so the classification can never be stronger
- * than what the caller actually attested to.
+ * Conservatively activates only secrets whose placeholders were compiled for this invocation.
+ * This fallback is used when the bounded output classifier cannot inspect a result; it never
+ * considers configured-but-unused environment values and never mutates the functional result.
+ */
+function activateCompiledSecretProvenance(context: FunctionRouteExecutionContext): void {
+  for (const name of context.outputSecretPlaintextsByName.keys()) {
+    context.resolvedSecretNames.add(name)
+  }
+}
+
+/**
+ * True when this execution compiled a secret placeholder or received a mounted file with verified
+ * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
+ * a Sim secret was resolved in this call.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (context.outputSecretPlaintextsByName.size > 0) return true
-  const scanner = context.mountedFileSecretProvenanceScanner
-  return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
+  return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
 }
 
 /**
@@ -1268,7 +1283,6 @@ async function getOutputFileSecretProvenance(
       MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
     )
   } catch {
-    context.outputProvenanceComplete = false
     return { status: 'unknown' }
   }
 
@@ -1293,17 +1307,8 @@ async function getOutputFileSecretProvenance(
   }
 }
 
-function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
-  if (!context.outputProvenanceComplete) return null
-  if (context.resolvedSecretNames.size > MAX_PRIVATE_RESOLVED_SECRET_NAMES) return null
-
-  const names = Array.from(context.resolvedSecretNames).sort()
-  let bytes = 0
-  for (const name of names) {
-    bytes += Buffer.byteLength(name, 'utf8')
-    if (bytes > MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES) return null
-  }
-  return names
+function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] {
+  return Array.from(context.resolvedSecretNames).sort()
 }
 
 async function appendResolvedSecretNames(
@@ -1327,21 +1332,17 @@ async function appendPrivateResolvedSecretNames(
 ): Promise<NextResponse> {
   if (!names || !metadataType) return response
 
-  try {
-    const body = (await response.clone().json()) as Record<string, unknown>
-    const headers = new Headers(response.headers)
-    headers.delete('content-length')
-    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
-    return NextResponse.json(
-      {
-        ...body,
-        [RESOLVED_SECRET_NAMES_FIELD]: names,
-      },
-      { status: response.status, statusText: response.statusText, headers }
-    )
-  } catch {
-    return response
-  }
+  const body = (await response.json()) as Record<string, unknown>
+  const headers = new Headers(response.headers)
+  headers.delete('content-length')
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
+  return NextResponse.json(
+    {
+      ...body,
+      [RESOLVED_SECRET_NAMES_FIELD]: names,
+    },
+    { status: response.status, statusText: response.statusText, headers }
+  )
 }
 
 /**
@@ -1387,11 +1388,41 @@ function exportUnchangedNote(sandboxPath?: string): string {
   )
 }
 
+function exportFailure(
+  error: string,
+  status: number,
+  stdout: string,
+  executionTime: number
+): NextResponse {
+  return NextResponse.json(
+    { success: false, error, output: { result: null, stdout: cleanStdout(stdout), executionTime } },
+    { status }
+  )
+}
+
+/**
+ * Both `workspaceId` and `workflowId` arrive in the request body, so the workspace an export
+ * resolves to is caller-controlled either way. Returns null when the acting user cannot write to
+ * it, gating the secret-provenance scan and overwrite probe that run before the write itself.
+ */
+async function authorizeExportWorkspace(
+  workspaceId: string,
+  authUserId: string,
+  provided?: WorkspaceAccess
+): Promise<WorkspaceAccess | null> {
+  const access = await resolveWorkspaceAccess(workspaceId, authUserId, provided)
+  if (access.exists && access.canWrite) return access
+
+  logger.warn('Sandbox file export denied for workspace', { workspaceId, userId: authUserId })
+  return null
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
+  workspaceAccess?: WorkspaceAccess
   outputPath?: string
   outputFormat?: string
   outputMimeType?: string
@@ -1407,6 +1438,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     authUserId,
     workflowId,
     workspaceId,
+    workspaceAccess,
     outputPath,
     outputFormat,
     outputMimeType,
@@ -1436,15 +1468,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
     workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
 
   if (!resolvedWorkspaceId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Workspace context required to save sandbox file to workspace',
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
+    return exportFailure(
+      'Workspace context required to save sandbox file to workspace',
+      400,
+      stdout,
+      executionTime
     )
   }
+
+  const access = await authorizeExportWorkspace(resolvedWorkspaceId, authUserId, workspaceAccess)
+  if (!access) return exportFailure('Workspace access denied', 403, stdout, executionTime)
 
   if (exportedFileContent === undefined) {
     return NextResponse.json(
@@ -1500,6 +1533,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     const written = await writeWorkspaceFileByPath({
       workspaceId: resolvedWorkspaceId,
       userId: authUserId,
+      workspaceAccess: access,
       target: {
         path: targetPath,
         mode,
@@ -1561,6 +1595,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   authUserId: string
   workflowId?: string
   workspaceId?: string
+  workspaceAccess?: WorkspaceAccess
   outputFiles: OutputFileDeclaration[]
   exportedFiles?: Record<string, string>
   exportedFileContent?: string
@@ -1591,6 +1626,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       authUserId: args.authUserId,
       workflowId: args.workflowId,
       workspaceId: args.workspaceId,
+      workspaceAccess: args.workspaceAccess,
       outputPath: file.formatPath ?? file.path,
       outputFormat: file.format,
       outputMimeType: file.mimeType,
@@ -1608,18 +1644,21 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     args.workspaceId ||
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
   if (!resolvedWorkspaceId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Workspace context required to save sandbox files to workspace',
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      'Workspace context required to save sandbox files to workspace',
+      400,
+      args.stdout,
+      args.executionTime
     )
+  }
+
+  const access = await authorizeExportWorkspace(
+    resolvedWorkspaceId,
+    args.authUserId,
+    args.workspaceAccess
+  )
+  if (!access) {
+    return exportFailure('Workspace access denied', 403, args.stdout, args.executionTime)
   }
 
   const preparedFiles = []
@@ -1694,6 +1733,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         validateWorkspaceFileWriteTarget({
           workspaceId: resolvedWorkspaceId,
           userId: args.authUserId,
+          workspaceAccess: access,
           target: prepared.target,
         })
       )
@@ -1748,6 +1788,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       const written = await writeWorkspaceFileByPath({
         workspaceId: resolvedWorkspaceId,
         userId: args.authUserId,
+        workspaceAccess: access,
         target: prepared.target,
         buffer,
         inferredMimeType: prepared.resolvedMimeType,
@@ -1942,6 +1983,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+
+    // The internal JWT carries no workspace scope, so a body-supplied workspaceId would
+    // otherwise be the sole authorization input for sandbox selection and file exports.
+    // Denial is returned rather than thrown: this handler's catch-all would turn a thrown
+    // WorkspaceAccessDeniedError into a 500 before withRouteHandler could map it.
+    const workspaceAccess = workspaceId
+      ? await checkWorkspaceAccess(workspaceId, auth.userId)
+      : undefined
+    if (workspaceAccess && !workspaceAccess.hasAccess) {
+      logger.warn(`[${requestId}] Function execution denied for workspace`, {
+        workspaceId,
+        userId: auth.userId,
+      })
+      return NextResponse.json(
+        { success: false, error: 'Workspace access denied' },
+        { status: 403 }
+      )
+    }
+
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
         { success: false, error: 'The Function code sandbox is not configured' },
@@ -2026,33 +2086,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
       privateResolvedSecretNamesMetadataType,
-      outputProvenanceComplete: true,
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
-      hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
-    }
-    for (const [name, plaintext] of Object.entries(envVars)) {
-      if (!plaintext) continue
-      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
-      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
-      for (const scanLiteral of scanLiterals) {
-        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
-        names.push(name)
-        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
-      }
-    }
-    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
-      try {
-        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
-          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
-            plaintext,
-            replacement: `{{${names[0]}}}`,
-          }))
-        )
-      } catch {
-        routeContext.outputProvenanceComplete = false
-      }
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2081,6 +2117,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       environmentVariables: envVars,
       reservedNames: Object.keys(contextVariables),
     })
+    for (const name of compilation.resolvedSecretNames) {
+      if (!Object.hasOwn(envVars, name)) continue
+      const plaintext = envVars[name]
+      if (!plaintext) continue
+      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
+      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
+      for (const scanLiteral of scanLiterals) {
+        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
+        names.push(name)
+        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
+      }
+    }
+    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
+      try {
+        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
+          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
+            plaintext,
+            replacement: `{{${[...names].sort()[0]}}}`,
+          }))
+        )
+      } catch {
+        activateCompiledSecretProvenance(routeContext)
+      }
+    }
     resolvedCode = compilation.code
     compilerInternalIdentifiers = [...compilation.internalIdentifiers]
     compilerPrivateInputs = [...compilation.privateInputs]
@@ -2178,6 +2238,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           authUserId: auth.userId,
           workflowId,
           workspaceId,
+          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,
@@ -2361,6 +2422,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             authUserId: auth.userId,
             workflowId,
             workspaceId,
+            workspaceAccess,
             outputFiles,
             exportedFiles,
             exportedFileContent,
@@ -2451,6 +2513,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           authUserId: auth.userId,
           workflowId,
           workspaceId,
+          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,

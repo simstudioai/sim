@@ -5,6 +5,21 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { JsmResponse } from '@/tools/jsm/types'
 import { getTrigger } from '@/triggers'
 
+/** Operations that accept Atlassian's `start`/`limit` pagination query params. */
+const PAGINATED_OPERATIONS = [
+  'get_service_desks',
+  'get_request_types',
+  'get_requests',
+  'get_comments',
+  'get_customers',
+  'get_organizations',
+  'get_queues',
+  'get_sla',
+  'get_transitions',
+  'get_participants',
+  'get_approvals',
+] as const
+
 /**
  * Coerce an optional numeric block input into an integer, returning undefined for
  * empty or non-numeric values so no `NaN` reaches the API query string.
@@ -762,26 +777,20 @@ Return ONLY the comment text - no explanations.`,
       condition: { field: 'operation', value: 'answer_approval' },
     },
     {
+      id: 'startIndex',
+      title: 'Start Index',
+      type: 'short-input',
+      placeholder: 'Pagination start index (default: 0)',
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
+    },
+    {
       id: 'maxResults',
       title: 'Max Results',
       type: 'short-input',
       placeholder: 'Maximum results (default: 50)',
-      condition: {
-        field: 'operation',
-        value: [
-          'get_service_desks',
-          'get_request_types',
-          'get_requests',
-          'get_comments',
-          'get_customers',
-          'get_organizations',
-          'get_queues',
-          'get_sla',
-          'get_transitions',
-          'get_participants',
-          'get_approvals',
-        ],
-      },
+      mode: 'advanced',
+      condition: { field: 'operation', value: [...PAGINATED_OPERATIONS] },
     },
     {
       id: 'assetSchemaId',
@@ -1124,7 +1133,8 @@ Return ONLY the comment text - no explanations.`,
           case 'get_service_desks':
             return {
               ...baseParams,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_request_types':
             if (!params.serviceDeskId) {
@@ -1135,7 +1145,8 @@ Return ONLY the comment text - no explanations.`,
               serviceDeskId: params.serviceDeskId,
               searchQuery: params.searchQuery,
               groupId: params.groupId,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'create_request':
             if (!params.serviceDeskId) {
@@ -1192,7 +1203,8 @@ Return ONLY the comment text - no explanations.`,
               requestStatus: params.requestStatus,
               searchTerm: params.searchTerm,
               expand: params.expand,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_comment':
             if (!params.issueIdOrKey) {
@@ -1215,7 +1227,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
               expand: params.expand,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_customers':
             if (!params.serviceDeskId) {
@@ -1225,7 +1238,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               query: params.customerQuery,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_customer': {
             if (!params.serviceDeskId) {
@@ -1247,7 +1261,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_queues':
             if (!params.serviceDeskId) {
@@ -1257,7 +1272,8 @@ Return ONLY the comment text - no explanations.`,
               ...baseParams,
               serviceDeskId: params.serviceDeskId,
               includeCount: params.includeCount === 'true',
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_sla':
             if (!params.issueIdOrKey) {
@@ -1266,7 +1282,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'get_transitions':
             if (!params.issueIdOrKey) {
@@ -1275,7 +1292,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'transition_request':
             if (!params.issueIdOrKey) {
@@ -1317,7 +1335,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'add_participants':
             if (!params.issueIdOrKey) {
@@ -1338,7 +1357,8 @@ Return ONLY the comment text - no explanations.`,
             return {
               ...baseParams,
               issueIdOrKey: params.issueIdOrKey,
-              limit: params.maxResults ? Number.parseInt(params.maxResults) : undefined,
+              start: toOptionalInt(params.startIndex),
+              limit: toOptionalInt(params.maxResults),
             }
           case 'answer_approval':
             if (!params.issueIdOrKey) {
@@ -1644,6 +1664,7 @@ Return ONLY the comment text - no explanations.`,
     requestStatus: { type: 'string', description: 'Request status filter' },
     searchTerm: { type: 'string', description: 'Search term for requests' },
     includeCount: { type: 'string', description: 'Include issue count for queues' },
+    startIndex: { type: 'string', description: 'Pagination start index' },
     maxResults: { type: 'string', description: 'Maximum results to return' },
     organizationName: { type: 'string', description: 'Organization name' },
     organizationId: { type: 'string', description: 'Organization ID' },

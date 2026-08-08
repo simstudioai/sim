@@ -4,6 +4,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import type { UserSettingsApi } from '@/lib/api/contracts/user'
+import { normalizeStringArray } from '@/lib/core/utils/arrays'
 
 const logger = createLogger('UserQueries')
 
@@ -25,16 +26,6 @@ export const defaultUserSettings: UserSettingsApi = {
   copilotAutoAllowedTools: [],
   timezone: null,
   lastActiveWorkspaceId: null,
-}
-
-/**
- * The auto-allowed tool list is a jsonb column, so the driver hands back
- * `unknown`. Anything that is not an array of strings is treated as an empty
- * list: a malformed value must not widen what the copilot may run unprompted.
- */
-function normalizeAutoAllowedTools(value: unknown): string[] {
-  if (!Array.isArray(value)) return []
-  return value.filter((entry): entry is string => typeof entry === 'string')
 }
 
 /**
@@ -84,7 +75,7 @@ export async function getUserSettings(userId: string | null): Promise<UserSettin
     errorNotificationsEnabled: userSettings.errorNotificationsEnabled ?? true,
     snapToGridSize: userSettings.snapToGridSize ?? 0,
     showActionBar: userSettings.showActionBar ?? true,
-    copilotAutoAllowedTools: normalizeAutoAllowedTools(userSettings.copilotAutoAllowedTools),
+    copilotAutoAllowedTools: normalizeStringArray(userSettings.copilotAutoAllowedTools),
     timezone: userSettings.timezone ?? null,
     lastActiveWorkspaceId: userSettings.lastActiveWorkspaceId ?? null,
   }

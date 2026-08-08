@@ -500,7 +500,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
       <div className='flex h-[40px] items-center justify-between px-2'>
         <div className='relative z-10 flex min-w-0 flex-1 items-center'>
           <span
-            className={`truncate font-medium text-[17px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
+            className={`truncate text-[17px] ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
             title={canvasPresentation.title}
           >
             {humanizeBlockName(canvasPresentation.title)}

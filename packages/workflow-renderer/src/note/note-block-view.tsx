@@ -679,7 +679,7 @@ export function NoteBlockView({
                     }
                   }}
                   className={cn(
-                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 font-medium text-[17px] text-current caret-current outline-none focus-visible:outline-none',
+                    'nodrag nopan nowheel h-7 w-full min-w-0 select-text border-none bg-transparent px-0 text-[17px] text-current caret-current outline-none focus-visible:outline-none',
                     colorOption.selectionClassName,
                     !isEnabled && 'opacity-50'
                   )}
@@ -695,18 +695,12 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan
-                    value={name ?? ''}
-                    className='truncate font-medium text-[17px] text-current'
-                  />
+                  <OverflowSpan value={name ?? ''} className='truncate text-[17px] text-current' />
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
-                  className={cn(
-                    'truncate font-medium text-[17px] text-current',
-                    !isEnabled && 'opacity-50'
-                  )}
+                  className={cn('truncate text-[17px] text-current', !isEnabled && 'opacity-50')}
                 />
               )}
             </div>

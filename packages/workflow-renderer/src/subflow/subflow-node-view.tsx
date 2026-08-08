@@ -271,7 +271,7 @@ export function SubflowStartView({
         width={START_WIDTH_PX}
         height={START_HEIGHT_PX}
       />
-      <span className='relative z-10 font-medium text-[var(--text-primary)] text-sm'>Start</span>
+      <span className='relative z-10 text-[var(--text-primary)] text-sm'>Start</span>
       <Handle
         type='source'
         position={Position.Right}
@@ -590,10 +590,7 @@ export function SubflowNodeView({
           >
             <OverflowSpan
               value={blockName}
-              className={cn(
-                'truncate font-medium text-[17px]',
-                !isEnabled && 'text-[var(--text-muted)]'
-              )}
+              className={cn('truncate text-[17px]', !isEnabled && 'text-[var(--text-muted)]')}
             />
           </div>
           <div className='relative z-10 flex flex-shrink-0 items-center gap-1'>

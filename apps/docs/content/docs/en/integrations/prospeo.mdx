@@ -42,7 +42,7 @@ Find verified work emails and mobile numbers, enrich person and company profiles
 
 ## Actions
 
-### `prospeo_account_information`
+### Prospeo Account Information
 
 Retrieve the current plan, remaining credits, and renewal date of your Prospeo account.
 
@@ -63,7 +63,7 @@ Retrieve the current plan, remaining credits, and renewal date of your Prospeo a
 | `next_quota_renewal_days` | number | Days until the next quota renewal |
 | `next_quota_renewal_date` | string | Date and time of the next quota renewal |
 
-### `prospeo_enrich_person`
+### Prospeo Enrich Person
 
 Enrich a person with complete B2B profile data, email address and mobile.
 
@@ -93,7 +93,7 @@ Enrich a person with complete B2B profile data, email address and mobile.
 | `person` | json | The matched person object including person_id, name, linkedin_url, current_job_title, job_history, mobile, email, location, and skills |
 | `company` | json | The current company of the matched person including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
 
-### `prospeo_enrich_company`
+### Prospeo Enrich Company
 
 Enrich a company with complete B2B data.
 
@@ -114,7 +114,7 @@ Enrich a company with complete B2B data.
 | `free_enrichment` | boolean | True if this enrichment was free \(already enriched in the past\) |
 | `company` | json | The matched company object including name, website, domain, industry, employee_count, location, social URLs, funding, and technology |
 
-### `prospeo_bulk_enrich_person`
+### Prospeo Bulk Enrich Person
 
 Enrich up to 50 person records at once.
 
@@ -140,7 +140,7 @@ Enrich up to 50 person records at once.
 | `not_matched` | array | Identifiers of records we could not match given the filters |
 | `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
 
-### `prospeo_bulk_enrich_company`
+### Prospeo Bulk Enrich Company
 
 Enrich up to 50 company records at once.
 
@@ -162,7 +162,7 @@ Enrich up to 50 company records at once.
 | `not_matched` | array | Identifiers of records we could not match |
 | `invalid_datapoints` | array | Identifiers of records that did not meet the minimum matching requirements |
 
-### `prospeo_search_person`
+### Prospeo Search Person
 
 Search for leads using 20+ filters to build targeted contact lists.
 
@@ -188,7 +188,7 @@ Search for leads using 20+ filters to build targeted contact lists.
 |   ↳ `person` | json | Matched person \(no email/mobile in search response\) |
 |   ↳ `company` | json | Current company of the person |
 
-### `prospeo_search_company`
+### Prospeo Search Company
 
 Search for companies using 20+ filters to build account lists.
 
@@ -213,7 +213,7 @@ Search for companies using 20+ filters to build account lists.
 | `results` | array | Up to 25 matching companies |
 |   ↳ `company` | json | Matched company object |
 
-### `prospeo_search_suggestions`
+### Prospeo Search Suggestions
 
 Free endpoint to retrieve valid location or job title values for use in Search filters. Provide exactly one of location_search or job_title_search.
 

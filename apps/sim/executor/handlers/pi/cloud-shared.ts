@@ -1,7 +1,7 @@
 /**
  * Shared helpers for the Pi sandbox backends.
  * Keeps E2B path constants, the finalize/push scripts, abort racing, marker
- * parsing, and secret scrubbing in one place so the backends cannot drift on
+ * parsing, and credential-bearing git diagnostic redaction in one place so backends cannot drift on
  * security-sensitive details.
  */
 

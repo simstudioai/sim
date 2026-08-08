@@ -3,6 +3,7 @@
  */
 import { knowledgeConnector } from '@sim/db/schema'
 import {
+  encryptionMockFns,
   loggerMock,
   queueTableRows,
   resetDbChainMock,
@@ -40,6 +41,9 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   assertBillingAttributionSnapshot: mockAssertBillingAttributionSnapshot,
   checkAttributedUsageLimits: vi.fn(),
   serializeBillingAttributionHeader: mockSerializeBillingAttributionHeader,
+}))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
 }))
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
   KnowledgeBase: { id: 'knowledge_base' },
@@ -134,6 +138,7 @@ describe('knowledge base connector Copilot operations', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    encryptionMockFns.mockDecryptSecret.mockReset()
     resetDbChainMock()
     vi.stubGlobal('fetch', mockFetch)
     queueTableRows(knowledgeConnector, [{ knowledgeBaseId: 'knowledge-base-1' }])
@@ -207,6 +212,7 @@ describe('knowledge base connector Copilot operations', () => {
 describe('knowledge base query model boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    encryptionMockFns.mockDecryptSecret.mockReset()
     resetDbChainMock()
     vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
     vi.mocked(getKnowledgeBaseById).mockResolvedValue({
@@ -228,7 +234,7 @@ describe('knowledge base query model boundary', () => {
     })
   })
 
-  it('projects the query at embedding, search, and usage boundaries', async () => {
+  it('preserves a query that merely collides with ambient secret plaintext', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'KB_QUERY',
@@ -257,15 +263,15 @@ describe('knowledge base query model boundary', () => {
     expect(result.success).toBe(true)
     expect(result.data?.query).toBe('private knowledge query')
     expect(generateSearchEmbedding).toHaveBeenCalledWith(
-      '{{KB_QUERY}}',
+      'private knowledge query',
       'text-embedding-3-small',
       'workspace-paid'
     )
     expect(executeKnowledgeSearch).toHaveBeenCalledWith(
-      expect.objectContaining({ query: '{{KB_QUERY}}' })
+      expect.objectContaining({ query: 'private knowledge query' })
     )
     expect(recordSearchEmbeddingUsage).toHaveBeenCalledWith(
-      expect.objectContaining({ query: '{{KB_QUERY}}' })
+      expect.objectContaining({ query: 'private knowledge query' })
     )
     expect(mockImportKnowledgeSearchResultSecretProvenance).toHaveBeenCalledWith({
       registry,
@@ -295,9 +301,19 @@ describe('knowledge base query model boundary', () => {
       },
     ]
     vi.mocked(executeKnowledgeSearch).mockResolvedValue(results)
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'stored-secret-value' })
     mockImportKnowledgeSearchResultSecretProvenance.mockImplementationOnce(
       async ({ registry: resultRegistry }) => {
-        expect(resultRegistry.recordResolved('STORED_TOKEN', 'stored-secret-value')).toBe(true)
+        expect(
+          await resultRegistry.importProvenance(
+            {
+              version: 1,
+              complete: true,
+              entries: [{ name: 'STORED_TOKEN', encryptedValue: 'encrypted-stored-secret' }],
+            },
+            { trusted: true }
+          )
+        ).toBe(true)
         return { imported: true, documentMetadata: {} }
       }
     )

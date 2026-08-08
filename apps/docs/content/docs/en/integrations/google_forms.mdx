@@ -35,7 +35,7 @@ Integrate Google Forms into your workflow. Read form structure, get responses, c
 
 ## Actions
 
-### `google_forms_get_responses`
+### Google Forms: Get Responses
 
 Retrieve a single response or list responses from a Google Form
 
@@ -66,7 +66,7 @@ Retrieve a single response or list responses from a Google Form
 |   ↳ `answers` | json | Map of question IDs to answer values |
 | `raw` | json | Raw API response data |
 
-### `google_forms_get_form`
+### Google Forms: Get Form
 
 Retrieve a form structure including its items, settings, and metadata
 
@@ -94,7 +94,7 @@ Retrieve a form structure including its items, settings, and metadata
 | `settings` | json | Form settings |
 | `publishSettings` | json | Form publish settings |
 
-### `google_forms_create_form`
+### Google Forms: Create Form
 
 Create a new Google Form with a title
 
@@ -116,7 +116,7 @@ Create a new Google Form with a title
 | `responderUri` | string | The URI to share with responders |
 | `revisionId` | string | The revision ID of the form |
 
-### `google_forms_batch_update`
+### Google Forms: Batch Update
 
 Apply multiple updates to a form (add items, update info, change settings, etc.)
 
@@ -154,7 +154,7 @@ Apply multiple updates to a form (add items, update info, change settings, etc.)
 |       ↳ `isPublished` | boolean | Whether the form is published |
 |       ↳ `isAcceptingResponses` | boolean | Whether the form is accepting responses |
 
-### `google_forms_set_publish_settings`
+### Google Forms: Set Publish Settings
 
 Update the publish settings of a form (publish/unpublish, accept responses)
 
@@ -176,7 +176,7 @@ Update the publish settings of a form (publish/unpublish, accept responses)
 |     ↳ `isPublished` | boolean | Whether the form is published |
 |     ↳ `isAcceptingResponses` | boolean | Whether the form accepts responses |
 
-### `google_forms_create_watch`
+### Google Forms: Create Watch
 
 Create a notification watch for form changes (schema changes or new responses)
 
@@ -200,7 +200,7 @@ Create a notification watch for form changes (schema changes or new responses)
 | `expireTime` | string | When the watch expires \(7 days after creation\) |
 | `state` | string | The watch state \(ACTIVE, SUSPENDED\) |
 
-### `google_forms_list_watches`
+### Google Forms: List Watches
 
 List all notification watches for a form
 
@@ -221,7 +221,7 @@ List all notification watches for a form
 |   ↳ `expireTime` | string | When the watch expires |
 |   ↳ `state` | string | Watch state |
 
-### `google_forms_delete_watch`
+### Google Forms: Delete Watch
 
 Delete a notification watch from a form
 
@@ -238,7 +238,7 @@ Delete a notification watch from a form
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the watch was successfully deleted |
 
-### `google_forms_renew_watch`
+### Google Forms: Renew Watch
 
 Renew a notification watch for another 7 days
 

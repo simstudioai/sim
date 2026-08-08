@@ -43,7 +43,7 @@ Give your workflow a phone. Provision SMS- and voice-enabled numbers, send messa
 
 ## Actions
 
-### `agentphone_create_call`
+### Create Outbound Call
 
 Initiate an outbound voice call from an AgentPhone agent
 
@@ -72,7 +72,7 @@ Initiate an outbound voice call from an AgentPhone agent
 | `direction` | string | Call direction \(outbound\) |
 | `startedAt` | string | ISO 8601 timestamp |
 
-### `agentphone_create_contact`
+### Create Contact
 
 Create a new contact in AgentPhone
 
@@ -98,7 +98,7 @@ Create a new contact in AgentPhone
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
-### `agentphone_create_number`
+### Create Phone Number
 
 Provision a new SMS- and voice-enabled phone number
 
@@ -123,7 +123,7 @@ Provision a new SMS- and voice-enabled phone number
 | `agentId` | string | Agent the number is attached to |
 | `createdAt` | string | ISO 8601 timestamp when the number was created |
 
-### `agentphone_delete_contact`
+### Delete Contact
 
 Delete a contact by ID
 
@@ -141,7 +141,7 @@ Delete a contact by ID
 | `id` | string | ID of the deleted contact |
 | `deleted` | boolean | Whether the contact was deleted successfully |
 
-### `agentphone_get_call`
+### Get Call
 
 Fetch a call and its full transcript
 
@@ -177,7 +177,7 @@ Fetch a call and its full transcript
 |   ↳ `response` | string | Agent response \(when available\) |
 |   ↳ `createdAt` | string | ISO 8601 timestamp |
 
-### `agentphone_get_call_transcript`
+### Get Call Transcript
 
 Get the full ordered transcript for a call
 
@@ -198,7 +198,7 @@ Get the full ordered transcript for a call
 |   ↳ `content` | string | Turn content |
 |   ↳ `createdAt` | string | ISO 8601 timestamp |
 
-### `agentphone_get_contact`
+### Get Contact
 
 Fetch a single contact by ID
 
@@ -221,7 +221,7 @@ Fetch a single contact by ID
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
-### `agentphone_get_conversation`
+### Get Conversation
 
 Get a conversation along with its recent messages
 
@@ -257,7 +257,7 @@ Get a conversation along with its recent messages
 |   ↳ `mediaUrls` | array | All attached media URLs |
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 
-### `agentphone_get_conversation_messages`
+### Get Conversation Messages
 
 Get paginated messages for a conversation
 
@@ -287,7 +287,7 @@ Get paginated messages for a conversation
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 | `hasMore` | boolean | Whether more messages are available |
 
-### `agentphone_get_number_messages`
+### Get Phone Number Messages
 
 Fetch messages received on a specific phone number
 
@@ -315,7 +315,7 @@ Fetch messages received on a specific phone number
 |   ↳ `receivedAt` | string | ISO 8601 timestamp |
 | `hasMore` | boolean | Whether more messages are available |
 
-### `agentphone_get_usage`
+### Get Usage
 
 Retrieve current usage statistics for the AgentPhone account
 
@@ -335,7 +335,7 @@ Retrieve current usage statistics for the AgentPhone account
 | `periodStart` | string | Billing period start |
 | `periodEnd` | string | Billing period end |
 
-### `agentphone_get_usage_daily`
+### Get Daily Usage
 
 Get a daily breakdown of usage (messages, calls, webhooks) for the last N days
 
@@ -357,7 +357,7 @@ Get a daily breakdown of usage (messages, calls, webhooks) for the last N days
 |   ↳ `webhooks` | number | Webhook deliveries that day |
 | `days` | number | Number of days returned |
 
-### `agentphone_get_usage_monthly`
+### Get Monthly Usage
 
 Get monthly usage aggregation (messages, calls, webhooks) for the last N months
 
@@ -379,7 +379,7 @@ Get monthly usage aggregation (messages, calls, webhooks) for the last N months
 |   ↳ `webhooks` | number | Webhook deliveries that month |
 | `months` | number | Number of months returned |
 
-### `agentphone_list_calls`
+### List Calls
 
 List voice calls for this AgentPhone account
 
@@ -417,7 +417,7 @@ List voice calls for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of matching calls |
 
-### `agentphone_list_contacts`
+### List Contacts
 
 List contacts for this AgentPhone account
 
@@ -445,7 +445,7 @@ List contacts for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of contacts |
 
-### `agentphone_list_conversations`
+### List Conversations
 
 List conversations (message threads) for this AgentPhone account
 
@@ -475,7 +475,7 @@ List conversations (message threads) for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of conversations |
 
-### `agentphone_list_numbers`
+### List Phone Numbers
 
 List all phone numbers provisioned for this AgentPhone account
 
@@ -502,7 +502,7 @@ List all phone numbers provisioned for this AgentPhone account
 | `hasMore` | boolean | Whether more results are available |
 | `total` | number | Total number of phone numbers |
 
-### `agentphone_react_to_message`
+### React to Message
 
 Send an iMessage tapback reaction to a message (iMessage only)
 
@@ -523,7 +523,7 @@ Send an iMessage tapback reaction to a message (iMessage only)
 | `messageId` | string | ID of the message that was reacted to |
 | `channel` | string | Channel \(imessage\) |
 
-### `agentphone_release_number`
+### Release Phone Number
 
 Release (delete) a phone number. This action is irreversible.
 
@@ -541,7 +541,7 @@ Release (delete) a phone number. This action is irreversible.
 | `id` | string | ID of the released phone number |
 | `released` | boolean | Whether the number was released successfully |
 
-### `agentphone_send_message`
+### Send Message
 
 Send an outbound SMS or iMessage from an AgentPhone agent
 
@@ -566,7 +566,7 @@ Send an outbound SMS or iMessage from an AgentPhone agent
 | `fromNumber` | string | Sender phone number |
 | `toNumber` | string | Recipient phone number |
 
-### `agentphone_update_contact`
+### Update Contact
 
 Update a contact's fields
 
@@ -593,7 +593,7 @@ Update a contact's fields
 | `createdAt` | string | ISO 8601 creation timestamp |
 | `updatedAt` | string | ISO 8601 update timestamp |
 
-### `agentphone_update_conversation`
+### Update Conversation
 
 Update conversation metadata (stored state). Pass null to clear existing metadata.
 

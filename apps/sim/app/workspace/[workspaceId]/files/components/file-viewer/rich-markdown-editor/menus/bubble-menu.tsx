@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Blimp,
   Bold,
@@ -16,13 +16,13 @@ import {
   TextQuote,
   Unlink,
 } from '@sim/emcn/icons'
-import { posToDOMRect } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { applyLink, LinkUrlInput } from './link-editing'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
+import { useBubbleMenuFloating } from './use-bubble-menu-floating'
 
 /**
  * Whether the formatting toolbar may show for the given range: the editor is editable, the range
@@ -45,15 +45,9 @@ function revealBubbleMenu(editor: Editor, key: PluginKey): void {
   editor.commands.setMeta(key, 'updatePosition')
 }
 
-/** Pins the toolbar to the viewport so it stays put while the document scrolls instead of tracking the text. */
-const FLOATING_OPTIONS = { strategy: 'fixed' } as const
-
-/** Renders into the body so a transformed/clipping ancestor can't reparent the fixed toolbar and shift it. */
-const APPEND_TO_BODY = () => document.body
-
 interface EditorBubbleMenuProps {
   editor: Editor
-  /** The editor's scrollable viewport, used to keep the toolbar on-screen for selections taller than it. */
+  /** The editor's scrollable viewport, so the toolbar repositions with the selection as the pane scrolls. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
   /** Adds the current selection to Chat as a reference. Omit to hide the action. */
   onAddToChat?: () => void
@@ -185,37 +179,14 @@ export function EditorBubbleMenu({
     setLinkValue(null)
   }
 
-  const anchorCacheRef = useRef<{ key: string; rect: DOMRect } | null>(null)
-  const resolveAnchor = useCallback(() => {
-    const { view, state } = editor
-    if (!view.dom.isConnected) return null
-    const { from, to } = state.selection
-    const key = `${from}:${to}`
-    if (anchorCacheRef.current?.key !== key) {
-      const selection = posToDOMRect(view, from, to)
-      const viewport = scrollContainerRef.current?.getBoundingClientRect()
-      const rect =
-        viewport && selection.height > viewport.height
-          ? new DOMRect(
-              selection.left,
-              Math.min(Math.max(selection.top, viewport.top), viewport.bottom),
-              selection.width,
-              0
-            )
-          : selection
-      anchorCacheRef.current = { key, rect }
-    }
-    const { rect } = anchorCacheRef.current
-    return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
-  }, [editor, scrollContainerRef])
+  const { resolveAnchor, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={bubbleMenuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={FLOATING_OPTIONS}
-      appendTo={APPEND_TO_BODY}
+      appendTo={appendTo}
       role='toolbar'
       aria-label='Text formatting'
       updateDelay={0}

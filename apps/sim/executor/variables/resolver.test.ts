@@ -3,6 +3,7 @@
  */
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import {
   LARGE_ARRAY_MANIFEST_VERSION,
   type LargeArrayManifest,
@@ -24,6 +25,10 @@ const { mockStoreLargeValue } = vi.hoisted(() => ({ mockStoreLargeValue: vi.fn()
 vi.mock('@/lib/execution/payloads/store', () => ({
   storeLargeValue: mockStoreLargeValue,
   materializeLargeValueRef: vi.fn(),
+}))
+
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: vi.fn(async (encryptedValue: string) => ({ decrypted: encryptedValue })),
 }))
 
 function createBlock(id: string, name: string, type: string, params = {}): SerializedBlock {
@@ -115,6 +120,7 @@ function createResolver(
   return {
     block: functionBlock,
     ctx,
+    state,
     resolver: new VariableResolver(workflow, {}, state, options),
   }
 }
@@ -185,6 +191,109 @@ describe('VariableResolver function block inputs', () => {
     expect(registry.getActiveMatches()).toEqual([
       { plaintext: 'resolved-secret', replacement: '{{TOKEN}}' },
     ])
+  })
+
+  it('binds propagated references to exact model-selected inputs without changing runtime values', async () => {
+    const secret = 'x'
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: secret }],
+    }
+    const producer = createBlock('producer', 'Producer', BlockType.API)
+    const loop = createBlock('loop-1', 'Loop1', BlockType.LOOP)
+    const parallel = createBlock('parallel-1', 'Parallel1', BlockType.PARALLEL)
+    const consumer = createBlock('consumer', 'Consumer', BlockType.API)
+    const workflowVariables = {
+      'var-1': { id: 'var-1', name: 'token', type: 'string', value: secret },
+    }
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [producer, loop, parallel, consumer],
+      connections: [],
+      loops: {
+        'loop-1': { id: 'loop-1', nodes: [], iterations: 1, loopType: 'for' },
+      },
+      parallels: {
+        'parallel-1': {
+          id: 'parallel-1',
+          nodes: [],
+          parallelType: 'count',
+          count: 1,
+        },
+      },
+    }
+    const state = new ExecutionState()
+    state.setBlockOutput('producer', { result: secret }, 0, provenance)
+    state.setBlockOutput('loop-1', { results: [secret] }, 0, provenance)
+    state.setBlockOutput('parallel-1', { results: [secret] }, 0, provenance)
+    const registry = new ResolvedSecretTraceRegistry()
+    const ctx = {
+      blockStates: state.getBlockStates(),
+      blockLogs: [],
+      environmentVariables: {},
+      workflowVariables,
+      workflowVariableResolvedSecretTraceProvenance: { 'var-1': provenance },
+      resolvedSecretTraceRegistry: registry,
+      decisions: { router: new Map(), condition: new Map() },
+      loopExecutions: new Map(),
+      parallelExecutions: new Map(),
+      executedBlocks: new Set(),
+      activeExecutionPath: new Set(),
+      completedLoops: new Set(),
+      metadata: {},
+    } as ExecutionContext
+    const resolver = new VariableResolver(workflow, workflowVariables, state, {
+      navigatePathAsync,
+    })
+    const inputs = {
+      blockPrompt: 'Box: <Producer.result>',
+      workflowPrompt: 'Workflow: <variable.token>',
+      loopPrompt: 'Loop: <Loop1.results[0]>',
+      parallelPrompt: 'Parallel: <Parallel1.results[0]>',
+    }
+
+    const resolved = await resolver.resolveInputs(ctx, consumer.id, inputs, consumer)
+
+    expect(resolved).toEqual({
+      blockPrompt: `Box: ${secret}`,
+      workflowPrompt: `Workflow: ${secret}`,
+      loopPrompt: `Loop: ${secret}`,
+      parallelPrompt: `Parallel: ${secret}`,
+    })
+    const projection = projectResolvedModelInput(
+      registry,
+      resolved,
+      Object.keys(inputs).map((key) => [key])
+    )
+    expect(projection.complete).toBe(true)
+    if (!projection.complete) throw new Error('Expected complete model projection')
+    expect(projection.value).toEqual(inputs)
+  })
+
+  it('preserves the destination path when resolving one whole reference directly', async () => {
+    const secret = 'resolved-secret'
+    const provenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: secret }],
+    }
+    const { ctx, resolver, state } = createResolver()
+    state.setBlockOutput('producer', { result: secret }, 0, provenance)
+    ctx.blockStates = state.getBlockStates()
+    const registry = new ResolvedSecretTraceRegistry()
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(
+      resolver.resolveSingleReference(ctx, 'function', '<Producer.result>', undefined, {
+        inputPath: ['prompt'],
+      })
+    ).resolves.toBe(secret)
+    expect(registry.exportCommittedProvenanceForInputPaths([['prompt']])).toEqual(provenance)
+    expect(registry.projectResolvedInputSelection({ prompt: secret })).toEqual({
+      complete: true,
+      value: { prompt: '<Producer.result>' },
+    })
   })
 
   it('returns empty inputs when params are missing', async () => {

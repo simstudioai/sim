@@ -371,7 +371,7 @@ export const SlackBlock: BlockConfig<SlackResponse> = {
       value: () => 'channel',
       condition: {
         field: 'operation',
-        value: DESTINATION_SWITCH_OPERATIONS as unknown as string[],
+        value: [...DESTINATION_SWITCH_OPERATIONS],
       },
     },
     {

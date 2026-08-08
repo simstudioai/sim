@@ -37,7 +37,7 @@ Integrate Quartr into the workflow. Look up public companies, corporate events, 
 
 ## Actions
 
-### `quartr_list_companies`
+### Quartr List Companies
 
 List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, country, and exchange.
 
@@ -79,7 +79,7 @@ List companies covered by Quartr, filterable by ticker, ISIN, CIK, OpenFIGI, cou
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_company`
+### Quartr Get Company
 
 Retrieve a single company from Quartr by its company ID.
 
@@ -109,7 +109,7 @@ Retrieve a single company from Quartr by its company ID.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `quartr_list_events`
+### Quartr List Events
 
 List corporate events (earnings calls, capital markets days, etc.) from Quartr, filterable by company, event type, and date range.
 
@@ -152,7 +152,7 @@ List corporate events (earnings calls, capital markets days, etc.) from Quartr, 
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_event`
+### Quartr Get Event
 
 Retrieve a single corporate event from Quartr by its event ID.
 
@@ -180,7 +180,7 @@ Retrieve a single corporate event from Quartr by its event ID.
 |   ↳ `createdAt` | string | Creation timestamp \(ISO 8601\) |
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 
-### `quartr_get_event_summary`
+### Quartr Get Event Summary
 
 Retrieve the AI-generated summary of a corporate event from Quartr, with selectable length and optional plain-text formatting.
 
@@ -208,7 +208,7 @@ Retrieve the AI-generated summary of a corporate event from Quartr, with selecta
 | `summaryCreatedAt` | string | Summary creation timestamp \(ISO 8601\) |
 | `summaryUpdatedAt` | string | Summary last update timestamp \(ISO 8601\) |
 
-### `quartr_list_event_types`
+### Quartr List Event Types
 
 List the event types available in Quartr (e.g., earnings calls), useful for filtering events by type ID.
 
@@ -233,7 +233,7 @@ List the event types available in Quartr (e.g., earnings calls), useful for filt
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_list_documents`
+### Quartr List Documents
 
 List documents of all kinds (reports, slide decks, and transcripts) from Quartr, filterable by company, event, document type, document group, and date range.
 
@@ -281,7 +281,7 @@ List documents of all kinds (reports, slide decks, and transcripts) from Quartr,
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_list_document_types`
+### Quartr List Document Types
 
 List the document types available in Quartr (e.g., 10-Q quarterly reports), useful for filtering documents by type ID.
 
@@ -309,7 +309,7 @@ List the document types available in Quartr (e.g., 10-Q quarterly reports), usef
 |   ↳ `updatedAt` | string | Last update timestamp \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_list_reports`
+### Quartr List Reports
 
 List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filterable by company, event, document type, document group, and date range.
 
@@ -357,7 +357,7 @@ List filings and reports (10-K, 10-Q, earnings releases, etc.) from Quartr, filt
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_report`
+### Quartr Get Report
 
 Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by its document ID and download the PDF file.
 
@@ -390,7 +390,7 @@ Retrieve a filing or report (10-K, 10-Q, earnings release, etc.) from Quartr by 
 | `fileUrl` | string | URL of the report PDF |
 | `file` | file | Downloaded report PDF stored in execution files |
 
-### `quartr_list_slide_decks`
+### Quartr List Slide Decks
 
 List slide presentations from Quartr, filterable by company, event, document type, document group, and date range.
 
@@ -438,7 +438,7 @@ List slide presentations from Quartr, filterable by company, event, document typ
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_slide_deck`
+### Quartr Get Slide Deck
 
 Retrieve a slide presentation from Quartr by its document ID and download the PDF file.
 
@@ -471,7 +471,7 @@ Retrieve a slide presentation from Quartr by its document ID and download the PD
 | `fileUrl` | string | URL of the slide deck PDF |
 | `file` | file | Downloaded slide deck PDF stored in execution files |
 
-### `quartr_list_transcripts`
+### Quartr List Transcripts
 
 List event transcripts from Quartr, filterable by company, event, document type, document group, and date range.
 
@@ -519,7 +519,7 @@ List event transcripts from Quartr, filterable by company, event, document type,
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_transcript`
+### Quartr Get Transcript
 
 Retrieve an event transcript from Quartr by its document ID and download the transcript JSON file (paragraphs, sentences, timestamps, and speaker identification).
 
@@ -552,7 +552,7 @@ Retrieve an event transcript from Quartr by its document ID and download the tra
 | `fileUrl` | string | URL of the transcript JSON file |
 | `file` | file | Downloaded transcript JSON file stored in execution files |
 
-### `quartr_list_audio`
+### Quartr List Audio
 
 List archived event audio recordings from Quartr, filterable by company, event, and date range. Returns download (MPEG) and streaming (M3U8) URLs.
 
@@ -604,7 +604,7 @@ List archived event audio recordings from Quartr, filterable by company, event, 
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 | `nextCursor` | number | Cursor for fetching the next page of results \(null when no more pages\) |
 
-### `quartr_get_audio`
+### Quartr Get Audio
 
 Retrieve an archived event audio recording from Quartr by its audio ID. Returns download (MPEG) and streaming (M3U8) URLs.
 
@@ -641,7 +641,7 @@ Retrieve an archived event audio recording from Quartr by its audio ID. Returns 
 |     ↳ `language` | string | Event language code |
 |     ↳ `date` | string | Event date \(ISO 8601\) |
 
-### `quartr_list_live_events`
+### Quartr List Live Events
 
 List live and upcoming events from Quartr with live audio and transcript stream URLs, filterable by company, live state, and date range.
 

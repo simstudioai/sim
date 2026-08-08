@@ -672,7 +672,10 @@ export const TextEditor = memo(function TextEditor({
             </div>
           )}
           <div
-            className={cn('min-w-0 flex-1 overflow-hidden', isResizing && 'pointer-events-none')}
+            className={cn(
+              'flex min-w-0 flex-1 flex-col overflow-hidden',
+              isResizing && 'pointer-events-none'
+            )}
           >
             <PreviewPanel
               key={previewContextKey ? `${file.id}:${previewContextKey}` : file.id}

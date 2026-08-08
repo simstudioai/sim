@@ -133,6 +133,30 @@ describe('projectResolvedSecretModelContent', () => {
     })
   })
 
+  it('does not apply provenance traversal limits when no secret was active', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const value = new Array<null>(100_001).fill(null)
+
+    const projection = projectResolvedSecretModelContent(value, registry)
+    expect(projection.safe).toBe(true)
+    if (projection.safe) expect(projection.value).toBe(value)
+    expect(isResolvedSecretModelContentUnchanged(value, registry)).toBe(true)
+
+    const jsonProjection = projectResolvedSecretModelJsonContent(value, registry)
+    expect(jsonProjection.safe).toBe(true)
+    if (jsonProjection.safe) {
+      expect(jsonProjection.value).toHaveLength(value.length)
+      expect((jsonProjection.value as null[]).at(-1)).toBeNull()
+      expect(jsonProjection.value).not.toBe(value)
+    }
+
+    const jsonString = '{\n  "preserve": true\n}'
+    expect(projectResolvedSecretModelJsonStrings([jsonString, undefined], registry)).toEqual({
+      safe: true,
+      value: [jsonString, undefined],
+    })
+  })
+
   it('keeps longest-match semantics when a known opaque placeholder is nested in a secret', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'Test', plaintext: 'Test', encryptedValue: 'test-ciphertext' },
@@ -397,33 +421,32 @@ describe('projectResolvedSecretDiagnosticError', () => {
     })
   })
 
-  it('uses a known compiler alias as diagnostic-only provenance', () => {
-    const secret = 'diagnostic-secret-value'
+  it('sanitizes an inactive compiler alias without activating or scanning its secret', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+      { name: 'X', plaintext: 'x', encryptedValue: 'ciphertext' },
     ])
-    const error = new Error(`request failed: ${secret} __var_API_KEY`)
+    const error = new Error('Box __var_X')
 
     expect(projectResolvedSecretDiagnosticError(error, registry)).toEqual(
-      expect.objectContaining({ error: 'request failed: {{API_KEY}} {{API_KEY}}' })
+      expect.objectContaining({ error: 'Box [REDACTED_SECRET]' })
     )
     expect(registry.getActiveMatches()).toEqual([])
   })
 
-  it('falls back to text-free diagnostics for unknown or runtime-only aliases', () => {
+  it('lexically sanitizes unknown and runtime-only aliases without catalog inference', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
 
     expect(
       projectResolvedSecretDiagnosticError(new Error('secret-value __var_UNKNOWN'), registry)
-    ).toEqual({ errorType: 'error', hasStack: true })
+    ).toEqual(expect.objectContaining({ error: 'secret-value [REDACTED_SECRET]' }))
     expect(
       projectResolvedSecretDiagnosticError(
         new Error('secret-value __sim_code_1_binding_0'),
         registry
       )
-    ).toEqual({ errorType: 'error', hasStack: true })
+    ).toEqual(expect.objectContaining({ error: 'secret-value [RUNTIME_BINDING]' }))
   })
 
   it('falls back to text-free structure when provenance is missing or incomplete', () => {

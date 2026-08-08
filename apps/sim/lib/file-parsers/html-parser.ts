@@ -1,27 +1,94 @@
 import { readFile } from 'fs/promises'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import * as cheerio from 'cheerio'
 import type { FileParseResult, FileParser } from '@/lib/file-parsers/types'
 import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 
 const logger = createLogger('HtmlParser')
 
+/**
+ * `cheerio.load` retains ~530 bytes of DOM per markup token (`<`) — measured on
+ * cheerio 1.1.2 at 0.2M/1M/2M tokens (101/504/1008 MB), flat across all three —
+ * so this bounds one document's tree at roughly 256 MB.
+ */
+const MAX_HTML_MARKUP_TOKENS = 500_000
+
+/**
+ * Backstop for markup sparse enough to pass the token cap: bounds the UTF-16
+ * copy `buffer.toString` allocates and the text nodes the DOM keeps.
+ */
+const MAX_HTML_INPUT_BYTES = 32 * 1024 * 1024
+
+const MARKUP_TOKEN_BYTE = 0x3c
+
+/**
+ * Raised when a document exceeds the limits above, so an input rejected on
+ * resource grounds is not reported as a malformed file.
+ */
+export class HtmlComplexityError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'HtmlComplexityError'
+  }
+}
+
+export function isHtmlComplexityError(error: unknown): error is HtmlComplexityError {
+  return error instanceof HtmlComplexityError
+}
+
+function exceedsMarkupTokenLimit(buffer: Buffer): boolean {
+  let count = 0
+  let index = buffer.indexOf(MARKUP_TOKEN_BYTE)
+
+  while (index !== -1) {
+    if (++count > MAX_HTML_MARKUP_TOKENS) return true
+    index = buffer.indexOf(MARKUP_TOKEN_BYTE, index + 1)
+  }
+
+  return false
+}
+
+/**
+ * `cheerio.load` builds the entire parse5 tree before returning, so an outsized
+ * document has to be rejected on the buffer, before the string copy.
+ */
+function assertHtmlWithinLimits(buffer: Buffer): void {
+  if (buffer.length > MAX_HTML_INPUT_BYTES) {
+    throw new HtmlComplexityError(
+      `HTML document is ${buffer.length} bytes, above the maximum of ${MAX_HTML_INPUT_BYTES} bytes`
+    )
+  }
+
+  if (exceedsMarkupTokenLimit(buffer)) {
+    throw new HtmlComplexityError(
+      `HTML document exceeds the maximum of ${MAX_HTML_MARKUP_TOKENS} markup tokens`
+    )
+  }
+}
+
 export class HtmlParser implements FileParser {
   async parseFile(filePath: string): Promise<FileParseResult> {
+    let buffer: Buffer
+
+    /** Scoped to the read alone so `parseBuffer`'s typed rejections reach callers intact. */
     try {
       if (!filePath) {
         throw new Error('No file path provided')
       }
 
-      const buffer = await readFile(filePath)
-      return this.parseBuffer(buffer)
+      buffer = await readFile(filePath)
     } catch (error) {
       logger.error('HTML file error:', error)
-      throw new Error(`Failed to parse HTML file: ${(error as Error).message}`)
+      throw new Error(`Failed to parse HTML file: ${getErrorMessage(error, 'Unknown error')}`)
     }
+
+    return this.parseBuffer(buffer)
   }
 
   async parseBuffer(buffer: Buffer): Promise<FileParseResult> {
+    assertHtmlWithinLimits(buffer)
+
     try {
       logger.info('Parsing HTML buffer, size:', buffer.length)
 
@@ -72,8 +139,22 @@ export class HtmlParser implements FileParser {
         },
       }
     } catch (error) {
+      /**
+       * Every `RangeError` reachable here is resource exhaustion the pre-parse
+       * caps cannot predict: a stack overflow inside cheerio's recursive
+       * `.text()` on deeply nested markup, or an over-long string from joining
+       * the extracted parts. Both must stay fail-closed rather than degrade to
+       * the route's raw-text fallback.
+       */
+      if (error instanceof RangeError) {
+        logger.warn('HTML document exhausted parser resources:', error)
+        throw new HtmlComplexityError(
+          `HTML document could not be extracted within resource limits: ${error.message}`
+        )
+      }
+
       logger.error('HTML buffer parsing error:', error)
-      throw new Error(`Failed to parse HTML buffer: ${(error as Error).message}`)
+      throw new Error(`Failed to parse HTML buffer: ${getErrorMessage(error, 'Unknown error')}`)
     }
   }
 

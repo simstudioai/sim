@@ -22,6 +22,17 @@ import '@sim/emcn/components/code/code.css'
 import '../document-table.css'
 import './rich-markdown-editor.css'
 
+/**
+ * Sends the formatting toolbar back to its body portal instead of anchoring it inside the editor's
+ * container.
+ *
+ * A field or a full page gives the toolbar a bounded pane to sit in and scroll with, and being
+ * clipped at that pane's edge is the point. A bare host has no such pane — the canvas Note card is
+ * 320px wide and clips its own overflow, so an in-card toolbar would be cropped to a stub. A null
+ * container is how {@link EditorBubbleMenu} spells "portal to the body".
+ */
+const BODY_PORTAL: React.RefObject<HTMLDivElement | null> = { current: null }
+
 interface RichMarkdownFieldProps {
   /** Current markdown value. Seeds the editor once on mount; external changes only apply while {@link isStreaming}. */
   value: string
@@ -334,7 +345,9 @@ function LoadedRichMarkdownField({
     <div
       ref={containerRef}
       className={cn(
-        'flex flex-col',
+        // `relative` makes this the positioning context for the bubble menu, which is
+        // appended here and absolutely positioned so it tracks the selection through scroll.
+        'relative flex flex-col',
         // Only a capped box scrolls itself. Uncapped, the box grows and the page
         // scrolls — making it a scroll container anyway would clip the bubble
         // menu against an edge that never moves.
@@ -352,7 +365,12 @@ function LoadedRichMarkdownField({
       )}
       style={{ minHeight: boxMinHeight, maxHeight }}
     >
-      {editor && <EditorBubbleMenu editor={editor} scrollContainerRef={containerRef} />}
+      {editor && (
+        <EditorBubbleMenu
+          editor={editor}
+          scrollContainerRef={isBare ? BODY_PORTAL : containerRef}
+        />
+      )}
       {editor && <LinkHoverCard editor={editor} />}
       {uploadImage && (
         <input

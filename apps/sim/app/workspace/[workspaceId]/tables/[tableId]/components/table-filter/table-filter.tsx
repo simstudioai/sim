@@ -228,7 +228,7 @@ const FilterRuleRow = memo(function FilterRuleRow({
       ) : (
         <button
           onClick={() => onToggleLogical(rule.id)}
-          className='w-[42px] shrink-0 rounded-full py-0.5 text-right font-medium text-[10px] text-[var(--text-muted)] uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'
+          className='w-[42px] shrink-0 rounded-full py-0.5 text-right text-[10px] text-[var(--text-muted)] uppercase tracking-wide transition-colors hover:text-[var(--text-secondary)]'
         >
           {rule.logicalOperator}
         </button>

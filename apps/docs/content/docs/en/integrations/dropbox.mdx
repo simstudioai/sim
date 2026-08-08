@@ -34,7 +34,7 @@ Integrate Dropbox into your workflow for file management, sharing, and collabora
 
 ## Actions
 
-### `dropbox_upload`
+### Dropbox Upload File
 
 Upload a file to Dropbox
 
@@ -65,7 +65,7 @@ Upload a file to Dropbox
 |   ↳ `rev` | string | Revision identifier |
 |   ↳ `content_hash` | string | Content hash for the file |
 
-### `dropbox_download`
+### Dropbox Download File
 
 Download a file from Dropbox with metadata and content
 
@@ -84,7 +84,7 @@ Download a file from Dropbox with metadata and content
 | `temporaryLink` | string | Temporary link to download the file \(valid for ~4 hours\) |
 | `content` | string | Base64 encoded file content \(if fetched\) |
 
-### `dropbox_list_folder`
+### Dropbox List Folder
 
 List the contents of a folder in Dropbox
 
@@ -110,7 +110,7 @@ List the contents of a folder in Dropbox
 | `cursor` | string | Cursor for pagination |
 | `hasMore` | boolean | Whether there are more results |
 
-### `dropbox_create_folder`
+### Dropbox Create Folder
 
 Create a new folder in Dropbox
 
@@ -131,7 +131,7 @@ Create a new folder in Dropbox
 |   ↳ `path_display` | string | Display path of the folder |
 |   ↳ `path_lower` | string | Lowercase path of the folder |
 
-### `dropbox_delete`
+### Dropbox Delete
 
 Delete a file or folder in Dropbox (moves to trash)
 
@@ -150,7 +150,7 @@ Delete a file or folder in Dropbox (moves to trash)
 |   ↳ `path_display` | string | Display path |
 | `deleted` | boolean | Whether the deletion was successful |
 
-### `dropbox_copy`
+### Dropbox Copy
 
 Copy a file or folder in Dropbox
 
@@ -172,7 +172,7 @@ Copy a file or folder in Dropbox
 |   ↳ `path_display` | string | Display path |
 |   ↳ `size` | number | Size in bytes \(files only\) |
 
-### `dropbox_move`
+### Dropbox Move
 
 Move or rename a file or folder in Dropbox
 
@@ -194,7 +194,7 @@ Move or rename a file or folder in Dropbox
 |   ↳ `path_display` | string | Display path |
 |   ↳ `size` | number | Size in bytes \(files only\) |
 
-### `dropbox_get_metadata`
+### Dropbox Get Metadata
 
 Get metadata for a file or folder in Dropbox
 
@@ -221,7 +221,7 @@ Get metadata for a file or folder in Dropbox
 |   ↳ `rev` | string | Revision identifier \(files only\) |
 |   ↳ `content_hash` | string | Content hash \(files only\) |
 
-### `dropbox_create_shared_link`
+### Dropbox Create Shared Link
 
 Create a shareable link for a file or folder in Dropbox
 
@@ -245,7 +245,7 @@ Create a shareable link for a file or folder in Dropbox
 |   ↳ `expires` | string | Expiration date if set |
 |   ↳ `link_permissions` | object | Permissions for the shared link |
 
-### `dropbox_list_shared_links`
+### Dropbox List Shared Links
 
 List shared links for a path, or for the entire account if no path is given
 
@@ -269,7 +269,7 @@ List shared links for a path, or for the entire account if no path is given
 | `hasMore` | boolean | Whether there are more results |
 | `cursor` | string | Cursor for pagination \(only returned when no path is given\) |
 
-### `dropbox_search`
+### Dropbox Search
 
 Search for files and folders in Dropbox
 
@@ -292,7 +292,7 @@ Search for files and folders in Dropbox
 | `hasMore` | boolean | Whether there are more results |
 | `cursor` | string | Cursor for pagination |
 
-### `dropbox_list_revisions`
+### Dropbox List Revisions
 
 List the revision history for a file in Dropbox (files only, not folders)
 
@@ -318,7 +318,7 @@ List the revision history for a file in Dropbox (files only, not folders)
 | `isDeleted` | boolean | Whether the file identified by the latest revision is deleted or moved |
 | `hasMore` | boolean | Whether there are more revisions available |
 
-### `dropbox_restore`
+### Dropbox Restore
 
 Restore a specific revision of a file to the given path
 

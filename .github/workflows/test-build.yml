@@ -117,76 +117,11 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
-      - name: Enforce monorepo boundaries
-        run: bun run check:boundaries
-
-      - name: API contract boundary audit
-        run: bun run check:api-validation:strict
-
-      - name: Desktop bridge contract audit
-        run: bun run check:desktop-bridge
-
-      # Complements the bridge audit above, which compares against a snapshot
-      # this same PR is allowed to regenerate. This one derives every fact from
-      # the source both sides execute, so it has no such blind spot.
-      - name: Desktop IPC contract audit
-        run: bun run check:desktop-ipc
-
-      - name: Shared utils enforcement audit
-        run: bun run check:utils
-
-      - name: Zustand v5 selector audit
-        run: bun run check:zustand-v5
-
-      - name: React Query pattern audit
-        run: bun run check:react-query
-
-      - name: Client boundary import audit
-        run: bun run check:client-boundary
-
-      - name: Bare-icon theme-safety audit
-        run: bun run check:bare-icons
-
-      - name: Icon SVG path validity audit
-        run: bun run check:icon-paths
-
-      # A malformed sentence fails silently — no throw, no log, just a card
-      # that drops a clause or paints empty. `--require-coverage` also holds the
-      # line at 100%, so a new block cannot ship without one.
-      - name: Canvas sentence audit
-        run: bun run check:canvas-sentences
-
-      - name: Verify realtime prune graph
-        run: bun run check:realtime-prune
-
-      - name: Tool registry client-boundary audit
-        run: bun run check:tool-registry-boundary
-
-      - name: Tool request transport boundary audit
-        run: bun run check:tool-request-boundary
-
-      - name: Trigger/block initialization cycle audit
-        run: bun run check:trigger-block-cycle
-
-      # This job builds with webpack; devs run Turbopack. A specifier only webpack
-      # resolves passes here and breaks every dev server.
-      - name: Import specifier hygiene audit
-        run: bun run check:import-specifiers
-
-      - name: SQL Date binding audit
-        run: bun run check:sql-date-binding
-
-      - name: Verify generated tool metadata is in sync
-        run: bun run tool-metadata:check
-
-      - name: Verify integration deployment metadata is in sync
-        run: bun run integration-catalog:check
-
-      - name: Verify skill projections are in sync
-        run: bun run skills:check
-
-      - name: Verify agent stream capability docs are in sync
-        run: bun run agent-stream-docs:check
+      # Every zero-argument `check:*` script, run concurrently. The list is derived in
+      # scripts/run-audits.ts, which also writes the per-audit timing table to the job
+      # summary and annotates failures. Audits needing a base ref stay separate below.
+      - name: Repo audits
+        run: bun run check:audits
 
       - name: Migration safety (zero-downtime) audit
         run: |
@@ -197,12 +132,6 @@ jobs:
             BASE_REF="HEAD~1"
           fi
           bun run check:migrations "$BASE_REF"
-
-      # Runs before the type-check itself: if a bare `tsc` has fallen back to the
-      # JavaScript TypeScript 6 compiler that `@typescript/typescript6` drags in
-      # transitively, the type-check below still passes — it just takes ~10x longer.
-      - name: Native type-check audit
-        run: bun run check:native-typecheck
 
       # Every workspace, not just realtime. packages/emcn, packages/utils,
       # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
@@ -241,21 +170,6 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
-
-      # DEAD PATH: nothing generates `apps/sim/coverage`. The test step runs
-      # `vitest run` without `--coverage`, and vitest.config.ts declares no
-      # coverage provider, so this uploads nothing and still reports success in
-      # ~1s (`fail_ci_if_error: false` hides it). `@vitest/coverage-v8` IS
-      # installed, so wiring it up is possible — but coverage instrumentation
-      # costs test time and nothing gates on the result today. Left in place
-      # pending a decision to either enable coverage or drop this step; do not
-      # read its green tick as "coverage was published".
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
-        with:
-          directory: ./apps/sim/coverage
-          fail_ci_if_error: false
-          verbose: true
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-

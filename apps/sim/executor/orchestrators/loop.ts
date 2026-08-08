@@ -143,7 +143,7 @@ export class LoopOrchestrator {
         }
         let items: any[]
         const parentRegistry = ctx.resolvedSecretTraceRegistry
-        const resolutionRegistry = parentRegistry?.forkForToolInputValues([])
+        const resolutionRegistry = parentRegistry?.forkForInputPaths([])
         const resolutionCtx = resolutionRegistry
           ? { ...ctx, resolvedSecretTraceRegistry: resolutionRegistry }
           : ctx

@@ -245,3 +245,12 @@ export function getSocketUrl(): string {
 export function getOllamaUrl(): string {
   return env.OLLAMA_URL || DEFAULT_OLLAMA_URL
 }
+
+/**
+ * Whether OLLAMA_URL names a server, as opposed to {@link getOllamaUrl} falling
+ * back to the loopback default. Callers use this to tell "someone pointed us at
+ * an Ollama" apart from "nobody configured one".
+ */
+export function isOllamaUrlConfigured(): boolean {
+  return Boolean(env.OLLAMA_URL)
+}

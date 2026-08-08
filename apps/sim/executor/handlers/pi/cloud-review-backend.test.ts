@@ -383,7 +383,7 @@ describe('runCloudReviewPi', () => {
       mockRun.mock.calls.some(([, options]) => JSON.stringify(options.envs).includes('sk-hosted'))
     ).toBe(false)
     expect(JSON.stringify(mockWriteFile.mock.calls)).not.toContain('sk-hosted')
-    expect(mockPrompt.mock.calls[0][0]).not.toContain('sk-hosted')
+    expect(mockPrompt.mock.calls[0][0]).toContain('review sk-hosted')
   })
 
   it('scrubs hosted credentials from emitted and thrown provider errors', async () => {
@@ -437,7 +437,7 @@ describe('runCloudReviewPi', () => {
     expect(JSON.stringify(mockLoggerWarn.mock.calls)).not.toContain('sk-hosted')
   })
 
-  it('scrubs hosted credentials from reviews before submission or streaming', async () => {
+  it('does not rewrite review content that matches a transport credential', async () => {
     const onEvent = vi.fn()
     mockGetFindings.mockReturnValue({
       body: 'Summary accidentally included sk-hosted.',
@@ -454,16 +454,21 @@ describe('runCloudReviewPi', () => {
       ([toolId]: [string]) => toolId === 'github_create_pr_review_v2'
     )
     expect(reviewCall?.[1]).toMatchObject({
-      body: 'Summary accidentally included ***.',
-      comments: [{ path: 'src/x.ts', body: 'Inline *** disclosure', line: 12, side: 'RIGHT' }],
+      body: 'Summary accidentally included sk-hosted.',
+      comments: [
+        {
+          path: 'src/x.ts',
+          body: 'Inline sk-hosted disclosure',
+          line: 12,
+          side: 'RIGHT',
+        },
+      ],
     })
-    expect(result.totals.finalText).toBe('Summary accidentally included ***.')
+    expect(result.totals.finalText).toBe('Summary accidentally included sk-hosted.')
     expect(onEvent).toHaveBeenCalledWith({
       type: 'text',
-      text: 'Summary accidentally included ***.',
+      text: 'Summary accidentally included sk-hosted.',
     })
-    expect(JSON.stringify(reviewCall)).not.toContain('sk-hosted')
-    expect(JSON.stringify(onEvent.mock.calls)).not.toContain('sk-hosted')
   })
 
   describe('optional web search', () => {
@@ -511,18 +516,18 @@ describe('runCloudReviewPi', () => {
       ])
     })
 
-    it('keeps the search key out of the sandbox and out of tool results', async () => {
+    it('keeps the search key out of the sandbox without rewriting successful tool content', async () => {
       const params = searchParams()
       const result = await runCloudReviewPi(params, { onEvent: vi.fn() })
 
       const searchTool = mockCreateAgentSession.mock.calls[0][0].customTools.at(-1)
       const toolResult = await searchTool.execute('call-1', {}, undefined, undefined, {})
 
-      expect(toolResult.content).toEqual([{ type: 'text', text: 'saw ***' }])
+      expect(toolResult.content).toEqual([{ type: 'text', text: 'saw sk-search' }])
       expect(
         mockRun.mock.calls.some(([, options]) => JSON.stringify(options.envs).includes('sk-search'))
       ).toBe(false)
-      expect(JSON.stringify({ result, toolResult })).not.toContain('sk-search')
+      expect(result.commentsPosted).toBe(1)
     })
   })
 

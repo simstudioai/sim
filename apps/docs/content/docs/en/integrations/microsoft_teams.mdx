@@ -35,7 +35,7 @@ Integrate Microsoft Teams into the workflow. Read, write, update, and delete cha
 
 ## Actions
 
-### `microsoft_teams_read_chat`
+### Read Microsoft Teams Chat
 
 Read content from a Microsoft Teams chat
 
@@ -59,7 +59,7 @@ Read content from a Microsoft Teams chat
 | `content` | string | Formatted content of chat messages |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
-### `microsoft_teams_write_chat`
+### Write to Microsoft Teams Chat
 
 Write or update content in a Microsoft Teams chat
 
@@ -83,7 +83,7 @@ Write or update content in a Microsoft Teams chat
 | `updatedContent` | boolean | Whether content was successfully updated |
 | `files` | file[] | Files attached to the message |
 
-### `microsoft_teams_read_channel`
+### Read Microsoft Teams Channel
 
 Read content from a Microsoft Teams channel
 
@@ -109,7 +109,7 @@ Read content from a Microsoft Teams channel
 | `content` | string | Formatted content of channel messages |
 | `attachments` | file[] | Uploaded attachments for convenience \(flattened\) |
 
-### `microsoft_teams_write_channel`
+### Write to Microsoft Teams Channel
 
 Write or send a message to a Microsoft Teams channel
 
@@ -135,7 +135,7 @@ Write or send a message to a Microsoft Teams channel
 | `updatedContent` | boolean | Whether content was successfully updated |
 | `files` | file[] | Files attached to the message |
 
-### `microsoft_teams_update_chat_message`
+### Update Microsoft Teams Chat Message
 
 Update an existing message in a Microsoft Teams chat
 
@@ -155,7 +155,7 @@ Update an existing message in a Microsoft Teams chat
 | `messageId` | string | ID of the updated message |
 | `updatedContent` | boolean | Whether content was successfully updated |
 
-### `microsoft_teams_update_channel_message`
+### Update Microsoft Teams Channel Message
 
 Update an existing message in a Microsoft Teams channel
 
@@ -176,7 +176,7 @@ Update an existing message in a Microsoft Teams channel
 | `messageId` | string | ID of the updated message |
 | `updatedContent` | boolean | Whether content was successfully updated |
 
-### `microsoft_teams_delete_chat_message`
+### Delete Microsoft Teams Chat Message
 
 Soft delete a message in a Microsoft Teams chat
 
@@ -195,7 +195,7 @@ Soft delete a message in a Microsoft Teams chat
 | `deleted` | boolean | Confirmation of deletion |
 | `messageId` | string | ID of the deleted message |
 
-### `microsoft_teams_delete_channel_message`
+### Delete Microsoft Teams Channel Message
 
 Soft delete a message in a Microsoft Teams channel
 
@@ -215,7 +215,7 @@ Soft delete a message in a Microsoft Teams channel
 | `deleted` | boolean | Confirmation of deletion |
 | `messageId` | string | ID of the deleted message |
 
-### `microsoft_teams_reply_to_message`
+### Reply to Microsoft Teams Channel Message
 
 Reply to an existing message in a Microsoft Teams channel
 
@@ -236,7 +236,7 @@ Reply to an existing message in a Microsoft Teams channel
 | `messageId` | string | ID of the reply message |
 | `updatedContent` | boolean | Whether content was successfully sent |
 
-### `microsoft_teams_get_message`
+### Get Microsoft Teams Message
 
 Get a specific message from a Microsoft Teams chat or channel
 
@@ -266,7 +266,7 @@ Get a specific message from a Microsoft Teams chat or channel
 |   ↳ `messages` | array | Array of message details |
 |   ↳ `messageCount` | number | Number of messages |
 
-### `microsoft_teams_set_reaction`
+### Add Reaction to Microsoft Teams Message
 
 Add an emoji reaction to a message in Microsoft Teams
 
@@ -288,7 +288,7 @@ Add an emoji reaction to a message in Microsoft Teams
 | `reactionType` | string | The emoji that was added |
 | `messageId` | string | ID of the message |
 
-### `microsoft_teams_unset_reaction`
+### Remove Reaction from Microsoft Teams Message
 
 Remove an emoji reaction from a message in Microsoft Teams
 
@@ -310,7 +310,7 @@ Remove an emoji reaction from a message in Microsoft Teams
 | `reactionType` | string | The emoji that was removed |
 | `messageId` | string | ID of the message |
 
-### `microsoft_teams_list_team_members`
+### List Microsoft Teams Team Members
 
 List all members of a Microsoft Teams team
 
@@ -328,7 +328,7 @@ List all members of a Microsoft Teams team
 | `members` | array | Array of team members |
 | `memberCount` | number | Total number of members |
 
-### `microsoft_teams_list_channel_members`
+### List Microsoft Teams Channel Members
 
 List all members of a Microsoft Teams channel
 
@@ -347,7 +347,7 @@ List all members of a Microsoft Teams channel
 | `members` | array | Array of channel members |
 | `memberCount` | number | Total number of members |
 
-### `microsoft_teams_list_chat_members`
+### List Microsoft Teams Chat Members
 
 List all members of a Microsoft Teams chat
 
@@ -366,7 +366,7 @@ List all members of a Microsoft Teams chat
 | `memberCount` | number | Total number of members |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
-### `microsoft_teams_list_teams`
+### List Microsoft Teams
 
 List the Microsoft Teams the current user is a direct member of
 
@@ -384,7 +384,7 @@ List the Microsoft Teams the current user is a direct member of
 | `teamCount` | number | Total number of teams |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
-### `microsoft_teams_list_chats`
+### List Microsoft Teams Chats
 
 List the Microsoft Teams chats the current user is part of
 
@@ -402,7 +402,7 @@ List the Microsoft Teams chats the current user is part of
 | `chatCount` | number | Total number of chats |
 | `hasMore` | boolean | Whether Graph indicated additional pages beyond this response |
 
-### `microsoft_teams_list_channels`
+### List Microsoft Teams Channels
 
 List all channels in a Microsoft Teams team
 

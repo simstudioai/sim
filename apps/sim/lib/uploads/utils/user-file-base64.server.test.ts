@@ -168,6 +168,45 @@ describe('hydrateUserFilesWithBase64', () => {
     expect(mockDownloadServableFileFromStorage).not.toHaveBeenCalled()
   })
 
+  it('bypasses a byte-only cache when model hydration must verify document contributors', async () => {
+    mockGetRedisClient.mockReturnValue(mockRedis)
+    mockRedis.get.mockResolvedValue(Buffer.from('%PDF-cached').toString('base64'))
+    const contentUpdatedAt = new Date('2026-08-06T00:00:00.000Z')
+    const contributor = {
+      fileId: 'image-1',
+      key: 'workspace/workspace-1/image-1.png',
+      context: 'workspace' as const,
+      contentUpdatedAt,
+    }
+    mockDownloadServableFileFromStorage.mockResolvedValueOnce({
+      buffer: Buffer.from('%PDF-current'),
+      contentType: 'application/pdf',
+      contributingFiles: [contributor],
+    })
+    const onServableFileContributors = vi.fn().mockResolvedValue(undefined)
+    const file: UserFile = {
+      id: 'file-1',
+      name: 'report.pdf',
+      key: 'workspace/workspace-1/report.pdf',
+      url: '',
+      size: 1,
+      type: 'text/x-python-pdf',
+    }
+
+    const hydrated = await hydrateUserFilesWithBase64(
+      { file },
+      {
+        maxBytes: 100,
+        userId: 'user-1',
+        onServableFileContributors,
+      }
+    )
+
+    expect(mockRedis.get).not.toHaveBeenCalled()
+    expect(hydrated.file.base64).toBe(Buffer.from('%PDF-current').toString('base64'))
+    expect(onServableFileContributors).toHaveBeenCalledWith(file, [contributor])
+  })
+
   it('propagates generated documents that are still compiling', async () => {
     const notReady = new Error('Document is still being generated')
     notReady.name = 'DocCompileUserError'

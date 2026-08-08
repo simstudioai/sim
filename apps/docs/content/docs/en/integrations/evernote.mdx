@@ -33,7 +33,7 @@ Integrate with Evernote to manage notes, notebooks, and tags. Create, read, upda
 
 ## Actions
 
-### `evernote_copy_note`
+### Evernote Copy Note
 
 Copy a note to another notebook in Evernote
 
@@ -56,7 +56,7 @@ Copy a note to another notebook in Evernote
 |   ↳ `created` | number | Creation timestamp in milliseconds |
 |   ↳ `updated` | number | Last updated timestamp in milliseconds |
 
-### `evernote_create_note`
+### Evernote Create Note
 
 Create a new note in Evernote
 
@@ -83,7 +83,7 @@ Create a new note in Evernote
 |   ↳ `created` | number | Creation timestamp in milliseconds |
 |   ↳ `updated` | number | Last updated timestamp in milliseconds |
 
-### `evernote_create_notebook`
+### Evernote Create Notebook
 
 Create a new notebook in Evernote
 
@@ -107,7 +107,7 @@ Create a new notebook in Evernote
 |   ↳ `serviceUpdated` | number | Last updated timestamp in milliseconds |
 |   ↳ `stack` | string | Notebook stack name |
 
-### `evernote_create_tag`
+### Evernote Create Tag
 
 Create a new tag in Evernote
 
@@ -129,7 +129,7 @@ Create a new tag in Evernote
 |   ↳ `parentGuid` | string | Parent tag GUID |
 |   ↳ `updateSequenceNum` | number | Update sequence number |
 
-### `evernote_delete_note`
+### Evernote Delete Note
 
 Move a note to the trash in Evernote
 
@@ -147,7 +147,7 @@ Move a note to the trash in Evernote
 | `success` | boolean | Whether the note was successfully deleted |
 | `noteGuid` | string | GUID of the deleted note |
 
-### `evernote_get_note`
+### Evernote Get Note
 
 Retrieve a note from Evernote by its GUID
 
@@ -175,7 +175,7 @@ Retrieve a note from Evernote by its GUID
 |   ↳ `updated` | number | Last updated timestamp in milliseconds |
 |   ↳ `active` | boolean | Whether the note is active \(not in trash\) |
 
-### `evernote_get_notebook`
+### Evernote Get Notebook
 
 Retrieve a notebook from Evernote by its GUID
 
@@ -198,7 +198,7 @@ Retrieve a notebook from Evernote by its GUID
 |   ↳ `serviceUpdated` | number | Last updated timestamp in milliseconds |
 |   ↳ `stack` | string | Notebook stack name |
 
-### `evernote_list_notebooks`
+### Evernote List Notebooks
 
 List all notebooks in an Evernote account
 
@@ -214,7 +214,7 @@ List all notebooks in an Evernote account
 | --------- | ---- | ----------- |
 | `notebooks` | array | List of notebooks |
 
-### `evernote_list_tags`
+### Evernote List Tags
 
 List all tags in an Evernote account
 
@@ -230,7 +230,7 @@ List all tags in an Evernote account
 | --------- | ---- | ----------- |
 | `tags` | array | List of tags |
 
-### `evernote_search_notes`
+### Evernote Search Notes
 
 Search for notes in Evernote using the Evernote search grammar
 
@@ -251,7 +251,7 @@ Search for notes in Evernote using the Evernote search grammar
 | `totalNotes` | number | Total number of matching notes |
 | `notes` | array | List of matching note metadata |
 
-### `evernote_update_note`
+### Evernote Update Note
 
 Update an existing note in Evernote
 

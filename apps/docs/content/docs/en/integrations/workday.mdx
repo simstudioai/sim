@@ -34,7 +34,7 @@ Integrate Workday HRIS into your workflow. Create pre-hires, hire employees, man
 
 ## Actions
 
-### `workday_get_worker`
+### Get Workday Worker
 
 Retrieve a specific worker profile including personal, employment, and organization data.
 
@@ -54,7 +54,7 @@ Retrieve a specific worker profile including personal, employment, and organizat
 | --------- | ---- | ----------- |
 | `worker` | json | Worker profile with personal, employment, and organization data |
 
-### `workday_list_workers`
+### List Workday Workers
 
 List or search workers with optional filtering and pagination.
 
@@ -76,7 +76,7 @@ List or search workers with optional filtering and pagination.
 | `workers` | array | Array of worker profiles |
 | `total` | number | Total number of matching workers |
 
-### `workday_create_prehire`
+### Create Workday Pre-Hire
 
 Create a new pre-hire (applicant) record in Workday. This is typically the first step before hiring an employee.
 
@@ -101,7 +101,7 @@ Create a new pre-hire (applicant) record in Workday. This is typically the first
 | `preHireId` | string | ID of the created pre-hire record |
 | `descriptor` | string | Display name of the pre-hire |
 
-### `workday_hire_employee`
+### Hire Workday Employee
 
 Hire a pre-hire into an employee position. Converts an applicant into an active employee record with position, start date, and manager assignment.
 
@@ -127,7 +127,7 @@ Hire a pre-hire into an employee position. Converts an applicant into an active 
 | `eventId` | string | Event ID of the hire business process |
 | `hireDate` | string | Effective hire date |
 
-### `workday_update_worker`
+### Update Workday Worker
 
 Update fields on an existing worker record in Workday.
 
@@ -149,7 +149,7 @@ Update fields on an existing worker record in Workday.
 | `eventId` | string | Event ID of the change personal information business process |
 | `workerId` | string | Worker ID that was updated |
 
-### `workday_assign_onboarding`
+### Assign Workday Onboarding Plan
 
 Create or update an onboarding plan assignment for a worker. Sets up onboarding stages and manages the assignment lifecycle.
 
@@ -173,7 +173,7 @@ Create or update an onboarding plan assignment for a worker. Sets up onboarding 
 | `workerId` | string | Worker ID the plan was assigned to |
 | `planId` | string | Onboarding plan ID that was assigned |
 
-### `workday_get_organizations`
+### Get Workday Organizations
 
 Retrieve organizations, departments, and cost centers from Workday.
 
@@ -196,7 +196,7 @@ Retrieve organizations, departments, and cost centers from Workday.
 | `organizations` | array | Array of organization records |
 | `total` | number | Total number of matching organizations |
 
-### `workday_change_job`
+### Change Workday Job
 
 Perform a job change for a worker including transfers, promotions, demotions, and lateral moves.
 
@@ -224,7 +224,7 @@ Perform a job change for a worker including transfers, promotions, demotions, an
 | `workerId` | string | Worker ID the job change was applied to |
 | `effectiveDate` | string | Effective date of the job change |
 
-### `workday_get_compensation`
+### Get Workday Compensation
 
 Retrieve compensation plan details for a specific worker.
 
@@ -249,7 +249,7 @@ Retrieve compensation plan details for a specific worker.
 |   ↳ `currency` | string | Currency code |
 |   ↳ `frequency` | string | Pay frequency |
 
-### `workday_terminate_worker`
+### Terminate Workday Worker
 
 Initiate a worker termination in Workday. Triggers the Terminate Employee business process.
 

@@ -651,7 +651,7 @@ describe('runCloudPi', () => {
       }
     })
 
-    it('scrubs the search key from events, diff, changed files, and the PR body', async () => {
+    it('does not rewrite model, repository, or PR content that matches the search key', async () => {
       const onEvent = vi.fn()
       mockReadFile.mockResolvedValue('+const key = "sk-search"')
       mockRun.mockImplementation(
@@ -682,13 +682,12 @@ describe('runCloudPi', () => {
 
       const result = await runCloudPi(baseParams({ search }), { onEvent })
 
-      expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: 'found ***' })
-      expect(result.totals.finalText).toBe('found ***')
-      expect(result.changedFiles).toEqual(['src/***.ts'])
-      expect(result.diff).toBe('+const key = "***"')
+      expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: 'found sk-search' })
+      expect(result.totals.finalText).toBe('found sk-search')
+      expect(result.changedFiles).toEqual(['src/sk-search.ts'])
+      expect(result.diff).toBe('+const key = "sk-search"')
       const prBody = mockExecuteTool.mock.calls[0][1].body
-      expect(prBody).not.toContain('sk-search')
-      expect(JSON.stringify({ result, onEvents: onEvent.mock.calls })).not.toContain('sk-search')
+      expect(prBody).toContain('found sk-search')
     })
 
     it('scrubs the search key from a failing Pi step', async () => {

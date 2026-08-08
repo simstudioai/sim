@@ -221,7 +221,7 @@ export function DeleteModal({
           title={
             <span>
               Type&nbsp;
-              <span className='font-medium text-[var(--text-primary)]'>{workspaceName}</span>
+              <span className='text-[var(--text-primary)]'>{workspaceName}</span>
               &nbsp;to confirm
             </span>
           }

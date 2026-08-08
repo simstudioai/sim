@@ -125,20 +125,24 @@ service's official documentation or an unambiguous local execution path proves t
 field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
 and leave the field unannotated.
 
-- **Ordinary provider/API input:** leave it unchanged. Do not add blanket result sanitization.
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
 - **Text or structured content consumed by an AI model:** declare `request.modelInput` with
   `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
   activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
   JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
   rebuilt params reproduces the projected selection.
-- **Opaque model input sent directly to an external provider** such as a model-read URL or image
-  payload: declare `request.opaqueModelInput` with `mode: 'reject-resolved-secrets'` and select only
-  the exact effective value. The shared `executeTool` preflight rejects incomplete or secret-bearing
-  committed provenance before URL/body formatting or network I/O, preserves safe request bytes,
-  and sends no provenance metadata to the provider.
-- **Opaque model input owned by an authenticated internal route** such as uploaded audio, image,
-  video, file bytes, or signed URLs: add `privateProvenance` to a projected request, or use
-  `mode: 'private-provenance'` when there is no textual projection. The route must call
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an authenticated internal route** such as inline audio, image,
+  video, or document bytes: add `privateProvenance` to a projected request, or use
+  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning route must authorize
+  stored bytes independently at model egress. The route must call
   `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
   apply the workspace-file provenance guard before reading a persisted workspace file.
 - **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
@@ -154,9 +158,9 @@ Hard rules:
 - Never substitute secret plaintext into source or serialize plaintext provenance.
 - Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
   transport and strips private metadata from functional results.
-- Never attach private provenance to an external URL or to `directExecution`. Use the centralized
-  `opaqueModelInput` rejection mode for external/direct opaque model inputs, or an authenticated
-  internal route when encrypted provenance must cross the boundary.
+- Never attach private provenance to an external URL or to `directExecution`. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use an authenticated internal route when encrypted provenance must cross the boundary.
 - Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
   by Sim's resolved-secret provenance for that execution/tool call.
 - Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
@@ -167,12 +171,11 @@ Hard rules:
   provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
   secret into them.
 
-Add focused tests covering named projection, ordinary identical text without provenance, nested
-shape preservation, malformed/incomplete private metadata failing closed, centralized external
-opaque rejection before formatting/I/O without byte changes or metadata transport, headerless
-legacy requests, and absence of private metadata in the public tool result. For durable sinks, also
-cover legacy `NULL` markers, exact-empty new writes, tracked secret writes, stale/missing sidecars,
-and scope isolation.
+Add focused tests covering named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
 
 ## Step 3: Create Block
 
@@ -588,8 +591,8 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Registered all tools in `tools/registry.ts`
 - [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
 - [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
-- [ ] Added shared model-input projection, centralized opaque rejection, or private provenance only
-      where required
+- [ ] Added shared model-input projection or private provenance only where required; ordinary
+      external resource locators and control inputs retain their request semantics
 - [ ] Confirmed ordinary third-party tool results are not generically sanitized
 - [ ] Added provenance compatibility and fail-closed boundary tests where applicable
 

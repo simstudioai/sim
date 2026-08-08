@@ -94,7 +94,7 @@ describe('copilot tool executor fallback', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-secret' },
     ])
-    registry.recordResolved('API_KEY', secret)
+    registry.recordResolved('API_KEY', secret, { propagated: true })
     isKnownTool.mockReturnValue(true)
     isSimExecuted.mockReturnValue(true)
     isClientExecuted.mockReturnValue(false)

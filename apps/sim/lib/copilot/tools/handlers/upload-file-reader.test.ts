@@ -11,6 +11,7 @@ const { mockReadFileRecord, mockFetchBuffer } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/copilot/vfs/file-reader', () => ({
+  isReadableFileType: (contentType: string) => contentType.startsWith('text/'),
   readFileRecord: mockReadFileRecord,
   MAX_TEXT_READ_BYTES: 5 * 1024 * 1024,
 }))

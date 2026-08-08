@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
 import { execSync, spawn } from 'child_process'
-import { existsSync, mkdirSync } from 'fs'
+import { randomBytes } from 'crypto'
+import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
@@ -14,6 +15,55 @@ const MIGRATIONS_CONTAINER = 'simstudio-migrations'
 const REALTIME_CONTAINER = 'simstudio-realtime'
 const APP_CONTAINER = 'simstudio-app'
 const DEFAULT_PORT = '3000'
+
+const SECRET_KEYS = ['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'] as const
+
+const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
+
+/**
+ * Per-install secrets, generated on first run and reused afterwards.
+ *
+ * They have to persist: `ENCRYPTION_KEY` decrypts credentials already stored in the
+ * Postgres volume under `~/.simstudio/data`, so minting a fresh one each launch would
+ * leave that data permanently unreadable. Any value that is not a 32-byte hex key is
+ * replaced.
+ *
+ * Regenerating one key rewrites the whole file, so the write goes to a temp file and is
+ * renamed into place: a plain write truncates first, and a crash mid-write would strand a
+ * still-valid `ENCRYPTION_KEY` and orphan the data it protects.
+ *
+ * Permissions are reasserted on every run: `writeFileSync`'s `mode` applies only when it
+ * creates the file, so a file left by an earlier run — or one the user created — would
+ * otherwise keep whatever mode it already had and stay readable by other local accounts.
+ */
+function resolveSecrets(): Record<string, string> {
+  const configDir = join(homedir(), '.simstudio')
+  const secretsPath = join(configDir, 'secrets.env')
+  const secrets: Record<string, string> = {}
+
+  if (existsSync(secretsPath)) {
+    for (const line of readFileSync(secretsPath, 'utf8').split('\n')) {
+      const separator = line.indexOf('=')
+      if (separator > 0) secrets[line.slice(0, separator).trim()] = line.slice(separator + 1).trim()
+    }
+  }
+
+  const missing = SECRET_KEYS.filter((key) => !AES_KEY_PATTERN.test(secrets[key] ?? ''))
+  for (const key of missing) secrets[key] = randomBytes(32).toString('hex')
+
+  if (missing.length > 0) {
+    mkdirSync(configDir, { recursive: true })
+    const contents = SECRET_KEYS.map((key) => `${key}=${secrets[key]}`).join('\n')
+    const pending = `${secretsPath}.tmp`
+    writeFileSync(pending, `${contents}\n`, { mode: 0o600 })
+    renameSync(pending, secretsPath)
+    console.log(chalk.gray(`🔑 Generated local secrets in ${secretsPath}`))
+  }
+
+  chmodSync(secretsPath, 0o600)
+
+  return secrets
+}
 
 const program = new Command()
 
@@ -196,6 +246,8 @@ async function main() {
     process.exit(1)
   }
 
+  const secrets = resolveSecrets()
+
   // Start the realtime server
   console.log(chalk.blue('🔄 Starting Realtime Server...'))
   const realtimeSuccess = await runCommand([
@@ -215,7 +267,9 @@ async function main() {
     '-e',
     `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
     '-e',
-    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    `BETTER_AUTH_SECRET=${secrets.BETTER_AUTH_SECRET}`,
+    '-e',
+    `INTERNAL_API_SECRET=${secrets.INTERNAL_API_SECRET}`,
     'ghcr.io/simstudioai/realtime:latest',
   ])
 
@@ -243,9 +297,11 @@ async function main() {
     '-e',
     `NEXT_PUBLIC_APP_URL=http://localhost:${port}`,
     '-e',
-    'BETTER_AUTH_SECRET=your_auth_secret_here',
+    `BETTER_AUTH_SECRET=${secrets.BETTER_AUTH_SECRET}`,
     '-e',
-    'ENCRYPTION_KEY=your_encryption_key_here',
+    `ENCRYPTION_KEY=${secrets.ENCRYPTION_KEY}`,
+    '-e',
+    `INTERNAL_API_SECRET=${secrets.INTERNAL_API_SECRET}`,
     'ghcr.io/simstudioai/simstudio:latest',
   ])
 

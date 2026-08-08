@@ -270,6 +270,7 @@ describe('MCP Serve Route', () => {
           workspaceId: 'ws-1',
           isPublic: false,
           createdBy: 'owner-1',
+          workspaceAllowsPersonalApiKeys: true,
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
@@ -313,6 +314,85 @@ describe('MCP Serve Route', () => {
       actorUserId: 'user-1',
       workspaceId: 'ws-1',
     })
+  })
+
+  it('rejects a personal api key when the workspace disallows personal api keys', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'server-1',
+        name: 'Private Server',
+        workspaceId: 'ws-1',
+        isPublic: false,
+        createdBy: 'owner-1',
+        workspaceAllowsPersonalApiKeys: false,
+      },
+    ])
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-1',
+      authType: 'api_key',
+      apiKeyType: 'personal',
+    })
+    mockGetUserEntityPermissions.mockResolvedValueOnce('write')
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      headers: { 'X-API-Key': 'pk_test_123' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(403)
+    expect(body.error).toBe('Personal API keys are not allowed for this workspace')
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(mockGenerateInternalToken).not.toHaveBeenCalled()
+  })
+
+  it('allows a workspace api key when the workspace disallows personal api keys', async () => {
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          id: 'server-1',
+          name: 'Private Server',
+          workspaceId: 'ws-1',
+          isPublic: false,
+          createdBy: 'owner-1',
+          workspaceAllowsPersonalApiKeys: false,
+        },
+      ])
+      .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])
+      .mockResolvedValueOnce([{ workspaceId: 'ws-1', deploymentVersionId: 'deployment-1' }])
+    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValueOnce({
+      success: true,
+      userId: 'user-1',
+      authType: 'api_key',
+      apiKeyType: 'workspace',
+      workspaceId: 'ws-1',
+    })
+    mockGetUserEntityPermissions.mockResolvedValueOnce('write')
+    mockGenerateInternalToken.mockResolvedValueOnce('internal-token-user-1')
+    fetchMock.mockResolvedValueOnce(createWorkflowExecutionResponse({ output: { ok: true } }))
+
+    const req = new NextRequest('http://localhost:3000/api/mcp/serve/server-1', {
+      method: 'POST',
+      headers: { 'X-API-Key': 'wsk_test_123' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'tools/call',
+        params: { name: 'tool_a', arguments: { q: 'test' } },
+      }),
+    })
+    const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
+
+    expect(response.status).toBe(200)
+    expect(fetchMock).toHaveBeenCalledTimes(1)
   })
 
   it('forwards nested MCP arguments without changing falsy or null values', async () => {
@@ -1008,7 +1088,7 @@ describe('MCP Serve Route', () => {
     expect(JSON.stringify(body)).not.toContain(RESOLVED_SECRET_PROVENANCE_FIELD)
   })
 
-  it('fails closed when a successful workflow MCP response omits private provenance', async () => {
+  it('preserves a successful legacy workflow MCP response without private provenance', async () => {
     dbChainMockFns.limit
       .mockResolvedValueOnce([
         {
@@ -1041,9 +1121,8 @@ describe('MCP Serve Route', () => {
     const response = await POST(req, { params: Promise.resolve({ serverId: 'server-1' }) })
     const body = await response.json()
 
-    expect(response.status).toBe(500)
-    expect(body.error.message).toBe('Tool execution failed')
-    expect(JSON.stringify(body)).not.toContain('secret-value')
+    expect(response.status).toBe(200)
+    expect(body.result.content[0].text).toBe('"secret-value"')
   })
 
   it.each([
@@ -1151,6 +1230,7 @@ describe('MCP Serve Route', () => {
           workspaceId: 'ws-1',
           isPublic: false,
           createdBy: 'owner-1',
+          workspaceAllowsPersonalApiKeys: true,
         },
       ])
       .mockResolvedValueOnce([{ toolName: 'tool_a', workflowId: 'wf-1' }])

@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { encryptionMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockTransformBlockTool, mockExecuteTool } = vi.hoisted(() => ({
@@ -12,6 +13,9 @@ vi.mock('@/providers/utils', () => ({ transformBlockTool: mockTransformBlockTool
 vi.mock('@/tools', () => ({ executeTool: mockExecuteTool }))
 vi.mock('@/tools/utils', () => ({ getTool: vi.fn() }))
 vi.mock('@/tools/utils.server', () => ({ getToolAsync: vi.fn() }))
+vi.mock('@/lib/core/security/encryption', () => ({
+  decryptSecret: encryptionMockFns.mockDecryptSecret,
+}))
 
 import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type { ExecutionContext } from '@/executor/types'
@@ -44,6 +48,7 @@ function mockToolAdapter(params: Record<string, unknown> = {}): void {
 describe('buildSimToolSpecs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    encryptionMockFns.mockDecryptSecret.mockReset()
   })
 
   it('names the Pi tool with the snake_case tool id, not the human label', async () => {
@@ -122,9 +127,20 @@ describe('buildSimToolSpecs', () => {
 
   it('projects named provenance in successful Sim tool output', async () => {
     mockToolAdapter({ apiKey: 'secret-value' })
-    mockExecuteTool.mockResolvedValue({
-      success: true,
-      output: { authorization: 'Bearer secret-value' },
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'ciphertext' }],
+        },
+        { trusted: true }
+      )
+      return {
+        success: true,
+        output: { authorization: 'Bearer secret-value' },
+      }
     })
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
@@ -141,11 +157,17 @@ describe('buildSimToolSpecs', () => {
 
   it('uses the anonymous fallback for cross-scope provenance', async () => {
     mockToolAdapter()
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'foreign-secret' })
     mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
-      vi.spyOn(options.resolvedSecretTraceRegistry, 'getModelEgressSnapshot').mockReturnValue({
-        complete: true,
-        matches: [{ plaintext: 'foreign-secret', replacement: '[REDACTED_SECRET]' }],
-      })
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'FOREIGN', encryptedValue: 'foreign-ciphertext' }],
+          scope: { userId: 'foreign-user', workspaceId: 'foreign-workspace' },
+        },
+        { trusted: true }
+      )
       return {
         success: true,
         output: { token: 'foreign-secret' },
@@ -189,54 +211,152 @@ describe('buildSimToolSpecs', () => {
     await expect(spec.execute({})).resolves.toEqual({ text: 'Test', isError: false })
   })
 
+  it('projects only the selected tool params by original array index and leaves raw output unchanged', async () => {
+    const selectedTool = {
+      type: 'exa',
+      operation: 'exa_search',
+      usageControl: 'auto',
+      params: { apiKey: 'secret-value' },
+    }
+    const tools = [{ type: 'exa', operation: 'exa_search', usageControl: 'none' }, selectedTool]
+    mockToolAdapter(selectedTool.params)
+    const output = { selected: 'secret-value', unrelated: 'Test' }
+    mockExecuteTool.mockResolvedValue({ success: true, output })
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+      { name: 'UNRELATED', plaintext: 'Test', encryptedValue: 'unrelated-ciphertext' },
+    ])
+    registry.recordResolvedAtInputPath('API_KEY', 'secret-value', [
+      'tools',
+      '1',
+      'params',
+      'apiKey',
+    ])
+    registry.recordResolvedInputProjection(
+      ['tools', '1', 'params', 'apiKey'],
+      'secret-value',
+      '{{API_KEY}}'
+    )
+    registry.recordResolvedAtInputPath('UNRELATED', 'Test', ['task'])
+    registry.recordResolvedInputProjection(['task'], 'Test', '{{UNRELATED}}')
+
+    const [spec] = await buildSimToolSpecs(executionContext(registry), tools)
+
+    await expect(spec.execute({ query: 'pi' })).resolves.toEqual({
+      text: JSON.stringify({ selected: '{{API_KEY}}', unrelated: 'Test' }),
+      isError: false,
+    })
+    expect(
+      mockExecuteTool.mock.calls[0][2].resolvedSecretTraceRegistry
+        .exportCommittedProvenanceForInputPaths([['apiKey']])
+        .entries.map((entry: { name?: string }) => entry.name)
+    ).toEqual(['API_KEY'])
+    expect(output).toEqual({ selected: 'secret-value', unrelated: 'Test' })
+  })
+
   it('projects error text returned or thrown by a Sim tool', async () => {
     mockToolAdapter({ apiKey: 'secret-value' })
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'secret-value' })
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('API_KEY', 'secret-value')
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
 
-    mockExecuteTool.mockResolvedValueOnce({
-      success: false,
-      output: {},
-      error: 'provider rejected secret-value',
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'ciphertext' }],
+        },
+        { trusted: true }
+      )
+      return {
+        success: false,
+        output: {},
+        error: 'provider rejected secret-value',
+      }
     })
     await expect(spec.execute({})).resolves.toEqual({
       text: 'provider rejected {{API_KEY}}',
       isError: true,
     })
 
-    mockExecuteTool.mockRejectedValueOnce(new Error('transport exposed secret-value'))
+    mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'API_KEY', encryptedValue: 'ciphertext' }],
+        },
+        { trusted: true }
+      )
+      throw new Error('transport exposed secret-value')
+    })
     await expect(spec.execute({})).resolves.toEqual({
       text: 'transport exposed {{API_KEY}}',
       isError: true,
     })
   })
 
-  it.each([
-    ['missing', undefined],
-    [
-      'incomplete',
-      (() => {
-        const registry = new ResolvedSecretTraceRegistry()
-        registry.markIncomplete()
-        return registry
-      })(),
-    ],
-  ])('fails closed when Sim tool result provenance is %s', async (_label, registry) => {
+  it('preserves legacy Sim tool behavior when no provenance registry exists', async () => {
+    mockToolAdapter()
+    const output = { result: 'ordinary output' }
+    mockExecuteTool.mockResolvedValue({ success: true, output })
+    const [spec] = await buildSimToolSpecs(executionContext(undefined), toolInput)
+
+    await expect(spec.execute({})).resolves.toEqual({
+      text: JSON.stringify(output),
+      isError: false,
+    })
+    expect(mockExecuteTool.mock.calls[0][2].resolvedSecretTraceRegistry).toBeUndefined()
+    expect(output).toEqual({ result: 'ordinary output' })
+  })
+
+  it('fails closed when Sim tool result provenance is incomplete', async () => {
     mockToolAdapter()
     mockExecuteTool.mockResolvedValue({
       success: true,
       output: { result: 'untrusted output' },
     })
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
     const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
 
     const result = await spec.execute({})
 
     expect(result.isError).toBe(true)
-    expect(result.text).toContain('could not be returned safely')
+    expect(result.text).toBe(
+      'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
+    )
     expect(result.text).not.toContain('untrusted output')
     expect(mockExecuteTool).not.toHaveBeenCalled()
+  })
+
+  it('keeps the fixed unavailable message unchanged when active provenance contains one character', async () => {
+    mockToolAdapter()
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'T' })
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'LETTER', plaintext: 'T', encryptedValue: 'encrypted-letter' },
+    ])
+    const cyclic: Record<string, unknown> = {}
+    cyclic.self = cyclic
+    mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
+      await options.resolvedSecretTraceRegistry.importProvenance(
+        {
+          version: 1,
+          complete: true,
+          entries: [{ name: 'LETTER', encryptedValue: 'encrypted-letter' }],
+        },
+        { trusted: true }
+      )
+      return { success: true, output: cyclic }
+    })
+    const [spec] = await buildSimToolSpecs(executionContext(registry), toolInput)
+
+    await expect(spec.execute({})).resolves.toEqual({
+      text: 'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.',
+      isError: true,
+    })
   })
 })
