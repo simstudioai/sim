@@ -175,6 +175,15 @@ export interface ToolConfig<P = any, R = any> {
   // Request configuration
   request: {
     url: string | ((params: P) => string)
+    /**
+     * Declares that this tool targets Sim's own API, authorizing the transport to resolve the
+     * request against the internal base URL and sign it for the executing user.
+     *
+     * Required for every tool whose `url` is a builder returning an internal path. A static `url`
+     * string is self-declaring; a builder is not, because params steer its output — a blank host
+     * param collapses `${host}/api/v2/x` to `/api/v2/x`.
+     */
+    internalRoute?: boolean
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined

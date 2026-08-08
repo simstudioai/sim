@@ -66,7 +66,7 @@ export const confluenceUpdateCommentTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/comment',
+    url: '/api/tools/confluence/comment',
     method: 'PUT',
     headers: (params: ConfluenceUpdateCommentParams) => {
       return {

@@ -78,6 +78,7 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

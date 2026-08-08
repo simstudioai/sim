@@ -24,7 +24,9 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}`,
+    internalRoute: true,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors/${encodeURIComponent(params.connectorId)}`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

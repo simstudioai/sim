@@ -29,8 +29,9 @@ export const knowledgeUploadChunkTool: ToolConfig<any, KnowledgeUploadChunkRespo
   },
 
   request: {
+    internalRoute: true,
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`,
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}/chunks`,
     method: 'POST',
     secretProvenance: {
       request: () => [{ key: 'chunk-content', inputPaths: [['content']] }],

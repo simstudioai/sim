@@ -83,7 +83,7 @@ export const confluenceGetPageChildrenTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/page-children',
+    url: '/api/tools/confluence/page-children',
     method: 'POST',
     headers: (params: ConfluenceGetPageChildrenParams) => ({
       Accept: 'application/json',

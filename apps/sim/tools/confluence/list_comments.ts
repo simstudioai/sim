@@ -87,6 +87,7 @@ export const confluenceListCommentsTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceListCommentsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

@@ -23,7 +23,9 @@ export const knowledgeDeleteDocumentTool: ToolConfig<any, KnowledgeDeleteDocumen
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
+    internalRoute: true,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

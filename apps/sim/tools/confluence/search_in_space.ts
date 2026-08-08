@@ -91,7 +91,7 @@ export const confluenceSearchInSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/search-in-space',
+    url: '/api/tools/confluence/search-in-space',
     method: 'POST',
     headers: (params: ConfluenceSearchInSpaceParams) => ({
       Accept: 'application/json',

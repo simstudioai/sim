@@ -79,7 +79,7 @@ export const confluenceUpdateTaskTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/tasks',
+    url: '/api/tools/confluence/tasks',
     method: 'POST',
     headers: (params: ConfluenceUpdateTaskParams) => ({
       Accept: 'application/json',

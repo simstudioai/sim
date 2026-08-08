@@ -54,6 +54,7 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       // Ensure chatId is valid
       const chatId = params.chatId?.trim()

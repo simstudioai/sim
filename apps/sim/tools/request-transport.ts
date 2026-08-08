@@ -121,6 +121,12 @@ export function projectToolModelInputParams(
   }
 }
 
+/** The pre-authenticated internal transport needs both a declared-internal tool and a resolved internal path. */
+function isInternalToolRoute(tool: ToolConfig, url: string): boolean {
+  if (!url.startsWith('/api/')) return false
+  return typeof tool.request.url === 'string' || tool.request.internalRoute === true
+}
+
 function formatToolRequest(tool: ToolConfig, params: Record<string, any>): PreparedToolRequest {
   const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
   const method =
@@ -169,7 +175,7 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     timeout: validTimeout,
     proxyUrl,
     stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
-    isInternalRoute: url.startsWith('/api/'),
+    isInternalRoute: isInternalToolRoute(tool, url),
   }
 }
 
@@ -187,10 +193,10 @@ export function prepareToolRequest(
     modelInput?.mode === 'private-provenance' ||
     (modelInput?.mode === 'project' && modelInput.privateInputPaths !== undefined)
 
-  if (hasPrivateModelInputProvenance && !configuredUrl.startsWith('/api/')) {
+  if (hasPrivateModelInputProvenance && !isInternalToolRoute(tool, configuredUrl)) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
   }
-  if (secretProvenance && !configuredUrl.startsWith('/api/')) {
+  if (secretProvenance && !isInternalToolRoute(tool, configuredUrl)) {
     throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
   }
 

@@ -18,6 +18,7 @@ export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExe
   },
 
   request: {
+    internalRoute: true,
     url: (params) => `/api/logs/execution/${encodeURIComponent(params.executionId)}`,
     method: 'GET',
     headers: () => ({

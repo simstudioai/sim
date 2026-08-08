@@ -88,6 +88,7 @@ export const confluenceGetPagesByLabelTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceGetPagesByLabelParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

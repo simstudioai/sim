@@ -83,7 +83,7 @@ export const confluenceListSpacePermissionsTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space-permissions',
+    url: '/api/tools/confluence/space-permissions',
     method: 'POST',
     headers: (params: ConfluenceListSpacePermissionsParams) => ({
       Accept: 'application/json',

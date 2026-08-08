@@ -89,7 +89,7 @@ export const confluenceGetPageVersionTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/page-versions',
+    url: '/api/tools/confluence/page-versions',
     method: 'POST',
     headers: (params: ConfluenceGetPageVersionParams) => ({
       Accept: 'application/json',

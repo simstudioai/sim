@@ -62,7 +62,7 @@ export const confluenceDeleteSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space',
+    url: '/api/tools/confluence/space',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteSpaceParams) => ({
       Accept: 'application/json',

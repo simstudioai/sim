@@ -95,6 +95,7 @@ export const confluenceListBlogPostsTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceListBlogPostsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

@@ -23,8 +23,9 @@ export const knowledgeTriggerSyncTool: ToolConfig<any, KnowledgeTriggerSyncRespo
   },
 
   request: {
+    internalRoute: true,
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}/sync`,
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors/${encodeURIComponent(params.connectorId)}/sync`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

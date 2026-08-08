@@ -66,7 +66,7 @@ export const confluenceCreateCommentTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/comments',
+    url: '/api/tools/confluence/comments',
     method: 'POST',
     headers: (params: ConfluenceCreateCommentParams) => {
       return {

@@ -25,6 +25,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

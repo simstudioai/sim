@@ -79,6 +79,7 @@ export const confluenceListSpaceLabelsTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceListSpaceLabelsParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

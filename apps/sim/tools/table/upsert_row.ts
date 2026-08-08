@@ -39,11 +39,13 @@ export const tableUpsertRowTool: ToolConfig<TableRowInsertParams, TableUpsertRes
   },
 
   request: {
+    internalRoute: true,
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows/upsert`,
+    url: (params: TableRowInsertParams) =>
+      `/api/table/${encodeURIComponent(params.tableId)}/rows/upsert`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

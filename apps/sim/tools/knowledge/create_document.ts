@@ -48,7 +48,8 @@ export const knowledgeCreateDocumentTool: ToolConfig<any, KnowledgeCreateDocumen
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents`,
+    internalRoute: true,
+    url: (params) => `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents`,
     method: 'POST',
     secretProvenance: {
       request: selectKnowledgeDocumentWriteSecretProvenance,

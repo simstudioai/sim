@@ -84,7 +84,7 @@ export const confluenceUploadAttachmentTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/upload-attachment',
+    url: '/api/tools/confluence/upload-attachment',
     method: 'POST',
     headers: (params: ConfluenceUploadAttachmentParams) => {
       return {

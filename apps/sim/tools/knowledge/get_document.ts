@@ -24,7 +24,9 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
+    internalRoute: true,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}`,
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({

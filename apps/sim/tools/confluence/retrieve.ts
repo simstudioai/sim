@@ -50,6 +50,7 @@ export const confluenceRetrieveTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceRetrieveParams) => {
       return '/api/tools/confluence/page'
     },

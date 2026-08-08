@@ -73,6 +73,7 @@ export const confluenceListSpacesTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceListSpacesParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

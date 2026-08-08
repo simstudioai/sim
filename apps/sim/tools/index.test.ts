@@ -4593,6 +4593,32 @@ describe('MCP Tool Execution', () => {
   })
 
   describe('Tool request retries', () => {
+    const internalRetryTool = {
+      id: 'test_internal_retry',
+      name: 'Test Internal Retry Tool',
+      description: 'An internal tool used to exercise retry pacing',
+      version: '1.0.0',
+      params: {},
+      request: {
+        url: '/api/test',
+        method: 'GET',
+        headers: () => ({ 'Content-Type': 'application/json' }),
+        retry: { enabled: true, retryIdempotentOnly: true },
+      },
+      transformResponse: async (response: Response) => ({
+        success: response.ok,
+        output: { status: response.status },
+      }),
+    }
+
+    beforeEach(() => {
+      ;(tools as any).test_internal_retry = internalRetryTool
+    })
+
+    afterEach(() => {
+      ;(tools as any).test_internal_retry = undefined
+    })
+
     function makeJsonResponse(
       status: number,
       body: unknown,
@@ -4611,7 +4637,7 @@ describe('MCP Tool Execution', () => {
       }
     }
 
-    it('retries on 5xx responses for http_request', async () => {
+    it('retries on 5xx responses', async () => {
       global.fetch = Object.assign(
         vi
           .fn()
@@ -4620,8 +4646,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 2,
         retryDelayMs: 0,
@@ -4639,8 +4664,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
       })
 
@@ -4648,14 +4672,13 @@ describe('MCP Tool Execution', () => {
       expect(result.success).toBe(false)
     })
 
-    it('stops retrying after max attempts for http_request', async () => {
+    it('stops retrying after max attempts', async () => {
       global.fetch = Object.assign(
         vi.fn().mockResolvedValue(makeJsonResponse(502, { error: 'bad gateway' })),
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 2,
         retryDelayMs: 0,
@@ -4666,14 +4689,13 @@ describe('MCP Tool Execution', () => {
       expect(result.success).toBe(false)
     })
 
-    it('does not retry on 4xx responses for http_request', async () => {
+    it('does not retry on 4xx responses', async () => {
       global.fetch = Object.assign(
         vi.fn().mockResolvedValue(makeJsonResponse(400, { error: 'bad request' })),
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 5,
         retryDelayMs: 0,
@@ -4693,8 +4715,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'POST',
         retries: 2,
         retryDelayMs: 0,
@@ -4714,8 +4735,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'POST',
         retries: 1,
         retryNonIdempotent: true,
@@ -4728,7 +4748,7 @@ describe('MCP Tool Execution', () => {
       expect((result.output as any).status).toBe(200)
     })
 
-    it('retries on timeout errors for http_request', async () => {
+    it('retries on timeout errors', async () => {
       const abortError = Object.assign(new Error('Aborted'), { name: 'AbortError' })
       global.fetch = Object.assign(
         vi
@@ -4738,8 +4758,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 1,
         retryDelayMs: 0,
@@ -4761,8 +4780,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 3,
         retryMaxDelayMs: 5000,
@@ -4783,8 +4801,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 3,
         retryMaxDelayMs: 40000,
@@ -4805,8 +4822,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 2,
         retryDelayMs: 0,
@@ -4817,7 +4833,7 @@ describe('MCP Tool Execution', () => {
       expect(result.success).toBe(true)
     })
 
-    it('retries on ETIMEDOUT errors for http_request', async () => {
+    it('retries on ETIMEDOUT errors', async () => {
       const etimedoutError = Object.assign(new Error('connect ETIMEDOUT 10.0.0.1:443'), {
         code: 'ETIMEDOUT',
       })
@@ -4829,8 +4845,7 @@ describe('MCP Tool Execution', () => {
         { preconnect: vi.fn() }
       ) as typeof fetch
 
-      const result = await executeTool('http_request', {
-        url: '/api/test',
+      const result = await executeTool('test_internal_retry', {
         method: 'GET',
         retries: 1,
         retryDelayMs: 0,

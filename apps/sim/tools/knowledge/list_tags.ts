@@ -17,7 +17,8 @@ export const knowledgeListTagsTool: ToolConfig<any, KnowledgeListTagsResponse> =
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/tag-definitions`,
+    internalRoute: true,
+    url: (params) => `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/tag-definitions`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

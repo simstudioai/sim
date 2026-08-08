@@ -18,7 +18,8 @@ export const knowledgeListConnectorsTool: ToolConfig<any, KnowledgeListConnector
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors`,
+    internalRoute: true,
+    url: (params) => `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/connectors`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

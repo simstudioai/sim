@@ -41,6 +41,7 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const queryParams = new URLSearchParams()
       if (params.search) queryParams.set('search', params.search)
@@ -48,7 +49,7 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
       if (params.limit != null) queryParams.set('limit', String(params.limit))
       if (params.offset != null) queryParams.set('offset', String(params.offset))
       const qs = queryParams.toString()
-      return `/api/knowledge/${params.knowledgeBaseId}/documents${qs ? `?${qs}` : ''}`
+      return `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

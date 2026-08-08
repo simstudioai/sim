@@ -79,7 +79,7 @@ export const confluenceUpdateSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space',
+    url: '/api/tools/confluence/space',
     method: 'PUT',
     headers: (params: ConfluenceUpdateSpaceParams) => ({
       Accept: 'application/json',

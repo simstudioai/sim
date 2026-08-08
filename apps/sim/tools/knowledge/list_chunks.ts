@@ -48,6 +48,7 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const queryParams = new URLSearchParams()
       if (params.search) queryParams.set('search', params.search)
@@ -56,7 +57,7 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
         queryParams.set('limit', String(Math.max(1, Math.min(100, Number(params.limit)))))
       if (params.offset != null) queryParams.set('offset', String(params.offset))
       const qs = queryParams.toString()
-      return `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks${qs ? `?${qs}` : ''}`
+      return `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}/chunks${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

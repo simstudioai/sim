@@ -30,6 +30,7 @@ export const deploymentsGetVersionTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

@@ -60,7 +60,9 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
+    internalRoute: true,
+    url: (params) =>
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/upsert`,
     method: 'POST',
     secretProvenance: {
       request: selectKnowledgeDocumentWriteSecretProvenance,

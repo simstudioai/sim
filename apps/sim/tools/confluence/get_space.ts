@@ -71,6 +71,7 @@ export const confluenceGetSpaceTool: ToolConfig<
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceGetSpaceParams) => {
       const query = new URLSearchParams({
         domain: params.domain,

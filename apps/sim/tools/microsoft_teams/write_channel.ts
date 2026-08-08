@@ -62,6 +62,7 @@ export const writeChannelTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTea
   },
 
   request: {
+    internalRoute: true,
     url: (params) => {
       const teamId = params.teamId?.trim()
       if (!teamId) {

@@ -41,8 +41,9 @@ export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkRespo
   },
 
   request: {
+    internalRoute: true,
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
+      `/api/knowledge/${encodeURIComponent(params.knowledgeBaseId)}/documents/${encodeURIComponent(params.documentId)}/chunks/${encodeURIComponent(params.chunkId)}`,
     method: 'PUT',
     secretProvenance: {
       request: (params) =>

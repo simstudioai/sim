@@ -108,7 +108,7 @@ export const confluenceListBlogPostsInSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space-blogposts',
+    url: '/api/tools/confluence/space-blogposts',
     method: 'POST',
     headers: (params: ConfluenceListBlogPostsInSpaceParams) => ({
       Accept: 'application/json',

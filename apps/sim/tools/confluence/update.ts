@@ -54,6 +54,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
   },
 
   request: {
+    internalRoute: true,
     url: (params: ConfluenceUpdateParams) => {
       return '/api/tools/confluence/page'
     },
