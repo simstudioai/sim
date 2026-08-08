@@ -4612,11 +4612,11 @@ describe('MCP Tool Execution', () => {
     }
 
     beforeEach(() => {
-      ;(tools as any).test_internal_retry = internalRetryTool
+      ;(tools as Record<string, unknown>).test_internal_retry = internalRetryTool
     })
 
     afterEach(() => {
-      ;(tools as any).test_internal_retry = undefined
+      ;(tools as Record<string, unknown>).test_internal_retry = undefined
     })
 
     function makeJsonResponse(

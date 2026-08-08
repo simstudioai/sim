@@ -60,20 +60,30 @@ describe('private-provenance tool registry invariant', () => {
   )
 })
 
-function buildProbeTool(request: Partial<ToolConfig['request']>): ToolConfig {
+interface ProbeParams {
+  url: string
+  tableId: string
+}
+
+function buildProbeTool(
+  request: Partial<ToolConfig<ProbeParams>['request']>
+): ToolConfig<ProbeParams> {
   return {
     id: 'probe_tool',
     name: 'Probe',
     description: 'probe',
     version: '1.0.0',
-    params: { url: { type: 'string', visibility: 'user-or-llm' } },
+    params: {
+      url: { type: 'string', visibility: 'user-or-llm' },
+      tableId: { type: 'string', visibility: 'user-or-llm' },
+    },
     request: {
       url: '/api/probe',
       method: 'GET',
       headers: () => ({}),
       ...request,
     },
-  } as ToolConfig
+  }
 }
 
 describe('internal transport selection', () => {
@@ -87,7 +97,7 @@ describe('internal transport selection', () => {
     const prepared = prepareToolRequest(
       buildProbeTool({
         internalRoute: true,
-        url: (params: Record<string, any>) => `/api/table/${params.tableId}/rows`,
+        url: (params) => `/api/table/${params.tableId}/rows`,
       }),
       { tableId: 'table-1' }
     )
@@ -106,7 +116,7 @@ describe('internal transport selection', () => {
 
   it('rejects private provenance on an undeclared builder that emits an internal path', () => {
     const tool = buildProbeTool({
-      url: (params: Record<string, any>) => params.url,
+      url: (params) => params.url,
       body: () => ({ probe: true }),
       modelInput: { mode: 'private-provenance', inputPaths: () => [] },
     })
