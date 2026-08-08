@@ -6,6 +6,7 @@ import { embeddingsCohereTool } from '@/tools/embeddings/cohere'
 import { embeddingsGeminiTool } from '@/tools/embeddings/gemini'
 import { embeddingsMistralTool } from '@/tools/embeddings/mistral'
 import { embeddingsOpenAITool } from '@/tools/embeddings/openai'
+import { embeddingsOpenRouterTool } from '@/tools/embeddings/openrouter'
 import { embeddingsTool as legacyOpenAIEmbeddingsTool } from '@/tools/openai/embeddings'
 
 const ALL_TOOLS = [
@@ -13,6 +14,7 @@ const ALL_TOOLS = [
   embeddingsGeminiTool,
   embeddingsCohereTool,
   embeddingsMistralTool,
+  embeddingsOpenRouterTool,
   legacyOpenAIEmbeddingsTool,
 ]
 
@@ -75,5 +77,18 @@ describe('embeddings tools model-input projection', () => {
         )
       }
     }
+  })
+
+  it('allows the OpenRouter key to come from self-hosted environment configuration', () => {
+    expect(embeddingsOpenRouterTool.params.apiKey.required).toBe(false)
+    expect(embeddingsOpenRouterTool.hosting).toMatchObject({
+      envKeyPrefix: 'OPENROUTER_API_KEY',
+      apiKeyParam: 'apiKey',
+    })
+    expect(embeddingsOpenRouterTool.hosting).not.toHaveProperty('byokProviderId')
+    expect(embeddingsOpenRouterTool.request.body({ input: 'hello' } as never)).toMatchObject({
+      provider: 'openrouter',
+      model: 'text-embedding-3-small',
+    })
   })
 })

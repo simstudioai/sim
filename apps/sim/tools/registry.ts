@@ -962,6 +962,7 @@ import {
   embeddingsGeminiTool,
   embeddingsMistralTool,
   embeddingsOpenAITool,
+  embeddingsOpenRouterTool,
 } from '@/tools/embeddings'
 import {
   enrichCheckCreditsTool,
@@ -6661,6 +6662,7 @@ export const tools: Record<string, ToolConfig> = {
   embeddings_gemini: embeddingsGeminiTool,
   embeddings_cohere: embeddingsCohereTool,
   embeddings_mistral: embeddingsMistralTool,
+  embeddings_openrouter: embeddingsOpenRouterTool,
   evernote_copy_note: evernoteCopyNoteTool,
   evernote_create_note: evernoteCreateNoteTool,
   evernote_create_notebook: evernoteCreateNotebookTool,

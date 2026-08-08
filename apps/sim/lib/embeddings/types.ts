@@ -14,8 +14,7 @@ export type EmbeddingProviderKind =
 
 /**
  * Providers a catalog model can belong to. Azure OpenAI and OpenRouter are
- * transport overrides for OpenAI models rather than providers users pick, so
- * no model is catalogued under either transport.
+ * transports for OpenAI models, so no model is catalogued under either one.
  */
 export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai' | 'openrouter'>
 
@@ -81,6 +80,8 @@ export type EmbeddingAdapterFactory<Ctx extends EmbeddingAdapterContext = Embedd
 export interface EmbedOptions {
   /** Catalog model id. Defaults to the platform default when omitted. */
   model?: string
+  /** Transport override for catalog models exposed through another provider. */
+  transport?: 'openrouter'
   /** Workspace used to look up a BYOK key before falling back to platform keys. */
   workspaceId?: string | null
   taskType?: EmbeddingTaskType

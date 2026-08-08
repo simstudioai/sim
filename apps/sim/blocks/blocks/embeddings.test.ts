@@ -3,7 +3,11 @@
  */
 import { describe, expect, it } from 'vitest'
 import { DEFAULT_MODEL_BY_PROVIDER, EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
-import { EmbeddingsBlock, TOOL_ID_BY_PROVIDER } from '@/blocks/blocks/embeddings'
+import {
+  EMBEDDING_BLOCK_PROVIDERS,
+  EmbeddingsBlock,
+  TOOL_ID_BY_PROVIDER,
+} from '@/blocks/blocks/embeddings'
 
 /**
  * The block derives its model, task-type, and dimension options from the
@@ -45,8 +49,14 @@ describe('Embeddings block', () => {
     }
 
     const expected = new Map<string, string[]>()
-    for (const [modelId, info] of Object.entries(EMBEDDING_MODELS)) {
-      expected.set(info.provider, [...(expected.get(info.provider) ?? []), modelId])
+    for (const provider of EMBEDDING_BLOCK_PROVIDERS) {
+      const catalogProvider = provider === 'openrouter' ? 'openai' : provider
+      expected.set(
+        provider,
+        Object.entries(EMBEDDING_MODELS).flatMap(([modelId, info]) =>
+          info.provider === catalogProvider ? [modelId] : []
+        )
+      )
     }
 
     expect([...offered.keys()].sort()).toEqual([...expected.keys()].sort())
@@ -63,12 +73,18 @@ describe('Embeddings block', () => {
   })
 
   it('shows a task-type dropdown for exactly the models that support one', () => {
-    const withTaskTypes = Object.entries(EMBEDDING_MODELS)
-      .filter(([, info]) => info.supportedTaskTypes)
-      .map(([id]) => id)
+    const withTaskTypes = Object.entries(EMBEDDING_MODELS).flatMap(([id, info]) => {
+      if (!info.supportedTaskTypes) return []
+      const providers = info.provider === 'openai' ? ['openai', 'openrouter'] : [info.provider]
+      return providers.map((provider) => `${provider}:${id}`)
+    })
 
     const subBlocks = subBlocksById('taskType')
-    expect(subBlocks.map(conditionModel).sort()).toEqual(withTaskTypes.slice().sort())
+    expect(
+      subBlocks
+        .map((subBlock) => `${conditionProvider(subBlock)}:${conditionModel(subBlock)}`)
+        .sort()
+    ).toEqual(withTaskTypes.slice().sort())
 
     for (const subBlock of subBlocks) {
       const model = conditionModel(subBlock) as string
@@ -79,12 +95,18 @@ describe('Embeddings block', () => {
   })
 
   it('shows a dimensions dropdown for exactly the models that support reduction', () => {
-    const withDimensions = Object.entries(EMBEDDING_MODELS)
-      .filter(([, info]) => info.supportedDimensions)
-      .map(([id]) => id)
+    const withDimensions = Object.entries(EMBEDDING_MODELS).flatMap(([id, info]) => {
+      if (!info.supportedDimensions) return []
+      const providers = info.provider === 'openai' ? ['openai', 'openrouter'] : [info.provider]
+      return providers.map((provider) => `${provider}:${id}`)
+    })
 
     const subBlocks = subBlocksById('dimensions')
-    expect(subBlocks.map(conditionModel).sort()).toEqual(withDimensions.slice().sort())
+    expect(
+      subBlocks
+        .map((subBlock) => `${conditionProvider(subBlock)}:${conditionModel(subBlock)}`)
+        .sort()
+    ).toEqual(withDimensions.slice().sort())
 
     for (const subBlock of subBlocks) {
       const model = conditionModel(subBlock) as string
@@ -103,6 +125,33 @@ describe('Embeddings block', () => {
       expect(EmbeddingsBlock.tools.config?.tool?.({ provider })).toBe(toolId)
     }
     expect(EmbeddingsBlock.tools.access).toHaveLength(Object.keys(TOOL_ID_BY_PROVIDER).length)
+  })
+
+  it('offers OpenAI embedding models through OpenRouter and maps its dedicated key', () => {
+    const openRouterModels = subBlocksById('model').find(
+      (subBlock) => conditionProvider(subBlock) === 'openrouter'
+    )
+    expect(optionIds(openRouterModels?.options)).toEqual([
+      'text-embedding-3-small',
+      'text-embedding-3-large',
+      'text-embedding-ada-002',
+    ])
+
+    expect(
+      EmbeddingsBlock.tools.config?.params?.({
+        provider: 'openrouter',
+        model: 'text-embedding-3-large',
+        input: 'hello',
+        apiKey: 'stale-openai-key',
+        openRouterApiKey: 'or-test',
+        dimensions: '1024',
+      })
+    ).toEqual({
+      apiKey: 'or-test',
+      input: 'hello',
+      model: 'text-embedding-3-large',
+      dimensions: 1024,
+    })
   })
 
   it('only forwards capabilities the selected model declares', () => {

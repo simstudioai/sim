@@ -8,6 +8,8 @@ import {
 } from '@/lib/api/contracts/tools/embeddings'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { env } from '@/lib/core/config/env'
+import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_MODEL_BY_PROVIDER,
@@ -63,6 +65,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const { provider, apiKey, model, input, taskType, dimensions } = parsed.data.body
+  const catalogProvider = provider === 'openrouter' ? 'openai' : provider
+  const resolvedApiKey =
+    apiKey || (provider === 'openrouter' && !isHosted ? env.OPENROUTER_API_KEY : undefined)
+  if (!resolvedApiKey) {
+    return NextResponse.json(
+      { success: false, error: `API key is required for ${provider} embeddings` },
+      { status: 400 }
+    )
+  }
 
   const texts = normalizeInput(input)
 
@@ -109,7 +120,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  const resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
+  const resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[catalogProvider]
   const info = findEmbeddingModelInfo(resolvedModel)
   if (!info) {
     return NextResponse.json(
@@ -117,7 +128,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       { status: 400 }
     )
   }
-  if (info.provider !== provider) {
+  if (info.provider !== catalogProvider) {
     return NextResponse.json(
       {
         success: false,
@@ -146,9 +157,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   try {
     const result = await embed(texts, {
       model: resolvedModel,
+      transport: provider === 'openrouter' ? 'openrouter' : undefined,
       taskType,
       dimensions,
-      apiKey,
+      apiKey: resolvedApiKey,
       /**
        * Callers reach this route through a tool whose `request.modelInput`
        * already projected `input` at the HTTP hop, so projecting again here

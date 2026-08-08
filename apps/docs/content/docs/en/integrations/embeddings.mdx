@@ -25,7 +25,7 @@ Sim's knowledge bases embed separately, at a fixed vector width and from a small
 
 ## Usage Instructions
 
-Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.
+Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.
 
 
 
@@ -44,6 +44,30 @@ Generate embeddings from text using OpenAI's embedding models
 | `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
 | `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
 | `apiKey` | string | Yes | API key for the selected embedding provider |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `embeddings` | json | Generated embeddings |
+| `model` | string | Model used |
+| `provider` | string | Provider used |
+| `dimensions` | number | Dimensionality of each vector |
+| `usage` | json | Token usage |
+
+### OpenRouter Embeddings
+
+Generate embeddings from OpenAI embedding models through OpenRouter
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `input` | string | Yes | Text to embed, or an array of texts to embed in one call |
+| `model` | string | No | Embedding model to use |
+| `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
+| `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
+| `apiKey` | string | No | OpenRouter API key; optional on self-hosted deployments with OPENROUTER_API_KEY configured |
 
 #### Output
 

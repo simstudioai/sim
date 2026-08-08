@@ -288,6 +288,25 @@ describe('embed', () => {
     expect(result.isBYOK).toBe(true)
   })
 
+  it('uses OpenRouter as an explicit transport for an OpenAI catalog model', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embed(['hello'], {
+      model: 'text-embedding-3-large',
+      transport: 'openrouter',
+      apiKey: 'or-test',
+      dimensions: 1024,
+      projectInputs: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      model: 'openai/text-embedding-3-large',
+      dimensions: 1024,
+    })
+  })
+
   /**
    * `batchByTokenLimit` truncates any single text above the limit it is given,
    * so the limit has to be the selected model's own. One shared constant sent

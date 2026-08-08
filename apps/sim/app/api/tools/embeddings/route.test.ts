@@ -1,8 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createMockRequest,
+  hybridAuthMockFns,
+  resetEnvFlagsMock,
+  resetEnvMock,
+  setEnv,
+  setEnvFlags,
+} from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockEmbed } = vi.hoisted(() => ({
   mockEmbed: vi.fn(),
@@ -34,6 +41,8 @@ function post(body: Record<string, unknown>) {
 describe('POST /api/tools/embeddings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    setEnvFlags({ isHosted: false })
+    setEnv({ OPENROUTER_API_KEY: undefined })
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -47,6 +56,11 @@ describe('POST /api/tools/embeddings', () => {
       pricingId: 'text-embedding-3-small',
       dimensions: 1536,
     })
+  })
+
+  afterEach(() => {
+    resetEnvFlagsMock()
+    resetEnvMock()
   })
 
   it('rejects an unauthenticated caller', async () => {
@@ -115,6 +129,83 @@ describe('POST /api/tools/embeddings', () => {
       ['hello world'],
       expect.objectContaining({ dimensions: 512 })
     )
+  })
+
+  it('routes OpenRouter through its transport with an explicit key', async () => {
+    const response = await post({
+      provider: 'openrouter',
+      model: 'text-embedding-3-large',
+      input: 'hello world',
+      apiKey: 'or-test',
+      dimensions: 1024,
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockEmbed).toHaveBeenCalledWith(
+      ['hello world'],
+      expect.objectContaining({
+        apiKey: 'or-test',
+        model: 'text-embedding-3-large',
+        transport: 'openrouter',
+        dimensions: 1024,
+      })
+    )
+    expect((await response.json()).provider).toBe('openrouter')
+  })
+
+  it('uses OPENROUTER_API_KEY on self-hosted deployments when the block key is omitted', async () => {
+    setEnv({ OPENROUTER_API_KEY: 'or-environment' })
+
+    const response = await post({
+      provider: 'openrouter',
+      model: 'text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockEmbed).toHaveBeenCalledWith(
+      ['hello world'],
+      expect.objectContaining({ apiKey: 'or-environment', transport: 'openrouter' })
+    )
+  })
+
+  it('rejects OpenRouter without a block or self-hosted environment key', async () => {
+    const response = await post({
+      provider: 'openrouter',
+      model: 'text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('API key is required for openrouter')
+    expect(mockEmbed).not.toHaveBeenCalled()
+  })
+
+  it('does not read OPENROUTER_API_KEY directly on hosted deployments', async () => {
+    setEnvFlags({ isHosted: true })
+    setEnv({ OPENROUTER_API_KEY: 'hosted-platform-key' })
+
+    const response = await post({
+      provider: 'openrouter',
+      model: 'text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('API key is required for openrouter')
+    expect(mockEmbed).not.toHaveBeenCalled()
+  })
+
+  it('keeps API keys required for non-OpenRouter providers', async () => {
+    const response = await post({
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('apiKey')
+    expect(mockEmbed).not.toHaveBeenCalled()
   })
 
   it('surfaces a provider failure as 502', async () => {

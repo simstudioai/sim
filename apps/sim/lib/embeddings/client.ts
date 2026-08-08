@@ -96,6 +96,26 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
   const info = getEmbeddingModelInfo(model)
   const dimensions = resolveDimensions(info, options.dimensions)
 
+  if (options.transport === 'openrouter') {
+    if (info.provider !== 'openai') {
+      throw new Error(`OpenRouter transport does not support catalog provider: ${info.provider}`)
+    }
+    if (!options.apiKey) {
+      throw new Error('OPENROUTER_API_KEY is not configured')
+    }
+    return {
+      adapter: getAdapterFactory('openrouter')({
+        modelName: model,
+        apiKey: options.apiKey,
+        nativeDimensions: info.nativeDimensions,
+      }),
+      info,
+      modelName: model,
+      dimensions,
+      isBYOK: true,
+    }
+  }
+
   if (!options.apiKey) {
     const azure = resolveAzureOverride(info, model)
     if (azure) {
@@ -337,7 +357,7 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
 }
 
-type KnowledgeEmbedOptions = Omit<EmbedOptions, 'apiKey'>
+type KnowledgeEmbedOptions = Omit<EmbedOptions, 'apiKey' | 'transport'>
 
 function resolveEnvironmentOpenAIKey(): string {
   if (env.OPENAI_API_KEY) return env.OPENAI_API_KEY

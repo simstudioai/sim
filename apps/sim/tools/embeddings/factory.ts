@@ -32,7 +32,9 @@ export function createEmbeddingTool({
   description,
   envKeyPrefix,
 }: CreateEmbeddingToolOptions): ToolConfig<EmbeddingsParams, EmbeddingsResponse> {
-  const defaultModel = DEFAULT_MODEL_BY_PROVIDER[provider]
+  const catalogProvider = provider === 'openrouter' ? 'openai' : provider
+  const defaultModel = DEFAULT_MODEL_BY_PROVIDER[catalogProvider]
+  const byokProviderId = provider === 'openrouter' ? undefined : BYOK_PROVIDER_IDS[catalogProvider]
 
   return {
     id,
@@ -78,7 +80,7 @@ export function createEmbeddingTool({
     hosting: {
       envKeyPrefix,
       apiKeyParam: 'apiKey',
-      byokProviderId: BYOK_PROVIDER_IDS[provider],
+      ...(byokProviderId ? { byokProviderId } : {}),
       /**
        * Billed per input token with no markup, matching how the knowledge-base
        * path bills the same models.
