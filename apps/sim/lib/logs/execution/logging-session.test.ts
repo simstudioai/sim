@@ -744,12 +744,12 @@ describe('LoggingSession completion retries', () => {
         status: 'success',
         output: { apiKey: 'ordinary-value' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'E', replacement: '{{X}}' },
+          { plaintext: 'REDACTED', replacement: '{{X}}' },
         ]),
       },
     ]
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+      createSecretRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }])
     )
     prepareTraceSpansForProjectionMock.mockImplementationOnce(
       async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>

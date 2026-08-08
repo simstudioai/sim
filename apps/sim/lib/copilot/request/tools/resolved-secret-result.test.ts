@@ -135,18 +135,51 @@ describe('projectToolResultForCopilot', () => {
   })
 
   it('uses an opaque marker when a replacement contains another active literal', () => {
+    const middle = 'Kq7Xz2Lm9P'
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'MIDDLE', plaintext: 'B', encryptedValue: 'encrypted-b' },
+      { name: 'MIDDLE', plaintext: middle, encryptedValue: 'encrypted-middle' },
       { name: 'BRACE', plaintext: '{', encryptedValue: 'encrypted-brace' },
       { name: 'JOINED', plaintext: 'ac', encryptedValue: 'encrypted-ac' },
     ])
-    registry.recordResolved('MIDDLE', 'B', { propagated: true })
+    registry.recordResolved('MIDDLE', middle, { propagated: true })
     registry.recordResolved('BRACE', '{', { propagated: true })
     registry.recordResolved('JOINED', 'ac', { propagated: true })
 
-    expect(projectToolResultForCopilot({ success: true, output: 'aBc' }, registry)).toEqual({
+    expect(projectToolResultForCopilot({ success: true, output: `a${middle}c` }, registry)).toEqual(
+      {
+        success: true,
+        output: 'a[REDACTED_SECRET]c',
+      }
+    )
+  })
+
+  it('projects a short secret standing alone or delimited, but not inside another word', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PIN', plaintext: '483920', encryptedValue: 'encrypted-pin' },
+    ])
+    registry.recordResolved('PIN', '483920', { propagated: true })
+
+    expect(
+      projectToolResultForCopilot(
+        {
+          success: true,
+          output: {
+            whole: '483920',
+            delimited: 'code=483920',
+            underscored: 'user_483920_profile',
+            embedded: 'ref483920x',
+          },
+        },
+        registry
+      )
+    ).toEqual({
       success: true,
-      output: 'a[REDACTED_SECRET]c',
+      output: {
+        whole: '{{PIN}}',
+        delimited: 'code={{PIN}}',
+        underscored: 'user_{{PIN}}_profile',
+        embedded: 'ref483920x',
+      },
     })
   })
 
