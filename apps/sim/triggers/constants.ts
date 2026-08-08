@@ -63,8 +63,8 @@ export const POLLING_PROVIDERS = new Set([
   'rss',
 ])
 
-export function isPollingWebhookProvider(provider: string): boolean {
-  return POLLING_PROVIDERS.has(provider)
+export function isPollingWebhookProvider(provider: string | null): boolean {
+  return provider !== null && POLLING_PROVIDERS.has(provider)
 }
 
 /**

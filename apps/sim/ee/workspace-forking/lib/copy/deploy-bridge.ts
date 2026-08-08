@@ -296,7 +296,7 @@ export async function loadTargetWebhookPathsByBlock(
   const byBlock = new Map<string, ForkTargetWebhook>()
   for (const row of rows) {
     if (!row.blockId || !row.path) continue
-    if (isPollingWebhookProvider(row.provider ?? '') || isInternalTriggerProvider(row.provider)) {
+    if (isPollingWebhookProvider(row.provider) || isInternalTriggerProvider(row.provider)) {
       continue
     }
     // One live path-based row per block within a version - `path_deployment_unique` enforces it.
