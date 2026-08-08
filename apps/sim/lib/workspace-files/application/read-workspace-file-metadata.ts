@@ -1,5 +1,7 @@
+import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { AuthorizedWorkspaceUseCaseContext } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { getShareForResource } from '@/lib/public-shares/share-manager'
 import {
   type ActiveWorkspaceFileContext,
   getWorkspaceFile,
@@ -17,6 +19,7 @@ export interface ReadWorkspaceFileMetadataInput {
 
 export interface ReadWorkspaceFileMetadataResult {
   file: WorkspaceFileRecord
+  share: ShareRecord | null
 }
 
 async function executeReadWorkspaceFileMetadata({
@@ -27,12 +30,15 @@ async function executeReadWorkspaceFileMetadata({
   ReadWorkspaceFileMetadataInput,
   ActiveWorkspaceFileContext
 >): Promise<ReadWorkspaceFileMetadataResult> {
-  const file = await getWorkspaceFile(context.workspaceId, context.fileId, {
-    includeDeleted: input.includeDeleted,
-    throwOnError: true,
-  })
+  const [file, share] = await Promise.all([
+    getWorkspaceFile(context.workspaceId, context.fileId, {
+      includeDeleted: input.includeDeleted,
+      throwOnError: true,
+    }),
+    getShareForResource('file', context.fileId),
+  ])
   if (!file) throw new OrchestrationError('not_found', 'File not found')
-  return { file }
+  return { file, share }
 }
 
 export const readWorkspaceFileMetadata = defineAuthorizedWorkspaceFileUseCase({

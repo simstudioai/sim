@@ -14,8 +14,8 @@ const mocks = vi.hoisted(() => ({
   getUserEmailsByIds: vi.fn(),
 }))
 
-vi.mock('@/lib/workspace-files/application/describe-workspace-file', () => ({
-  describeWorkspaceFile: {
+vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => ({
+  readWorkspaceFileMetadata: {
     operation: { id: 'files.read_metadata', minimumRole: 'read', workspaceApiKey: 'allow' },
     execute: mocks.describeFile,
   },

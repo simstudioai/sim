@@ -6,8 +6,8 @@ import {
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { v2FileErrorPolicies } from '@/lib/workspace-files/api'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import { describeWorkspaceFile } from '@/lib/workspace-files/application/describe-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import { toV2File, toV2FileSharing } from '@/app/api/v2/files/utils'
 
@@ -27,7 +27,7 @@ export const GET = defineV2JsonRoute({
     fileId: params.fileId,
     assertedWorkspaceId: query.workspaceId,
   }),
-  useCase: describeWorkspaceFile,
+  useCase: readWorkspaceFileMetadata,
   present: async ({ file, share }) => ({
     data: { ...(await toV2File(file)), sharing: toV2FileSharing(share) },
   }),

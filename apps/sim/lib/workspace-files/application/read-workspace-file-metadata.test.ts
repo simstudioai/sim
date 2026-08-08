@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   loadContext: vi.fn(),
   getWorkspaceFile: vi.fn(),
+  getShareForResource: vi.fn(),
   resolvePermission: vi.fn(),
 }))
 
@@ -17,6 +18,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   getWorkspaceFile: mocks.getWorkspaceFile,
   loadActiveWorkspaceFileContext: mocks.loadContext,
+}))
+
+vi.mock('@/lib/public-shares/share-manager', () => ({
+  getShareForResource: mocks.getShareForResource,
 }))
 
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
@@ -43,15 +48,28 @@ const file = {
   updatedAt: new Date('2026-01-02T00:00:00Z'),
 }
 
+const share = {
+  id: 'share-1',
+  token: 'share-token',
+  url: 'https://example.com/f/share-token',
+  isActive: true,
+  resourceType: 'file' as const,
+  resourceId: 'file-1',
+  authType: 'public' as const,
+  hasPassword: false,
+  allowedEmails: [],
+}
+
 describe('readWorkspaceFileMetadata', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.loadContext.mockResolvedValue(canonical)
     mocks.getWorkspaceFile.mockResolvedValue(file)
+    mocks.getShareForResource.mockResolvedValue(share)
     mocks.resolvePermission.mockResolvedValue('admin')
   })
 
-  it('returns the canonical active file without side effects', async () => {
+  it('returns the canonical active file and its share status without side effects', async () => {
     const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
 
     await expect(
@@ -62,7 +80,7 @@ describe('readWorkspaceFileMetadata', () => {
           assertedWorkspaceId: 'workspace-1',
         },
       })
-    ).resolves.toEqual({ file })
+    ).resolves.toEqual({ file, share })
 
     expect(mocks.loadContext).toHaveBeenCalledWith('file-1', {
       includeDeleted: undefined,
@@ -70,6 +88,7 @@ describe('readWorkspaceFileMetadata', () => {
     expect(mocks.getWorkspaceFile).toHaveBeenCalledWith('workspace-1', 'file-1', {
       throwOnError: true,
     })
+    expect(mocks.getShareForResource).toHaveBeenCalledWith('file', 'file-1')
   })
 
   it('fails fast if the authorized file disappears before projection', async () => {

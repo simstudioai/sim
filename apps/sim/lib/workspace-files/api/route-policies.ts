@@ -1,26 +1,18 @@
 import {
-  createInternalSessionOrServiceAuth,
+  createInternalSessionOrExecutorAuth,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
+import { WORKSPACE_FILES_DELEGATION_AUDIENCE } from '@/lib/workspace-files/application/authorization'
 import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
 
-export const internalSessionOrServiceAuth = createInternalSessionOrServiceAuth(
-  ({ subjectUserId, params }) => {
-    const workspaceId = params.id
-    if (typeof workspaceId !== 'string' || !workspaceId) {
-      throw new Error('Internal file delegation requires a workspace route parameter')
-    }
-    return createWorkspaceFileDelegatedPrincipal({
-      serviceId: 'executor',
-      subjectUserId,
-      workspaceId,
-      delegationId: `internal-file:${subjectUserId}`,
-      fileId: typeof params.fileId === 'string' ? params.fileId : undefined,
-    })
-  }
-)
+export const internalSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
+  audience: WORKSPACE_FILES_DELEGATION_AUDIENCE,
+  resourceScope: (params) => {
+    const fileId = typeof params.fileId === 'string' ? params.fileId : undefined
+    return fileId ? { fileId } : undefined
+  },
+})
 
 export const v2FileErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
