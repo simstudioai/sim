@@ -229,7 +229,7 @@ export const MessageActions = memo(function MessageActions({
             <Tooltip.Trigger asChild>
               <button
                 type='button'
-                aria-label='Branch in new chat'
+                aria-label='Fork in new chat'
                 onClick={handleFork}
                 disabled={forkChat.isPending}
                 className={cn(BUTTON_CLASS, forkChat.isPending && 'cursor-not-allowed opacity-50')}
@@ -237,7 +237,7 @@ export const MessageActions = memo(function MessageActions({
                 <Split className={cn(ICON_CLASS, 'rotate-90')} />
               </button>
             </Tooltip.Trigger>
-            <Tooltip.Content side='top'>Branch in new chat</Tooltip.Content>
+            <Tooltip.Content side='top'>Fork in new chat</Tooltip.Content>
           </Tooltip.Root>
         )}
       </div>
