@@ -170,7 +170,7 @@ export const mintlifyCreateAssistantMessageTool: ToolConfig<
         throw new Error('Either Message or Messages is required')
       }
 
-      const body: Record<string, any> = {
+      const body: Record<string, unknown> = {
         fp: params.fp || 'anonymous',
         messages: messages ?? [
           {
@@ -188,7 +188,7 @@ export const mintlifyCreateAssistantMessageTool: ToolConfig<
       if (params.currentPath) body.currentPath = params.currentPath
 
       const groups = toStringArray(params.groups)
-      const filter: Record<string, any> = {}
+      const filter: Record<string, unknown> = {}
       if (params.version) filter.version = params.version
       if (params.language) filter.language = params.language
       if (groups) filter.groups = groups

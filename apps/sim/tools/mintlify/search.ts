@@ -84,13 +84,13 @@ export const mintlifySearchTool: ToolConfig<MintlifySearchParams, MintlifySearch
     method: 'POST',
     headers: (params) => mintlifyHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, any> = { query: params.query }
+      const body: Record<string, unknown> = { query: params.query }
 
       if (params.pageSize !== undefined) body.pageSize = params.pageSize
       if (params.scoreThreshold !== undefined) body.scoreThreshold = params.scoreThreshold
 
       const groups = toStringArray(params.groups)
-      const filter: Record<string, any> = {}
+      const filter: Record<string, unknown> = {}
       if (params.version) filter.version = params.version
       if (params.language) filter.language = params.language
       if (params.tag) filter.tag = params.tag

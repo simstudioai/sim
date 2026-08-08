@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { MintlifyBlock } from './mintlify'
+import { MintlifyBlock } from '@/blocks/blocks/mintlify'
 
 /**
  * The executor merges `tools.config.params` on top of the raw inputs, so every

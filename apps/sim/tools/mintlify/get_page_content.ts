@@ -57,7 +57,7 @@ export const mintlifyGetPageContentTool: ToolConfig<
     method: 'POST',
     headers: (params) => mintlifyHeaders(params.apiKey),
     body: (params) => {
-      const body: Record<string, any> = { path: params.path }
+      const body: Record<string, unknown> = { path: params.path }
       const groups = toStringArray(params.groups)
       if (groups) body.groups = groups
       return body

@@ -36,7 +36,7 @@ export function mintlifyHeaders(apiKey: string): Record<string, string> {
 export async function readMintlifyJson(
   response: Response,
   fallbackMessage: string
-): Promise<Record<string, any>> {
+): Promise<Record<string, unknown>> {
   const text = await response.text()
 
   if (!response.ok) {
@@ -88,14 +88,14 @@ export function toStringArray(value: unknown): string[] | undefined {
  * Normalizes a `json`-typed tool param holding an array of objects, parsing it
  * first when the executor delivered it as a JSON string.
  */
-export function toObjectArray(value: unknown): Record<string, any>[] | undefined {
+export function toObjectArray(value: unknown): Record<string, unknown>[] | undefined {
   if (value === undefined || value === null || value === '') return undefined
 
   const parsed = typeof value === 'string' ? JSON.parse(value) : value
   if (!Array.isArray(parsed)) {
     throw new Error('Expected a JSON array')
   }
-  return parsed.length > 0 ? (parsed as Record<string, any>[]) : undefined
+  return parsed.length > 0 ? (parsed as Record<string, unknown>[]) : undefined
 }
 
 /** Appends a query parameter only when the value is present and non-empty. */
@@ -118,7 +118,7 @@ export function toNullableString(value: unknown): string | null {
  * Maps the `AgentJob` payload returned identically by create-job, get-job, and
  * send-message.
  */
-export function toAgentJobOutput(data: Record<string, any>): MintlifyAgentJobOutput {
+export function toAgentJobOutput(data: Record<string, unknown>): MintlifyAgentJobOutput {
   const source = data.source as Record<string, unknown> | undefined
 
   return {
