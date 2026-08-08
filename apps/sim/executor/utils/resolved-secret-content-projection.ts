@@ -38,6 +38,7 @@ function createResolvedSecretModelMatcher(
 ): ResolvedSecretMatcher | undefined {
   const matcher = createResolvedSecretMatcher(matches, {
     preserveNamedProvenanceLabels: true,
+    mode: 'render',
   })
   if (!matcher) return undefined
 
@@ -74,7 +75,7 @@ function createResolvedSecretModelMatcher(
       })),
       ...opaquePlaceholderMatches,
     ],
-    { preserveNamedProvenanceLabels: true }
+    { preserveNamedProvenanceLabels: true, mode: 'render' }
   )
 }
 
