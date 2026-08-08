@@ -20,11 +20,13 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         workspaceId: context.workspaceId,
         billingAttribution: context.billingAttribution,
         userPermission: context.userPermission ?? undefined,
+        secretActorUserId: context.secretActorUserId,
         chatId: context.chatId,
         messageId: context.messageId,
         parentToolCallId: context.parentToolCallId,
         abortSignal: context.abortSignal,
         resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry,
+        userStopSignal: context.userStopSignal,
       })
 
       const rec =
@@ -45,6 +47,7 @@ export function createServerToolHandler(toolId: string): ToolHandler {
         toolId,
         error: projectToolErrorMessageForCopilot(message, context.resolvedSecretTraceRegistry),
         abortSignalAborted: context.abortSignal?.aborted ?? false,
+        userStopSignalAborted: context.userStopSignal?.aborted ?? false,
       })
       return {
         success: false,

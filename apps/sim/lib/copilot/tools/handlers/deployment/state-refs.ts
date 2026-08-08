@@ -3,7 +3,7 @@ import { workflowDeploymentVersion } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ensureWorkflowAccess } from '../access'
+import { type CopilotAccessContext, ensureWorkflowAccess } from '../access'
 
 /** Canonical workflow-state selector: a deployment version number, the live
  * (active) deployment, or the current draft. */
@@ -42,10 +42,10 @@ export function parseWorkflowRef(raw: unknown): WorkflowRef {
 export async function resolveWorkflowStateRef(
   workflowId: string,
   rawRef: unknown,
-  userId: string
+  context: CopilotAccessContext
 ): Promise<ResolvedWorkflowRef> {
   const ref = parseWorkflowRef(rawRef)
-  await ensureWorkflowAccess(workflowId, userId, 'read')
+  await ensureWorkflowAccess(workflowId, context, 'read')
 
   if (ref === 'draft') {
     const state = await loadWorkflowDeploymentSnapshot(workflowId)

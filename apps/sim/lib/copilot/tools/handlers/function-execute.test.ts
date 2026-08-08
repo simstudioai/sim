@@ -335,6 +335,26 @@ describe('executeFunctionExecute trace-secret provenance', () => {
     expect(mockExecuteTool).not.toHaveBeenCalled()
   })
 
+  it('forwards cancellation to the nested function executor', async () => {
+    const controller = new AbortController()
+
+    await executeFunctionExecute(
+      { code: 'return 1' },
+      {
+        userId: 'u1',
+        workflowId: '',
+        workspaceId: 'ws_1',
+        abortSignal: controller.signal,
+      }
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'function_execute',
+      expect.any(Object),
+      expect.objectContaining({ signal: controller.signal })
+    )
+  })
+
   it('returns the raw runtime result when provenance import fails', async () => {
     mockMaterializeCopilotCodeSecrets.mockResolvedValue({
       envVars: { API_KEY: 'secret-value' },

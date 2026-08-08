@@ -8,6 +8,7 @@ export type {
   MothershipResource,
   MothershipResourceType,
 } from '@/lib/copilot/resources/types'
+export { SUBAGENT_LABELS } from '@/lib/copilot/tools/subagent-display'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
 export type ChatContextKind = ChatContext['kind']
@@ -176,24 +177,3 @@ export interface ChatMessage {
   contexts?: ChatMessageContext[]
   requestId?: string
 }
-
-export const SUBAGENT_LABELS: Record<string, string> = {
-  workflow: 'Workflow Agent',
-  debug: 'Debug Agent',
-  deploy: 'Deploy Agent',
-  auth: 'Auth Agent',
-  research: 'Research Agent',
-  knowledge: 'Knowledge Agent',
-  table: 'Table Agent',
-  custom_tool: 'Custom Tool Agent',
-  scout: 'Scout Agent',
-  search: 'Search Agent',
-  superagent: 'Superagent',
-  run: 'Run Agent',
-  agent: 'Tools Agent',
-  // `job` retained as a backward-compat alias so historical transcripts still render a label.
-  job: 'Job Agent',
-  file: 'File Agent',
-  media: 'Media Agent',
-  browser: 'Browser Agent',
-} as const

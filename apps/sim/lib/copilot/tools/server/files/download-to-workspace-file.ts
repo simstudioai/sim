@@ -152,7 +152,7 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
 
     try {
       assertServerToolNotAborted(context)

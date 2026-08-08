@@ -972,7 +972,7 @@ export function serializeCustomTool(tool: {
 export function serializeMcpServer(server: {
   id: string
   name: string
-  url: string | null
+  url?: string | null
   transport: string | null
   enabled: boolean
   connectionStatus: string | null

@@ -3,6 +3,7 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
+import { ensureWorkflowAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -280,8 +281,10 @@ async function dispatchUpdateJob(params: {
  * so the AI can discover valid picks instead of guessing.
  */
 async function loadFlattenedWorkflowOutputs(
-  workflowId: string
+  workflowId: string,
+  context: ServerToolContext
 ): Promise<FlattenedBlockOutput[] | null> {
+  await ensureWorkflowAccess(workflowId, context)
   const normalized = await loadWorkflowFromNormalizedTables(workflowId)
   if (!normalized) return null
   const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
@@ -292,6 +295,21 @@ async function loadFlattenedWorkflowOutputs(
     subBlocks: b.subBlocks as Record<string, unknown> | undefined,
   }))
   return flattenWorkflowOutputs(blocks, normalized.edges ?? [])
+}
+
+async function ensureWorkflowGroupAccess(
+  table: TableDefinition,
+  groupId: string,
+  context: ServerToolContext
+): Promise<WorkflowGroup> {
+  const group = table.schema.workflowGroups?.find((candidate) => candidate.id === groupId)
+  if (!group) {
+    throw new Error(`Workflow group not found: ${groupId}`)
+  }
+  if (group.workflowId) {
+    await ensureWorkflowAccess(group.workflowId, context)
+  }
+  return group
 }
 
 /**
@@ -426,6 +444,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
     const { operation, args = {} } = params
     const workspaceId =
       context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const billingActorUserId = context.billingAttribution?.actorUserId ?? context.userId
     const assertNotAborted = () =>
       assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
 
@@ -1824,7 +1843,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'workflowId is required for list_workflow_outputs',
             }
           }
-          const flattened = await loadFlattenedWorkflowOutputs(workflowId)
+          const flattened = await loadFlattenedWorkflowOutputs(workflowId, context)
           if (!flattened) {
             return {
               success: false,
@@ -1873,7 +1892,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
 
-          const flattened = await loadFlattenedWorkflowOutputs(workflowId)
+          const flattened = await loadFlattenedWorkflowOutputs(workflowId, context)
           if (!flattened) {
             return {
               success: false,
@@ -1927,7 +1946,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // can opt in by passing `autoRun: true`.
           const autoRun = args.autoRun === true
           const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
+            {
+              tableId: args.tableId,
+              group,
+              outputColumns,
+              autoRun,
+              actorUserId: context.userId,
+              billingActorUserId,
+            },
             requestId
           )
           signalTableSchemaChanged(args.tableId)
@@ -1952,22 +1978,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
+          const requestedWorkflowId = args.workflowId as string | undefined
+          if (requestedWorkflowId) {
+            await ensureWorkflowAccess(requestedWorkflowId, context)
+          }
+          const existingGroup = await ensureWorkflowGroupAccess(tableForUpdate, groupId, context)
           const updateOutputs = args.outputs as WorkflowGroupOutput[] | undefined
           if (updateOutputs && updateOutputs.length > 0) {
             // Resolve which workflow these outputs apply to: explicit override
             // wins, else the existing group's workflowId.
-            const existingGroup = tableForUpdate.schema.workflowGroups?.find(
-              (g) => g.id === groupId
-            )
-            const targetWorkflowId =
-              (args.workflowId as string | undefined) ?? existingGroup?.workflowId
-            if (!targetWorkflowId) {
-              return {
-                success: false,
-                message: `Cannot validate outputs — workflow group ${groupId} not found and no workflowId provided`,
-              }
-            }
-            const flattened = await loadFlattenedWorkflowOutputs(targetWorkflowId)
+            const targetWorkflowId = requestedWorkflowId ?? existingGroup.workflowId
+            const flattened = await loadFlattenedWorkflowOutputs(targetWorkflowId, context)
             if (!flattened) {
               return {
                 success: false,
@@ -1990,7 +2011,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               tableId: args.tableId,
               groupId,
               actorUserId: context.userId,
-              workflowId: args.workflowId as string | undefined,
+              billingActorUserId,
+              workflowId: requestedWorkflowId,
               name: args.name as string | undefined,
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
               outputs: updateOutputs,
@@ -2050,6 +2072,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!tableForAdd || tableForAdd.workspaceId !== workspaceId) {
             return { success: false, message: `Table not found: ${args.tableId}` }
           }
+          await ensureWorkflowGroupAccess(tableForAdd, groupId, context)
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await addWorkflowGroupOutput(
@@ -2122,6 +2145,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Invalid runMode "${runMode}". Must be "all" or "incomplete"`,
             }
           }
+          const tableForRun = await getTableById(args.tableId)
+          if (!tableForRun || tableForRun.workspaceId !== workspaceId) {
+            return { success: false, message: `Table not found: ${args.tableId}` }
+          }
+          await Promise.all(
+            groupIds.map((groupId) => ensureWorkflowGroupAccess(tableForRun, groupId, context))
+          )
           const rawRowIds = args.rowIds as unknown
           let rowIds: string[] | undefined
           if (rawRowIds !== undefined) {
@@ -2146,7 +2176,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             mode: runMode,
             rowIds,
             requestId,
-            triggeredByUserId: context.userId,
+            triggeredByUserId: billingActorUserId,
           })
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
@@ -2303,7 +2333,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
+            {
+              tableId: args.tableId,
+              group,
+              outputColumns,
+              autoRun,
+              actorUserId: context.userId,
+              billingActorUserId,
+            },
             requestId
           )
           signalTableSchemaChanged(args.tableId)

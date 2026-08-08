@@ -2,7 +2,6 @@ import { trace } from '@opentelemetry/api'
 import { db } from '@sim/db'
 import {
   chat as chatTable,
-  customTools as customToolsTable,
   document,
   folder as folderTable,
   knowledgeBaseTagDefinitions,
@@ -16,7 +15,7 @@ import {
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { and, desc, eq, inArray, isNotNull, isNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull } from 'drizzle-orm'
 import { listApiKeys } from '@/lib/api-key/service'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import {
@@ -47,6 +46,7 @@ import {
   lintEditedWorkflowState,
 } from '@/lib/copilot/tools/server/workflow/edit-workflow/lint'
 import { UNRESOLVABLE_AT_LINT_NOTE } from '@/lib/copilot/tools/server/workflow/edit-workflow/validation'
+import { formatWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { extractDocumentStyle } from '@/lib/copilot/vfs/document-style'
 import { type FileReadResult, readFileRecord } from '@/lib/copilot/vfs/file-reader'
 import { normalizeVfsSegment } from '@/lib/copilot/vfs/normalize-segment'
@@ -128,9 +128,12 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import {
+  getCustomToolById,
+  getWorkspaceCustomTool,
+  listCustomToolSummaries,
+} from '@/lib/workflows/custom-tools/operations'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import {
@@ -582,6 +585,7 @@ export class WorkspaceVFS {
   >()
   private deploymentCache = new Map<string, Promise<DeploymentData | null>>()
   private _workspaceId = ''
+  private _secretless = false
   /**
    * Types of the org's CURRENT custom blocks (enabled + disabled — a disabled block
    * still resolves/renders). Populated by {@link materializeCustomBlocks}; used to
@@ -739,7 +743,7 @@ export class WorkspaceVFS {
   async materialize(
     workspaceId: string,
     userId: string,
-    options?: { secretMountPolicy?: SecretMountPolicy }
+    options?: { secretMountPolicy?: SecretMountPolicy; secretless?: boolean }
   ): Promise<void> {
     const start = Date.now()
     this.files = new Map()
@@ -748,6 +752,7 @@ export class WorkspaceVFS {
     this.deploymentCache = new Map()
     this._customBlockTypes = null
     this._workspaceId = workspaceId
+    this._secretless = options?.secretless === true
 
     // Per-phase wall-clock, stamped on the span so a slow materialize in a
     // trace names its bottleneck instead of showing up as unattributed dead
@@ -1577,15 +1582,15 @@ export class WorkspaceVFS {
           // loadWorkflowFromNormalizedTables returns null for a zero-block
           // workflow; it still exists and must be readable, so emit an
           // empty-but-valid state.json rather than a 404.
-          const sanitized = normalized
-            ? sanitizeForCopilot({
+          const state = normalized
+            ? {
                 blocks: normalized.blocks,
                 edges: normalized.edges,
                 loops: normalized.loops,
                 parallels: normalized.parallels,
-              } as any)
-            : sanitizeForCopilot({ blocks: {}, edges: [], loops: {}, parallels: {} } as any)
-          return JSON.stringify(sanitized, null, 2)
+              }
+            : { blocks: {}, edges: [], loops: {}, parallels: {} }
+          return formatWorkflowStateForCopilot(state, { secretless: this._secretless })
         })
 
         this.registerLazy(`${prefix}lint.json`, async () => {
@@ -2024,26 +2029,21 @@ export class WorkspaceVFS {
   ): Promise<NonNullable<WorkspaceMdData['customTools']>> {
     try {
       // Metadata only — tool code can be large; keep it out of the eager map.
-      // Visibility matches listCustomTools: workspace tools + legacy user-owned.
-      const toolRows = await db
-        .select({
-          id: customToolsTable.id,
-          title: customToolsTable.title,
-        })
-        .from(customToolsTable)
-        .where(
-          or(
-            eq(customToolsTable.workspaceId, workspaceId),
-            and(isNull(customToolsTable.workspaceId), eq(customToolsTable.userId, userId))
-          )
-        )
-        .orderBy(desc(customToolsTable.createdAt))
+      // Normal chats retain legacy user-owned tools. Secretless projections are
+      // workspace-only so a shared key cannot inherit its creator's private code.
+      const toolRows = await listCustomToolSummaries({
+        userId,
+        workspaceId,
+        workspaceOnly: this._secretless,
+      })
 
       for (const tool of toolRows) {
         const safeName = sanitizeName(tool.title)
         const toolId = tool.id
         const load = async () => {
-          const full = await getCustomToolById({ toolId, userId, workspaceId })
+          const full = this._secretless
+            ? await getWorkspaceCustomTool({ toolId, workspaceId })
+            : await getCustomToolById({ toolId, userId, workspaceId })
           if (!full) return null
           return serializeCustomTool({
             id: full.id,
@@ -2134,7 +2134,7 @@ export class WorkspaceVFS {
           serializeMcpServer({
             id: server.id,
             name: server.name,
-            url: server.url,
+            ...(this._secretless ? {} : { url: server.url }),
             transport: server.transport,
             enabled: server.enabled,
             connectionStatus: server.connectionStatus,
@@ -2142,7 +2142,12 @@ export class WorkspaceVFS {
         )
       }
 
-      return servers.map((s) => ({ id: s.id, name: s.name, url: s.url, enabled: s.enabled }))
+      return servers.map((server) => ({
+        id: server.id,
+        name: server.name,
+        enabled: server.enabled,
+        ...(this._secretless ? {} : { url: server.url }),
+      }))
     } catch (err) {
       logger.warn('Failed to materialize MCP servers', {
         workspaceId,
@@ -2389,6 +2394,13 @@ export class WorkspaceVFS {
     oauthIntegrations: WorkspaceMdData['oauthIntegrations']
     envVariables: WorkspaceMdData['envVariables']
   }> {
+    if (this._secretless) {
+      this.files.set('environment/credentials.json', serializeCredentials([]))
+      this.files.set('environment/api-keys.json', serializeApiKeys([]))
+      this.files.set('environment/variables.json', serializeEnvironmentVariables([], []))
+      return { oauthIntegrations: [], envVariables: [] }
+    }
+
     try {
       const isWorkspaceAdmin = await hasWorkspaceAdminAccess(userId, workspaceId)
       const [envCredentials, oauthCredentials, apiKeyRows, envData, permissionConfig] =
@@ -2488,7 +2500,7 @@ export class WorkspaceVFS {
 export async function getOrMaterializeVFS(
   workspaceId: string,
   userId: string,
-  options?: { secretMountPolicy?: SecretMountPolicy }
+  options?: { secretMountPolicy?: SecretMountPolicy; secretless?: boolean }
 ): Promise<WorkspaceVFS> {
   await assertActiveWorkspaceAccess(workspaceId, userId)
   const vfs = new WorkspaceVFS()

@@ -234,6 +234,16 @@ describe('Knowledge Utils', () => {
       expect(result.hasAccess).toBe(false)
       expect('notFound' in result && result.notFound).toBe(true)
     })
+
+    it('treats a knowledge base outside the trusted workspace as not found', async () => {
+      queueTableRows(schemaMock.knowledgeBase, [
+        { id: 'kb1', userId: 'user1', workspaceId: 'workspace-2' },
+      ])
+
+      const result = await checkKnowledgeBaseAccess('kb1', 'user1', 'workspace-1')
+
+      expect(result).toEqual({ hasAccess: false, notFound: true })
+    })
   })
 
   describe('checkDocumentAccess', () => {

@@ -89,6 +89,188 @@ describe('copilot tool executor fallback', () => {
     expect(handler).toHaveBeenCalledOnce()
   })
 
+  it('rejects a top-level workspaceId outside the trusted workspace before dispatch', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('manage_workspace_resource', handler)
+
+    await expect(
+      executeTool(
+        'manage_workspace_resource',
+        { workspaceId: 'ws-2' },
+        { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' }
+      )
+    ).resolves.toEqual({
+      success: false,
+      error: 'Tool denied: requested workspace does not match the current workspace.',
+    })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('rejects a nested payload workspaceId outside the trusted workspace', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('manage_workspace_resource', handler)
+
+    await expect(
+      executeTool(
+        'manage_workspace_resource',
+        { payload: { workspaceId: 'ws-2' } },
+        { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' }
+      )
+    ).resolves.toEqual({
+      success: false,
+      error: 'Tool denied: requested workspace does not match the current workspace.',
+    })
+    expect(handler).not.toHaveBeenCalled()
+  })
+
+  it('preserves workspaceId parameters owned by dynamic integrations', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { ok: true } })
+
+    await expect(
+      executeTool(
+        'external_integration_action',
+        { workspaceId: 'external-service-workspace' },
+        { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' }
+      )
+    ).resolves.toEqual({ success: true, output: { ok: true } })
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'external_integration_action',
+      expect.objectContaining({
+        workspaceId: 'external-service-workspace',
+        _context: expect.objectContaining({ workspaceId: 'ws-1' }),
+      })
+    )
+  })
+
+  it('allows explicit workspaceIds that match the trusted workspace', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const handler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('manage_workspace_resource', handler)
+    const context = { userId: 'user-1', workflowId: '', workspaceId: 'ws-1' }
+
+    await expect(
+      executeTool(
+        'manage_workspace_resource',
+        { workspaceId: 'ws-1', payload: { workspace_id: 'ws-1' } },
+        context
+      )
+    ).resolves.toEqual({ success: true })
+    expect(handler).toHaveBeenCalledWith(
+      { workspaceId: 'ws-1', payload: { workspace_id: 'ws-1' } },
+      context
+    )
+  })
+
+  it('fails closed to the reviewed local tool set in query-only mode', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const readHandler = vi.fn().mockResolvedValue({ success: true, output: 'ok' })
+    const mutationHandler = vi.fn().mockResolvedValue({ success: true })
+    registerHandler('read', readHandler)
+    registerHandler('create_workflow', mutationHandler)
+    const context = { userId: 'user-1', workflowId: '', queryOnly: true }
+
+    await expect(executeTool('read', { path: 'WORKSPACE.md' }, context)).resolves.toEqual({
+      success: true,
+      output: 'ok',
+    })
+    await expect(executeTool('create_workflow', { name: 'Nope' }, context)).resolves.toEqual({
+      success: false,
+      error: 'Tool denied: create_workflow is not available in query-only mode.',
+    })
+    expect(readHandler).toHaveBeenCalledOnce()
+    expect(mutationHandler).not.toHaveBeenCalled()
+  })
+
+  it('denies private credential controls and dynamic integrations when credentialless', async () => {
+    isKnownTool.mockImplementation((toolId: string) => toolId !== 'gmail_read')
+
+    for (const toolId of [
+      'generate_api_key',
+      'list_user_workspaces',
+      'manage_credential',
+      'oauth_get_auth_link',
+      'oauth_request_access',
+      'gmail_read',
+    ]) {
+      await expect(
+        executeTool(toolId, {}, { userId: 'user-1', workflowId: '', secretActorUserId: null })
+      ).resolves.toEqual({
+        success: false,
+        error: `Tool denied: ${toolId} is not available without credential access.`,
+      })
+    }
+    expect(executeAppTool).not.toHaveBeenCalled()
+  })
+
+  it('keeps workspace environment writes and workflow runs in credentialless mode', async () => {
+    isKnownTool.mockReturnValue(true)
+    isSimExecuted.mockReturnValue(true)
+    isClientExecuted.mockReturnValue(false)
+    const envHandler = vi.fn().mockResolvedValue({ success: true })
+    const runHandler = vi.fn().mockResolvedValue({ success: true, output: { ran: true } })
+    registerHandler('set_environment_variables', envHandler)
+    registerHandler('run_workflow', runHandler)
+    const context = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      secretActorUserId: null,
+    }
+
+    await expect(
+      executeTool('set_environment_variables', { scope: 'personal', variables: [] }, context)
+    ).resolves.toEqual({
+      success: false,
+      error:
+        'Tool denied: personal environment variables are not available without credential access.',
+    })
+    await expect(
+      executeTool('set_environment_variables', { scope: 'workspace', variables: [] }, context)
+    ).resolves.toEqual({ success: true })
+    await expect(executeTool('run_workflow', {}, context)).resolves.toEqual({
+      success: true,
+      output: { ran: true },
+    })
+    expect(envHandler).toHaveBeenCalledOnce()
+    expect(runHandler).toHaveBeenCalledOnce()
+  })
+
+  it('keeps workspace custom tools but denies MCP execution in credentialless mode', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    isClientExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: { ok: true } })
+    const context = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      secretActorUserId: null,
+    }
+
+    await expect(executeTool('custom_tool-1', {}, context)).resolves.toEqual({
+      success: true,
+      output: { ok: true },
+    })
+    await expect(executeTool('mcp-server-1-search', {}, context)).resolves.toEqual({
+      success: false,
+      error: 'Tool denied: mcp-server-1-search is not available without credential access.',
+    })
+    expect(executeAppTool).toHaveBeenCalledOnce()
+  })
+
   it('projects resolved secrets before logging registered handler failures', async () => {
     const secret = 'mounted-secret-value'
     const registry = new ResolvedSecretTraceRegistry([
@@ -141,6 +323,27 @@ describe('copilot tool executor fallback', () => {
       })
     )
     expect(result).toEqual({ success: true, output: { emails: [] } })
+  })
+
+  it('forwards the active cancellation signal to dynamic app tools', async () => {
+    isKnownTool.mockReturnValue(false)
+    isSimExecuted.mockReturnValue(false)
+    executeAppTool.mockResolvedValue({ success: true, output: {} })
+    const controller = new AbortController()
+
+    await executeTool(
+      'gmail_read',
+      {},
+      {
+        userId: 'user-1',
+        workflowId: 'workflow-1',
+        abortSignal: controller.signal,
+      }
+    )
+
+    expect(executeAppTool).toHaveBeenCalledWith('gmail_read', expect.any(Object), {
+      signal: controller.signal,
+    })
   })
 
   it('threads billing attribution into _context for dynamic tools (MCP)', async () => {

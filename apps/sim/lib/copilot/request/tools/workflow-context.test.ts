@@ -189,6 +189,22 @@ describe('create_workflow execution context', () => {
     expect(Object.isFrozen(attribution)).toBe(true)
     expect(context.billingAttribution).toBe(billingAttribution)
   })
+
+  it('uses the retained billing actor after a tool context projects its authorization user', async () => {
+    const context = {
+      ...createContext(),
+      userId: 'workspace-key-owner',
+    }
+    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
+
+    const attribution = await resolveWorkflowExecutionBillingAttribution(context, 'workspace-2')
+
+    expect(resolveBillingAttributionMock).toHaveBeenCalledWith({
+      actorUserId: 'user-1',
+      workspaceId: 'workspace-2',
+    })
+    expect(attribution).toBe(childBillingAttribution)
+  })
 })
 
 describe('prepareWorkflowExecutionAdmission', () => {

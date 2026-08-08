@@ -16,7 +16,7 @@ program
   .name('sim')
   .description('Talk to the Sim API from your terminal')
   .version('0.1.0')
-  .option('-p, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
+  .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
   .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
   .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
   .addOption(
@@ -39,11 +39,12 @@ program.addHelpText(
   'after',
   `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
-~/.sim/credentials (0600). Select one with --profile or SIM_PROFILE.
+~/.sim/credentials (0600). Select one with -P, --profile, or SIM_PROFILE.
 
 Examples:
   $ sim login                                    Authorize the default profile
   $ sim login --profile dev --endpoint http://localhost:3000
+  $ sim chat -p "Which workflows handle support tickets?"
   $ sim workflows list
   $ sim logs list --level error --limit 20
   $ sim --output json tables get tbl_123        Override output for one command
@@ -65,12 +66,12 @@ async function main() {
     await program.parseAsync(process.argv)
   } catch (error) {
     if (error instanceof ProfileConfigError) {
-      console.error(chalk.red(`Error: ${error.message}`))
+      console.error(chalk.red(`Error: ${sanitize(error.message)}`))
       process.exit(1)
     }
     if (error instanceof SimApiError) {
-      console.error(chalk.red(`Error: ${error.message}`))
-      if (error.code) console.error(chalk.dim(`  code: ${error.code}`))
+      console.error(chalk.red(`Error: ${sanitize(error.message)}`))
+      if (error.code) console.error(chalk.dim(`  code: ${sanitize(error.code)}`))
       if (error.details !== undefined) {
         for (const line of formatApiErrorDetails(error.details)) {
           console.error(chalk.dim(sanitize(line)))

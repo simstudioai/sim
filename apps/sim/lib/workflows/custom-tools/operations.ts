@@ -132,6 +132,30 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
 }
 
 /**
+ * List only the metadata needed by workspace inventories. Normal views include
+ * the viewer's legacy personal tools; secretless views opt into workspace-only
+ * rows so a shared credential cannot reveal private tool metadata.
+ */
+export async function listCustomToolSummaries(params: {
+  userId: string
+  workspaceId: string
+  workspaceOnly?: boolean
+}) {
+  const ownership = params.workspaceOnly
+    ? eq(customTools.workspaceId, params.workspaceId)
+    : or(
+        eq(customTools.workspaceId, params.workspaceId),
+        and(isNull(customTools.workspaceId), eq(customTools.userId, params.userId))
+      )
+
+  return db
+    .select({ id: customTools.id, title: customTools.title })
+    .from(customTools)
+    .where(ownership)
+    .orderBy(desc(customTools.createdAt), desc(customTools.id))
+}
+
+/**
  * Workspace-scoped reads and deletes.
  *
  * The functions above tolerate legacy personal tools (`workspace_id IS NULL`,

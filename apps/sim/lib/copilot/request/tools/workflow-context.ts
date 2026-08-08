@@ -73,12 +73,13 @@ export async function resolveWorkflowExecutionBillingAttribution(
     return rootAttribution
   }
 
+  const billingActorUserId = context.billingAttribution?.actorUserId ?? context.userId
   const childAttribution = await resolveBillingAttribution({
-    actorUserId: context.userId,
+    actorUserId: billingActorUserId,
     workspaceId: targetWorkspaceId,
   })
   if (
-    childAttribution.actorUserId !== context.userId ||
+    childAttribution.actorUserId !== billingActorUserId ||
     childAttribution.workspaceId !== targetWorkspaceId
   ) {
     throw new Error('Resolved workflow billing attribution does not match its actor and workspace')

@@ -10,6 +10,7 @@ import { performCreateWorkspaceApiKey } from '@/lib/api-key/orchestration'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { prepareWorkflowExecutionAdmission } from '@/lib/copilot/request/tools/workflow-context'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import {
   buildVfsFolderPathMap,
   decodeVfsPathSegments,
@@ -108,6 +109,7 @@ async function executeCopilotWorkflowTarget(params: {
       params.context.userId,
       {
         ...params.options,
+        abortSignal: params.context.abortSignal,
         billingAttribution: admission.billingAttribution,
         ...(trustedInitialResolvedSecretTraceProvenance
           ? { trustedInitialResolvedSecretTraceProvenance }
@@ -358,6 +360,16 @@ function findDescendants(containerId: string, blocksById: Record<string, BlockSt
   return descendants
 }
 
+function buildWorkflowStateOutput(state: WorkflowState, context: ExecutionContext) {
+  const secretless = context.secretActorUserId === null
+  const copilotState = projectWorkflowStateForCopilot(state, { secretless })
+
+  return {
+    ...(secretless ? {} : { workflowState: state }),
+    copilotSanitizedWorkflowState: sanitizeForCopilot(copilotState),
+  }
+}
+
 function notifyWorkflowUpdated(workflowId: string): void {
   fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
     method: 'POST',
@@ -409,9 +421,9 @@ export async function executeCreateWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
     const workspaceId =
-      params?.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
+      context.workspaceId || params?.workspaceId || (await getDefaultWorkspaceId(context.userId))
 
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
 
     const folderPath = typeof params?.folderPath === 'string' ? params.folderPath.trim() : ''
     let folderId =
@@ -488,11 +500,7 @@ export async function executeRunWorkflow(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
 
     const useDraftState = !params.useDeployedState
 
@@ -535,11 +543,7 @@ export async function executeSetGlobalWorkflowVariables(
     const operations: VariableOperation[] = Array.isArray(params.operations)
       ? params.operations
       : []
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
     await assertWorkflowMutable(workflowId)
 
     interface WorkflowVariable {
@@ -662,7 +666,7 @@ export async function executeRenameWorkflow(
       return { success: false, error: 'Workflow name must be 200 characters or less' }
     }
 
-    const current = await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    const current = await ensureWorkflowAccess(workflowId, context, 'write')
     await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
     if (!current.workspaceId) {
@@ -704,11 +708,7 @@ export async function executeMoveWorkflow(
 
     for (const workflowId of workflowIds) {
       try {
-        const { workspaceId, workflow } = await ensureWorkflowAccess(
-          workflowId,
-          context.userId,
-          'write'
-        )
+        const { workspaceId, workflow } = await ensureWorkflowAccess(workflowId, context, 'write')
         if (!workspaceId) {
           failed.push(workflowId)
           continue
@@ -758,11 +758,7 @@ export async function executeRunWorkflowUntilBlock(
       return { success: false, error: 'stopAfterBlockId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
 
     const useDraftState = !params.useDeployedState
 
@@ -808,8 +804,8 @@ export async function executeGenerateApiKey(
     }
 
     const workspaceId =
-      params.workspaceId || context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+      context.workspaceId || params.workspaceId || (await getDefaultWorkspaceId(context.userId))
+    await ensureWorkspaceAccess(workspaceId, context, 'admin')
     assertWorkflowMutationNotAborted(context)
 
     const result = await performCreateWorkspaceApiKey({
@@ -861,11 +857,7 @@ export async function executeRunFromBlock(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
     const useDraftState = !params.useDeployedState
 
     const result = await executeCopilotWorkflowTarget({
@@ -911,11 +903,7 @@ export async function executeSetBlockEnabled(
       return { success: false, error: 'enabled must be a boolean' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
     await assertWorkflowMutable(workflowId)
     assertWorkflowMutationNotAborted(context)
 
@@ -955,8 +943,7 @@ export async function executeSetBlockEnabled(
           blockId: params.blockId,
           enabled: params.enabled,
           affectedBlockIds: [params.blockId],
-          workflowState: currentState,
-          copilotSanitizedWorkflowState: sanitizeForCopilot(currentState),
+          ...buildWorkflowStateOutput(currentState, context),
           message: `Block ${params.blockId} is already ${params.enabled ? 'enabled' : 'disabled'}`,
         },
       }
@@ -1018,8 +1005,7 @@ export async function executeSetBlockEnabled(
         blockId: params.blockId,
         enabled: params.enabled,
         affectedBlockIds: Array.from(affectedBlockIds),
-        workflowState: nextState,
-        copilotSanitizedWorkflowState: sanitizeForCopilot(nextState),
+        ...buildWorkflowStateOutput(nextState, context),
       },
     }
   } catch (error) {
@@ -1103,11 +1089,7 @@ export async function executeRunBlock(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'write'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
     const useDraftState = !params.useDeployedState
 
     const result = await executeCopilotWorkflowTarget({

@@ -22,12 +22,9 @@ import {
   tableRowsQueryBaseSchema,
   tableViewConfigSchema,
   tableViewParamsSchema,
-  updateRowsByFilterBodySchema,
   updateTableColumnBodySchema,
-  updateTableRowBodySchema,
   updateTableViewBodySchema,
   updateWorkflowGroupBodySchema,
-  upsertTableRowBodySchema,
   workflowGroupOutputColumnSchema,
 } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
@@ -36,6 +33,9 @@ import {
   v1CreateTableBodySchema,
   v1CreateTableRowsBodySchema,
   v1ListTablesQuerySchema,
+  v1UpdateRowsByFilterBodySchema,
+  v1UpdateTableRowBodySchema,
+  v1UpsertTableRowBodySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
   v2CreateFolderBodySchema,
@@ -490,7 +490,7 @@ export const v2CreateTableRowsContract = defineRouteContract({
 })
 
 /** Bulk update body — v2 accepts ONLY the predicate tree as the filter. */
-export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema.extend({
+export const v2UpdateRowsByPredicateBodySchema = v1UpdateRowsByFilterBodySchema.extend({
   filter: predicateSchema,
 })
 export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicateBodySchema>
@@ -560,7 +560,7 @@ export const v2UpdateTableRowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows/[rowId]',
   params: tableRowParamsSchema,
-  body: updateTableRowBodySchema,
+  body: v1UpdateTableRowBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableRowDataSchema),
@@ -582,7 +582,7 @@ export const v2UpsertTableRowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/rows/upsert',
   params: tableIdParamsSchema,
-  body: upsertTableRowBodySchema,
+  body: v1UpsertTableRowBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2UpsertRowDataSchema),

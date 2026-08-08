@@ -474,7 +474,7 @@ describe('vfs mv/cp', () => {
         context
       )
 
-      expect(mocks.checkKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-1', 'user-1')
+      expect(mocks.checkKnowledgeBaseWriteAccess).toHaveBeenCalledWith('kb-1', 'user-1', 'ws-1')
       expect(mocks.updateKnowledgeBase).toHaveBeenCalledWith(
         'kb-1',
         { name: 'Product Docs' },

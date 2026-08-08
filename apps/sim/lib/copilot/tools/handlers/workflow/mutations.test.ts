@@ -44,6 +44,7 @@ const {
   reserveExecutionSlotMock,
   releaseExecutionSlotMock,
   decryptSecretMock,
+  saveWorkflowToNormalizedTablesMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   ensureWorkspaceAccessMock: vi.fn(),
@@ -60,6 +61,7 @@ const {
   reserveExecutionSlotMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
   decryptSecretMock: vi.fn(),
+  saveWorkflowToNormalizedTablesMock: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -110,7 +112,7 @@ vi.mock('@/lib/workflows/orchestration', () => ({
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   loadWorkflowFromNormalizedTables: loadWorkflowFromNormalizedTablesMock,
-  saveWorkflowToNormalizedTables: vi.fn(),
+  saveWorkflowToNormalizedTables: saveWorkflowToNormalizedTablesMock,
 }))
 
 vi.mock('@/lib/workflows/sanitization/json-sanitizer', () => ({
@@ -149,6 +151,7 @@ import {
   executeRunFromBlock,
   executeRunWorkflow,
   executeRunWorkflowUntilBlock,
+  executeSetBlockEnabled,
   executeSetGlobalWorkflowVariables,
 } from './mutations'
 
@@ -277,6 +280,80 @@ describe('lock enforcement', () => {
     expect(result.success).toBe(false)
     expect(result.error).toBe('Folder is locked')
     expect(performUpdateWorkflowMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('executeSetBlockEnabled secretless projection', () => {
+  const normalizedState = (enabled: boolean) => ({
+    blocks: {
+      request: {
+        id: 'request',
+        type: 'unknown-integration',
+        name: 'Request',
+        enabled,
+        subBlocks: {
+          apiKey: { id: 'apiKey', type: 'short-input', value: 'SENTINEL_API_KEY' },
+          path: { id: 'path', type: 'short-input', value: '/users' },
+        },
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    global.fetch = vi.fn().mockResolvedValue(new Response(null, { status: 200 })) as typeof fetch
+    ensureWorkflowAccessMock.mockResolvedValue({
+      workflow: { id: 'workflow-1', name: 'Workflow' },
+    })
+    workflowAuthzMockFns.mockAssertWorkflowMutable.mockResolvedValue(undefined)
+    saveWorkflowToNormalizedTablesMock.mockResolvedValue({ success: true })
+  })
+
+  it('omits raw state and credentials when the block already has the requested state', async () => {
+    loadWorkflowFromNormalizedTablesMock.mockResolvedValue(normalizedState(false))
+
+    const result = await executeSetBlockEnabled(
+      { workflowId: 'workflow-1', blockId: 'request', enabled: false },
+      { userId: 'key-creator', secretActorUserId: null } as ExecutionContext
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).not.toHaveProperty('workflowState')
+    expect(result.output).toHaveProperty(
+      'copilotSanitizedWorkflowState.blocks.request.subBlocks.apiKey.value',
+      null
+    )
+    expect(result.output).toHaveProperty(
+      'copilotSanitizedWorkflowState.blocks.request.subBlocks.path.value',
+      '/users'
+    )
+    expect(JSON.stringify(result.output)).not.toContain('SENTINEL_API_KEY')
+    expect(saveWorkflowToNormalizedTablesMock).not.toHaveBeenCalled()
+  })
+
+  it('omits raw state and credentials after persisting a state change', async () => {
+    loadWorkflowFromNormalizedTablesMock.mockResolvedValue(normalizedState(true))
+
+    const result = await executeSetBlockEnabled(
+      { workflowId: 'workflow-1', blockId: 'request', enabled: false },
+      { userId: 'key-creator', secretActorUserId: null } as ExecutionContext
+    )
+
+    expect(result.success).toBe(true)
+    expect(result.output).not.toHaveProperty('workflowState')
+    expect(result.output).toHaveProperty(
+      'copilotSanitizedWorkflowState.blocks.request.subBlocks.apiKey.value',
+      null
+    )
+    expect(result.output).toHaveProperty(
+      'copilotSanitizedWorkflowState.blocks.request.enabled',
+      false
+    )
+    expect(JSON.stringify(result.output)).not.toContain('SENTINEL_API_KEY')
+    expect(saveWorkflowToNormalizedTablesMock).toHaveBeenCalledOnce()
   })
 })
 
@@ -473,26 +550,17 @@ describe('executeCreateWorkflow billing attribution', () => {
     expect(resolveBillingAttributionMock).not.toHaveBeenCalled()
   })
 
-  it('keeps cross-workspace creation scoped while allowing explicit subsequent execution', async () => {
+  it('keeps creation in the trusted workspace when params name another workspace', async () => {
     const context: ExecutionContext = { ...executionContext, workflowId: '' }
     performCreateWorkflowMock.mockResolvedValue({
       success: true,
       workflow: {
         id: 'created-workflow',
-        name: 'Other Workspace Workflow',
-        workspaceId: 'workspace-2',
+        name: 'Workspace Workflow',
+        workspaceId: 'workspace-1',
         folderId: null,
       },
     })
-    ensureWorkflowAccessMock.mockResolvedValue({
-      workflow: {
-        id: 'created-workflow',
-        userId: 'owner-2',
-        workspaceId: 'workspace-2',
-        variables: {},
-      },
-    })
-    resolveBillingAttributionMock.mockResolvedValue(childBillingAttribution)
 
     const createResult = await executeCreateWorkflow(
       { name: 'Other Workspace Workflow', workspaceId: 'workspace-2' },
@@ -500,51 +568,10 @@ describe('executeCreateWorkflow billing attribution', () => {
     )
 
     expect(createResult.success).toBe(true)
-    applyCreateWorkflowOutputToContext(createResult.output, context)
-    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('workspace-2', 'user-1', 'write')
+    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('workspace-1', context, 'write')
     expect(performCreateWorkflowMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-2' })
+      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-1' })
     )
-    expect(context).toMatchObject({
-      userId: 'user-1',
-      workflowId: '',
-      workspaceId: 'workspace-1',
-      billingAttribution,
-    })
-    expect(context.billingAttribution).toBe(billingAttribution)
-    const createOutput = createResult.output as { workflowId: string; workspaceId: string }
-    expect(createOutput).toEqual(
-      expect.objectContaining({ workflowId: 'created-workflow', workspaceId: 'workspace-2' })
-    )
-
-    const runResult = await executeRunWorkflow(
-      { workflowId: createOutput.workflowId, useMockPayload: true },
-      context
-    )
-
-    expect(runResult.success).toBe(true)
-    expect(resolveBillingAttributionMock).toHaveBeenCalledOnce()
-    expect(resolveBillingAttributionMock).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'workspace-2',
-    })
-    expect(executeWorkflowMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ id: 'created-workflow', workspaceId: 'workspace-2' })
-    )
-    expect(executeWorkflowMock.mock.calls[0]?.[3]).toBe('user-1')
-    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
-      expect.objectContaining({ billingAttribution: childBillingAttribution })
-    )
-    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
-    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledWith(childBillingAttribution)
-    expect(reserveExecutionSlotMock).toHaveBeenCalledOnce()
-    expect(reserveExecutionSlotMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingEntity: childBillingAttribution.billingEntity,
-        executionId: executeWorkflowMock.mock.calls[0]?.[5],
-      })
-    )
-    expect(context.billingAttribution).toBe(billingAttribution)
   })
 })
 
@@ -613,6 +640,19 @@ describe('Copilot workflow execution billing attribution', () => {
   it('passes immutable attribution when running a workflow', async () => {
     await expectBillingAttributionForwarded(() =>
       executeRunWorkflow({ workflowId: 'workflow-1', useMockPayload: true }, executionContext)
+    )
+  })
+
+  it('forwards cancellation to headless workflow execution', async () => {
+    const controller = new AbortController()
+
+    await executeRunWorkflow(
+      { workflowId: 'workflow-1', useMockPayload: true },
+      { ...executionContext, abortSignal: controller.signal }
+    )
+
+    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ abortSignal: controller.signal })
     )
   })
 

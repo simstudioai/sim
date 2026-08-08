@@ -44,6 +44,9 @@ vi.mock('@/lib/knowledge/embeddings', () => ({
   generateSearchEmbedding: vi.fn(),
   recordSearchEmbeddingUsage: vi.fn(),
 }))
+vi.mock('@/lib/knowledge/documents/service', () => ({
+  createSingleDocument: vi.fn(),
+}))
 vi.mock('@/lib/knowledge/orchestration', () => ({
   performCreateKnowledgeBase: vi.fn(),
   performDeleteKnowledgeBase: mockPerformDeleteKnowledgeBase,
@@ -90,7 +93,10 @@ vi.mock('@/app/api/knowledge/utils', () => ({
 
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
-import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
+import {
+  knowledgeBaseServerTool,
+  normalizeKnowledgeQueryTopK,
+} from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { createSingleDocument } from '@/lib/knowledge/documents/service'
 import { generateSearchEmbedding, recordSearchEmbeddingUsage } from '@/lib/knowledge/embeddings'
 import { executeKnowledgeSearch } from '@/lib/knowledge/search/queries'
@@ -122,6 +128,19 @@ const CONTEXT = {
   workspaceId: 'workspace-paid',
   billingAttribution: BILLING_ATTRIBUTION,
 }
+
+describe('knowledge query result limit', () => {
+  it.each([
+    { input: undefined, expected: 5 },
+    { input: 0, expected: 5 },
+    { input: -1, expected: 5 },
+    { input: 1.5, expected: 5 },
+    { input: 12, expected: 12 },
+    { input: 10_000, expected: 50 },
+  ])('normalizes $input to $expected', ({ input, expected }) => {
+    expect(normalizeKnowledgeQueryTopK(input)).toBe(expected)
+  })
+})
 
 describe('knowledge base connector Copilot operations', () => {
   afterAll(() => {
@@ -266,6 +285,10 @@ describe('knowledge base query model boundary', () => {
       isBYOK: false,
     })
     vi.mocked(executeKnowledgeSearch).mockResolvedValue([])
+    mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+      imported: true,
+      documentMetadata: {},
+    })
     vi.mocked(recordSearchEmbeddingUsage).mockResolvedValue(undefined)
     mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
       imported: true,
@@ -431,17 +454,19 @@ describe('knowledge base add_file usage gate', () => {
     })
   })
 
-  function addFile() {
+  function addFile(
+    context: Parameters<typeof knowledgeBaseServerTool.execute>[1] = {
+      userId: 'external-admin',
+      workspaceId: 'workspace-paid',
+      billingAttribution: BILLING_ATTRIBUTION,
+    }
+  ) {
     return knowledgeBaseServerTool.execute(
       {
         operation: 'add_file',
         args: { knowledgeBaseId: 'knowledge-base-1', filePaths: ['files/report.pdf'] },
       },
-      {
-        userId: 'external-admin',
-        workspaceId: 'workspace-paid',
-        billingAttribution: BILLING_ATTRIBUTION,
-      }
+      context
     )
   }
 
@@ -496,5 +521,73 @@ describe('knowledge base add_file usage gate', () => {
       context: 'workspace',
     })
     expect(createSingleDocument).not.toHaveBeenCalled()
+  })
+
+  it('keeps billing on the retained actor when authorization uses the workspace-key owner', async () => {
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({
+      isExceeded: false,
+    } as Awaited<ReturnType<typeof checkAttributedUsageLimits>>)
+    vi.mocked(resolveWorkspaceFileReference).mockResolvedValue(null)
+
+    const result = await addFile({
+      userId: 'workspace-key-owner',
+      workspaceId: 'workspace-paid',
+      billingAttribution: BILLING_ATTRIBUTION,
+    })
+
+    expect(result.success).toBe(false)
+    expect(checkAttributedUsageLimits).toHaveBeenCalledWith(BILLING_ATTRIBUTION)
+  })
+})
+
+describe('knowledge base query billing identity', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockAssertBillingAttributionSnapshot.mockReturnValue(BILLING_ATTRIBUTION)
+    vi.mocked(checkKnowledgeBaseAccess).mockResolvedValue({ hasAccess: true })
+    vi.mocked(getKnowledgeBaseById).mockResolvedValue({
+      id: 'knowledge-base-1',
+      name: 'Paid KB',
+      workspaceId: 'workspace-paid',
+      embeddingModel: 'text-embedding-3-small',
+    } as Awaited<ReturnType<typeof getKnowledgeBaseById>>)
+    vi.mocked(checkAttributedUsageLimits).mockResolvedValue({ isExceeded: false } as Awaited<
+      ReturnType<typeof checkAttributedUsageLimits>
+    >)
+    vi.mocked(generateSearchEmbedding).mockResolvedValue({
+      embedding: [0.1, 0.2],
+      isBYOK: false,
+    })
+    vi.mocked(executeKnowledgeSearch).mockResolvedValue([])
+  })
+
+  it('authorizes as the key owner but meters the frozen workspace billing actor', async () => {
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'query',
+        args: { knowledgeBaseId: 'knowledge-base-1', query: 'refund policy' },
+      },
+      {
+        userId: 'workspace-key-owner',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
+      }
+    )
+
+    expect(result.success).toBe(true)
+    expect(checkKnowledgeBaseAccess).toHaveBeenCalledWith(
+      'knowledge-base-1',
+      'workspace-key-owner',
+      'workspace-paid'
+    )
+    expect(recordSearchEmbeddingUsage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'external-admin',
+        workspaceId: 'workspace-paid',
+        billingAttribution: BILLING_ATTRIBUTION,
+      })
+    )
   })
 })

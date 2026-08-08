@@ -11,7 +11,7 @@ sim workflows list
 ## Profiles
 
 Profiles work like the AWS CLI: one identity and one set of defaults per named
-profile, selected with `--profile` or `SIM_PROFILE`. This is what lets you keep
+profile, selected with `-P`, `--profile`, or `SIM_PROFILE`. This is what lets you keep
 production and a local dev stack side by side without re-authenticating.
 
 Non-secret settings live in `~/.sim/config`:
@@ -84,20 +84,14 @@ http://localhost:3000/cli/auth?request=…&scope=platform
 Waiting for approval…
 
 ✓ Logged in. Key stored in /Users/you/.sim/credentials
-  Workspace-scoped key, pinned to ws_local.
+  Personal key, defaulting to ws_local. Override per command with --workspace.
 ```
 
 The approval page is where you pick the workspace — the terminal has no key yet,
-so it cannot list them for you. Whichever you pick becomes the profile's default
-`workspace`, so you never have to go look up its id.
-
-What the key itself can reach depends on your role in that workspace, and the
-page says which you are about to get before you approve:
-
-| Your role | Key issued | Reach |
-| --- | --- | --- |
-| Workspace admin | Workspace-scoped | That workspace only |
-| Anything else | Personal | Every workspace you can access; `--workspace` overrides the default |
+so it cannot list them for you. `sim login` issues a personal key, and whichever
+workspace you pick becomes only the profile's default `workspace`; it does not
+limit the key to that workspace. Use `--workspace` to target another workspace
+the key can access.
 
 `sim login --workspace <id>` preselects a workspace in the picker, and an
 existing profile's workspace preselects itself on re-login.
@@ -116,6 +110,9 @@ spellings.
 `document`.
 
 ```bash
+sim chat [prompt...] [-f <path>...] [--read-only]
+sim chat -p [prompt...] [-f <path>...] [--read-only]
+
 sim workflows ls [path] [--search <text>] [--limit <n>]
 sim workflows list [--folder <path>] [--deployed-only] [--limit <n>]
 sim workflows get <id>
@@ -184,7 +181,103 @@ For a paused execution, its status includes the context ID needed by `resume`.
 `logs get` is the full diagnostic resource. It keeps the default human output
 concise; add `--trace` for the expanded recursive trace with span inputs,
 outputs, errors, timing, and cost. JSON and YAML retain the complete structured
-response:
+response.
+
+### Ask Sim Chat
+
+`sim chat` opens a terminal conversation about the workspace saved by `sim
+login`. It streams answers with a compact working indicator, keeps the
+conversation across turns, and provides input history. In a real TTY, the
+transcript and current activity stay in the upper viewport while the
+free-form `❯` composer remains pinned at the bottom. Use the global
+`--workspace` flag to target another workspace the active key can access.
+Structured questions use a separate compact panel: Up/Down moves, Enter selects,
+Space toggles multi-select items, typing supplies a custom answer, and Esc returns
+to the ordinary composer. Suggested follow-up metadata is omitted.
+
+The composer stays editable while Sim is working. Press Enter with a follow-up
+to queue it and immediately steer the active turn (the TUI performs the web
+chat's queue-then-send-now handoff in one step); additional submitted prompts
+remain FIFO. Press Up on an empty composer to recall the newest queued prompt.
+Shift+Enter, Option/Meta+Enter, or a trailing `\` followed by Enter inserts a
+newline instead of submitting.
+
+Type `@` at the start of a token to tag a workspace workflow, table, file, or
+knowledge base. The latest 50 execution logs appear after those primary
+resources instead of expanding an unbounded logs tree. Past chats never enter
+the `@` list; use `/chats` to open their searchable picker. Type `/` to invoke a
+workspace skill or an enabled MCP server; read-only chat omits MCP servers,
+and CLI control commands remain in that menu at the start of the composer.
+These are structured tags, not decorative prompt text: Sim receives the
+selected resource id, and a tagged MCP server remains enabled for later turns
+in the same terminal conversation.
+
+```bash
+sim chat
+sim chat "Start by explaining this workspace"
+sim chat --file screenshot.png "What is failing here?"
+sim chat --read-only "Summarize this workspace without changing it"
+```
+
+Inside the chat, `/attach <paths>` attaches up to five local images, PDFs, or
+UTF-8 text files to the next turn. A pasted or dragged file path preloads an
+`/attach` command; review it and press Enter before the CLI reads the file. On
+macOS, press Ctrl+V or use `/paste-image` to attach a clipboard image;
+any draft text remains in the prompt. `/chats` loads the chat history and opens
+a searchable picker. Selecting one restores its transcript and continues it
+with a fresh opaque token. The header shows the active chat title and keeps the
+`/chats` switch hint visible; a new chat's generated title appears there as soon
+as the server publishes it. `/rename <title>` retitles the active synced chat in
+both the terminal and Sim Home. `/clear` clears the visible transcript and
+starts a new conversation, `/help` lists commands, and `/exit` or Ctrl+D exits.
+Ctrl+C clears idle input or cancels the active generation and returns to the
+prompt.
+
+Chats sent with the personal API key issued by `sim login` use the same history
+as Sim Home, so a CLI conversation appears in the web UI and a web conversation
+can be resumed in the terminal. Shared workspace keys intentionally do not
+expose their creator's private chat history. Profiles created by an older login
+flow may still contain a workspace-scoped key; run `sim login` again for that
+profile to replace it with a personal key and enable synchronized history and
+`/chats`.
+
+Chat uses the full Mothership toolset by default. Add `--read-only` in either
+interactive or print mode when the conversation must be restricted to
+workspace-reading tools.
+
+`sim chat -p` is the non-interactive form. It never opens a prompt: the
+completed, terminal-safe answer is the only thing written to stdout, so it
+composes cleanly with shell tools. Bare `sim chat` requires a real terminal;
+pipelines and redirected output must use `-p`.
+
+```bash
+sim chat -p "Which workflows handle support tickets?"
+cat incident.txt | sim chat -p "Which workflow is most likely involved?"
+sim chat -p < question.txt
+sim chat -p --file report.pdf "Summarize this in workspace context"
+```
+
+When both a positional prompt and stdin are present, the positional prompt comes
+first and the piped content follows on the next line. This matches Claude Code's
+print-mode input behavior. Combined input is limited to 10 MiB of UTF-8 text.
+Files are sent inline by basename only: local paths never cross the API
+boundary. Images and PDFs are limited to 5 MiB each, text files to 200 KiB, and
+all attachments in a turn to 10 MiB total.
+
+On an auth-disabled self-hosted Sim deployment, configure the endpoint and
+workspace without logging in locally:
+
+```bash
+sim configure --set-endpoint http://localhost:3000 --set-workspace ws_local
+sim chat -p "What is in this workspace?"
+```
+
+That deployment must enable `V2_API=true` and set `COPILOT_API_KEY` server-side.
+A CLI API key, when one is present, authenticates only the public Sim request
+and is never reused as the deployment's Mothership key.
+
+`sim logs get` keeps the default human output concise. Use JSON or YAML to
+inspect its complete `executionData` and recursive `traceSpans` tree:
 
 ```bash
 sim logs get <executionId> --trace

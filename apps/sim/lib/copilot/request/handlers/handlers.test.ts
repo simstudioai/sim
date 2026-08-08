@@ -4,6 +4,7 @@
 
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TOOL_WATCHDOG_DEFAULT_MS } from '@/lib/copilot/constants'
 import { TraceCollector } from '@/lib/copilot/request/trace'
 
 const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApproval } = vi.hoisted(
@@ -15,11 +16,13 @@ const { isSimExecuted, executeTool, ensureHandlersRegistered, toolRequiresApprov
   })
 )
 
-const { upsertAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall } = vi.hoisted(() => ({
-  upsertAsyncToolCall: vi.fn(),
-  markAsyncToolRunning: vi.fn(),
-  completeAsyncToolCall: vi.fn(),
-}))
+const { upsertAsyncToolCall, getAsyncToolCall, markAsyncToolRunning, completeAsyncToolCall } =
+  vi.hoisted(() => ({
+    upsertAsyncToolCall: vi.fn(),
+    getAsyncToolCall: vi.fn(),
+    markAsyncToolRunning: vi.fn(),
+    completeAsyncToolCall: vi.fn(),
+  }))
 
 const { waitForClientToolCompletion, waitForToolCompletion, waitForWorkflowToolCompletion } =
   vi.hoisted(() => ({
@@ -47,7 +50,7 @@ vi.mock('@/lib/copilot/async-runs/repository', () => ({
   getLatestRunForStream: vi.fn(),
   getRunSegment: vi.fn(),
   createRunCheckpoint: vi.fn(),
-  getAsyncToolCall: vi.fn(),
+  getAsyncToolCall,
   markAsyncToolStatus: vi.fn(),
   listAsyncToolCallsForRun: vi.fn(),
   getAsyncToolCalls: vi.fn(),
@@ -86,6 +89,7 @@ import {
   sseHandlers,
   subAgentHandlers,
 } from '@/lib/copilot/request/handlers'
+import { cancelToolCallAndReport, executeToolAndReport } from '@/lib/copilot/request/tools/executor'
 import type { ExecutionContext, StreamEvent, StreamingContext } from '@/lib/copilot/request/types'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -97,6 +101,7 @@ describe('sse-handlers tool lifecycle', () => {
     vi.clearAllMocks()
     isSimExecuted.mockReturnValue(true)
     upsertAsyncToolCall.mockResolvedValue(null)
+    getAsyncToolCall.mockResolvedValue(null)
     markAsyncToolRunning.mockResolvedValue(null)
     completeAsyncToolCall.mockResolvedValue(null)
     waitForToolCompletion.mockResolvedValue(null)
@@ -1279,6 +1284,102 @@ describe('sse-handlers tool lifecycle', () => {
     expect(updated?.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
     expect(updated?.result).toEqual({ success: false })
     expect(updated?.error).toBe('Request aborted during tool execution')
+  })
+
+  it('creates and terminalizes the durable row when Stop wins before normal persistence', async () => {
+    context.runId = 'run-stop'
+    context.toolCalls.set('tool-stop', {
+      id: 'tool-stop',
+      name: ReadTool.id,
+      params: { path: 'WORKSPACE.md' },
+      status: 'executing',
+    })
+
+    await cancelToolCallAndReport('tool-stop', context)
+
+    expect(upsertAsyncToolCall).toHaveBeenCalledWith({
+      runId: 'run-stop',
+      toolCallId: 'tool-stop',
+      toolName: ReadTool.id,
+      args: { path: 'WORKSPACE.md' },
+    })
+    expect(completeAsyncToolCall).toHaveBeenCalledWith({
+      toolCallId: 'tool-stop',
+      status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
+      result: { cancelled: true },
+      error: 'Stopped by user',
+    })
+    expect(context.toolCalls.get('tool-stop')).toEqual(
+      expect.objectContaining({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        result: { success: false },
+        error: 'Stopped by user',
+        endTime: expect.any(Number),
+      })
+    )
+  })
+
+  it('does not execute after a durable cancellation wins the running transition', async () => {
+    context.runId = 'run-stop'
+    context.toolCalls.set('tool-stop', {
+      id: 'tool-stop',
+      name: ReadTool.id,
+      params: { path: 'WORKSPACE.md' },
+      status: 'pending',
+    })
+    getAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'tool-stop',
+      status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
+      result: { cancelled: true },
+      error: 'Stopped by user',
+    })
+
+    const completion = await executeToolAndReport('tool-stop', context, execContext)
+
+    expect(executeTool).not.toHaveBeenCalled()
+    expect(completion.status).toBe(MothershipStreamV1ToolOutcome.cancelled)
+    expect(context.toolCalls.get('tool-stop')).toEqual(
+      expect.objectContaining({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+      })
+    )
+  })
+
+  it('keeps a watchdog-timed-out raw handler tracked until it actually settles', async () => {
+    vi.useFakeTimers()
+    try {
+      let settleRawExecution!: (value: { success: boolean; output: { ok: boolean } }) => void
+      executeTool.mockReturnValueOnce(
+        new Promise((resolve) => {
+          settleRawExecution = resolve
+        })
+      )
+      markAsyncToolRunning.mockResolvedValueOnce({
+        toolCallId: 'tool-timeout',
+        status: MothershipStreamV1AsyncToolRecordStatus.running,
+      })
+      context.toolCalls.set('tool-timeout', {
+        id: 'tool-timeout',
+        name: ReadTool.id,
+        params: { path: 'WORKSPACE.md' },
+        status: 'pending',
+      })
+
+      const reported = executeToolAndReport('tool-timeout', context, execContext)
+      await vi.waitFor(() => expect(context.inFlightToolExecutions?.has('tool-timeout')).toBe(true))
+
+      await vi.advanceTimersByTimeAsync(TOOL_WATCHDOG_DEFAULT_MS)
+      await reported
+      expect(context.inFlightToolExecutions?.has('tool-timeout')).toBe(true)
+
+      settleRawExecution({ success: true, output: { ok: true } })
+      await vi.waitFor(() =>
+        expect(context.inFlightToolExecutions?.has('tool-timeout')).toBe(false)
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('does not replace an in-flight pending promise on duplicate tool_call', async () => {

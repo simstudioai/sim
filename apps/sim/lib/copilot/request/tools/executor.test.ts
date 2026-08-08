@@ -1,12 +1,15 @@
 import '@sim/testing/mocks/executor'
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 
 const {
   executeTool,
   completeAsyncToolCall,
+  getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
+  publishToolConfirmation,
   onEvent,
   recordSimToolMetric,
   setAttribute,
@@ -16,8 +19,10 @@ const {
   return {
     executeTool: vi.fn(),
     completeAsyncToolCall: vi.fn(),
+    getAsyncToolCall: vi.fn().mockResolvedValue(null),
     markAsyncToolRunning: vi.fn(),
     upsertAsyncToolCall: vi.fn(),
+    publishToolConfirmation: vi.fn(),
     onEvent: vi.fn(),
     recordSimToolMetric: vi.fn(),
     setAttribute,
@@ -35,12 +40,13 @@ vi.mock('@/lib/copilot/tool-executor', () => ({
 
 vi.mock('@/lib/copilot/async-runs/repository', () => ({
   completeAsyncToolCall,
+  getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
 }))
 
 vi.mock('@/lib/copilot/persistence/tool-confirm', () => ({
-  publishToolConfirmation: vi.fn(),
+  publishToolConfirmation,
 }))
 
 vi.mock('@/lib/copilot/request/metrics', () => ({
@@ -77,6 +83,7 @@ import { MothershipStreamV1ToolOutcome } from '@/lib/copilot/generated/mothershi
 import { createStreamingContext } from '@/lib/copilot/request/context/request-context'
 import {
   buildToolExecutionContext,
+  cancelToolCallAndReport,
   executeToolAndReport,
   pendingToolWaitBudgetMs,
   toolWatchdogTimeoutMs,
@@ -393,4 +400,90 @@ describe('executeToolAndReport metrics', () => {
       )
     }
   )
+})
+
+describe('buildToolExecutionContext authorization and stop signals', () => {
+  it('projects the authorization principal while retaining the immutable billing actor', () => {
+    const billingAttribution: BillingAttributionSnapshot = {
+      actorUserId: 'workspace-billed-account',
+      workspaceId: 'workspace-1',
+      organizationId: null,
+      billedAccountUserId: 'workspace-billed-account',
+      billingEntity: { type: 'user', id: 'workspace-billed-account' },
+      billingPeriod: { start: '2026-07-01', end: '2026-08-01' },
+      payerSubscription: null,
+    }
+    const executionContext: ExecutionContext = {
+      userId: 'workspace-billed-account',
+      authorizationUserId: 'workspace-key-owner',
+      workflowId: '',
+      workspaceId: 'workspace-1',
+      billingAttribution,
+    }
+
+    const toolContext = buildToolExecutionContext({ id: 'call-1' }, executionContext)
+    expect(toolContext).toMatchObject({
+      userId: 'workspace-key-owner',
+      workspaceId: 'workspace-1',
+      toolCallId: 'call-1',
+    })
+    expect(toolContext.billingAttribution).toBe(billingAttribution)
+    expect(toolContext).not.toHaveProperty('authorizationUserId')
+    expect(toolContext).not.toHaveProperty('billingActorUserId')
+    expect(executionContext.userId).toBe('workspace-billed-account')
+    expect(executionContext).not.toHaveProperty('billingActorUserId')
+  })
+
+  it('preserves the explicit user-stop signal in the per-tool context', () => {
+    const userStopController = new AbortController()
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      userStopSignal: userStopController.signal,
+    }
+
+    const toolContext = buildToolExecutionContext({ id: 'call-1' }, executionContext)
+
+    expect(toolContext.userStopSignal).toBe(userStopController.signal)
+  })
+})
+
+describe('cancelToolCallAndReport', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    upsertAsyncToolCall.mockResolvedValue({ toolCallId: 'tool-stop' })
+  })
+
+  it('publishes cancellation only when its durable terminal transition wins', async () => {
+    const losingContext = createStreamingContext({ runId: 'run-1' })
+    losingContext.toolCalls.set('tool-lost-race', {
+      id: 'tool-lost-race',
+      name: 'read',
+      status: 'executing',
+    })
+    completeAsyncToolCall.mockResolvedValueOnce(null)
+
+    await cancelToolCallAndReport('tool-lost-race', losingContext)
+    expect(publishToolConfirmation).not.toHaveBeenCalled()
+
+    const winningContext = createStreamingContext({ runId: 'run-1' })
+    winningContext.toolCalls.set('tool-won-race', {
+      id: 'tool-won-race',
+      name: 'read',
+      status: 'executing',
+    })
+    completeAsyncToolCall.mockResolvedValueOnce({
+      toolCallId: 'tool-won-race',
+      status: 'cancelled',
+    })
+
+    await cancelToolCallAndReport('tool-won-race', winningContext)
+    expect(publishToolConfirmation).toHaveBeenCalledOnce()
+    expect(publishToolConfirmation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        toolCallId: 'tool-won-race',
+        status: MothershipStreamV1ToolOutcome.cancelled,
+      })
+    )
+  })
 })

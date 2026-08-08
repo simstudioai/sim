@@ -519,6 +519,42 @@ describe('copilot go stream helpers', () => {
     expect(fetch).toHaveBeenCalledTimes(1)
   })
 
+  it('reports acceptance only after an OK response exposes its stream body', async () => {
+    const complete = createEvent({
+      streamId: 'stream-1',
+      cursor: '1',
+      seq: 1,
+      requestId: 'req-1',
+      type: MothershipStreamV1EventType.complete,
+      payload: { status: MothershipStreamV1CompletionStatus.complete },
+    })
+    const onAccepted = vi.fn()
+    vi.mocked(fetch).mockResolvedValueOnce(createSseResponse([complete]))
+
+    await runStreamLoop(
+      'https://example.com/mothership/stream',
+      {},
+      createStreamingContext(),
+      { userId: 'user-1', workflowId: 'workflow-1' },
+      { timeout: 1000, onAccepted }
+    )
+
+    expect(onAccepted).toHaveBeenCalledOnce()
+
+    onAccepted.mockClear()
+    vi.mocked(fetch).mockResolvedValueOnce(new Response('bad gateway', { status: 502 }))
+    await expect(
+      runStreamLoop(
+        'https://example.com/mothership/stream',
+        {},
+        createStreamingContext(),
+        { userId: 'user-1', workflowId: 'workflow-1' },
+        { timeout: 1000, onAccepted }
+      )
+    ).rejects.toThrow('Copilot backend error')
+    expect(onAccepted).not.toHaveBeenCalled()
+  })
+
   it('does not retry non-transient backend statuses before the SSE stream opens', async () => {
     vi.mocked(fetch).mockResolvedValueOnce(new Response('limit reached', { status: 402 }))
 

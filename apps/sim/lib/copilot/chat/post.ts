@@ -1,24 +1,16 @@
-import { type Context as OtelContext, context as otelContextApi } from '@opentelemetry/api'
-import { db } from '@sim/db'
-import { copilotChats } from '@sim/db/schema'
+import { context as otelContextApi } from '@opentelemetry/api'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
-import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
 import { isZodError, validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { type ChatLoadResult, resolveOrCreateChat } from '@/lib/copilot/chat/lifecycle'
-import { appendCopilotChatMessages } from '@/lib/copilot/chat/messages-store'
 import { buildCopilotRequestPayload } from '@/lib/copilot/chat/payload'
-import {
-  buildPersistedAssistantMessage,
-  buildPersistedUserMessage,
-  withStoppedContentBlock,
-} from '@/lib/copilot/chat/persisted-message'
+import { collectChatMcpServerIds } from '@/lib/copilot/chat/persisted-message'
 import {
   processContextsServer,
   resolveActiveResourceContext,
@@ -29,17 +21,16 @@ import {
   MAX_TABLE_SELECTION_ROWS,
   safeBrowserSelectionUrl,
 } from '@/lib/copilot/chat/selection-context'
-import { finalizeAssistantTurn } from '@/lib/copilot/chat/terminal-state'
+import {
+  buildCopilotTurnOnComplete,
+  buildCopilotTurnOnError,
+  persistCopilotUserMessage,
+} from '@/lib/copilot/chat/turn-persistence'
 import { generateWorkspaceSnapshot } from '@/lib/copilot/chat/workspace-context'
-import { chatPubSub } from '@/lib/copilot/chat-status'
 import { COPILOT_REQUEST_MODES } from '@/lib/copilot/constants'
 import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
-import {
-  CopilotChatFinalizeOutcome,
-  CopilotChatPersistOutcome,
-  CopilotTransport,
-} from '@/lib/copilot/generated/trace-attribute-values-v1'
+import { CopilotTransport } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
 import { TraceSpan } from '@/lib/copilot/generated/trace-spans-v1'
 import type { VfsSnapshotV1 } from '@/lib/copilot/generated/vfs-snapshot-v1'
@@ -51,7 +42,7 @@ import {
   getPendingChatStreamId,
   releasePendingChatStream,
 } from '@/lib/copilot/request/session'
-import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import {
   canonicalizeDesktopSessionResources,
@@ -397,44 +388,6 @@ function normalizeContexts(contexts: UnifiedChatRequest['contexts']) {
   })
 }
 
-/**
- * An MCP server tagged with `/name` stays enabled for the rest of the chat, not
- * just the turn it was tagged on. Persisted user messages already carry their
- * `mcp` contexts, so the transcript is the source of truth — enablement survives
- * reloads and reopened chats with no extra state to keep in sync. There is
- * deliberately no off switch: history is append-only.
- *
- * Only the ids travel forward, not the contexts themselves. The tools ride the
- * tool array on every turn, so the model always sees their names and schemas;
- * re-expanding the prompt listing each turn would just duplicate that. Keeping
- * inherited servers out of the persisted contexts also keeps the `/name` chips
- * on a sent message showing only what the user actually typed that turn.
- */
-function collectChatMcpServerIds(
-  conversationHistory: unknown[],
-  currentContexts: UnifiedChatRequest['contexts']
-): string[] {
-  const serverIds = new Set<string>()
-
-  const collect = (contexts: unknown) => {
-    if (!Array.isArray(contexts)) return
-    for (const ctx of contexts) {
-      if (!ctx || typeof ctx !== 'object') continue
-      const { kind, serverId } = ctx as { kind?: unknown; serverId?: unknown }
-      if (kind === 'mcp' && typeof serverId === 'string' && serverId) {
-        serverIds.add(serverId)
-      }
-    }
-  }
-
-  for (const message of conversationHistory) {
-    collect((message as { contexts?: unknown } | null)?.contexts)
-  }
-  collect(currentContexts)
-
-  return Array.from(serverIds)
-}
-
 async function resolveAgentContexts(params: {
   contexts?: UnifiedChatRequest['contexts']
   resourceAttachments?: UnifiedChatRequest['resourceAttachments']
@@ -534,96 +487,6 @@ function projectAgentContextInputs(
     })),
   }
 }
-
-async function persistUserMessage(params: {
-  chatId?: string
-  userMessageId: string
-  message: string
-  fileAttachments?: UnifiedChatRequest['fileAttachments']
-  contexts?: UnifiedChatRequest['contexts']
-  workspaceId?: string
-  notifyWorkspaceStatus: boolean
-  /**
-   * Root context for the mothership request. When present the persist
-   * span is created explicitly under it, which avoids relying on
-   * AsyncLocalStorage propagation — some upstream awaits (Next.js
-   * framework frames, Turbopack-instrumented I/O) can swap the active
-   * store out from under us in dev, which would otherwise leave this
-   * span parented to the about-to-be-dropped Next.js HTTP span.
-   */
-  parentOtelContext?: OtelContext
-}): Promise<void> {
-  const {
-    chatId,
-    userMessageId,
-    message,
-    fileAttachments,
-    contexts,
-    workspaceId,
-    notifyWorkspaceStatus,
-    parentOtelContext,
-  } = params
-  if (!chatId) return
-
-  return withCopilotSpan(
-    TraceSpan.CopilotChatPersistUserMessage,
-    {
-      [TraceAttr.DbSystem]: 'postgresql',
-      [TraceAttr.DbSqlTable]: 'copilot_chats',
-      [TraceAttr.ChatId]: chatId,
-      [TraceAttr.ChatUserMessageId]: userMessageId,
-      [TraceAttr.ChatMessageBytes]: message.length,
-      [TraceAttr.ChatFileAttachmentCount]: fileAttachments?.length ?? 0,
-      [TraceAttr.ChatContextCount]: contexts?.length ?? 0,
-      ...(workspaceId ? { [TraceAttr.WorkspaceId]: workspaceId } : {}),
-    },
-    async (span) => {
-      const userMsg = buildPersistedUserMessage({
-        id: userMessageId,
-        content: message,
-        fileAttachments,
-        contexts,
-      })
-
-      const updated = await db.transaction(async (tx) => {
-        const [row] = await tx
-          .update(copilotChats)
-          .set({
-            conversationId: userMessageId,
-            updatedAt: new Date(),
-          })
-          .where(eq(copilotChats.id, chatId))
-          .returning({ model: copilotChats.model })
-
-        if (!row) return null
-
-        await appendCopilotChatMessages(
-          chatId,
-          [userMsg],
-          { streamId: userMessageId, chatModel: row.model ?? null },
-          tx
-        )
-        return row
-      })
-
-      span.setAttribute(
-        TraceAttr.ChatPersistOutcome,
-        updated ? CopilotChatPersistOutcome.Appended : CopilotChatPersistOutcome.ChatNotFound
-      )
-
-      if (notifyWorkspaceStatus && updated && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'started',
-          streamId: userMessageId,
-        })
-      }
-    },
-    parentOtelContext
-  )
-}
-
 async function buildInitialExecutionContext(params: {
   userId: string
   workflowId?: string
@@ -663,145 +526,6 @@ async function buildInitialExecutionContext(params: {
     userTimezone,
     requestMode,
     copilotToolExecution: true,
-  }
-}
-
-function buildOnComplete(params: {
-  chatId?: string
-  userMessageId: string
-  requestId: string
-  workspaceId?: string
-  notifyWorkspaceStatus: boolean
-  /**
-   * Root agent span for this request. When present, the final
-   * assistant message + invoked tool calls are recorded as
-   * `gen_ai.output.messages` on it before persistence runs. Keeps
-   * the Honeycomb Gen AI view complete across both the Sim root
-   * span and the Go-side `llm.stream` spans.
-   */
-  otelRoot?: {
-    setOutputMessages: (output: {
-      assistantText?: string
-      toolCalls?: Array<{ id: string; name: string; arguments?: Record<string, unknown> }>
-    }) => void
-  }
-}) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus, otelRoot } = params
-
-  return async (result: OrchestratorResult) => {
-    if (otelRoot && result.success) {
-      otelRoot.setOutputMessages({
-        assistantText: result.content,
-        toolCalls: result.toolCalls?.map((tc) => ({
-          id: tc.id,
-          name: tc.name,
-          arguments: tc.params,
-        })),
-      })
-    }
-
-    if (!chatId) return
-
-    try {
-      if (result.cancelled) {
-        const finalization = await finalizeAssistantTurn({
-          chatId,
-          userMessageId,
-          assistantMessage: withStoppedContentBlock(
-            buildPersistedAssistantMessage(result, requestId)
-          ),
-          streamMarkerPolicy: 'active-or-cleared',
-        })
-        const shouldPublishCompletion =
-          finalization.updated ||
-          finalization.outcome === CopilotChatFinalizeOutcome.AssistantAlreadyPersisted
-
-        if (notifyWorkspaceStatus && workspaceId && shouldPublishCompletion) {
-          chatPubSub?.publishStatusChanged({
-            workspaceId,
-            chatId,
-            type: 'completed',
-            streamId: userMessageId,
-          })
-        }
-        return
-      }
-
-      // On a non-success terminal (e.g. a transient provider error like
-      // "overloaded"), persist whatever streamed before the failure — same as
-      // the cancelled path — instead of dropping the partial assistant output.
-      const assistantMessage = buildPersistedAssistantMessage(result, requestId)
-      const hasPartial =
-        !!assistantMessage.content?.trim() || (assistantMessage.contentBlocks?.length ?? 0) > 0
-      await finalizeAssistantTurn({
-        chatId,
-        userMessageId,
-        ...(result.success || hasPartial ? { assistantMessage } : {}),
-        // Match the cancelled path so the partial still persists if onError
-        // raced ahead and already cleared the stream marker.
-        ...(result.success ? {} : { streamMarkerPolicy: 'active-or-cleared' as const }),
-      })
-
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to persist chat messages`, {
-        chatId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-    }
-  }
-}
-
-function buildOnError(params: {
-  chatId?: string
-  userMessageId: string
-  requestId: string
-  workspaceId?: string
-  notifyWorkspaceStatus: boolean
-}) {
-  const { chatId, userMessageId, requestId, workspaceId, notifyWorkspaceStatus } = params
-
-  return async (_error: Error, result?: OrchestratorResult) => {
-    if (!chatId) return
-
-    try {
-      // Persist whatever streamed before a thrown backend error, mirroring the
-      // cancelled / non-success completion path, so the partial assistant turn
-      // (text + tool calls + subagent work) survives the refetch instead of the
-      // chat collapsing to an empty assistant row.
-      const assistantMessage = result
-        ? buildPersistedAssistantMessage(result, requestId)
-        : undefined
-      const hasPartial =
-        !!assistantMessage?.content?.trim() || (assistantMessage?.contentBlocks?.length ?? 0) > 0
-      await finalizeAssistantTurn({
-        chatId,
-        userMessageId,
-        ...(hasPartial ? { assistantMessage } : {}),
-        streamMarkerPolicy: 'active-or-cleared',
-      })
-
-      if (notifyWorkspaceStatus && workspaceId) {
-        chatPubSub?.publishStatusChanged({
-          workspaceId,
-          chatId,
-          type: 'completed',
-          streamId: userMessageId,
-        })
-      }
-    } catch (error) {
-      logger.error(`[${requestId}] Failed to finalize errored chat stream`, {
-        chatId,
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-    }
   }
 }
 
@@ -1216,7 +940,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           activeOtelRoot.context
         )
       })
-      const persistUserMessagePromise = persistUserMessage({
+      const persistUserMessagePromise = persistCopilotUserMessage({
         chatId: actualChatId,
         userMessageId,
         message: body.message,
@@ -1343,7 +1067,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           autoExecuteTools: true,
           interactive: true,
           executionContext,
-          onComplete: buildOnComplete({
+          onComplete: buildCopilotTurnOnComplete({
             chatId: actualChatId,
             userMessageId,
             requestId,
@@ -1351,7 +1075,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
             otelRoot,
           }),
-          onError: buildOnError({
+          onError: buildCopilotTurnOnError({
             chatId: actualChatId,
             userMessageId,
             requestId,

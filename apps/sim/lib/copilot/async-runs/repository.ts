@@ -380,7 +380,10 @@ async function markAsyncToolStatus(
 }
 
 export async function markAsyncToolRunning(toolCallId: string, claimedBy: string) {
-  return markAsyncToolStatus(toolCallId, 'running', { claimedBy })
+  return markAsyncToolStatus(toolCallId, ASYNC_TOOL_STATUS.running, { claimedBy }, [
+    ASYNC_TOOL_STATUS.pending,
+    ASYNC_TOOL_STATUS.running,
+  ])
 }
 
 export function getClaimedWorkflowExecutionId(claimedBy: string | null | undefined) {

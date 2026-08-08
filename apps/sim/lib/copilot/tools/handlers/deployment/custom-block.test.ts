@@ -119,7 +119,7 @@ describe('executeDeployCustomBlock', () => {
       context
     )
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', context, 'admin')
     expect(publishCustomBlockMock).toHaveBeenCalledWith({
       organizationId: 'org-1',
       workspaceId: 'ws-1',

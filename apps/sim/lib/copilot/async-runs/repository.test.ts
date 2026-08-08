@@ -11,6 +11,7 @@ import {
   completeAsyncToolCall,
   detachAsyncToolCall,
   getClaimedWorkflowExecutionId,
+  markAsyncToolRunning,
   recordToolPermissionDecision,
   releaseWorkflowToolExecutionClaim,
   replaceTerminalAsyncToolCallResult,
@@ -130,6 +131,27 @@ describe('async tool repository single-row semantics', () => {
         claimedAt: expect.any(Date),
       })
     )
+  })
+
+  it('marks a Sim tool running only while its durable row is still live', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      {
+        toolCallId: 'sim-tool',
+        status: 'running',
+        claimedBy: 'sim-stream',
+      },
+    ])
+
+    await markAsyncToolRunning('sim-tool', 'sim-stream')
+
+    const predicate = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(predicate).toEqual({
+      type: 'and',
+      conditions: [
+        expect.objectContaining({ type: 'eq', right: 'sim-tool' }),
+        expect.objectContaining({ type: 'inArray', values: ['pending', 'running'] }),
+      ],
+    })
   })
 
   it('atomically binds an eligible workflow tool to one execution', async () => {

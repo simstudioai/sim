@@ -11,8 +11,8 @@ import { cliAuthParsers } from '@/app/cli/auth/search-params'
 import { useApproveCliAuth } from '@/hooks/queries/cli-auth'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
-/** Sentinel for the "not bound to a workspace" row; an empty string reads as unselected. */
-const PERSONAL_VALUE = '__personal__'
+/** Sentinel for a profile without a default workspace; an empty string reads as unselected. */
+const NO_WORKSPACE_VALUE = '__no_workspace__'
 
 /**
  * The signed-in half of the CLI key handoff: a consent card that records the
@@ -40,7 +40,7 @@ export function CliAuthView() {
       label: workspace.name,
       value: workspace.id,
     }))
-    return [...rows, { label: 'No workspace (personal key)', value: PERSONAL_VALUE }]
+    return [...rows, { label: 'No default workspace', value: NO_WORKSPACE_VALUE }]
   }, [workspaces.data])
 
   if (!resolution.valid) {
@@ -63,11 +63,10 @@ export function CliAuthView() {
    * Approval must wait for the workspace list.
    *
    * Until it arrives there is no selection to show, and the fallback would read
-   * as "No workspace (personal key)" — a real answer, not a pending one. Leaving
-   * Connect live through that window let a fast click approve a personal key
-   * with no default workspace, when a moment later the same click would have
-   * bound the key to the user's workspace. Blocking is the only way the card
-   * can promise what it is about to do.
+   * as "No default workspace" — a real answer, not a pending one. Leaving
+   * Connect live through that window let a fast click approve a key with no
+   * default workspace when the picker was about to select the user's workspace.
+   * Blocking is the only way the card can promise what it is about to do.
    */
   const loadingWorkspaces = isPlatform && workspaces.isPending
 
@@ -88,11 +87,6 @@ export function CliAuthView() {
   const workspaceId = selected ?? suggested ?? workspaces.data?.lastActiveWorkspaceId ?? null
   const chosen = workspaces.data?.workspaces.find((w) => w.id === workspaceId)
 
-  // Only an admin can bind a key to a workspace. Anything less still gets a
-  // usable credential — a personal key — but the card says which one before the
-  // click rather than after, so nothing unexpected lands in the config file.
-  const bindsToWorkspace = chosen?.permissions === 'admin'
-
   return (
     <div className='space-y-6'>
       <AuthHeader
@@ -111,7 +105,7 @@ export function CliAuthView() {
             <Label className='text-[var(--text-muted)] text-small'>Default workspace</Label>
             <ChipSelect
               options={options}
-              value={workspaceId ?? PERSONAL_VALUE}
+              value={workspaceId ?? NO_WORKSPACE_VALUE}
               onChange={setSelected}
               disabled={loadingWorkspaces || workspaces.isError}
               // A placeholder only shows when nothing is selected, and the
@@ -126,17 +120,15 @@ export function CliAuthView() {
             />
             <p className='text-[var(--text-muted)] text-caption'>
               {loadingWorkspaces
-                ? 'Checking which workspaces you can issue a key for…'
+                ? 'Loading your workspaces…'
                 : workspaces.isError
                   ? 'Could not load your workspaces. Connecting still works and issues a personal key; reload to pick a default workspace.'
-                  : bindsToWorkspace
-                    ? `Issues a key that can only reach ${chosen.name}.`
-                    : chosen
-                      ? 'Issues a personal key tied to your account, defaulting to this workspace. Workspace-scoped keys need admin.'
-                      : // No workspace picked, so none is sent and none becomes the
-                        // profile default — promising one here would describe a
-                        // grant that Connect is not about to make.
-                        'Issues a personal key tied to your account, with no default workspace.'}
+                  : chosen
+                    ? 'Issues a personal key tied to your account, defaulting to this workspace.'
+                    : // No workspace picked, so none is sent and none becomes the
+                      // profile default — promising one here would describe a
+                      // grant that Connect is not about to make.
+                      'Issues a personal key tied to your account, with no default workspace.'}
             </p>
           </div>
         )}
@@ -151,10 +143,11 @@ export function CliAuthView() {
                 request: request.request,
                 challenge: request.challenge,
                 scope: request.scope,
-                // The picked workspace travels either way — it is the terminal's
-                // default. Only `bindKeyToWorkspace` narrows the key itself.
+                // The picked workspace is the terminal profile's default. CLI
+                // login represents the signed-in person, so its key remains
+                // personal even when that person administers the workspace.
                 ...(isPlatform && chosen ? { workspaceId: chosen.id } : {}),
-                bindKeyToWorkspace: isPlatform && bindsToWorkspace,
+                bindKeyToWorkspace: false,
               },
               { onSuccess: () => router.push('/cli/auth/done') }
             )

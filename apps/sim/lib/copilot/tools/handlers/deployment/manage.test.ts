@@ -102,7 +102,11 @@ describe('executeLoadDeployment', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith(
+      'wf-1',
+      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' }),
+      'admin'
+    )
     expect(performRevertToVersionMock).toHaveBeenCalledWith({
       workflowId: 'wf-1',
       version: 7,
@@ -195,7 +199,11 @@ describe('executePromoteToLive', () => {
       toolCallId: 'call-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith(
+      'wf-1',
+      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' }),
+      'admin'
+    )
     expect(performActivateVersionMock).toHaveBeenCalledWith({
       workflowId: 'wf-1',
       version: 3,
@@ -340,8 +348,16 @@ describe('executeDiffWorkflows', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith('wf-1', 1, 'user-1')
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith('wf-1', 'live', 'user-1')
+    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith(
+      'wf-1',
+      1,
+      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' })
+    )
+    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith(
+      'wf-1',
+      'live',
+      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' })
+    )
     // ref1 = base/previous, ref2 = target/current.
     expect(generateWorkflowDiffSummaryMock).toHaveBeenCalledWith({ target: true }, { base: true })
     expect(result.success).toBe(true)
@@ -351,6 +367,74 @@ describe('executeDiffWorkflows', () => {
       ref2: { ref: 'live', version: 2, isActive: true },
       diff: { hasChanges: false },
     })
+  })
+
+  it('removes credentials before diffing in secretless mode', async () => {
+    const state = (apiKey: string) => ({
+      blocks: {
+        request: {
+          id: 'request',
+          type: 'unknown-integration',
+          subBlocks: {
+            apiKey: { id: 'apiKey', type: 'short-input', value: apiKey },
+            path: { id: 'path', type: 'short-input', value: '/users' },
+          },
+        },
+      },
+      edges: [],
+      loops: {},
+      parallels: {},
+    })
+    resolveWorkflowStateRefMock
+      .mockResolvedValueOnce({ state: state('SENTINEL_OLD_SECRET'), ref: '1', version: 1 })
+      .mockResolvedValueOnce({ state: state('SENTINEL_NEW_SECRET'), ref: '2', version: 2 })
+    generateWorkflowDiffSummaryMock.mockReturnValue({
+      addedBlocks: [],
+      removedBlocks: [],
+      modifiedBlocks: [],
+      edgeChanges: { added: 0, removed: 0, addedDetails: [], removedDetails: [] },
+      loopChanges: { added: 0, removed: 0, modified: 0 },
+      parallelChanges: { added: 0, removed: 0, modified: 0 },
+      variableChanges: {
+        added: 0,
+        removed: 0,
+        modified: 0,
+        addedNames: [],
+        removedNames: [],
+        modifiedNames: [],
+      },
+      hasChanges: false,
+    })
+
+    await executeDiffWorkflows({ workflowId: 'wf-1', ref1: 1, ref2: 2 }, {
+      userId: 'key-creator',
+      secretActorUserId: null,
+      workflowId: 'wf-1',
+    } as ExecutionContext)
+
+    expect(generateWorkflowDiffSummaryMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blocks: expect.objectContaining({
+          request: expect.objectContaining({
+            subBlocks: expect.objectContaining({
+              apiKey: expect.objectContaining({ value: null }),
+              path: expect.objectContaining({ value: '/users' }),
+            }),
+          }),
+        }),
+      }),
+      expect.objectContaining({
+        blocks: expect.objectContaining({
+          request: expect.objectContaining({
+            subBlocks: expect.objectContaining({
+              apiKey: expect.objectContaining({ value: null }),
+              path: expect.objectContaining({ value: '/users' }),
+            }),
+          }),
+        }),
+      })
+    )
+    expect(JSON.stringify(generateWorkflowDiffSummaryMock.mock.calls)).not.toContain('SENTINEL_')
   })
 })
 

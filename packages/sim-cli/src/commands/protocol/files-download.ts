@@ -3,7 +3,8 @@ import { createWriteStream, type WriteStream } from 'node:fs'
 import { basename } from 'node:path'
 import type { Command } from 'commander'
 import { clientFrom } from '../../context.js'
-import { SimApiError } from '../../http/client.js'
+import { V2_OPERATIONS } from '../../generated/v2-api.js'
+import { resolvePath, SimApiError } from '../../http/client.js'
 import { printProtocolResult } from './result.js'
 
 /** Streams a fetch body to disk while honoring write-stream backpressure. */
@@ -82,24 +83,13 @@ export function attachFileDownload(files: Command): void {
 
         const { client, profile } = clientFrom(command)
         const workspaceId = client.requireWorkspace()
-
-        if (!profile.apiKey) {
-          throw new SimApiError(`Not logged in on profile "${profile.name}". Run: sim login`, 0)
-        }
-
-        const url = new URL(`${profile.endpoint}/api/v2/files/${encodeURIComponent(fileId)}`)
-        url.searchParams.set('workspaceId', workspaceId)
-
-        // boundary-raw-fetch: binary download cannot pass through the JSON client
-        const response = await fetch(url, {
-          headers: { 'x-api-key': profile.apiKey },
+        const operation = V2_OPERATIONS.downloadFile
+        const response = await client.requestRaw(resolvePath(operation.path, { fileId }), {
+          method: operation.method,
+          query: { workspaceId },
         })
-        if (!response.ok || !response.body) {
-          const raw = await response.text().catch(() => '')
-          throw new SimApiError(
-            raw || `Download failed with status ${response.status}`,
-            response.status
-          )
+        if (!response.body) {
+          throw new SimApiError('Download returned an empty response.', response.status)
         }
 
         if (options.outputFile === '-') {

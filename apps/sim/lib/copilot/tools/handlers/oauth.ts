@@ -43,11 +43,7 @@ export async function executeOAuthGetAuthLink(
     if (!context.workspaceId || !context.userId) {
       throw new Error('workspaceId and userId are required to generate an OAuth link')
     }
-    const workspaceAccess = await ensureWorkspaceAccess(
-      context.workspaceId,
-      context.userId,
-      'write'
-    )
+    const workspaceAccess = await ensureWorkspaceAccess(context.workspaceId, context, 'write')
     const permissionConfig = await getUserPermissionConfig(context.userId, context.workspaceId)
     const configuredAllowedIntegrations = intersectIntegrationAllowlists(
       permissionConfig?.allowedIntegrations ?? null,

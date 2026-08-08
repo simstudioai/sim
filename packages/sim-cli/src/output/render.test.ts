@@ -231,12 +231,20 @@ describe('sanitize', () => {
     expect(sanitize('a\u0000b\u0008c\u009bd')).toBe('abcd')
   })
 
+  it('removes bidi formatting controls while preserving ordinary RTL text', () => {
+    expect(sanitize('safe\u202eevil\u202c \u2066host\u2069 مرحبا')).toBe('safeevil host مرحبا')
+  })
+
   it('takes the following byte with a bare ESC, since ESC + printable is a sequence', () => {
     expect(sanitize('a\u001bdb')).toBe('ab')
   })
 
   it('keeps tabs and newlines, which are legitimate content', () => {
     expect(sanitize('a\tb\nc')).toBe('a\tb\nc')
+  })
+
+  it('normalizes CRLF and removes a lone carriage return that could overwrite a line', () => {
+    expect(sanitize('first\r\nsecond\roverwrite')).toBe('first\nsecondoverwrite')
   })
 
   it('leaves ordinary text untouched', () => {

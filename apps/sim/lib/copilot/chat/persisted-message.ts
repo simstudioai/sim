@@ -126,6 +126,36 @@ export interface PersistedMessage {
 }
 
 /**
+ * Collect the append-only MCP enablement carried by explicitly tagged user
+ * message contexts. Only ids move between turns: inherited contexts are not
+ * re-expanded into the prompt or persisted again as chips on later messages.
+ */
+export function collectChatMcpServerIds(
+  conversationHistory: readonly unknown[],
+  currentContexts?: unknown
+): string[] {
+  const serverIds = new Set<string>()
+
+  const collect = (contexts: unknown) => {
+    if (!Array.isArray(contexts)) return
+    for (const context of contexts) {
+      if (!context || typeof context !== 'object') continue
+      const { kind, serverId } = context as { kind?: unknown; serverId?: unknown }
+      if (kind === 'mcp' && typeof serverId === 'string' && serverId) {
+        serverIds.add(serverId)
+      }
+    }
+  }
+
+  for (const message of conversationHistory) {
+    collect((message as { contexts?: unknown } | null)?.contexts)
+  }
+  collect(currentContexts)
+
+  return Array.from(serverIds)
+}
+
+/**
  * Drop the `output` of every persisted tool result, keeping `success` and
  * `error`. Tool outputs are never rendered (the chat thread shows only the tool
  * name/title/status) and never replayed to the model (the upstream copilot

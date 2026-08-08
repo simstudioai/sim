@@ -163,7 +163,8 @@ export type ChunkAccessCheck = ChunkAccessResult | ChunkAccessDenied
 async function resolveKnowledgeBaseAccess(
   knowledgeBaseId: string,
   userId: string,
-  requireWrite: boolean
+  requireWrite: boolean,
+  workspaceId?: string
 ): Promise<KnowledgeBaseAccessCheck> {
   const kb = await db
     .select({
@@ -182,6 +183,10 @@ async function resolveKnowledgeBaseAccess(
   }
 
   const kbData = kb[0]
+
+  if (workspaceId && kbData.workspaceId !== workspaceId) {
+    return { hasAccess: false, notFound: true }
+  }
 
   if (kbData.workspaceId) {
     // Workspace KB: use workspace permissions only
@@ -205,9 +210,10 @@ async function resolveKnowledgeBaseAccess(
  */
 export async function checkKnowledgeBaseAccess(
   knowledgeBaseId: string,
-  userId: string
+  userId: string,
+  workspaceId?: string
 ): Promise<KnowledgeBaseAccessCheck> {
-  return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, false)
+  return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, false, workspaceId)
 }
 
 /**
@@ -219,9 +225,10 @@ export async function checkKnowledgeBaseAccess(
  */
 export async function checkKnowledgeBaseWriteAccess(
   knowledgeBaseId: string,
-  userId: string
+  userId: string,
+  workspaceId?: string
 ): Promise<KnowledgeBaseAccessCheck> {
-  return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, true)
+  return resolveKnowledgeBaseAccess(knowledgeBaseId, userId, true, workspaceId)
 }
 
 /**
@@ -232,9 +239,15 @@ async function resolveDocumentAccess(
   knowledgeBaseId: string,
   documentId: string,
   userId: string,
-  requireWrite: boolean
+  requireWrite: boolean,
+  workspaceId?: string
 ): Promise<DocumentAccessCheck> {
-  const kbAccess = await resolveKnowledgeBaseAccess(knowledgeBaseId, userId, requireWrite)
+  const kbAccess = await resolveKnowledgeBaseAccess(
+    knowledgeBaseId,
+    userId,
+    requireWrite,
+    workspaceId
+  )
 
   if (!kbAccess.hasAccess) {
     return {
@@ -262,9 +275,10 @@ async function resolveDocumentAccess(
 export async function checkDocumentAccess(
   knowledgeBaseId: string,
   documentId: string,
-  userId: string
+  userId: string,
+  workspaceId?: string
 ): Promise<DocumentAccessCheck> {
-  return resolveDocumentAccess(knowledgeBaseId, documentId, userId, false)
+  return resolveDocumentAccess(knowledgeBaseId, documentId, userId, false, workspaceId)
 }
 
 /**
@@ -274,9 +288,10 @@ export async function checkDocumentAccess(
 export async function checkDocumentWriteAccess(
   knowledgeBaseId: string,
   documentId: string,
-  userId: string
+  userId: string,
+  workspaceId?: string
 ): Promise<DocumentAccessCheck> {
-  return resolveDocumentAccess(knowledgeBaseId, documentId, userId, true)
+  return resolveDocumentAccess(knowledgeBaseId, documentId, userId, true, workspaceId)
 }
 
 /**

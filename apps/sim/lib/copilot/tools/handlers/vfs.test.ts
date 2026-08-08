@@ -306,6 +306,33 @@ describe('vfs handlers oversize policy', () => {
     expect(result.success).toBe(false)
     expect(result.error).toContain('cannot be shared safely')
   })
+
+  it.each(['compiled', 'compiled-check', 'extract', 'render'])(
+    'rejects /%s document execution paths in query-only mode',
+    async (suffix) => {
+      const vfs = makeVfs()
+      getOrMaterializeVFS.mockResolvedValue(vfs)
+
+      const result = await executeVfsRead(
+        { path: `files/reports/brief.pdf/${suffix}` },
+        { ...GREP_CTX, queryOnly: true }
+      )
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('query-only')
+      expect(vfs.readFileContent).not.toHaveBeenCalled()
+      expect(getOrMaterializeVFS).not.toHaveBeenCalled()
+    }
+  )
+
+  it('requests a secretless VFS for credentialless execution contexts', async () => {
+    const vfs = makeVfs()
+    getOrMaterializeVFS.mockResolvedValue(vfs)
+
+    await executeVfsGlob({ pattern: 'workflows/**' }, { ...GREP_CTX, secretActorUserId: null })
+
+    expect(getOrMaterializeVFS).toHaveBeenCalledWith('ws-1', 'user-1', { secretless: true })
+  })
 })
 
 describe('vfs grep workspace-file routing', () => {

@@ -7,6 +7,7 @@ import type {
   CreateTableImportResponse,
   GetTableImportResponse,
 } from '../../generated/v2-api.js'
+import { V2_OPERATIONS } from '../../generated/v2-api.js'
 import { SimApiError, type SimClient } from '../../http/client.js'
 import { coerce, type FieldSpec } from '../../runtime/request.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
@@ -146,19 +147,22 @@ export function attachTableImport(tables: Command): void {
         }
       }
 
-      const started = await client.request<CreateTableImportResponse>('/api/v2/tables/imports', {
-        method: 'POST',
-        body: {
-          workspaceId,
-          source,
-          target,
-          ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
-          ...(options.createColumns
-            ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
-            : {}),
-          ...(options.timezone ? { timezone: options.timezone } : {}),
-        },
-      })
+      const started = await client.request<CreateTableImportResponse>(
+        V2_OPERATIONS.createTableImport.path,
+        {
+          method: 'POST',
+          body: {
+            workspaceId,
+            source,
+            target,
+            ...(options.mapping ? { mapping: jsonFlag(options.mapping, 'mapping', 'object') } : {}),
+            ...(options.createColumns
+              ? { createColumns: jsonFlag(options.createColumns, 'create-columns', 'array') }
+              : {}),
+            ...(options.timezone ? { timezone: options.timezone } : {}),
+          },
+        }
+      )
 
       let job: TableImport = started.data.session
       if (path) {

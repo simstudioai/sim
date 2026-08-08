@@ -108,6 +108,14 @@ export async function maybeWriteOutputToTable(
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
 
+  if (context.queryOnly) {
+    return {
+      success: false,
+      error:
+        'function_execute is query-only: outputTable (workspace table overwrite) is not available; return the data and report it instead',
+    }
+  }
+
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied
 
@@ -230,6 +238,14 @@ export async function maybeWriteReadCsvToTable(
 
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
+
+  if (context.queryOnly) {
+    return {
+      success: false,
+      error:
+        'read is query-only: outputTable (workspace table overwrite) is not available; inspect the file and report its contents instead',
+    }
+  }
 
   const denied = denyOutputWriteWithoutWritePermission(context)
   if (denied) return denied

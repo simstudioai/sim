@@ -5,7 +5,14 @@
 import { propagation, trace } from '@opentelemetry/api'
 import { W3CTraceContextPropagator } from '@opentelemetry/core'
 import { BasicTracerProvider } from '@opentelemetry/sdk-trace-base'
-import { resetDbChainMock, resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  resetDbChainMock,
+  resetEnvFlagsMock,
+  schemaMock,
+  setEnvFlags,
+} from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MothershipStreamV1CompletionStatus,
@@ -26,6 +33,8 @@ const {
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
+  registerActiveStream,
+  startAbortPoller,
   fetchGo,
 } = vi.hoisted(() => ({
   runCopilotLifecycle: vi.fn(),
@@ -40,6 +49,8 @@ const {
   cleanupAbortMarker: vi.fn(),
   hasAbortMarker: vi.fn(),
   releasePendingChatStream: vi.fn(),
+  registerActiveStream: vi.fn(),
+  startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
   fetchGo: vi.fn(),
 }))
 
@@ -77,9 +88,9 @@ vi.mock('@/lib/copilot/request/session', () => ({
   cleanupAbortMarker,
   hasAbortMarker,
   releasePendingChatStream,
-  registerActiveStream: vi.fn(),
+  registerActiveStream,
   unregisterActiveStream: vi.fn(),
-  startAbortPoller: vi.fn().mockReturnValue(setInterval(() => {}, 999999)),
+  startAbortPoller,
   isExplicitStopReason: vi.fn().mockReturnValue(false),
   SSE_RESPONSE_HEADERS: {},
   StreamWriter: vi.fn().mockImplementation(
@@ -127,7 +138,7 @@ vi.mock('@/lib/copilot/server/agent-url', () => ({
   getMothershipSourceEnvHeaders: vi.fn().mockReturnValue({}),
 }))
 
-import { createSSEStream, requestChatTitle } from './start'
+import { createSSEStream, fireTitleGeneration, requestChatTitle } from './start'
 
 async function drainStream(stream: ReadableStream) {
   const reader = stream.getReader()
@@ -290,6 +301,48 @@ describe('createSSEStream terminal error handling', () => {
     )
   })
 
+  it('registers and forwards distinct transport and explicit-stop signals', async () => {
+    runCopilotLifecycle.mockResolvedValue({
+      success: true,
+      content: 'OK',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello' },
+      userId: 'user-1',
+      streamId: 'stream-signals',
+      executionId: 'exec-signals',
+      runId: 'run-signals',
+      currentChat: null,
+      isNewChat: false,
+      message: 'hello',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-signals',
+      orchestrateOptions: {},
+    })
+
+    const [, transportController, userStopController] = registerActiveStream.mock.calls[0]
+    expect(transportController).toBeInstanceOf(AbortController)
+    expect(userStopController).toBeInstanceOf(AbortController)
+    expect(userStopController).not.toBe(transportController)
+
+    await drainStream(stream)
+
+    expect(startAbortPoller).toHaveBeenCalledWith(
+      'stream-signals',
+      transportController,
+      expect.objectContaining({ userStopController })
+    )
+    expect(runCopilotLifecycle.mock.calls[0]?.[1]).toEqual(
+      expect.objectContaining({
+        abortSignal: transportController.signal,
+        userStopSignal: userStopController.signal,
+      })
+    )
+  })
+
   it('passes an OTel context into the streaming lifecycle', async () => {
     let lifecycleTraceparent = ''
     runCopilotLifecycle.mockImplementation(async (_payload, options) => {
@@ -422,5 +475,78 @@ describe('requestChatTitle billing protocol', () => {
     const headers = fetchGo.mock.calls[0]?.[1]?.headers as Record<string, string>
     expect(headers['x-sim-billing-protocol']).toBe('legacy-v0')
     expect(headers['x-sim-billing-request-id']).toBeUndefined()
+  })
+})
+
+describe('fireTitleGeneration rename ordering', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    setEnvFlags({ isHosted: true })
+    setEnvFlags({ isCopilotBillingAttributionV1Enabled: true })
+    fetchGo.mockResolvedValue(
+      new Response(JSON.stringify({ title: 'Generated title' }), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+  })
+
+  it('does not overwrite or publish over a title renamed while generation was running', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([])
+    const publish = vi.fn()
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+
+    fireTitleGeneration({
+      chatId: 'chat-1',
+      currentChat: null,
+      isNewChat: true,
+      userId: 'user-1',
+      message: 'Investigate the incident',
+      titleModel: 'claude-opus-4.8',
+      workspaceId: 'workspace-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+      publisher: { publish },
+      resolvedSecretTraceRegistry,
+    })
+
+    await vi.waitFor(() => expect(dbChainMockFns.returning).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(dbChainMockFns.set).toHaveBeenCalledWith({ title: 'Generated title' })
+    expect(
+      flattenMockConditions(dbChainMockFns.where.mock.calls.at(-1)?.[0]).some(
+        (condition) =>
+          condition.type === 'isNull' && condition.column === schemaMock.copilotChats.title
+      )
+    ).toBe(true)
+    expect(publish).not.toHaveBeenCalled()
+  })
+
+  it('publishes the generated title when the null-title update wins', async () => {
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'chat-1' }])
+    const publish = vi.fn()
+    const resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+
+    fireTitleGeneration({
+      chatId: 'chat-1',
+      currentChat: null,
+      isNewChat: true,
+      userId: 'user-1',
+      message: 'Investigate the incident',
+      titleModel: 'claude-opus-4.8',
+      workspaceId: 'workspace-1',
+      billingAttribution: BILLING_ATTRIBUTION,
+      requestId: 'request-1',
+      publisher: { publish },
+      resolvedSecretTraceRegistry,
+    })
+
+    await vi.waitFor(() =>
+      expect(publish).toHaveBeenCalledWith({
+        type: 'session',
+        payload: { kind: 'title', title: 'Generated title' },
+      })
+    )
   })
 })

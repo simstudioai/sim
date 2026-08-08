@@ -40,6 +40,7 @@ describe('resume leg context isolate/merge contract', () => {
     expect(leg.contentBlocks).toBe(base.contentBlocks)
     expect(leg.toolCalls).toBe(base.toolCalls)
     expect(leg.pendingToolPromises).toBe(base.pendingToolPromises)
+    expect(leg.inFlightToolExecutions).toBe(base.inFlightToolExecutions)
     expect(leg.subAgentContent).toBe(base.subAgentContent)
   })
 

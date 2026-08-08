@@ -30,12 +30,15 @@ const logger = createLogger('VfsTools')
 async function getGatedVFS(
   workspaceId: string,
   userId: string,
-  secretMountPolicy?: SecretMountPolicy
+  secretMountPolicy?: SecretMountPolicy,
+  secretless = false
 ) {
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
-  return withBlockVisibility(vis, () =>
-    getOrMaterializeVFS(workspaceId, userId, { secretMountPolicy })
-  )
+  const options = {
+    ...(secretMountPolicy ? { secretMountPolicy } : {}),
+    ...(secretless ? { secretless: true } : {}),
+  }
+  return withBlockVisibility(vis, () => getOrMaterializeVFS(workspaceId, userId, options))
 }
 
 /**
@@ -170,7 +173,12 @@ export async function executeVfsGrep(
       result = envelope.value
       provenanceFile = envelope.file
     } else {
-      const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+      const vfs = await getGatedVFS(
+        workspaceId,
+        context.userId,
+        context.secretMountPolicy,
+        context.secretActorUserId === null
+      )
       if (isWorkspaceFileGrepPath(rawPath)) {
         const envelope = await vfs.grepFileWithProvenance(rawPath, pattern, grepOptions)
         result = envelope.value
@@ -238,7 +246,12 @@ export async function executeVfsGlob(
   }
 
   try {
-    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+    const vfs = await getGatedVFS(
+      workspaceId,
+      context.userId,
+      context.secretMountPolicy,
+      context.secretActorUserId === null
+    )
     let files = vfs.glob(pattern)
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
@@ -272,6 +285,17 @@ export async function executeVfsRead(
   const workspaceId = context.workspaceId
   if (!workspaceId) {
     return { success: false, error: 'No workspace context available' }
+  }
+
+  if (
+    context.queryOnly &&
+    /\/(?:compiled|compiled-check|extract|render)\/?$/.test(path.trim().replace(/^\/+/, ''))
+  ) {
+    return {
+      success: false,
+      error:
+        'read is query-only: document compilation, extraction, and rendering paths are not available; read the file content or metadata instead',
+    }
   }
 
   try {
@@ -354,7 +378,12 @@ export async function executeVfsRead(
       }
     }
 
-    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+    const vfs = await getGatedVFS(
+      workspaceId,
+      context.userId,
+      context.secretMountPolicy,
+      context.secretActorUserId === null
+    )
 
     // Plain canonical file leaves are metadata resources. Dynamic file content
     // and inspection paths use explicit suffixes like /content, /style,

@@ -50,7 +50,11 @@ describe('setEnvironmentVariablesServerTool', () => {
       }
     )
 
-    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('ws-1', 'user-1', 'write')
+    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith(
+      'ws-1',
+      { userId: 'user-1', workspaceId: 'ws-1' },
+      'write'
+    )
     expect(upsertWorkspaceEnvVarsMock).toHaveBeenCalledWith('ws-1', { API_KEY: 'secret' }, 'user-1')
     expect(upsertPersonalEnvVarsMock).not.toHaveBeenCalled()
     expect(result.scope).toBe('workspace')

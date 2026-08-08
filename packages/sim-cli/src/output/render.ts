@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import { dump } from 'js-yaml'
 import type { OutputFormat } from '../config/index.js'
+import { displayWidth } from './terminal-text.js'
 
 export interface Column<T> {
   header: string
@@ -38,10 +39,15 @@ const CONTROL_PATTERN = new RegExp(
     // matched above, so they win at the same position.
     `${ESC}[ -~]`,
     `${ESC}`, // a lone ESC with nothing valid after it
-    '[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]', // C0/C1, keeping \t and \n
+    '[\\u0000-\\u0008\\u000b\\u000c\\u000e-\\u001f\\u007f-\\u009f]', // C0/C1; CR is normalized below
   ].join('|'),
   'g'
 )
+
+// Directional formatting marks can visually reorder an otherwise safe label
+// or URL without changing its underlying bytes. Remove only the explicit
+// controls; ordinary Hebrew, Arabic, and other right-to-left text is preserved.
+const BIDI_CONTROL_PATTERN = /[\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069]/gu
 
 /**
  * Removes terminal control sequences from a server-supplied string.
@@ -51,7 +57,21 @@ const CONTROL_PATTERN = new RegExp(
  * formatting too.
  */
 export function sanitize(value: string): string {
-  return value.replace(CONTROL_PATTERN, '')
+  // Preserve normal Windows line endings without leaving a lone carriage
+  // return capable of moving the cursor back over already-rendered text.
+  return value
+    .replace(/\r\n/g, '\n')
+    .replace(/\r/g, '')
+    .replace(CONTROL_PATTERN, '')
+    .replace(BIDI_CONTROL_PATTERN, '')
+}
+
+/** Flattens untrusted terminal text into one compact, display-safe line. */
+export function safeOneLine(value: string): string {
+  return sanitize(value)
+    .replace(/[\n\t]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 export function text(value: unknown): string {
@@ -111,8 +131,15 @@ const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[[0-9;]*m`, 'g')
  * skew every coloured column, so widths are measured on the stripped text while
  * the coloured text is what gets printed.
  */
+/**
+ * Visible width of a cell.
+ *
+ * Delegates to the grapheme-aware measurement: the previous implementation
+ * counted stripped string length, so emoji and East Asian characters measured
+ * as one column and mis-aligned every table containing them.
+ */
 export function visibleWidth(value: string): number {
-  return value.replace(ANSI_PATTERN, '').length
+  return displayWidth(value)
 }
 
 /**

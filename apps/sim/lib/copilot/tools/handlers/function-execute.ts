@@ -668,7 +668,9 @@ export async function executeFunctionExecute(
     try {
       const result = await executeAppTool('function_execute', enrichedParams, {
         resolvedSecretTraceRegistry: mountedRegistry,
-        ...(context.abortSignal ? { signal: context.abortSignal } : {}),
+        ...((context.abortSignal ?? context.userStopSignal)
+          ? { signal: context.abortSignal ?? context.userStopSignal }
+          : {}),
         ...(context.sandboxProfile ? { internalSandboxProfile: context.sandboxProfile } : {}),
       })
       crossingValue = result

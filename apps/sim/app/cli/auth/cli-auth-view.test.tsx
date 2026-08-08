@@ -81,22 +81,22 @@ describe('CliAuthView workspace loading', () => {
   })
 
   it('blocks Connect until the workspace list resolves', () => {
-    // The regression: while pending, the picker falls back to the personal
-    // option, so an early click approved a personal key when the same click a
-    // moment later would have bound the key to the user's workspace.
+    // The regression: while pending, the picker falls back to no default, so an
+    // early click approved a profile without the workspace that would appear a
+    // moment later.
     mockUseWorkspaces.mockReturnValue({ isPending: true, isError: false, data: undefined })
     render()
 
     expect(connectButton().disabled).toBe(true)
     expect(container.textContent).toContain('Loading workspaces')
-    expect(container.textContent).not.toContain('No workspace (personal key)')
+    expect(container.textContent).not.toContain('No default workspace')
   })
 
   it('does not present the personal-key wording as the answer while loading', () => {
     mockUseWorkspaces.mockReturnValue({ isPending: true, isError: false, data: undefined })
     render()
 
-    expect(container.textContent).toContain('Checking which workspaces')
+    expect(container.textContent).toContain('Loading your workspaces')
     expect(container.textContent).not.toContain('Issues a personal key')
   })
 
@@ -106,10 +106,10 @@ describe('CliAuthView workspace loading', () => {
 
     expect(connectButton().disabled).toBe(false)
     expect(container.textContent).toContain('Acme')
-    expect(container.textContent).toContain('only reach Acme')
+    expect(container.textContent).toContain('personal key tied to your account')
   })
 
-  it('binds the key to the workspace when the approver is an admin', () => {
+  it("keeps an admin's key personal while saving the selected workspace as its default", () => {
     mockUseWorkspaces.mockReturnValue(LOADED)
     render()
     act(() => {
@@ -120,7 +120,7 @@ describe('CliAuthView workspace loading', () => {
       expect.objectContaining({
         scope: 'platform',
         workspaceId: 'ws_admin',
-        bindKeyToWorkspace: true,
+        bindKeyToWorkspace: false,
       }),
       expect.anything()
     )

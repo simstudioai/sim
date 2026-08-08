@@ -163,12 +163,12 @@ async function resolveWorkspaceId(
 
   const payload = nested(params)
   const workspaceId =
-    stringValue(params.workspaceId) || stringValue(payload?.workspaceId) || context.workspaceId
+    context.workspaceId || stringValue(params.workspaceId) || stringValue(payload?.workspaceId)
   if (!workspaceId) {
     return { success: false, message: 'Workspace ID is required' }
   }
 
-  await ensureWorkspaceAccess(workspaceId, context.userId, permission)
+  await ensureWorkspaceAccess(workspaceId, context, permission)
   return workspaceId
 }
 

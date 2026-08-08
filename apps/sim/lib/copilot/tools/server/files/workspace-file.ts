@@ -312,7 +312,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     }
 
     try {
-      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+      await ensureWorkspaceAccess(workspaceId, context, 'write')
 
       switch (operation) {
         case 'create': {

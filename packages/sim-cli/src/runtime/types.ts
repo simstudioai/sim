@@ -9,5 +9,5 @@ export interface OperationSpec {
   body?: Record<string, FieldSpec>
   opaqueBody?: boolean
   summary?: string
-  responseMode?: 'json' | 'binary'
+  responseMode?: 'json' | 'binary' | 'stream'
 }

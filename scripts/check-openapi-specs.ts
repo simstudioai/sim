@@ -76,7 +76,9 @@ const contractKey = (c: ContractLike) =>
 async function loadContracts(): Promise<Map<string, { name: string; contract: ContractLike }>> {
   const registry = new Map<string, { name: string; contract: ContractLike }>()
   const files = readdirSync(V2_CONTRACTS_DIR)
-    .filter((f) => f.endsWith('.ts') && f !== 'shared.ts')
+    .filter(
+      (f) => f.endsWith('.ts') && !f.endsWith('.test.ts') && f !== 'index.ts' && f !== 'shared.ts'
+    )
     .map((f) => path.join(V2_CONTRACTS_DIR, f))
   for (const file of [...files, ...EXTRA_CONTRACT_MODULES]) {
     const mod = (await import(file)) as Record<string, unknown>

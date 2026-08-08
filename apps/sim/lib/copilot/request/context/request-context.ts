@@ -17,6 +17,7 @@ export function createStreamingContext(overrides?: Partial<StreamingContext>): S
     contentBlocks: [],
     toolCalls: new Map(),
     pendingToolPromises: new Map(),
+    inFlightToolExecutions: new Map(),
     currentThinkingBlock: null,
     subagentThinkingBlocks: new Map(),
     isInThinkingBlock: false,

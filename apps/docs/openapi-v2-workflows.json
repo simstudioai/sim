@@ -1141,6 +1141,12 @@
                     "default": false,
                     "description": "Queue the run; poll the returned statusUrl. Not combinable with stream/output options; requires an API key."
                   },
+                  "executionTimeoutSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 604800,
+                    "description": "Optional server-side timeout for an async run, in seconds. Requires async=true and cannot extend the account policy."
+                  },
                   "stream": {
                     "type": "boolean",
                     "default": false,

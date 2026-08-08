@@ -1,4 +1,6 @@
 import { stripVersionSuffix } from '@sim/utils/string'
+import { VFS_DIR_TO_RESOURCE } from '@/lib/copilot/resources/types'
+import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
 
 /**
  * Single source of truth for copilot tool-call display titles.
@@ -433,6 +435,62 @@ function workspaceFileTitle(args: ToolArgs): string {
   return `${verb} ${title}`
 }
 
+const READ_FILE_FACET_LABELS: Record<string, string> = {
+  content: '',
+  'meta.json': 'metadata for',
+  style: 'style details for',
+  'compiled-check': 'the final file check for',
+}
+
+function stripReadTargetExtension(value: string): string {
+  return value.replace(/\.[^/.]+$/, '')
+}
+
+function readResourceLeaf(segments: string[]): string {
+  const lastSegment = segments.at(-1) ?? ''
+  if (/\.[^/.]+$/.test(lastSegment) && segments.length > 1) {
+    return segments.at(-2) ?? lastSegment
+  }
+  return lastSegment
+}
+
+function describeFileReadTarget(segments: string[]): string {
+  const lastSegment = segments.at(-1) ?? ''
+  const facetLabel = READ_FILE_FACET_LABELS[lastSegment]
+  if (facetLabel !== undefined && segments.length > 2) {
+    const fileName = segments.at(-2) ?? ''
+    return facetLabel ? `${facetLabel} ${fileName}` : fileName
+  }
+  return lastSegment
+}
+
+/** Resolves the glanceable VFS target shared by web and public chat tool rows. */
+export function describeReadTarget(
+  path: string | undefined,
+  resolvedBlockName?: string
+): string | undefined {
+  if (!path) return undefined
+  if (resolvedBlockName) return resolvedBlockName
+
+  const segments = path
+    .split('/')
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .map(decodeVfsSegmentSafe)
+  if (segments.length === 0) return undefined
+
+  const resourceType = VFS_DIR_TO_RESOURCE[segments[0]]
+  if (!resourceType) {
+    return humanizeDisplayIdentifier(stripReadTargetExtension(segments.at(-1) ?? ''), 'sentence')
+  }
+  if (resourceType === 'file') return describeFileReadTarget(segments)
+  if (resourceType === 'workflow') {
+    return stripReadTargetExtension(readResourceLeaf(segments))
+  }
+
+  return stripReadTargetExtension(segments[1] ?? segments.at(-1) ?? '')
+}
+
 /** Static fallback titles for tools without an argument-aware title. */
 const TOOL_TITLES: Record<string, string> = {
   // Gateway rows brand from the streamed toolId as soon as it resolves; this
@@ -664,7 +722,11 @@ function terminalTitle(args: ToolArgs): string {
  * cases come first, then the static map, then a humanized fallback. This never
  * returns an empty string.
  */
-export function getToolDisplayTitle(name: string, args?: Record<string, unknown>): string {
+export function getToolDisplayTitle(
+  name: string,
+  args?: Record<string, unknown>,
+  resolvedReadTargetName?: string
+): string {
   const mcpToolMatch = name.match(/^mcp-[^-]+-(.+)$/)
   if (mcpToolMatch?.[1]) {
     return humanizeToolName(mcpToolMatch[1])
@@ -945,6 +1007,8 @@ export function getToolDisplayTitle(name: string, args?: Record<string, unknown>
       if (isWorkflowArtifactPath(stringArg(args, 'path'), 'lint.json')) {
         return 'Validating workflow state'
       }
+      const target = describeReadTarget(stringArg(args, 'path'), resolvedReadTargetName)
+      if (target) return `Reading ${target}`
       break
     }
     case 'workspace_file':

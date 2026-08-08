@@ -18,6 +18,7 @@ import {
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeMcpServer,
   serializeSandbox,
   serializeSandboxCatalog,
   serializeTableMeta,
@@ -64,6 +65,20 @@ describe('VFS metadata serializers', () => {
     )
 
     expect(deployment).toEqual({ api: { isDeployed: false } })
+  })
+
+  it('omits an MCP URL when the caller projects a secretless server', () => {
+    const server = JSON.parse(
+      serializeMcpServer({
+        id: 'mcp-1',
+        name: 'Private MCP',
+        transport: 'sse',
+        enabled: true,
+        connectionStatus: 'connected',
+      })
+    )
+
+    expect(server).not.toHaveProperty('url')
   })
 
   it('includes the authoritative file update timestamp', () => {

@@ -172,7 +172,7 @@ describe('executeMaterializeFile - workspace write gate', () => {
     const { ensureWorkspaceAccess } = await import('@/lib/copilot/tools/handlers/access')
     await executeMaterializeFile({ fileNames: ['a.json'], operation: 'save' }, context)
 
-    expect(ensureWorkspaceAccess).toHaveBeenCalledWith(context.workspaceId, context.userId, 'write')
+    expect(ensureWorkspaceAccess).toHaveBeenCalledWith(context.workspaceId, context, 'write')
   })
 })
 

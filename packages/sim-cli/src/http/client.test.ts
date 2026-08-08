@@ -1,10 +1,42 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { CLI_CONTRACT } from '../contract/commands.js'
 import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
-import { formatApiErrorDetails, resolvePath, SimApiError, SimClient } from './client.js'
+import {
+  formatApiErrorDetails,
+  requestAllPages,
+  resolvePath,
+  SimApiError,
+  SimClient,
+} from './client.js'
 
 afterEach(() => {
   vi.unstubAllGlobals()
+})
+
+describe('cursor pagination', () => {
+  it('follows v2 cursors through the requested item limit', async () => {
+    const request = vi
+      .fn()
+      .mockResolvedValueOnce({ data: ['a', 'b'], nextCursor: 'next' })
+      .mockResolvedValueOnce({ data: ['c'], nextCursor: null })
+
+    await expect(
+      requestAllPages<string>({ request } as Pick<SimClient, 'request'>, '/api/v2/items', {
+        query: { workspaceId: 'workspace-1' },
+        pageSize: 2,
+        limit: 3,
+        auth: 'optional',
+      })
+    ).resolves.toEqual(['a', 'b', 'c'])
+    expect(request).toHaveBeenNthCalledWith(1, '/api/v2/items', {
+      query: { workspaceId: 'workspace-1', limit: 2, cursor: null },
+      auth: 'optional',
+    })
+    expect(request).toHaveBeenNthCalledWith(2, '/api/v2/items', {
+      query: { workspaceId: 'workspace-1', limit: 1, cursor: 'next' },
+      auth: 'optional',
+    })
+  })
 })
 
 describe('API errors', () => {
@@ -79,6 +111,93 @@ describe('API errors', () => {
 
   it('keeps non-validation details as JSON', () => {
     expect(formatApiErrorDetails({ id: 'missing' })).toEqual(['  details: {"id":"missing"}'])
+  })
+})
+
+describe('raw requests', () => {
+  function client(options: { apiKey?: string } = { apiKey: 'key' }): SimClient {
+    return new SimClient({
+      name: 'default',
+      endpoint: 'https://sim.example',
+      apiKey: options.apiKey ?? null,
+      workspaceId: 'ws_1',
+      output: 'json',
+      sources: {
+        endpoint: 'default',
+        apiKey: 'env',
+        workspaceId: 'env',
+        output: 'default',
+      },
+    })
+  }
+
+  it('returns an unconsumed response and forwards an abort signal', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('stream body'))
+    vi.stubGlobal('fetch', fetch)
+    const controller = new AbortController()
+
+    const response = await client().requestRaw('/api/v2/chat', {
+      method: 'POST',
+      headers: { accept: 'text/event-stream' },
+      body: { workspaceId: 'ws_1', prompt: 'hello' },
+      signal: controller.signal,
+    })
+
+    expect(response.bodyUsed).toBe(false)
+    expect(await response.text()).toBe('stream body')
+    expect(fetch).toHaveBeenCalledWith(
+      'https://sim.example/api/v2/chat',
+      expect.objectContaining({
+        method: 'POST',
+        signal: controller.signal,
+        headers: expect.objectContaining({
+          accept: 'text/event-stream',
+          'content-type': 'application/json',
+          'x-api-key': 'key',
+        }),
+      })
+    )
+  })
+
+  it('turns an aborted fetch into a clean CLI error', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new DOMException('aborted', 'AbortError')))
+    const controller = new AbortController()
+    controller.abort()
+
+    await expect(
+      client().requestRaw('/api/v2/chat', { signal: controller.signal })
+    ).rejects.toMatchObject({
+      message: 'Request cancelled.',
+      status: 0,
+    })
+  })
+
+  it('allows auth-disabled self-hosted chat without sending an API key', async () => {
+    const fetch = vi.fn().mockResolvedValue(new Response('stream body'))
+    vi.stubGlobal('fetch', fetch)
+    const unauthenticated = client({})
+    const workspaceId = unauthenticated.requireWorkspace(undefined, { auth: 'optional' })
+
+    await unauthenticated.requestRaw('/api/v2/chat', {
+      method: 'POST',
+      body: { workspaceId, prompt: 'hello' },
+      auth: 'optional',
+    })
+
+    expect(workspaceId).toBe('ws_1')
+    expect(fetch).toHaveBeenCalledOnce()
+    const headers = fetch.mock.calls[0][1].headers as Record<string, string>
+    expect(headers).not.toHaveProperty('x-api-key')
+  })
+
+  it('keeps authentication required by default for every other command', async () => {
+    const fetch = vi.fn()
+    vi.stubGlobal('fetch', fetch)
+    const unauthenticated = client({})
+
+    expect(() => unauthenticated.requireWorkspace()).toThrow(/Not logged in/)
+    await expect(unauthenticated.requestRaw('/api/v2/workflows')).rejects.toThrow(/Not logged in/)
+    expect(fetch).not.toHaveBeenCalled()
   })
 })
 

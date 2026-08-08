@@ -1,21 +1,20 @@
 import { db } from '@sim/db'
 import { workflow as workflowTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import {
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-} from '@sim/platform-authz/workflow'
+import { assertWorkflowMutable } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { EditWorkflow } from '@/lib/copilot/generated/tool-catalog-v1'
 import { operationsReferenceSimSandbox } from '@/lib/copilot/sim-sandbox-projection'
+import { ensureWorkflowAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { env } from '@/lib/core/config/env'
 import { getSocketServerUrl } from '@/lib/core/utils/urls'
 import { MAX_PLAN_REQUIRED } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
@@ -106,19 +105,12 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
       throw new Error('Unauthorized workflow access')
     }
 
-    const authorization = await authorizeWorkflowByWorkspacePermission({
-      workflowId,
-      userId: context.userId,
-      action: 'write',
-    })
-    if (!authorization.allowed) {
-      throw new Error(authorization.message || 'Unauthorized workflow access')
-    }
+    const { workflow } = await ensureWorkflowAccess(workflowId, context, 'write')
 
     await assertWorkflowMutable(workflowId)
 
-    const workspaceId = authorization.workflow?.workspaceId ?? undefined
-    const workflowName = authorization.workflow?.name ?? undefined
+    const workspaceId = workflow.workspaceId ?? undefined
+    const workflowName = workflow.name ?? undefined
 
     if (
       operationsReferenceSimSandbox(operations) &&
@@ -403,11 +395,16 @@ export const editWorkflowServerTool: BaseServerTool<EditWorkflowParams, unknown>
 
     const sanitizationWarnings = validation.warnings.length > 0 ? validation.warnings : undefined
 
+    const outputWorkflowState = projectWorkflowStateForCopilot(
+      { ...finalWorkflowState, blocks: layoutedBlocks },
+      { secretless: context.secretActorUserId === null }
+    )
+
     return {
       success: true,
       workflowId,
       workflowName: workflowName ?? 'Workflow',
-      workflowState: { ...finalWorkflowState, blocks: layoutedBlocks },
+      workflowState: outputWorkflowState,
       workflowLint,
       ...(workflowLintMessage && { workflowLintMessage }),
       ...(inputErrors && {

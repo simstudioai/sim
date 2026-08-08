@@ -7,7 +7,7 @@ import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { listCustomTools, listWorkspaceCustomTools } from '@/lib/workflows/custom-tools/operations'
 import {
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
@@ -51,7 +51,7 @@ export async function executeGetWorkflowRunOptions(
       return { success: false, error: 'workflowId is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
+    await ensureWorkflowAccess(workflowId, context)
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
@@ -132,7 +132,7 @@ export async function executeGetWorkflowData(
 
     const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
       workflowId,
-      context.userId
+      context
     )
 
     if (dataType === 'global_variables') {
@@ -152,10 +152,10 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const toolsRows = await listCustomTools({
-        userId: context.userId,
-        workspaceId,
-      })
+      const toolsRows =
+        context.secretActorUserId === null
+          ? await listWorkspaceCustomTools({ workspaceId })
+          : await listCustomTools({ userId: context.userId, workspaceId })
 
       const customToolsData = toolsRows.map((tool) => {
         const schema = tool.schema as Record<string, unknown> | null
@@ -175,6 +175,12 @@ export async function executeGetWorkflowData(
     if (dataType === 'mcp_tools') {
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
+      }
+      if (context.secretActorUserId === null) {
+        return {
+          success: false,
+          error: 'MCP tools are not available without credential access.',
+        }
       }
       const tools = await mcpService.discoverTools(context.userId, workspaceId, false)
       const mcpTools = tools.map((tool) => ({
@@ -219,7 +225,7 @@ export async function executeGetBlockOutputs(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    await ensureWorkflowAccess(workflowId, context.userId)
+    await ensureWorkflowAccess(workflowId, context)
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
@@ -307,7 +313,7 @@ export async function executeGetBlockUpstreamReferences(
     if (!Array.isArray(params.blockIds) || params.blockIds.length === 0) {
       return { success: false, error: 'blockIds array is required' }
     }
-    await ensureWorkflowAccess(workflowId, context.userId)
+    await ensureWorkflowAccess(workflowId, context)
 
     const normalized = await loadWorkflowFromNormalizedTables(workflowId)
     if (!normalized) {
@@ -503,16 +509,19 @@ export async function executeGetDeployedWorkflowState(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context)
 
     try {
       const deployedState = await loadDeployedWorkflowState(workflowId)
-      const formatted = formatNormalizedWorkflowForCopilot({
-        blocks: deployedState.blocks,
-        edges: deployedState.edges,
-        loops: deployedState.loops as Record<string, Loop>,
-        parallels: deployedState.parallels as Record<string, Parallel>,
-      })
+      const formatted = formatNormalizedWorkflowForCopilot(
+        {
+          blocks: deployedState.blocks,
+          edges: deployedState.edges,
+          loops: deployedState.loops as Record<string, Loop>,
+          parallels: deployedState.parallels as Record<string, Parallel>,
+        },
+        { secretless: context.secretActorUserId === null }
+      )
 
       return {
         success: true,

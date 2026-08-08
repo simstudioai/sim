@@ -557,7 +557,7 @@ export async function executeMaterializeFile(
   // Every operation writes: save/extract create files, import creates a workflow.
   // The handler-map path has no central permission gate.
   try {
-    await ensureWorkspaceAccess(context.workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(context.workspaceId, context, 'write')
   } catch (error) {
     return { success: false, error: getErrorMessage(error, 'Workspace write access required') }
   }

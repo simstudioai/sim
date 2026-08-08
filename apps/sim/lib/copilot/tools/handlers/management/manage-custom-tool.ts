@@ -6,8 +6,12 @@ import { copilotToolCanWrite, copilotWriteDeniedMessage } from '@/lib/copilot/to
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   deleteCustomTool,
+  deleteWorkspaceCustomTool,
   getCustomToolById,
+  getWorkspaceCustomTool,
   listCustomTools,
+  listWorkspaceCustomTools,
+  updateWorkspaceCustomTool,
   upsertCustomTools,
 } from '@/lib/workflows/custom-tools/operations'
 
@@ -63,10 +67,13 @@ export async function executeManageCustomTool(
 
   try {
     if (operation === 'list') {
-      const toolsForUser = await listCustomTools({
-        userId: context.userId,
-        workspaceId,
-      })
+      if (context.secretActorUserId === null && !workspaceId) {
+        return { success: false, error: "workspaceId is required for operation 'list'" }
+      }
+      const toolsForUser =
+        context.secretActorUserId === null
+          ? await listWorkspaceCustomTools({ workspaceId: workspaceId! })
+          : await listCustomTools({ userId: context.userId, workspaceId })
 
       return {
         success: true,
@@ -158,11 +165,14 @@ export async function executeManageCustomTool(
         }
       }
 
-      const existing = await getCustomToolById({
-        toolId: params.toolId,
-        userId: context.userId,
-        workspaceId,
-      })
+      const existing =
+        context.secretActorUserId === null
+          ? await getWorkspaceCustomTool({ toolId: params.toolId, workspaceId })
+          : await getCustomToolById({
+              toolId: params.toolId,
+              userId: context.userId,
+              workspaceId,
+            })
       if (!existing) {
         return { success: false, error: `Custom tool not found: ${params.toolId}` }
       }
@@ -171,11 +181,24 @@ export async function executeManageCustomTool(
       const mergedCode = params.code || existing.code
       const title = params.title || mergedSchema.function?.name || existing.title
 
-      await upsertCustomTools({
-        tools: [{ id: params.toolId, title, schema: mergedSchema, code: mergedCode }],
-        workspaceId,
-        userId: context.userId,
-      })
+      if (context.secretActorUserId === null) {
+        const updated = await updateWorkspaceCustomTool({
+          toolId: params.toolId,
+          title,
+          schema: mergedSchema,
+          code: mergedCode,
+          workspaceId,
+        })
+        if (!updated) {
+          return { success: false, error: `Custom tool not found: ${params.toolId}` }
+        }
+      } else {
+        await upsertCustomTools({
+          tools: [{ id: params.toolId, title, schema: mergedSchema, code: mergedCode }],
+          workspaceId,
+          userId: context.userId,
+        })
+      }
 
       recordAudit({
         workspaceId,
@@ -212,6 +235,9 @@ export async function executeManageCustomTool(
     }
 
     if (operation === 'delete') {
+      if (context.secretActorUserId === null && !workspaceId) {
+        return { success: false, error: "workspaceId is required for operation 'delete'" }
+      }
       const toolIds: string[] = params.toolIds ?? (params.toolId ? [params.toolId] : [])
       if (toolIds.length === 0) {
         return { success: false, error: "'toolId' or 'toolIds' is required for operation 'delete'" }
@@ -221,11 +247,10 @@ export async function executeManageCustomTool(
       const notFound: string[] = []
 
       for (const toolId of toolIds) {
-        const result = await deleteCustomTool({
-          toolId,
-          userId: context.userId,
-          workspaceId,
-        })
+        const result =
+          context.secretActorUserId === null
+            ? await deleteWorkspaceCustomTool({ toolId, workspaceId: workspaceId! })
+            : await deleteCustomTool({ toolId, userId: context.userId, workspaceId })
         if (result) {
           deleted.push(toolId)
         } else {

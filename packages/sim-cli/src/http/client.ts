@@ -24,7 +24,16 @@ export interface V2Page<T> {
   nextCursor: string | null
 }
 
+export interface RequestAllPagesOptions extends Omit<RequestOptions, 'query'> {
+  query?: Record<string, QueryValue>
+  /** Server page size; callers choose one accepted by the endpoint contract. */
+  pageSize: number
+  /** Maximum items to return. Omit to follow the cursor through the full list. */
+  limit?: number
+}
+
 export type QueryValue = string | number | boolean | null | undefined
+export type AuthRequirement = 'required' | 'optional'
 
 export interface RequestOptions {
   method?: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE'
@@ -32,6 +41,14 @@ export interface RequestOptions {
   body?: unknown
   /** Contract-declared headers, e.g. the `upload-token` a transfer is bound to. */
   headers?: Record<string, string>
+  /** Cancels both the initial request and any subsequent streaming body read. */
+  signal?: AbortSignal
+  /** Self-hosted, auth-disabled routes may deliberately omit a local API key. */
+  auth?: AuthRequirement
+}
+
+export interface WorkspaceOptions {
+  auth?: AuthRequirement
 }
 
 function buildUrl(endpoint: string, path: string, query?: Record<string, QueryValue>): string {
@@ -122,8 +139,9 @@ export function formatApiErrorDetails(details: unknown): string[] {
 export class SimClient {
   constructor(private readonly profile: ResolvedProfile) {}
 
-  private requireAuth(): string {
+  private resolveApiKey(auth: AuthRequirement = 'required'): string | undefined {
     if (!this.profile.apiKey) {
+      if (auth === 'optional') return undefined
       throw new SimApiError(
         `Not logged in on profile "${this.profile.name}". Run: sim login --profile ${this.profile.name}`,
         0
@@ -135,12 +153,13 @@ export class SimClient {
   /**
    * The workspace every workspace-scoped command defaults to.
    *
-   * Checks the key first even though it does not need one: commands resolve the
-   * workspace while building their query, so without this a brand-new install
-   * is told to set a workspace when the actual first step is logging in.
+   * By default this checks the key first even though it does not need one:
+   * commands resolve the workspace while building their query, so without this
+   * a brand-new install is told to set a workspace when the actual first step
+   * is logging in. Auth-disabled self-hosted protocols opt out explicitly.
    */
-  requireWorkspace(explicit?: string): string {
-    this.requireAuth()
+  requireWorkspace(explicit?: string, options: WorkspaceOptions = {}): string {
+    this.resolveApiKey(options.auth)
     const workspaceId = explicit ?? this.profile.workspaceId
     if (!workspaceId) {
       throw new SimApiError(
@@ -151,8 +170,16 @@ export class SimClient {
     return workspaceId
   }
 
-  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
-    const apiKey = this.requireAuth()
+  /**
+   * Makes a request without consuming its body. Authentication is required
+   * unless a self-hosted protocol explicitly opts out.
+   *
+   * JSON commands use {@link request}; streaming and binary protocols keep the
+   * raw response so they can process bytes incrementally. HTTP failures still
+   * become the same structured `SimApiError` either way.
+   */
+  async requestRaw(path: string, options: RequestOptions = {}): Promise<Response> {
+    const apiKey = this.resolveApiKey(options.auth)
 
     const url = buildUrl(this.profile.endpoint, path, options.query)
     const hasBody = options.body !== undefined
@@ -162,23 +189,26 @@ export class SimClient {
       response = await fetch(url, {
         method: options.method ?? 'GET',
         headers: {
-          'x-api-key': apiKey,
+          ...(apiKey ? { 'x-api-key': apiKey } : {}),
           accept: 'application/json',
           ...(hasBody ? { 'content-type': 'application/json' } : {}),
           ...options.headers,
         },
         body: hasBody ? JSON.stringify(options.body) : undefined,
+        signal: options.signal,
       })
     } catch (cause) {
+      if (options.signal?.aborted) {
+        throw new SimApiError('Request cancelled.', 0)
+      }
       throw new SimApiError(
         `Could not reach ${this.profile.endpoint}: ${(cause as Error).message}`,
         0
       )
     }
 
-    const raw = await response.text()
-
     if (!response.ok) {
+      const raw = await response.text()
       const error = toApiError(response.status, raw)
       if (response.status === 401) {
         error.message = `${error.message} — run: sim login --profile ${this.profile.name}`
@@ -186,9 +216,44 @@ export class SimClient {
       throw error
     }
 
+    return response
+  }
+
+  async request<T>(path: string, options: RequestOptions = {}): Promise<T> {
+    const response = await this.requestRaw(path, options)
+    const raw = await response.text()
+
     if (!raw) return undefined as T
     return JSON.parse(raw) as T
   }
+}
+
+/** Follows a standard v2 cursor envelope without duplicating pagination loops. */
+export async function requestAllPages<T>(
+  client: Pick<SimClient, 'request'>,
+  path: string,
+  options: RequestAllPagesOptions
+): Promise<T[]> {
+  const { query, pageSize, limit: requestedLimit, ...requestOptions } = options
+  const limit = requestedLimit ?? Number.POSITIVE_INFINITY
+  if (limit <= 0) return []
+
+  const items: T[] = []
+  let cursor: string | null = null
+  do {
+    const page: V2Page<T> = await client.request<V2Page<T>>(path, {
+      ...requestOptions,
+      query: {
+        ...query,
+        limit: Math.min(pageSize, limit - items.length),
+        cursor,
+      },
+    })
+    items.push(...page.data)
+    cursor = page.nextCursor
+  } while (cursor && items.length < limit)
+
+  return items.slice(0, limit)
 }
 
 /**

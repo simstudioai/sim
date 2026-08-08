@@ -38,6 +38,15 @@ import type {
 import { assertValidSchema, runWorkflowColumn, stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableWorkflowGroupsService')
+
+/** Keeps mutation ownership separate from the account charged for an auto-run. */
+function resolveTriggerBillingActor(data: {
+  actorUserId?: string | null
+  billingActorUserId?: string | null
+}): string | null | undefined {
+  return data.billingActorUserId === undefined ? data.actorUserId : data.billingActorUserId
+}
+
 /**
  * Drops references to deleted blocks from every workflow group on every table
  * that targets the just-deployed workflow. Called from the workflow deploy
@@ -213,7 +222,7 @@ export async function addWorkflowGroup(
       isManualRun: false,
       groupIds: [data.group.id],
       requestId,
-      triggeredByUserId: data.actorUserId,
+      triggeredByUserId: resolveTriggerBillingActor(data),
     }).catch((err) => logger.error(`[${requestId}] auto-dispatch (addWorkflowGroup) failed:`, err))
   }
 
@@ -591,7 +600,7 @@ export async function updateWorkflowGroup(
       isManualRun: false,
       groupIds: [data.groupId],
       requestId,
-      triggeredByUserId: data.actorUserId,
+      triggeredByUserId: resolveTriggerBillingActor(data),
     }).catch((err) =>
       logger.error(`[${requestId}] auto-dispatch (updateWorkflowGroup autoRun=true) failed:`, err)
     )

@@ -12,7 +12,7 @@ import {
   V2_OPERATIONS,
   type V2OperationName,
 } from '../../generated/v2-api.js'
-import { SimApiError, type SimClient, type V2Page } from '../../http/client.js'
+import { requestAllPages, SimApiError, type SimClient, type V2Page } from '../../http/client.js'
 import { type Column, printList, text, timestamp } from '../../output/render.js'
 import { DEFAULT_LIMIT } from '../../runtime/options.js'
 import { renderResult } from '../../runtime/result.js'
@@ -103,20 +103,11 @@ async function listResources(
     return page.data.slice(0, limit)
   }
 
-  const resources: DirectoryResource[] = []
-  let cursor: string | null = null
-
-  do {
-    const remaining = limit - resources.length
-    const pageSize = Math.min(remaining, DEFAULT_LIMIT)
-    const page: V2Page<DirectoryResource> = await client.request(path, {
-      query: { ...query, limit: pageSize, cursor },
-    })
-    resources.push(...page.data)
-    cursor = page.nextCursor
-  } while (cursor && resources.length < limit)
-
-  return resources.slice(0, limit)
+  return requestAllPages<DirectoryResource>(client, path, {
+    query,
+    pageSize: DEFAULT_LIMIT,
+    limit,
+  })
 }
 
 async function listFolders(

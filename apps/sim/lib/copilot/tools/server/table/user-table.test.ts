@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { TableDefinition } from '@/lib/table'
 
 const {
@@ -15,6 +16,11 @@ const {
   mockBatchInsertRows,
   mockReplaceTableRows,
   mockAddWorkflowGroup,
+  mockUpdateWorkflowGroup,
+  mockRunWorkflowColumn,
+  mockCancelWorkflowGroupRuns,
+  mockLoadWorkflowFromNormalizedTables,
+  mockFlattenWorkflowOutputs,
   mockCreateTable,
   mockDeleteTable,
   mockGetWorkspaceTableLimits,
@@ -26,6 +32,7 @@ const {
   mockRunTableImport,
   mockRunTableDelete,
   mockRunTableUpdate,
+  mockEnsureWorkflowAccess,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockUpdateColumnType: vi.fn(),
@@ -37,6 +44,11 @@ const {
   mockBatchInsertRows: vi.fn(),
   mockReplaceTableRows: vi.fn(),
   mockAddWorkflowGroup: vi.fn(),
+  mockUpdateWorkflowGroup: vi.fn(),
+  mockRunWorkflowColumn: vi.fn(),
+  mockCancelWorkflowGroupRuns: vi.fn(),
+  mockLoadWorkflowFromNormalizedTables: vi.fn(),
+  mockFlattenWorkflowOutputs: vi.fn(),
   mockCreateTable: vi.fn(),
   mockDeleteTable: vi.fn(),
   mockGetWorkspaceTableLimits: vi.fn(),
@@ -48,6 +60,7 @@ const {
   mockRunTableImport: vi.fn(),
   mockRunTableDelete: vi.fn(),
   mockRunTableUpdate: vi.fn(),
+  mockEnsureWorkflowAccess: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -60,6 +73,10 @@ const {
     outputs: [{ id: 'email', name: 'email', type: 'string' }],
     providers: [],
   },
+}))
+
+vi.mock('@/lib/copilot/tools/handlers/access', () => ({
+  ensureWorkflowAccess: mockEnsureWorkflowAccess,
 }))
 
 vi.mock('@sim/utils/id', () => ({
@@ -93,7 +110,20 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
   addWorkflowGroupOutput: vi.fn(),
   deleteWorkflowGroup: vi.fn(),
   deleteWorkflowGroupOutput: vi.fn(),
-  updateWorkflowGroup: vi.fn(),
+  updateWorkflowGroup: mockUpdateWorkflowGroup,
+}))
+
+vi.mock('@/lib/table/workflow-columns', () => ({
+  cancelWorkflowGroupRuns: mockCancelWorkflowGroupRuns,
+  runWorkflowColumn: mockRunWorkflowColumn,
+}))
+
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  loadWorkflowFromNormalizedTables: mockLoadWorkflowFromNormalizedTables,
+}))
+
+vi.mock('@/lib/workflows/blocks/flatten-outputs', () => ({
+  flattenWorkflowOutputs: mockFlattenWorkflowOutputs,
 }))
 
 vi.mock('@/lib/table/columns/service', () => ({
@@ -167,6 +197,16 @@ function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
     updatedAt: new Date('2024-01-01'),
     ...overrides,
   }
+}
+
+const WORKSPACE_KEY_BILLING_ATTRIBUTION: BillingAttributionSnapshot = {
+  actorUserId: 'workspace-system-actor',
+  workspaceId: 'workspace-1',
+  organizationId: null,
+  billedAccountUserId: 'workspace-system-actor',
+  billingEntity: { type: 'user', id: 'workspace-system-actor' },
+  billingPeriod: { start: '2026-07-01', end: '2026-08-01' },
+  payerSubscription: null,
 }
 
 /** Lets a runDetached microtask chain run before asserting on the work it dispatched. */
@@ -629,6 +669,138 @@ describe('userTableServerTool.list_enrichments', () => {
   })
 })
 
+describe('userTableServerTool workspace-key execution billing', () => {
+  const context = {
+    userId: 'workspace-key-owner',
+    workspaceId: 'workspace-1',
+    billingAttribution: WORKSPACE_KEY_BILLING_ATTRIBUTION,
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(
+      buildTable({
+        schema: {
+          columns: [
+            { name: 'name', type: 'string', required: true },
+            { name: 'age', type: 'number' },
+          ],
+          workflowGroups: [
+            {
+              id: 'group-1',
+              workflowId: 'workflow-1',
+              outputs: [{ blockId: 'block-1', path: 'content', columnName: 'result' }],
+            },
+          ],
+        },
+      })
+    )
+    mockEnsureWorkflowAccess.mockResolvedValue({
+      workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
+      workspaceId: 'workspace-1',
+    })
+    mockAddWorkflowGroup.mockResolvedValue(buildTable())
+    mockUpdateWorkflowGroup.mockResolvedValue(buildTable())
+    mockRunWorkflowColumn.mockResolvedValue({ dispatchId: 'dispatch-1' })
+    mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
+      blocks: {
+        'block-1': { id: 'block-1', type: 'agent', name: 'Agent', subBlocks: {} },
+      },
+      edges: [],
+    })
+    mockFlattenWorkflowOutputs.mockReturnValue([
+      {
+        blockId: 'block-1',
+        blockName: 'Agent',
+        path: 'content',
+        leafType: 'string',
+      },
+    ])
+  })
+
+  it('charges manual workflow-column dispatch to the frozen billing actor', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'run_column',
+        args: { tableId: 'tbl_1', groupIds: ['group-1'], runMode: 'incomplete' },
+      },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockRunWorkflowColumn).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tableId: 'tbl_1',
+        workspaceId: 'workspace-1',
+        triggeredByUserId: 'workspace-system-actor',
+      })
+    )
+  })
+
+  it('does not run a table workflow group outside the trusted workspace', async () => {
+    mockEnsureWorkflowAccess.mockRejectedValueOnce(new Error('Workflow workflow-1 not found'))
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'run_column',
+        args: { tableId: 'tbl_1', groupIds: ['group-1'], runMode: 'incomplete' },
+      },
+      context
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message: 'Operation failed: Workflow workflow-1 not found',
+    })
+    expect(mockRunWorkflowColumn).not.toHaveBeenCalled()
+  })
+
+  it('keeps group mutation ownership separate from auto-run billing', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_workflow_group',
+        args: {
+          tableId: 'tbl_1',
+          workflowId: 'workflow-1',
+          outputs: [{ blockId: 'block-1', path: 'content', columnName: 'result' }],
+          autoRun: true,
+        },
+      },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockAddWorkflowGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'workspace-key-owner',
+        billingActorUserId: 'workspace-system-actor',
+        autoRun: true,
+      }),
+      expect.any(String)
+    )
+  })
+
+  it('preserves separate mutation and billing actors when enabling auto-run', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_workflow_group',
+        args: { tableId: 'tbl_1', groupId: 'group-1', autoRun: true },
+      },
+      context
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateWorkflowGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actorUserId: 'workspace-key-owner',
+        billingActorUserId: 'workspace-system-actor',
+        autoRun: true,
+      }),
+      expect.any(String)
+    )
+  })
+})
+
 describe('userTableServerTool.add_enrichment', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -703,7 +875,11 @@ describe('userTableServerTool.add_enrichment', () => {
           autoRun: true,
         },
       },
-      { userId: 'user-1', workspaceId: 'workspace-1' }
+      {
+        userId: 'workspace-key-owner',
+        workspaceId: 'workspace-1',
+        billingAttribution: WORKSPACE_KEY_BILLING_ATTRIBUTION,
+      }
     )
 
     expect(result.success).toBe(true)
@@ -711,6 +887,8 @@ describe('userTableServerTool.add_enrichment', () => {
     const call = mockAddWorkflowGroup.mock.calls[0][0]
     expect(call.autoRun).toBe(true)
     expect(call.group.autoRun).toBe(true)
+    expect(call.actorUserId).toBe('workspace-key-owner')
+    expect(call.billingActorUserId).toBe('workspace-system-actor')
   })
 
   it('rejects an unknown enrichment id', async () => {

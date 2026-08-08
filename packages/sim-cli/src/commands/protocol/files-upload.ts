@@ -4,6 +4,7 @@ import type {
   CompleteFileUploadResponse,
   CreateFileUploadResponse,
 } from '../../generated/v2-api.js'
+import { V2_OPERATIONS } from '../../generated/v2-api.js'
 import { contentTypeFor, localFile } from '../../transfer/local-file.js'
 import { finishUploadSession } from '../../transfer/upload-session.js'
 import { printProtocolResult } from './result.js'
@@ -19,16 +20,19 @@ export function attachFileUpload(files: Command): void {
       const workspaceId = client.requireWorkspace()
       const { name, size } = await localFile(path, options.name)
 
-      const created = await client.request<CreateFileUploadResponse>('/api/v2/files/uploads', {
-        method: 'POST',
-        body: {
-          workspaceId,
-          name,
-          contentType: contentTypeFor(name),
-          size,
-          ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
-        },
-      })
+      const created = await client.request<CreateFileUploadResponse>(
+        V2_OPERATIONS.createFileUpload.path,
+        {
+          method: 'POST',
+          body: {
+            workspaceId,
+            name,
+            contentType: contentTypeFor(name),
+            size,
+            ...(options.folder !== undefined ? { folderPath: options.folder } : {}),
+          },
+        }
+      )
       const { session, uploadToken, transfer } = created.data
       const completed = await finishUploadSession<CompleteFileUploadResponse['data']>(
         client,

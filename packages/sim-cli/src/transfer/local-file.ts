@@ -46,7 +46,7 @@ export async function localFile(path: string, override?: string): Promise<LocalF
   let size: number
   try {
     const stats = await stat(path)
-    if (stats.isDirectory()) throw new SimApiError(`${path} is a directory`, 0)
+    if (!stats.isFile()) throw new SimApiError(`${path} is not a regular file`, 0)
     size = stats.size
   } catch (error) {
     if (error instanceof SimApiError) throw error

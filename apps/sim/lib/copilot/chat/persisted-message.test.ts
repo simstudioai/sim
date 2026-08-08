@@ -7,12 +7,40 @@ import type { OrchestratorResult } from '@/lib/copilot/request/types'
 import {
   buildPersistedAssistantMessage,
   buildPersistedUserMessage,
+  collectChatMcpServerIds,
   normalizeMessage,
   type PersistedMessage,
   stripToolResultOutput,
 } from './persisted-message'
 
 describe('persisted-message', () => {
+  it('collects append-only MCP ids from persisted and current contexts', () => {
+    expect(
+      collectChatMcpServerIds(
+        [
+          {
+            contexts: [
+              { kind: 'mcp', serverId: 'mcp-docs', label: 'Docs' },
+              { kind: 'skill', skillId: 'skill-review', label: 'Review' },
+            ],
+          },
+          null,
+          {
+            contexts: [
+              { kind: 'mcp', serverId: 'mcp-docs', label: 'Docs again' },
+              { kind: 'mcp', serverId: '', label: 'Invalid' },
+              { kind: 'mcp', serverId: 'mcp-issues', label: 'Issues' },
+            ],
+          },
+        ],
+        [
+          { kind: 'mcp', serverId: 'mcp-issues', label: 'Issues again' },
+          { kind: 'mcp', serverId: 'mcp-search', label: 'Search' },
+        ]
+      )
+    ).toEqual(['mcp-docs', 'mcp-issues', 'mcp-search'])
+  })
+
   it('round-trips canonical tool blocks through normalizeMessage', () => {
     const blockTimestamp = 1_700_000_000_000
     const result: OrchestratorResult = {

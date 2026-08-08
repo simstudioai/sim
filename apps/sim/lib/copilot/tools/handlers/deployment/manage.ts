@@ -3,6 +3,7 @@ import { chat, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/sche
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import {
   performCreateWorkflowMcpServer,
   performDeleteWorkflowMcpServer,
@@ -44,7 +45,7 @@ export async function executeCheckDeploymentStatus(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context)
     const workspaceId = workflowRecord.workspaceId
 
     const [apiDeploy, chatDeploy, deploymentSummary] = await Promise.all([
@@ -163,18 +164,18 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    let workspaceId = params.workspaceId || context.workspaceId
+    let workspaceId = context.workspaceId || params.workspaceId
     const workflowId = context.workflowId
 
     if (!workspaceId && workflowId) {
-      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
+      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context)
       workspaceId = workflowRecord.workspaceId ?? undefined
     }
 
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'read')
+    await ensureWorkspaceAccess(workspaceId, context, 'read')
 
     const servers = await db
       .select({
@@ -226,22 +227,18 @@ export async function executeCreateWorkspaceMcpServer(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    let workspaceId = params.workspaceId || context.workspaceId
+    let workspaceId = context.workspaceId || params.workspaceId
     const workflowId = context.workflowId
 
     if (!workspaceId && workflowId) {
-      const { workflow: workflowRecord } = await ensureWorkflowAccess(
-        workflowId,
-        context.userId,
-        'write'
-      )
+      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
       workspaceId = workflowRecord.workspaceId ?? undefined
     }
 
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(workspaceId, context, 'admin')
 
     const name = params.name?.trim()
     if (!name) {
@@ -306,7 +303,7 @@ export async function executeUpdateWorkspaceMcpServer(
       return { success: false, error: 'MCP server not found' }
     }
 
-    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(existing.workspaceId, context, 'write')
 
     const result = await performUpdateWorkflowMcpServer({
       serverId,
@@ -348,7 +345,7 @@ export async function executeDeleteWorkspaceMcpServer(
       return { success: false, error: 'MCP server not found' }
     }
 
-    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(existing.workspaceId, context, 'admin')
 
     const result = await performDeleteWorkflowMcpServer({
       serverId,
@@ -374,7 +371,7 @@ export async function executeGetDeploymentLog(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    await ensureWorkflowAccess(workflowId, context.userId)
+    await ensureWorkflowAccess(workflowId, context)
 
     const { versions: rows } = await listWorkflowVersions(workflowId)
 
@@ -426,12 +423,16 @@ export async function executeDiffWorkflows(
 
     // resolveWorkflowStateRef enforces read access on the workflow.
     const [side1, side2] = await Promise.all([
-      resolveWorkflowStateRef(workflowId, params.ref1, context.userId),
-      resolveWorkflowStateRef(workflowId, params.ref2, context.userId),
+      resolveWorkflowStateRef(workflowId, params.ref1, context),
+      resolveWorkflowStateRef(workflowId, params.ref2, context),
     ])
 
+    const projection = { secretless: context.secretActorUserId === null }
+    const state1 = projectWorkflowStateForCopilot(side1.state, projection)
+    const state2 = projectWorkflowStateForCopilot(side2.state, projection)
+
     // ref1 = base/previous, ref2 = target/current: added = present in ref2 only.
-    const summary = generateWorkflowDiffSummary(side2.state, side1.state)
+    const summary = generateWorkflowDiffSummary(state2, state1)
     const diff = {
       ...summary,
       modifiedBlocks: summary.modifiedBlocks.map((block) => ({
@@ -496,11 +497,7 @@ export async function executeLoadDeployment(
       return { success: false, error: target.error }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
     const result = await performRevertToVersion({
       workflowId,
       version: target.version,
@@ -553,11 +550,7 @@ export async function executePromoteToLive(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
     const result = await performActivateVersion({
       workflowId,
       version,
@@ -629,7 +622,7 @@ export async function executeUpdateDeploymentVersion(
       return { success: false, error: 'Provide a name and/or description to update' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId, 'write')
+    await ensureWorkflowAccess(workflowId, context, 'write')
 
     const updated = await updateDeploymentVersionMetadata({
       workflowId,

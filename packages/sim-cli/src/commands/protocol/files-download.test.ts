@@ -7,13 +7,14 @@ import { buildGeneratedCommands } from '../../runtime/build.js'
 import { streamToFile } from './files-download.js'
 import { attachProtocolCommands } from './index.js'
 
-const { output } = vi.hoisted(() => ({
+const { output, requestRaw } = vi.hoisted(() => ({
   output: { format: 'json' },
+  requestRaw: vi.fn(),
 }))
 
 vi.mock('../../context.js', () => ({
   clientFrom: () => ({
-    client: { request: vi.fn(), requireWorkspace: () => 'ws_local' },
+    client: { requestRaw, requireWorkspace: () => 'ws_local' },
     profile: {
       workspaceId: 'ws_local',
       output: output.format,
@@ -29,6 +30,7 @@ let dir: string
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'sim-dl-'))
   output.format = 'json'
+  requestRaw.mockReset()
 })
 
 afterEach(() => {
@@ -88,7 +90,7 @@ describe('streamToFile', () => {
 describe('files download', () => {
   it('prints a normalized machine-readable result', async () => {
     const target = join(dir, 'download.txt')
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('downloaded', { status: 200 })))
+    requestRaw.mockResolvedValue(new Response('downloaded', { status: 200 }))
     const logged: string[] = []
     vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
 
@@ -107,10 +109,14 @@ describe('files download', () => {
       path: target,
       status: 'saved',
     })
+    expect(requestRaw).toHaveBeenCalledWith('/api/v2/files/file_1', {
+      method: 'GET',
+      query: { workspaceId: 'ws_local' },
+    })
   })
 
   it('streams raw bytes to stdout with the conventional - destination', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('downloaded', { status: 200 })))
+    requestRaw.mockResolvedValue(new Response('downloaded', { status: 200 }))
     const chunks: Uint8Array[] = []
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
       chunks.push(typeof chunk === 'string' ? Buffer.from(chunk) : chunk)
@@ -125,12 +131,9 @@ describe('files download', () => {
   })
 
   it('rejects overwrite semantics for stdout', async () => {
-    const fetch = vi.fn()
-    vi.stubGlobal('fetch', fetch)
-
     await expect(
       program().parseAsync(['node', 'sim', 'file', 'download', 'file_1', '-o', '-', '--force'])
     ).rejects.toThrow(/--force cannot be used/)
-    expect(fetch).not.toHaveBeenCalled()
+    expect(requestRaw).not.toHaveBeenCalled()
   })
 })

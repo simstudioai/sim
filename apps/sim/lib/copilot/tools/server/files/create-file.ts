@@ -39,7 +39,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
 
     const nested = params.args
     const fileName = params.fileName || (nested?.fileName as string) || ''

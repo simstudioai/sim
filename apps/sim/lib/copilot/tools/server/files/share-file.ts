@@ -56,7 +56,7 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
 
     const nested = params.args
     const path = params.path || (nested?.path as string) || ''

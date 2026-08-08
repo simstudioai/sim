@@ -5,8 +5,10 @@ import type {
   AsyncCompletionEnvelope,
   AsyncCompletionSignal,
 } from '@/lib/copilot/async-runs/lifecycle'
+import { isTerminalAsyncStatus } from '@/lib/copilot/async-runs/lifecycle'
 import {
   completeAsyncToolCall,
+  getAsyncToolCall,
   markAsyncToolRunning,
   upsertAsyncToolCall,
 } from '@/lib/copilot/async-runs/repository'
@@ -76,6 +78,7 @@ import {
   type ToolCallState,
 } from '@/lib/copilot/request/types'
 import { ensureHandlersRegistered, executeTool } from '@/lib/copilot/tool-executor'
+import type { ToolExecutionContext } from '@/lib/copilot/tool-executor/types'
 import { isMcpTool } from '@/executor/constants'
 
 export { waitForToolCompletion } from '@/lib/copilot/request/tools/client'
@@ -196,7 +199,11 @@ function abortRequested(
   options?: OrchestratorOptions
 ): boolean {
   return Boolean(
-    options?.abortSignal?.aborted || execContext.abortSignal?.aborted || context.wasAborted
+    options?.userStopSignal?.aborted ||
+      execContext.userStopSignal?.aborted ||
+      options?.abortSignal?.aborted ||
+      execContext.abortSignal?.aborted ||
+      context.wasAborted
   )
 }
 
@@ -273,9 +280,13 @@ class ToolExecutionTimeoutError extends Error {
 export function buildToolExecutionContext(
   toolCall: Pick<ToolCallState, 'id' | 'parentToolCallId' | 'params'>,
   execContext: ExecutionContext
-): ExecutionContext {
+): ToolExecutionContext {
+  const { authorizationUserId, ...toolContext } = execContext
   return {
-    ...execContext,
+    ...toolContext,
+    ...(authorizationUserId && authorizationUserId !== execContext.userId
+      ? { userId: authorizationUserId }
+      : {}),
     toolCallId: toolCall.id,
     resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForToolInput(
       toolCall.params
@@ -289,12 +300,31 @@ export function buildToolExecutionContext(
  * resolves nor rejects within the tool's watchdog cap, throw a timeout error
  * so the standard failure path (persist failed row, publish terminal
  * confirmation, resume Go with an error result) runs and the chat never
- * wedges behind a hung await. The losing promise keeps running detached; its
- * eventual settlement is ignored.
+ * wedges behind a hung await. The losing promise's result is ignored, but the
+ * raw execution remains tracked so an explicit Stop keeps the chat lease until
+ * any still-mutating handler has actually unwound.
  */
-async function executeToolWithWatchdog(toolCall: ToolCallState, toolContext: ExecutionContext) {
+async function executeToolWithWatchdog(
+  toolCall: ToolCallState,
+  context: StreamingContext,
+  toolContext: ToolExecutionContext
+) {
   const timeoutMs = toolWatchdogTimeoutMs(toolCall.name)
   const execution = executeTool(toolCall.name, toolCall.params || {}, toolContext)
+  const inFlightToolExecutions = (context.inFlightToolExecutions ??= new Map())
+  inFlightToolExecutions.set(toolCall.id, execution)
+  void execution.then(
+    () => {
+      if (inFlightToolExecutions.get(toolCall.id) === execution) {
+        inFlightToolExecutions.delete(toolCall.id)
+      }
+    },
+    () => {
+      if (inFlightToolExecutions.get(toolCall.id) === execution) {
+        inFlightToolExecutions.delete(toolCall.id)
+      }
+    }
+  )
   let timer: ReturnType<typeof setTimeout> | undefined
   try {
     return await Promise.race([
@@ -311,6 +341,77 @@ async function executeToolWithWatchdog(toolCall: ToolCallState, toolContext: Exe
     // Swallow the abandoned promise's eventual rejection so it can't surface
     // as an unhandled rejection after a watchdog loss.
     execution.catch(() => {})
+  }
+}
+
+/**
+ * Durably terminalizes a Sim-owned tool call when its turn is stopped.
+ *
+ * The upsert closes the narrow race where cancellation wins before the normal
+ * executor creates its row. `markAsyncToolRunning` is terminal-safe, so a late
+ * executor cannot resurrect this cancellation back to `running`.
+ */
+export async function cancelToolCallAndReport(
+  toolCallId: string,
+  context: StreamingContext,
+  message = 'Stopped by user'
+): Promise<void> {
+  const toolCall = context.toolCalls.get(toolCallId)
+  if (!toolCall) return
+
+  const alreadyCancelled = toolCall.status === MothershipStreamV1ToolOutcome.cancelled
+  if (
+    !alreadyCancelled &&
+    (toolCall.endTime !== undefined || isTerminalToolCallStatus(toolCall.status))
+  ) {
+    return
+  }
+
+  if (!alreadyCancelled) {
+    setTerminalToolCallState(toolCall, {
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      error: message,
+    })
+  }
+  markToolResultSeen(toolCallId)
+
+  if (context.runId) {
+    await upsertAsyncToolCall({
+      runId: context.runId,
+      toolCallId,
+      toolName: toolCall.name,
+      args: toolCall.params,
+    }).catch((err) => {
+      logger.warn('Failed to persist async tool row before cancellation', {
+        toolCallId,
+        error: toError(err).message,
+      })
+    })
+  }
+
+  const persisted = await completeAsyncToolCall({
+    toolCallId,
+    status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
+    result: { cancelled: true },
+    error: message,
+  }).catch((err) => {
+    logger.warn('Failed to persist async tool cancellation', {
+      toolCallId,
+      error: toError(err).message,
+    })
+    return null
+  })
+
+  // Only the winner of the pending/running -> cancelled transition publishes.
+  // A null row means another terminal outcome already won and must not be
+  // overwritten by a late stop notification.
+  if (persisted) {
+    publishTerminalToolConfirmation({
+      toolCallId,
+      status: MothershipStreamV1ToolOutcome.cancelled,
+      message,
+      data: { cancelled: true },
+    })
   }
 }
 
@@ -484,6 +585,9 @@ async function executeToolAndReportInner(
     })
   }
   if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+    if (toolCall.status === MothershipStreamV1ToolOutcome.cancelled) {
+      await cancelToolCallAndReport(toolCall.id, context, requireToolCallError(toolCall))
+    }
     return terminalCompletionFromToolCall(toolCall)
   }
 
@@ -495,26 +599,9 @@ async function executeToolAndReportInner(
   }
 
   if (abortRequested(context, execContext, options)) {
-    markToolCallCancelled('Request aborted before tool execution')
-    markToolResultSeen(toolCall.id)
-    await completeAsyncToolCall({
-      toolCallId: toolCall.id,
-      status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-      result: { cancelled: true },
-      error: 'Request aborted before tool execution',
-    }).catch((err) => {
-      logger.warn('Failed to persist async tool status', {
-        toolCallId: toolCall.id,
-        error: toError(err).message,
-      })
-    })
-    publishTerminalToolConfirmation({
-      toolCallId: toolCall.id,
-      status: MothershipStreamV1ToolOutcome.cancelled,
-      message: 'Request aborted before tool execution',
-      data: { cancelled: true },
-    })
-    return cancelledCompletion('Request aborted before tool execution')
+    const message = 'Request aborted before tool execution'
+    await cancelToolCallAndReport(toolCall.id, context, message)
+    return cancelledCompletion(message)
   }
 
   toolCall.status = 'executing'
@@ -529,15 +616,53 @@ async function executeToolAndReportInner(
       error: toError(err).message,
     })
   })
-  await markAsyncToolRunning(toolCall.id, 'sim-stream').catch((err) => {
+  const runningToolCall = await markAsyncToolRunning(toolCall.id, 'sim-stream').catch((err) => {
     logger.warn('Failed to mark async tool running', {
       toolCallId: toolCall.id,
       error: toError(err).message,
     })
+    return null
   })
 
-  if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
-    return terminalCompletionFromToolCall(toolCall)
+  if (!runningToolCall) {
+    const durableToolCall = await getAsyncToolCall(toolCall.id).catch((err) => {
+      logger.warn('Failed to inspect async tool state after running transition lost', {
+        toolCallId: toolCall.id,
+        error: toError(err).message,
+      })
+      return null
+    })
+    if (durableToolCall && isTerminalAsyncStatus(durableToolCall.status)) {
+      const terminalStatus =
+        durableToolCall.status === MothershipStreamV1AsyncToolRecordStatus.completed
+          ? MothershipStreamV1ToolOutcome.success
+          : durableToolCall.status === MothershipStreamV1AsyncToolRecordStatus.cancelled
+            ? MothershipStreamV1ToolOutcome.cancelled
+            : MothershipStreamV1ToolOutcome.error
+      setTerminalToolCallState(toolCall, {
+        status: terminalStatus,
+        ...(durableToolCall.result !== null && durableToolCall.result !== undefined
+          ? { output: durableToolCall.result }
+          : {}),
+        ...(terminalStatus === MothershipStreamV1ToolOutcome.success
+          ? {}
+          : { error: durableToolCall.error || 'Tool execution was already terminalized' }),
+      })
+      markToolResultSeen(toolCall.id)
+      return terminalCompletionFromToolCall(toolCall)
+    }
+  }
+
+  const persistedToolCall = context.toolCalls.get(toolCall.id) ?? toolCall
+  if (persistedToolCall.endTime || isTerminalToolCallStatus(persistedToolCall.status)) {
+    if (persistedToolCall.status === MothershipStreamV1ToolOutcome.cancelled) {
+      await cancelToolCallAndReport(
+        persistedToolCall.id,
+        context,
+        requireToolCallError(persistedToolCall)
+      )
+    }
+    return terminalCompletionFromToolCall(persistedToolCall)
   }
 
   const argsPreview = toolCall.params ? JSON.stringify(toolCall.params).slice(0, 200) : undefined
@@ -546,6 +671,7 @@ async function executeToolAndReportInner(
     toolName: toolCall.name,
     argsPreview,
     abortSignalAborted: execContext.abortSignal?.aborted ?? false,
+    userStopSignalAborted: execContext.userStopSignal?.aborted ?? false,
   })
 
   const endToolSpan = (
@@ -559,6 +685,13 @@ async function executeToolAndReportInner(
     }
     if (options?.abortSignal?.aborted) {
       abortDetail.optionsAbortReason = String(options.abortSignal.reason ?? 'unknown')
+    }
+    if (execContext.userStopSignal?.aborted) {
+      abortDetail.userStopSignalAborted = true
+      abortDetail.userStopReason = String(execContext.userStopSignal.reason ?? 'unknown')
+    }
+    if (options?.userStopSignal?.aborted) {
+      abortDetail.optionsUserStopReason = String(options.userStopSignal.reason ?? 'unknown')
     }
     if (context.wasAborted) {
       abortDetail.wasAborted = true
@@ -598,40 +731,31 @@ async function executeToolAndReportInner(
 
   try {
     ensureHandlersRegistered()
-    let result = await executeToolWithWatchdog(toolCall, toolExecutionContext)
-    if (toolCall.endTime || isTerminalToolCallStatus(toolCall.status)) {
+    let result = await executeToolWithWatchdog(toolCall, context, toolExecutionContext)
+    const currentToolCall = context.toolCalls.get(toolCall.id) ?? toolCall
+    if (currentToolCall.endTime || isTerminalToolCallStatus(currentToolCall.status)) {
+      if (currentToolCall.status === MothershipStreamV1ToolOutcome.cancelled) {
+        await cancelToolCallAndReport(
+          currentToolCall.id,
+          context,
+          requireToolCallError(currentToolCall)
+        )
+      }
       endToolSpanFromTerminalState()
-      return terminalCompletionFromToolCall(toolCall)
+      return terminalCompletionFromToolCall(currentToolCall)
     }
     if (abortRequested(context, execContext, options)) {
       const copilotResult = inspectToolResultForCopilot(
         result,
         toolExecutionContext.resolvedSecretTraceRegistry
       ).result
-      markToolCallCancelled('Request aborted during tool execution')
-      markToolResultSeen(toolCall.id)
-      await completeAsyncToolCall({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-        result: { cancelled: true },
-        error: 'Request aborted during tool execution',
-      }).catch((err) => {
-        logger.warn('Failed to persist async tool status', {
-          toolCallId: toolCall.id,
-          error: toError(err).message,
-        })
-      })
-      publishTerminalToolConfirmation({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        message: 'Request aborted during tool execution',
-        data: { cancelled: true },
-      })
+      const message = 'Request aborted during tool execution'
+      await cancelToolCallAndReport(toolCall.id, context, message)
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution',
         error: copilotResult.success === false ? copilotResult.error : undefined,
       })
-      return cancelledCompletion('Request aborted during tool execution')
+      return cancelledCompletion(message)
     }
     result = await maybeWriteOutputToFile(
       toolCall.name,
@@ -640,27 +764,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
-      await completeAsyncToolCall({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-        result: { cancelled: true },
-        error: 'Request aborted during tool post-processing',
-      }).catch((err) => {
-        logger.warn('Failed to persist async tool status', {
-          toolCallId: toolCall.id,
-          error: toError(err).message,
-        })
-      })
-      publishTerminalToolConfirmation({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        message: 'Request aborted during tool post-processing',
-        data: { cancelled: true },
-      })
+      const message = 'Request aborted during tool post-processing'
+      await cancelToolCallAndReport(toolCall.id, context, message)
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_file' })
-      return cancelledCompletion('Request aborted during tool post-processing')
+      return cancelledCompletion(message)
     }
     result = await maybeWriteOutputToTable(
       toolCall.name,
@@ -669,27 +776,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
-      await completeAsyncToolCall({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-        result: { cancelled: true },
-        error: 'Request aborted during tool post-processing',
-      }).catch((err) => {
-        logger.warn('Failed to persist async tool status', {
-          toolCallId: toolCall.id,
-          error: toError(err).message,
-        })
-      })
-      publishTerminalToolConfirmation({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        message: 'Request aborted during tool post-processing',
-        data: { cancelled: true },
-      })
+      const message = 'Request aborted during tool post-processing'
+      await cancelToolCallAndReport(toolCall.id, context, message)
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_table' })
-      return cancelledCompletion('Request aborted during tool post-processing')
+      return cancelledCompletion(message)
     }
     result = await maybeWriteReadCsvToTable(
       toolCall.name,
@@ -698,27 +788,10 @@ async function executeToolAndReportInner(
       toolExecutionContext
     )
     if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted during tool post-processing')
-      markToolResultSeen(toolCall.id)
-      await completeAsyncToolCall({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-        result: { cancelled: true },
-        error: 'Request aborted during tool post-processing',
-      }).catch((err) => {
-        logger.warn('Failed to persist async tool status', {
-          toolCallId: toolCall.id,
-          error: toError(err).message,
-        })
-      })
-      publishTerminalToolConfirmation({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        message: 'Request aborted during tool post-processing',
-        data: { cancelled: true },
-      })
+      const message = 'Request aborted during tool post-processing'
+      await cancelToolCallAndReport(toolCall.id, context, message)
       endToolSpan('cancelled', { cancelReason: 'abort_during_post_processing_csv' })
-      return cancelledCompletion('Request aborted during tool post-processing')
+      return cancelledCompletion(message)
     }
     const projection = inspectToolResultForCopilot(
       result,
@@ -859,30 +932,13 @@ async function executeToolAndReportInner(
     mergeToolRegistry(projection.safe)
     const safeThrownMessage = copilotError.error || 'Tool failed'
     if (abortRequested(context, execContext, options)) {
-      markToolCallCancelled('Request aborted during tool execution')
-      markToolResultSeen(toolCall.id)
-      await completeAsyncToolCall({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1AsyncToolRecordStatus.cancelled,
-        result: { cancelled: true },
-        error: 'Request aborted during tool execution',
-      }).catch((err) => {
-        logger.warn('Failed to persist async tool status', {
-          toolCallId: toolCall.id,
-          error: toError(err).message,
-        })
-      })
-      publishTerminalToolConfirmation({
-        toolCallId: toolCall.id,
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        message: 'Request aborted during tool execution',
-        data: { cancelled: true },
-      })
+      const message = 'Request aborted during tool execution'
+      await cancelToolCallAndReport(toolCall.id, context, message)
       endToolSpan('cancelled', {
         cancelReason: 'abort_during_execution_catch',
         error: safeThrownMessage,
       })
-      return cancelledCompletion('Request aborted during tool execution')
+      return cancelledCompletion(message)
     }
     setTerminalToolCallState(toolCall, {
       status: MothershipStreamV1ToolOutcome.error,

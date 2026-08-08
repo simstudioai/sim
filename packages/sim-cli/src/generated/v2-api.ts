@@ -352,6 +352,59 @@ export type CancelWorkflowExecutionResponse = {
   }
 }
 
+/** `POST /api/v2/chat` */
+export type ChatBody = {
+  workspaceId: string
+  prompt: string
+  continuationToken?: string
+  readOnly?: boolean
+  attachments?: Array<{
+    name: string
+    mediaType: string
+    data: string
+  }>
+  contexts?: Array<
+    | {
+        kind: 'workflow'
+        workflowId: string
+        label: string
+      }
+    | {
+        kind: 'table'
+        tableId: string
+        label: string
+      }
+    | {
+        kind: 'file'
+        fileId: string
+        label: string
+      }
+    | {
+        kind: 'knowledge'
+        knowledgeId: string
+        label: string
+      }
+    | {
+        kind: 'logs'
+        executionId: string
+        label: string
+      }
+    | {
+        kind: 'skill'
+        skillId: string
+        label: string
+      }
+    | {
+        kind: 'mcp'
+        serverId: string
+        label: string
+      }
+  >
+}
+
+/** Non-JSON response (`stream`). */
+export type ChatResponse = never
+
 /** `POST /api/v2/files/uploads/[uploadId]/complete` */
 export type CompleteFileUploadParams = {
   uploadId: string
@@ -1195,25 +1248,6 @@ export type CreateTableRowsBody =
   | {
       workspaceId: string
       data: unknown
-      __privateSecretProvenance?: {
-        version: 1
-        complete: boolean
-        selections: Array<{
-          key: string
-          provenance: {
-            version: 1
-            complete: boolean
-            entries: Array<{
-              encryptedValue: string
-              name?: string
-            }>
-            scope?: {
-              userId: string
-              workspaceId?: string
-            }
-          }
-        }>
-      }
       afterRowId?: string
       beforeRowId?: string
     }
@@ -1951,6 +1985,31 @@ export type GetBillingStatusResponse = {
   }
 }
 
+/** `GET /api/v2/chats/[chatId]` */
+export type GetChatParams = {
+  chatId: string
+}
+
+export type GetChatQuery = {
+  workspaceId: string
+  readOnly?: boolean
+}
+
+export type GetChatResponse = {
+  data: {
+    id: string
+    title: string | null
+    messages: Array<{
+      id: string
+      role: 'user' | 'assistant'
+      content: string
+      timestamp: string
+    }>
+    continuationToken: string
+    active: boolean
+  }
+}
+
 /** `GET /api/v2/credentials/[id]` */
 export type GetCredentialParams = {
   id: string
@@ -2548,6 +2607,24 @@ export type GetWorkflowVersionResponse = {
   }
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]` */
+export type GetWorkspaceParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceResponse = {
+  data: {
+    workspace: {
+      id: string
+      name: string
+      color: string
+      logoUrl: string | null
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowBody = {
   workspaceId: string
@@ -2643,6 +2720,25 @@ export type ListBillingLogsResponse = {
     } | null
     executionId: string | null
     creditCost: number
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/chats` */
+export type ListChatsQuery = {
+  workspaceId: string
+  search?: string
+  limit?: number
+  cursor?: string
+}
+
+export type ListChatsResponse = {
+  data: Array<{
+    id: string
+    title: string | null
+    updatedAt: string
+    pinned: boolean
+    active: boolean
   }>
   nextCursor: string | null
 }
@@ -3380,6 +3476,23 @@ export type RelocateWorkflowFolderResponse = {
   }
 }
 
+/** `PATCH /api/v2/chats/[chatId]` */
+export type RenameChatParams = {
+  chatId: string
+}
+
+export type RenameChatBody = {
+  workspaceId: string
+  title: string
+}
+
+export type RenameChatResponse = {
+  data: {
+    id: string
+    title: string
+  }
+}
+
 /** `PATCH /api/v2/files/[fileId]` */
 export type RenameFileParams = {
   fileId: string
@@ -3835,25 +3948,6 @@ export type UpdateRowsByFilterBody = {
   filter: unknown
   data: unknown
   limit?: number
-  __privateSecretProvenance?: {
-    version: 1
-    complete: boolean
-    selections: Array<{
-      key: string
-      provenance: {
-        version: 1
-        complete: boolean
-        entries: Array<{
-          encryptedValue: string
-          name?: string
-        }>
-        scope?: {
-          userId: string
-          workspaceId?: string
-        }
-      }
-    }>
-  }
 }
 
 export type UpdateRowsByFilterResponse = {
@@ -3995,25 +4089,6 @@ export type UpdateTableRowParams = {
 export type UpdateTableRowBody = {
   workspaceId: string
   data: unknown
-  __privateSecretProvenance?: {
-    version: 1
-    complete: boolean
-    selections: Array<{
-      key: string
-      provenance: {
-        version: 1
-        complete: boolean
-        entries: Array<{
-          encryptedValue: string
-          name?: string
-        }>
-        scope?: {
-          userId: string
-          workspaceId?: string
-        }
-      }
-    }>
-  }
 }
 
 export type UpdateTableRowResponse = {
@@ -4258,25 +4333,6 @@ export type UpsertTableRowBody = {
   workspaceId: string
   data: unknown
   conflictTarget?: string
-  __privateSecretProvenance?: {
-    version: 1
-    complete: boolean
-    selections: Array<{
-      key: string
-      provenance: {
-        version: 1
-        complete: boolean
-        entries: Array<{
-          encryptedValue: string
-          name?: string
-        }>
-        scope?: {
-          userId: string
-          workspaceId?: string
-        }
-      }
-    }>
-  }
 }
 
 export type UpsertTableRowResponse = {
@@ -4399,6 +4455,21 @@ export const V2_OPERATIONS = {
     pathParams: ['id', 'executionId'] as const,
     responseMode: 'json',
     summary: 'Cancel an execution',
+  },
+  chat: {
+    method: 'POST',
+    path: '/api/v2/chat',
+    pathParams: [] as const,
+    responseMode: 'stream',
+    summary: 'Ask Sim Chat',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      prompt: { kind: 'string', required: true },
+      continuationToken: { kind: 'string' },
+      readOnly: { kind: 'boolean', default: false },
+      attachments: { kind: 'array' },
+      contexts: { kind: 'array' },
+    },
   },
   completeFileUpload: {
     method: 'POST',
@@ -4993,6 +5064,17 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string' },
     },
   },
+  getChat: {
+    method: 'GET',
+    path: '/api/v2/chats/[chatId]',
+    pathParams: ['chatId'] as const,
+    responseMode: 'json',
+    summary: 'Open Sim Chat',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      readOnly: { kind: 'boolean' },
+    },
+  },
   getCredential: {
     method: 'GET',
     path: '/api/v2/credentials/[id]',
@@ -5155,6 +5237,13 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Workflow Version',
   },
+  getWorkspace: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]',
+    pathParams: ['workspaceId'] as const,
+    responseMode: 'json',
+    summary: 'Get Workspace',
+  },
   importWorkflow: {
     method: 'POST',
     path: '/api/v2/workflows/import',
@@ -5219,6 +5308,19 @@ export const V2_OPERATIONS = {
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
       limit: { kind: 'integer', default: 50 },
+      cursor: { kind: 'string' },
+    },
+  },
+  listChats: {
+    method: 'GET',
+    path: '/api/v2/chats',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Sim Chats',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      search: { kind: 'string' },
+      limit: { kind: 'number', default: 30 },
       cursor: { kind: 'string' },
     },
   },
@@ -5642,6 +5744,17 @@ export const V2_OPERATIONS = {
       destinationPath: { kind: 'string', required: true },
     },
   },
+  renameChat: {
+    method: 'PATCH',
+    path: '/api/v2/chats/[chatId]',
+    pathParams: ['chatId'] as const,
+    responseMode: 'json',
+    summary: 'Rename Sim Chat',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      title: { kind: 'string', required: true },
+    },
+  },
   renameFile: {
     method: 'PATCH',
     path: '/api/v2/files/[fileId]',
@@ -5821,7 +5934,6 @@ export const V2_OPERATIONS = {
       filter: { kind: 'unknown', required: true },
       data: { kind: 'unknown', required: true },
       limit: { kind: 'integer' },
-      __privateSecretProvenance: { kind: 'object' },
     },
   },
   updateSkill: {
@@ -5871,7 +5983,6 @@ export const V2_OPERATIONS = {
     body: {
       workspaceId: { kind: 'string', required: true },
       data: { kind: 'unknown', required: true },
-      __privateSecretProvenance: { kind: 'object' },
     },
   },
   updateTableView: {
@@ -5955,7 +6066,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
       data: { kind: 'unknown', required: true },
       conflictTarget: { kind: 'string' },
-      __privateSecretProvenance: { kind: 'object' },
     },
   },
 } as const

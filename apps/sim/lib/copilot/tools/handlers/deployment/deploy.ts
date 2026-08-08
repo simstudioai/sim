@@ -166,11 +166,7 @@ export async function executeDeployApi(
       return { success: false, error: 'workflowId is required' }
     }
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
 
     if (action === 'undeploy') {
       const result = await performFullUndeploy({ workflowId, userId: context.userId })
@@ -586,11 +582,7 @@ export async function executeDeployMcp(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
+    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
     const workspaceId = workflowRecord.workspaceId
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
@@ -869,7 +861,7 @@ export async function executeRedeploy(
           'versionName is required. Provide a short human-readable label for this deployment version.',
       }
     }
-    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
+    await ensureWorkflowAccess(workflowId, context, 'admin')
 
     const result = await performFullDeploy({
       workflowId,

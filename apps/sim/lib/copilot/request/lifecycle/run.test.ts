@@ -11,6 +11,7 @@ afterAll(resetEnvironmentUtilsMock)
 
 const {
   mockCreateRunSegment,
+  mockCancelToolCallAndReport,
   mockForceFailHungToolCall,
   mockGetMothershipBaseURL,
   mockGetMothershipSourceEnvHeaders,
@@ -24,6 +25,7 @@ const {
   mockEnv,
 } = vi.hoisted(() => ({
   mockCreateRunSegment: vi.fn(),
+  mockCancelToolCallAndReport: vi.fn(),
   mockForceFailHungToolCall: vi.fn(),
   mockGetMothershipBaseURL: vi.fn(),
   mockGetMothershipSourceEnvHeaders: vi.fn(),
@@ -124,6 +126,7 @@ vi.mock('@/lib/copilot/request/tools/billing', () => ({
 }))
 
 vi.mock('@/lib/copilot/request/tools/executor', () => ({
+  cancelToolCallAndReport: mockCancelToolCallAndReport,
   executeToolAndReport: vi.fn(),
   forceFailHungToolCall: mockForceFailHungToolCall,
   pendingToolWaitBudgetMs: mockPendingToolWaitBudgetMs,
@@ -165,6 +168,78 @@ describe('runCopilotLifecycle', () => {
     mockPrepareCopilotEnvironmentContext.mockResolvedValue({
       resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry(),
     })
+    mockCancelToolCallAndReport.mockImplementation(
+      async (toolCallId: string, context: StreamingContext, message = 'Stopped by user') => {
+        const tool = context.toolCalls.get(toolCallId)
+        if (!tool) return
+        tool.status = MothershipStreamV1ToolOutcome.cancelled
+        tool.endTime = Date.now()
+        tool.result = { success: false }
+        tool.error = message
+      }
+    )
+  })
+
+  it('does not create a Sim run for a transport-only chat', async () => {
+    let captured: StreamingContext | undefined
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
+      captured = context
+    })
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-go-only' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'go-only-chat',
+        autoCreateRunIdentity: false,
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'go-only-chat',
+        },
+      }
+    )
+
+    expect(mockCreateRunSegment).not.toHaveBeenCalled()
+    expect(captured).toMatchObject({ chatId: 'go-only-chat' })
+    expect(captured?.executionId).toBeUndefined()
+    expect(captured?.runId).toBeUndefined()
+  })
+
+  it('still creates a run identity by default for a persisted headless chat', async () => {
+    let captured: StreamingContext | undefined
+    mockCreateRunSegment.mockResolvedValueOnce({ id: 'created' })
+    mockRunStreamLoop.mockImplementationOnce(async (_url, _request, context) => {
+      captured = context
+    })
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-persisted' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'persisted-chat',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'persisted-chat',
+        },
+      }
+    )
+
+    expect(mockCreateRunSegment).toHaveBeenCalledWith(
+      expect.objectContaining({
+        chatId: 'persisted-chat',
+        streamId: 'stream-persisted',
+        requestContext: { source: 'headless_lifecycle' },
+      })
+    )
+    const created = mockCreateRunSegment.mock.calls[0][0]
+    expect(captured?.executionId).toBe(created.executionId)
+    expect(captured?.runId).toBe(created.id)
   })
 
   it('threads trace provenance through server execution context only', async () => {
@@ -202,6 +277,39 @@ describe('runCopilotLifecycle', () => {
     expect(capturedRequestBody).not.toContain('resolvedSecretTraceRegistry')
     expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
+  })
+
+  it('routes projected workspace actors through the authorization user environment', async () => {
+    let requestBody: Record<string, unknown> | undefined
+    mockRunStreamLoop.mockImplementationOnce(
+      async (_url: string, request: RequestInit): Promise<void> => {
+        requestBody = JSON.parse(String(request.body))
+      }
+    )
+
+    await runCopilotLifecycle(
+      {
+        message: 'hello',
+        messageId: 'stream-workspace-key',
+        userId: 'workspace-billing-actor',
+      },
+      {
+        userId: 'workspace-billing-actor',
+        authorizationUserId: 'workspace-key-owner',
+        workspaceId: 'ws-1',
+        executionContext: {
+          userId: 'workspace-billing-actor',
+          authorizationUserId: 'workspace-key-owner',
+          workflowId: '',
+          workspaceId: 'ws-1',
+        },
+      }
+    )
+
+    expect(mockGetMothershipBaseURL).toHaveBeenCalledWith({
+      userId: 'workspace-key-owner',
+    })
+    expect(requestBody?.userId).toBe('workspace-billing-actor')
   })
 
   it.each([
@@ -1742,6 +1850,98 @@ describe('runCopilotLifecycle', () => {
     )
   })
 
+  it('uses a caller-supplied resume route for async tool checkpoints', async () => {
+    const fetchUrls: string[] = []
+    const executionContext: ExecutionContext = {
+      userId: 'user-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'ws-1',
+      chatId: 'chat-1',
+    }
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (fetchUrl: string, _fetchOptions: RequestInit, context: StreamingContext) => {
+        fetchUrls.push(fetchUrl)
+        context.toolCalls.set('tool-1', {
+          id: 'tool-1',
+          name: 'read',
+          status: MothershipStreamV1ToolOutcome.success,
+          result: { success: true, output: { content: 'file contents' } },
+        })
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-1'],
+        }
+      }
+    )
+    mockRunStreamLoop.mockImplementationOnce(async (fetchUrl: string) => {
+      fetchUrls.push(fetchUrl)
+    })
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext,
+        resumeRoute: '/api/tools/v2-chat/resume',
+      }
+    )
+
+    expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/v2-chat/resume')
+  })
+
+  it('reports initial stream acceptance once and never from resume legs', async () => {
+    const onInitialStreamAccepted = vi.fn()
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext,
+        _execContext: ExecutionContext,
+        options: { onAccepted?: () => void }
+      ) => {
+        options.onAccepted?.()
+        options.onAccepted?.()
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: [],
+        }
+      }
+    )
+    mockRunStreamLoop.mockResolvedValueOnce(undefined)
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        workflowId: 'workflow-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        executionContext: {
+          userId: 'user-1',
+          workflowId: 'workflow-1',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+        onInitialStreamAccepted,
+      }
+    )
+
+    expect(mockRunStreamLoop.mock.calls[0]?.[4]).toEqual(
+      expect.objectContaining({ onAccepted: expect.any(Function) })
+    )
+    expect(onInitialStreamAccepted).toHaveBeenCalledOnce()
+    expect(mockRunStreamLoop.mock.calls[1]?.[4]).not.toHaveProperty('onAccepted')
+  })
+
   it('finalizes as success when a resume fails with a retryable error then the retry succeeds', async () => {
     const executionContext: ExecutionContext = {
       userId: 'user-1',
@@ -2048,6 +2248,106 @@ describe('runCopilotLifecycle', () => {
 
     expect(result.success).toBe(false)
     expect(result.errors).toEqual(['The provider is overloaded'])
+  })
+
+  it('stops a pending Sim tool without aborting the active Go transport or resuming', async () => {
+    const transportController = new AbortController()
+    const userStopController = new AbortController()
+    const onComplete = vi.fn()
+    const onError = vi.fn()
+    let capturedContext: StreamingContext | undefined
+    let capturedExecutionContext: ExecutionContext | undefined
+    let settleTool!: () => void
+    let settleRawExecution!: () => void
+    const pendingTool = new Promise<void>((resolve) => {
+      settleTool = resolve
+    })
+    const rawExecution = new Promise<void>((resolve) => {
+      settleRawExecution = resolve
+    })
+
+    mockRunStreamLoop.mockImplementationOnce(
+      async (
+        _fetchUrl: string,
+        _fetchOptions: RequestInit,
+        context: StreamingContext,
+        executionContext: ExecutionContext
+      ): Promise<void> => {
+        capturedContext = context
+        capturedExecutionContext = executionContext
+        context.toolCalls.set('tool-running', {
+          id: 'tool-running',
+          name: 'read',
+          status: 'executing',
+        })
+        context.pendingToolPromises.set('tool-running', pendingTool)
+        context.inFlightToolExecutions = new Map([['tool-running', rawExecution]])
+        context.awaitingAsyncContinuation = {
+          checkpointId: 'ckpt-1',
+          pendingToolCallIds: ['tool-running'],
+        }
+      }
+    )
+
+    const lifecycle = runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-1' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        chatId: 'chat-1',
+        executionId: 'exec-1',
+        runId: 'run-1',
+        abortSignal: transportController.signal,
+        userStopSignal: userStopController.signal,
+        executionContext: {
+          userId: 'user-1',
+          workflowId: '',
+          workspaceId: 'ws-1',
+          chatId: 'chat-1',
+        },
+        onComplete,
+        onError,
+      }
+    )
+
+    await vi.waitFor(() => expect(mockRunStreamLoop).toHaveBeenCalledTimes(1))
+    await new Promise((resolve) => setImmediate(resolve))
+    let lifecycleSettled = false
+    void lifecycle.finally(() => {
+      lifecycleSettled = true
+    })
+    userStopController.abort('submit')
+    await new Promise((resolve) => setImmediate(resolve))
+
+    // Stop reaches the tool immediately, but the turn keeps its lease until
+    // that handler has actually unwound.
+    expect(capturedExecutionContext?.abortSignal?.aborted).toBe(true)
+    expect(lifecycleSettled).toBe(false)
+    settleTool()
+    await new Promise((resolve) => setImmediate(resolve))
+    expect(lifecycleSettled).toBe(false)
+    settleRawExecution()
+
+    const result = await lifecycle
+
+    expect(transportController.signal.aborted).toBe(false)
+    expect(capturedExecutionContext?.abortSignal?.aborted).toBe(true)
+    expect(capturedExecutionContext?.userStopSignal).toBe(userStopController.signal)
+    expect(mockRunStreamLoop).toHaveBeenCalledTimes(1)
+    expect(mockCancelToolCallAndReport).toHaveBeenCalledWith('tool-running', capturedContext)
+    expect(capturedContext?.awaitingAsyncContinuation).toBeUndefined()
+    expect(capturedContext?.toolCalls.get('tool-running')).toEqual(
+      expect.objectContaining({
+        status: MothershipStreamV1ToolOutcome.cancelled,
+        error: 'Stopped by user',
+        result: { success: false },
+      })
+    )
+    expect(result).toEqual(expect.objectContaining({ success: false, cancelled: true }))
+    expect(onComplete).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, cancelled: true })
+    )
+    expect(onError).not.toHaveBeenCalled()
   })
 
   it('force-fails a hung tool promise and resumes with an error result instead of wedging', async () => {

@@ -25,7 +25,7 @@ import {
 import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace-sandboxes'
 import { listWorkspaceFiles } from '@/lib/uploads/contexts/workspace'
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
+import { listCustomToolSummaries } from '@/lib/workflows/custom-tools/operations'
 import { listSkillsForUser } from '@/lib/workflows/skills/operations'
 import {
   assertActiveWorkspaceAccess,
@@ -329,7 +329,7 @@ export function buildWorkspaceContextMd(data: WorkspaceMdData): string {
 async function buildWorkspaceMdData(
   workspaceId: string,
   userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess }
+  options?: { workspaceAccess?: WorkspaceAccess; secretless?: boolean }
 ): Promise<WorkspaceMdData | null> {
   try {
     // Reuse the caller's already-asserted access when provided (hot chat path);
@@ -411,11 +411,17 @@ async function buildWorkspaceMdData(
 
       listWorkspaceFiles(workspaceId),
 
-      getAccessibleOAuthCredentials(workspaceId, userId),
+      options?.secretless
+        ? Promise.resolve([])
+        : getAccessibleOAuthCredentials(workspaceId, userId),
 
-      getAccessibleEnvCredentials(workspaceId, userId),
+      options?.secretless ? Promise.resolve([]) : getAccessibleEnvCredentials(workspaceId, userId),
 
-      listCustomTools({ userId, workspaceId }),
+      listCustomToolSummaries({
+        userId,
+        workspaceId,
+        workspaceOnly: options?.secretless,
+      }),
 
       db
         .select({
@@ -515,7 +521,12 @@ async function buildWorkspaceMdData(
       ),
       customTools: customTools.map((t) => ({ id: t.id, name: t.title })),
       customBlocks: customBlockSummaries,
-      mcpServers: mcpServerRows,
+      mcpServers: mcpServerRows.map((server) => ({
+        id: server.id,
+        name: server.name,
+        enabled: server.enabled,
+        ...(options?.secretless ? {} : { url: server.url }),
+      })),
       skills: skillRows.map((s) => ({ id: s.id, name: s.name, description: s.description })),
       ...(sandboxResult.entitled
         ? {
@@ -549,7 +560,11 @@ const WORKSPACE_CONTEXT_UNAVAILABLE_MD =
 export async function generateWorkspaceContext(
   workspaceId: string,
   userId: string,
-  options?: { workspaceAccess?: WorkspaceAccess; secretMountPolicy?: SecretMountPolicy }
+  options?: {
+    workspaceAccess?: WorkspaceAccess
+    secretless?: boolean
+    secretMountPolicy?: SecretMountPolicy
+  }
 ): Promise<string> {
   const data = await buildWorkspaceMdData(workspaceId, userId, options)
   if (!data) return WORKSPACE_CONTEXT_UNAVAILABLE_MD
@@ -568,9 +583,10 @@ export async function generateWorkspaceContext(
  */
 export async function generateWorkspaceSnapshot(
   workspaceId: string,
-  userId: string
+  userId: string,
+  options?: { workspaceAccess?: WorkspaceAccess; secretless?: boolean }
 ): Promise<{ markdown: string; snapshot: VfsSnapshotV1 } | null> {
-  const data = await buildWorkspaceMdData(workspaceId, userId)
+  const data = await buildWorkspaceMdData(workspaceId, userId, options)
   if (!data) return null
   return { markdown: buildWorkspaceMd(data), snapshot: buildVfsSnapshot(data) }
 }

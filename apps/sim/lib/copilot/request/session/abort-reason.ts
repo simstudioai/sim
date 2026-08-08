@@ -30,6 +30,8 @@ export const AbortReason = {
   MarkerObservedAtBodyClose: 'redis_abort_marker:body_close',
   /** Internal timeout on the outbound explicit-abort fetch to Go. */
   ExplicitAbortFetchTimeout: 'timeout:go_explicit_abort_fetch',
+  /** This handler no longer owns the per-chat lease and must stop writing. */
+  LockOwnershipLost: 'chat_stream_lock:ownership_lost',
 } as const
 
 export type AbortReasonValue = (typeof AbortReason)[keyof typeof AbortReason]

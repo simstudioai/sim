@@ -327,6 +327,20 @@ describe('maybeWriteReadCsvToTable', () => {
     expect(mockReplaceTableRows).not.toHaveBeenCalled()
   })
 
+  it('denies outputTable in query-only mode even when the principal can write', async () => {
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'tbl_1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age\nAlice,30' } },
+      buildContext({ userPermission: 'admin', queryOnly: true })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('query-only')
+    expect(mockGetTableById).not.toHaveBeenCalled()
+    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+
   it('imports CSV content through the service with id-keyed rows', async () => {
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,

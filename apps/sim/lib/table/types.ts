@@ -911,8 +911,14 @@ export interface AddWorkflowGroupData {
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
-  /** The member adding the group — billed/gated for the auto-run enrichment pass. */
+  /** The member adding the group, retained for authorization/audit work. */
   actorUserId?: string | null
+  /**
+   * Frozen billing actor for the post-add auto-run. This differs from
+   * `actorUserId` when a workspace API key authorizes tools as its owner but
+   * charges executions to the workspace system account.
+   */
+  billingActorUserId?: string | null
 }
 
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
@@ -941,8 +947,10 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
-  /** The member updating the group — billed/gated for any triggered re-run. */
+  /** The member updating the group, retained for authorization/audit/backfill work. */
   actorUserId?: string | null
+  /** Frozen billing actor for a false -> true auto-run transition. */
+  billingActorUserId?: string | null
 }
 
 export interface DeleteWorkflowGroupData {

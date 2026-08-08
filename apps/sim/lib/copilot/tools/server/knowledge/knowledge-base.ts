@@ -60,6 +60,14 @@ import {
 } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
+const DEFAULT_KNOWLEDGE_QUERY_TOP_K = 5
+const MAX_KNOWLEDGE_QUERY_TOP_K = 50
+
+export function normalizeKnowledgeQueryTopK(value: unknown): number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1
+    ? Math.min(value, MAX_KNOWLEDGE_QUERY_TOP_K)
+    : DEFAULT_KNOWLEDGE_QUERY_TOP_K
+}
 
 function requireKnowledgeBillingAttribution(
   context: ServerToolContext,
@@ -69,7 +77,8 @@ function requireKnowledgeBillingAttribution(
     throw new Error('Billing attribution is required for knowledge operations')
   }
   const attribution = assertBillingAttributionSnapshot(context.billingAttribution)
-  if (attribution.actorUserId !== context.userId || attribution.workspaceId !== workspaceId) {
+  const billingActorUserId = context.billingAttribution?.actorUserId ?? context.userId
+  if (attribution.actorUserId !== billingActorUserId || attribution.workspaceId !== workspaceId) {
     throw new Error('Knowledge billing attribution does not match its actor and workspace')
   }
   return attribution
@@ -120,6 +129,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
     const { operation, args = {} } = params
     const workspaceId =
       context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const billingActorUserId = context.billingAttribution?.actorUserId ?? context.userId
     const assertNotAborted = () =>
       assertServerToolNotAborted(
         context,
@@ -193,7 +203,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          const access = await checkKnowledgeBaseAccess(
+            args.knowledgeBaseId,
+            context.userId,
+            workspaceId
+          )
           if (!access.hasAccess) {
             return {
               success: false,
@@ -247,7 +261,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          const access = await checkKnowledgeBaseAccess(
+            args.knowledgeBaseId,
+            context.userId,
+            workspaceId
+          )
           if (!access.hasAccess) {
             return {
               success: false,
@@ -263,7 +281,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const topK = args.topK || 5
+          const topK = normalizeKnowledgeQueryTopK(args.topK)
 
           const billingAttribution = kb.workspaceId
             ? requireKnowledgeBillingAttribution(context, kb.workspaceId)
@@ -293,7 +311,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           })
 
           await recordSearchEmbeddingUsage({
-            userId: context.userId,
+            // A workspace API key projects the local tool call onto its owner
+            // for authorization, while the frozen attribution retains the
+            // workspace billing actor. Embedding metering validates the actor
+            // tuple, so keep those two identities deliberately separate.
+            userId: billingActorUserId,
             workspaceId: kb.workspaceId,
             embeddingModel: kb.embeddingModel,
             query: modelQuery,
@@ -363,7 +385,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -488,7 +511,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -545,7 +569,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const failed: Array<{ id: string; name: string; reason: string }> = []
 
           for (const kbId of kbIds) {
-            const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
+            const writeAccess = await checkKnowledgeBaseWriteAccess(
+              kbId,
+              context.userId,
+              workspaceId
+            )
             if (!writeAccess.hasAccess) {
               notFound.push(kbId)
               continue
@@ -618,7 +646,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             const docAccess = await checkDocumentWriteAccess(
               args.knowledgeBaseId,
               docId,
-              context.userId
+              context.userId,
+              workspaceId
             )
             if (!docAccess.hasAccess) {
               failed.push(docId)
@@ -671,7 +700,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           const docAccess = await checkDocumentWriteAccess(
             args.knowledgeBaseId,
             args.documentId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!docAccess.hasAccess) {
             return {
@@ -717,7 +747,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          const access = await checkKnowledgeBaseAccess(
+            args.knowledgeBaseId,
+            context.userId,
+            workspaceId
+          )
           if (!access.hasAccess) {
             return {
               success: false,
@@ -762,7 +796,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -842,7 +877,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             existingTag.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -890,7 +926,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -933,7 +970,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
+          const access = await checkKnowledgeBaseAccess(
+            args.knowledgeBaseId,
+            context.userId,
+            workspaceId
+          )
           if (!access.hasAccess) {
             return {
               success: false,
@@ -968,7 +1009,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
-            context.userId
+            context.userId,
+            workspaceId
           )
           if (!writeAccess.hasAccess) {
             return {
@@ -1039,7 +1081,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
+          const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId, workspaceId)
           if (!writeAccess.hasAccess) {
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
@@ -1089,7 +1131,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(deleteKbId, context.userId)
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            deleteKbId,
+            context.userId,
+            workspaceId
+          )
           if (!writeAccess.hasAccess) {
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
@@ -1140,7 +1186,11 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(syncKbId, context.userId)
+          const writeAccess = await checkKnowledgeBaseWriteAccess(
+            syncKbId,
+            context.userId,
+            workspaceId
+          )
           if (!writeAccess.hasAccess) {
             return { success: false, message: `Connector "${args.connectorId}" not found` }
           }

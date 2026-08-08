@@ -34,6 +34,7 @@ export type ApiEndpoint =
   | 'workflow-version-detail'
   | 'workflow-export'
   | 'workflow-import'
+  | 'workspace'
   | 'audit-logs'
   | 'tables'
   | 'table-detail'

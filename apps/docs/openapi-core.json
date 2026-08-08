@@ -1,8 +1,8 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Sim API — Execution & Usage",
-    "description": "Run workflows, poll and cancel executions, resume Human-in-the-Loop pauses, and check usage limits.",
+    "title": "Sim API — Execution, Chat & Usage",
+    "description": "Run workflows, chat with a workspace, poll and cancel executions, resume Human-in-the-Loop pauses, and check usage limits.",
     "version": "1.0.0",
     "contact": {
       "name": "Sim Support",
@@ -36,6 +36,14 @@
     {
       "name": "Billing",
       "description": "Inspect billing status and credit-denominated ledger events"
+    },
+    {
+      "name": "Chat",
+      "description": "Chat with a workspace through Mothership"
+    },
+    {
+      "name": "Workspaces",
+      "description": "Resolve workspace metadata available to the authenticated credential"
     }
   ],
   "security": [
@@ -1016,6 +1024,677 @@
           }
         },
         "parameters": []
+      }
+    },
+    "/api/v2/workspaces/{workspaceId}": {
+      "get": {
+        "operationId": "getWorkspace",
+        "summary": "Get Workspace",
+        "description": "Resolve a workspace ID to the display metadata available to the authenticated credential. The credential must have read access to the workspace.",
+        "tags": ["Workspaces"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "description": "Workspace to resolve."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The workspace's display metadata.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["workspace"],
+                      "properties": {
+                        "workspace": {
+                          "type": "object",
+                          "required": ["id", "name", "color", "logoUrl", "createdAt", "updatedAt"],
+                          "properties": {
+                            "id": { "type": "string" },
+                            "name": { "type": "string" },
+                            "color": { "type": "string" },
+                            "logoUrl": { "type": ["string", "null"] },
+                            "createdAt": { "type": "string", "format": "date-time" },
+                            "updatedAt": { "type": "string", "format": "date-time" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "workspace": {
+                      "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                      "name": "Product Operations",
+                      "color": "#7C3AED",
+                      "logoUrl": null,
+                      "createdAt": "2026-08-07T18:00:00.000Z",
+                      "updatedAt": "2026-08-07T18:30:00.000Z"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V2BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V2Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V2Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/V2NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/V2RateLimited"
+          },
+          "500": {
+            "description": "Internal server error.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/V2Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v2/chats": {
+      "get": {
+        "operationId": "listChats",
+        "summary": "List Sim Chats",
+        "description": "List a bounded page of the authenticated user's active workspace chats in the same pinned-first, recently-updated order used by the Sim Home UI. This personal history surface requires a personal API key; shared workspace keys cannot read their creator's private chats. Pass `nextCursor` back as `cursor` to load another page.",
+        "tags": ["Chat"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Workspace whose chats should be listed."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "maxLength": 200 },
+            "description": "Case-insensitive title substring."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 30 },
+            "description": "Maximum chats to return."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Opaque cursor returned by the previous page."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A bounded page of chat summaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data", "nextCursor"],
+                  "properties": {
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "required": ["id", "title", "updatedAt", "pinned", "active"],
+                        "properties": {
+                          "id": { "type": "string" },
+                          "title": { "type": ["string", "null"] },
+                          "updatedAt": { "type": "string", "format": "date-time" },
+                          "pinned": { "type": "boolean" },
+                          "active": { "type": "boolean" }
+                        }
+                      }
+                    },
+                    "nextCursor": { "type": ["string", "null"] }
+                  }
+                },
+                "example": {
+                  "data": [
+                    {
+                      "id": "80a47295-040e-46f9-9ea8-ad78eff3bcab",
+                      "title": "Review release workflow",
+                      "updatedAt": "2026-08-07T18:30:00.000Z",
+                      "pinned": true,
+                      "active": false
+                    }
+                  ],
+                  "nextCursor": null
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V2BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V2Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V2Forbidden"
+          },
+          "429": {
+            "$ref": "#/components/responses/V2RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v2/chats/{chatId}": {
+      "get": {
+        "operationId": "getChat",
+        "summary": "Open Sim Chat",
+        "description": "Load one owned workspace chat as a display-safe user/assistant transcript and mint a fresh opaque continuation token for the requested safety mode. Internal tool payloads, stream IDs, resources, and replay metadata are not exposed. The subsequent chat POST still accepts only the continuation token, never this resource ID.",
+        "tags": ["Chat"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chatId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Chat resource ID returned by List Sim Chats."
+          },
+          {
+            "name": "workspaceId",
+            "in": "query",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Workspace the chat must belong to."
+          },
+          {
+            "name": "readOnly",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "boolean", "default": false },
+            "description": "Mint a continuation token for the secretless read-only chat mode."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The chat transcript and a fresh continuation token.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["id", "title", "messages", "continuationToken", "active"],
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": ["string", "null"] },
+                        "messages": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "required": ["id", "role", "content", "timestamp"],
+                            "properties": {
+                              "id": { "type": "string" },
+                              "role": { "type": "string", "enum": ["user", "assistant"] },
+                              "content": { "type": "string" },
+                              "timestamp": { "type": "string", "format": "date-time" }
+                            }
+                          }
+                        },
+                        "continuationToken": { "type": "string" },
+                        "active": { "type": "boolean" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "80a47295-040e-46f9-9ea8-ad78eff3bcab",
+                    "title": "Review release workflow",
+                    "messages": [
+                      {
+                        "id": "msg_1",
+                        "role": "user",
+                        "content": "Review the release workflow",
+                        "timestamp": "2026-08-07T18:29:00.000Z"
+                      },
+                      {
+                        "id": "msg_2",
+                        "role": "assistant",
+                        "content": "The workflow is ready to release.",
+                        "timestamp": "2026-08-07T18:30:00.000Z"
+                      }
+                    ],
+                    "continuationToken": "sim-v2-chat-v1.opaque.refreshed",
+                    "active": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V2BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V2Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V2Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/V2NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/V2RateLimited"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "renameChat",
+        "summary": "Rename Sim Chat",
+        "description": "Rename an owned Sim Chat and synchronize the new title with the Sim Home chat list. This private history operation requires a personal API key; shared workspace keys cannot rename a creator's chats.",
+        "tags": ["Chat"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "chatId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" },
+            "description": "Chat resource ID returned by List Sim Chats."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["workspaceId", "title"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Workspace the chat must belong to."
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200,
+                    "description": "New chat title. Leading and trailing whitespace is removed."
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                "title": "Incident investigation"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "The renamed chat.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["data"],
+                  "properties": {
+                    "data": {
+                      "type": "object",
+                      "required": ["id", "title"],
+                      "properties": {
+                        "id": { "type": "string" },
+                        "title": { "type": "string", "minLength": 1, "maxLength": 200 }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "data": {
+                    "id": "80a47295-040e-46f9-9ea8-ad78eff3bcab",
+                    "title": "Incident investigation"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V2BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V2Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/V2Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/V2NotFound"
+          },
+          "429": {
+            "$ref": "#/components/responses/V2RateLimited"
+          }
+        }
+      }
+    },
+    "/api/v2/chat": {
+      "post": {
+        "operationId": "chat",
+        "summary": "Ask Sim Chat",
+        "description": "Chat with the Mothership agent for a workspace. Personal API keys use their owner's current workspace permission, integrations, credentials, environment context, and memory, and their conversations are synchronized with the Sim Home chat history. Shared workspace keys retain normal workspace capabilities but do not inherit a human owner's personal integrations, secrets, environment, memory, or private chat history. Set `readOnly` to select the subtractive, secretless workspace-query policy. Omit `continuationToken` for a one-shot or first interactive turn, then send the latest opaque token returned by the stream to continue the same conversation. Tokens are bound to the workspace, authorization principal, credential type, and read-only mode, and expire on a rolling 24-hour window; this chat POST never accepts a raw chat ID. The response is a Server-Sent Events stream. `text` events contain incremental assistant output and `complete` contains the authoritative final result. Comment frames are heartbeats and `data: [DONE]` closes a successful stream. The caller's Sim API key selects and authorizes the local workspace but is never forwarded to Mothership. Workspace keys use the workspace billing account as their system actor while local tool authorization remains bound to the key owner; personal keys use their owner. Inline attachments are base64-only: paths and URLs are not accepted or resolved.",
+        "tags": ["Chat"],
+        "security": [
+          {
+            "apiKey": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["workspaceId", "prompt"],
+                "properties": {
+                  "workspaceId": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Workspace Sim Chat should operate in."
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 10485760,
+                    "x-maxUtf8Bytes": 10485760,
+                    "description": "The instruction or question for Sim Chat. UTF-8 input is limited to 10 MiB. It may be empty or whitespace only when at least one attachment is present; the server supplies a neutral inspect-the-attachments instruction in that case."
+                  },
+                  "continuationToken": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 4096,
+                    "description": "Latest opaque continuation token returned by a prior `session` or `complete` event. Never send a raw chat or conversation ID."
+                  },
+                  "readOnly": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Use the secretless, read-only workspace-query policy. The default keeps normal workspace capabilities; shared workspace credentials still exclude personal integrations, secrets, environment, and persistent memory."
+                  },
+                  "attachments": {
+                    "type": "array",
+                    "maxItems": 5,
+                    "description": "Optional inline attachments, accepted on initial and continuation turns. Decoded aggregate size is limited to 10 MiB. Images and PDFs are limited to 5 MiB each; UTF-8 text is limited to 200 KiB each. Each image may be at most 8192 pixels on either axis and 16,000,000 total pixels; all images in one request may total at most 32,000,000 decoded pixels.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["name", "mediaType", "data"],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 255,
+                          "description": "File basename only. Directory separators and control characters are rejected."
+                        },
+                        "mediaType": {
+                          "type": "string",
+                          "enum": [
+                            "image/jpeg",
+                            "image/png",
+                            "image/gif",
+                            "image/webp",
+                            "application/pdf",
+                            "text/plain",
+                            "text/markdown",
+                            "text/csv",
+                            "text/tab-separated-values",
+                            "text/html",
+                            "text/css",
+                            "text/javascript",
+                            "text/typescript",
+                            "text/xml",
+                            "text/yaml",
+                            "application/json",
+                            "application/jsonl",
+                            "application/x-ndjson",
+                            "application/xml",
+                            "application/yaml",
+                            "application/x-yaml",
+                            "application/toml"
+                          ],
+                          "description": "Declared MIME type. Image and PDF bytes are sniffed; text must decode as UTF-8."
+                        },
+                        "data": {
+                          "type": "string",
+                          "minLength": 4,
+                          "maxLength": 13981016,
+                          "contentEncoding": "base64",
+                          "description": "Canonical standard base64 bytes. Data URLs and base64url are not accepted."
+                        }
+                      }
+                    }
+                  },
+                  "contexts": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "description": "Optional identity-bearing workspace resources, skills, and MCP servers to inject for this turn. Resource kinds correspond to `@` tags; `skill` and `mcp` correspond to `/` tags. MCP contexts are ignored for read-only requests and shared workspace API keys.",
+                    "items": {
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "workflowId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "workflow" },
+                            "workflowId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "tableId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "table" },
+                            "tableId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "fileId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "file" },
+                            "fileId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "knowledgeId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "knowledge" },
+                            "knowledgeId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "executionId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "logs" },
+                            "executionId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "skillId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "skill" },
+                            "skillId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": ["kind", "serverId", "label"],
+                          "properties": {
+                            "kind": { "type": "string", "const": "mcp" },
+                            "serverId": {
+                              "type": "string",
+                              "minLength": 1,
+                              "maxLength": 255
+                            },
+                            "label": { "type": "string", "minLength": 1, "maxLength": 255 }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              },
+              "example": {
+                "workspaceId": "ws_abc123",
+                "prompt": "Summarize the attached notes and compare them with this workspace.",
+                "attachments": [
+                  {
+                    "name": "notes.md",
+                    "mediaType": "text/markdown",
+                    "data": "IyBOb3Rlcwo="
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "A Sim Chat SSE stream.",
+            "headers": {
+              "X-RateLimit-Limit": {
+                "description": "API request bucket capacity.",
+                "schema": { "type": "integer" }
+              },
+              "X-RateLimit-Remaining": {
+                "description": "Requests remaining in the current bucket.",
+                "schema": { "type": "integer" }
+              },
+              "X-RateLimit-Reset": {
+                "description": "When the current API request bucket resets.",
+                "schema": { "type": "string", "format": "date-time" }
+              }
+            },
+            "content": {
+              "text/event-stream": {
+                "schema": { "type": "string" },
+                "example": "data: {\"type\":\"session\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"requestId\":\"req_123\",\"chatId\":\"80a47295-040e-46f9-9ea8-ad78eff3bcab\"}\n\ndata: {\"type\":\"text\",\"delta\":\"Two workflows...\"}\n\ndata: {\"type\":\"complete\",\"data\":{\"content\":\"Two workflows...\",\"continuationToken\":\"sim-v2-chat-v1.opaque.refreshed\",\"usage\":{\"prompt\":120,\"completion\":18,\"total\":138}}}\n\ndata: [DONE]\n\n"
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/V2BadRequest"
+          },
+          "401": {
+            "$ref": "#/components/responses/V2Unauthorized"
+          },
+          "402": {
+            "$ref": "#/components/responses/V2UsageLimitExceeded"
+          },
+          "403": {
+            "$ref": "#/components/responses/V2Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/V2NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/V2Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/V2PayloadTooLarge"
+          },
+          "415": {
+            "$ref": "#/components/responses/V2UnsupportedMediaType"
+          },
+          "429": {
+            "$ref": "#/components/responses/V2RateLimited"
+          },
+          "503": {
+            "$ref": "#/components/responses/V2ServiceUnavailable"
+          }
+        }
       }
     },
     "/api/v2/billing/status": {
@@ -2248,8 +2927,68 @@
           }
         }
       },
+      "V2NotFound": {
+        "description": "The requested resource does not exist or is not visible to the credential.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2Conflict": {
+        "description": "The chat already has a response in progress. Retry after that response finishes.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2UsageLimitExceeded": {
+        "description": "The resolved workspace payer or organization member has reached a usage limit.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2PayloadTooLarge": {
+        "description": "The request body or decoded attachment limits were exceeded.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2UnsupportedMediaType": {
+        "description": "An attachment media type or its decoded bytes are unsupported.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
       "V2RateLimited": {
         "description": "Rate limit exceeded; retry after the window resets.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "V2ServiceUnavailable": {
+        "description": "Sim Chat is not configured or temporarily unavailable.",
         "content": {
           "application/json": {
             "schema": {

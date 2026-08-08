@@ -158,7 +158,7 @@ export async function executeVfsMkdir(
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
     let ensureWorkflowFolder: ((segments: string[]) => Promise<string | null>) | undefined
@@ -232,7 +232,7 @@ async function executeVfsMutate(
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
     const classified = classifyCategory(sources[0])
@@ -623,7 +623,7 @@ async function mutateWorkflows(
             id: duplicated.id,
           })
         } else {
-          await ensureWorkflowAccess(wf.id, context.userId, 'write')
+          await ensureWorkflowAccess(wf.id, context, 'write')
           await assertWorkflowMutable(wf.id)
           const targetFolderId = await dest.ensureFolderId()
           await assertFolderMutable(targetFolderId)
@@ -784,7 +784,7 @@ async function renameFlatResource(
   if (!match) {
     return { success: false, error: `Knowledge base not found at ${sources[0]}` }
   }
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId)
+  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId, workspaceId)
   if (!access.hasAccess) {
     return {
       success: false,
@@ -819,7 +819,7 @@ export async function executeVfsRm(
     }
 
     const workspaceId = context.workspaceId || (await getDefaultWorkspaceId(context.userId))
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    await ensureWorkspaceAccess(workspaceId, context, 'write')
     assertMutationNotAborted(context)
 
     // Loaded at most once, and only when a workflows/ path in this call needs it.
@@ -1068,7 +1068,7 @@ async function removeKnowledgeBasePath(
   if (!match)
     return { from: path, kind: 'knowledge_base', error: `Knowledge base not found at ${path}` }
 
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId)
+  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId, workspaceId)
   if (!access.hasAccess) {
     return {
       from: path,

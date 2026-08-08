@@ -54,10 +54,10 @@ import {
 import {
   getToolCallTerminalData,
   requireToolCallStateResult,
-  setTerminalToolCallState,
 } from '@/lib/copilot/request/tool-call-state'
 import { handleBillingLimitResponse } from '@/lib/copilot/request/tools/billing'
 import {
+  cancelToolCallAndReport,
   executeToolAndReport,
   forceFailHungToolCall,
   pendingToolWaitBudgetMs,
@@ -757,6 +757,13 @@ function nonBlankString(value: unknown): string | undefined {
   return trimmed.length > 0 ? trimmed : undefined
 }
 
+function combineAbortSignals(...signals: Array<AbortSignal | undefined>): AbortSignal | undefined {
+  const activeSignals = [...new Set(signals.filter((signal): signal is AbortSignal => !!signal))]
+  if (activeSignals.length === 0) return undefined
+  if (activeSignals.length === 1) return activeSignals[0]
+  return AbortSignal.any(activeSignals)
+}
+
 function resultContent(context: StreamingContext, options: CopilotLifecycleOptions): string {
   if (options.interactive === false && context.sawMainToolCall) {
     return context.finalAssistantContent
@@ -766,16 +773,26 @@ function resultContent(context: StreamingContext, options: CopilotLifecycleOptio
 
 export interface CopilotLifecycleOptions extends OrchestratorOptions {
   userId: string
+  authorizationUserId?: string
   workflowId?: string
   workspaceId?: string
   chatId?: string
   executionId?: string
   runId?: string
+  /**
+   * Defaults to true. Set false when `chatId` is transport-only and has no
+   * parent row in Sim's `copilot_chats` table, or when the caller owns run
+   * creation and supplies any persisted identity itself.
+   */
+  autoCreateRunIdentity?: boolean
   goRoute?: string
+  resumeRoute?: string
   trace?: TraceCollector
   simRequestId?: string
   otelContext?: Context
   onGoTraceId?: (goTraceId: string) => void
+  /** Fires after Go accepts the initial stream, before any resume legs. */
+  onInitialStreamAccepted?: () => void
   executionContext?: ExecutionContext
   billingAttribution?: BillingAttributionSnapshot
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
@@ -831,10 +848,12 @@ export async function runCopilotLifecycle(
     chatId,
     executionId,
     runId,
+    autoCreateRunIdentity: options.autoCreateRunIdentity,
     messageId: payloadMsgId,
   })
   const resolvedExecutionId = runIdentity.executionId ?? executionId
   const resolvedRunId = runIdentity.runId ?? runId
+  const toolAbortSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
   const lifecycleOptions: CopilotLifecycleOptions = {
     ...options,
     executionId: resolvedExecutionId,
@@ -843,10 +862,14 @@ export async function runCopilotLifecycle(
       ? {
           executionContext: {
             ...options.executionContext,
+            ...(options.authorizationUserId
+              ? { authorizationUserId: options.authorizationUserId }
+              : {}),
             messageId: payloadMsgId,
             executionId: resolvedExecutionId,
             runId: resolvedRunId,
-            abortSignal: options.abortSignal,
+            abortSignal: toolAbortSignal,
+            userStopSignal: options.userStopSignal,
             billingAttribution:
               options.billingAttribution ?? options.executionContext.billingAttribution,
             ...(options.userPermission ? { userPermission: options.userPermission } : {}),
@@ -866,12 +889,14 @@ export async function runCopilotLifecycle(
     lifecycleOptions.executionContext ??
     (await buildExecutionContext(requestPayload, {
       userId,
+      authorizationUserId: lifecycleOptions.authorizationUserId,
       workflowId,
       workspaceId,
       chatId,
       executionId: resolvedExecutionId,
       runId: resolvedRunId,
-      abortSignal: lifecycleOptions.abortSignal,
+      abortSignal: toolAbortSignal,
+      userStopSignal: lifecycleOptions.userStopSignal,
       billingAttribution: lifecycleOptions.billingAttribution,
       resolvedSecretTraceRegistry: lifecycleOptions.resolvedSecretTraceRegistry,
       environmentContext: lifecycleOptions.environmentContext,
@@ -971,12 +996,14 @@ export async function runCopilotLifecycle(
     return result
   } catch (error) {
     const err = toError(error)
+    const wasCancelled = isAborted(lifecycleOptions, context)
     // A CopilotBackendError carries the upstream HTTP status + body (e.g. a 5xx
     // from /api/tools/resume when an oversized tool result — a rendered-doc
     // image — is posted back). Log those so a client-side "Stream error" that
     // originates from a thrown backend leg (vs an `error` SSE event) is
     // explained, not just reduced to a message string.
-    logger.error('Copilot orchestration failed', {
+    const logFailure = wasCancelled ? logger.warn : logger.error
+    logFailure.call(logger, 'Copilot orchestration failed', {
       error: err.message,
       name: err.name,
       ...(error instanceof CopilotBackendError
@@ -993,7 +1020,6 @@ export async function runCopilotLifecycle(
     // partial content can be appended.
     // Return `cancelled: true` so upstream classification stays
     // consistent with the success-path cancel result.
-    const wasCancelled = lifecycleOptions.abortSignal?.aborted ?? false
     // Preserve whatever streamed before the throw for both terminals. A thrown
     // backend error (as opposed to an `error` SSE event that lets the loop finish
     // normally) must still carry the partial assistant turn so onError can
@@ -1079,7 +1105,7 @@ function mothershipRequestHeaders(
 // lockstep: every field reset here is folded back there, and nothing else on
 // StreamingContext is per-leg. Everything not listed is shared BY REFERENCE
 // across all concurrent legs (the one merged chat: contentBlocks, toolCalls,
-// pendingToolPromises, subagent maps, etc.). The per-leg ISOLATED set:
+// pendingToolPromises, inFlightToolExecutions, subagent maps, etc.). The per-leg ISOLATED set:
 //   - streamComplete / awaitingAsyncContinuation: stream-control flags, so a
 //     finished leg can't stop a sibling's read loop (reset only; not merged).
 //   - accumulatedContent / finalAssistantContent / usage / cost: join-leg
@@ -1123,13 +1149,62 @@ export function mergeResumeLegOutputs(context: StreamingContext, leg: StreamingC
   if (leg.completionStatus) context.completionStatus = leg.completionStatus
 }
 
-async function waitForToolIds(context: StreamingContext, toolIds: string[]): Promise<void> {
+type PendingToolWaitOutcome = 'settled' | 'aborted' | 'timed_out'
+
+/**
+ * Waits for tool work to stop before the lifecycle releases its chat lease.
+ * Abort is remembered immediately, but the promise settles only after the
+ * in-flight handlers have unwound. This is the same stop barrier the web UI
+ * relies on: a queued turn must never overlap mutations from the stopped turn.
+ */
+function waitForPendingToolPromises(
+  promises: Iterable<Promise<unknown>>,
+  abortSignal?: AbortSignal,
+  timeoutMs?: number
+): Promise<PendingToolWaitOutcome> {
+  const pending = Array.from(promises)
+  if (pending.length === 0) return Promise.resolve('settled')
+
+  return new Promise((resolve) => {
+    let finished = false
+    let abortObserved = abortSignal?.aborted ?? false
+    let timeoutId: ReturnType<typeof setTimeout> | undefined
+    const finish = (outcome: PendingToolWaitOutcome) => {
+      if (finished) return
+      finished = true
+      if (timeoutId !== undefined) clearTimeout(timeoutId)
+      abortSignal?.removeEventListener('abort', onAbort)
+      resolve(outcome)
+    }
+    const onAbort = () => {
+      abortObserved = true
+      // Once Stop fires, safety wins over the ordinary resume watchdog: keep
+      // the lease until the cancellation-aware handler has actually unwound.
+      if (timeoutId !== undefined) {
+        clearTimeout(timeoutId)
+        timeoutId = undefined
+      }
+    }
+
+    abortSignal?.addEventListener('abort', onAbort, { once: true })
+    void Promise.allSettled(pending).then(() => finish(abortObserved ? 'aborted' : 'settled'))
+    if (timeoutMs !== undefined && !abortObserved) {
+      timeoutId = setTimeout(() => finish('timed_out'), timeoutMs)
+    }
+  })
+}
+
+async function waitForToolIds(
+  context: StreamingContext,
+  toolIds: string[],
+  abortSignal?: AbortSignal
+): Promise<PendingToolWaitOutcome> {
   const promises: Promise<unknown>[] = []
   for (const id of toolIds) {
     const p = context.pendingToolPromises.get(id)
     if (p) promises.push(p)
   }
-  if (promises.length > 0) await Promise.allSettled(promises)
+  return waitForPendingToolPromises(promises, abortSignal)
 }
 
 function collectResultsForToolIds(
@@ -1175,6 +1250,7 @@ async function runResumeLegWithRetry(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   let attempt = 0
+  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
   for (;;) {
     const errorsBeforeAttempt = leg.errors.length
     try {
@@ -1191,6 +1267,7 @@ async function runResumeLegWithRetry(
       )
       return
     } catch (error) {
+      if (isAborted(options, leg)) throw error
       if (isRetryableStreamError(error) && attempt < MAX_RESUME_ATTEMPTS - 1) {
         leg.errors.length = errorsBeforeAttempt
         attempt++
@@ -1201,7 +1278,8 @@ async function runResumeLegWithRetry(
           backoffMs: backoff,
           error: toError(error).message,
         })
-        await sleepWithAbort(backoff, options.abortSignal)
+        await sleepWithAbort(backoff, stopSignal)
+        if (isAborted(options, leg)) return
         continue
       }
       throw error
@@ -1233,18 +1311,20 @@ async function driveOneChildChain(
   if (!frame.checkpointId) return null
   let checkpointId = frame.checkpointId
   let toolIds = frame.pendingToolIds
+  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
 
   for (;;) {
     if (isAborted(options, context)) return null
 
-    await waitForToolIds(context, toolIds)
+    const waitOutcome = await waitForToolIds(context, toolIds, stopSignal)
+    if (waitOutcome === 'aborted' || isAborted(options, context)) return null
     const registry = execContext.resolvedSecretTraceRegistry
     if (!registry) throw new CopilotModelContentProjectionError()
     const results = collectResultsForToolIds(context, toolIds, checkpointId, registry)
 
     const leg = makeResumeLegContext(context)
     await runResumeLegWithRetry(
-      `${baseURL}/api/tools/resume`,
+      `${baseURL}${options.resumeRoute ?? '/api/tools/resume'}`,
       {
         streamId: context.messageId,
         checkpointId,
@@ -1348,6 +1428,10 @@ async function driveSubagentChains(
         })
       )
     )
+    if (isAborted(options, context)) {
+      await cancelCheckpointWork(context)
+      return null
+    }
     if (firstError !== undefined) throw firstError
     return followOns.find((c): c is AsyncContinuation => !!c) ?? null
   } finally {
@@ -1368,10 +1452,19 @@ async function runCheckpointLoop(
   hostedBillingRequest?: AttributedBillingRequestEnvelope
 ): Promise<void> {
   let route = initialRoute
+  const resumeRoute = options.resumeRoute ?? '/api/tools/resume'
   let payload: Record<string, unknown> = initialPayload
   let resumeAttempt = 0
   const callerOnEvent = options.onEvent
-  const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
+  let initialStreamAccepted = false
+  const stopSignal = combineAbortSignals(options.abortSignal, options.userStopSignal)
+  // Route by the identity that authorized this request, not by a projected
+  // billing actor. Workspace API keys deliberately execute under a system
+  // billing actor, but that actor's admin environment override must never
+  // redirect another key owner's Mothership traffic.
+  const mothershipBaseURL = await getMothershipBaseURL({
+    userId: options.authorizationUserId ?? options.userId,
+  })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
 
   // Go's auth middleware re-validates every Sim -> Go request by reading
@@ -1390,11 +1483,10 @@ async function runCheckpointLoop(
 
   for (;;) {
     context.streamComplete = false
-    const isResume = route === '/api/tools/resume'
+    const isResume = route === resumeRoute
 
     if (isResume && isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1456,7 +1548,18 @@ async function runCheckpointLoop(
         },
         context,
         execContext,
-        loopOptions
+        {
+          ...loopOptions,
+          ...(!isResume && !initialStreamAccepted && options.onInitialStreamAccepted
+            ? {
+                onAccepted: () => {
+                  if (initialStreamAccepted) return
+                  initialStreamAccepted = true
+                  options.onInitialStreamAccepted?.()
+                },
+              }
+            : {}),
+        }
       )
       const streamStatus = isAborted(options, context)
         ? RequestTraceV1SpanStatus.cancelled
@@ -1469,6 +1572,10 @@ async function runCheckpointLoop(
     } catch (streamError) {
       context.trace.endSpan(streamSpan, RequestTraceV1SpanStatus.error)
       context.trace.setActiveSpan(undefined)
+      if (isAborted(options, context)) {
+        await cancelCheckpointWork(context)
+        throw streamError
+      }
       if (streamError instanceof BillingLimitError) {
         await handleBillingLimitResponse(streamError.userId, context, execContext, options)
         break
@@ -1489,7 +1596,7 @@ async function runCheckpointLoop(
           backoffMs: backoff,
           error: toError(streamError).message,
         })
-        await sleepWithAbort(backoff, options.abortSignal)
+        await sleepWithAbort(backoff, stopSignal)
         continue
       }
       throw streamError
@@ -1507,8 +1614,7 @@ async function runCheckpointLoop(
     })
 
     if (isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1526,11 +1632,16 @@ async function runCheckpointLoop(
       let next: AsyncContinuation | null = continuation
       while (next && isPerSubagentContinuation(next)) {
         if (isAborted(options, context)) {
-          cancelPendingTools(context)
+          await cancelCheckpointWork(context)
           next = null
           break
         }
-        await waitForToolIds(context, next.pendingToolCallIds)
+        const waitOutcome = await waitForToolIds(context, next.pendingToolCallIds, stopSignal)
+        if (waitOutcome === 'aborted') {
+          await cancelCheckpointWork(context)
+          next = null
+          break
+        }
         next = await driveSubagentChains(
           next,
           context,
@@ -1567,10 +1678,18 @@ async function runCheckpointLoop(
         pendingCount: context.pendingToolPromises.size,
         waitBudgetMs,
       })
-      const settledInTime = await Promise.race([
-        Promise.allSettled(context.pendingToolPromises.values()).then(() => true),
-        sleep(waitBudgetMs).then(() => false),
-      ])
+      const waitOutcome = await waitForPendingToolPromises(
+        context.pendingToolPromises.values(),
+        stopSignal,
+        waitBudgetMs
+      )
+      const settledInTime = waitOutcome === 'settled'
+      if (waitOutcome === 'aborted') {
+        waitSpan.attributes = { ...waitSpan.attributes, settledInTime: false, aborted: true }
+        context.trace.endSpan(waitSpan, RequestTraceV1SpanStatus.cancelled)
+        await cancelCheckpointWork(context)
+        break
+      }
       if (!settledInTime) {
         const hungToolCallIds = Array.from(context.pendingToolPromises.keys())
         logger.error('Pending tool executions exceeded the resume wait budget; force-failing', {
@@ -1592,8 +1711,7 @@ async function runCheckpointLoop(
     }
 
     if (isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1613,16 +1731,20 @@ async function runCheckpointLoop(
         checkpointId: continuation.checkpointId,
         toolCallIds: undispatchedToolIds,
       })
-      await Promise.allSettled(
+      const waitOutcome = await waitForPendingToolPromises(
         undispatchedToolIds.map((toolCallId) =>
           executeToolAndReport(toolCallId, context, execContext, options)
-        )
+        ),
+        stopSignal
       )
+      if (waitOutcome === 'aborted') {
+        await cancelCheckpointWork(context)
+        break
+      }
     }
 
     if (isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1634,8 +1756,7 @@ async function runCheckpointLoop(
     }> = []
     for (const toolCallId of continuation.pendingToolCallIds) {
       if (isAborted(options, context)) {
-        cancelPendingTools(context)
-        context.awaitingAsyncContinuation = undefined
+        await cancelCheckpointWork(context)
         break
       }
       const tool = context.toolCalls.get(toolCallId)
@@ -1663,8 +1784,7 @@ async function runCheckpointLoop(
     }
 
     if (isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1677,7 +1797,7 @@ async function runCheckpointLoop(
     })
 
     context.awaitingAsyncContinuation = undefined
-    route = '/api/tools/resume'
+    route = resumeRoute
     payload = {
       streamId: context.messageId,
       checkpointId: continuation.checkpointId,
@@ -1687,8 +1807,7 @@ async function runCheckpointLoop(
     }
 
     if (isAborted(options, context)) {
-      cancelPendingTools(context)
-      context.awaitingAsyncContinuation = undefined
+      await cancelCheckpointWork(context)
       break
     }
 
@@ -1709,12 +1828,14 @@ async function buildExecutionContext(
   requestPayload: Record<string, unknown>,
   params: {
     userId: string
+    authorizationUserId?: string
     workflowId?: string
     workspaceId?: string
     chatId?: string
     executionId?: string
     runId?: string
     abortSignal?: AbortSignal
+    userStopSignal?: AbortSignal
     billingAttribution?: BillingAttributionSnapshot
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     environmentContext?: CopilotEnvironmentContext
@@ -1725,12 +1846,14 @@ async function buildExecutionContext(
 ): Promise<ExecutionContext> {
   const {
     userId,
+    authorizationUserId,
     workflowId,
     workspaceId,
     chatId,
     executionId,
     runId,
     abortSignal,
+    userStopSignal,
     billingAttribution,
     resolvedSecretTraceRegistry,
     environmentContext,
@@ -1741,6 +1864,7 @@ async function buildExecutionContext(
   const userTimezone =
     typeof requestPayload?.userTimezone === 'string' ? requestPayload.userTimezone : undefined
   const requestMode = typeof requestPayload?.mode === 'string' ? requestPayload.mode : undefined
+  const queryOnly = requestPayload?.queryOnly === true
 
   let execContext: ExecutionContext
   if (workflowId) {
@@ -1763,7 +1887,9 @@ async function buildExecutionContext(
   }
 
   if (userTimezone) execContext.userTimezone = userTimezone
+  if (authorizationUserId) execContext.authorizationUserId = authorizationUserId
   execContext.copilotToolExecution = true
+  if (queryOnly) execContext.queryOnly = true
   if (requestMode) execContext.requestMode = requestMode
   if (userPermission) execContext.userPermission = userPermission
   execContext.messageId =
@@ -1771,6 +1897,7 @@ async function buildExecutionContext(
   execContext.executionId = executionId
   execContext.runId = runId
   execContext.abortSignal = abortSignal
+  execContext.userStopSignal = userStopSignal
   if (billingAttribution) execContext.billingAttribution = billingAttribution
   if (resolvedSecretTraceRegistry) {
     execContext.resolvedSecretTraceRegistry = resolvedSecretTraceRegistry
@@ -1788,9 +1915,10 @@ async function ensureHeadlessRunIdentity(input: {
   chatId?: string
   executionId?: string
   runId?: string
+  autoCreateRunIdentity?: boolean
   messageId: string
 }): Promise<{ executionId?: string; runId?: string }> {
-  if (!input.chatId || input.executionId || input.runId) {
+  if (input.autoCreateRunIdentity === false || !input.chatId || input.executionId || input.runId) {
     return {
       executionId: input.executionId,
       runId: input.runId,
@@ -1861,22 +1989,36 @@ async function withByokEligibilityHint(
 }
 
 function isAborted(options: CopilotLifecycleOptions, context: StreamingContext): boolean {
-  return !!(options.abortSignal?.aborted || context.wasAborted)
+  return !!(options.abortSignal?.aborted || options.userStopSignal?.aborted || context.wasAborted)
 }
 
-function cancelPendingTools(context: StreamingContext): void {
-  for (const [, toolCall] of context.toolCalls) {
+async function cancelCheckpointWork(context: StreamingContext): Promise<void> {
+  context.wasAborted = true
+  context.awaitingAsyncContinuation = undefined
+
+  // The stop signal has already reached every tool context. Keep the chat
+  // lease until those handlers observe it and unwind, then durably terminalize
+  // any call that never reached its normal cancellation branch.
+  await Promise.allSettled([
+    ...context.pendingToolPromises.values(),
+    ...(context.inFlightToolExecutions?.values() ?? []),
+  ])
+  await cancelPendingTools(context)
+}
+
+async function cancelPendingTools(context: StreamingContext): Promise<void> {
+  const cancellations: Promise<void>[] = []
+  for (const [toolCallId, toolCall] of context.toolCalls) {
     if (
       toolCall.status === 'pending' ||
       toolCall.status === 'executing' ||
-      toolCall.status === 'awaiting_approval'
+      toolCall.status === 'awaiting_approval' ||
+      toolCall.status === MothershipStreamV1ToolOutcome.cancelled
     ) {
-      setTerminalToolCallState(toolCall, {
-        status: MothershipStreamV1ToolOutcome.cancelled,
-        error: 'Stopped by user',
-      })
+      cancellations.push(cancelToolCallAndReport(toolCallId, context))
     }
   }
+  await Promise.allSettled(cancellations)
 }
 
 /**

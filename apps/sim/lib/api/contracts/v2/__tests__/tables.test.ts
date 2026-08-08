@@ -1,13 +1,34 @@
 import { describe, expect, it } from 'vitest'
+import { z } from 'zod'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
   v2CreateTableImportBodySchema,
+  v2CreateTableRowsContract,
   v2TableUploadImportSourceSchema,
+  v2UpdateRowsByFilterContract,
+  v2UpdateTableRowContract,
+  v2UpsertTableRowContract,
 } from '@/lib/api/contracts/v2/tables'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
+
+describe('v2 table row contracts', () => {
+  it('never expose private secret provenance on the public API', () => {
+    for (const contract of [
+      v2CreateTableRowsContract,
+      v2UpdateRowsByFilterContract,
+      v2UpdateTableRowContract,
+      v2UpsertTableRowContract,
+    ]) {
+      expect(
+        JSON.stringify(z.toJSONSchema(contract.body, { unrepresentable: 'any' }))
+      ).not.toContain(PRIVATE_SECRET_PROVENANCE_FIELD)
+    }
+  })
+})
 
 function uploadSource(size: number) {
   return {
@@ -59,17 +80,11 @@ describe('v2 table import contracts', () => {
     ).toBe(false)
   })
 
-  it('caps mapping entries and createColumns items at the table column limit', () => {
+  it('accepts bounded metadata and rejects collections over the table column limit', () => {
     const mapping = Object.fromEntries(
-      Array.from({ length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE }, (_, index) => [
-        `header_${index}`,
-        `column_${index}`,
-      ])
+      Array.from({ length: 10 }, (_, index) => [`h${index}`, `c${index}`])
     )
-    const createColumns = Array.from(
-      { length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE },
-      (_, index) => `header_${index}`
-    )
+    const createColumns = Array.from({ length: 10 }, (_, index) => `c${index}`)
 
     expect(v2CreateTableImportBodySchema.safeParse(existingTableImport({ mapping })).success).toBe(
       true
@@ -77,14 +92,24 @@ describe('v2 table import contracts', () => {
     expect(
       v2CreateTableImportBodySchema.safeParse(existingTableImport({ createColumns })).success
     ).toBe(true)
+
+    const mappingOverLimit = Object.fromEntries(
+      Array.from({ length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE + 1 }, (_, index) => [
+        String(index),
+        'c',
+      ])
+    )
+    const columnsOverLimit = Array.from(
+      { length: TABLE_LIMITS.MAX_COLUMNS_PER_TABLE + 1 },
+      (_, index) => String(index)
+    )
     expect(
-      v2CreateTableImportBodySchema.safeParse(
-        existingTableImport({ mapping: { ...mapping, overflow: 'overflow' } })
-      ).success
+      v2CreateTableImportBodySchema.safeParse(existingTableImport({ mapping: mappingOverLimit }))
+        .success
     ).toBe(false)
     expect(
       v2CreateTableImportBodySchema.safeParse(
-        existingTableImport({ createColumns: [...createColumns, 'overflow'] })
+        existingTableImport({ createColumns: columnsOverLimit })
       ).success
     ).toBe(false)
   })

@@ -137,6 +137,12 @@ export interface StreamingContext {
   contentBlocks: ContentBlock[]
   toolCalls: Map<string, ToolCallState>
   pendingToolPromises: Map<string, Promise<AsyncCompletionSignal>>
+  /**
+   * Raw handler executions beneath the timeout wrapper. Stop waits for these
+   * too, so a watchdog timeout cannot detach a still-mutating stopped tool from
+   * the chat lease.
+   */
+  inFlightToolExecutions?: Map<string, Promise<unknown>>
   awaitingAsyncContinuation?: ResumeContinuation
   currentThinkingBlock: ContentBlock | null
   /**
@@ -216,6 +222,8 @@ export interface OrchestratorOptions {
   onComplete?: (result: OrchestratorResult) => void | Promise<void>
   onError?: (error: Error, result?: OrchestratorResult) => void | Promise<void>
   abortSignal?: AbortSignal
+  /** Fires only on explicit user stop, never on passive transport disconnect. */
+  userStopSignal?: AbortSignal
   onAbortObserved?: (reason: string) => void
   interactive?: boolean
 }
@@ -245,5 +253,11 @@ export interface ToolCallSummary {
 }
 
 export interface ExecutionContext extends ToolExecutionContext {
+  /**
+   * Turn-scoped authorization principal. It is projected onto `userId` before
+   * tool dispatch and never enters the generic tool context; billing remains
+   * frozen in `billingAttribution.actorUserId`.
+   */
+  authorizationUserId?: string
   messageId?: string
 }
