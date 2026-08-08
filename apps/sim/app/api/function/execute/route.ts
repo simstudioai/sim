@@ -88,6 +88,11 @@ import {
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { getWorkflowById } from '@/lib/workflows/utils'
+import {
+  checkWorkspaceAccess,
+  resolveWorkspaceAccess,
+  type WorkspaceAccess,
+} from '@/lib/workspaces/permissions/utils'
 import { escapeRegExp, normalizeName, REFERENCE } from '@/executor/constants'
 import { type OutputSchema, resolveBlockReference } from '@/executor/utils/block-reference'
 import {
@@ -1383,11 +1388,41 @@ function exportUnchangedNote(sandboxPath?: string): string {
   )
 }
 
+function exportFailure(
+  error: string,
+  status: number,
+  stdout: string,
+  executionTime: number
+): NextResponse {
+  return NextResponse.json(
+    { success: false, error, output: { result: null, stdout: cleanStdout(stdout), executionTime } },
+    { status }
+  )
+}
+
+/**
+ * Both `workspaceId` and `workflowId` arrive in the request body, so the workspace an export
+ * resolves to is caller-controlled either way. Returns null when the acting user cannot write to
+ * it, gating the secret-provenance scan and overwrite probe that run before the write itself.
+ */
+async function authorizeExportWorkspace(
+  workspaceId: string,
+  authUserId: string,
+  provided?: WorkspaceAccess
+): Promise<WorkspaceAccess | null> {
+  const access = await resolveWorkspaceAccess(workspaceId, authUserId, provided)
+  if (access.exists && access.canWrite) return access
+
+  logger.warn('Sandbox file export denied for workspace', { workspaceId, userId: authUserId })
+  return null
+}
+
 async function maybeExportSandboxFileToWorkspace(args: {
   routeContext: FunctionRouteExecutionContext
   authUserId: string
   workflowId?: string
   workspaceId?: string
+  workspaceAccess?: WorkspaceAccess
   outputPath?: string
   outputFormat?: string
   outputMimeType?: string
@@ -1403,6 +1438,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     authUserId,
     workflowId,
     workspaceId,
+    workspaceAccess,
     outputPath,
     outputFormat,
     outputMimeType,
@@ -1432,15 +1468,16 @@ async function maybeExportSandboxFileToWorkspace(args: {
     workspaceId || (workflowId ? (await getWorkflowById(workflowId))?.workspaceId : undefined)
 
   if (!resolvedWorkspaceId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Workspace context required to save sandbox file to workspace',
-        output: { result: null, stdout: cleanStdout(stdout), executionTime },
-      },
-      { status: 400 }
+    return exportFailure(
+      'Workspace context required to save sandbox file to workspace',
+      400,
+      stdout,
+      executionTime
     )
   }
+
+  const access = await authorizeExportWorkspace(resolvedWorkspaceId, authUserId, workspaceAccess)
+  if (!access) return exportFailure('Workspace access denied', 403, stdout, executionTime)
 
   if (exportedFileContent === undefined) {
     return NextResponse.json(
@@ -1496,6 +1533,7 @@ async function maybeExportSandboxFileToWorkspace(args: {
     const written = await writeWorkspaceFileByPath({
       workspaceId: resolvedWorkspaceId,
       userId: authUserId,
+      workspaceAccess: access,
       target: {
         path: targetPath,
         mode,
@@ -1557,6 +1595,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
   authUserId: string
   workflowId?: string
   workspaceId?: string
+  workspaceAccess?: WorkspaceAccess
   outputFiles: OutputFileDeclaration[]
   exportedFiles?: Record<string, string>
   exportedFileContent?: string
@@ -1587,6 +1626,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       authUserId: args.authUserId,
       workflowId: args.workflowId,
       workspaceId: args.workspaceId,
+      workspaceAccess: args.workspaceAccess,
       outputPath: file.formatPath ?? file.path,
       outputFormat: file.format,
       outputMimeType: file.mimeType,
@@ -1604,18 +1644,21 @@ async function maybeExportSandboxFilesToWorkspace(args: {
     args.workspaceId ||
     (args.workflowId ? (await getWorkflowById(args.workflowId))?.workspaceId : undefined)
   if (!resolvedWorkspaceId) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: 'Workspace context required to save sandbox files to workspace',
-        output: {
-          result: null,
-          stdout: cleanStdout(args.stdout),
-          executionTime: args.executionTime,
-        },
-      },
-      { status: 400 }
+    return exportFailure(
+      'Workspace context required to save sandbox files to workspace',
+      400,
+      args.stdout,
+      args.executionTime
     )
+  }
+
+  const access = await authorizeExportWorkspace(
+    resolvedWorkspaceId,
+    args.authUserId,
+    args.workspaceAccess
+  )
+  if (!access) {
+    return exportFailure('Workspace access denied', 403, args.stdout, args.executionTime)
   }
 
   const preparedFiles = []
@@ -1690,6 +1733,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
         validateWorkspaceFileWriteTarget({
           workspaceId: resolvedWorkspaceId,
           userId: args.authUserId,
+          workspaceAccess: access,
           target: prepared.target,
         })
       )
@@ -1744,6 +1788,7 @@ async function maybeExportSandboxFilesToWorkspace(args: {
       const written = await writeWorkspaceFileByPath({
         workspaceId: resolvedWorkspaceId,
         userId: args.authUserId,
+        workspaceAccess: access,
         target: prepared.target,
         buffer,
         inferredMimeType: prepared.resolvedMimeType,
@@ -1938,6 +1983,25 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       isCustomTool = false,
       _sandboxFiles,
     } = body
+
+    // The internal JWT carries no workspace scope, so a body-supplied workspaceId would
+    // otherwise be the sole authorization input for sandbox selection and file exports.
+    // Denial is returned rather than thrown: this handler's catch-all would turn a thrown
+    // WorkspaceAccessDeniedError into a 500 before withRouteHandler could map it.
+    const workspaceAccess = workspaceId
+      ? await checkWorkspaceAccess(workspaceId, auth.userId)
+      : undefined
+    if (workspaceAccess && !workspaceAccess.hasAccess) {
+      logger.warn(`[${requestId}] Function execution denied for workspace`, {
+        workspaceId,
+        userId: auth.userId,
+      })
+      return NextResponse.json(
+        { success: false, error: 'Workspace access denied' },
+        { status: 403 }
+      )
+    }
+
     if (selectedSandboxId && !isRemoteSandboxEnabled) {
       return NextResponse.json(
         { success: false, error: 'The Function code sandbox is not configured' },
@@ -2174,6 +2238,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           authUserId: auth.userId,
           workflowId,
           workspaceId,
+          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,
@@ -2357,6 +2422,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
             authUserId: auth.userId,
             workflowId,
             workspaceId,
+            workspaceAccess,
             outputFiles,
             exportedFiles,
             exportedFileContent,
@@ -2447,6 +2513,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
           authUserId: auth.userId,
           workflowId,
           workspaceId,
+          workspaceAccess,
           outputFiles,
           exportedFiles,
           exportedFileContent,
