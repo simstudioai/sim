@@ -13,6 +13,7 @@ import { PreviewToolbar } from '@/components/resources/file-view/components/prev
 import { useDocPreviewBinary } from '@/components/resources/file-view/hooks/use-doc-preview-binary'
 import { bindPreviewWheelZoom } from '@/components/resources/file-view/utils/preview-wheel-zoom'
 import { sanitizeRenderedHyperlinks, stripEmbeddedFrames } from '@/lib/core/security/url-safety'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { FileViewRecord } from '@/resources/file-source'
 
 const logger = createLogger('DocxPreview')
@@ -193,16 +194,18 @@ export const DocxPreview = memo(function DocxPreview({ file }: { file: FileViewR
   useEffect(() => {
     if (!containerRef.current || !fileData) return
 
+    const data = fileData
     let cancelled = false
 
     async function render() {
       try {
         setRendering(true)
+        await assertOoxmlPreviewWithinLimits(data)
         const { renderAsync } = await import('docx-preview')
         if (cancelled || !containerRef.current) return
         setRenderError(null)
         containerRef.current.innerHTML = ''
-        await renderAsync(fileData, containerRef.current, undefined, {
+        await renderAsync(data, containerRef.current, undefined, {
           inWrapper: true,
           ignoreWidth: false,
           ignoreHeight: false,

@@ -23,6 +23,7 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
 
 vi.mock('@/app/api/knowledge/utils', () => knowledgeApiUtilsMock)
 
+import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { GET, POST } from '@/app/api/knowledge/[id]/tag-definitions/route'
 
 const KB_ID = 'kb-victim'
@@ -138,6 +139,65 @@ describe('Knowledge Base Tag Definitions API Route', () => {
 
       expect(response.status).toBe(401)
       expect(mockCheckKnowledgeBaseWriteAccess).not.toHaveBeenCalled()
+      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    })
+
+    it('rejects a tag slot this schema has no column for', async () => {
+      authenticateAs('user-1', 'session')
+      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+
+      const response = await POST(
+        createMockRequest('POST', { ...CREATE_BODY, tagSlot: 'tag99' }),
+        params()
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    })
+
+    it('rejects a slot that belongs to a different field type', async () => {
+      authenticateAs('user-1', 'session')
+      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+
+      const response = await POST(
+        createMockRequest('POST', {
+          tagSlot: 'number1',
+          displayName: 'Mismatch',
+          fieldType: 'text',
+        }),
+        params()
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    })
+
+    it('rejects an unsupported field type', async () => {
+      authenticateAs('user-1', 'session')
+      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+
+      const response = await POST(
+        createMockRequest('POST', { ...CREATE_BODY, fieldType: 'nonsense' }),
+        params()
+      )
+
+      expect(response.status).toBe(400)
+      expect(mockCreateTagDefinition).not.toHaveBeenCalled()
+    })
+
+    it('rejects a display name longer than the shared limit', async () => {
+      authenticateAs('user-1', 'session')
+      mockCheckKnowledgeBaseWriteAccess.mockResolvedValue(granted)
+
+      const response = await POST(
+        createMockRequest('POST', {
+          ...CREATE_BODY,
+          displayName: 'a'.repeat(KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH + 1),
+        }),
+        params()
+      )
+
+      expect(response.status).toBe(400)
       expect(mockCreateTagDefinition).not.toHaveBeenCalled()
     })
   })

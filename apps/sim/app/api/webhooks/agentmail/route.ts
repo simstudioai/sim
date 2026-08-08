@@ -32,7 +32,7 @@ import {
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { executeInboxTask } from '@/lib/mothership/inbox/executor'
 import type { AgentMailWebhookPayload, RejectionReason } from '@/lib/mothership/inbox/types'
-import { AGENTMAIL_WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
+import { WEBHOOK_MAX_BODY_BYTES } from '@/lib/webhooks/constants'
 
 const logger = createLogger('AgentMailWebhook')
 
@@ -60,13 +60,9 @@ function verifiesAgainst(
  * signature verification, so an oversized payload cannot exhaust pod memory.
  */
 async function readAgentMailBody(req: Request): Promise<string> {
-  assertContentLengthWithinLimit(
-    req.headers,
-    AGENTMAIL_WEBHOOK_MAX_BODY_BYTES,
-    AGENTMAIL_BODY_LABEL
-  )
+  assertContentLengthWithinLimit(req.headers, WEBHOOK_MAX_BODY_BYTES, AGENTMAIL_BODY_LABEL)
   const buffer = await readStreamToBufferWithLimit(req.body, {
-    maxBytes: AGENTMAIL_WEBHOOK_MAX_BODY_BYTES,
+    maxBytes: WEBHOOK_MAX_BODY_BYTES,
     label: AGENTMAIL_BODY_LABEL,
   })
   return new TextDecoder().decode(buffer)
@@ -85,7 +81,7 @@ export const POST = withRouteHandler(async (req: Request) => {
     } catch (bodyError) {
       if (isPayloadSizeLimitError(bodyError)) {
         logger.warn('Rejected oversized AgentMail webhook body', {
-          maxBytes: AGENTMAIL_WEBHOOK_MAX_BODY_BYTES,
+          maxBytes: WEBHOOK_MAX_BODY_BYTES,
           observedBytes: bodyError.observedBytes,
         })
         return NextResponse.json({ error: 'Request body too large' }, { status: 413 })

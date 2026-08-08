@@ -12,6 +12,7 @@ import {
   resolvePreviewError,
 } from '@/components/resources/file-view/components/preview-shared/preview-shared'
 import { useDocPreviewBinary } from '@/components/resources/file-view/hooks/use-doc-preview-binary'
+import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { FileViewRecord } from '@/resources/file-source'
 
 const logger = createLogger('XlsxPreview')
@@ -44,6 +45,7 @@ export const XlsxPreview = memo(function XlsxPreview({ file }: { file: FileViewR
     async function parse() {
       try {
         setRenderError(null)
+        await assertOoxmlPreviewWithinLimits(data)
         const XLSX = await import('xlsx')
         const workbook = XLSX.read(new Uint8Array(data), { type: 'array' })
         if (!cancelled) {

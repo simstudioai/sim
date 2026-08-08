@@ -182,7 +182,9 @@ function LoadedRichMarkdownField({
     <div
       ref={containerRef}
       className={cn(
-        'flex flex-col px-3 py-2',
+        // `relative` makes this the positioning context for the bubble menu, which is
+        // appended here and absolutely positioned so it tracks the selection through scroll.
+        'relative flex flex-col px-3 py-2',
         // Only a capped box scrolls itself. Uncapped, the box grows and the page
         // scrolls — making it a scroll container anyway would clip the bubble
         // menu against an edge that never moves.
