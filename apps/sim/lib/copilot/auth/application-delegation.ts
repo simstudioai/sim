@@ -20,7 +20,7 @@ export interface TrustedCopilotExecutionContext extends CopilotExecutionContext 
 
 export type CopilotResourceScope = Pick<
   NonNullable<DelegatedPrincipal['resourceScope']>,
-  'fileId' | 'tableId'
+  'fileId' | 'tableId' | 'workflowId'
 >
 
 export interface CopilotDelegationConfiguration {
@@ -97,11 +97,15 @@ export function createTrustedCopilotPrincipal(
   if (options.resourceScope?.tableId !== undefined) {
     requireNonEmpty(options.resourceScope.tableId, 'a valid table scope')
   }
+  if (options.resourceScope?.workflowId !== undefined) {
+    requireNonEmpty(options.resourceScope.workflowId, 'a valid workflow scope')
+  }
 
   const issuedAt = new Date()
   const resourceScope = Object.freeze({
     ...(options.resourceScope?.fileId ? { fileId: options.resourceScope.fileId } : {}),
     ...(options.resourceScope?.tableId ? { tableId: options.resourceScope.tableId } : {}),
+    ...(options.resourceScope?.workflowId ? { workflowId: options.resourceScope.workflowId } : {}),
     ...(input.chatId ? { chatId: input.chatId } : {}),
     ...(input.executionId ? { executionId: input.executionId } : {}),
   })

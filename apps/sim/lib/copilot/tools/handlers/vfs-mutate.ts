@@ -1,8 +1,5 @@
-import { db, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/workflow'
 import { toError } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
@@ -12,9 +9,13 @@ import {
   messageForCopilotKnowledgeError,
   resolveCopilotKnowledgePrincipal,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import { ensureWorkflowAccess, ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
   ensureCopilotFileFolderPath,
   requireCopilotWorkspace,
@@ -29,7 +30,6 @@ import {
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { createFolder, deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import {
   deleteKnowledgeBaseOperation,
   listKnowledgeBases,
@@ -39,9 +39,20 @@ import { performDeleteTable, performRenameTable } from '@/lib/table/orchestratio
 import { listTables } from '@/lib/table/service'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { duplicateWorkflow } from '@/lib/workflows/persistence/duplicate'
-import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
+import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
+import { duplicateWorkflow } from '@/lib/workflows/application/duplicate-workflow'
+import {
+  resolveWorkflowVfsCreateFolderIndex,
+  resolveWorkflowVfsDeleteIndex,
+  resolveWorkflowVfsDuplicateIndex,
+  resolveWorkflowVfsUpdateIndex,
+} from '@/lib/workflows/application/resolve-workflow-vfs-index'
+import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
+import {
+  createWorkflowFolder,
+  deleteWorkflowFolder,
+  relocateWorkflowFolder,
+} from '@/lib/workflows/application/workflow-folders'
 import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/archive-workspace-file-items'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
@@ -177,7 +188,9 @@ export async function executeVfsMkdir(
     }
 
     const workspaceId = requireCopilotWorkspace(context)
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    if (paths.some((path) => topLevelSegment(path) === 'files')) {
+      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    }
     assertMutationNotAborted(context)
 
     let ensureWorkflowFolder: ((segments: string[]) => Promise<string | null>) | undefined
@@ -209,8 +222,8 @@ export async function executeVfsMkdir(
         } else {
           ensureWorkflowFolder ??= makeWorkflowFolderEnsurer(
             workspaceId,
-            context.userId,
-            await loadWorkflowFolderIndex(workspaceId)
+            context,
+            await loadWorkflowFolderIndex(context, workspaceId, 'create_folder')
           )
           folderId = await ensureWorkflowFolder(segments)
         }
@@ -227,7 +240,7 @@ export async function executeVfsMkdir(
           error:
             top === 'files'
               ? messageForCopilotFileError(error, 'File folder creation failed')
-              : toError(error).message,
+              : messageForCopilotWorkflowError(error, 'Workflow folder creation failed'),
         })
       }
     }
@@ -262,12 +275,14 @@ async function executeVfsMutate(
     if (topLevelSegment(sources[0]) === 'knowledgebases') {
       resolveCopilotKnowledgePrincipal(context)
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
     assertMutationNotAborted(context)
 
     const classified = classifyCategory(sources[0])
     if ('error' in classified) return { success: false, error: classified.error }
     const { category } = classified
+    if (category !== 'workflows') {
+      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    }
 
     for (const source of sources.slice(1)) {
       const other = classifyCategory(source)
@@ -550,13 +565,47 @@ async function mutateWorkspaceFiles(
 interface WorkflowFolderIndex {
   folderPathById: Map<string, string>
   folderIdByPath: Map<string, string>
+  applicationPathById: Map<string, string>
 }
 
-async function loadWorkflowFolderIndex(workspaceId: string): Promise<WorkflowFolderIndex> {
-  const folderPathById = buildVfsFolderPathMap(await listFolders(workspaceId))
+type WorkflowVfsIndexIntent = 'create_folder' | 'update' | 'duplicate' | 'delete'
+
+async function loadWorkflowFolderIndex(
+  context: ExecutionContext,
+  workspaceId: string,
+  intent: WorkflowVfsIndexIntent
+): Promise<WorkflowFolderIndex & { workflows: WorkflowRow[] }> {
+  const result =
+    intent === 'create_folder'
+      ? await executeCopilotWorkflowUseCase(context, resolveWorkflowVfsCreateFolderIndex, {
+          workspaceId,
+        })
+      : intent === 'update'
+        ? await executeCopilotWorkflowUseCase(context, resolveWorkflowVfsUpdateIndex, {
+            workspaceId,
+          })
+        : intent === 'duplicate'
+          ? await executeCopilotWorkflowUseCase(context, resolveWorkflowVfsDuplicateIndex, {
+              workspaceId,
+            })
+          : await executeCopilotWorkflowUseCase(context, resolveWorkflowVfsDeleteIndex, {
+              workspaceId,
+            })
+  const folderPathById = buildVfsFolderPathMap(
+    result.folders.map((folder) => ({
+      folderId: folder.id,
+      folderName: folder.name,
+      parentId: folder.parentId,
+    }))
+  )
   const folderIdByPath = new Map<string, string>()
   for (const [id, path] of folderPathById.entries()) folderIdByPath.set(path, id)
-  return { folderPathById, folderIdByPath }
+  return {
+    folderPathById,
+    folderIdByPath,
+    applicationPathById: new Map(result.folderIndex.pathById),
+    workflows: result.workflows,
+  }
 }
 
 /**
@@ -566,13 +615,13 @@ async function loadWorkflowFolderIndex(workspaceId: string): Promise<WorkflowFol
  */
 function makeWorkflowFolderEnsurer(
   workspaceId: string,
-  userId: string,
+  context: ExecutionContext,
   index: WorkflowFolderIndex
 ): (segments: string[]) => Promise<string | null> {
   return async (segments) => {
     let parentId: string | null = null
     let pathSoFar = ''
-    for (const segment of segments) {
+    for (const [position, segment] of segments.entries()) {
       pathSoFar = pathSoFar
         ? `${pathSoFar}/${encodeVfsPathSegments([segment])}`
         : encodeVfsPathSegments([segment])
@@ -581,19 +630,14 @@ function makeWorkflowFolderEnsurer(
         parentId = existing
         continue
       }
-      await assertFolderMutable(parentId)
-      const created = await createFolder({
-        resourceType: 'workflow',
+      const path = `/${segments.slice(0, position + 1).join('/')}`
+      const created = await executeCopilotWorkflowUseCase(context, createWorkflowFolder, {
         workspaceId,
-        userId,
-        name: segment,
-        parentId: parentId ?? undefined,
+        path,
       })
-      if (!created.success || !created.folder) {
-        throw new Error(created.error || `Failed to create workflow folder "${segment}"`)
-      }
       index.folderIdByPath.set(pathSoFar, created.folder.id)
       index.folderPathById.set(created.folder.id, pathSoFar)
+      index.applicationPathById.set(created.folder.id, path)
       parentId = created.folder.id
     }
     return parentId
@@ -611,14 +655,10 @@ interface WorkflowRow {
  * path resolves without a query per path. Shared by mv/cp and rm, which ask the
  * same question of a workflows/ path: is this a workflow or a folder?
  */
-async function loadWorkflowsByVfsPath(
-  workspaceId: string,
+function buildWorkflowsByVfsPath(
+  rows: WorkflowRow[],
   folderPathById: Map<string, string>
-): Promise<Map<string, WorkflowRow>> {
-  const rows = await db
-    .select({ id: workflowTable.id, name: workflowTable.name, folderId: workflowTable.folderId })
-    .from(workflowTable)
-    .where(eq(workflowTable.workspaceId, workspaceId))
+): Map<string, WorkflowRow> {
   const byPath = new Map<string, WorkflowRow>()
   for (const row of rows) {
     const dir = canonicalWorkflowVfsDir({
@@ -637,12 +677,16 @@ async function mutateWorkflows(
   context: ExecutionContext,
   workspaceId: string
 ): Promise<ToolCallResult> {
-  const index = await loadWorkflowFolderIndex(workspaceId)
+  const index = await loadWorkflowFolderIndex(
+    context,
+    workspaceId,
+    verb === 'cp' ? 'duplicate' : 'update'
+  )
   const { folderPathById, folderIdByPath } = index
 
-  const workflowByPath = await loadWorkflowsByVfsPath(workspaceId, folderPathById)
+  const workflowByPath = buildWorkflowsByVfsPath(index.workflows, folderPathById)
 
-  const ensureWorkflowFolderPath = makeWorkflowFolderEnsurer(workspaceId, context.userId, index)
+  const ensureWorkflowFolderPath = makeWorkflowFolderEnsurer(workspaceId, context, index)
 
   const dest = await planDestination({
     destination,
@@ -692,14 +736,17 @@ async function mutateWorkflows(
         assertMutationNotAborted(context)
         if (verb === 'cp') {
           const targetFolderId = await dest.ensureFolderId()
-          const duplicated = await duplicateWorkflow({
-            sourceWorkflowId: wf.id,
-            userId: context.userId,
-            workspaceId,
-            folderId: targetFolderId,
-            name: targetName,
-            requestId: generateRequestId(),
-          })
+          const duplicated = await executeCopilotWorkflowUseCase(
+            context,
+            duplicateWorkflow,
+            {
+              sourceWorkflowId: wf.id,
+              assertedWorkspaceId: workspaceId,
+              folderId: targetFolderId,
+              name: targetName,
+            },
+            { workflowId: wf.id }
+          )
           outcomes.push({
             from: ref.source,
             to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, duplicated.name])}`,
@@ -707,44 +754,31 @@ async function mutateWorkflows(
             id: duplicated.id,
           })
         } else {
-          await ensureWorkflowAccess(wf.id, context.userId, 'write')
-          await assertWorkflowMutable(wf.id)
           const targetFolderId = await dest.ensureFolderId()
-          await assertFolderMutable(targetFolderId)
-          if (targetFolderId && !(await verifyFolderWorkspace(targetFolderId, workspaceId))) {
-            outcomes.push({
-              from: ref.source,
-              kind: 'workflow',
-              error: 'Destination folder not found',
-            })
-            continue
-          }
-          const result = await performUpdateWorkflow({
-            workflowId: wf.id,
-            userId: context.userId,
-            workspaceId,
-            currentName: wf.name,
-            currentFolderId: wf.folderId,
-            name: dest.dirMode ? undefined : targetName,
-            folderId: targetFolderId,
-          })
-          outcomes.push(
-            result.success
-              ? {
-                  from: ref.source,
-                  to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, targetName])}`,
-                  kind: 'workflow',
-                  id: wf.id,
-                }
-              : {
-                  from: ref.source,
-                  kind: 'workflow',
-                  error: result.error || 'Failed to move workflow',
-                }
+          await executeCopilotWorkflowUseCase(
+            context,
+            updateWorkflow,
+            {
+              workflowId: wf.id,
+              assertedWorkspaceId: workspaceId,
+              name: dest.dirMode ? undefined : targetName,
+              folderId: targetFolderId,
+            },
+            { workflowId: wf.id }
           )
+          outcomes.push({
+            from: ref.source,
+            to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, targetName])}`,
+            kind: 'workflow',
+            id: wf.id,
+          })
         }
       } catch (error) {
-        outcomes.push({ from: ref.source, kind: 'workflow', error: toError(error).message })
+        outcomes.push({
+          from: ref.source,
+          kind: 'workflow',
+          error: messageForCopilotWorkflowError(error, 'Workflow mutation failed'),
+        })
       }
       continue
     }
@@ -759,7 +793,6 @@ async function mutateWorkflows(
     }
     try {
       assertMutationNotAborted(context)
-      await assertFolderMutable(ref.folderId)
       const targetFolderId = await dest.ensureFolderId()
       if (targetFolderId === ref.folderId) {
         outcomes.push({
@@ -769,34 +802,28 @@ async function mutateWorkflows(
         })
         continue
       }
-      await assertFolderMutable(targetFolderId)
-      const result = await updateFolder({
-        resourceType: 'workflow',
-        folderId: ref.folderId,
-        workspaceId,
-        userId: context.userId,
-        name: dest.dirMode ? undefined : dest.leafName,
-        parentId: targetFolderId,
-      })
+      const sourcePath = index.applicationPathById.get(ref.folderId)
+      if (!sourcePath) throw new Error('Workflow folder path index is incomplete')
       const finalLeaf = dest.dirMode
         ? (decodeVfsPathSegments(ref.source).slice(1).at(-1) ?? '')
         : (dest.leafName as string)
-      outcomes.push(
-        result.success
-          ? {
-              from: ref.source,
-              to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, finalLeaf])}`,
-              kind: 'workflow_folder',
-              id: ref.folderId,
-            }
-          : {
-              from: ref.source,
-              kind: 'workflow_folder',
-              error: result.error || 'Failed to move folder',
-            }
-      )
+      await executeCopilotWorkflowUseCase(context, relocateWorkflowFolder, {
+        workspaceId,
+        path: sourcePath,
+        destinationPath: `/${[...dest.folderSegments, finalLeaf].join('/')}`,
+      })
+      outcomes.push({
+        from: ref.source,
+        to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, finalLeaf])}`,
+        kind: 'workflow_folder',
+        id: ref.folderId,
+      })
     } catch (error) {
-      outcomes.push({ from: ref.source, kind: 'workflow_folder', error: toError(error).message })
+      outcomes.push({
+        from: ref.source,
+        kind: 'workflow_folder',
+        error: messageForCopilotWorkflowError(error, 'Workflow folder mutation failed'),
+      })
     }
   }
 
@@ -927,12 +954,14 @@ export async function executeVfsRm(
     if (paths.some((path) => topLevelSegment(path) === 'knowledgebases')) {
       resolveCopilotKnowledgePrincipal(context)
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    if (paths.some((path) => topLevelSegment(path) !== 'workflows')) {
+      await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
+    }
     assertMutationNotAborted(context)
 
     // Loaded at most once, and only when a workflows/ path in this call needs it.
     let workflowIndex: Promise<WorkflowRemoveIndex> | undefined
-    const getWorkflowIndex = () => (workflowIndex ??= loadWorkflowRemoveIndex(workspaceId))
+    const getWorkflowIndex = () => (workflowIndex ??= loadWorkflowRemoveIndex(context, workspaceId))
 
     const outcomes: VfsMutateOutcome[] = []
     for (const path of paths) {
@@ -954,7 +983,9 @@ export async function executeVfsRm(
           error:
             classified.category === 'files'
               ? messageForCopilotFileError(error, 'File deletion failed')
-              : toError(error).message,
+              : classified.category === 'workflows'
+                ? messageForCopilotWorkflowError(error, 'Workflow deletion failed')
+                : toError(error).message,
         })
       }
     }
@@ -1065,13 +1096,19 @@ async function removeWorkspaceFilePath(
 interface WorkflowRemoveIndex {
   workflowByPath: Map<string, WorkflowRow>
   folderIdByPath: Map<string, string>
+  applicationPathById: Map<string, string>
 }
 
-async function loadWorkflowRemoveIndex(workspaceId: string): Promise<WorkflowRemoveIndex> {
-  const { folderPathById, folderIdByPath } = await loadWorkflowFolderIndex(workspaceId)
+async function loadWorkflowRemoveIndex(
+  context: ExecutionContext,
+  workspaceId: string
+): Promise<WorkflowRemoveIndex> {
+  const { folderPathById, folderIdByPath, applicationPathById, workflows } =
+    await loadWorkflowFolderIndex(context, workspaceId, 'delete')
   return {
-    workflowByPath: await loadWorkflowsByVfsPath(workspaceId, folderPathById),
+    workflowByPath: buildWorkflowsByVfsPath(workflows, folderPathById),
     folderIdByPath,
+    applicationPathById,
   }
 }
 
@@ -1095,20 +1132,16 @@ async function removeWorkflowPath(
     }
   }
   const encoded = encodeVfsPathSegments(segments)
-  const { workflowByPath, folderIdByPath } = await getWorkflowIndex()
+  const { workflowByPath, folderIdByPath, applicationPathById } = await getWorkflowIndex()
 
   const workflow = workflowByPath.get(`workflows/${encoded}`)
   if (workflow) {
-    await assertWorkflowMutable(workflow.id)
-    const result = await performDeleteWorkflow({ workflowId: workflow.id, userId: context.userId })
-    if (!result.success) {
-      return {
-        from: path,
-        kind: 'workflow',
-        id: workflow.id,
-        error: result.error || 'Failed to delete workflow',
-      }
-    }
+    await executeCopilotWorkflowUseCase(
+      context,
+      deleteWorkflow,
+      { workflowId: workflow.id, assertedWorkspaceId: workspaceId },
+      { workflowId: workflow.id }
+    )
     logger.info('Deleted workflow via rm', { workflowId: workflow.id, workspaceId })
     return { from: path, kind: 'workflow', id: workflow.id }
   }
@@ -1116,21 +1149,13 @@ async function removeWorkflowPath(
   const folderId = folderIdByPath.get(encoded)
   if (!folderId) return { from: path, kind: 'workflow', error: `Not found: ${path}` }
 
-  await assertFolderMutable(folderId)
-  const result = await deleteFolder({
-    resourceType: 'workflow',
-    folderId,
+  const applicationPath = applicationPathById.get(folderId)
+  if (!applicationPath) throw new Error('Workflow folder path index is incomplete')
+  await executeCopilotWorkflowUseCase(context, deleteWorkflowFolder, {
     workspaceId,
-    userId: context.userId,
+    path: applicationPath,
+    recursive: true,
   })
-  if (!result.success) {
-    return {
-      from: path,
-      kind: 'workflow_folder',
-      id: folderId,
-      error: result.error || 'Failed to delete folder',
-    }
-  }
   logger.info('Deleted workflow folder via rm', { folderId, workspaceId })
   return { from: path, kind: 'workflow_folder', id: folderId }
 }

@@ -3,6 +3,9 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { assertFolderMutable, FolderLockedError } from '@sim/platform-authz/workflow'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -12,6 +15,7 @@ import {
   workflowFolderPathForId,
 } from '@/lib/workflows/application/workflow-folders'
 import { performCreateWorkflowTransition } from '@/lib/workflows/orchestration'
+import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('CreateWorkflow')
 
@@ -20,6 +24,7 @@ export interface CreateWorkflowInput {
   name: string
   description?: string | null
   folderPath?: string
+  folderId?: string | null
 }
 
 export const createWorkflow = defineAuthorizedWorkflowUseCase({
@@ -27,7 +32,19 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: CreateWorkflowInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }) {
-    const resolution = await resolveWorkflowFolderPath(context.workspaceId, input.folderPath ?? '/')
+    if (input.folderPath !== undefined && input.folderId !== undefined) {
+      throw new OrchestrationError('validation', 'Provide either folderPath or folderId, not both')
+    }
+    const resolution =
+      input.folderId === undefined
+        ? await resolveWorkflowFolderPath(context.workspaceId, input.folderPath ?? '/')
+        : {
+            folderId: input.folderId,
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow'),
+          }
+    if (resolution.folderId && !resolution.index.pathById.has(resolution.folderId)) {
+      throw new OrchestrationError('not_found', 'Folder not found')
+    }
     try {
       await assertFolderMutable(resolution.folderId)
     } catch (error) {
@@ -49,6 +66,8 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
     })
     requireWorkflowTransition(transition, 'Failed to create workflow')
     if (!transition.workflow) throw new Error('Successful workflow create returned no workflow')
+    const normalizedState = await loadWorkflowFromNormalizedTables(transition.workflow.id)
+    if (!normalizedState) throw new Error('Successful workflow create returned no workflow state')
 
     logger.info('Created workflow', {
       workspaceId: context.workspaceId,
@@ -58,6 +77,7 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
     return {
       workflow: transition.workflow,
       folderPath: workflowFolderPathForId(resolution.index, transition.workflow.folderId),
+      normalizedState,
     }
   },
   projectAudit: ({ result }) => ({
@@ -74,4 +94,20 @@ export const createWorkflow = defineAuthorizedWorkflowUseCase({
       sortOrder: result.workflow.sortOrder,
     },
   }),
+  async afterSuccess({ result }) {
+    await notifyWorkflowUpdated(result.workflow.id)
+    try {
+      PlatformEvents.workflowCreated({
+        workflowId: result.workflow.id,
+        name: result.workflow.name,
+        workspaceId: result.workflow.workspaceId,
+        folderId: result.workflow.folderId ?? undefined,
+      })
+    } catch (error) {
+      logger.warn('Failed to capture workflow created telemetry', {
+        workflowId: result.workflow.id,
+        error,
+      })
+    }
+  },
 })

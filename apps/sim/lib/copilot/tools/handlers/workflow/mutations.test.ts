@@ -34,6 +34,9 @@ const {
   setWorkflowVariablesMock,
   recordAuditMock,
   performCreateWorkflowMock,
+  performUpdateWorkflowMock,
+  listFoldersMock,
+  verifyFolderWorkspaceMock,
   executeWorkflowMock,
   getExecutionStateForWorkflowMock,
   getLatestExecutionStateWithExecutionIdMock,
@@ -44,12 +47,17 @@ const {
   reserveExecutionSlotMock,
   releaseExecutionSlotMock,
   decryptSecretMock,
+  updateWorkflowVariablesApplicationMock,
+  updateWorkflowStateApplicationMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   ensureWorkspaceAccessMock: vi.fn(),
   setWorkflowVariablesMock: vi.fn(),
   recordAuditMock: vi.fn(),
   performCreateWorkflowMock: vi.fn(),
+  performUpdateWorkflowMock: vi.fn(),
+  listFoldersMock: vi.fn(),
+  verifyFolderWorkspaceMock: vi.fn(),
   executeWorkflowMock: vi.fn(),
   getExecutionStateForWorkflowMock: vi.fn(),
   getLatestExecutionStateWithExecutionIdMock: vi.fn(),
@@ -60,6 +68,100 @@ const {
   reserveExecutionSlotMock: vi.fn(),
   releaseExecutionSlotMock: vi.fn(),
   decryptSecretMock: vi.fn(),
+  updateWorkflowVariablesApplicationMock: vi.fn(),
+  updateWorkflowStateApplicationMock: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: vi.fn(async (context, useCase, input) => {
+    switch (useCase.operation.id) {
+      case 'workflows.create': {
+        if (context.workspaceId && context.workspaceId !== input.workspaceId) {
+          throw new Error('Workspace not found')
+        }
+        await ensureWorkspaceAccessMock(input.workspaceId, context.userId, 'write')
+        await workflowAuthzMockFns.mockAssertFolderMutable(input.folderId)
+        const result = await performCreateWorkflowMock({
+          userId: context.userId,
+          workspaceId: input.workspaceId,
+          name: input.name,
+          folderId: input.folderId,
+        })
+        if (!result.success || !result.workflow) throw new Error(result.error ?? 'Create failed')
+        return {
+          workflow: result.workflow,
+          normalizedState: await loadWorkflowFromNormalizedTablesMock(result.workflow.id),
+        }
+      }
+      case 'workflows.read': {
+        const access = await ensureWorkflowAccessMock(input.workflowId, context.userId)
+        return {
+          workflow: access.workflow,
+          workspaceId: access.workspaceId ?? access.workflow.workspaceId,
+          state: await loadWorkflowFromNormalizedTablesMock(input.workflowId),
+        }
+      }
+      case 'workflows.copilot.run': {
+        const access = await ensureWorkflowAccessMock(input.workflowId, context.userId, 'write')
+        const source = input.sourceExecutionId
+          ? {
+              executionId: input.sourceExecutionId,
+              state: await getExecutionStateForWorkflowMock(
+                input.sourceExecutionId,
+                input.workflowId
+              ),
+            }
+          : input.useLatestExecution
+            ? await getLatestExecutionStateWithExecutionIdMock(input.workflowId)
+            : undefined
+        return {
+          workflow: access.workflow,
+          workspaceId: access.workspaceId ?? access.workflow.workspaceId,
+          state: await loadWorkflowFromNormalizedTablesMock(input.workflowId),
+          ...(source?.state
+            ? {
+                sourceSnapshot: {
+                  executionId: source.executionId,
+                  snapshot: source.state,
+                },
+              }
+            : {}),
+        }
+      }
+      case 'workflows.variables.update':
+        return updateWorkflowVariablesApplicationMock(input)
+      case 'workflows.state.update':
+        return updateWorkflowStateApplicationMock(input)
+      case 'workflows.update': {
+        const access = await ensureWorkflowAccessMock(input.workflowId, context.userId, 'write')
+        await workflowAuthzMockFns.mockAssertWorkflowMutable(input.workflowId)
+        if (input.folderId !== undefined) {
+          await workflowAuthzMockFns.mockAssertFolderMutable(input.folderId)
+        }
+        return performUpdateWorkflowMock({
+          workflowId: input.workflowId,
+          userId: context.userId,
+          workspaceId: access.workspaceId ?? access.workflow.workspaceId,
+          currentName: access.workflow.name,
+          currentFolderId: access.workflow.folderId,
+          name: input.name,
+          folderId: input.folderId,
+        })
+      }
+      case 'workflows.folders.list':
+        return {
+          folders: (await listFoldersMock(input.workspaceId)).map((folder) => ({
+            id: folder.folderId,
+            name: folder.folderName,
+            parentId: folder.parentId,
+          })),
+        }
+      default:
+        throw new Error(`Unexpected operation ${useCase.operation.id}`)
+    }
+  }),
+  messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
+    error instanceof Error ? error.message : fallback,
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -105,7 +207,7 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performDeleteFolder: vi.fn(),
   performDeleteWorkflow: vi.fn(),
   performUpdateFolder: vi.fn(),
-  performUpdateWorkflow: vi.fn(),
+  performUpdateWorkflow: performUpdateWorkflowMock,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
@@ -123,9 +225,9 @@ vi.mock('@/lib/workflows/triggers/run-options', () => ({
 }))
 
 vi.mock('@/lib/workflows/utils', () => ({
-  listFolders: vi.fn(),
+  listFolders: listFoldersMock,
   setWorkflowVariables: setWorkflowVariablesMock,
-  verifyFolderWorkspace: vi.fn(),
+  verifyFolderWorkspace: verifyFolderWorkspaceMock,
 }))
 
 vi.mock('@/executor/utils/errors', () => ({
@@ -140,8 +242,6 @@ vi.mock('../access', () => ({
 
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { applyCreateWorkflowOutputToContext } from '@/lib/copilot/request/tools/workflow-context'
-import { performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { listFolders, verifyFolderWorkspace } from '@/lib/workflows/utils'
 import {
   executeCreateWorkflow,
   executeMoveWorkflow,
@@ -152,9 +252,6 @@ import {
   executeSetGlobalWorkflowVariables,
 } from './mutations'
 
-const performUpdateWorkflowMock = vi.mocked(performUpdateWorkflow)
-const listFoldersMock = vi.mocked(listFolders)
-const verifyFolderWorkspaceMock = vi.mocked(verifyFolderWorkspace)
 const billingAttribution: BillingAttributionSnapshot = {
   actorUserId: 'user-1',
   workspaceId: 'workspace-1',
@@ -183,6 +280,8 @@ const executionContext: ExecutionContext = {
   userId: 'user-1',
   workflowId: 'workflow-1',
   workspaceId: 'workspace-1',
+  toolCallId: 'tool-call-1',
+  copilotToolExecution: true,
   billingAttribution,
 }
 
@@ -197,6 +296,10 @@ describe('executeSetGlobalWorkflowVariables', () => {
       },
     })
     setWorkflowVariablesMock.mockResolvedValue(undefined)
+    updateWorkflowVariablesApplicationMock.mockImplementation(async (input) => {
+      await setWorkflowVariablesMock(input.workflowId, input.variables)
+      return { updated: Object.keys(input.variables).length }
+    })
   })
 
   it('persists variable changes and notifies clients that workflow state changed', async () => {
@@ -205,7 +308,7 @@ describe('executeSetGlobalWorkflowVariables', () => {
         workflowId: 'workflow-1',
         operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
       },
-      { userId: 'user-1' } as any
+      executionContext
     )
 
     expect(result.success).toBe(true)
@@ -218,15 +321,13 @@ describe('executeSetGlobalWorkflowVariables', () => {
         value: 5,
       }),
     ])
-    expect(global.fetch).toHaveBeenCalledWith('http://socket.test/api/workflow-updated', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': 'secret',
-      },
-      body: JSON.stringify({ workflowId: 'workflow-1' }),
-    })
-    expect(recordAuditMock).toHaveBeenCalled()
+    expect(updateWorkflowVariablesApplicationMock).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        operationCount: 1,
+        source: 'copilot',
+      })
+    )
   })
 })
 
@@ -242,16 +343,14 @@ describe('lock enforcement', () => {
     ensureWorkflowAccessMock.mockResolvedValue({
       workflow: { id: 'workflow-1', variables: {} },
     })
-    workflowAuthzMockFns.mockAssertWorkflowMutable.mockRejectedValueOnce(
-      new Error('Workflow is locked')
-    )
+    updateWorkflowVariablesApplicationMock.mockRejectedValueOnce(new Error('Workflow is locked'))
 
     const result = await executeSetGlobalWorkflowVariables(
       {
         workflowId: 'workflow-1',
         operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
       },
-      { userId: 'user-1' } as any
+      executionContext
     )
 
     expect(result.success).toBe(false)
@@ -271,11 +370,11 @@ describe('lock enforcement', () => {
 
     const result = await executeMoveWorkflow(
       { workflowIds: ['workflow-1'], folderId: 'locked-folder' },
-      { userId: 'user-1' } as any
+      executionContext
     )
 
     expect(result.success).toBe(false)
-    expect(result.error).toBe('Folder is locked')
+    expect(result.output).toEqual({ moved: [], failed: ['workflow-1'], folderId: 'locked-folder' })
     expect(performUpdateWorkflowMock).not.toHaveBeenCalled()
   })
 })
@@ -473,7 +572,7 @@ describe('executeCreateWorkflow billing attribution', () => {
     expect(resolveBillingAttributionMock).not.toHaveBeenCalled()
   })
 
-  it('keeps cross-workspace creation scoped while allowing explicit subsequent execution', async () => {
+  it('rejects cross-workspace creation outside the trusted Copilot scope', async () => {
     const context: ExecutionContext = { ...executionContext, workflowId: '' }
     performCreateWorkflowMock.mockResolvedValue({
       success: true,
@@ -499,12 +598,8 @@ describe('executeCreateWorkflow billing attribution', () => {
       context
     )
 
-    expect(createResult.success).toBe(true)
-    applyCreateWorkflowOutputToContext(createResult.output, context)
-    expect(ensureWorkspaceAccessMock).toHaveBeenCalledWith('workspace-2', 'user-1', 'write')
-    expect(performCreateWorkflowMock).toHaveBeenCalledWith(
-      expect.objectContaining({ userId: 'user-1', workspaceId: 'workspace-2' })
-    )
+    expect(createResult.success).toBe(false)
+    expect(performCreateWorkflowMock).not.toHaveBeenCalled()
     expect(context).toMatchObject({
       userId: 'user-1',
       workflowId: '',
@@ -512,38 +607,7 @@ describe('executeCreateWorkflow billing attribution', () => {
       billingAttribution,
     })
     expect(context.billingAttribution).toBe(billingAttribution)
-    const createOutput = createResult.output as { workflowId: string; workspaceId: string }
-    expect(createOutput).toEqual(
-      expect.objectContaining({ workflowId: 'created-workflow', workspaceId: 'workspace-2' })
-    )
-
-    const runResult = await executeRunWorkflow(
-      { workflowId: createOutput.workflowId, useMockPayload: true },
-      context
-    )
-
-    expect(runResult.success).toBe(true)
-    expect(resolveBillingAttributionMock).toHaveBeenCalledOnce()
-    expect(resolveBillingAttributionMock).toHaveBeenCalledWith({
-      actorUserId: 'user-1',
-      workspaceId: 'workspace-2',
-    })
-    expect(executeWorkflowMock.mock.calls[0]?.[0]).toEqual(
-      expect.objectContaining({ id: 'created-workflow', workspaceId: 'workspace-2' })
-    )
-    expect(executeWorkflowMock.mock.calls[0]?.[3]).toBe('user-1')
-    expect(executeWorkflowMock.mock.calls[0]?.[4]).toEqual(
-      expect.objectContaining({ billingAttribution: childBillingAttribution })
-    )
-    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledOnce()
-    expect(checkAttributedUsageLimitsMock).toHaveBeenCalledWith(childBillingAttribution)
-    expect(reserveExecutionSlotMock).toHaveBeenCalledOnce()
-    expect(reserveExecutionSlotMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        billingEntity: childBillingAttribution.billingEntity,
-        executionId: executeWorkflowMock.mock.calls[0]?.[5],
-      })
-    )
+    expect(executeWorkflowMock).not.toHaveBeenCalled()
     expect(context.billingAttribution).toBe(billingAttribution)
   })
 })
@@ -1124,7 +1188,7 @@ describe('executeRunFromBlock', () => {
         startBlockId: 'agent-1',
         executionId: 'source-execution-1',
       },
-      { userId: 'user-1' } as any
+      executionContext
     )
 
     expect(result.success).toBe(true)

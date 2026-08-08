@@ -18,6 +18,10 @@ export const workflowDelegationPolicy: WorkspaceDelegationPolicy<WorkflowAuthori
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: WorkflowAuthorizationContext
   ) {
-    return principal.workspaceId === context.workspaceId
+    return (
+      principal.workspaceId === context.workspaceId &&
+      (!principal.resourceScope?.workflowId ||
+        principal.resourceScope.workflowId === context.workflowId)
+    )
   },
 }

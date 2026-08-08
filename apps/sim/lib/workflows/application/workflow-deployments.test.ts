@@ -137,6 +137,7 @@ describe('workflow deployment application use cases', () => {
           description: 'Production release',
           requestId: 'request-1',
           idempotencyKey: 'deploy-idempotency-1',
+          analytics: principal.kind === 'delegated' ? 'none' : 'human',
         },
       })
 
@@ -145,7 +146,7 @@ describe('workflow deployment application use cases', () => {
           workflowId: 'workflow-1',
           userId: actorUserId,
           actorId: actorUserId,
-          captureAnalytics: false,
+          ...(principal.kind === 'delegated' ? { captureAnalytics: false } : {}),
           versionName: 'Version 4',
           versionDescription: 'Production release',
           requestId: 'request-1',
@@ -164,11 +165,28 @@ describe('workflow deployment application use cases', () => {
           workspaceId: 'workspace-1',
           keyId: 'workspace-key',
         },
-        input: { workflowId: 'workflow-1', requestId: 'request-1' },
+        input: { workflowId: 'workflow-1', requestId: 'request-1', analytics: 'human' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mocks.deploy).not.toHaveBeenCalled()
+  })
+
+  it('rejects human analytics for delegated deployment surfaces', async () => {
+    const delegated = adminPrincipals.find(({ principal }) => principal.kind === 'delegated')
+    if (!delegated) throw new Error('Delegated test principal is missing')
+
+    await expect(
+      deployWorkflow.execute({
+        principal: delegated.principal,
+        input: {
+          workflowId: 'workflow-1',
+          requestId: 'request-delegated-human',
+          analytics: 'human',
+        },
+      })
+    ).rejects.toThrow('Human deployment analytics require a human principal')
     expect(mocks.deploy).not.toHaveBeenCalled()
   })
 
@@ -178,7 +196,7 @@ describe('workflow deployment application use cases', () => {
     await expect(
       deployWorkflow.execute({
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workflowId: 'workflow-1', requestId: 'request-1' },
+        input: { workflowId: 'workflow-1', requestId: 'request-1', analytics: 'human' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.assertMutable).not.toHaveBeenCalled()
@@ -211,7 +229,7 @@ describe('workflow deployment application use cases', () => {
     )
   })
 
-  it('activates an explicit version with analytics disabled in orchestration', async () => {
+  it('keeps human activation analytics enabled for durable post-activation capture', async () => {
     await activateWorkflowVersion.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: {
@@ -220,6 +238,7 @@ describe('workflow deployment application use cases', () => {
         transition: 'activate',
         requestId: 'request-3',
         idempotencyKey: 'activation-1',
+        analytics: 'human',
       },
     })
 
@@ -230,7 +249,6 @@ describe('workflow deployment application use cases', () => {
         version: 2,
         userId: 'user-1',
         actorId: 'user-1',
-        captureAnalytics: false,
         requestId: 'request-3',
         idempotencyKey: 'activation-1',
       })
@@ -240,7 +258,12 @@ describe('workflow deployment application use cases', () => {
   it('resolves the previous active version for an implicit rollback', async () => {
     const result = await activateWorkflowVersion.execute({
       principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', transition: 'rollback', requestId: 'request-4' },
+      input: {
+        workflowId: 'workflow-1',
+        transition: 'rollback',
+        requestId: 'request-4',
+        analytics: 'human',
+      },
     })
 
     expect(mocks.findPrevious).toHaveBeenCalledWith('workflow-1')
@@ -269,6 +292,7 @@ describe('workflow deployment application use cases', () => {
           version: 1,
           transition: 'rollback',
           requestId: 'request-6',
+          analytics: 'human',
         },
       })
     ).rejects.toMatchObject({ code: 'validation' })
@@ -289,6 +313,7 @@ describe('workflow deployment application use cases', () => {
         version: 1,
         transition: 'activate',
         requestId: 'request-activation',
+        analytics: 'human',
       },
     })
 
@@ -304,7 +329,7 @@ describe('workflow deployment application use cases', () => {
     await expect(
       deployWorkflow.execute({
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workflowId: 'workflow-1', requestId: 'request-7' },
+        input: { workflowId: 'workflow-1', requestId: 'request-7', analytics: 'human' },
       })
     ).rejects.toMatchObject({ code: 'locked', message: 'Workflow is locked' })
 
@@ -318,6 +343,7 @@ describe('workflow deployment application use cases', () => {
           version: 1,
           transition: 'activate',
           requestId: 'request-8',
+          analytics: 'human',
         },
       })
     ).rejects.toBe(infrastructureError)
@@ -333,7 +359,7 @@ describe('workflow deployment application use cases', () => {
     await expect(
       deployWorkflow.execute({
         principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
-        input: { workflowId: 'workflow-1', requestId: 'request-9' },
+        input: { workflowId: 'workflow-1', requestId: 'request-9', analytics: 'human' },
       })
     ).rejects.toThrow('Failed to deploy workflow')
   })

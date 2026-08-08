@@ -35,6 +35,30 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  updateState: defineWorkspaceOperation({
+    id: 'workflows.state.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+  }),
+  updateVariables: defineWorkspaceOperation({
+    id: 'workflows.variables.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+  }),
+  duplicate: defineWorkspaceOperation({
+    id: 'workflows.duplicate',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+  }),
+  runFromCopilot: defineWorkspaceOperation({
+    id: 'workflows.copilot.run',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+  }),
   delete: defineWorkspaceOperation({
     id: 'workflows.delete',
     minimumRole: 'write',

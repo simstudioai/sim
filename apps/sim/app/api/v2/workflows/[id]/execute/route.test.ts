@@ -493,6 +493,9 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
 
     const okRes = await callPublicExecute({ input: {} })
     expect(okRes.status).toBe(200)
+    expect(mockCheckPreAuthRate.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.select.mock.invocationCallOrder[0]
+    )
     expect(mockAuthenticateV2ApiKey).not.toHaveBeenCalled()
     expect(mockCheckOperationRate).not.toHaveBeenCalled()
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
@@ -504,6 +507,22 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     ])
     const asyncRes = await callPublicExecute({ input: {}, async: true })
     expect(asyncRes.status).toBe(400)
+  })
+
+  it('rejects anonymous abuse before looking up the workflow', async () => {
+    mockCheckPreAuthRate.mockResolvedValueOnce({
+      allowed: false,
+      remaining: 0,
+      resetAt: new Date('2026-08-08T05:00:00Z'),
+      retryAfterMs: 10_000,
+    })
+
+    const response = await callPublicExecute({ input: {} })
+
+    expect(response.status).toBe(429)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(mockValidatePublicApiAllowed).not.toHaveBeenCalled()
+    expect(mockAuthenticateV2ApiKey).not.toHaveBeenCalled()
   })
 
   it('401s non-public workflows without a key', async () => {

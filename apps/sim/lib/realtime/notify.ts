@@ -84,6 +84,26 @@ export async function notifyWorkspaceTablesChanged(workspaceId: string): Promise
   }
 }
 
+/** Best-effort fan-out that invalidates open editors for one durably changed workflow. */
+export async function notifyWorkflowUpdated(workflowId: string): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workflow-updated`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+      body: JSON.stringify({ workflowId }),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      logger.warn('workflow-updated notify failed', { workflowId, status: response.status })
+    }
+  } catch (error) {
+    logger.warn('workflow-updated notify error', {
+      workflowId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 /**
  * Folder resource types whose list is kept live by a workspace invalidation room: a folder mutation
  * (create/rename/move/delete/restore) for one of these must fan out the same list-changed signal as a

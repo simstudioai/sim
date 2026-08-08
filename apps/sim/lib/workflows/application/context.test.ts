@@ -1,18 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  queueTableRows,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ loadWorkspace: vi.fn() }))
+const mocks = vi.hoisted(() => ({
+  getJob: vi.fn(),
+  getJobQueue: vi.fn(),
+  loadWorkspace: vi.fn(),
+}))
 
-vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: vi.fn() }))
+vi.mock('@/lib/core/async-jobs', () => ({ getJobQueue: mocks.getJobQueue }))
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
 }))
 
 import {
   resolveActiveWorkflowApplicationContext,
+  resolveActiveWorkflowRunApplicationContext,
   resolveActiveWorkspaceApplicationContext,
 } from '@/lib/workflows/application/context'
 
@@ -24,11 +34,18 @@ const workspace = {
 }
 const workflow = { id: 'workflow-1', workspaceId: 'workspace-1', archivedAt: null }
 
+function queueCanonicalBindings(input: { log?: string; paused?: string; resumed?: string }): void {
+  queueTableRows(schemaMock.workflowExecutionLogs, input.log ? [{ workflowId: input.log }] : [])
+  queueTableRows(schemaMock.pausedExecutions, input.paused ? [{ workflowId: input.paused }] : [])
+  queueTableRows(schemaMock.resumeQueue, input.resumed ? [{ workflowId: input.resumed }] : [])
+}
+
 describe('workflow application contexts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
     mocks.loadWorkspace.mockResolvedValue(workspace)
+    mocks.getJobQueue.mockResolvedValue({ getJob: mocks.getJob })
   })
 
   it('uses the canonical loader for workspace-scoped operations', async () => {
@@ -85,5 +102,48 @@ describe('workflow application contexts', () => {
     await expect(
       resolveActiveWorkflowApplicationContext({ workflowId: 'workflow-1' })
     ).rejects.toBe(failure)
+  })
+
+  it('fails hard when durable stores disagree about the canonical workflow binding', async () => {
+    queueCanonicalBindings({ log: 'workflow-1', paused: 'workflow-2' })
+
+    await expect(resolveActiveWorkflowRunApplicationContext({ runId: 'run-1' })).rejects.toThrow(
+      'Run run-1 has conflicting canonical workflow bindings'
+    )
+    expect(mocks.getJobQueue).not.toHaveBeenCalled()
+  })
+
+  it('conceals a caller-asserted workflow that conflicts with the canonical binding', async () => {
+    queueCanonicalBindings({ log: 'workflow-1' })
+
+    await expect(
+      resolveActiveWorkflowRunApplicationContext({
+        runId: 'run-1',
+        assertedWorkflowId: 'workflow-forged',
+      })
+    ).rejects.toMatchObject({ code: 'not_found', message: 'Run not found' })
+  })
+
+  it('accepts matching durable bindings and resolves the active canonical workflow', async () => {
+    queueCanonicalBindings({ log: 'workflow-1', paused: 'workflow-1', resumed: 'workflow-1' })
+    queueTableRows(schemaMock.workflow, [
+      {
+        workflowId: 'workflow-1',
+        workflow: { id: 'workflow-1', name: 'Canonical workflow' },
+        workspaceId: 'workspace-1',
+      },
+    ])
+
+    await expect(
+      resolveActiveWorkflowRunApplicationContext({
+        runId: 'run-1',
+        assertedWorkflowId: 'workflow-1',
+        assertedWorkspaceId: 'workspace-1',
+      })
+    ).resolves.toMatchObject({
+      runId: 'run-1',
+      workflowId: 'workflow-1',
+      workspaceId: 'workspace-1',
+    })
   })
 })

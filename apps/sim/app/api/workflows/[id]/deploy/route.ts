@@ -110,7 +110,7 @@ export const POST = withRouteHandler(
       const principal = await internalSessionAuth.authenticate()
       const result = await deployWorkflow.execute({
         principal,
-        input: { workflowId: id, requestId },
+        input: { workflowId: id, requestId, analytics: 'human' },
         request,
       })
 
@@ -118,16 +118,6 @@ export const POST = withRouteHandler(
       const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
       logger.info(
         `[${requestId}] Workflow deployment ${attemptActivated ? 'activated' : 'accepted for preparation'}: ${id}`
-      )
-
-      captureServerEvent(
-        principal.userId,
-        'workflow_deployed',
-        { workflow_id: result.workflowId, workspace_id: result.workspaceId },
-        {
-          groups: { workspace: result.workspaceId },
-          setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-        }
       )
 
       return createSuccessResponse({

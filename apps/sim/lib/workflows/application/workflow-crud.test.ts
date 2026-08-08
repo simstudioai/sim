@@ -20,6 +20,9 @@ const mocks = vi.hoisted(() => ({
   loadFolderIndex: vi.fn(),
   listVersions: vi.fn(),
   readVersion: vi.fn(),
+  loadNormalized: vi.fn(),
+  notifyWorkflowUpdated: vi.fn(),
+  workflowCreated: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -81,6 +84,15 @@ vi.mock('@/lib/workflows/input-format', () => ({
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   listWorkflowVersions: mocks.listVersions,
   getWorkflowDeploymentVersion: mocks.readVersion,
+  loadWorkflowFromNormalizedTables: mocks.loadNormalized,
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkflowUpdated: mocks.notifyWorkflowUpdated,
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { workflowCreated: mocks.workflowCreated },
 }))
 
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
@@ -88,6 +100,7 @@ import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
 import { readWorkflow } from '@/lib/workflows/application/read-workflow'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
+import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 
 const WORKSPACE_ID = 'workspace-1'
 const WORKFLOW_ID = 'workflow-1'
@@ -154,10 +167,21 @@ describe('authorized workflow CRUD and version reads', () => {
       },
     })
     mocks.loadSnapshot.mockResolvedValue({ workflowRecord, normalizedData: { blocks: {} } })
+    mocks.loadNormalized.mockResolvedValue({
+      blocks: {},
+      edges: [],
+      loops: {},
+      parallels: {},
+      isFromNormalizedTables: true,
+    })
     mocks.deleteRecord.mockResolvedValue({
       success: true,
       archived: true,
       workflow: { id: WORKFLOW_ID, name: workflowRecord.name, workspaceId: WORKSPACE_ID },
+    })
+    mocks.updateRecord.mockResolvedValue({
+      success: true,
+      workflow: workflowRecord,
     })
     mocks.listVersions.mockResolvedValue({ versions: [] })
     mocks.readVersion.mockResolvedValue({
@@ -193,6 +217,10 @@ describe('authorized workflow CRUD and version reads', () => {
           actor: expect.objectContaining({ kind: 'personal_api_key', keyId: 'personal-key-1' }),
         }),
       })
+    )
+    expect(mocks.notifyWorkflowUpdated).toHaveBeenCalledWith(WORKFLOW_ID)
+    expect(mocks.workflowCreated).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: WORKFLOW_ID, workspaceId: WORKSPACE_ID })
     )
   })
 
@@ -247,6 +275,49 @@ describe('authorized workflow CRUD and version reads', () => {
       assertedWorkspaceId: 'workspace-other',
     })
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
+  })
+
+  it('rejects a workflow ID outside delegated resource scope', async () => {
+    mocks.resolveWorkflowContext.mockResolvedValueOnce({
+      ...workflowContext,
+      workflowId: 'workflow-2',
+      workflow: { ...workflowRecord, id: 'workflow-2' },
+    })
+    const delegated = {
+      kind: 'delegated' as const,
+      serviceId: 'copilot' as const,
+      subjectUserId: 'user-1',
+      workspaceId: WORKSPACE_ID,
+      delegationId: 'delegation-1',
+      audience: 'sim:workflows',
+      issuedAt: new Date('2026-08-01T00:00:00Z'),
+      expiresAt: new Date('2999-01-01T00:00:00Z'),
+      resourceScope: { workflowId: WORKFLOW_ID },
+    }
+
+    await expect(
+      updateWorkflow.execute({
+        principal: delegated,
+        input: { workflowId: 'workflow-2', name: 'Forged target' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.updateRecord).not.toHaveBeenCalled()
+  })
+
+  it('rechecks current permission for every workflow mutation', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce('write').mockResolvedValueOnce('read')
+
+    await updateWorkflow.execute({
+      principal: personalPrincipal,
+      input: { workflowId: WORKFLOW_ID, name: 'First update' },
+    })
+    await expect(
+      updateWorkflow.execute({
+        principal: personalPrincipal,
+        input: { workflowId: WORKFLOW_ID, name: 'Second update' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.updateRecord).toHaveBeenCalledTimes(1)
   })
 
   it('does not audit an authoritative delete no-op', async () => {

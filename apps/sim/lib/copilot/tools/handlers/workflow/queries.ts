@@ -1,27 +1,25 @@
 import { toError } from '@sim/utils/errors'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
+import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
 import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
 import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import {
-  loadDeployedWorkflowState,
-  loadWorkflowFromNormalizedTables,
-  NoActiveDeploymentError,
-} from '@/lib/workflows/persistence/utils'
 import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getWorkflowById } from '@/lib/workflows/utils'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { listUserWorkspaces } from '@/lib/workspaces/utils'
 import { getBlock } from '@/blocks/registry'
 import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
-import { ensureWorkflowAccess } from '../access'
 import type {
   GetBlockOutputsParams,
   GetBlockUpstreamReferencesParams,
@@ -52,9 +50,12 @@ export async function executeGetWorkflowRunOptions(
       return { success: false, error: 'workflowId is required' }
     }
 
-    await ensureWorkflowAccess(workflowId, context.userId)
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    const { state: normalized } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDefinition,
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
+      { workflowId }
+    )
     if (!normalized) {
       return { success: false, error: `Workflow ${workflowId} has no saved state` }
     }
@@ -113,7 +114,7 @@ export async function executeGetWorkflowRunOptions(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -131,9 +132,11 @@ export async function executeGetWorkflowData(
       return { success: false, error: 'data_type is required' }
     }
 
-    const { workflow: workflowRecord, workspaceId } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId
+    const { workflow: workflowRecord, workspaceId } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDefinition,
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
+      { workflowId }
     )
 
     if (dataType === 'global_variables') {
@@ -210,7 +213,7 @@ export async function executeGetWorkflowData(
 
     return { success: false, error: `Unknown data_type: ${dataType}` }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -223,9 +226,12 @@ export async function executeGetBlockOutputs(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    await ensureWorkflowAccess(workflowId, context.userId)
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDefinition,
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
+      { workflowId }
+    )
     if (!normalized) {
       return { success: false, error: 'Workflow has no normalized data' }
     }
@@ -290,12 +296,12 @@ export async function executeGetBlockOutputs(
       })
     }
 
-    const variables = await getWorkflowVariablesForTool(workflowId)
+    const variables = getWorkflowVariablesForTool(workflow.variables)
 
     const payload = { blocks: results, variables }
     return { success: true, output: payload }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
@@ -311,9 +317,12 @@ export async function executeGetBlockUpstreamReferences(
     if (!Array.isArray(params.blockIds) || params.blockIds.length === 0) {
       return { success: false, error: 'blockIds array is required' }
     }
-    await ensureWorkflowAccess(workflowId, context.userId)
-
-    const normalized = await loadWorkflowFromNormalizedTables(workflowId)
+    const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDefinition,
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
+      { workflowId }
+    )
     if (!normalized) {
       return { success: false, error: 'Workflow has no normalized data' }
     }
@@ -324,7 +333,7 @@ export async function executeGetBlockUpstreamReferences(
     const parallels = normalized.parallels || {}
 
     const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
-    const variableOutputs = await getWorkflowVariablesForTool(workflowId)
+    const variableOutputs = getWorkflowVariablesForTool(workflow.variables)
 
     interface AccessibleBlockEntry {
       blockId: string
@@ -447,16 +456,14 @@ export async function executeGetBlockUpstreamReferences(
     const payload = { results }
     return { success: true, output: payload }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }
 
-async function getWorkflowVariablesForTool(
-  workflowId: string
-): Promise<Array<{ id: string; name: string; type: string; tag: string }>> {
-  const workflowRecord = await getWorkflowById(workflowId)
-
-  const variablesRecord = (workflowRecord?.variables as Record<string, unknown>) || {}
+function getWorkflowVariablesForTool(
+  value: unknown
+): Array<{ id: string; name: string; type: string; tag: string }> {
+  const variablesRecord = (value as Record<string, unknown>) || {}
   return Object.values(variablesRecord)
     .filter((v): v is Record<string, unknown> => {
       if (!v || typeof v !== 'object') return false
@@ -507,10 +514,13 @@ export async function executeGetDeployedWorkflowState(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context.userId)
-
-    try {
-      const deployedState = await loadDeployedWorkflowState(workflowId)
+    const { workflow: workflowRecord, state: deployedState } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDefinition,
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'deployed' },
+      { workflowId }
+    )
+    if (deployedState) {
       const formatted = formatNormalizedWorkflowForCopilot({
         blocks: deployedState.blocks,
         edges: deployedState.edges,
@@ -524,25 +534,22 @@ export async function executeGetDeployedWorkflowState(
           workflowId,
           workflowName: workflowRecord.name || '',
           isDeployed: true,
-          deploymentVersionId: deployedState.deploymentVersionId,
+          deploymentVersionId:
+            'deploymentVersionId' in deployedState ? deployedState.deploymentVersionId : undefined,
           deployedState: formatted,
         },
       }
-    } catch (error) {
-      if (!(error instanceof NoActiveDeploymentError)) {
-        return { success: false, error: toError(error).message }
-      }
-      return {
-        success: true,
-        output: {
-          workflowId,
-          workflowName: workflowRecord.name || '',
-          isDeployed: false,
-          message: 'Workflow has not been deployed yet.',
-        },
-      }
+    }
+    return {
+      success: true,
+      output: {
+        workflowId,
+        workflowName: workflowRecord.name || '',
+        isDeployed: false,
+        message: 'Workflow has not been deployed yet.',
+      },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotWorkflowError(error) }
   }
 }

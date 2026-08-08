@@ -311,6 +311,28 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockRecordAudit.mock.invocationCallOrder[0]).toBeGreaterThan(
       mockActivateDeploymentOperation.mock.invocationCallOrder[0]
     )
+    expect(mockCaptureServerEvent.mock.invocationCallOrder[0]).toBeGreaterThan(
+      mockActivateDeploymentOperation.mock.invocationCallOrder[0]
+    )
+
+    mockGetDeploymentOperation.mockResolvedValue(active)
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    await handler()(
+      {
+        ...payload(),
+        checkpoints: {
+          inactiveCleanupCompleted: true,
+          auditEmitted: true,
+          analyticsCaptured: true,
+          socketNotified: true,
+          workspaceEventEmitted: true,
+        },
+      },
+      context()
+    )
+    expect(mockCaptureServerEvent).toHaveBeenCalledTimes(1)
   })
 
   it('ignores a superseded generation without preparing side effects', async () => {

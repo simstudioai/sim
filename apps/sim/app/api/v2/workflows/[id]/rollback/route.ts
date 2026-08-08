@@ -1,7 +1,6 @@
 import { v2RollbackWorkflowContract } from '@/lib/api/contracts/v2/workflows'
 import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { activateWorkflowVersion } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -27,6 +26,7 @@ export const POST = defineV2JsonRoute({
     version: body.version,
     transition: 'rollback' as const,
     requestId: generateRequestId(),
+    analytics: 'human' as const,
   }),
   useCase: activateWorkflowVersion,
   present: (result) => ({
@@ -40,19 +40,4 @@ export const POST = defineV2JsonRoute({
       latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
     },
   }),
-  onSuccess: ({ principal, result }) => {
-    if (principal.kind !== 'personal_api_key') {
-      throw new Error('Admin activation unexpectedly admitted a workspace API key')
-    }
-    captureServerEvent(
-      principal.userId,
-      'deployment_version_activated',
-      {
-        workflow_id: result.workflowId,
-        workspace_id: result.workspaceId,
-        version: result.version,
-      },
-      { groups: { workspace: result.workspaceId } }
-    )
-  },
 })

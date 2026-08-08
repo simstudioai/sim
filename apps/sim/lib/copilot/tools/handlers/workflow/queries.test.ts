@@ -11,11 +11,13 @@ const {
   getEffectiveBlockOutputPathsMock,
   hasTriggerCapabilityMock,
   getBlockMock,
+  executeWorkflowUseCaseMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   getEffectiveBlockOutputPathsMock: vi.fn(),
   hasTriggerCapabilityMock: vi.fn(),
   getBlockMock: vi.fn(),
+  executeWorkflowUseCaseMock: vi.fn(),
 }))
 
 const loadWorkflowFromNormalizedTablesMock =
@@ -26,6 +28,12 @@ vi.mock('../access', () => ({
   ensureWorkflowAccess: ensureWorkflowAccessMock,
   ensureWorkspaceAccess: vi.fn(),
   getDefaultWorkspaceId: vi.fn(),
+}))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: executeWorkflowUseCaseMock,
+  messageForCopilotWorkflowError: (error: unknown) =>
+    error instanceof Error ? error.message : 'Workflow operation failed',
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
@@ -52,6 +60,11 @@ describe('executeGetBlockOutputs', () => {
     ensureWorkflowAccessMock.mockResolvedValue({
       workflow: { id: 'wf-1', userId: 'user-1', workspaceId: 'ws-1' },
     })
+    executeWorkflowUseCaseMock.mockImplementation(async () => ({
+      workflow: { id: 'wf-1', userId: 'user-1', workspaceId: 'ws-1', variables: {} },
+      workspaceId: 'ws-1',
+      state: await loadWorkflowFromNormalizedTablesMock('wf-1'),
+    }))
     getWorkflowByIdMock.mockResolvedValue({ variables: {} })
     getBlockMock.mockReturnValue({ category: 'core' })
     hasTriggerCapabilityMock.mockReturnValue(false)

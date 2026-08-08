@@ -9,10 +9,16 @@ vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
   resolveWorkflowOutputs: { execute: mocks.execute },
 }))
 
-import { executeCopilotResolveWorkflowOutputs } from '@/lib/copilot/application/execute-workflow-use-case'
+import {
+  executeCopilotResolveWorkflowOutputs,
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
 const trustedContext = {
-  userId: 'user-1',
+  userId: 'trusted-user',
   workspaceId: 'workspace-1',
   chatId: 'chat-1',
   executionId: 'execution-1',
@@ -20,7 +26,7 @@ const trustedContext = {
   copilotToolExecution: true,
 } as const
 
-describe('executeCopilotResolveWorkflowOutputs', () => {
+describe('Copilot Workflow application adapter', () => {
   afterEach(() => {
     vi.clearAllMocks()
     vi.useRealTimers()
@@ -46,7 +52,7 @@ describe('executeCopilotResolveWorkflowOutputs', () => {
       principal: {
         kind: 'delegated',
         serviceId: 'copilot',
-        subjectUserId: 'user-1',
+        subjectUserId: 'trusted-user',
         workspaceId: 'workspace-1',
         delegationId: 'copilot-tool:tool-call-1',
         audience: 'sim:workflows',
@@ -58,7 +64,75 @@ describe('executeCopilotResolveWorkflowOutputs', () => {
     })
   })
 
-  it('rejects untrusted context before Workflow application execution', () => {
+  it('derives optional workflow scope only from trusted adapter input', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: true })
+    const useCase = { operation: workflowOperations.update, execute }
+
+    await expect(
+      executeCopilotWorkflowUseCase(
+        trustedContext,
+        useCase,
+        { workflowId: 'workflow-1', userId: 'forged-user' },
+        { workflowId: 'workflow-1' }
+      )
+    ).resolves.toEqual({ ok: true })
+
+    expect(execute).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        subjectUserId: 'trusted-user',
+        workspaceId: 'workspace-1',
+        audience: 'sim:workflows',
+        resourceScope: {
+          workflowId: 'workflow-1',
+          chatId: 'chat-1',
+          executionId: 'execution-1',
+        },
+      }),
+      input: { workflowId: 'workflow-1', userId: 'forged-user' },
+    })
+  })
+
+  it('supports workspace-scoped operations without inventing workflow scope', async () => {
+    const execute = vi.fn().mockResolvedValue({ ok: true })
+    await executeCopilotWorkflowUseCase(
+      trustedContext,
+      { operation: workflowOperations.create, execute },
+      { workspaceId: 'workspace-1', name: 'New workflow' }
+    )
+
+    expect(execute).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+      }),
+      input: { workspaceId: 'workspace-1', name: 'New workflow' },
+    })
+  })
+
+  it('rejects forged contexts and unregistered operations before execution', () => {
+    const execute = vi.fn()
+    expect(() =>
+      executeCopilotWorkflowUseCase(
+        { ...trustedContext, copilotToolExecution: false },
+        { operation: workflowOperations.read, execute },
+        { workflowId: 'workflow-1' }
+      )
+    ).toThrow('trusted Copilot execution context')
+
+    expect(() =>
+      executeCopilotWorkflowUseCase(
+        trustedContext,
+        {
+          operation: { ...workflowOperations.read, id: 'workflows.unregistered' },
+          execute,
+        },
+        { workflowId: 'workflow-1' }
+      )
+    ).toThrow('Unregistered Copilot workflow operation')
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('rejects untrusted context before fixed Workflow application execution', () => {
     expect(() =>
       executeCopilotResolveWorkflowOutputs(
         { ...trustedContext, copilotToolExecution: false },
@@ -66,5 +140,14 @@ describe('executeCopilotResolveWorkflowOutputs', () => {
       )
     ).toThrow('trusted Copilot execution context')
     expect(mocks.execute).not.toHaveBeenCalled()
+  })
+
+  it('presents typed application errors and conceals unknown causes', () => {
+    expect(
+      messageForCopilotWorkflowError(new OrchestrationError('forbidden', 'Access denied'))
+    ).toBe('Access denied')
+    expect(messageForCopilotWorkflowError(new Error('database password'))).toBe(
+      'Workflow operation failed'
+    )
   })
 })

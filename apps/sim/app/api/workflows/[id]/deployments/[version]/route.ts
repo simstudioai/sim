@@ -8,7 +8,6 @@ import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/ser
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { activateWorkflowVersion } from '@/lib/workflows/application/deployments'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
@@ -85,7 +84,13 @@ export const PATCH = withRouteHandler(
       if (isActive) {
         const activateResult = await activateWorkflowVersion.execute({
           principal,
-          input: { workflowId: id, version: versionNum, transition: 'activate', requestId },
+          input: {
+            workflowId: id,
+            version: versionNum,
+            transition: 'activate',
+            requestId,
+            analytics: 'human',
+          },
           request,
         })
 
@@ -123,17 +128,6 @@ export const PATCH = withRouteHandler(
             )
           }
         }
-
-        captureServerEvent(
-          principal.userId,
-          'deployment_version_activated',
-          {
-            workflow_id: activateResult.workflowId,
-            workspace_id: activateResult.workspaceId,
-            version: versionNum,
-          },
-          { groups: { workspace: activateResult.workspaceId } }
-        )
 
         return createSuccessResponse({
           success: true,

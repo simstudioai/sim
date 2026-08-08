@@ -9,6 +9,7 @@ import {
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -28,6 +29,7 @@ export interface UpdateWorkflowInput {
   name?: string
   description?: string | null
   folderPath?: string
+  folderId?: string | null
 }
 
 export const updateWorkflow = defineAuthorizedWorkflowUseCase({
@@ -38,10 +40,21 @@ export const updateWorkflow = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
     }),
   async execute({ principal, input, context }) {
+    if (input.folderPath !== undefined && input.folderId !== undefined) {
+      throw new OrchestrationError('validation', 'Provide either folderPath or folderId, not both')
+    }
     const resolution =
-      input.folderPath === undefined
-        ? undefined
-        : await resolveWorkflowFolderPath(context.workspaceId, input.folderPath)
+      input.folderId !== undefined
+        ? {
+            folderId: input.folderId,
+            index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow'),
+          }
+        : input.folderPath === undefined
+          ? undefined
+          : await resolveWorkflowFolderPath(context.workspaceId, input.folderPath)
+    if (resolution?.folderId && !resolution.index.pathById.has(resolution.folderId)) {
+      throw new OrchestrationError('not_found', 'Folder not found')
+    }
 
     try {
       await assertWorkflowMutable(context.workflowId)
@@ -90,4 +103,5 @@ export const updateWorkflow = defineAuthorizedWorkflowUseCase({
       },
     }
   },
+  afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
 })
