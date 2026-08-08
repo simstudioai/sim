@@ -582,6 +582,47 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('still announces the connection when the watcher released the popup first', async () => {
+    // The watcher drops the window handle as soon as it stops being observable,
+    // which routinely happens before React applies the storage-driven verdict.
+    // The announcement has to survive that, so it cannot be gated on the handle.
+    vi.useFakeTimers()
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+
+    popup.closed = true
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000)
+    })
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    expect(toastSuccess).toHaveBeenCalledWith('Gmail connected successfully.')
+    vi.useRealTimers()
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
+    act(() => root.unmount())
+  })
+
   it('focuses the live popup instead of starting a rival attempt on a repeat click', async () => {
     const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
     const popup = {

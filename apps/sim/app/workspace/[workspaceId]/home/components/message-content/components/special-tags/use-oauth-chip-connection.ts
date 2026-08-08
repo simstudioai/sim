@@ -406,9 +406,6 @@ export function useOAuthChipConnection({
     const launchedAttemptId = launchedAttemptIdRef.current
     if (connectionStatus !== 'connected' || !launchedAttemptId) return
     const attempt = readOAuthChatAttempt(launchedAttemptId)
-    // Tracked separately from `popupRef`, which the watcher clears the moment
-    // the window looks finished — often before React has applied the
-    // storage-driven verdict, which would swallow the announcement.
     launchedAttemptIdRef.current = null
     popupRef.current = null
     // The verdict settles the label, but the lock also waits on the credential

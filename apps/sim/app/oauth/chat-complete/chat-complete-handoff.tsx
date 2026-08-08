@@ -26,24 +26,19 @@ function sanitizeReturnTo(raw: string | null): string | null {
 /**
  * Behavior half of the chat OAuth return leg: publishes the verdict to the
  * attempt record — which the chat tab's chip picks up over its storage
- * listener — then closes the window. Renders nothing, so the page's frame is
- * plain server-rendered markup that paints before this hydrates.
+ * listener — then closes the window. Renders nothing, so the page's frame
+ * paints as server markup before this hydrates.
  *
- * Reaching this page IS the verdict. Better Auth routes a flow here only as
- * its success `callbackURL`, sending failures to `onAPIError.errorURL`
- * (`/oauth-error`) or back here with an `error` code, so the server has
- * already decided by the time this runs. That is a strictly better signal than
- * the credential diffing the generic-page return does: re-authorizing an
- * already-linked account updates the account row instead of creating one, so
- * no new credential appears and a diff would call a perfectly good connect a
- * failure.
+ * Reaching this page IS the verdict: Better Auth routes a flow here only as its
+ * success `callbackURL`, sending failures to `/oauth-error` or back here with
+ * an `error` code. That beats diffing the credential list, which calls a
+ * re-authorized account a failure — that path updates the existing account row
+ * and creates nothing for a diff to find.
  *
- * A window the browser refuses to close redirects on to the chat surface
- * instead. That is the popup-blocked path: the anchor's `target='_blank'`
- * opens this leg in a new tab, which no script may close. That URL
- * deliberately carries no attempt id — the verdict is already published, and
- * the destination's return router would otherwise re-decide it by the very
- * diff this page exists to avoid.
+ * A window the browser refuses to close redirects to the chat instead (the
+ * popup-blocked path opens this leg in a tab, which no script may close). That
+ * URL carries no attempt id on purpose: the verdict is already published, and
+ * the destination would otherwise re-decide it by the very diff above.
  */
 export function ChatCompleteHandoff() {
   const ranRef = useRef(false)
