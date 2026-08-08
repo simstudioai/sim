@@ -309,7 +309,10 @@ interface SchemaEnrichmentConfig {
   /** The param ID that this enrichment depends on (e.g., 'knowledgeBaseId', 'workflowId') */
   dependsOn: string
   /** Function to fetch and build dynamic schema based on the dependency value */
-  enrichSchema: (dependencyValue: string) => Promise<{
+  enrichSchema: (
+    dependencyValue: string,
+    context: WorkflowToolExecutionContext
+  ) => Promise<{
     type: string
     properties?: Record<string, { type: string; description?: string }>
     description?: string
