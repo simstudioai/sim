@@ -157,7 +157,8 @@ async function resolveProvider(model: string, options: EmbedOptions): Promise<Re
 /** `inputs` are already projected and batched by the embedding orchestrator. */
 async function callEmbeddingAPI(
   inputs: string[],
-  provider: ResolvedProvider,
+  adapter: EmbeddingProviderAdapter,
+  tokenizerProvider: string,
   taskType: EmbeddingTaskType,
   /**
    * The caller's explicit reduction, or undefined when none was requested. Kept
@@ -169,7 +170,7 @@ async function callEmbeddingAPI(
 ): Promise<{ embeddings: number[][]; totalTokens: number }> {
   return retryWithExponentialBackoff(
     async () => {
-      const request = provider.adapter.buildRequest({
+      const request = adapter.buildRequest({
         inputs,
         taskType,
         dimensions: requestedDimensions,
@@ -202,10 +203,7 @@ async function callEmbeddingAPI(
        */
       const totalTokens =
         request.parseTokens?.(json) ??
-        inputs.reduce(
-          (sum, text) => sum + estimateTokenCount(text, provider.info.tokenizerProvider).count,
-          0
-        )
+        inputs.reduce((sum, text) => sum + estimateTokenCount(text, tokenizerProvider).count, 0)
 
       return { embeddings, totalTokens }
     },
@@ -218,10 +216,26 @@ async function callEmbeddingAPI(
   )
 }
 
+interface EmbeddingInputLimits {
+  maxInputTokens: number
+  maxTokensPerRequest?: number
+  tokenizerProvider: string
+  approximateTokenCount: boolean
+}
+
+function getEmbeddingInputLimits(info: EmbeddingModelInfo): EmbeddingInputLimits {
+  return {
+    maxInputTokens: info.maxInputTokens,
+    maxTokensPerRequest: info.maxTokensPerRequest,
+    tokenizerProvider: info.tokenizerProvider,
+    approximateTokenCount: hasApproximateTokenCount(info),
+  }
+}
+
 function prepareEmbeddingInputs(
   texts: string[],
   model: string,
-  info: EmbeddingModelInfo,
+  limits: EmbeddingInputLimits,
   projectInputs: EmbedOptions['projectInputs']
 ): string[] {
   /**
@@ -248,14 +262,14 @@ function prepareEmbeddingInputs(
    * embedding input is otherwise indistinguishable from a good one, both to the
    * caller and in the vector it produces.
    */
-  const ceiling = info.maxInputTokens
+  const ceiling = limits.maxInputTokens
   const boundedInputs = modelInputs.map((text) => {
-    if (estimateTokenCount(text, info.tokenizerProvider).count <= ceiling) return text
+    if (estimateTokenCount(text, limits.tokenizerProvider).count <= ceiling) return text
     logger.warn('Embedding input exceeds the model token limit and will be truncated', {
       model,
       maxInputTokens: ceiling,
       chars: text.length,
-      approximateTokenCount: hasApproximateTokenCount(info),
+      approximateTokenCount: limits.approximateTokenCount,
     })
     return truncateToTokenLimit(text, ceiling, model)
   })
@@ -273,7 +287,7 @@ async function embedWithProvider(
   const batches = createEmbeddingBatches(
     boundedInputs,
     model,
-    provider.info,
+    getEmbeddingInputLimits(provider.info),
     provider.adapter.maxItemsPerRequest
   )
 
@@ -282,7 +296,13 @@ async function embedWithProvider(
     MAX_CONCURRENT_BATCHES,
     async (batch, i) => {
       try {
-        return await callEmbeddingAPI(batch, provider, taskType, requestedDimensions)
+        return await callEmbeddingAPI(
+          batch,
+          provider.adapter,
+          provider.info.tokenizerProvider,
+          taskType,
+          requestedDimensions
+        )
       } catch (error) {
         logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
         throw error
@@ -306,10 +326,10 @@ async function embedWithProvider(
 function createEmbeddingBatches(
   boundedInputs: string[],
   model: string,
-  info: EmbeddingModelInfo,
+  limits: Pick<EmbeddingInputLimits, 'maxInputTokens' | 'maxTokensPerRequest'>,
   itemLimit: number | undefined
 ): string[][] {
-  const ceiling = info.maxInputTokens
+  const ceiling = limits.maxInputTokens
 
   /**
    * How many tokens may share one request — a different limit from the per-input
@@ -326,7 +346,7 @@ function createEmbeddingBatches(
    *    Cohere takes 128k tokens in one text, far above the target.
    */
   const requestBudget = Math.max(
-    Math.min(info.maxTokensPerRequest ?? BATCH_TOKEN_TARGET, BATCH_TOKEN_TARGET),
+    Math.min(limits.maxTokensPerRequest ?? BATCH_TOKEN_TARGET, BATCH_TOKEN_TARGET),
     ceiling
   )
 
@@ -356,7 +376,12 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const model = options.model ?? DEFAULT_EMBEDDING_MODEL
   const taskType = options.taskType ?? 'document'
   const provider = await resolveProvider(model, options)
-  const boundedInputs = prepareEmbeddingInputs(texts, model, provider.info, options.projectInputs)
+  const boundedInputs = prepareEmbeddingInputs(
+    texts,
+    model,
+    getEmbeddingInputLimits(provider.info),
+    options.projectInputs
+  )
   return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
 }
 
@@ -367,57 +392,31 @@ export async function embedOpenRouter(
 ): Promise<EmbedResult> {
   if (texts.length === 0) throw new Error('At least one embedding input is required')
   if (!options.apiKey) throw new Error('OpenRouter API key is required')
+  if (!Number.isInteger(options.maxInputTokens) || options.maxInputTokens <= 0) {
+    throw new Error('OpenRouter max input tokens must be a positive integer')
+  }
 
   const model = options.model ?? DEFAULT_OPENROUTER_EMBEDDING_MODEL
-  const inputs = options.projectInputs ? options.projectInputs(texts) : texts
+  const limits: EmbeddingInputLimits = {
+    maxInputTokens: options.maxInputTokens,
+    tokenizerProvider: 'openrouter',
+    approximateTokenCount: true,
+  }
+  const boundedInputs = prepareEmbeddingInputs(texts, model, limits, options.projectInputs)
   const adapter = getAdapterFactory('openrouter')({
     modelName: model,
     apiKey: options.apiKey,
     nativeDimensions: options.dimensions ?? 0,
   })
-  const result = await retryWithExponentialBackoff(
-    async () => {
-      const providerRequest = adapter.buildRequest({
-        inputs,
-        taskType: 'document',
-        dimensions: options.dimensions,
-      })
-      const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
-      const response = await fetch(providerRequest.apiUrl, {
-        method: 'POST',
-        headers: providerRequest.headers,
-        body: JSON.stringify(providerRequest.body),
-        signal: controller.signal,
-      }).finally(() => clearTimeout(timeout))
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        throw new EmbeddingAPIError(
-          `Embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
-          response.status
-        )
-      }
-
-      const json = await response.json()
-      return {
-        embeddings: providerRequest.parse(json),
-        totalTokens:
-          providerRequest.parseTokens?.(json) ??
-          inputs.reduce((sum, text) => sum + estimateTokenCount(text, 'openai').count, 0),
-      }
-    },
-    {
-      maxRetries: 3,
-      initialDelayMs: 1000,
-      maxDelayMs: 10000,
-      retryCondition: isTransientEmbeddingError,
-    }
+  const batches = createEmbeddingBatches(boundedInputs, model, limits, adapter.maxItemsPerRequest)
+  const batchResults = await mapWithConcurrency(batches, MAX_CONCURRENT_BATCHES, async (batch) =>
+    callEmbeddingAPI(batch, adapter, limits.tokenizerProvider, 'document', options.dimensions)
   )
+  const result = combineEmbeddingBatches(batchResults)
 
-  if (result.embeddings.length !== inputs.length) {
+  if (result.embeddings.length !== boundedInputs.length) {
     throw new Error(
-      `OpenRouter returned ${result.embeddings.length} embeddings for ${inputs.length} inputs`
+      `OpenRouter returned ${result.embeddings.length} embeddings for ${boundedInputs.length} inputs`
     )
   }
   const dimensions = result.embeddings[0]?.length
@@ -463,7 +462,12 @@ export async function embedKnowledgeForDeployment(
 
   const dimensions = resolveDimensions(info, options.dimensions)
   const taskType = options.taskType ?? 'document'
-  const boundedInputs = prepareEmbeddingInputs(texts, model, info, options.projectInputs)
+  const boundedInputs = prepareEmbeddingInputs(
+    texts,
+    model,
+    getEmbeddingInputLimits(info),
+    options.projectInputs
+  )
   const workspaceKey = options.workspaceId ? await getBYOKKey(options.workspaceId, 'openai') : null
   const capabilityValues = workspaceKey ? { ...env, OPENAI_API_KEY: workspaceKey.apiKey } : env
 
@@ -543,7 +547,13 @@ export async function embedKnowledgeForDeployment(
     async (batch, i) => {
       try {
         return await fallback.execute(async (provider) => ({
-          ...(await callEmbeddingAPI(batch, provider, taskType, options.dimensions)),
+          ...(await callEmbeddingAPI(
+            batch,
+            provider.adapter,
+            provider.info.tokenizerProvider,
+            taskType,
+            options.dimensions
+          )),
           provider,
         }))
       } catch (error) {

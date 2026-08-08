@@ -17,6 +17,11 @@ import {
   findEmbeddingModelInfo,
   resolveDimensions,
 } from '@/lib/embeddings'
+import {
+  getOpenRouterEmbeddingModelMetadata,
+  type OpenRouterEmbeddingModelMetadata,
+  OpenRouterEmbeddingModelNotFoundError,
+} from '@/lib/embeddings/openrouter-model-catalog.server'
 import { normalizeOpenRouterEmbeddingModelId } from '@/lib/embeddings/openrouter-models'
 
 const logger = createLogger('EmbeddingsToolAPI')
@@ -112,6 +117,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   }
 
   let resolvedModel: string
+  let openRouterModelMetadata: OpenRouterEmbeddingModelMetadata | undefined
   if (provider === 'openrouter') {
     try {
       resolvedModel = normalizeOpenRouterEmbeddingModelId(
@@ -121,6 +127,23 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json(
         { success: false, error: getErrorMessage(error, 'Invalid OpenRouter embedding model') },
         { status: 400 }
+      )
+    }
+    try {
+      openRouterModelMetadata = await getOpenRouterEmbeddingModelMetadata(resolvedModel)
+    } catch (error) {
+      const modelError = error instanceof OpenRouterEmbeddingModelNotFoundError
+      return NextResponse.json(
+        {
+          success: false,
+          error: getErrorMessage(
+            error,
+            modelError
+              ? 'Unsupported OpenRouter embedding model'
+              : 'Failed to load OpenRouter embedding model metadata'
+          ),
+        },
+        { status: modelError ? 400 : 502 }
       )
     }
   } else {
@@ -163,26 +186,32 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   logger.info(`Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
 
   try {
-    const result =
-      provider === 'openrouter'
-        ? await embedOpenRouter(texts, {
-            model: resolvedModel,
-            dimensions,
-            apiKey,
-            projectInputs: null,
-          })
-        : await embed(texts, {
-            model: resolvedModel,
-            taskType,
-            dimensions,
-            apiKey,
-            /**
-             * Callers reach this route through a tool whose `request.modelInput`
-             * already projected `input` at the HTTP hop, so projecting again here
-             * would run the substitution over already-projected content.
-             */
-            projectInputs: null,
-          })
+    let result
+    if (provider === 'openrouter') {
+      if (!openRouterModelMetadata) {
+        throw new Error('OpenRouter embedding model metadata was not resolved')
+      }
+      result = await embedOpenRouter(texts, {
+        model: resolvedModel,
+        dimensions,
+        apiKey,
+        maxInputTokens: openRouterModelMetadata.maxInputTokens,
+        projectInputs: null,
+      })
+    } else {
+      result = await embed(texts, {
+        model: resolvedModel,
+        taskType,
+        dimensions,
+        apiKey,
+        /**
+         * Callers reach this route through a tool whose `request.modelInput`
+         * already projected `input` at the HTTP hop, so projecting again here
+         * would run the substitution over already-projected content.
+         */
+        projectInputs: null,
+      })
+    }
 
     return NextResponse.json({
       success: true,

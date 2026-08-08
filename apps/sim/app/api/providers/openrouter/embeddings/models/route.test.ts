@@ -38,9 +38,9 @@ describe('GET /api/providers/openrouter/embeddings/models', () => {
       statusText: 'OK',
       json: async () => ({
         data: [
-          { id: 'qwen/qwen3-embedding-8b' },
-          { id: 'openai/text-embedding-3-small' },
-          { id: 'qwen/qwen3-embedding-8b' },
+          { id: 'qwen/qwen3-embedding-8b', context_length: 32768 },
+          { id: 'openai/text-embedding-3-small', context_length: 8192 },
+          { id: 'qwen/qwen3-embedding-8b', context_length: 32768 },
         ],
       }),
     })

@@ -64,6 +64,10 @@ export const openRouterEmbeddingModelsUpstreamResponseSchema = z.object({
     z
       .object({
         id: z.string().min(1, 'OpenRouter embedding model id cannot be empty'),
+        context_length: z
+          .number()
+          .int('OpenRouter embedding context length must be an integer')
+          .positive('OpenRouter embedding context length must be positive'),
       })
       .passthrough()
   ),

@@ -451,6 +451,7 @@ describe('embedOpenRouter', () => {
     const result = await embedOpenRouter(['alpha', 'beta'], {
       model: 'openrouter/qwen/qwen3-embedding-8b',
       apiKey: 'or-test',
+      maxInputTokens: 32768,
       projectInputs: null,
     })
 
@@ -480,6 +481,7 @@ describe('embedOpenRouter', () => {
       embedOpenRouter(['alpha', 'beta'], {
         model: 'openrouter/qwen/qwen3-embedding-8b',
         apiKey: 'or-test',
+        maxInputTokens: 32768,
         projectInputs: null,
       })
     ).rejects.toThrow('returned 1 embeddings for 2 inputs')
@@ -492,9 +494,57 @@ describe('embedOpenRouter', () => {
       embedOpenRouter(['alpha', 'beta'], {
         model: 'openrouter/qwen/qwen3-embedding-8b',
         apiKey: 'or-test',
+        maxInputTokens: 32768,
         projectInputs: null,
       })
     ).rejects.toThrow('inconsistent dimensions')
+  })
+
+  it('truncates inputs to the selected model context length', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embedOpenRouter(['alpha beta gamma'], {
+      model: 'openrouter/thenlper/gte-base',
+      apiKey: 'or-test',
+      maxInputTokens: 1,
+      projectInputs: null,
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.input).toHaveLength(1)
+    expect(body.input[0]).not.toBe('alpha beta gamma')
+  })
+
+  it('splits dynamic models at the provider item limit and recombines in order', async () => {
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const inputs = body.input as string[]
+      return jsonResponse(
+        openAIBody(
+          inputs.map((input) => [Number(input.slice(1))]),
+          inputs.length
+        )
+      )
+    })
+    const inputs = Array.from({ length: 2049 }, (_, index) => `i${index}`)
+
+    const result = await embedOpenRouter(inputs, {
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-test',
+      maxInputTokens: 32768,
+      projectInputs: null,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      fetchMock.mock.calls
+        .map(([, init]) => JSON.parse((init as RequestInit).body as string).input.length)
+        .sort((a, b) => a - b)
+    ).toEqual([1, 2048])
+    expect(result.embeddings).toHaveLength(2049)
+    expect(result.embeddings[0]).toEqual([0])
+    expect(result.embeddings[2048]).toEqual([2048])
   })
 })
 

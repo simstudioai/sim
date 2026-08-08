@@ -123,6 +123,8 @@ export interface EmbedResult {
 export interface OpenRouterEmbedOptions {
   apiKey: string
   model?: string
+  /** Per-input ceiling reported by OpenRouter's embedding model catalog. */
+  maxInputTokens: number
   /** Forwarded when a caller explicitly requests a provider-supported reduction. */
   dimensions?: number
   projectInputs: ((values: readonly string[]) => string[]) | null
