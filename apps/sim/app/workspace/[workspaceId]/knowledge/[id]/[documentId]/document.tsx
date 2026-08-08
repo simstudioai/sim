@@ -9,7 +9,11 @@ import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useContextMenu } from '@/components/anchored-context-menu'
 import { getDocumentIcon } from '@/components/icons/document-icons'
-import { SearchHighlight } from '@/components/resources/knowledge-view'
+import {
+  ActionBar,
+  DocumentTagsModal,
+  SearchHighlight,
+} from '@/components/resources/knowledge-view'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
 import type {
@@ -28,14 +32,12 @@ import {
   ChunkContextMenu,
   ChunkEditor,
   DeleteChunkModal,
-  DocumentTagsModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   documentChunkSortParams,
   documentParsers,
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
-import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
@@ -50,6 +52,7 @@ import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useUrlSort } from '@/hooks/use-url-sort'
+import { grantsFromPermissions } from '@/resources'
 
 const logger = createLogger('Document')
 
@@ -142,6 +145,7 @@ export function Document({
     setDocumentParams,
   ] = useQueryStates(documentParsers, documentUrlKeys)
   const userPermissions = useUserPermissionsContext()
+  const grants = useMemo(() => grantsFromPermissions(userPermissions), [userPermissions])
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
   const { document: documentData, error: documentError } = useDocument(knowledgeBaseId, documentId)
@@ -1224,6 +1228,7 @@ export function Document({
       />
 
       <ActionBar
+        grants={grants}
         className={paginationConfig ? 'bottom-[72px]' : undefined}
         selectedCount={selectedChunks.size}
         onEnable={disabledCount > 0 && !isConnectorDocument ? handleBulkEnable : undefined}

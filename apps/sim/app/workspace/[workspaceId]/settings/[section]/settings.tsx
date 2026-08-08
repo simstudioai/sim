@@ -3,9 +3,9 @@
 import { useEffect } from 'react'
 import dynamic from 'next/dynamic'
 import { usePostHog } from 'posthog-js/react'
+import { useWorkspaceHostContext } from '@/components/workspace-host-provider'
 import { useSession } from '@/lib/auth/auth-client'
 import { captureEvent } from '@/lib/posthog/client'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { General } from '@/app/workspace/[workspaceId]/settings/components/general/general'
 import { SettingsSectionProvider } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {

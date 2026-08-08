@@ -14,7 +14,6 @@ import {
 } from '@sim/emcn'
 import { RefreshCw, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams } from 'next/navigation'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
 import { useKnowledgeUpload } from '@/hooks/kb/use-knowledge-upload'
@@ -25,6 +24,14 @@ interface AddDocumentsModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   knowledgeBaseId: string
+  /**
+   * The workspace the uploads are billed and scoped to.
+   *
+   * Passed in rather than read from `useParams()`: this modal now lives inside
+   * the knowledge unit, which the chat panel mounts on `/home` — where there is
+   * no `workspaceId` route segment and the param read returned `undefined`.
+   */
+  workspaceId: string
   chunkingConfig?: {
     maxSize: number
     minSize: number
@@ -36,10 +43,9 @@ export function AddDocumentsModal({
   open,
   onOpenChange,
   knowledgeBaseId,
+  workspaceId,
   chunkingConfig,
 }: AddDocumentsModalProps) {
-  const params = useParams()
-  const workspaceId = params.workspaceId as string
   const [files, setFiles] = useState<File[]>([])
   const [fileError, setFileError] = useState<string | null>(null)
   const [retryingIndexes, setRetryingIndexes] = useState<Set<number>>(() => new Set())

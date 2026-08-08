@@ -1,9 +1,9 @@
 'use client'
 
 import { createContext, type ReactNode, useContext } from 'react'
+import { WorkspaceAccessDenied } from '@/components/workspace-host-provider/workspace-access-denied'
 import { isApiClientError } from '@/lib/api/client/errors'
 import type { WorkspaceHostContext } from '@/lib/api/contracts/workspaces'
-import { WorkspaceAccessDenied } from '@/app/workspace/[workspaceId]/components/workspace-access-denied'
 import { useWorkspaceHostContextQuery } from '@/hooks/queries/workspace-host'
 
 const WorkspaceHostContextValue = createContext<WorkspaceHostContext | null>(null)

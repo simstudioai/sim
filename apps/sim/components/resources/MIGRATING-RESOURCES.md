@@ -14,7 +14,7 @@ This is the migration plan.
 | --- | --- | --- | --- |
 | **file** | `components/resources/file-view` | Files page, mothership panel, `/f/[token]` | Done. The reference implementation, and the only kind with a public surface. |
 | **table** | `components/resources/table-view` | tables page + mothership panel | Done. The view reads and writes; the route keeps `page`/`loading`/`error` and a ~50-line client shell. |
-| **knowledge** | `components/resources/knowledge-view` | knowledge page, mothership panel | Read surface done; the editing shell still lives in the route tree. |
+| **knowledge** | `components/resources/knowledge-view` | knowledge page, mothership panel | Done. The view owns the document list, the header and every mutation; the route keeps `page`/`loading`/`error` and a client shell. |
 | **log** | `components/resources/log-view` | logs page, mothership panel, tables page | Done. The tables page mounts it directly for the execution slideout. |
 | **workflow** | *deliberately excluded* | — | Not a document. See "Why workflow is not a resource". |
 | **folder** | *not a resource* | — | Organisational structure inside files/knowledge, not a thing you render. |
@@ -180,16 +180,33 @@ a chat panel fetch 1000 rows to show ten, or make every bulk operation ten times
   editing-shell, or mutation hooks end up shipped to anonymous surfaces.
 - **`[...arr].sort()`**, never `toSorted` — SWC does not polyfill it and it throws on iOS 15.
 
-## Knowledge and log
+## All four kinds are migrated
 
-Lower value, and none has a public consumer today.
+Every kind that has a canonical view has both of its consumers mounting it, and no
+consumer imports a resource surface out of `@/app/workspace/[workspaceId]/**`.
+What each migration actually cost, for the next one:
 
-- **log** — `LogDetailsContent` is *already* mounted by three surfaces. It just leaks context
-  (`useQueryState('tab')`, `useRouter`, `usePermissionConfig`). Fixing those three is most of the
-  migration; it is the cheapest win after tables.
-- **knowledge** — `KnowledgeBaseProps` is `{ id, knowledgeBaseName?, workspaceId? }`, so it
-  structurally cannot leave the workspace. It also writes unnamespaced nuqs keys
-  (`?addConnector/?page/?q/?enabled`) that pollute the host URL when embedded — `host` fixes that.
+- **log** — cheapest. `LogDetailsContent` was already mounted by three surfaces; the
+  work was severing `useQueryState('tab')`, `useRouter` and `usePermissionConfig`.
+- **table** — largest. 1719 lines, 45 permission reads, five context leaks.
+- **knowledge** — the shell was the whole surface, so the *shell* became the view and
+  the previous read-only `KnowledgeView` became its `DocumentList` child. That is the
+  general shape: when a route shell owns the mutations, it is the view, and whatever
+  was extracted first is a child of it — not the other way round.
+
+Three things were not obvious in advance and cost the most time:
+
+1. **Sever context in place, then move.** Converting `useRouter`/`useParams`/the
+   permission context to props *before* any `git mv` keeps every semantic edit in a
+   diff against unmoved files. The move commit is then verifiably import-only.
+2. **nuqs cannot follow the surface in.** R6 has no annotation escape hatch, so a
+   host-aware URL hook must live outside the unit — `@/hooks/kb/use-knowledge-list-state`
+   and `@/hooks/use-table-detail-state`. Both return the exact shape `useQueryStates`
+   does, so no call site changed.
+3. **A dependency that blocks the move usually wants to move itself.** The knowledge
+   connector modals looked unmovable because they pull `ConnectOAuthModal` and
+   `useWorkspaceHostContext`. Neither is route-specific; relocating both to
+   `components/` was mechanical and deleted the blocker instead of working around it.
 
 ## Why workflow is not a resource
 

@@ -41,13 +41,20 @@ Every unit has the same layout, so moving between them costs nothing:
 
 ```
 <unit>/
-├── <unit>.tsx                  # THE view — the only component the barrel mounts
+├── <unit>.tsx                  # THE view — what consumers mount
 ├── index.ts                    # the barrel; the only entry point consumers use
 ├── components/<child>/         # <child>.tsx + index.ts, one folder per child
 ├── hooks/<name>.ts             # optional; tests colocated
 ├── utils/<name>.ts             # pure helpers; tests colocated
 └── types.ts                    # optional; shared types the whole unit reads
 ```
+
+A barrel may also export a **child** — but only one a surface outside the unit
+genuinely renders against the same data, where forking it would be the drift the
+unit exists to prevent (`knowledge-view` exports `ActionBar`, `BaseTagsModal` and
+`DocumentTagsModal` for the knowledge list page and the document detail route).
+Exporting a child to save an import hop is not that; the child stays private and
+the consumer mounts the view.
 
 Imports **inside** a unit are absolute (`@/components/resources/<unit>/...`) like
 everywhere else in the app. The one exception is a folder's own `index.ts`

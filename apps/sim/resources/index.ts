@@ -32,6 +32,7 @@ export type {
 export { isResourceKind, RESOURCE_KINDS } from '@/resources/kinds'
 export {
   knowledgeDocumentHref,
+  knowledgeResourceId,
   knowledgeWorkspaceId,
 } from '@/resources/knowledge-source'
 export {

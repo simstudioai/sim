@@ -17,18 +17,15 @@ import {
 } from '@sim/emcn'
 import { RefreshCw, SquareArrowUpRight } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { ConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-config-fields'
-import { hasWorkspaceMaxConnectorAccess } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/connector-entitlements'
-import { SYNC_INTERVALS } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/consts'
-import { MaxBadge } from '@/app/workspace/[workspaceId]/knowledge/[id]/components/max-badge'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useConnectorConfigFields } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
+import { ConnectorConfigFields } from '@/components/resources/knowledge-view/components/connector-config-fields'
+import { hasWorkspaceMaxConnectorAccess } from '@/components/resources/knowledge-view/components/connector-entitlements'
+import { SYNC_INTERVALS } from '@/components/resources/knowledge-view/components/consts'
+import { MaxBadge } from '@/components/resources/knowledge-view/components/max-badge'
+import { useWorkspaceHostContext } from '@/components/workspace-host-provider'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import type { ConnectorConfigField, ConnectorMeta } from '@/connectors/types'
+import type { ConfigFieldMap, ConfigFieldValue } from '@/hooks/kb/use-connector-config-fields'
+import { useConnectorConfigFields } from '@/hooks/kb/use-connector-config-fields'
 import type { ConnectorData } from '@/hooks/queries/kb/connectors'
 import {
   useConnectorDocuments,

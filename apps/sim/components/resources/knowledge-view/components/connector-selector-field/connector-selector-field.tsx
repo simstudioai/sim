@@ -4,12 +4,9 @@ import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
-import type {
-  ConfigFieldMap,
-  ConfigFieldValue,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-connector-config-fields'
 import { getDependsOnFields } from '@/blocks/utils'
 import type { ConnectorConfigField } from '@/connectors/types'
+import type { ConfigFieldMap, ConfigFieldValue } from '@/hooks/kb/use-connector-config-fields'
 import { getSelectorDefinition } from '@/hooks/selectors/registry'
 import type { SelectorContext, SelectorKey } from '@/hooks/selectors/types'
 import {

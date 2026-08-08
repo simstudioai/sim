@@ -8,6 +8,7 @@ import { stripVersionSuffix } from '@sim/utils/string'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { ActionRow } from '@/components/action-row'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { GmailIcon, SlackIcon } from '@/components/icons'
 import {
   INTEGRATIONS,
@@ -16,7 +17,6 @@ import {
   resolveOAuthServiceForSlug,
 } from '@/lib/integrations'
 import { captureEvent } from '@/lib/posthog/client'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getAllBlockMeta } from '@/blocks/registry'
 import type { ModuleTag } from '@/blocks/types'

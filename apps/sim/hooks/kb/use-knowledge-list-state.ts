@@ -4,7 +4,6 @@ import { useCallback, useMemo, useState } from 'react'
 import { useQueryState, useQueryStates } from 'nuqs'
 import type { SortConfig } from '@/components/resource'
 import type { KnowledgeEnabledFilter, TagFilterEntry } from '@/components/resources/knowledge-view'
-import { SEARCH_DEBOUNCE_MS, type SortDirection } from '@/lib/url-state'
 import {
   addConnectorParam,
   documentFiltersParsers,
@@ -13,7 +12,8 @@ import {
   kbDocumentSortParams,
   pageParam,
   pageUrlKeys,
-} from '@/app/workspace/[workspaceId]/knowledge/[id]/search-params'
+} from '@/lib/knowledge/detail-search-params'
+import { SEARCH_DEBOUNCE_MS, type SortDirection } from '@/lib/url-state'
 import type { DocumentTagFilter } from '@/hooks/queries/kb/knowledge'
 import { useDebounce } from '@/hooks/use-debounce'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'

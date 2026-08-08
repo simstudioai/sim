@@ -25,9 +25,11 @@ import {
 import { createLogger } from '@sim/logger'
 import { useRouter } from 'next/navigation'
 import { FileView, type PreviewMode, resolveFileCategory } from '@/components/resources/file-view'
+import { KnowledgeView } from '@/components/resources/knowledge-view'
 import { LogView } from '@/components/resources/log-view'
 import { ResourceEmptyState } from '@/components/resources/resource-empty-state'
 import { TableView } from '@/components/resources/table-view'
+import { useWorkspaceHostContext } from '@/components/workspace-host-provider'
 import { isApiClientError } from '@/lib/api/client/errors'
 import { useSession } from '@/lib/auth/auth-client'
 import { getWorkspaceUsageLimitAction } from '@/lib/billing/workspace-permissions'
@@ -54,8 +56,6 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/knowledge-base'
-import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import {
   useUserPermissionsContext,
   useWorkspacePermissionsContext,
@@ -381,9 +381,8 @@ export const ResourceContent = memo(function ResourceContent({
 
     case 'knowledgebase':
       return (
-        <KnowledgeBase
+        <KnowledgeView
           key={resource.id}
-          id={resource.id}
           knowledgeBaseName={resource.title}
           source={knowledgeSource}
           grants={grants}

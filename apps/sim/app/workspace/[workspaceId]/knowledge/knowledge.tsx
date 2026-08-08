@@ -9,6 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { useContextMenu } from '@/components/anchored-context-menu'
+import { BaseTagsModal } from '@/components/resources/knowledge-view'
 import type { KnowledgeBaseData } from '@/lib/knowledge/types'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import type {
@@ -47,7 +48,6 @@ import {
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
-import { BaseTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import {
   CreateBaseModal,
   DeleteKnowledgeBaseModal,

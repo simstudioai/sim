@@ -1,9 +1,15 @@
 import { Button, cn, Tooltip, Trash } from '@sim/emcn'
 import { Ban, Circle } from '@sim/emcn/icons'
 import { domAnimation, LazyMotion, m } from 'framer-motion'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { ResourceGrants } from '@/resources'
 
 interface ActionBarProps {
+  /**
+   * What this viewer may do. A prop rather than a context read: this bar renders
+   * inside the knowledge view, which the chat panel also mounts, and a unit may
+   * not reach for the workspace permission context.
+   */
+  grants: ResourceGrants
   selectedCount: number
   onEnable?: () => void
   onDisable?: () => void
@@ -20,6 +26,7 @@ interface ActionBarProps {
 }
 
 export function ActionBar({
+  grants,
   selectedCount,
   onEnable,
   onDisable,
@@ -34,11 +41,9 @@ export function ActionBar({
   onSelectAll,
   onClearSelectAll,
 }: ActionBarProps) {
-  const userPermissions = useUserPermissionsContext()
-
   if (selectedCount === 0 && !isAllSelected) return null
 
-  const canEdit = userPermissions.canEdit
+  const canEdit = grants.write
   const showEnableButton = disabledCount > 0 && onEnable && canEdit
   const showDisableButton = enabledCount > 0 && onDisable && canEdit
   const showSelectAllOption =

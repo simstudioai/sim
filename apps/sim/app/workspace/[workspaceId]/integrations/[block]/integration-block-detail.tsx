@@ -5,6 +5,7 @@ import { Chip, ChipDropdown, ChipLink, cn } from '@sim/emcn'
 import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { HEADER_ACTION_CLUSTER, PAGE_HEADER_BAR } from '@/components/page-header-bar'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import {
@@ -14,7 +15,6 @@ import {
   resolveOAuthServiceForIntegration,
 } from '@/lib/integrations'
 import { credentialProviderMatchesService } from '@/lib/oauth'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { RESOURCE_TILE_BASE } from '@/app/workspace/[workspaceId]/components/resource-tile'
 import { IntegrationSkillsSection } from '@/app/workspace/[workspaceId]/integrations/[block]/integration-skills-section'
 import { connectParam } from '@/app/workspace/[workspaceId]/integrations/[block]/search-params'

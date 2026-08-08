@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
-import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/knowledge-base'
+import { KnowledgeView } from '@/components/resources/knowledge-view'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { grantsFromPermissions, workspaceSource } from '@/resources'
 
@@ -38,8 +38,7 @@ export function KnowledgeRoute({ id, knowledgeBaseName }: KnowledgeRouteProps) {
   const navigate = useCallback((path: string) => router.push(path), [router])
 
   return (
-    <KnowledgeBase
-      id={id}
+    <KnowledgeView
       knowledgeBaseName={knowledgeBaseName}
       source={source}
       grants={grants}
