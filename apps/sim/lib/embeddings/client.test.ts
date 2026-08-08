@@ -549,6 +549,33 @@ describe('knowledge embedding transport fallback', () => {
     expect(result.embeddings).toEqual([[7, 8]])
   })
 
+  it('falls back only the failed batch and retains successful provider work', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    const firstInput = `first ${'word '.repeat(5000)}`
+    const secondInput = `second ${'word '.repeat(5000)}`
+    fetchMock.mockImplementation(async (url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const input = body.input[0] as string
+      if (url === 'https://api.openai.com/v1/embeddings' && input.startsWith('second')) {
+        return jsonResponse({ error: 'unavailable' }, 503)
+      }
+      return jsonResponse(openAIBody([[input.startsWith('first') ? 1 : 2]], 3))
+    })
+
+    const pending = embedKnowledgeForDeployment([firstInput, secondInput], options, false)
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    const openRouterInputs = fetchMock.mock.calls
+      .filter(([url]) => url === 'https://openrouter.ai/api/v1/embeddings')
+      .flatMap(([, init]) => JSON.parse((init as RequestInit).body as string).input as string[])
+    expect(openRouterInputs).toEqual([secondInput])
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(result.embeddings).toEqual([[1], [2]])
+    expect(result.totalTokens).toBe(6)
+  })
+
   it('classifies only transient embedding failures for failover', () => {
     expect(isTransientEmbeddingError(new EmbeddingAPIError('unavailable', 503))).toBe(true)
     expect(isTransientEmbeddingError(new EmbeddingAPIError('rate limited', 429))).toBe(true)

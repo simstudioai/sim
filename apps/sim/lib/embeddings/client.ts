@@ -248,7 +248,45 @@ async function embedWithProvider(
   requestedDimensions: number | undefined,
   provider: ResolvedProvider
 ): Promise<EmbedResult> {
-  const ceiling = provider.info.maxInputTokens
+  const batches = createEmbeddingBatches(
+    boundedInputs,
+    model,
+    provider.info,
+    provider.adapter.maxItemsPerRequest
+  )
+
+  const batchResults = await mapWithConcurrency(
+    batches,
+    MAX_CONCURRENT_BATCHES,
+    async (batch, i) => {
+      try {
+        return await callEmbeddingAPI(batch, provider, taskType, requestedDimensions)
+      } catch (error) {
+        logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
+        throw error
+      }
+    }
+  )
+
+  const { embeddings, totalTokens } = combineEmbeddingBatches(batchResults)
+
+  return {
+    embeddings,
+    totalTokens,
+    isBYOK: provider.isBYOK,
+    modelName: provider.modelName,
+    pricingId: provider.info.pricingId,
+    dimensions: provider.dimensions,
+  }
+}
+
+function createEmbeddingBatches(
+  boundedInputs: string[],
+  model: string,
+  info: EmbeddingModelInfo,
+  itemLimit: number | undefined
+): string[][] {
+  const ceiling = info.maxInputTokens
 
   /**
    * How many tokens may share one request — a different limit from the per-input
@@ -265,29 +303,17 @@ async function embedWithProvider(
    *    Cohere takes 128k tokens in one text, far above the target.
    */
   const requestBudget = Math.max(
-    Math.min(provider.info.maxTokensPerRequest ?? BATCH_TOKEN_TARGET, BATCH_TOKEN_TARGET),
+    Math.min(info.maxTokensPerRequest ?? BATCH_TOKEN_TARGET, BATCH_TOKEN_TARGET),
     ceiling
   )
 
   const tokenBatches = batchByTokenLimit(boundedInputs, requestBudget, model)
-  const itemLimit = provider.adapter.maxItemsPerRequest
-  const batches = itemLimit
-    ? tokenBatches.flatMap((batch) => chunkArray(batch, itemLimit))
-    : tokenBatches
+  return itemLimit ? tokenBatches.flatMap((batch) => chunkArray(batch, itemLimit)) : tokenBatches
+}
 
-  const batchResults = await mapWithConcurrency(
-    batches,
-    MAX_CONCURRENT_BATCHES,
-    async (batch, i) => {
-      try {
-        return await callEmbeddingAPI(batch, provider, taskType, requestedDimensions)
-      } catch (error) {
-        logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
-        throw error
-      }
-    }
-  )
-
+function combineEmbeddingBatches(
+  batchResults: readonly { embeddings: number[][]; totalTokens: number }[]
+): { embeddings: number[][]; totalTokens: number } {
   const embeddings: number[][] = []
   let totalTokens = 0
   for (const batch of batchResults) {
@@ -296,15 +322,7 @@ async function embedWithProvider(
     }
     totalTokens += batch.totalTokens
   }
-
-  return {
-    embeddings,
-    totalTokens,
-    isBYOK: provider.isBYOK,
-    modelName: provider.modelName,
-    pricingId: provider.info.pricingId,
-    dimensions: provider.dimensions,
-  }
+  return { embeddings, totalTokens }
 }
 
 /**
@@ -405,9 +423,47 @@ export async function embedKnowledgeForDeployment(
     },
   })
 
-  return fallback.execute((provider) =>
-    embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+  const itemLimits = fallback.providers.flatMap((provider) =>
+    provider.adapter.maxItemsPerRequest ? [provider.adapter.maxItemsPerRequest] : []
   )
+  const batches = createEmbeddingBatches(
+    boundedInputs,
+    model,
+    info,
+    itemLimits.length > 0 ? Math.min(...itemLimits) : undefined
+  )
+  const batchResults = await mapWithConcurrency(
+    batches,
+    MAX_CONCURRENT_BATCHES,
+    async (batch, i) => {
+      try {
+        return await fallback.execute(async (provider) => ({
+          ...(await callEmbeddingAPI(batch, provider, taskType, options.dimensions)),
+          provider,
+        }))
+      } catch (error) {
+        logger.error(`Failed to generate embeddings for batch ${i + 1}/${batches.length}:`, error)
+        throw error
+      }
+    }
+  )
+  const { embeddings, totalTokens } = combineEmbeddingBatches(batchResults)
+  const defaultProvider = fallback.providers[0]
+  const usedProviders = batchResults.map((batch) => batch.provider)
+  const metadataProvider = usedProviders[0] ?? defaultProvider
+  const modelNames = new Set(usedProviders.map((provider) => provider.modelName))
+
+  return {
+    embeddings,
+    totalTokens,
+    isBYOK:
+      usedProviders.length > 0
+        ? usedProviders.every((provider) => provider.isBYOK)
+        : metadataProvider.isBYOK,
+    modelName: modelNames.size > 1 ? model : metadataProvider.modelName,
+    pricingId: info.pricingId,
+    dimensions,
+  }
 }
 
 /** Generates KB document/query embeddings with opt-in self-hosted OpenRouter fallback. */
