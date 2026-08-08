@@ -91,7 +91,7 @@ export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStat
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Non-empty JSON array of row objects with matching keys. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest.',
+        'Non-empty JSON array of row objects with matching keys. For bulk loads, stage the files and use Load Data instead.',
     },
     matchColumns: {
       type: 'array',

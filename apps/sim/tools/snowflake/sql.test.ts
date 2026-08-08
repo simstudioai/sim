@@ -172,45 +172,6 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
-  it('caps the number of rows per structured write', () => {
-    const rows = Array.from({ length: 1001 }, (_, index) => ({ id: index }))
-    expect(() => buildInsertRows({ ...table, rows })).toThrow('cannot exceed 1000 per call')
-    expect(() => buildInsertRows({ ...table, rows })).toThrow('snowflake_load_data')
-    expect(() => buildInsertRows({ ...table, rows: [{ blob: 'x'.repeat(1_000_001) }] })).toThrow(
-      'statement budget'
-    )
-  })
-
-  it('counts the bound value budget in UTF-8 bytes, not UTF-16 code units', () => {
-    expect(() => buildInsertRows({ ...table, rows: [{ blob: '中'.repeat(999_999) }] })).toThrow(
-      'statement budget'
-    )
-    expect(() =>
-      buildInsertRows({ ...table, rows: [{ blob: '中'.repeat(333_333) }] })
-    ).not.toThrow()
-  })
-
-  it('applies the same statement budget to explicit bindings', () => {
-    expect(() =>
-      normalizeBindings({ '1': { type: 'TEXT', value: 'x'.repeat(1_000_001) } })
-    ).toThrow('statement budget')
-    expect(() =>
-      normalizeBindings({
-        '1': { type: 'TEXT', value: 'x'.repeat(600_000) },
-        '2': { type: 'TEXT', value: 'x'.repeat(600_000) },
-      })
-    ).toThrow('statement budget')
-    expect(() =>
-      buildCallProcedure({
-        ...context,
-        database: 'ANALYTICS',
-        schema: 'PUBLIC',
-        procedureName: 'REFRESH_MODEL',
-        procedureArguments: [{ type: 'TEXT', value: '中'.repeat(999_999) }],
-      })
-    ).toThrow('statement budget')
-  })
-
   it('routes a mixed semi-structured column through a single whole-column PARSE_JSON', () => {
     const result = buildInsertRows({
       ...table,
