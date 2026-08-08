@@ -101,18 +101,40 @@ const logger = createLogger('Table')
 /** Blocked-action toasts carry a button, so they linger past the 5s default. */
 const BLOCKED_TOAST_MS = 8000
 
+/**
+ * The AppConfig gates a table renders behind.
+ *
+ * Resolved by each host's Server Component, because `isFeatureEnabled` is
+ * server-only by construction and the org it keys on is the workspace's host
+ * organization rather than the viewer's active one.
+ *
+ * Required, and required as an object. Two loose optional booleans is exactly
+ * what the axis rule means by "never add a fourth spelling", and the optional
+ * default was load-bearing in the wrong direction: nobody decided the embedded
+ * table has no lock settings — `features.locks?: boolean` decided it by
+ * omission. A host now states its answer. Both fields disappear together when
+ * the flags GA, which is the other reason they travel as one object.
+ */
+export interface TableViewFeatures {
+  /**
+   * `table-locks` — whether an admin may *change* locks. Enforcement of locks
+   * already stored is independent of this and lives on the server.
+   */
+  readonly locks: boolean
+  /** `table-views` — the saved-views bar (Views/Columns menus, the Save chip). */
+  readonly views: boolean
+}
+
 export interface TableViewProps {
   /**
-   * Which surface this table is mounted on. `'page'` renders the full route
-   * chrome — header, breadcrumbs, page-level options bar; every other host
-   * renders the grid alone, as the mothership chat panel does.
+   * Where the table comes from and by what address.
    *
-   * This replaces an `embedded` boolean so the shell speaks the same vocabulary
-   * as the canonical views it sits beside. `'public'` is not reachable here:
-   * the editing shell holds a write path, so an anonymous surface would mount a
-   * read-only view of this table's view layer rather than this component.
+   * Built by each host's client shell, never by its Server Component: a source
+   * carries closures (`hrefFor`, `unavailableCopy`) and cannot cross the RSC
+   * boundary — the same reason the public share page hands over a plain seed and
+   * lets the client mint the source.
    */
-  host: Extract<ResourceHost, 'page' | 'panel'>
+  source: ResourceSource<'table'>
   /**
    * What this viewer may do. `write` is `canEdit` exactly; `manage` is the
    * admin-only governance capability that gates lock settings; `settled` says
@@ -120,6 +142,15 @@ export interface TableViewProps {
    * permanently loses its action.
    */
   grants: ResourceGrants
+  /**
+   * Which surface this table is mounted on. `'page'` renders the full route
+   * chrome — header, breadcrumbs, page-level options bar; every other host
+   * renders the grid alone, as the mothership chat panel does.
+   *
+   * `'public'` is not reachable: `ResourceSeedMap['table']` is `never`, so a
+   * table cannot be addressed by a share token at all.
+   */
+  host: Extract<ResourceHost, 'page' | 'panel'>
   /**
    * How this host moves the viewer — the router half of `host`. Targets come
    * from `source.hrefFor`, so nothing here hand-builds a workspace path; a host
@@ -133,28 +164,8 @@ export interface TableViewProps {
    * compile when a host forgets it, not default to revealing payloads.
    */
   showExecutionInternals: boolean
-  /**
-   * Where the table comes from and by what address.
-   *
-   * Built by each host's client shell, never by its Server Component: a source
-   * carries closures (`hrefFor`, `unavailableCopy`) and cannot cross the RSC
-   * boundary — the same reason the public share page hands over a plain seed and
-   * lets the client mint the source.
-   */
-  source: ResourceSource<'table'>
-  /**
-   * Whether an admin may CHANGE locks, resolved server-side by the page (the
-   * flag's gating lives in AppConfig and has no client counterpart). Defaults
-   * to false so embedded renders, which have no server resolution, fail closed
-   * — enforcement of stored locks is unaffected either way.
-   */
-  tableLocksEnabled?: boolean
-  /**
-   * Resolved `table-views` flag. Server-only to resolve for the same reason.
-   * Defaults to `false` so the embedded mothership table — which has no server
-   * context to resolve it — stays on today's Filter/Sort bar.
-   */
-  viewsEnabled?: boolean
+  /** Server-resolved AppConfig gates. See {@link TableViewFeatures}. */
+  features: TableViewFeatures
 }
 
 /**
@@ -252,13 +263,12 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
  * Embedded mode skips the page header but otherwise renders the same surface.
  */
 export function TableView({
-  host,
+  source,
   grants,
+  host,
   onNavigate,
   showExecutionInternals,
-  source,
-  tableLocksEnabled = false,
-  viewsEnabled = false,
+  features,
 }: TableViewProps) {
   /**
    * The subtree below takes plain ids — the grid, the sidebars and the mutation
@@ -430,7 +440,7 @@ export function TableView({
   const { data: viewsData, isError: viewsErrored } = useTableViews({
     workspaceId,
     tableId,
-    enabled: viewsEnabled,
+    enabled: features.views,
   })
   const views = viewsData ?? NO_VIEWS
   /** A views list exists — fresh or cached. A failed background refetch flips
@@ -571,7 +581,7 @@ export function TableView({
    * view even after someone changes which view is default.
    */
   useEffect(() => {
-    if (!viewsEnabled) return
+    if (!features.views) return
     // Terminal only when the fetch failed WITHOUT ever producing a list — then
     // the table settles to All: mark the owner resolved so layout writes flow
     // to shared metadata, and flush what was touched during the load. It does
@@ -653,7 +663,7 @@ export function TableView({
     }
     applyViewConfig(activeView?.config ?? null)
   }, [
-    viewsEnabled,
+    features.views,
     viewsAvailable,
     viewsErrored,
     views,
@@ -1143,7 +1153,7 @@ export function TableView({
               },
               // Reachable with the flag off when something is locked, so an
               // admin can always clear locks (the route allows clearing).
-              ...(grants.manage && (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+              ...(grants.manage && (features.locks || lockedNouns(tableData.locks).length > 0)
                 ? [
                     {
                       label: 'Lock settings',
@@ -1183,7 +1193,7 @@ export function TableView({
   // a plain notice with no action.
   const canOpenLockSettings =
     grants.manage &&
-    (tableLocksEnabled || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
+    (features.locks || (tableData ? lockedNouns(tableData.locks).length > 0 : false))
 
   /**
    * Explains why a table mutation is unavailable. A toast rather than a modal:
@@ -1350,7 +1360,7 @@ export function TableView({
     ) : null
 
   const saveViewChip =
-    viewsEnabled && isViewDirty && grants.write ? (
+    features.views && isViewDirty && grants.write ? (
       <Chip onClick={handleSaveView} disabled={updateViewMutation.isPending}>
         {activeView ? 'Save' : 'Save as view'}
       </Chip>
@@ -1408,7 +1418,7 @@ export function TableView({
         sort={sortConfig}
         filter={filterConfig}
         aside={
-          viewsEnabled ? (
+          features.views ? (
             <ViewsMenu
               views={views}
               activeViewId={activeView?.id ?? null}
@@ -1421,7 +1431,7 @@ export function TableView({
           ) : undefined
         }
         asideEnd={
-          viewsEnabled ? (
+          features.views ? (
             <ColumnsMenu
               columns={columns}
               workflowGroups={tableWorkflowGroups}
@@ -1441,7 +1451,7 @@ export function TableView({
         />
       )}
       <SaveViewModal
-        open={viewsEnabled && (viewModal?.mode === 'create' || renamingView !== null)}
+        open={features.views && (viewModal?.mode === 'create' || renamingView !== null)}
         onOpenChange={(open) => !open && setViewModal(null)}
         mode={viewModal?.mode === 'rename' ? 'rename' : viewModal?.blank ? 'new' : 'create'}
         initialName={renamingView?.name ?? ''}
@@ -1482,7 +1492,7 @@ export function TableView({
         // Always bound while views are enabled: the router reads the owner at
         // call time (buffer / view / All-metadata), so no binding gap can send a
         // write to the wrong place between settle and adoption.
-        onPersistLayout={viewsEnabled ? handlePersistLayout : undefined}
+        onPersistLayout={features.views ? handlePersistLayout : undefined}
         columnRenameSinkRef={columnRenameSinkRef}
         layoutSnapshotSinkRef={layoutSnapshotRef}
         afterDeleteRowsSinkRef={afterDeleteRowsSinkRef}

@@ -47,8 +47,7 @@ export function TableRoute({ tableLocksEnabled, viewsEnabled }: TableRouteProps)
       onNavigate={navigate}
       showExecutionInternals={!permissionConfig.hideTraceSpans}
       source={source}
-      tableLocksEnabled={tableLocksEnabled}
-      viewsEnabled={viewsEnabled}
+      features={{ locks: tableLocksEnabled, views: viewsEnabled }}
     />
   )
 }

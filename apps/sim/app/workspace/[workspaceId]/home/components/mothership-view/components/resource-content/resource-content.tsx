@@ -323,7 +323,13 @@ export const ResourceContent = memo(function ResourceContent({
           onNavigate={navigate}
           showExecutionInternals={!permissionConfig.hideTraceSpans}
           source={tableSource}
-          viewsEnabled={tableViewsEnabled}
+          features={{
+            // Deliberately false: the home page resolves no `table-locks` flag,
+            // so the panel has never offered lock settings. Giving it them means
+            // resolving the flag server-side there — a product decision.
+            locks: false,
+            views: tableViewsEnabled ?? false,
+          }}
         />
       )
 
