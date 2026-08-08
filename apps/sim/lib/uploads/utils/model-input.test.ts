@@ -11,6 +11,7 @@ import {
   selectPreferredModelBoundFileInputPaths,
 } from '@/lib/uploads/utils/model-input'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { a2aSendMessageTool } from '@/tools/a2a/send_message'
 import { prepareToolRequest } from '@/tools/request-transport'
 import { visionTool } from '@/tools/vision/tool'
 
@@ -149,6 +150,31 @@ describe('model-bound file input selection', () => {
         name: '{{FILE_NAME}}',
       },
     ])
+  })
+
+  it('treats an optional undefined file name as absent', () => {
+    const original = [{ key: 'workspace/ws-1/report.pdf', name: undefined }]
+
+    expect(selectModelVisibleFileNames(original)).toEqual([{}])
+    expect(applyProjectedModelVisibleFileNames(original, [{}])).toEqual(original)
+  })
+
+  it('preserves an optional undefined file name through tool request projection', () => {
+    const prepared = prepareToolRequest(
+      a2aSendMessageTool,
+      {
+        agentUrl: 'https://agent.example',
+        message: 'Summarize the attachment',
+        files: [{ key: 'workspace/ws-1/report.pdf', name: undefined }],
+      },
+      new ResolvedSecretTraceRegistry()
+    )
+
+    expect(JSON.parse(prepared.body ?? '{}')).toEqual({
+      agentUrl: 'https://agent.example',
+      message: 'Summarize the attachment',
+      files: [{ key: 'workspace/ws-1/report.pdf' }],
+    })
   })
 })
 

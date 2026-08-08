@@ -103,7 +103,6 @@ interface IndexedToolInput {
 interface FormattedAgentTools {
   tools: ProviderToolConfig[]
   inputProvenance: Map<ProviderToolConfig, Omit<ProviderToolInputProvenance, 'registry'>>
-  sourcePaths: ResolvedSecretInputPath[]
 }
 
 class AgentToolInputSafetyError extends Error {
@@ -252,7 +251,6 @@ export class AgentBlockHandler implements BlockHandler {
         ...modelInputProjection.value,
         responseFormat: responseFormatProjection.value,
       }
-      const modelInputPaths = [...coreModelInputPaths, ...responseFormatProjection.inputPaths]
       const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
 
       await this.validateToolPermissions(ctx, filteredInputs.tools || [])
@@ -358,17 +356,13 @@ export class AgentBlockHandler implements BlockHandler {
 
       settlePrivateAgentSelectors()
 
-      const modelRuntimeRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths([
-        ...modelInputPaths,
-        ...fileProjection.modelBoundInputPaths,
-        ...formatted.sourcePaths,
-      ])
-      if (modelRuntimeRegistry) {
-        ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry
+      const settledInputRegistry = ctx.resolvedSecretTraceRegistry
+      const resultRegistry = settledInputRegistry?.forkForInputPaths([])
+      if (resultRegistry && settledInputRegistry) {
         for (const [tool, provenance] of formatted.inputProvenance) {
           registerProviderToolInputProvenance(tool, {
             ...provenance,
-            registry: modelRuntimeRegistry,
+            registry: settledInputRegistry,
           })
         }
       }
@@ -377,8 +371,9 @@ export class AgentBlockHandler implements BlockHandler {
         providerRequest,
         block,
         responseFormat,
-        modelRuntimeRegistry
+        resultRegistry
       )
+      if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
 
       if (autoRouting && autoRouting.billableRoutingCost > 0) {
         this.applyRoutingCost(result, autoRouting.billableRoutingCost)
@@ -389,18 +384,26 @@ export class AgentBlockHandler implements BlockHandler {
       }
 
       if (this.isStreamingExecution(result)) {
+        const streamingResult = result as StreamingExecution
+        streamingResult.diagnosticResolvedSecretTraceRegistry = settledInputRegistry
         if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
           return this.wrapStreamForMemoryPersistence(
             ctx,
             filteredInputs,
-            result as StreamingExecution
+            streamingResult,
+            settledInputRegistry
           )
         }
-        return result
+        return streamingResult
       }
 
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+        await this.persistResponseToMemory(
+          ctx,
+          filteredInputs,
+          result as BlockOutput,
+          settledInputRegistry
+        )
       }
 
       return result
@@ -648,7 +651,7 @@ export class AgentBlockHandler implements BlockHandler {
     projectedToolInputs?: ToolInput[]
   ): Promise<FormattedAgentTools> {
     if (!Array.isArray(inputTools)) {
-      return { tools: [], inputProvenance: new Map(), sourcePaths: [] }
+      return { tools: [], inputProvenance: new Map() }
     }
 
     const filtered = inputTools
@@ -678,7 +681,6 @@ export class AgentBlockHandler implements BlockHandler {
       ProviderToolConfig,
       Omit<ProviderToolInputProvenance, 'registry'>
     >()
-    const sourcePaths: ResolvedSecretInputPath[] = []
 
     const trackInputProvenance = (
       formattedTool: ProviderToolConfig | null,
@@ -703,7 +705,6 @@ export class AgentBlockHandler implements BlockHandler {
           formattedTool
         ),
       })
-      sourcePaths.push(sourcePath)
       return formattedTool
     }
 
@@ -723,13 +724,7 @@ export class AgentBlockHandler implements BlockHandler {
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
             return trackInputProvenance(
-              await this.createCustomTool(
-                ctx,
-                tool,
-                projectedToolInputs?.[toolIndex],
-                toolIndex,
-                sourcePaths
-              ),
+              await this.createCustomTool(ctx, tool, projectedToolInputs?.[toolIndex], toolIndex),
               {
                 tool,
                 toolIndex,
@@ -764,20 +759,15 @@ export class AgentBlockHandler implements BlockHandler {
       ctx,
       mcpTools,
       trackInputProvenance,
-      projectedToolInputs,
-      sourcePaths
+      projectedToolInputs
     )
 
     const allTools = [...otherResults, ...mcpResults]
-    const orderedSourcePaths = [...new Map(sourcePaths.map((path) => [JSON.stringify(path), path]))]
-      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
-      .map(([, path]) => path)
     return {
       tools: allTools.filter(
         (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
       ),
       inputProvenance,
-      sourcePaths: orderedSourcePaths,
     }
   }
 
@@ -829,8 +819,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     tool: ToolInput,
     projectedTool?: ToolInput,
-    toolIndex?: number,
-    modelInputPaths?: ResolvedSecretInputPath[]
+    toolIndex?: number
   ): Promise<any> {
     const userProvidedParams = tool.params || {}
 
@@ -874,10 +863,6 @@ export class AgentBlockHandler implements BlockHandler {
         ],
         'Agent structural model inputs cannot contain secret references'
       )
-      if (tool.schema?.function?.description !== undefined) {
-        modelInputPaths?.push([...functionRoot, 'description'])
-      }
-      modelInputPaths?.push(...schemaPaths.annotationInputPaths)
     }
 
     if (!schema?.function) {
@@ -995,8 +980,7 @@ export class AgentBlockHandler implements BlockHandler {
       formattedTool: ProviderToolConfig | null,
       entry: IndexedToolInput
     ) => ProviderToolConfig | null,
-    projectedToolInputs?: ToolInput[],
-    modelInputPaths?: ResolvedSecretInputPath[]
+    projectedToolInputs?: ToolInput[]
   ): Promise<Array<ProviderToolConfig | null>> {
     if (mcpTools.length === 0) return []
 
@@ -1043,8 +1027,7 @@ export class AgentBlockHandler implements BlockHandler {
           ctx,
           tool,
           projectedToolInputs?.[entry.toolIndex],
-          entry.toolIndex,
-          modelInputPaths
+          entry.toolIndex
         )
         if (created) results.push(trackInputProvenance(created, entry))
       } catch (error) {
@@ -1079,8 +1062,7 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     tool: ToolInput,
     projectedTool?: ToolInput,
-    toolIndex?: number,
-    modelInputPaths?: ResolvedSecretInputPath[]
+    toolIndex?: number
   ): Promise<any> {
     const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
     const projectedSchema = projectedTool?.schema ?? tool.schema
@@ -1112,10 +1094,6 @@ export class AgentBlockHandler implements BlockHandler {
         schemaPaths.semanticInputPaths,
         'Agent structural model inputs cannot contain secret references'
       )
-      modelInputPaths?.push(...schemaPaths.annotationInputPaths)
-      if (!schemaDescription) {
-        modelInputPaths?.push(['tools', String(toolIndex), 'params', 'serverName'])
-      }
     }
     return this.buildMcpTool({
       serverId,
@@ -1831,8 +1809,11 @@ export class AgentBlockHandler implements BlockHandler {
     if (!sourceRegistry || privateInputPaths.length === 0) return
 
     const privateRoots = new Set(privateInputPaths.map((path) => path[0]))
+    const displayInputPaths = privateRoots.has('responseFormat')
+      ? [...privateInputPaths, ['responseFormat']]
+      : privateInputPaths
     const displayProjection = sourceRegistry
-      .forkForInputPaths(privateInputPaths)
+      .forkForInputPaths(displayInputPaths)
       .projectResolvedInputSelection({
         responseFormat: inputs.responseFormat,
         tools: inputs.tools,
@@ -2388,7 +2369,19 @@ export class AgentBlockHandler implements BlockHandler {
 
       return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
-      this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
+      const sourceRegistry = ctx.resolvedSecretTraceRegistry
+      if (sourceRegistry && modelRuntimeRegistry && sourceRegistry !== modelRuntimeRegistry) {
+        const diagnosticRegistry = sourceRegistry.forkForToolCall()
+        diagnosticRegistry.mergeToolCallRegistry(modelRuntimeRegistry)
+        ctx.resolvedSecretTraceRegistry = diagnosticRegistry
+      }
+      try {
+        this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
+      } finally {
+        if (modelRuntimeRegistry) {
+          ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry.forkForPropagatedEntries()
+        }
+      }
       throw error
     }
   }
@@ -2449,7 +2442,8 @@ export class AgentBlockHandler implements BlockHandler {
   private wrapStreamForMemoryPersistence(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    streamingExec: StreamingExecution
+    streamingExec: StreamingExecution,
+    diagnosticRegistry?: ResolvedSecretTraceRegistry
   ): StreamingExecution {
     return {
       ...streamingExec,
@@ -2458,10 +2452,13 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
         } catch (error) {
+          const diagnosticCtx = diagnosticRegistry
+            ? { ...ctx, resolvedSecretTraceRegistry: diagnosticRegistry }
+            : ctx
           logger.error(
             'Failed to persist streaming response',
             projectAgentDiagnosticMetadata(
-              ctx,
+              diagnosticCtx,
               getErrorDiagnosticMetadata(error),
               getErrorDiagnosticFallback(error)
             )
@@ -2474,7 +2471,8 @@ export class AgentBlockHandler implements BlockHandler {
   private async persistResponseToMemory(
     ctx: ExecutionContext,
     inputs: AgentInputs,
-    result: BlockOutput
+    result: BlockOutput,
+    diagnosticRegistry?: ResolvedSecretTraceRegistry
   ): Promise<void> {
     const content = (result as any)?.content
     if (!content || typeof content !== 'string') {
@@ -2487,10 +2485,13 @@ export class AgentBlockHandler implements BlockHandler {
         workflowId: ctx.workflowId,
       })
     } catch (error) {
+      const diagnosticCtx = diagnosticRegistry
+        ? { ...ctx, resolvedSecretTraceRegistry: diagnosticRegistry }
+        : ctx
       logger.error(
         'Failed to persist response to memory',
         projectAgentDiagnosticMetadata(
-          ctx,
+          diagnosticCtx,
           getErrorDiagnosticMetadata(error),
           getErrorDiagnosticFallback(error)
         )

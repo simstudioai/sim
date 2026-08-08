@@ -529,7 +529,6 @@ describe('AgentBlockHandler', () => {
         apiKey: 'test-api-key',
       }
       const rawInputs = structuredClone(inputs)
-
       await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
@@ -732,7 +731,6 @@ describe('AgentBlockHandler', () => {
         ],
       }
       const rawInputs = structuredClone(inputs)
-
       await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0].files).toEqual([
@@ -1154,9 +1152,69 @@ describe('AgentBlockHandler', () => {
         { role: 'system', content: 'Box eSign stays public' },
         { role: 'user', content: 'Box {{TOKEN}}' },
       ])
-      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([
-        { plaintext: 'x', replacement: '{{TOKEN}}' },
+      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([])
+    })
+
+    it('does not carry a projected system prompt into Agent output provenance', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'x', encryptedValue: 'encrypted-token' },
       ])
+      registry.recordResolvedAtInputPath('TOKEN', 'x', ['systemPrompt'])
+      registry.recordResolvedInputProjection(['systemPrompt'], 'Use x', 'Use {{TOKEN}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockResolvedValueOnce({
+        content: 'Box',
+        model: 'mock-model',
+        tokens: { input: 10, output: 20, total: 30 },
+        toolCalls: [],
+        cost: 0.001,
+        timing: { total: 100 },
+      })
+
+      const inputs = {
+        model: 'gpt-4o',
+        systemPrompt: 'Use x',
+        userPrompt: 'Continue',
+      }
+      const result = await handler.execute(mockContext, mockBlock, inputs)
+
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerRequest.messages).toEqual([
+        { role: 'system', content: 'Use {{TOKEN}}' },
+        { role: 'user', content: 'Continue' },
+      ])
+      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([])
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+      expect(inputs.systemPrompt).toBe('Use x')
+      expect(
+        mockContext.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)
+      ).toEqual({ version: 1, complete: true, entries: [] })
+    })
+
+    it('keeps input provenance active for provider error diagnostics', async () => {
+      const plaintext = 'provider-credential-secret'
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext, encryptedValue: 'encrypted-token' },
+      ])
+      registry.recordResolvedAtInputPath('TOKEN', plaintext, ['systemPrompt'])
+      registry.recordResolvedInputProjection(['systemPrompt'], `Use ${plaintext}`, 'Use {{TOKEN}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockExecuteProviderRequest.mockRejectedValueOnce(new Error(`Provider rejected ${plaintext}`))
+      const inputs = {
+        model: 'gpt-4o',
+        systemPrompt: `Use ${plaintext}`,
+        userPrompt: 'Continue',
+      }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        `Provider rejected ${plaintext}`
+      )
+
+      expect(inputs.systemPrompt).toBe(`Use ${plaintext}`)
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+      const logged = JSON.stringify(mockAgentLogger.error.mock.calls)
+      expect(logged).not.toContain(plaintext)
+      expect(logged).toContain('Provider rejected {{TOKEN}}')
     })
 
     it('projects exact message call arguments without mutating protocol structure or raw input', async () => {
@@ -1201,7 +1259,6 @@ describe('AgentBlockHandler', () => {
         ],
       }
       const rawInputs = structuredClone(inputs)
-
       await handler.execute(mockContext, mockBlock, inputs)
 
       expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0]).toEqual({
@@ -1293,7 +1350,7 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
-    it('binds a resolved tool preset to the exact formatted provider tool instance', async () => {
+    it('binds a resolved tool preset without activating it before the exact tool runs', async () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'API_KEY', plaintext: 'x', encryptedValue: 'encrypted-api-key' },
       ])
@@ -1325,10 +1382,13 @@ describe('AgentBlockHandler', () => {
       expect(providerTool.params).toEqual({ apiKey: 'x' })
       expect(providerTool).not.toHaveProperty('__resolvedSecretTraceProvenance')
       expect(getProviderToolInputProvenance(providerTool)).toEqual({
-        registry: runtimeContext.resolvedSecretTraceRegistry,
+        registry,
         sourcePath: ['tools', '0', 'params'],
         projectedParams: { apiKey: '{{API_KEY}}' },
       })
+      expect(runtimeContext.resolvedSecretTraceRegistry).not.toBe(registry)
+      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([])
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
     })
 
     it('omits a tool with unknown hidden preset provenance without blocking the public prompt', async () => {
@@ -2040,7 +2100,7 @@ describe('AgentBlockHandler', () => {
       expect(inputs.responseFormat).toEqual({
         name: '{{FORMAT_NAME}}',
         schema: { type: 'object', properties: {} },
-        strict: 'locked',
+        strict: '{{STRICT_VALUE}}',
       })
       expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
@@ -2080,6 +2140,7 @@ describe('AgentBlockHandler', () => {
       )
 
       expect(inputs.responseFormat).toBe(projectedResponseFormat)
+      expect(inputs.responseFormat).toContain('"strict":"{{STRICT_VALUE}}"')
       expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
@@ -2126,7 +2187,7 @@ describe('AgentBlockHandler', () => {
       expect(responseFormat).toContain('private-schema')
     })
 
-    it('excludes an aliased persisted response format name from block output provenance', async () => {
+    it('excludes projected persisted response format fields from block output provenance', async () => {
       const responseFormat = JSON.stringify({
         name: 'x',
         schema: {
@@ -2180,19 +2241,11 @@ describe('AgentBlockHandler', () => {
       const snapshot = modelRegistry.getModelEgressSnapshot()
       expect(snapshot.complete).toBe(true)
       if (!snapshot.complete) throw new Error('Expected complete model provenance')
-      expect(snapshot.matches).toContainEqual({
-        plaintext: 'classified',
-        replacement: '{{DESCRIPTION}}',
-      })
-      expect(snapshot.matches.map((match) => match.plaintext)).not.toContain('x')
+      expect(snapshot.matches).toEqual([])
       const blockSnapshot = mockContext.resolvedSecretTraceRegistry?.getModelEgressSnapshot()
       expect(blockSnapshot?.complete).toBe(true)
       if (!blockSnapshot?.complete) throw new Error('Expected complete block provenance')
-      expect(blockSnapshot.matches).toContainEqual({
-        plaintext: 'classified',
-        replacement: '{{DESCRIPTION}}',
-      })
-      expect(blockSnapshot.matches.map((match) => match.plaintext)).not.toContain('x')
+      expect(blockSnapshot.matches).toEqual([])
       expect(handlerInputs.responseFormat).toContain('{{FORMAT_NAME}}')
     })
 

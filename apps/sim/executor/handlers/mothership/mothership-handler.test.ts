@@ -123,13 +123,21 @@ function createTraceRegistryMock(): ResolvedSecretTraceRegistry & {
   importProvenanceForValue: ReturnType<typeof vi.fn>
   markIncomplete: ReturnType<typeof vi.fn>
 } {
-  const registry = new ResolvedSecretTraceRegistry()
-  return Object.assign(registry, {
-    importProvenanceForValue: vi
-      .spyOn(registry, 'importProvenanceForValue')
-      .mockResolvedValue(true),
-    markIncomplete: vi.spyOn(registry, 'markIncomplete'),
-  }) as ResolvedSecretTraceRegistry & {
+  const importedProvenance = vi.fn().mockResolvedValue(true)
+  const originalMarkIncomplete: Array<() => void> = []
+  const markIncomplete = vi.fn(() => {
+    for (const mark of originalMarkIncomplete) mark()
+  })
+  const instrument = (registry: ResolvedSecretTraceRegistry): ResolvedSecretTraceRegistry => {
+    const forkForInputPaths = registry.forkForInputPaths.bind(registry)
+    originalMarkIncomplete.push(registry.markIncomplete.bind(registry))
+    registry.importProvenanceForValue = importedProvenance
+    registry.markIncomplete = markIncomplete
+    registry.forkForInputPaths = ((paths, options) =>
+      instrument(forkForInputPaths(paths, options))) as typeof registry.forkForInputPaths
+    return registry
+  }
+  return instrument(new ResolvedSecretTraceRegistry()) as ResolvedSecretTraceRegistry & {
     importProvenanceForValue: ReturnType<typeof vi.fn>
     markIncomplete: ReturnType<typeof vi.fn>
   }
@@ -305,13 +313,16 @@ describe('MothershipBlockHandler', () => {
       'Use {{PROMPT_SECRET}} while Box stays unchanged'
     )
     registry.recordResolved('UNUSED', 'x')
-    vi.spyOn(registry, 'importProvenanceForValue').mockResolvedValue(true)
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
       .mockReturnValueOnce('message-uuid')
       .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
 
     await handler.execute(context, block, {
       prompt: 'Use prompt-secret while Box stays unchanged',
@@ -322,6 +333,40 @@ describe('MothershipBlockHandler', () => {
     expect(body).not.toContain('prompt-secret')
     expect(JSON.parse(body)).toMatchObject({
       messages: [{ content: 'Use {{PROMPT_SECRET}} while Box stays unchanged' }],
+    })
+  })
+
+  it('does not carry a projected prompt into Mothership output provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PROMPT_SECRET', plaintext: 'x', encryptedValue: 'prompt-ciphertext' },
+    ])
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'x', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'Use x', 'Use {{PROMPT_SECRET}}')
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'Box', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const inputs = { prompt: 'Use x' }
+    const result = await handler.execute(context, block, inputs)
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      messages: [{ content: 'Use {{PROMPT_SECRET}}' }],
+    })
+    expect(result).toMatchObject({ content: 'Box' })
+    expect(inputs.prompt).toBe('Use x')
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+    expect(context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
     })
   })
 
@@ -591,6 +636,51 @@ describe('MothershipBlockHandler', () => {
     expect(registry.markIncomplete).not.toHaveBeenCalled()
   })
 
+  it('does not carry a projected prompt into streaming Mothership output provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PROMPT_SECRET', plaintext: 'x', encryptedValue: 'prompt-ciphertext' },
+    ])
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', 'x', ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], 'Use x', 'Use {{PROMPT_SECRET}}')
+    context.resolvedSecretTraceRegistry = registry
+    context.stream = true
+    context.selectedOutputs = [`${block.id}_content`]
+    const encoder = new TextEncoder()
+    fetchMock.mockResolvedValue(
+      new Response(
+        new ReadableStream({
+          start(controller) {
+            controller.enqueue(
+              encoder.encode(`${JSON.stringify({ type: 'chunk', content: 'Box' })}\n`)
+            )
+            controller.enqueue(
+              encoder.encode(
+                `${JSON.stringify({
+                  type: 'final',
+                  data: { content: 'Box', toolCalls: [] },
+                })}\n`
+              )
+            )
+            controller.close()
+          },
+        }),
+        { headers: { 'Content-Type': 'application/x-ndjson; charset=utf-8' } }
+      )
+    )
+
+    const result = (await handler.execute(context, block, {
+      prompt: 'Use x',
+    })) as StreamingExecution
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(options.body))).toMatchObject({
+      messages: [{ content: 'Use {{PROMPT_SECRET}}' }],
+    })
+    await expect(readStreamText(result.stream)).resolves.toBe('Box')
+    expect(result.execution.output).toMatchObject({ content: 'Box' })
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+  })
+
   it('surfaces a headerless legacy NDJSON terminal error without poisoning later calls', async () => {
     const registry = createTraceRegistryMock()
     context.resolvedSecretTraceRegistry = registry
@@ -783,6 +873,61 @@ describe('MothershipBlockHandler', () => {
     expect(logged).not.toContain('__sim_')
   })
 
+  it('retains exact provenance when a resolved conversation ID is echoed to output', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'CONVERSATION_ID', plaintext: 'x', encryptedValue: 'encrypted-conversation-id' },
+    ])
+    registry.recordResolvedAtInputPath('CONVERSATION_ID', 'x', ['conversationId'])
+    registry.recordResolvedInputProjection(['conversationId'], 'x', '{{CONVERSATION_ID}}')
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'continued', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const inputs = {
+      prompt: 'Continue this thread',
+      conversationId: 'x',
+    }
+    const result = await handler.execute(context, block, inputs)
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(JSON.parse(String(options.body)).chatId).toBe('x')
+    expect(result).toMatchObject({ conversationId: 'x' })
+    expect(inputs.conversationId).toBe('x')
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([
+      { plaintext: 'x', replacement: '{{CONVERSATION_ID}}' },
+    ])
+    expect(context.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'CONVERSATION_ID', encryptedValue: 'encrypted-conversation-id' }],
+    })
+  })
+
+  it('does not carry a low-entropy conversation ID into terminal error provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'CONVERSATION_ID', plaintext: 'x', encryptedValue: 'encrypted-conversation-id' },
+    ])
+    registry.recordResolvedAtInputPath('CONVERSATION_ID', 'x', ['conversationId'])
+    registry.recordResolvedInputProjection(['conversationId'], 'x', '{{CONVERSATION_ID}}')
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId.mockReturnValueOnce('message-uuid').mockReturnValueOnce('request-uuid')
+    mockExtractAPIErrorMessage.mockResolvedValueOnce('Box')
+    fetchMock.mockResolvedValue(new Response(JSON.stringify({ error: 'Box' }), { status: 500 }))
+
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Continue this thread',
+        conversationId: 'x',
+      })
+    ).rejects.toThrow('Sim execution failed: Box')
+
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+  })
+
   it('forwards only enabled MCP tools and selected skills', async () => {
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
@@ -838,7 +983,6 @@ describe('MothershipBlockHandler', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'UNUSED_SECRET', plaintext: secret, encryptedValue: 'encrypted-unused-secret' },
     ])
-    vi.spyOn(registry, 'importProvenanceForValue').mockResolvedValue(true)
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
@@ -846,7 +990,11 @@ describe('MothershipBlockHandler', () => {
       .mockReturnValueOnce('request-uuid')
     const attachmentData = Buffer.from(`file contains ${secret}`, 'utf8').toString('base64')
     mockReadUserFileContent.mockResolvedValueOnce(attachmentData)
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
 
     await handler.execute(context, block, {
       prompt: 'Use the selected context',
@@ -967,13 +1115,16 @@ describe('MothershipBlockHandler', () => {
       registry.recordResolvedAtInputPath(secret.name, secret.plaintext, secret.path)
       registry.recordResolvedInputProjection(secret.path, secret.raw, secret.projected)
     }
-    vi.spyOn(registry, 'importProvenanceForValue').mockResolvedValue(true)
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
       .mockReturnValueOnce('message-uuid')
       .mockReturnValueOnce('request-uuid')
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
     const tools = [
       {
         type: 'mcp',
@@ -1209,7 +1360,6 @@ describe('MothershipBlockHandler', () => {
       'report-x.txt',
       'report-{{FILE_TOKEN}}.txt'
     )
-    vi.spyOn(registry, 'importProvenanceForValue').mockResolvedValue(true)
     context.resolvedSecretTraceRegistry = registry
     mockGenerateId
       .mockReturnValueOnce('chat-uuid')
@@ -1217,7 +1367,11 @@ describe('MothershipBlockHandler', () => {
       .mockReturnValueOnce('request-uuid')
     const attachmentData = Buffer.from('ordinary bytes', 'utf8').toString('base64')
     mockReadUserFileContent.mockResolvedValueOnce(attachmentData)
-    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'done', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
 
     await handler.execute(context, block, {
       prompt: 'Read the attachment',

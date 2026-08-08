@@ -572,6 +572,8 @@ export interface StreamingExecution {
   clientStreamTransformed?: boolean
   /** Internal provenance for the exact block input that initiated this live stream. */
   displayResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  /** Internal source registry retained only for sanitizing failures while the stream drains. */
+  diagnosticResolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   execution: ExecutionResult & { isStreaming?: boolean }
   /**
    * Invoked with the assembled response text after the stream drains. Lets agent

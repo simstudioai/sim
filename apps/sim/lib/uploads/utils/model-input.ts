@@ -106,7 +106,7 @@ export function selectPreferredModelBoundFileInputPaths(
 export function selectModelVisibleFileNames(input: unknown): unknown {
   if (Array.isArray(input)) return input.map(selectModelVisibleFileNames)
   if (!isPlainRecord(input)) return undefined
-  return Object.hasOwn(input, 'name') ? { name: input.name } : {}
+  return input.name !== undefined ? { name: input.name } : {}
 }
 
 function haveExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
@@ -138,7 +138,7 @@ export function applyProjectedModelVisibleFileNames(
     throw new Error('Projected file name is invalid')
   }
 
-  if (!Object.hasOwn(original, 'name')) {
+  if (original.name === undefined) {
     if (!haveExactKeys(projected, [])) {
       throw new Error('Projected file name does not match the original file')
     }

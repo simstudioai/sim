@@ -204,13 +204,14 @@ describe('provider runtime context', () => {
   })
 
   it('projects only the active preset secret for the exact configured tool instance', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
+    const sourceRegistry = new ResolvedSecretTraceRegistry([
       { name: 'ACTIVE', plaintext: 'x', encryptedValue: 'encrypted-active' },
       { name: 'UNUSED', plaintext: 'true', encryptedValue: 'encrypted-unused' },
     ])
     const sourcePath = ['tools', '0', 'params', 'apiKey'] as const
-    registry.recordResolvedAtInputPath('ACTIVE', 'x', sourcePath)
-    registry.recordResolvedInputProjection(sourcePath, 'x', '{{ACTIVE}}')
+    sourceRegistry.recordResolvedAtInputPath('ACTIVE', 'x', sourcePath)
+    sourceRegistry.recordResolvedInputProjection(sourcePath, 'x', '{{ACTIVE}}')
+    const runtimeRegistry = sourceRegistry.forkForInputPaths([])
     const tool = {
       id: 'duplicate-tool',
       params: { apiKey: 'x' },
@@ -218,7 +219,7 @@ describe('provider runtime context', () => {
       paramsTransform: (params: Record<string, unknown>) => ({ token: params.apiKey }),
     }
     registerProviderToolInputProvenance(tool, {
-      registry,
+      registry: sourceRegistry,
       sourcePath: ['tools', '0', 'params'],
       projectedParams: { apiKey: '{{ACTIVE}}' },
     })
@@ -226,7 +227,7 @@ describe('provider runtime context', () => {
     mockExecuteTool.mockResolvedValueOnce(rawResult)
 
     const execution = await runWithProviderRuntimeContext(
-      { resolvedSecretTraceRegistry: registry },
+      { resolvedSecretTraceRegistry: runtimeRegistry },
       () => {
         const { executionParams } = prepareToolExecution(tool, {}, {})
         return executeProviderToolWithInput(tool.id, executionParams)
@@ -242,6 +243,9 @@ describe('provider runtime context', () => {
     expect(mockExecuteTool.mock.calls.at(-1)?.[1]).not.toHaveProperty(
       '__resolvedSecretTraceProvenance'
     )
+    expect(runtimeRegistry.getActiveMatches()).toEqual([
+      { plaintext: 'x', replacement: '{{ACTIVE}}' },
+    ])
   })
 
   it('does not carry a prior low-entropy preset into a later duplicate tool instance', async () => {

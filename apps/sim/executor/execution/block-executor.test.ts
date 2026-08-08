@@ -1064,8 +1064,110 @@ describe('BlockExecutor streaming pump', () => {
       },
       state
     )
-    return { executor, block, state }
+    return { executor, block, state, resolver }
   }
+
+  it('projects resolver-owned inputs for display without carrying them into output provenance', async () => {
+    const secret = 'x'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        expect(inputs.systemPrompt).toBe(secret)
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
+        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
+        return { content: 'Box' }
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = { systemPrompt: '{{TOKEN}}' }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
+    ])
+    ctx.environmentVariables = { TOKEN: secret }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { systemPrompt: '{{TOKEN}}' },
+      output: { content: 'Box' },
+    })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('keeps terminal error output provenance separate from low-entropy input provenance', async () => {
+    const secret = 'x'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        expect(inputs.systemPrompt).toBe(secret)
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry
+        blockContext.resolvedSecretTraceRegistry = sourceRegistry?.forkForInputPaths([])
+        throw new Error('Box')
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = { systemPrompt: '{{TOKEN}}' }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: secret, encryptedValue: 'encrypted-token' },
+    ])
+    ctx.environmentVariables = { TOKEN: secret }
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow('Agent: Box')
+
+    expect(ctx.blockLogs[0]).toMatchObject({
+      input: { systemPrompt: '{{TOKEN}}' },
+      output: { error: 'Box' },
+    })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('suppresses an incomplete display input without failing block execution', async () => {
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext) => {
+        blockContext.resolvedSecretTraceRegistry =
+          blockContext.resolvedSecretTraceRegistry?.forkForInputPaths([])
+        return { content: 'done' }
+      },
+    }
+    const { executor, block, state, resolver } = createExecutor(handler)
+    const inputs = {
+      userPrompt: 'Use the configured tool.',
+      tools: [{ params: { apiKey: 'unknown-value' } }],
+    }
+    vi.spyOn(resolver, 'resolveInputs').mockImplementation(async (blockContext) => {
+      await blockContext.resolvedSecretTraceRegistry?.importProvenanceForValueAtInputPath(
+        { version: 1 },
+        'unknown-value',
+        ['tools', '0', 'params', 'apiKey'],
+        { trusted: true }
+      )
+      return inputs
+    })
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry()
+
+    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual({
+      content: 'done',
+    })
+
+    expect(ctx.blockLogs[0]?.input).toEqual({})
+    expect(ctx.blockLogs[0]?.output).toEqual({ content: 'done' })
+  })
 
   function createAgentEventsStreamingHandler(options: {
     events: Array<Record<string, unknown>>
@@ -1074,6 +1176,7 @@ describe('BlockExecutor streaming pump', () => {
     streamError?: Error
     onFullContent?: (content: string) => void | Promise<void>
     resolvedSecret?: { name: string; value: string }
+    separateResultRegistry?: boolean
   }): BlockHandler {
     return {
       canHandle: () => true,
@@ -1083,6 +1186,12 @@ describe('BlockExecutor streaming pump', () => {
             options.resolvedSecret.name,
             options.resolvedSecret.value
           )
+        }
+        const diagnosticRegistry = options.separateResultRegistry
+          ? blockContext.resolvedSecretTraceRegistry
+          : undefined
+        if (diagnosticRegistry) {
+          blockContext.resolvedSecretTraceRegistry = diagnosticRegistry.forkForInputPaths([])
         }
         const timeSegment: Record<string, unknown> = {
           type: 'model',
@@ -1139,6 +1248,7 @@ describe('BlockExecutor streaming pump', () => {
             },
           },
           onFullContent: options.onFullContent,
+          diagnosticResolvedSecretTraceRegistry: diagnosticRegistry,
         }
       },
     }
@@ -1290,6 +1400,7 @@ describe('BlockExecutor streaming pump', () => {
       failAfterText: 'partial',
       streamError: rawError,
       resolvedSecret: { name: 'API_KEY', value: secret },
+      separateResultRegistry: true,
     })
     const { executor, block, state } = createExecutor(handler)
     const ctx = createContext(state)
@@ -1297,6 +1408,7 @@ describe('BlockExecutor streaming pump', () => {
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
     ])
     ctx.onStream = async (streamingExec) => {
+      expect(streamingExec).not.toHaveProperty('diagnosticResolvedSecretTraceRegistry')
       const reader = streamingExec.stream.getReader()
       try {
         while (true) {

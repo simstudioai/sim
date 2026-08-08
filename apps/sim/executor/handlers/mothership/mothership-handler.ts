@@ -826,6 +826,11 @@ export class MothershipBlockHandler implements BlockHandler {
       ...(ctx.executionId ? { executionId: ctx.executionId } : {}),
     }
 
+    const settledInputRegistry = ctx.resolvedSecretTraceRegistry
+    const resultRegistry = settledInputRegistry?.forkForInputPaths(
+      providedConversationId ? [['conversationId']] : []
+    )
+
     logger.info('Executing Mothership block', {
       blockId: block.id,
       messageId,
@@ -896,19 +901,16 @@ export class MothershipBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
-        const expectsProvenance = inspectMothershipResponseCapability(
-          response,
-          ctx.resolvedSecretTraceRegistry
-        )
+        const expectsProvenance = inspectMothershipResponseCapability(response, resultRegistry)
         if (expectsProvenance) {
           let payload: MothershipExecuteResult
           try {
             payload = (await response.clone().json()) as MothershipExecuteResult
           } catch {
-            ctx.resolvedSecretTraceRegistry?.markIncomplete()
+            resultRegistry?.markIncomplete()
             throw new Error('Mothership response provenance metadata is invalid')
           }
-          await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
+          await consumeMothershipProvenance(payload, response, resultRegistry)
         }
         const errorMsg = await extractAPIErrorMessage(response)
         throw new Error(`Sim execution failed: ${errorMsg}`)
@@ -922,14 +924,23 @@ export class MothershipBlockHandler implements BlockHandler {
             }
           },
           onDone: cleanupAbortListeners,
-          registry: ctx.resolvedSecretTraceRegistry,
+          registry: resultRegistry,
         })
+        streamingExecution.diagnosticResolvedSecretTraceRegistry = settledInputRegistry
+        if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
         cleanupImmediately = false
         return streamingExecution
       }
 
-      const result = await readMothershipExecuteResponse(response, ctx.resolvedSecretTraceRegistry)
-      return formatMothershipBlockOutput(result, chatId)
+      const result = await readMothershipExecuteResponse(response, resultRegistry)
+      const output = formatMothershipBlockOutput(result, chatId)
+      if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
+      return output
+    } catch (error) {
+      if (resultRegistry) {
+        ctx.resolvedSecretTraceRegistry = resultRegistry.forkForPropagatedEntries()
+      }
+      throw error
     } finally {
       if (cleanupImmediately) {
         cleanupAbortListeners()

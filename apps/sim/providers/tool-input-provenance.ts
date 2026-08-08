@@ -10,7 +10,6 @@ export interface ProviderToolInputProvenance {
 }
 
 export interface PreparedProviderToolInputProvenance {
-  parentRegistry: ResolvedSecretTraceRegistry
   registry: ResolvedSecretTraceRegistry
   inputPaths: readonly ResolvedSecretInputPath[]
 }
