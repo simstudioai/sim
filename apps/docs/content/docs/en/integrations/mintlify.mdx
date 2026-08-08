@@ -1,0 +1,654 @@
+---
+title: Mintlify
+description: Deploy, edit, search, and measure Mintlify documentation
+---
+
+import { BlockInfoCard } from "@/components/ui/block-info-card"
+
+<BlockInfoCard 
+  type="mintlify"
+  color="#000000"
+/>
+
+{/* MANUAL-CONTENT-START:intro */}
+[Mintlify](https://mintlify.com/) is a documentation platform for building, deploying, and maintaining developer docs. Docs live as MDX in your Git repository, deploy on every merge, and ship with a built-in AI assistant trained on your content.
+
+With Mintlify, you can:
+
+- **Deploy documentation from Git**: Trigger production updates and per-branch preview deployments, then poll deployment status for logs, commit details, and screenshots
+- **Run automations on demand**: Kick off a scheduled automation immediately from CI/CD instead of waiting for its next run
+- **Edit docs with an agent**: Launch background agent jobs from a prompt, send follow-up instructions, and get a pull request when the agent changes files
+- **Check writing quality**: Analyze a page for AI-sounding prose and get flagged passages with suggested human rewrites
+- **Search and retrieve content**: Run semantic and keyword search across your docs, then fetch the full text of any matching page
+- **Ask the docs assistant**: Get a grounded answer with its cited source pages, and continue the conversation across turns with a thread ID
+- **Export analytics**: Pull user feedback, assistant conversations, caller stats, search queries, page views, and unique visitors
+
+In Sim, the Mintlify integration lets your agents ship docs, drive documentation agent jobs, answer questions from your published content, and measure how that content performs — all from a single block.
+
+**Authentication.** Mintlify issues two key types for these endpoints, and the API Key field takes whichever the selected operation needs:
+
+- **Admin API key** (`mint_` prefix) — Trigger Update, Get Update Status, Trigger Preview Deployment, Trigger Automation, Create/Get Agent Job, Send Agent Message, Detect AI-Sounding Prose, and every analytics export
+- **Assistant API key** (`mint_dsc_` prefix) — Search Documentation, Get Page Content, and Ask Assistant
+
+Generate both on the [API keys page](https://app.mintlify.com/settings/organization/api-keys) in your Mintlify dashboard. The **Project ID** used by the admin operations is on the same page; the **Domain** used by the assistant operations is the identifier at the end of your dashboard URL (`app.mintlify.com/organization/domain`). The REST API requires a Mintlify Pro or Enterprise plan.
+{/* MANUAL-CONTENT-END */}
+
+
+## Usage Instructions
+
+Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.
+
+
+
+## Actions
+
+### Mintlify Trigger Update
+
+Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusId` | string | Status ID of the queued update. Poll it with Get Update Status. |
+
+### Mintlify Get Update Status
+
+Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `statusId` | string | Yes | Status ID returned by Trigger Update or Trigger Preview Deployment |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `id` | string | Status ID of the update |
+| `projectId` | string | Documentation project ID |
+| `createdAt` | string | ISO 8601 UTC start time |
+| `endedAt` | string | ISO 8601 UTC end time |
+| `status` | string | Update status: queued, in_progress, success, or failure |
+| `summary` | string | Summary of the update status |
+| `logs` | array | Deployment log lines |
+| `subdomain` | string | Subdomain of the docs being updated |
+| `screenshot` | string | Screenshot of the docs |
+| `screenshotLight` | string | Light-mode screenshot of the docs |
+| `screenshotDark` | string | Dark-mode screenshot of the docs |
+| `author` | object | Author of the update |
+|   ↳ `name` | string | Author name |
+|   ↳ `avatarUrl` | string | Author avatar image URL |
+|   ↳ `githubUserId` | number | Author GitHub user ID |
+| `commit` | object | Commit that produced the update |
+|   ↳ `sha` | string | Commit SHA |
+|   ↳ `ref` | string | Git ref of the commit |
+|   ↳ `message` | string | Commit message |
+|   ↳ `filesChanged` | object | Files added, modified, and removed by the commit |
+|     ↳ `added` | array | New files added |
+|     ↳ `modified` | array | Existing files that were modified |
+|     ↳ `removed` | array | Files that were removed |
+| `source` | string | Source of the update trigger: internal, github-app-installation, api, github, dashboard, gitlab, or onboarding |
+
+### Mintlify Trigger Preview Deployment
+
+Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `branch` | string | Yes | Name of the Git branch to create a preview deployment for |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusId` | string | Status ID for tracking the preview deployment |
+| `previewUrl` | string | URL where the preview deployment is hosted |
+
+### Mintlify Trigger Automation
+
+Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `automationId` | string | Yes | Automation ID, copied from the automation's settings panel on the Automations page |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `schemaId` | string | ID of the triggered automation |
+| `instanceId` | string | ID of the queued automation run, visible in the run history |
+| `jobId` | string | ID of the background job processing the run |
+
+### Mintlify Detect AI-Sounding Prose
+
+Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `path` | string | Yes | Repo-relative path of the page, used for reporting only |
+| `content` | string | Yes | Raw MDX or Markdown content of the page to check \(max 1,000,000 characters\) |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | Path from the request |
+| `skipped` | string | Reason the page was skipped \("too_short"\), or null when the page was checked |
+| `predictionShort` | string | Overall verdict for the page: AI, AI-Assisted, Human, or Mixed. Null when the page was skipped. |
+| `fractionAi` | number | Fraction of the page detected as AI-generated \(0-1\). Null when the page was skipped. |
+| `fractionAiAssisted` | number | Fraction of the page detected as AI-assisted \(0-1\). Null when the page was skipped. |
+| `fractionHuman` | number | Fraction of the page detected as human-written \(0-1\). Null when the page was skipped. |
+| `windows` | array | Flagged non-human passages with line ranges and suggested rewrites. Empty when the page was skipped. |
+|   ↳ `text` | string | The flagged passage text |
+|   ↳ `label` | string | Detection label, for example AI-Generated |
+|   ↳ `aiAssistanceScore` | number | AI-assistance score for the passage \(0-1\) |
+|   ↳ `confidence` | json | Detection confidence, either a label such as High or a numeric score |
+|   ↳ `startLine` | number | 1-based start line of the passage |
+|   ↳ `endLine` | number | 1-based end line of the passage |
+|   ↳ `rewrites` | array | Suggested human rewrites of the passage |
+|     ↳ `text` | string | The rewritten passage |
+|     ↳ `rationale` | string | Why the rewrite reads more human |
+| `creditsCharged` | number | AI credits charged for this request \(0 when skipped\) |
+
+### Mintlify Create Agent Job
+
+Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `prompt` | string | Yes | The instruction for the agent to execute |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusId` | string | Status ID of a queued deployment |
+| `previewUrl` | string | URL where the preview deployment is hosted |
+| `id` | string | Deployment status ID or agent job ID |
+| `projectId` | string | Documentation project ID |
+| `createdAt` | string | Creation timestamp |
+| `endedAt` | string | Deployment end timestamp |
+| `archivedAt` | string | Agent job archive timestamp |
+| `status` | string | Deployment status or agent job status |
+| `summary` | string | Summary of the deployment status |
+| `logs` | array | Deployment log lines |
+| `subdomain` | string | Subdomain of the docs being updated |
+| `screenshot` | string | Screenshot of the docs |
+| `screenshotLight` | string | Light-mode screenshot of the docs |
+| `screenshotDark` | string | Dark-mode screenshot of the docs |
+| `author` | json | Author of the deployment update |
+| `commit` | json | Commit that produced the deployment |
+| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
+| `schemaId` | string | ID of the triggered automation |
+| `instanceId` | string | ID of the queued automation run |
+| `jobId` | string | ID of the background job processing an automation run |
+| `model` | string | AI model used for the agent job |
+| `prLink` | string | Pull request URL created by the agent |
+| `path` | string | Documentation page path |
+| `content` | string | Full text content of the page |
+| `skipped` | string | Reason a prose check was skipped |
+| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
+| `fractionAi` | number | Fraction of the page detected as AI-generated |
+| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
+| `fractionHuman` | number | Fraction detected as human-written |
+| `windows` | array | Flagged passages with suggested rewrites |
+| `creditsCharged` | number | AI credits charged for the prose check |
+| `results` | array | Documentation search results |
+| `resultCount` | number | Number of search results returned |
+| `text` | string | Assembled assistant answer |
+| `threadId` | string | Assistant thread ID for follow-up messages |
+| `sources` | array | Documentation sources the assistant cited |
+| `feedback` | array | Feedback entries or per-page feedback aggregates |
+| `conversations` | array | Assistant conversation history |
+| `searches` | array | Documentation search terms with hit counts |
+| `totalSearches` | number | Total search events in the date range |
+| `views` | array | Per-page content view event counts |
+| `visitors` | array | Per-page unique visitor counts |
+| `totals` | json | Site-wide human, AI, and total traffic counts |
+| `web` | number | Assistant queries from the documentation site |
+| `api` | number | Assistant queries from API calls |
+| `other` | number | Assistant queries from other sources |
+| `total` | number | Total assistant queries across all caller types |
+| `nextCursor` | string | Cursor for the next page of results |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Get Agent Job
+
+Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `jobId` | string | Yes | Unique identifier of the agent job |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusId` | string | Status ID of a queued deployment |
+| `previewUrl` | string | URL where the preview deployment is hosted |
+| `id` | string | Deployment status ID or agent job ID |
+| `projectId` | string | Documentation project ID |
+| `createdAt` | string | Creation timestamp |
+| `endedAt` | string | Deployment end timestamp |
+| `archivedAt` | string | Agent job archive timestamp |
+| `status` | string | Deployment status or agent job status |
+| `summary` | string | Summary of the deployment status |
+| `logs` | array | Deployment log lines |
+| `subdomain` | string | Subdomain of the docs being updated |
+| `screenshot` | string | Screenshot of the docs |
+| `screenshotLight` | string | Light-mode screenshot of the docs |
+| `screenshotDark` | string | Dark-mode screenshot of the docs |
+| `author` | json | Author of the deployment update |
+| `commit` | json | Commit that produced the deployment |
+| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
+| `schemaId` | string | ID of the triggered automation |
+| `instanceId` | string | ID of the queued automation run |
+| `jobId` | string | ID of the background job processing an automation run |
+| `model` | string | AI model used for the agent job |
+| `prLink` | string | Pull request URL created by the agent |
+| `path` | string | Documentation page path |
+| `content` | string | Full text content of the page |
+| `skipped` | string | Reason a prose check was skipped |
+| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
+| `fractionAi` | number | Fraction of the page detected as AI-generated |
+| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
+| `fractionHuman` | number | Fraction detected as human-written |
+| `windows` | array | Flagged passages with suggested rewrites |
+| `creditsCharged` | number | AI credits charged for the prose check |
+| `results` | array | Documentation search results |
+| `resultCount` | number | Number of search results returned |
+| `text` | string | Assembled assistant answer |
+| `threadId` | string | Assistant thread ID for follow-up messages |
+| `sources` | array | Documentation sources the assistant cited |
+| `feedback` | array | Feedback entries or per-page feedback aggregates |
+| `conversations` | array | Assistant conversation history |
+| `searches` | array | Documentation search terms with hit counts |
+| `totalSearches` | number | Total search events in the date range |
+| `views` | array | Per-page content view event counts |
+| `visitors` | array | Per-page unique visitor counts |
+| `totals` | json | Site-wide human, AI, and total traffic counts |
+| `web` | number | Assistant queries from the documentation site |
+| `api` | number | Assistant queries from API calls |
+| `other` | number | Assistant queries from other sources |
+| `total` | number | Total assistant queries across all caller types |
+| `nextCursor` | string | Cursor for the next page of results |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Send Agent Message
+
+Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `jobId` | string | Yes | Unique identifier of the agent job to send a message to |
+| `prompt` | string | Yes | The follow-up instruction for the agent |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statusId` | string | Status ID of a queued deployment |
+| `previewUrl` | string | URL where the preview deployment is hosted |
+| `id` | string | Deployment status ID or agent job ID |
+| `projectId` | string | Documentation project ID |
+| `createdAt` | string | Creation timestamp |
+| `endedAt` | string | Deployment end timestamp |
+| `archivedAt` | string | Agent job archive timestamp |
+| `status` | string | Deployment status or agent job status |
+| `summary` | string | Summary of the deployment status |
+| `logs` | array | Deployment log lines |
+| `subdomain` | string | Subdomain of the docs being updated |
+| `screenshot` | string | Screenshot of the docs |
+| `screenshotLight` | string | Light-mode screenshot of the docs |
+| `screenshotDark` | string | Dark-mode screenshot of the docs |
+| `author` | json | Author of the deployment update |
+| `commit` | json | Commit that produced the deployment |
+| `source` | json | Deployment trigger source \(string\) or agent job source repository details \(object\) |
+| `schemaId` | string | ID of the triggered automation |
+| `instanceId` | string | ID of the queued automation run |
+| `jobId` | string | ID of the background job processing an automation run |
+| `model` | string | AI model used for the agent job |
+| `prLink` | string | Pull request URL created by the agent |
+| `path` | string | Documentation page path |
+| `content` | string | Full text content of the page |
+| `skipped` | string | Reason a prose check was skipped |
+| `predictionShort` | string | Prose verdict: AI, AI-Assisted, Human, Mixed |
+| `fractionAi` | number | Fraction of the page detected as AI-generated |
+| `fractionAiAssisted` | number | Fraction detected as AI-assisted |
+| `fractionHuman` | number | Fraction detected as human-written |
+| `windows` | array | Flagged passages with suggested rewrites |
+| `creditsCharged` | number | AI credits charged for the prose check |
+| `results` | array | Documentation search results |
+| `resultCount` | number | Number of search results returned |
+| `text` | string | Assembled assistant answer |
+| `threadId` | string | Assistant thread ID for follow-up messages |
+| `sources` | array | Documentation sources the assistant cited |
+| `feedback` | array | Feedback entries or per-page feedback aggregates |
+| `conversations` | array | Assistant conversation history |
+| `searches` | array | Documentation search terms with hit counts |
+| `totalSearches` | number | Total search events in the date range |
+| `views` | array | Per-page content view event counts |
+| `visitors` | array | Per-page unique visitor counts |
+| `totals` | json | Site-wide human, AI, and total traffic counts |
+| `web` | number | Assistant queries from the documentation site |
+| `api` | number | Assistant queries from API calls |
+| `other` | number | Assistant queries from other sources |
+| `total` | number | Total assistant queries across all caller types |
+| `nextCursor` | string | Cursor for the next page of results |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Search Documentation
+
+Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Domain identifier from your domain.mintlify.site URL, found at the end of your dashboard URL |
+| `query` | string | Yes | Search query to execute against your documentation content |
+| `pageSize` | number | No | Number of search results to return, between 1 and 50 \(default 10\) |
+| `scoreThreshold` | number | No | Minimum relevance score for results, between 0 and 1 |
+| `version` | string | No | Filter results by documentation version |
+| `language` | string | No | Filter results by content language |
+| `tag` | string | No | Filter results by tag |
+| `groups` | json | No | Documentation groups the caller is authorized to access, as a JSON array of strings. Only applies to deployments using auth or userAuth. |
+| `apiKey` | string | Yes | Mintlify assistant API key \(starts with mint_dsc_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `results` | array | Matching documentation chunks ordered by relevance |
+|   ↳ `content` | string | The matching content from your documentation |
+|   ↳ `path` | string | Path or URL to the source document |
+|   ↳ `metadata` | json | Additional metadata about the search result |
+| `resultCount` | number | Number of results returned |
+
+### Mintlify Get Page Content
+
+Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Domain identifier from your domain.mintlify.site URL, found at the end of your dashboard URL |
+| `path` | string | Yes | Page slug or path to retrieve, matching the path field returned by Search Documentation |
+| `groups` | json | No | Documentation groups the caller is authorized to access, as a JSON array of strings. Only applies to deployments using auth or userAuth. |
+| `apiKey` | string | Yes | Mintlify assistant API key \(starts with mint_dsc_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `path` | string | The page path that was requested |
+| `content` | string | Full text content of the page |
+
+### Mintlify Create Assistant Message
+
+Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `domain` | string | Yes | Domain identifier from your domain.mintlify.site URL, found at the end of your dashboard URL |
+| `message` | string | No | The question to ask the assistant. Ignored when a full Messages array is supplied. |
+| `messages` | json | No | Full AI SDK message array for multi-turn conversations, each entry with id, role, and parts. Overrides Message when provided. |
+| `fp` | string | No | Fingerprint identifier for tracking conversation sessions \(default "anonymous"\) |
+| `threadId` | string | No | Thread ID from a previous response, to continue the same conversation |
+| `retrievalPageSize` | number | No | Number of documentation search results used to generate the response |
+| `currentPath` | string | No | Path of the page the user is currently viewing, for more relevant answers \(max 200 characters\) |
+| `version` | string | No | Filter retrieval by documentation version |
+| `language` | string | No | Filter retrieval by content language |
+| `groups` | json | No | Group identifiers to filter retrieval by, as a JSON array of strings |
+| `assistantContext` | json | No | Contextual snippets for the assistant, as a JSON array of objects with type \("code" or "textSelection"\), value, and optional path and elementId |
+| `apiKey` | string | Yes | Mintlify assistant API key \(starts with mint_dsc_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `text` | string | Assembled assistant answer |
+| `threadId` | string | Thread ID for continuing this conversation in a follow-up call |
+| `sources` | array | Documentation sources the assistant cited |
+|   ↳ `sourceId` | string | Source identifier |
+|   ↳ `url` | string | URL of the cited page |
+|   ↳ `title` | string | Title of the cited page |
+
+### Mintlify Get Feedback
+
+Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `source` | string | No | Filter by feedback source: code_snippet, contextual, agent, or thumbs_only |
+| `status` | string | No | Comma-separated statuses to filter by: pending, in_progress, resolved, dismissed |
+| `limit` | number | No | Max results per page, between 1 and 100 \(default 50\) |
+| `cursor` | string | No | Pagination cursor returned as nextCursor by a previous call |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `feedback` | array | Feedback entries for the requested window |
+|   ↳ `id` | string | Unique feedback identifier |
+|   ↳ `path` | string | Path or URL of the page |
+|   ↳ `comment` | string | Text of the feedback comment |
+|   ↳ `createdAt` | string | Submission timestamp |
+|   ↳ `source` | string | Origin: code_snippet, contextual, agent, or thumbs_only |
+|   ↳ `status` | string | Review status: pending, in_progress, resolved, or dismissed |
+|   ↳ `helpful` | boolean | Whether the user found the content helpful \(contextual feedback only\) |
+|   ↳ `contact` | string | Email the user provided for follow-up \(contextual feedback only\) |
+|   ↳ `code` | string | Code snippet the feedback relates to \(code_snippet feedback only\) |
+|   ↳ `filename` | string | Filename of the code snippet \(code_snippet feedback only\) |
+|   ↳ `lang` | string | Language of the code snippet \(code_snippet feedback only\) |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Get Feedback By Page
+
+Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `limit` | number | No | Max results per page, between 1 and 100 \(default 10\) |
+| `source` | string | No | Filter by feedback source: code_snippet, contextual, agent, or thumbs_only |
+| `status` | string | No | Comma-separated statuses to filter by: pending, in_progress, resolved, dismissed |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `feedback` | array | Feedback counts aggregated by documentation page path |
+|   ↳ `path` | string | The documentation page path |
+|   ↳ `thumbsUp` | number | Positive contextual feedback entries |
+|   ↳ `thumbsDown` | number | Negative contextual feedback entries |
+|   ↳ `code` | number | Code snippet feedback entries |
+|   ↳ `total` | number | Total feedback entries |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Get Assistant Conversations
+
+Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `limit` | number | No | Max results per page, between 1 and 1000 \(default 100\) |
+| `cursor` | string | No | ULID pagination cursor returned as nextCursor by a previous call |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `conversations` | array | Assistant conversations for the requested window |
+|   ↳ `id` | string | Unique conversation identifier |
+|   ↳ `timestamp` | string | When the conversation occurred |
+|   ↳ `query` | string | The user's question |
+|   ↳ `response` | string | The assistant's response |
+|   ↳ `sources` | array | Documentation pages referenced in the response |
+|     ↳ `title` | string | Title of the page |
+|     ↳ `url` | string | URL of the page |
+|   ↳ `resolutionStatus` | string | Whether the assistant answered the question: answered or unanswered |
+|   ↳ `queryCategory` | string | Auto-assigned category grouping for the conversation |
+|   ↳ `pageUrl` | string | Full URL of the page where the conversation started |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Get Assistant Caller Stats
+
+Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `web` | number | Assistant queries originating from the documentation site |
+| `api` | number | Assistant queries originating from API calls |
+| `other` | number | Assistant queries from other sources such as integrations and SDKs |
+| `total` | number | Total assistant queries across all caller types |
+
+### Mintlify Get Search Queries
+
+Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `limit` | number | No | Max search terms per page, between 1 and 100 \(default 50\) |
+| `cursor` | string | No | Opaque pagination cursor returned as nextCursor by a previous call |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searches` | array | Search terms ordered by hit count descending |
+|   ↳ `searchQuery` | string | The search term entered by users |
+|   ↳ `hits` | number | Number of times this term was searched |
+|   ↳ `ctr` | number | Click-through rate for this search term |
+|   ↳ `topClickedPage` | string | Most-clicked result path for this query |
+|   ↳ `lastSearchedAt` | string | Timestamp of the last time this term was searched |
+| `totalSearches` | number | Total search events in the date range, summing all hits rather than distinct queries |
+| `nextCursor` | string | Cursor for the next page, or null when there are no more results |
+
+### Mintlify Get Page Views
+
+Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `limit` | number | No | Max results per page, between 1 and 250 \(default 50\) |
+| `offset` | number | No | Number of rows to skip for offset-based pagination \(default 0\) |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `views` | array | Per-page content view event counts |
+|   ↳ `path` | string | The documentation page path |
+|   ↳ `human` | number | Content view events from human traffic |
+|   ↳ `ai` | number | Content view events from AI bot traffic |
+|   ↳ `total` | number | Total content view events |
+| `hasMore` | boolean | Whether additional results are available |
+
+### Mintlify Get Unique Visitors
+
+Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `projectId` | string | Yes | Mintlify project ID, copied from the API keys page in your dashboard |
+| `dateFrom` | string | No | Inclusive start date in ISO 8601 or YYYY-MM-DD format |
+| `dateTo` | string | No | Exclusive end date in ISO 8601 or YYYY-MM-DD format |
+| `limit` | number | No | Max results per page, between 1 and 250 \(default 50\) |
+| `offset` | number | No | Number of rows to skip for offset-based pagination \(default 0\) |
+| `apiKey` | string | Yes | Mintlify admin API key \(starts with mint_\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `visitors` | array | Per-page unique visitor counts |
+|   ↳ `path` | string | The documentation page path |
+|   ↳ `human` | number | Unique human visitors |
+|   ↳ `ai` | number | Unique AI bot visitors |
+|   ↳ `total` | number | Approximate distinct visitors, deduplicated across human and AI |
+| `hasMore` | boolean | Whether additional results are available |
+
+
