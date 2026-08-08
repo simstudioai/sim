@@ -15,7 +15,11 @@ import type { BlockOutput } from '@/blocks/types'
 import { validateModelProvider } from '@/ee/access-control/utils/permission-check'
 import { BlockType, DEFAULTS, EVALUATOR } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import {
+  buildAuthHeaders,
+  buildInternalApiUrl,
+  extractAPIErrorMessage,
+} from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
 import type {
@@ -186,7 +190,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = buildAPIUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
+      const url = buildInternalApiUrl('/api/providers', ctx.userId ? { userId: ctx.userId } : {})
 
       const providerRequest: ProviderRequest = {
         model,

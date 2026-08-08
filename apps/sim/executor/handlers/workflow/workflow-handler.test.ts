@@ -183,7 +183,7 @@ vi.mock('@/lib/auth/internal', () => ({
 
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
-  buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
+  buildInternalApiUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
   extractAPIErrorMessage: vi.fn(async (response: Response) => {
     const defaultMessage = `API request failed with status ${response.status}`
     try {

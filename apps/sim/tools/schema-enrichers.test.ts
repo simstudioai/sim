@@ -3,20 +3,22 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(() => ({
-  mockBuildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
-    const url = new URL(path, 'http://localhost:3000')
-    for (const [key, value] of Object.entries(params ?? {})) {
-      url.searchParams.set(key, value)
-    }
-    return url
-  }),
-  mockBuildAuthHeaders: vi.fn(),
-  mockExtractAPIErrorMessage: vi.fn(),
-}))
+const { mockBuildInternalApiUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(
+  () => ({
+    mockBuildInternalApiUrl: vi.fn((path: string, params?: Record<string, string>) => {
+      const url = new URL(path, 'http://localhost:3000')
+      for (const [key, value] of Object.entries(params ?? {})) {
+        url.searchParams.set(key, value)
+      }
+      return url
+    }),
+    mockBuildAuthHeaders: vi.fn(),
+    mockExtractAPIErrorMessage: vi.fn(),
+  })
+)
 
 vi.mock('@/executor/utils/http', () => ({
-  buildAPIUrl: mockBuildAPIUrl,
+  buildInternalApiUrl: mockBuildInternalApiUrl,
   buildAuthHeaders: mockBuildAuthHeaders,
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
@@ -101,6 +103,26 @@ describe('enrichTableToolSchema', () => {
       enrichTableToolSchema('table-1', 'table_query_rows', ORIGINAL_SCHEMA, 'Query rows', {})
     ).rejects.toThrow('Workspace ID is required to enrich table tool schema for table-1')
   })
+
+  it('keeps a traversal-shaped table id inside the table route', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+    mockExtractAPIErrorMessage.mockResolvedValue('Table not found')
+
+    await expect(
+      enrichTableToolSchema(
+        '../../workflows/wf-1',
+        'table_query_rows',
+        ORIGINAL_SCHEMA,
+        'Query rows',
+        { workspaceId: 'workspace-1', userId: 'user-1' }
+      )
+    ).rejects.toThrow()
+
+    expect(mockBuildInternalApiUrl).toHaveBeenCalledWith(
+      '/api/table/..%2F..%2Fworkflows%2Fwf-1',
+      expect.anything()
+    )
+  })
 })
 
 describe('enrichKBTagsSchema', () => {
@@ -138,5 +160,15 @@ describe('enrichKBTagsSchema', () => {
     await expect(enrichKBTagsSchema('kb-1', {})).resolves.toBeNull()
     expect(mockFetch).not.toHaveBeenCalled()
     expect(mockBuildAuthHeaders).not.toHaveBeenCalled()
+  })
+
+  it('keeps a traversal-shaped knowledge base id inside the tag-definitions route', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 404 })))
+
+    await enrichKBTagsSchema('../../workflows/wf-1', { userId: 'user-1' })
+
+    expect(mockBuildInternalApiUrl).toHaveBeenCalledWith(
+      '/api/knowledge/..%2F..%2Fworkflows%2Fwf-1/tag-definitions'
+    )
   })
 })

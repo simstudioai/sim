@@ -18,12 +18,14 @@ async function fetchTableSchema(
     throw new Error(`User ID is required to enrich table tool schema for ${tableId}`)
   }
 
-  const { buildAuthHeaders, buildAPIUrl, extractAPIErrorMessage } = await import(
+  const { buildAuthHeaders, buildInternalApiUrl, extractAPIErrorMessage } = await import(
     '@/executor/utils/http'
   )
 
   const headers = await buildAuthHeaders(context.userId)
-  const url = buildAPIUrl(`/api/table/${tableId}`, { workspaceId: context.workspaceId })
+  const url = buildInternalApiUrl(`/api/table/${encodeURIComponent(tableId)}`, {
+    workspaceId: context.workspaceId,
+  })
   const response = await fetch(url.toString(), { headers })
 
   if (!response.ok) {
@@ -127,10 +129,12 @@ async function fetchTagDefinitions(
   }
 
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders(context.userId)
-    const url = buildAPIUrl(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
+    const url = buildInternalApiUrl(
+      `/api/knowledge/${encodeURIComponent(knowledgeBaseId)}/tag-definitions`
+    )
 
     logger.info(`Fetching tag definitions for KB ${knowledgeBaseId} from ${url.toString()}`)
 

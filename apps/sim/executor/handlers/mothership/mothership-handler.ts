@@ -42,7 +42,11 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
-import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import {
+  buildAuthHeaders,
+  buildInternalApiUrl,
+  extractAPIErrorMessage,
+} from '@/executor/utils/http'
 import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
@@ -796,7 +800,7 @@ export class MothershipBlockHandler implements BlockHandler {
       requestId
     )
 
-    const url = buildAPIUrl('/api/mothership/execute')
+    const url = buildInternalApiUrl('/api/mothership/execute')
     const headers = await buildAuthHeaders(ctx.userId)
     headers.Accept = 'application/x-ndjson'
     headers[MOTHERSHIP_EXECUTE_STREAM_HEADER] = MOTHERSHIP_EXECUTE_STREAM_VALUE

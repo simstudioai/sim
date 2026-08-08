@@ -91,7 +91,7 @@ vi.mock('@/providers', () => ({
 
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
-  buildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
+  buildInternalApiUrl: vi.fn((path: string, params?: Record<string, string>) => {
     const url = new URL(path, 'http://localhost:3000')
     if (params) {
       for (const [key, value] of Object.entries(params)) {

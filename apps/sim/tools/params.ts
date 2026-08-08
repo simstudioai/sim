@@ -776,10 +776,10 @@ async function fetchWorkflowInputFields(
   workflowId: string
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+    const url = buildInternalApiUrl(`/api/workflows/${encodeURIComponent(workflowId)}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {

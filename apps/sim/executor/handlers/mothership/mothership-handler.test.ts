@@ -32,7 +32,7 @@ const PRIVATE_PROVENANCE = {
 const {
   mockAreModelSafeWorkspaceFileKeys,
   mockBuildAuthHeaders,
-  mockBuildAPIUrl,
+  mockBuildInternalApiUrl,
   mockExtractAPIErrorMessage,
   mockGenerateId,
   mockIsExecutionCancelled,
@@ -41,7 +41,7 @@ const {
 } = vi.hoisted(() => ({
   mockAreModelSafeWorkspaceFileKeys: vi.fn(),
   mockBuildAuthHeaders: vi.fn(),
-  mockBuildAPIUrl: vi.fn(),
+  mockBuildInternalApiUrl: vi.fn(),
   mockExtractAPIErrorMessage: vi.fn(),
   mockGenerateId: vi.fn(),
   mockIsExecutionCancelled: vi.fn(),
@@ -57,7 +57,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: mockBuildAuthHeaders,
-  buildAPIUrl: mockBuildAPIUrl,
+  buildInternalApiUrl: mockBuildInternalApiUrl,
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
 
@@ -155,7 +155,9 @@ describe('MothershipBlockHandler', () => {
     vi.stubGlobal('fetch', fetchMock)
 
     mockBuildAuthHeaders.mockResolvedValue({ Authorization: 'Bearer internal' })
-    mockBuildAPIUrl.mockReturnValue(new URL('/api/mothership/execute', 'http://localhost:3000'))
+    mockBuildInternalApiUrl.mockReturnValue(
+      new URL('/api/mothership/execute', 'http://localhost:3000')
+    )
     mockExtractAPIErrorMessage.mockResolvedValue('boom')
     mockGenerateId.mockReset()
     mockIsExecutionCancelled.mockReset()

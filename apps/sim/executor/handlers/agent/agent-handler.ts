@@ -59,7 +59,7 @@ import type {
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { buildAuthHeaders, buildInternalApiUrl } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
@@ -1212,7 +1212,7 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildAPIUrl('/api/mcp/tools/discover', {
+    const url = buildInternalApiUrl('/api/mcp/tools/discover', {
       serverId,
       workspaceId: ctx.workspaceId,
       workflowId: ctx.workflowId,

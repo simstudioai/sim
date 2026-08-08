@@ -1,5 +1,5 @@
 import { generateInternalToken } from '@/lib/auth/internal'
-import { getBaseUrl, getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { HTTP } from '@/executor/constants'
 
 export async function buildAuthHeaders(userId?: string): Promise<Record<string, string>> {
@@ -15,9 +15,20 @@ export async function buildAuthHeaders(userId?: string): Promise<Record<string, 
   return headers
 }
 
-export function buildAPIUrl(path: string, params?: Record<string, string>): URL {
-  const baseUrl = path.startsWith('/api/') ? getInternalApiBaseUrl() : getBaseUrl()
-  const url = new URL(path, baseUrl)
+/**
+ * Resolves a Sim-internal API path against the internal base URL. Callers pair this with
+ * {@link buildAuthHeaders}, so the path must be a fixed internal route the caller chose — never a
+ * caller- or model-supplied URL, and never a value interpolated into the path unencoded.
+ *
+ * @throws when `path` is not a relative `/api/` path, which would otherwise send an
+ * internally-signed request somewhere the caller did not intend.
+ */
+export function buildInternalApiUrl(path: string, params?: Record<string, string>): URL {
+  if (!path.startsWith('/api/')) {
+    throw new Error(`Internal API path must start with /api/: ${path}`)
+  }
+
+  const url = new URL(path, getInternalApiBaseUrl())
 
   if (params) {
     for (const [key, value] of Object.entries(params)) {
