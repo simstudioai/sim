@@ -36,6 +36,7 @@ import { createLogger } from '@sim/logger'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
@@ -75,7 +76,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import {
   useChatSelection,
-  useContextMenu,
   useFlyoutInlineRename,
   useFolderOperations,
   useHoverMenu,

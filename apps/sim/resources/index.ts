@@ -31,6 +31,10 @@ export type {
 } from '@/resources/kinds'
 export { isResourceKind, RESOURCE_KINDS } from '@/resources/kinds'
 export {
+  knowledgeDocumentHref,
+  knowledgeWorkspaceId,
+} from '@/resources/knowledge-source'
+export {
   logWorkflowHref,
   resolveLogWorkflowId,
   workflowEditorPath,

@@ -17,7 +17,7 @@ import { createLogger } from '@sim/logger'
 import { useParams } from 'next/navigation'
 import { formatFileSize, validateKnowledgeBaseFile } from '@/lib/uploads/utils/file-utils'
 import { ACCEPT_ATTRIBUTE } from '@/lib/uploads/utils/validation'
-import { useKnowledgeUpload } from '@/app/workspace/[workspaceId]/knowledge/hooks/use-knowledge-upload'
+import { useKnowledgeUpload } from '@/hooks/kb/use-knowledge-upload'
 
 const logger = createLogger('AddDocumentsModal')
 

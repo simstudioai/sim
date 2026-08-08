@@ -7,6 +7,8 @@ import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { useContextMenu } from '@/components/anchored-context-menu'
+import { getDocumentIcon } from '@/components/icons/document-icons'
 import { SearchHighlight } from '@/components/resources/knowledge-view'
 import type { ChunkData } from '@/lib/knowledge/types'
 import { formatTokenCount } from '@/lib/tokenization'
@@ -34,9 +36,7 @@ import {
   documentUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/search-params'
 import { ActionBar } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
-import { getDocumentIcon } from '@/app/workspace/[workspaceId]/knowledge/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
 import { useDocument, useDocumentChunks, useKnowledgeBase } from '@/hooks/kb/use-knowledge'
 import {

@@ -26,6 +26,8 @@ import {
   FieldError,
   RequiredLabel,
 } from '@/components/resources/table-view/components/sidebar-fields'
+import { InputMappingSection } from '@/components/resources/table-view/components/workflow-sidebar/input-mapping-section'
+import { RunSettingsSection } from '@/components/resources/table-view/components/workflow-sidebar/run-settings-section'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -78,8 +80,6 @@ import {
 } from '@/hooks/queries/tables'
 import { useWorkflowState, workflowKeys } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
-import { InputMappingSection } from './input-mapping-section'
-import { RunSettingsSection } from './run-settings-section'
 
 /**
  * Distinguishes a user-built workflow column (`manual`) from one spawned off a

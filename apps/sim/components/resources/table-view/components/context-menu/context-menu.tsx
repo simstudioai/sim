@@ -12,7 +12,7 @@ import {
   Trash,
 } from '@sim/emcn/icons'
 import { AnchoredContextMenu } from '@/components/anchored-context-menu'
-import type { ContextMenuState } from '../../types'
+import type { ContextMenuState } from '@/components/resources/table-view/types'
 
 interface ContextMenuProps {
   contextMenu: ContextMenuState

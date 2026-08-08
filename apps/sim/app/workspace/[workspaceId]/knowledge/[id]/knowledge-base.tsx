@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   ChipConfirmModal,
   type ChipConfirmTextSegment,
@@ -11,8 +11,8 @@ import {
 } from '@sim/emcn'
 import { Database, Pencil, Plus, TagIcon } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { Resource } from '@/components/resource'
 import {
   type KnowledgeDocumentList,
@@ -35,8 +35,6 @@ import {
   RenameDocumentModal,
 } from '@/app/workspace/[workspaceId]/knowledge/[id]/components'
 import { useKnowledgeListState } from '@/app/workspace/[workspaceId]/knowledge/[id]/hooks/use-knowledge-list-state'
-import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import {
   useKnowledgeBase,
   useKnowledgeBaseDocuments,
@@ -53,7 +51,13 @@ import {
 } from '@/hooks/queries/kb/knowledge'
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useOAuthReturnForKBConnectors } from '@/hooks/use-oauth-return'
-import { grantsFromPermissions, type ResourceHost, workspaceSource } from '@/resources'
+import {
+  knowledgeDocumentHref,
+  knowledgeWorkspaceId,
+  type ResourceGrants,
+  type ResourceHost,
+  type ResourceSource,
+} from '@/resources'
 
 const logger = createLogger('KnowledgeBase')
 
@@ -62,7 +66,15 @@ const DOCUMENTS_PER_PAGE = 50
 interface KnowledgeBaseProps {
   id: string
   knowledgeBaseName?: string
-  workspaceId?: string
+  /**
+   * Where the knowledge base comes from and by what address. Built by the host's
+   * client shell; a source carries closures and cannot cross the RSC boundary.
+   */
+  source: ResourceSource<'knowledge'>
+  /** What this viewer may do. `write` is `canEdit`; `settled` says whether it is final. */
+  grants: ResourceGrants
+  /** The router half of `host`; targets come from `source.hrefFor`. */
+  onNavigate?: (path: string) => void
   /**
    * Who owns the URL around this surface. The knowledge page owns it; the
    * mothership panel does not, and its document-list view-state stays local so
@@ -81,12 +93,12 @@ interface KnowledgeBaseProps {
 export function KnowledgeBase({
   id,
   knowledgeBaseName: passedKnowledgeBaseName,
-  workspaceId: propWorkspaceId,
+  source,
+  grants,
+  onNavigate,
   host,
 }: KnowledgeBaseProps) {
-  const params = useParams()
-  const workspaceId = propWorkspaceId || (params.workspaceId as string)
-  const router = useRouter()
+  const workspaceId = knowledgeWorkspaceId(source) ?? ''
   const posthog = usePostHog()
 
   useEffect(() => {
@@ -98,7 +110,6 @@ export function KnowledgeBase({
 
   useOAuthReturnForKBConnectors(id)
   const { removeKnowledgeBase } = useKnowledgeBasesList(workspaceId, { enabled: false })
-  const userPermissions = useUserPermissionsContext()
 
   const { mutate: updateDocumentMutation, mutateAsync: updateDocumentAsync } = useUpdateDocument()
   const { mutate: deleteDocumentMutation } = useDeleteDocument()
@@ -224,12 +235,6 @@ export function KnowledgeBase({
   const error = knowledgeBaseError || documentsError
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
-
-  const source = useMemo(
-    () => workspaceSource({ kind: 'knowledge', workspaceId, resourceId: id }),
-    [workspaceId, id]
-  )
-  const grants = useMemo(() => grantsFromPermissions(userPermissions), [userPermissions])
 
   /**
    * Checks for documents with stale processing states and marks them as failed
@@ -408,7 +413,8 @@ export function KnowledgeBase({
       kbName: knowledgeBaseName,
       docName: document?.filename || 'Document',
     })
-    router.push(`/workspace/${workspaceId}/knowledge/${id}/${docId}?${urlParams.toString()}`)
+    const documentHref = knowledgeDocumentHref(source, docId)
+    if (documentHref) onNavigate?.(`${documentHref}?${urlParams.toString()}`)
   }
 
   /**
@@ -423,7 +429,7 @@ export function KnowledgeBase({
         onSuccess: () => {
           removeKnowledgeBase(id)
           const list = source.hrefFor({ to: 'list' })
-          if (list) router.push(list)
+          if (list) onNavigate?.(list)
         },
       }
     )
@@ -625,7 +631,7 @@ export function KnowledgeBase({
       icon: Database,
       onClick: () => {
         const list = source.hrefFor({ to: 'list' })
-        if (list) router.push(list)
+        if (list) onNavigate?.(list)
       },
     },
     {
@@ -642,24 +648,24 @@ export function KnowledgeBase({
           }
         : undefined,
       dropdownItems: [
-        ...(userPermissions.canEdit || userPermissions.isLoading
+        ...(grants.write || !grants.settled
           ? [
               {
                 label: 'Rename',
                 icon: Pencil,
-                disabled: !userPermissions.canEdit,
+                disabled: !grants.write,
                 onClick: () => kbRename.startRename(id, knowledgeBaseName),
               },
               {
                 label: 'Tags',
                 icon: TagIcon,
-                disabled: !userPermissions.canEdit,
+                disabled: !grants.write,
                 onClick: () => setShowTagsModal(true),
               },
               {
                 label: 'Delete',
                 icon: Trash,
-                disabled: !userPermissions.canEdit,
+                disabled: !grants.write,
                 onClick: () => setShowDeleteDialog(true),
               },
             ]
@@ -669,12 +675,12 @@ export function KnowledgeBase({
   ]
 
   const headerActions: ResourceAction[] = [
-    ...(userPermissions.canEdit || userPermissions.isLoading
+    ...(grants.write || !grants.settled
       ? [
           {
             text: 'New connector',
             icon: Plus,
-            disabled: !userPermissions.canEdit,
+            disabled: !grants.write,
             onSelect: () => setShowAddConnectorModal(true),
           },
         ]
@@ -741,7 +747,7 @@ export function KnowledgeBase({
               text: 'New documents',
               icon: Plus,
               onSelect: handleAddDocuments,
-              disabled: userPermissions.canEdit !== true,
+              disabled: !grants.write,
               variant: 'primary',
             },
           ]}
@@ -915,7 +921,7 @@ export function KnowledgeBase({
             knowledgeBaseId={id}
             connectors={connectors}
             isLoading={isLoadingConnectors}
-            canEdit={userPermissions.canEdit}
+            canEdit={grants.write}
             className='mt-0'
           />
         </ChipModalBody>
@@ -964,7 +970,7 @@ export function KnowledgeBase({
             : undefined
         }
         onViewTags={
-          contextMenuDocument && selectedDocuments.size === 1 && userPermissions.canEdit
+          contextMenuDocument && selectedDocuments.size === 1 && grants.write
             ? () => handleViewDocumentTags(contextMenuDocument)
             : undefined
         }
@@ -976,16 +982,14 @@ export function KnowledgeBase({
             : undefined
         }
         onAddDocument={handleAddDocuments}
-        disableRename={!userPermissions.canEdit}
+        disableRename={!grants.write}
         disableToggleEnabled={
-          !userPermissions.canEdit ||
+          !grants.write ||
           contextMenuDocument?.processingStatus === 'processing' ||
           contextMenuDocument?.processingStatus === 'pending'
         }
-        disableDelete={
-          !userPermissions.canEdit || contextMenuDocument?.processingStatus === 'processing'
-        }
-        disableAddDocument={!userPermissions.canEdit}
+        disableDelete={!grants.write || contextMenuDocument?.processingStatus === 'processing'}
+        disableAddDocument={!grants.write}
       />
     </>
   )

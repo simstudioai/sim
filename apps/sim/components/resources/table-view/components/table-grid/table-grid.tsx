@@ -49,6 +49,16 @@ import {
   TableFind,
   WorkflowGroupMetaCell,
 } from '@/components/resources/table-view'
+import type { ColumnConfig } from '@/components/resources/table-view/components/column-config-sidebar'
+import { ContextMenu } from '@/components/resources/table-view/components/context-menu'
+import { NewColumnDropdown } from '@/components/resources/table-view/components/new-column-dropdown'
+import {
+  ExpandedCellPopover,
+  InlineEditor,
+} from '@/components/resources/table-view/components/table-grid/cells'
+import type { WorkflowConfig } from '@/components/resources/table-view/components/workflow-sidebar'
+import { useContextMenu, useTable } from '@/components/resources/table-view/hooks'
+import type { QueryOptions } from '@/components/resources/table-view/types'
 import type { BlockedTableAction } from '@/components/resources/table-view/utils/lock-copy'
 import type { RunLimit, RunMode, TableFindMatch } from '@/lib/api/contracts/tables'
 import { attachSelectionContextToClipboard } from '@/lib/copilot/chat/selection-clipboard'
@@ -85,13 +95,6 @@ import { extractCreatedRowId, useTableUndo } from '@/hooks/use-table-undo'
 import type { ResourceGrants } from '@/resources'
 import type { ChatContext } from '@/stores/panel'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
-import { useContextMenu, useTable } from '../../hooks'
-import type { QueryOptions } from '../../types'
-import type { ColumnConfig } from '../column-config-sidebar'
-import { ContextMenu } from '../context-menu'
-import { NewColumnDropdown } from '../new-column-dropdown'
-import type { WorkflowConfig } from '../workflow-sidebar'
-import { ExpandedCellPopover, InlineEditor } from './cells'
 
 const logger = createLogger('TableView')
 

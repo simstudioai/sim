@@ -14,8 +14,8 @@ import {
   Plus,
 } from '@sim/emcn'
 import { Sparkles } from '@sim/emcn/icons'
+import { COLUMN_TYPE_OPTIONS } from '@/components/resources/table-view/components/column-config-sidebar'
 import type { ColumnDefinition } from '@/lib/table'
-import { COLUMN_TYPE_OPTIONS } from '../column-config-sidebar'
 
 const CELL_HEADER =
   'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'

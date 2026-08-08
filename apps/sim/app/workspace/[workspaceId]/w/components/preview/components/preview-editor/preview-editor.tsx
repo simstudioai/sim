@@ -30,6 +30,7 @@ import {
 import { formatDuration } from '@sim/utils/formatting'
 import { useParams } from 'next/navigation'
 import { ReactFlowProvider } from 'reactflow'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { DELETED_WORKFLOW_LABEL } from '@/lib/workflows/labels'
 import { extractReferencePrefixes } from '@/lib/workflows/sanitization/references'
 import {
@@ -43,7 +44,6 @@ import {
 import { SubBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-context-menu'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'

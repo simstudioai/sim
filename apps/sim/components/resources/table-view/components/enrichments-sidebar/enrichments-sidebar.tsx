@@ -3,11 +3,11 @@
 import { useState } from 'react'
 import { Button, ChipInput, cn } from '@sim/emcn'
 import { Search, X } from '@sim/emcn/icons'
+import { EnrichmentConfig } from '@/components/resources/table-view/components/enrichments-sidebar/enrichment-config'
 import type { ColumnDefinition, WorkflowGroup } from '@/lib/table'
 import { ALL_ENRICHMENTS } from '@/enrichments'
 import { getEnrichment } from '@/enrichments/registry'
 import type { EnrichmentConfig as EnrichmentDef } from '@/enrichments/types'
-import { EnrichmentConfig } from './enrichment-config'
 
 interface EnrichmentsSidebarProps {
   open: boolean

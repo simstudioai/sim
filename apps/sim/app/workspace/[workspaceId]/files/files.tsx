@@ -24,6 +24,7 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { getDocumentIcon } from '@/components/icons/document-icons'
 import type { PreviewMode } from '@/components/resources/file-view'
 import {
@@ -106,7 +107,6 @@ import {
   filesUrlKeys,
 } from '@/app/workspace/[workspaceId]/files/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {

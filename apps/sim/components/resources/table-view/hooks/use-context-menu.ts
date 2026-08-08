@@ -1,6 +1,6 @@
 import { useCallback, useState } from 'react'
+import type { ContextMenuState } from '@/components/resources/table-view/types'
 import type { TableRow } from '@/lib/table'
-import type { ContextMenuState } from '../types'
 
 interface UseContextMenuReturn {
   contextMenu: ContextMenuState

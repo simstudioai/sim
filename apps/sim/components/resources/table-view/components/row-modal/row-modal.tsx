@@ -23,12 +23,12 @@ import {
   localPartsToDateValue,
   todayLocalCalendarDate,
 } from '@/components/resources/table-view'
+import { SelectValueEditor } from '@/components/resources/table-view/components/select-field'
 import type { ColumnDefinition, TableInfo, TableRow } from '@/lib/table'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { resolveCurrencyCode } from '@/lib/table/currency'
 import { useTimezone } from '@/hooks/queries/general-settings'
 import { useDeleteTableRow, useDeleteTableRows, useUpdateTableRow } from '@/hooks/queries/tables'
-import { SelectValueEditor } from '../select-field'
 
 const logger = createLogger('RowModal')
 

@@ -270,6 +270,11 @@ export const ResourceContent = memo(function ResourceContent({
     error: logError,
   } = useLogDetail(resource.id, workspaceId, { enabled: isLogResource })
 
+  const knowledgeSource = useMemo(
+    () => workspaceSource({ kind: 'knowledge' as const, workspaceId, resourceId: resource.id }),
+    [workspaceId, resource.id]
+  )
+
   const tableSource = useMemo(
     () => workspaceSource({ kind: 'table' as const, workspaceId, resourceId: resource.id }),
     [workspaceId, resource.id]
@@ -380,7 +385,9 @@ export const ResourceContent = memo(function ResourceContent({
           key={resource.id}
           id={resource.id}
           knowledgeBaseName={resource.title}
-          workspaceId={workspaceId}
+          source={knowledgeSource}
+          grants={grants}
+          onNavigate={navigate}
           host='panel'
         />
       )

@@ -4,6 +4,8 @@ import { useState } from 'react'
 import { Button, ChipCombobox, ChipInput, cn, FieldDivider, Label, Switch, toast } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
+import { PLAIN_COLUMN_TYPE_OPTIONS } from '@/components/resources/table-view/components/column-config-sidebar/column-types'
+import { SelectOptionsEditor } from '@/components/resources/table-view/components/select-field'
 import {
   FieldError,
   RequiredLabel,
@@ -16,8 +18,6 @@ import {
   resolveCurrencyCode,
 } from '@/lib/table/currency'
 import { useAddTableColumn, useUpdateColumn } from '@/hooks/queries/tables'
-import { SelectOptionsEditor } from '../select-field'
-import { PLAIN_COLUMN_TYPE_OPTIONS } from './column-types'
 
 /** Whether a column type carries an option set. */
 function isSelectType(type: ColumnDefinition['type']): boolean {

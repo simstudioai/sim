@@ -3,6 +3,7 @@
 import { useCallback, useMemo } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import type { BlockIconInfo, ColumnSourceInfo } from '@/components/resources/table-view'
+import type { QueryOptions } from '@/components/resources/table-view/types'
 import type {
   ColumnDefinition,
   TableDefinition,
@@ -23,7 +24,6 @@ import { countLoadedTableRows, hasMoreTableRows } from '@/hooks/queries/utils/ta
 import { useWorkflowStates, useWorkflows } from '@/hooks/queries/workflows'
 import type { WorkflowMetadata } from '@/stores/workflows/registry/types'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import type { QueryOptions } from '../types'
 
 const EMPTY_COLUMNS: ColumnDefinition[] = []
 const EMPTY_GROUPS: WorkflowGroup[] = []

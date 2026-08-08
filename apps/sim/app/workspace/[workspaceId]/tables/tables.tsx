@@ -9,6 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { ImportCsvDialog, ImportProgressMenu } from '@/components/table-import'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
@@ -57,7 +58,6 @@ import {
   tablesSortParams,
   tablesUrlKeys,
 } from '@/app/workspace/[workspaceId]/tables/search-params'
-import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useCreateFolder, useDeleteFolderMutation, useUpdateFolder } from '@/hooks/queries/folders'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import {
