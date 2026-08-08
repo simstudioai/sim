@@ -4,6 +4,8 @@ import { generateShortId } from '@sim/utils/id'
 
 export const OAUTH_CHAT_ATTEMPT_PARAM = 'oauthAttempt'
 export const OAUTH_CHAT_ATTEMPT_EVENT = 'sim:oauth-chat-attempt'
+export const OAUTH_CHAT_COMPLETE_PATH = '/oauth/chat-complete'
+export const OAUTH_CHAT_RETURN_TO_PARAM = 'returnTo'
 
 const OAUTH_CHAT_ATTEMPT_KEY_PREFIX = 'sim.oauth-chat-attempt.'
 const OAUTH_CHAT_LATEST_KEY_PREFIX = 'sim.oauth-chat-latest.'
@@ -143,8 +145,13 @@ function isOAuthChatAttempt(value: unknown): value is OAuthChatAttempt {
 
 function writeOAuthChatAttempt(attempt: OAuthChatAttempt): void {
   if (typeof window === 'undefined') return
-  window.localStorage.setItem(attemptStorageKey(attempt.id), JSON.stringify(attempt))
-  window.localStorage.setItem(latestAttemptStorageKey(attempt), attempt.id)
+  // A blocked or full store must not throw into the caller: the chat-complete
+  // page writes the verdict before closing its window, so an unguarded throw
+  // would strand the popup open instead of losing only the verdict.
+  try {
+    window.localStorage.setItem(attemptStorageKey(attempt.id), JSON.stringify(attempt))
+    window.localStorage.setItem(latestAttemptStorageKey(attempt), attempt.id)
+  } catch {}
   window.dispatchEvent(
     new CustomEvent<OAuthChatAttempt>(OAUTH_CHAT_ATTEMPT_EVENT, { detail: attempt })
   )
@@ -244,11 +251,31 @@ function appendAttemptToReturnUrl(rawReturnUrl: string, attemptId: string): stri
   return returnUrl.toString()
 }
 
-/** Adds the attempt id to the eventual same-origin OAuth return URL. */
-export function addOAuthChatAttemptToAuthorizeUrl(rawUrl: string, attemptId: string): string {
+interface AuthorizeReturnTarget {
+  authorizeUrl: URL
+  /** Which param this provider's authorize route reads the return URL from. */
+  returnParam: 'callbackURL' | 'returnUrl'
+  rawReturnUrl: string | null
+}
+
+/**
+ * Locates the return URL an authorize link will come back through. Shared so
+ * both builders below agree on which param carries it — a provider added to
+ * one and missed in the other would break only the path its caller uses.
+ */
+function resolveAuthorizeReturnTarget(rawUrl: string): AuthorizeReturnTarget {
   const authorizeUrl = new URL(rawUrl, window.location.origin)
   const returnParam = authorizeUrl.searchParams.has('callbackURL') ? 'callbackURL' : 'returnUrl'
-  const rawReturnUrl = authorizeUrl.searchParams.get(returnParam)
+  return {
+    authorizeUrl,
+    returnParam,
+    rawReturnUrl: authorizeUrl.searchParams.get(returnParam),
+  }
+}
+
+/** Adds the attempt id to the eventual same-origin OAuth return URL. */
+export function addOAuthChatAttemptToAuthorizeUrl(rawUrl: string, attemptId: string): string {
+  const { authorizeUrl, returnParam, rawReturnUrl } = resolveAuthorizeReturnTarget(rawUrl)
 
   if (rawReturnUrl) {
     authorizeUrl.searchParams.set(returnParam, appendAttemptToReturnUrl(rawReturnUrl, attemptId))
@@ -256,5 +283,45 @@ export function addOAuthChatAttemptToAuthorizeUrl(rawUrl: string, attemptId: str
     authorizeUrl.searchParams.set(OAUTH_CHAT_ATTEMPT_PARAM, attemptId)
   }
 
+  return authorizeUrl.toString()
+}
+
+/**
+ * Chat-flavored authorize URL: the return leg lands on the lightweight
+ * chat-complete page — which publishes the verdict and closes the window —
+ * instead of reloading the whole app in the OAuth window.
+ *
+ * The complete page's fallback redirect target is the plain return URL with no
+ * attempt id, so a window that cannot close lands on the chat surface without
+ * its return router re-deciding a verdict the completion page already
+ * published.
+ *
+ * Returns null when the authorize URL is not a same-origin Sim route, or
+ * carries no return param to rewrite; the caller falls back to
+ * {@link addOAuthChatAttemptToAuthorizeUrl} and its plain anchor navigation.
+ */
+export function buildOAuthChatCompleteAuthorizeUrl(
+  rawUrl: string,
+  attemptId: string
+): string | null {
+  const { authorizeUrl, returnParam, rawReturnUrl } = resolveAuthorizeReturnTarget(rawUrl)
+  // The connect URL is streamed model output, checked only for a safe protocol.
+  // Refusing a foreign origin here keeps the attempt id out of a URL we do not
+  // control, and keeps the caller on its anchor — whose rel='noopener' the
+  // popup path would otherwise drop, handing a hostile page our window handle.
+  if (authorizeUrl.origin !== window.location.origin) return null
+  if (!rawReturnUrl) return null
+
+  // Anchored on the return URL the server generated, not this tab's origin —
+  // both the authorize route and the custom-provider callbacks accept a return
+  // target only when it matches the deployment's configured base URL, which a
+  // proxied or aliased origin need not equal.
+  const completeUrl = new URL(
+    OAUTH_CHAT_COMPLETE_PATH,
+    new URL(rawReturnUrl, window.location.origin).origin
+  )
+  completeUrl.searchParams.set(OAUTH_CHAT_ATTEMPT_PARAM, attemptId)
+  completeUrl.searchParams.set(OAUTH_CHAT_RETURN_TO_PARAM, rawReturnUrl)
+  authorizeUrl.searchParams.set(returnParam, completeUrl.toString())
   return authorizeUrl.toString()
 }

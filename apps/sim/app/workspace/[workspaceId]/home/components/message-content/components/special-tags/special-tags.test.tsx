@@ -1,5 +1,6 @@
 /**
  * @vitest-environment jsdom
+ * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -51,6 +52,7 @@ vi.mock('@/hooks/queries/environment', () => ({
   }),
 }))
 
+import { toast } from '@sim/emcn'
 import {
   createOAuthChatAttempt,
   setOAuthChatAttemptStatus,
@@ -316,6 +318,214 @@ describe('CredentialDisplay link tag', () => {
 
     expect(container.textContent).toContain('Reconnect Gmail')
     expect(container.textContent).not.toContain('Connected Gmail')
+    act(() => root.unmount())
+  })
+
+  it('runs the connect in a popup so the chat tab never navigates', () => {
+    const popup = { focus: vi.fn() }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    const link = container.querySelector('a')
+    const defaultPrevented = !link?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true })
+    )
+
+    expect(defaultPrevented).toBe(true)
+    expect(popup.focus).toHaveBeenCalledOnce()
+    const openedUrl = new URL(openSpy.mock.calls[0][0] as string)
+    const callbackUrl = new URL(openedUrl.searchParams.get('callbackURL') ?? '')
+    expect(callbackUrl.pathname).toBe('/oauth/chat-complete')
+    // Named per attempt: a shared name would let a sibling row renavigate this
+    // popup and strand this attempt with no return leg.
+    const attemptId = callbackUrl.searchParams.get('oauthAttempt')
+    expect(openSpy.mock.calls[0][1]).toBe(`sim-oauth-connect-${attemptId}`)
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('keeps a cross-origin connect URL on the anchor instead of a popup', () => {
+    const openSpy = vi.spyOn(window, 'open')
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://evil.example/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fevil.example%2Fsink',
+    })
+
+    const link = container.querySelector('a')
+    link?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+
+    // The anchor carries rel='noopener noreferrer'; window.open would not.
+    expect(openSpy).not.toHaveBeenCalled()
+    expect(link?.getAttribute('rel')).toBe('noopener noreferrer')
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('announces the connection once the popup publishes its verdict', async () => {
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+
+    expect(toastSuccess).not.toHaveBeenCalled()
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    expect(toastSuccess).toHaveBeenCalledWith('Gmail connected successfully.')
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('settles the row when the popup dies on a page that publishes no verdict', async () => {
+    // A denied consent lands on /oauth-error, which never writes a verdict and
+    // never self-closes. The row must not defer to it forever.
+    const popup = {
+      focus: vi.fn(),
+      closed: false,
+      location: { origin: 'https://sim.test', pathname: '/oauth-error' },
+    }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('blur'))
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    expect(container.textContent).toContain('Not connected — connect Gmail')
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('keeps the row retryable when the verdict lands but no credential appears', async () => {
+    // The credential-draft failure is swallowed server-side, so the flow can
+    // report success with nothing in the workspace. Label follows the verdict;
+    // the control must stay clickable so the user can try again.
+    const toastSuccess = vi.spyOn(toast, 'success').mockImplementation(() => '')
+    const popup = { focus: vi.fn(), closed: false }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    const attemptId = new URL(
+      new URL(openSpy.mock.calls[0][0] as string).searchParams.get('callbackURL') ?? ''
+    ).searchParams.get('oauthAttempt') as string
+    await act(async () => {
+      setOAuthChatAttemptStatus(attemptId, 'connected')
+    })
+
+    expect(container.textContent).toContain('Connected Gmail')
+    expect(container.querySelector('a')?.getAttribute('aria-disabled')).toBe('false')
+    openSpy.mockRestore()
+    toastSuccess.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('keeps waiting when the tab is refocused while the connect popup is still open', async () => {
+    const popup = {
+      focus: vi.fn(),
+      closed: false,
+      // Still on the provider's pages: reading location across origins throws.
+      get location(): Location {
+        throw new DOMException('cross-origin', 'SecurityError')
+      },
+    }
+    const openSpy = vi
+      .spyOn(window, 'open')
+      .mockReturnValue(popup as unknown as ReturnType<typeof window.open>)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    await act(async () => {
+      container
+        .querySelector('a')
+        ?.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    })
+    await act(async () => {
+      window.dispatchEvent(new Event('blur'))
+      window.dispatchEvent(new Event('focus'))
+    })
+
+    expect(container.textContent).toContain('Waiting for Gmail connection')
+    openSpy.mockRestore()
+    act(() => root.unmount())
+  })
+
+  it('navigates the tab through the same completion page when the popup is blocked', () => {
+    const openSpy = vi.spyOn(window, 'open').mockReturnValue(null)
+    const { container, root } = renderCredentialLink({
+      type: 'link',
+      provider: 'google-email',
+      value:
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+    })
+
+    const link = container.querySelector('a')
+    const defaultPrevented = !link?.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true })
+    )
+
+    expect(defaultPrevented).toBe(false)
+    const callbackUrl = new URL(
+      new URL(link?.getAttribute('href') ?? '').searchParams.get('callbackURL') ?? ''
+    )
+    expect(callbackUrl.pathname).toBe('/oauth/chat-complete')
+    expect(callbackUrl.searchParams.get('oauthAttempt')).not.toBeNull()
+    openSpy.mockRestore()
     act(() => root.unmount())
   })
 

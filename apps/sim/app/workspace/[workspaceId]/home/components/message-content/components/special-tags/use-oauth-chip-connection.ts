@@ -1,9 +1,11 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { toast } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
+  buildOAuthChatCompleteAuthorizeUrl,
   clearActiveDesktopOAuthChatAttempt,
   createOAuthChatAttempt,
   getOAuthCredentialBaseline,
@@ -22,6 +24,47 @@ import { getDesktopBridge } from '@/lib/desktop'
 import type { OAuthProvider } from '@/lib/oauth/types'
 import { parseProvider } from '@/lib/oauth/utils'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
+
+const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
+/** Matches the MCP OAuth popup (`hooks/mcp/use-mcp-oauth-popup.ts`) so the two consent windows open alike. */
+const OAUTH_POPUP_FEATURES = 'width=560,height=720,resizable=yes,scrollbars=yes'
+
+/**
+ * Same-origin pages an OAuth flow can die on without ever reaching the return
+ * leg. Better Auth sends pre-state failures — a denied consent, most often —
+ * to its global error page rather than this flow's callback, and the
+ * custom-provider callbacks exit to the workspace root with an `error` param.
+ * Neither publishes a verdict, so a popup sitting on one is finished, not
+ * in flight.
+ */
+const OAUTH_POPUP_TERMINAL_PATHS = new Set(['/oauth-error', '/workspace'])
+
+/**
+ * Whether the popup still owns the flow — i.e. whether the row should keep
+ * deferring to it instead of deciding for itself.
+ *
+ * A provider page that sets COOP `same-origin` severs the handle, making
+ * `closed` throw. Treat that as closed: the flow then falls back to the
+ * ordinary focus verification rather than waiting on a window we cannot see.
+ */
+function isPopupStillOpen(popup: { window: Window } | null): boolean {
+  if (!popup) return false
+  let closed: boolean
+  try {
+    closed = popup.window.closed
+  } catch {
+    return false
+  }
+  if (closed) return false
+  try {
+    const { origin, pathname } = popup.window.location
+    if (origin === window.location.origin && OAUTH_POPUP_TERMINAL_PATHS.has(pathname)) return false
+  } catch {
+    // Reading `location` across origins throws, which is the signal we want:
+    // the popup is still on the provider's pages, so the flow is in flight.
+  }
+  return true
+}
 
 interface UseOAuthChipConnectionParams {
   /** Authorize URL streamed by the agent; provider and reconnect scope are read from it. */
@@ -43,9 +86,12 @@ export interface OAuthChipConnection {
   /** True when the row should read as connected, from any signal. */
   connected: boolean
   /**
-   * True only when *this row's* attempt completed. Workspace-wide observation
-   * cannot be attributed to one row, so this — not {@link connected} — is what
-   * may lock the control.
+   * True only when *this row's* attempt completed AND the credential it was
+   * supposed to produce is actually present (a reconnect, which produces no
+   * new credential, is exempt). Workspace-wide observation cannot be
+   * attributed to one row, so this — not {@link connected} — is what may lock
+   * the control, and it is deliberately stricter than the label so a connect
+   * that reported success without landing stays retryable.
    */
   connectedFromAttempt: boolean
   /** The workspace already holds a credential this row would connect. */
@@ -117,6 +163,7 @@ export function useOAuthChipConnection({
   const [connectedFromWorkspaceChange, setConnectedFromWorkspaceChange] = useState(false)
   const onConnectedRef = useRef(onConnected)
   const oauthWindowWasAwayRef = useRef(false)
+  const popupRef = useRef<{ window: Window; attemptId: string } | null>(null)
   const workspaceCredentialBaselineRef = useRef<{
     scope: string
     baseline: ReturnType<typeof getOAuthCredentialBaseline>
@@ -131,8 +178,16 @@ export function useOAuthChipConnection({
     credentialTarget,
     workspaceOAuthCredentials
   )
-  const connectedFromAttempt = connectionStatus === 'connected'
-  const connected = connectedFromAttempt || connectedFromWorkspaceChange
+  const verdictConnected = connectionStatus === 'connected'
+  const connected = verdictConnected || connectedFromWorkspaceChange
+  // The label trusts the return leg's verdict; the lock does not. A failure to
+  // create the credential from its draft is swallowed server-side, so a flow
+  // can report success with nothing in the workspace to show for it — locking
+  // on the verdict alone would strand the row saying "Connected" with no way
+  // to retry. A reconnect legitimately produces no new credential, so it has
+  // nothing to corroborate against and keeps trusting the verdict.
+  const connectedFromAttempt =
+    verdictConnected && (reconnectCredentialId ? true : connectedFromWorkspaceChange)
 
   useEffect(() => {
     onConnectedRef.current = onConnected
@@ -229,7 +284,6 @@ export function useOAuthChipConnection({
     const verifyAfterReturn = async () => {
       if (!oauthWindowWasAwayRef.current || document.visibilityState !== 'visible') return
       oauthWindowWasAwayRef.current = false
-      const attempt = readRowAttempt()
       const result = await refetchWorkspaceOAuthCredentials()
       const credentials = result.data ?? []
 
@@ -246,7 +300,17 @@ export function useOAuthChipConnection({
         )
       }
 
+      // Read the attempt only after the await. A snapshot taken before it goes
+      // stale the moment the popup publishes its verdict mid-refetch, and the
+      // stale 'pending' would license the overwrite this check exists to stop —
+      // deterministically to 'failed' on the reconnect branch below.
+      const attempt = readRowAttempt()
       if (!attempt || attempt.status !== 'pending') return
+      // Clicking back to this tab while the popup is still on the provider's
+      // consent screen is not a verdict — the flow it owns has not returned
+      // yet, and settling here would flash "not connected" under a connect the
+      // user is midway through. Its own return leg publishes the result.
+      if (isPopupStillOpen(popupRef.current)) return
       // A reconnect is verified by the callback path, which has proof that the
       // OAuth flow returned. A plain focus event cannot distinguish it from an
       // unrelated edit to the same credential.
@@ -279,6 +343,23 @@ export function useOAuthChipConnection({
   useEffect(() => {
     if (connected) onConnectedRef.current?.()
   }, [connected])
+
+  /**
+   * The popup publishes the verdict and closes, showing the user nothing they
+   * keep, so the launching tab surfaces the success toast. Failure
+   * deliberately stays a label (the retry text): a focus flip mid-flow can
+   * settle 'failed' prematurely while the popup is still open, and a toast on
+   * that would read as the flow failing behind the user's back.
+   */
+  useEffect(() => {
+    const popup = popupRef.current
+    if (connectionStatus !== 'connected' || !popup) return
+    const attempt = readOAuthChatAttempt(popup.attemptId)
+    popupRef.current = null
+    if (attempt?.status === 'connected') {
+      toast.success(`${attempt.displayName} connected successfully.`)
+    }
+  }, [connectionStatus])
 
   /**
    * Desktop app: OAuth cannot run in an embedded window — not in the app
@@ -327,7 +408,32 @@ export function useOAuthChipConnection({
         return
       }
 
-      event.currentTarget.href = addOAuthChatAttemptToAuthorizeUrl(connectUrl, attempt.id)
+      // Web: run the whole flow in a popup so this tab never navigates — the
+      // return leg lands on the self-closing chat-complete page, whose verdict
+      // reaches this row over the storage listener. A blocked popup navigates
+      // to the same URL instead, so the flow keeps the completion page's
+      // server-backed verdict either way; only an authorize URL with no return
+      // param to rewrite falls all the way back to the plain tab return.
+      const completeUrl = buildOAuthChatCompleteAuthorizeUrl(connectUrl, attempt.id)
+      if (completeUrl) {
+        // Named per attempt: a card can render several credential rows, and a
+        // shared name would let the second click renavigate the first row's
+        // live popup, stranding that attempt with no return leg.
+        const popup = window.open(
+          completeUrl,
+          `${OAUTH_POPUP_WINDOW_NAME}-${attempt.id}`,
+          OAUTH_POPUP_FEATURES
+        )
+        if (popup) {
+          event.preventDefault()
+          popup.focus?.()
+          popupRef.current = { window: popup, attemptId: attempt.id }
+          return
+        }
+      }
+
+      event.currentTarget.href =
+        completeUrl ?? addOAuthChatAttemptToAuthorizeUrl(connectUrl, attempt.id)
     },
     [
       baseProviderId,
