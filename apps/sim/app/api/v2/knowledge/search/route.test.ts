@@ -35,6 +35,7 @@ vi.mock('@/lib/knowledge/application/search', () => ({
   searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearch },
 }))
 
+import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import { POST } from '@/app/api/v2/knowledge/search/route'
 
@@ -47,10 +48,10 @@ const RATE_LIMIT_OK = {
   retryAfterMs: 0,
 }
 
-function buildRequest(body: string) {
+function buildRequest(body: string, headers: Record<string, string> = {}) {
   return new NextRequest('http://localhost/api/v2/knowledge/search', {
     method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+    headers: { 'content-type': 'application/json', 'x-api-key': 'secret', ...headers },
     body,
   })
 }
@@ -113,6 +114,8 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(await response.json()).toEqual({
       data: expect.objectContaining({ knowledgeBaseIds: ['kb-1'], totalResults: 1 }),
     })
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
   })
 
   it('authenticates before rejecting malformed JSON', async () => {
@@ -140,6 +143,39 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(response.status).toBe(402)
     expect(await response.json()).toEqual({
       error: { code: 'USAGE_LIMIT_EXCEEDED', message: 'Upgrade required' },
+    })
+  })
+
+  it('preserves the bounded JSON rejection before application execution', async () => {
+    const response = await POST(
+      buildRequest('{}', { 'content-length': String(DEFAULT_MAX_JSON_BODY_BYTES + 1) })
+    )
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: `Request body exceeds the maximum allowed size of ${DEFAULT_MAX_JSON_BODY_BYTES} bytes`,
+    })
+    expect(mockSearch).not.toHaveBeenCalled()
+    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
+  })
+
+  it('does not expose application infrastructure failures', async () => {
+    mockSearch.mockRejectedValueOnce(new Error('database host is private-db'))
+
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 10,
+        })
+      )
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
     })
   })
 })

@@ -475,6 +475,29 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
+  it('preserves caller-actionable tag provenance conflicts', async () => {
+    mockDeleteKnowledgeTag.mockRejectedValueOnce(
+      new OrchestrationError(
+        'conflict',
+        'Tag definitions cannot be deleted while resolved-secret document provenance is present'
+      )
+    )
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'delete_tag',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, tagDefinitionId: 'tag-1' },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({
+      success: false,
+      message:
+        'Failed to delete_tag knowledge base: Tag definitions cannot be deleted while resolved-secret document provenance is present',
+    })
+  })
+
   it.each([
     {
       operation: 'add_file',

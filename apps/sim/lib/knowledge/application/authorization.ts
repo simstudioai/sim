@@ -22,6 +22,8 @@ export const knowledgeDelegationPolicy = {
     delegated: Extract<Principal, { kind: 'delegated' }>,
     canonicalContext: KnowledgeAuthorizationContext
   ) {
-    return delegated.workspaceId === canonicalContext.workspaceId
+    return (
+      delegated.serviceId === 'copilot' && delegated.workspaceId === canonicalContext.workspaceId
+    )
   },
 } as const
