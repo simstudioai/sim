@@ -481,7 +481,13 @@ export async function readFileRecord(record: WorkspaceFileRecord): Promise<FileR
           if (!prepared.ok) {
             span.setAttribute(TraceAttr.CopilotVfsReadOutcome, CopilotVfsReadOutcome.ImageTooLarge)
             return {
-              content: readPlaceholder.imageUnavailable(record.name, record.size, prepared.reason),
+              // The fetched buffer, not `record.size`: the bytes are in hand by now,
+              // so there is no reason to quote the client-declared figure back.
+              content: readPlaceholder.imageUnavailable(
+                record.name,
+                fetched.buffer.length,
+                prepared.reason
+              ),
               totalLines: 1,
             }
           }

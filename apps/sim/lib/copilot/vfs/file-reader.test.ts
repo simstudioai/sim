@@ -80,11 +80,13 @@ describe('readFileRecord', () => {
 
       fetchWorkspaceFileBuffer.mockResolvedValue(bomb)
 
-      const result = await readFileRecord(imageRecord('bomb.png', bomb.length))
+      // Recorded size deliberately disagrees with the real bytes: it is client-declared,
+      // so the placeholder must report what was actually fetched.
+      const result = await readFileRecord(imageRecord('bomb.png', 999_999))
 
       expect(result?.attachment).toBeUndefined()
       expect(result?.content).toContain('It is too large to decode safely.')
-      // The byte count must survive formatting — a sub-1KB bomb formatted without
+      // The byte count must survive formatting too — a sub-1KB bomb formatted without
       // `includeBytes` collapses to "0 Bytes" next to the real reason.
       expect(result?.content).toContain(`(${bomb.length} Bytes)`)
     },
