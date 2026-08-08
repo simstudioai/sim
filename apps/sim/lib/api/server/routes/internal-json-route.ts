@@ -1,4 +1,9 @@
-import type { DelegatedPrincipal, Principal, SessionPrincipal } from '@sim/auth/principal'
+import type {
+  DelegatedPrincipal,
+  Principal,
+  SessionPrincipal,
+  WorkflowExecutionDelegatedPrincipal,
+} from '@sim/auth/principal'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import type { ContractJsonResponse } from '@/lib/api/contracts'
@@ -15,7 +20,14 @@ import {
   parseRequest,
 } from '@/lib/api/server/validation'
 import { getSession } from '@/lib/auth'
-import { verifyInternalToken } from '@/lib/auth/internal'
+import {
+  InvalidInternalDelegationTokenError,
+  verifyInternalDelegationToken,
+} from '@/lib/auth/internal'
+import {
+  bindInternalExecutorDelegation,
+  InvalidInternalDelegationBindingError,
+} from '@/lib/auth/internal-delegation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -37,12 +49,18 @@ export const internalSessionAuth = {
   },
 } as const
 
-export function createInternalSessionOrServiceAuth<P extends DelegatedPrincipal>(
-  bindDelegation: (args: {
-    subjectUserId: string
+export interface InternalSessionOrExecutorAuthOptions {
+  audience: string
+  resourceScope?(
     params: Record<string, string | string[] | undefined>
-  }) => P
-): InternalAuthPolicy<SessionPrincipal | P> {
+  ): DelegatedPrincipal['resourceScope']
+}
+
+export function createInternalSessionOrExecutorAuth(
+  options: InternalSessionOrExecutorAuthOptions
+): InternalAuthPolicy<SessionPrincipal | WorkflowExecutionDelegatedPrincipal> {
+  if (!options.audience.trim()) throw new Error('Internal executor auth audience must not be empty')
+
   return {
     async authenticate(request, params) {
       if (request.headers.has('x-api-key')) {
@@ -50,13 +68,28 @@ export function createInternalSessionOrServiceAuth<P extends DelegatedPrincipal>
       }
 
       const authorization = request.headers.get('authorization')
-      if (!authorization?.startsWith('Bearer ')) return internalSessionAuth.authenticate()
-
-      const verification = await verifyInternalToken(authorization.slice('Bearer '.length))
-      if (!verification.valid || !verification.userId) {
+      if (!authorization) return internalSessionAuth.authenticate()
+      if (!authorization.startsWith('Bearer ')) {
         throw new InternalUnauthenticatedError('Authentication required')
       }
-      return bindDelegation({ subjectUserId: verification.userId, params })
+
+      let delegation
+      try {
+        delegation = await verifyInternalDelegationToken(authorization.slice('Bearer '.length))
+      } catch (error) {
+        if (!(error instanceof InvalidInternalDelegationTokenError)) throw error
+        throw new InternalUnauthenticatedError('Authentication required')
+      }
+
+      try {
+        return await bindInternalExecutorDelegation(delegation, {
+          audience: options.audience,
+          resourceScope: options.resourceScope?.(params),
+        })
+      } catch (error) {
+        if (!(error instanceof InvalidInternalDelegationBindingError)) throw error
+        throw new InternalUnauthenticatedError('Authentication required')
+      }
     },
   }
 }
