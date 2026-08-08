@@ -67,10 +67,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
     const { organizationId, orgMemberIds } = authResult.context
 
-    if (params.actorId && !orgMemberIds.includes(params.actorId)) {
-      return v2Error('BAD_REQUEST', 'actorId is not a member of your organization')
-    }
-
     const orgWorkspaceIds = await getOrgWorkspaceIds(organizationId)
 
     if (params.workspaceId && !orgWorkspaceIds.includes(params.workspaceId)) {
@@ -88,7 +84,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       resourceType: params.resourceType,
       resourceId: params.resourceId,
       workspaceId: params.workspaceId,
-      actorId: params.actorId,
+      actorEmail: params.actorEmail,
       startDate: params.startDate,
       endDate: params.endDate,
     })

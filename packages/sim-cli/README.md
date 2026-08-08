@@ -106,8 +106,7 @@ also accepts its singular form: for example, `sim table list`,
 `sim file download`, and `sim workflow get` are equivalent to their plural
 spellings.
 
-`knowledge` also accepts the shorter `kb` alias, and `documents` accepts
-`document`.
+`knowledge` also accepts the shorter `kb` alias.
 
 ```bash
 sim chat [prompt...] [-f <path>...] [--read-only]
@@ -120,16 +119,19 @@ sim workflows update <id> [--name <name>] [--description <text>] [--folder <path
 sim workflows mv <id> <folder>
 sim workflows deploy|undeploy|rollback <id>
 sim workflows run <id> [--input <json|@file>] [--select-output <path>…] [--async]
-sim workflows executions list --workflow <workflowId> [--status <status>]
-sim workflows executions get <executionId> --workflow <workflowId> [--include-output]
-sim workflows executions cancel <executionId> --workflow <workflowId>
-sim workflows executions resume <executionId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
+sim workflows runs list --workflow <workflowId> [--status <status>]
+sim workflows runs get <runId> --workflow <workflowId> [--include-output]
+sim workflows runs cancel <runId> --workflow <workflowId>
+sim workflows runs resume <runId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start-date <date>]
-sim logs get <executionId>
+sim logs get <runId>
 
 sim audit-logs list --organization <organizationId> [--all-workspaces]
 sim audit-logs get <id> --organization <organizationId>
+
+sim workspaces get
+sim workspaces members
 
 sim tables ls [path] [--search <text>] [--limit <n>]
 sim tables list [--folder <path>]
@@ -162,10 +164,10 @@ sim knowledge update <id> [--name <name>] [--description <text>] [--folder <path
 sim knowledge mv <id> <folder>
 sim knowledge search --query <text> --kb <id>… [--search-mode vector|hybrid]
 
-sim documents list --kb <knowledgeBaseId> [--search <text>]
-sim documents get <documentId> --kb <knowledgeBaseId>
-sim documents upload <path> --kb <knowledgeBaseId> [--tag <value>...]
-sim documents delete <documentId> --kb <knowledgeBaseId> --yes
+sim knowledge documents list <knowledgeBaseId> [--search <text>]
+sim knowledge documents get <knowledgeBaseId> <documentId>
+sim knowledge documents upload <knowledgeBaseId> <path> [--tag <value>...]
+sim knowledge documents delete <knowledgeBaseId> <documentId> --yes
 
 sim billing status [--all-workspaces]
 sim billing logs [--period 7d] [--source sim-chat] [--limit <n>] [--all-workspaces]
@@ -175,9 +177,9 @@ The `sim-chat` billing source combines Copilot and workspace chat usage.
 Organization audit logs require a personal API key. Commands with
 `--all-workspaces` otherwise default to the workspace in the active profile.
 
-`workflows executions get` is the lightweight status and polling resource.
-`--workflow` names the parent resource, while the execution ID remains positional.
-For a paused execution, its status includes the context ID needed by `resume`.
+`workflows runs get` is the lightweight status and polling resource.
+`--workflow` names the parent resource, while the run ID remains positional.
+For a paused run, its status includes the context ID needed by `resume`.
 `logs get` is the full diagnostic resource. It keeps the default human output
 concise; add `--trace` for the expanded recursive trace with span inputs,
 outputs, errors, timing, and cost. JSON and YAML retain the complete structured
@@ -280,8 +282,8 @@ and is never reused as the deployment's Mothership key.
 inspect its complete `executionData` and recursive `traceSpans` tree:
 
 ```bash
-sim logs get <executionId> --trace
-sim logs get <executionId> --output json | jq '.traceSpans'
+sim logs get <runId> --trace
+sim logs get <runId> --output json | jq '.traceSpans'
 sim logs list --include-trace-spans --output json
 ```
 
@@ -365,8 +367,8 @@ parsing.
 sim configure --set-output json                      # for this profile, from now on
 sim configure --set-output text --profile scripts    # a profile dedicated to scripting
 
-sim --output json logs list --level error | jq -r '.[].executionId'
-sim logs list --level error --output json | jq -r '.[].executionId'
+sim --output json logs list --level error | jq -r '.[].runId'
+sim logs list --level error --output json | jq -r '.[].runId'
 SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
 
 SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name size type uploaded; do

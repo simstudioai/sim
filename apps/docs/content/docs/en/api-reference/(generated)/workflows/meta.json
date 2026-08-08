@@ -8,7 +8,7 @@
     "undeployWorkflow",
     "rollbackWorkflow",
     "executeWorkflowV2",
-    "getWorkflowExecutionV2",
-    "cancelExecutionV2"
+    "getWorkflowRunV2",
+    "cancelRunV2"
   ]
 }

@@ -87,14 +87,15 @@ describe('commands parsed through commander', () => {
       'audit-logs': 'audit-log',
       credentials: 'credential',
       'custom-tools': 'custom-tool',
-      documents: 'document',
       files: 'file',
       knowledge: 'kb',
       logs: 'log',
       'mcp-servers': 'mcp-server',
+      secrets: 'secret',
       skills: 'skill',
       tables: 'table',
       workflows: 'workflow',
+      workspaces: 'workspace',
     }
 
     for (const [name, alias] of Object.entries(aliases)) {
@@ -144,52 +145,38 @@ describe('commands parsed through commander', () => {
     expect(knowledgePath).toBe('/api/v2/knowledge')
   })
 
-  it('uses top-level document commands with a named knowledge-base scope', async () => {
-    expect(commandAt('knowledge').commands.map((command) => command.name())).not.toContain(
-      'documents'
-    )
+  it('nests document commands under their knowledge base', async () => {
+    expect(program().commands.map((command) => command.name())).not.toContain('documents')
 
-    const help = commandAt('documents', 'get').helpInformation()
-    expect(help).toContain('<documentId>')
-    expect(help).toMatch(/--kb <knowledgeBaseId>.*required/s)
-    expect(help).not.toContain('<id> <documentId>')
+    const help = commandAt('knowledge', 'documents', 'get').helpInformation()
+    expect(help).toContain('<knowledgeBaseId> <documentId>')
+    expect(help).not.toContain('--kb')
 
-    const [listPath, listOptions] = await run(['documents', 'list', '--kb', 'kb_1'])
+    const [listPath, listOptions] = await run(['kb', 'documents', 'list', 'kb_1'])
     expect(listPath).toBe('/api/v2/knowledge/kb_1/documents')
     expect(listOptions.query).toMatchObject({ workspaceId: 'ws_local' })
 
-    const [getPathBefore, getOptionsBefore] = await run([
-      'documents',
-      'get',
-      '--kb',
-      'kb_1',
-      'doc_1',
-    ])
-    expect(getPathBefore).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-    expect(getOptionsBefore.query).toEqual({ workspaceId: 'ws_local' })
+    const [getPath, getOptions] = await run(['kb', 'documents', 'get', 'kb_1', 'doc_1'])
+    expect(getPath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
+    expect(getOptions.query).toEqual({ workspaceId: 'ws_local' })
 
-    const [getPathAfter] = await run(['document', 'get', 'doc_1', '--kb', 'kb_1'])
-    expect(getPathAfter).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
-
-    await expect(run(['documents', 'delete', 'doc_1', '--kb', 'kb_1'])).rejects.toThrow(
+    await expect(run(['kb', 'documents', 'delete', 'kb_1', 'doc_1'])).rejects.toThrow(
       /document and its embeddings/
     )
     expect(mockRequest).not.toHaveBeenCalled()
 
     const [deletePath, deleteOptions] = await run([
+      'kb',
       'documents',
       'delete',
-      'doc_1',
-      '--kb',
       'kb_1',
+      'doc_1',
       '--yes',
     ])
     expect(deletePath).toBe('/api/v2/knowledge/kb_1/documents/doc_1')
     expect(deleteOptions.query).toEqual({ workspaceId: 'ws_local' })
 
-    await expect(run(['documents', 'get', 'doc_1'])).rejects.toThrow(
-      /required option '--kb <knowledgeBaseId>'/
-    )
+    await expect(run(['kb', 'documents', 'get', 'kb_1'])).rejects.toThrow(/documentId/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
@@ -266,14 +253,14 @@ describe('commands parsed through commander', () => {
       '20',
       '--min-cost',
       '1',
-      '--execution-id',
-      'exec_1',
+      '--run-id',
+      'run_1',
     ])
     expect(options.query).toMatchObject({
       minDurationMs: 10,
       maxDurationMs: 20,
       minCost: 1,
-      executionId: 'exec_1',
+      runId: 'run_1',
     })
   })
 
@@ -413,18 +400,46 @@ describe('commands parsed through commander', () => {
     expect(help).not.toContain('--no-recursive')
   })
 
-  it('exposes credential data centers added by the v2 credential contract', async () => {
-    const [, options] = await run([
-      'credential',
-      'create',
-      '--type',
-      'service_account',
-      '--display-name',
-      'Zoho',
-      '--data-center',
-      'eu',
+  it('exposes named secrets separately from connected credentials', async () => {
+    const [path, options] = await run([
+      'secret',
+      'set',
+      'ZOHO_API_KEY',
+      '--scope',
+      'workspace',
+      '--value',
+      'test-secret',
     ])
-    expect(options.body).toMatchObject({ dataCenter: 'eu' })
+    expect(path).toBe('/api/v2/secrets/ZOHO_API_KEY')
+    expect(options.body).toEqual({
+      workspaceId: 'ws_local',
+      scope: 'workspace',
+      value: 'test-secret',
+    })
+    expect(commandAt('credentials').commands.map((command) => command.name())).toEqual(['list'])
+  })
+
+  it('exposes workspace metadata and email-attributed members', async () => {
+    const getHelp = commandAt('workspaces', 'get').helpInformation()
+    expect(getHelp).not.toContain('<workspaceId>')
+
+    const [workspacePath] = await run(['workspace', 'get'], {
+      data: { id: 'ws_local' },
+    })
+    expect(workspacePath).toBe('/api/v2/workspaces/ws_local')
+
+    profileState.workspaceId = null
+    await expect(run(['workspace', 'get'])).rejects.toThrow(
+      'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+    )
+    profileState.workspaceId = 'ws_local'
+
+    const membersHelp = commandAt('workspaces', 'members').helpInformation()
+    expect(membersHelp).not.toContain('<workspaceId>')
+
+    const [membersPath, membersOptions] = await run(['workspace', 'members'])
+    expect(membersPath).toBe('/api/v2/workspaces/ws_local/members')
+    expect(membersOptions.query).toEqual({ limit: 100, cursor: null })
   })
 
   it('comma-joins a repeated list flag', async () => {
@@ -516,7 +531,7 @@ describe('commands parsed through commander', () => {
   })
 
   it('offers expanded trace output without changing the default summary', () => {
-    expect(commandAt('logs', 'get').description()).toBe('Show execution diagnostics')
+    expect(commandAt('logs', 'get').description()).toBe('Show run diagnostics')
     expect(commandAt('logs', 'get').helpInformation()).toMatch(
       /--trace.*inputs, outputs, errors, timing,\s+and cost/s
     )
@@ -525,26 +540,29 @@ describe('commands parsed through commander', () => {
     expect(listHelp).toMatch(/--include-final-output.*implies full detail/s)
   })
 
-  it('uses a named workflow scope for execution subresources', async () => {
-    const executions = commandAt('workflows', 'executions')
-    expect(executions.commands.map((command) => command.name()).sort()).toEqual([
+  it('uses a named workflow scope for run subresources', async () => {
+    expect(commandAt('workflows').commands.map((command) => command.name())).not.toContain(
+      'executions'
+    )
+    const runs = commandAt('workflows', 'runs')
+    expect(runs.commands.map((command) => command.name()).sort()).toEqual([
       'cancel',
       'get',
       'list',
       'resume',
     ])
 
-    const help = commandAt('workflows', 'executions', 'get').helpInformation()
-    expect(help).toContain('<executionId>')
+    const help = commandAt('workflows', 'runs', 'get').helpInformation()
+    expect(help).toContain('<runId>')
     expect(help).toMatch(/--workflow <workflowId>.*required/s)
     expect(help).toContain('--include-output')
     expect(help).toContain('--select-output <value...>')
 
     const [path, options] = await run([
       'workflows',
-      'executions',
+      'runs',
       'get',
-      'exec_1',
+      'run_1',
       '--workflow',
       'wf_1',
       '--include-output',
@@ -552,35 +570,28 @@ describe('commands parsed through commander', () => {
       'agent.content',
       'writer.text',
     ])
-    expect(path).toBe('/api/v2/workflows/wf_1/executions/exec_1')
+    expect(path).toBe('/api/v2/workflows/wf_1/runs/run_1')
     expect(options.query).toEqual({
       includeOutput: true,
       selectedOutputs: 'agent.content,writer.text',
     })
 
-    const [listPath] = await run(['workflows', 'executions', 'list', '--workflow', 'wf_1'])
-    expect(listPath).toBe('/api/v2/workflows/wf_1/executions')
+    const [listPath] = await run(['workflows', 'runs', 'list', '--workflow', 'wf_1'])
+    expect(listPath).toBe('/api/v2/workflows/wf_1/runs')
 
-    const [cancelPath] = await run([
-      'workflows',
-      'executions',
-      'cancel',
-      'exec_1',
-      '--workflow',
-      'wf_1',
-    ])
-    expect(cancelPath).toBe('/api/v2/workflows/wf_1/executions/exec_1/cancel')
+    const [cancelPath] = await run(['workflows', 'runs', 'cancel', 'run_1', '--workflow', 'wf_1'])
+    expect(cancelPath).toBe('/api/v2/workflows/wf_1/runs/run_1/cancel')
 
-    const resumeHelp = commandAt('workflows', 'executions', 'resume').helpInformation()
-    expect(resumeHelp).toContain('<executionId>')
+    const resumeHelp = commandAt('workflows', 'runs', 'resume').helpInformation()
+    expect(resumeHelp).toContain('<runId>')
     expect(resumeHelp).toMatch(/--workflow <workflowId>.*required/s)
     expect(resumeHelp).toMatch(/--context <value>.*required/s)
 
     const [resumePath, resumeOptions] = await run([
       'workflows',
-      'executions',
+      'runs',
       'resume',
-      'exec_1',
+      'run_1',
       '--workflow',
       'wf_1',
       '--context',
@@ -588,7 +599,7 @@ describe('commands parsed through commander', () => {
       '--input',
       '{"approved":true}',
     ])
-    expect(resumePath).toBe('/api/v2/workflows/wf_1/executions/exec_1/resume')
+    expect(resumePath).toBe('/api/v2/workflows/wf_1/runs/run_1/resume')
     expect(resumeOptions.body).toEqual({
       contextId: 'ctx_1',
       input: { approved: true },
@@ -599,11 +610,21 @@ describe('commands parsed through commander', () => {
     const help = commandAt('audit-logs', 'list').helpInformation()
     expect(help).toMatch(/--organization <value>.*personal API key required.*required/s)
     expect(help).toContain('--all-workspaces')
+    expect(help).toContain('--actor-email')
+    expect(help).not.toContain('--actor-id')
 
-    const [, scopedOptions] = await run(['audit-logs', 'list', '--organization', 'org_1'])
+    const [, scopedOptions] = await run([
+      'audit-logs',
+      'list',
+      '--organization',
+      'org_1',
+      '--actor-email',
+      'owner@example.com',
+    ])
     expect(scopedOptions.query).toMatchObject({
       organizationId: 'org_1',
       workspaceId: 'ws_local',
+      actorEmail: 'owner@example.com',
     })
 
     const [, organizationOptions] = await run([
@@ -733,9 +754,9 @@ describe('single-resource rendering', () => {
     expect(JSON.parse(printed[0])).toEqual({ row: { id: 'r1' }, operation: 'inserted' })
   })
 
-  it('keeps sensitive execution detail opt-in for human log output', async () => {
+  it('keeps sensitive run detail opt-in for human log output', async () => {
     const log = {
-      executionId: 'exec_1',
+      runId: 'run_1',
       status: 'completed',
       workflow: { name: 'Billing' },
       level: 'info',
@@ -768,7 +789,7 @@ describe('single-resource rendering', () => {
       ],
     }
 
-    const human = await lines(['logs', 'get', 'exec_1'], log, 'text')
+    const human = await lines(['logs', 'get', 'run_1'], log, 'text')
     expect(human.join('\n')).not.toContain('workflowState')
     expect(human.join('\n')).not.toContain('SECRET_TOKEN')
     expect(human.join('\n')).not.toContain('traceSpans')
@@ -776,7 +797,7 @@ describe('single-resource rendering', () => {
     expect(human.join('\n')).not.toContain('trace-secret@example.com')
     expect(human.join('\n')).toContain('trace\t2 spans (use --trace)')
 
-    const expanded = await lines(['logs', 'get', 'exec_1', '--trace'], log, 'text')
+    const expanded = await lines(['logs', 'get', 'run_1', '--trace'], log, 'text')
     expect(expanded.join('\n')).toContain('trace\t2 spans')
     expect(expanded.join('\n')).not.toContain('(use --trace)')
     expect(expanded.join('\n')).toContain('Workflow Execution [workflow]')
@@ -784,14 +805,14 @@ describe('single-resource rendering', () => {
     expect(expanded.join('\n')).toContain('trace-secret@example.com')
     expect(expanded.join('\n')).toContain('"delivered": true')
 
-    const machine = await lines(['logs', 'get', 'exec_1'], log, 'json')
+    const machine = await lines(['logs', 'get', 'run_1'], log, 'json')
     expect(JSON.parse(machine[0])).toMatchObject({
       workflowState: log.workflowState,
       traceSpans: log.traceSpans,
       finalOutput: log.finalOutput,
     })
 
-    const yaml = await lines(['logs', 'get', 'exec_1'], log, 'yaml')
+    const yaml = await lines(['logs', 'get', 'run_1'], log, 'yaml')
     expect(yaml.join('\n')).toContain('traceSpans:')
     expect(yaml.join('\n')).toContain('span_2')
   })
@@ -838,7 +859,7 @@ describe('contract-selected list rendering', () => {
     expect(printed).toEqual(['3\trow_1\temail'])
   })
 
-  it('maps custom-tool and credential fields to their actual response paths', async () => {
+  it('maps custom-tool, credential, and secret fields to their actual response paths', async () => {
     const tools = await lines(
       ['custom-tools', 'list'],
       [
@@ -866,6 +887,20 @@ describe('contract-selected list rendering', () => {
     )
     expect(credentials[0]).toContain('Production Stripe')
     expect(credentials[0]).toContain('stripe')
+
+    const secrets = await lines(
+      ['secrets', 'list'],
+      [
+        {
+          name: 'STRIPE_API_KEY',
+          scope: 'workspace',
+          role: 'admin',
+          updatedAt: '2026-08-04T00:00:00.000Z',
+        },
+      ]
+    )
+    expect(secrets[0]).toContain('STRIPE_API_KEY')
+    expect(secrets[0]).toContain('workspace')
   })
 })
 

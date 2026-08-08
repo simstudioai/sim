@@ -18,14 +18,8 @@ const FOLDER_DELETE_FLAGS = {
   path: FOLDER_PATH_INPUT,
   recursive: { boolean: true, describe: 'Delete the folder and its descendants' },
 } as const
-const KNOWLEDGE_DOCUMENT_SCOPE = {
-  id: {
-    name: 'kb',
-    placeholder: 'knowledgeBaseId',
-    describe: 'Knowledge base ID',
-  },
-} as const
-const WORKFLOW_EXECUTION_SCOPE = {
+const KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS = { id: 'knowledgeBaseId' } as const
+const WORKFLOW_RUN_SCOPE = {
   id: {
     name: 'workflow',
     placeholder: 'workflowId',
@@ -57,7 +51,7 @@ function moveResource(command: string, resource: string): CommandVariantSpec {
  *
  * Derived by default:
  *   listTables            → sim tables list
- *   getKnowledgeDocument  → sim documents get <documentId> --kb <knowledgeBaseId>
+ *   getKnowledgeDocument  → sim knowledge documents get <knowledgeBaseId> <documentId>
  *   upsertTableRow        → sim tables upsert <tableId>
  */
 export const CLI_CONTRACT: CliContract = {
@@ -92,7 +86,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'source' },
       { header: 'workflow', path: 'workflow.name' },
       { header: 'credits', path: 'creditCost' },
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
       { header: 'id' },
     ],
   },
@@ -124,6 +118,10 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows undeploy',
     describe: 'Take a workflow out of deployment',
   },
+  setSecret: {
+    command: 'secrets set',
+    describe: 'Create or replace a named secret',
+  },
 
   // ─── Destructive single-resource operations ───────────────────────────────
   deleteTable: { confirm: 'This deletes the table and all of its rows.' },
@@ -134,8 +132,7 @@ export const CLI_CONTRACT: CliContract = {
   },
   deleteKnowledgeBase: { confirm: 'This deletes the knowledge base and every document in it.' },
   deleteKnowledgeDocument: {
-    command: 'documents delete',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
     confirm: 'This deletes the document and its embeddings.',
   },
   deleteFile: { confirm: 'This archives the file.' },
@@ -144,8 +141,8 @@ export const CLI_CONTRACT: CliContract = {
   deleteMcpServer: {
     confirm: 'This removes the MCP server and the tools it provides.',
   },
-  deleteCredential: {
-    confirm: 'This deletes the credential; anything authenticating with it stops working.',
+  deleteSecret: {
+    confirm: 'This deletes the secret; anything using it may stop working.',
   },
   deleteWorkflow: { confirm: 'This deletes the workflow and its run history.' },
   deleteTableView: { confirm: 'This deletes the saved view and its filters.' },
@@ -184,14 +181,14 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'workflow', path: 'workflow.name' },
       { header: 'duration', path: 'totalDurationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost' },
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
     ],
   },
   getLog: {
-    describe: 'Show execution diagnostics',
+    describe: 'Show run diagnostics',
     expandedTrace: true,
     fields: [
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflow.name' },
       { header: 'status' },
       { header: 'level' },
@@ -326,6 +323,7 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'folder', path: 'folderPath' },
       { header: 'size', format: 'bytes' },
       { header: 'type' },
+      { header: 'uploaded by', path: 'uploadedByEmail' },
       { header: 'uploaded', path: 'uploadedAt', format: 'timestamp' },
     ],
   },
@@ -341,13 +339,9 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'model', path: 'embeddingModel' },
     ],
   },
-  getKnowledgeDocument: {
-    command: 'documents get',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
-  },
+  getKnowledgeDocument: { pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS },
   listKnowledgeDocuments: {
-    command: 'documents list',
-    pathFlags: KNOWLEDGE_DOCUMENT_SCOPE,
+    pathArgumentNames: KNOWLEDGE_DOCUMENT_PATH_ARGUMENTS,
     columns: [
       { header: 'id' },
       { header: 'filename' },
@@ -391,6 +385,37 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'name', path: 'displayName' },
       { header: 'provider', path: 'providerId' },
       { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listSecrets: {
+    columns: [
+      { header: 'name' },
+      { header: 'scope' },
+      { header: 'role' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  getWorkspace: {
+    profileWorkspacePath: true,
+    fields: [
+      { header: 'id' },
+      { header: 'name' },
+      { header: 'mode' },
+      { header: 'members', path: 'memberCount' },
+      { header: 'created', path: 'createdAt', format: 'timestamp' },
+      { header: 'updated', path: 'updatedAt', format: 'timestamp' },
+    ],
+  },
+  listWorkspaceMembers: {
+    command: 'workspaces members',
+    describe: 'List workspace members',
+    profileWorkspacePath: true,
+    columns: [
+      { header: 'email' },
+      { header: 'name' },
+      { header: 'role' },
+      { header: 'external', path: 'isExternal', format: 'bool' },
+      { header: 'joined', path: 'joinedAt', format: 'timestamp' },
     ],
   },
 
@@ -645,7 +670,7 @@ export const CLI_CONTRACT: CliContract = {
     document: true,
   },
 
-  // ─── Execution ────────────────────────────────────────────────────────────
+  // ─── Runs ─────────────────────────────────────────────────────────────────
   // The derived names land badly here: `/execute` and `/cancel` are verbs in
   // the path, but neither is in the action list, so POST would derive
   // `workflows execute create` and `workflows cancel create`.
@@ -653,7 +678,7 @@ export const CLI_CONTRACT: CliContract = {
     command: 'workflows run',
     describe: 'Run a deployed workflow',
     flags: {
-      async: { boolean: true, describe: 'Queue the execution and return immediately' },
+      async: { boolean: true, describe: 'Queue the run and return immediately' },
       input: { json: true, describe: 'Trigger input as JSON' },
       selectedOutputs: {
         name: 'select-output',
@@ -670,10 +695,10 @@ export const CLI_CONTRACT: CliContract = {
       includeToolCalls: { omit: true },
     },
   },
-  getWorkflowExecution: {
-    command: 'workflows executions get',
-    pathFlags: WORKFLOW_EXECUTION_SCOPE,
-    describe: 'Show execution status (requested outputs are included in JSON or YAML output)',
+  getWorkflowRun: {
+    command: 'workflows runs get',
+    pathFlags: WORKFLOW_RUN_SCOPE,
+    describe: 'Show run status (requested outputs are included in JSON or YAML output)',
     flags: {
       includeOutput: {
         boolean: true,
@@ -686,7 +711,7 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
     fields: [
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflowId' },
       { header: 'status' },
       { header: 'trigger' },
@@ -703,34 +728,34 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'error', path: 'error.message' },
     ],
   },
-  listWorkflowExecutions: {
-    command: 'workflows executions list',
-    pathFlags: WORKFLOW_EXECUTION_SCOPE,
-    describe: 'List executions for a workflow',
+  listWorkflowRuns: {
+    command: 'workflows runs list',
+    pathFlags: WORKFLOW_RUN_SCOPE,
+    describe: 'List runs for a workflow',
     columns: [
       { header: 'started', path: 'startedAt', format: 'timestamp' },
       { header: 'status' },
       { header: 'trigger' },
       { header: 'duration', path: 'durationMs', format: 'duration' },
       { header: 'cost', path: 'cost.total', format: 'cost' },
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
     ],
   },
-  cancelWorkflowExecution: {
-    command: 'workflows executions cancel',
-    pathFlags: WORKFLOW_EXECUTION_SCOPE,
-    describe: 'Cancel a running execution',
+  cancelWorkflowRun: {
+    command: 'workflows runs cancel',
+    pathFlags: WORKFLOW_RUN_SCOPE,
+    describe: 'Cancel a running workflow run',
     // Not `confirm`-gated: cancelling is recoverable (re-run it), and the
     // whole point is to stop something that is already going wrong.
   },
   resumeWorkflow: {
-    command: 'workflows executions resume',
-    pathFlags: WORKFLOW_EXECUTION_SCOPE,
-    describe: 'Resume a paused execution (output is included in JSON or YAML output)',
+    command: 'workflows runs resume',
+    pathFlags: WORKFLOW_RUN_SCOPE,
+    describe: 'Resume a paused run (output is included in JSON or YAML output)',
     flags: {
       contextId: {
         name: 'context',
-        describe: 'Pause context ID returned by execution status',
+        describe: 'Pause context ID returned by run status',
       },
       input: {
         json: true,
@@ -738,7 +763,7 @@ export const CLI_CONTRACT: CliContract = {
       },
     },
     fields: [
-      { header: 'execution', path: 'executionId' },
+      { header: 'run', path: 'runId' },
       { header: 'workflow', path: 'workflowId' },
       { header: 'status' },
       { header: 'status URL', path: 'statusUrl' },
@@ -751,7 +776,7 @@ export const CLI_CONTRACT: CliContract = {
   },
 
   // ─── Not a terminal-shaped operation ──────────────────────────────────────
-  // Multipart upload; `sim documents upload <path> --kb <id>` needs its
+  // Multipart upload; `sim knowledge documents upload <id> <path>` needs its
   // own file-reading command rather than a generated flag surface.
   uploadKnowledgeDocument: { hidden: true },
   createKnowledgeDocumentUpload: { hidden: true },

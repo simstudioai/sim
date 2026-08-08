@@ -2,8 +2,10 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { isRecordLike } from '@sim/utils/object'
 import type { NextRequest } from 'next/server'
-import { v2ResumeWorkflowContract } from '@/lib/api/contracts/v2/workflows'
-import { WORKFLOW_EXECUTION_ID_HEADER } from '@/lib/api/contracts/workflows'
+import {
+  V2_WORKFLOW_RUN_ID_HEADER,
+  v2ResumeWorkflowContract,
+} from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -37,15 +39,12 @@ function errorMessage(payload: Record<string, unknown>): string {
 }
 
 /**
- * POST /api/v2/workflows/[id]/executions/[executionId]/resume resumes one pause
- * context on the parent execution. The new resume attempt gets its own
- * execution ID, which is the only polling handle exposed by v2.
+ * POST /api/v2/workflows/[id]/runs/[runId]/resume resumes one pause context on
+ * the parent run. The new resume attempt gets its own run ID, which is the only
+ * polling handle exposed by v2.
  */
 export const POST = withRouteHandler(
-  async (
-    request: NextRequest,
-    context: { params: Promise<{ id: string; executionId: string }> }
-  ) => {
+  async (request: NextRequest, context: { params: Promise<{ id: string; runId: string }> }) => {
     const { id: workflowId } = await context.params
     const access = await resolveV2WorkflowAccess(request, workflowId, 'write')
     if (!access.ok) return access.response
@@ -55,7 +54,7 @@ export const POST = withRouteHandler(
       validationErrorResponse: v2ValidationError,
     })
     if (!parsed.success) return parsed.response
-    const { executionId } = parsed.data.params
+    const { runId } = parsed.data.params
     const { contextId, input } = parsed.data.body
 
     if (!access.workflow.workspaceId) {
@@ -66,7 +65,7 @@ export const POST = withRouteHandler(
       const response = await handleResumeExecution({
         request,
         workflowId,
-        executionId,
+        executionId: runId,
         contextId,
         workspaceId: access.workflow.workspaceId,
         userId: access.userId,
@@ -90,16 +89,16 @@ export const POST = withRouteHandler(
       }
 
       if (typeof payload.executionId !== 'string') {
-        return v2Error('INTERNAL_ERROR', 'Resume execution did not return an execution ID')
+        return v2Error('INTERNAL_ERROR', 'Resume execution did not return a run ID')
       }
 
-      const statusUrl = `${getBaseUrl()}/api/v2/workflows/${workflowId}/executions/${payload.executionId}`
-      const headers = { [WORKFLOW_EXECUTION_ID_HEADER]: payload.executionId }
+      const statusUrl = `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${payload.executionId}`
+      const headers = { [V2_WORKFLOW_RUN_ID_HEADER]: payload.executionId }
 
       if (response.status === 202 || payload.status === 'queued') {
         return v2Data(
           {
-            executionId: payload.executionId,
+            runId: payload.executionId,
             statusUrl,
             ...(typeof payload.queuePosition === 'number'
               ? { queuePosition: payload.queuePosition }
@@ -116,7 +115,7 @@ export const POST = withRouteHandler(
       const metadata = isRecordLike(payload.metadata) ? payload.metadata : undefined
       return v2Data(
         {
-          executionId: payload.executionId,
+          runId: payload.executionId,
           workflowId,
           status: payload.status as 'completed' | 'failed' | 'paused' | 'cancelled',
           output: payload.output ?? null,
@@ -133,9 +132,9 @@ export const POST = withRouteHandler(
         { headers }
       )
     } catch (error) {
-      logger.error('Failed to resume workflow execution', {
+      logger.error('Failed to resume workflow run', {
         workflowId,
-        executionId,
+        runId,
         error: getErrorMessage(error, 'Unknown error'),
       })
       return v2Error('INTERNAL_ERROR', 'Internal server error')

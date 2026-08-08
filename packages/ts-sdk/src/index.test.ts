@@ -7,7 +7,7 @@ vi.stubGlobal('fetch', mockFetch)
 function v2ExecutionResponse(output: unknown = {}) {
   return {
     data: {
-      executionId: 'execution-123',
+      runId: 'execution-123',
       workflowId: 'workflow-id',
       status: 'completed',
       output,
@@ -114,8 +114,8 @@ describe('SimStudioClient', () => {
         status: 202,
         json: vi.fn().mockResolvedValue({
           data: {
-            executionId: 'execution-123',
-            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/executions/execution-123',
+            runId: 'execution-123',
+            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123',
           },
         }),
         headers: {
@@ -130,10 +130,10 @@ describe('SimStudioClient', () => {
         { async: true }
       )
 
-      expect(result).toHaveProperty('executionId', 'execution-123')
+      expect(result).toHaveProperty('runId', 'execution-123')
       expect(result).toHaveProperty(
         'statusUrl',
-        'https://test.sim.ai/api/v2/workflows/workflow-id/executions/execution-123'
+        'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123'
       )
       expect(result).toHaveProperty('async', true)
 
@@ -191,8 +191,8 @@ describe('SimStudioClient', () => {
         status: 202,
         json: vi.fn().mockResolvedValue({
           data: {
-            executionId: 'execution-123',
-            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/executions/execution-123',
+            runId: 'execution-123',
+            statusUrl: 'https://test.sim.ai/api/v2/workflows/workflow-id/runs/execution-123',
           },
         }),
         headers: { get: vi.fn().mockReturnValue(null) },
@@ -275,13 +275,13 @@ describe('SimStudioClient', () => {
     })
   })
 
-  describe('getWorkflowExecution', () => {
-    it('should fetch execution status and outputs from the v2 execution resource', async () => {
+  describe('getWorkflowRun', () => {
+    it('should fetch run status and outputs from the v2 run resource', async () => {
       const mockResponse = {
         ok: true,
         json: vi.fn().mockResolvedValue({
           data: {
-            executionId: 'execution-123',
+            runId: 'execution-123',
             workflowId: 'workflow-123',
             status: 'completed',
             output: { result: 'done' },
@@ -293,22 +293,22 @@ describe('SimStudioClient', () => {
       }
       vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
 
-      const result = await client.getWorkflowExecution('workflow-123', 'execution-123', {
+      const result = await client.getWorkflowRun('workflow-123', 'execution-123', {
         includeOutput: true,
         selectedOutputs: ['agent.content'],
       })
 
-      expect(result).toHaveProperty('executionId', 'execution-123')
+      expect(result).toHaveProperty('runId', 'execution-123')
       expect(result).toHaveProperty('status', 'completed')
       expect(result).toHaveProperty('output')
 
       const calls = vi.mocked(mockFetch).mock.calls
       expect(calls[0][0]).toBe(
-        'https://test.sim.ai/api/v2/workflows/workflow-123/executions/execution-123?includeOutput=true&selectedOutputs=agent.content'
+        'https://test.sim.ai/api/v2/workflows/workflow-123/runs/execution-123?includeOutput=true&selectedOutputs=agent.content'
       )
     })
 
-    it('should handle execution not found errors', async () => {
+    it('should handle run not found errors', async () => {
       const mockResponse = {
         ok: false,
         status: 404,
@@ -316,7 +316,7 @@ describe('SimStudioClient', () => {
         json: vi.fn().mockResolvedValue({
           error: {
             code: 'NOT_FOUND',
-            message: 'Execution not found',
+            message: 'Run not found',
           },
         }),
         headers: {
@@ -325,12 +325,12 @@ describe('SimStudioClient', () => {
       }
       vi.mocked(mockFetch).mockResolvedValue(mockResponse as any)
 
-      await expect(
-        client.getWorkflowExecution('workflow-123', 'invalid-execution')
-      ).rejects.toThrow(SimStudioError)
-      await expect(
-        client.getWorkflowExecution('workflow-123', 'invalid-execution')
-      ).rejects.toThrow('Execution not found')
+      await expect(client.getWorkflowRun('workflow-123', 'invalid-run')).rejects.toThrow(
+        SimStudioError
+      )
+      await expect(client.getWorkflowRun('workflow-123', 'invalid-run')).rejects.toThrow(
+        'Run not found'
+      )
     })
   })
 

@@ -4,10 +4,10 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
 import { toV2File } from '@/app/api/v2/files/utils'
 
-export function toV2FileUpload(
+export async function toV2FileUpload(
   session: UploadSessionRecord,
   file: WorkspaceFileRecord | null
-): V2FileUpload {
+): Promise<V2FileUpload> {
   return {
     id: session.id,
     status: uploadStatus(session.status),
@@ -16,7 +16,7 @@ export function toV2FileUpload(
     size: session.fileSize,
     expiresAt: session.expiresAt.toISOString(),
     error: session.error,
-    file: file ? toV2File(file) : null,
+    file: file ? await toV2File(file) : null,
   }
 }
 

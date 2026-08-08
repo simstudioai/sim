@@ -50,7 +50,7 @@ export const v2FileSchema = z.object({
   key: z.string(),
   /** Canonical containing-folder path; `/` means the workspace root. */
   folderPath: v2FolderPathSchema,
-  uploadedBy: z.string(),
+  uploadedByEmail: z.email(),
   /** ISO-8601 timestamp. */
   uploadedAt: z.string(),
   /** ISO-8601 timestamp; advances on content and metadata writes alike. */

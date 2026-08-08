@@ -1,6 +1,7 @@
 import type { V2File } from '@/lib/api/contracts/v2/files'
 import { buildFolderPath } from '@/lib/folders/paths'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 
 /** Shared serialization for the v2 files surface. */
 
@@ -8,7 +9,7 @@ import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
  * Public file projection. `workspaceId` (already known to the caller, who
  * supplied it) and the internal storage/versioning columns are not exposed.
  */
-export function toV2File(record: WorkspaceFileRecord): V2File {
+function serializeV2File(record: WorkspaceFileRecord, uploadedByEmail: string): V2File {
   const folderPath = record.folderId
     ? buildFolderPath(
         (() => {
@@ -25,8 +26,22 @@ export function toV2File(record: WorkspaceFileRecord): V2File {
     type: record.type,
     key: record.key,
     folderPath,
-    uploadedBy: record.uploadedBy,
+    uploadedByEmail,
     uploadedAt: record.uploadedAt.toISOString(),
     updatedAt: record.updatedAt.toISOString(),
   }
+}
+
+/** Resolves and serializes one public file attribution. */
+export async function toV2File(record: WorkspaceFileRecord): Promise<V2File> {
+  const emailByUserId = await getUserEmailsByIds([record.uploadedBy])
+  return serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy))
+}
+
+/** Resolves a file page's attribution in one query before serialization. */
+export async function toV2Files(records: WorkspaceFileRecord[]): Promise<V2File[]> {
+  const emailByUserId = await getUserEmailsByIds(records.map((record) => record.uploadedBy))
+  return records.map((record) =>
+    serializeV2File(record, requireResolvedUserEmail(emailByUserId, record.uploadedBy))
+  )
 }

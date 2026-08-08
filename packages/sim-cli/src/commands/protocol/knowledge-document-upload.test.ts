@@ -62,17 +62,20 @@ function uploadSession() {
   }
 }
 
-describe('documents upload', () => {
+describe('knowledge documents upload', () => {
   it('owns the multipart protocol while hiding its low-level operations', () => {
     const root = program()
     const knowledge = root.commands.find((command) => command.name() === 'knowledge')
-    expect(knowledge?.commands.map((command) => command.name())).not.toEqual(
-      expect.arrayContaining(['documents', 'uploads', 'parts', 'complete'])
-    )
+    expect(root.commands.map((command) => command.name())).not.toContain('documents')
 
-    const documents = root.commands.find((command) => command.name() === 'documents')
-    expect(documents?.alias()).toBe('document')
+    const documents = knowledge?.commands.find((command) => command.name() === 'documents')
     expect(documents?.commands.map((command) => command.name())).toContain('upload')
+    expect(documents?.commands.map((command) => command.name())).not.toEqual(
+      expect.arrayContaining(['uploads', 'parts', 'complete'])
+    )
+    expect(
+      documents?.commands.find((command) => command.name() === 'upload')?.helpInformation()
+    ).toContain('<knowledgeBaseId> <path>')
   })
 
   it('uploads a local document and prints the created document without transfer secrets', async () => {
@@ -133,11 +136,11 @@ describe('documents upload', () => {
     await program().parseAsync([
       'node',
       'sim',
+      'kb',
       'documents',
       'upload',
-      path,
-      '--kb',
       'kb_1',
+      path,
       '--tag',
       'customer',
       'priority',
@@ -191,11 +194,11 @@ describe('documents upload', () => {
       program().parseAsync([
         'node',
         'sim',
+        'kb',
         'documents',
         'upload',
-        path,
-        '--kb',
         'kb_1',
+        path,
         '--tag',
         '1',
         '2',
@@ -210,13 +213,13 @@ describe('documents upload', () => {
     expect(mockRequest).not.toHaveBeenCalled()
   })
 
-  it('requires an explicit knowledge-base scope before reading the file', async () => {
+  it('requires the knowledge-base argument before reading the file', async () => {
     const path = join(dir, 'notes.txt')
     writeFileSync(path, 'hello')
 
     await expect(
-      program().parseAsync(['node', 'sim', 'documents', 'upload', path])
-    ).rejects.toThrow(/required option '--kb <knowledgeBaseId>'/)
+      program().parseAsync(['node', 'sim', 'kb', 'documents', 'upload'])
+    ).rejects.toThrow(/missing required argument 'knowledgeBaseId'/)
     expect(mockRequest).not.toHaveBeenCalled()
   })
 })

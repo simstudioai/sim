@@ -29,7 +29,7 @@ const v2LogWorkflowSummarySchema = z.object({
 })
 
 export const v2LogListItemSchema = z.object({
-  executionId: z.string(),
+  runId: z.string(),
   workflowId: z.string().nullable(),
   deploymentVersionId: z.string().nullable(),
   status: v2LogStatusSchema,
@@ -51,7 +51,7 @@ export const v2LogListItemSchema = z.object({
 export type V2LogListItem = z.output<typeof v2LogListItemSchema>
 
 export const v2LogDetailSchema = z.object({
-  executionId: z.string(),
+  runId: z.string(),
   workflowId: z.string().nullable(),
   deploymentVersionId: z.string().nullable(),
   status: v2LogStatusSchema,
@@ -66,7 +66,7 @@ export const v2LogDetailSchema = z.object({
     name: z.string(),
     description: z.string().nullable(),
     folderPath: v2FolderPathSchema.nullable(),
-    userId: z.string().nullable(),
+    ownerEmail: z.email().nullable(),
     workspaceId: z.string().nullable(),
     createdAt: z.string().nullable(),
     updatedAt: z.string().nullable(),
@@ -85,12 +85,13 @@ export const v2LogDetailSchema = z.object({
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 
 export const v2LogParamsSchema = z.object({
-  executionId: z.string().min(1, 'executionId cannot be empty'),
+  runId: z.string().min(1, 'runId cannot be empty'),
 })
 
 export const v2ListLogsQuerySchema = v1ListLogsQuerySchema
-  .omit({ folderIds: true })
+  .omit({ executionId: true, folderIds: true })
   .extend({
+    runId: z.string().min(1, 'runId cannot be empty').optional(),
     folderPaths: z
       .string()
       .optional()
@@ -128,7 +129,7 @@ export const v2ListLogsContract = defineRouteContract({
 
 export const v2GetLogContract = defineRouteContract({
   method: 'GET',
-  path: '/api/v2/logs/[executionId]',
+  path: '/api/v2/logs/[runId]',
   params: v2LogParamsSchema,
   response: {
     mode: 'json',

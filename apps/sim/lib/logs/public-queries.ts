@@ -1,6 +1,7 @@
 import { db } from '@sim/db'
 import {
   pausedExecutions,
+  user,
   workflow,
   workflowDeploymentVersion,
   workflowExecutionLogs,
@@ -153,6 +154,7 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
       workflowDescription: workflow.description,
       workflowFolderId: workflow.folderId,
       workflowUserId: workflow.userId,
+      workflowOwnerEmail: user.email,
       workflowWorkspaceId: workflow.workspaceId,
       workflowCreatedAt: workflow.createdAt,
       workflowUpdatedAt: workflow.updatedAt,
@@ -175,6 +177,7 @@ export async function getPublicWorkflowLog(lookup: PublicWorkflowLogLookup, work
     )
     .leftJoin(pausedExecutions, eq(pausedExecutions.executionId, workflowExecutionLogs.executionId))
     .leftJoin(workflow, eq(workflowExecutionLogs.workflowId, workflow.id))
+    .leftJoin(user, eq(workflow.userId, user.id))
     .where(
       and(
         lookupCondition,

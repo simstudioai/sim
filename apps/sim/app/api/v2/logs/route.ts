@@ -86,7 +86,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       level: params.level,
       startDate: params.startDate ? new Date(params.startDate) : undefined,
       endDate: params.endDate ? new Date(params.endDate) : undefined,
-      executionId: params.executionId,
+      executionId: params.runId,
       minDurationMs: params.minDurationMs,
       maxDurationMs: params.maxDurationMs,
       minCost: params.minCost,
@@ -106,7 +106,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     type LogRow = (typeof data)[number]
     const buildItem = (log: LogRow): V2LogListItem => {
       const item: V2LogListItem = {
-        executionId: log.executionId,
+        runId: log.executionId,
         workflowId: log.workflowId,
         deploymentVersionId: log.deploymentVersionId,
         status: v2LogStatusSchema.parse(log.status),

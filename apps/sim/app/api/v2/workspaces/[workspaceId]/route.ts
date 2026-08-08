@@ -1,13 +1,10 @@
-import { db } from '@sim/db'
-import { workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { v2GetWorkspaceContract } from '@/lib/api/contracts/v2/workspaces'
 import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getPublicWorkspaceDetail } from '@/lib/workspaces/public-queries'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
@@ -18,23 +15,17 @@ import {
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
 
-const logger = createLogger('V2WorkspacesAPI')
+const logger = createLogger('V2WorkspaceDetailAPI')
 
-export const dynamic = 'force-dynamic'
-export const revalidate = 0
-
-interface RouteContext {
+interface WorkspaceRouteParams {
   params: Promise<{ workspaceId: string }>
 }
 
-/** GET /api/v2/workspaces/[workspaceId] — Resolve a workspace id to its name. */
-export const GET = withRouteHandler(async (request: NextRequest, context: RouteContext) => {
-  const requestId = generateRequestId()
-
+/** GET /api/v2/workspaces/[workspaceId] — Public workspace metadata. */
+export const GET = withRouteHandler(async (request: NextRequest, context: WorkspaceRouteParams) => {
   try {
-    const rateLimit = await checkRateLimit(request, 'workspace')
+    const rateLimit = await checkRateLimit(request, 'workspaces')
     if (!rateLimit.allowed) return v2RateLimitError(rateLimit)
-
     const userId = rateLimit.userId!
 
     const gate = await v2ApiGateError(userId)
@@ -46,42 +37,22 @@ export const GET = withRouteHandler(async (request: NextRequest, context: RouteC
     if (!parsed.success) return parsed.response
 
     const { workspaceId } = parsed.data.params
-
     const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
     if (access) return v2WorkspaceAccessError(access)
 
-    const [row] = await db
-      .select({
-        id: workspace.id,
-        name: workspace.name,
-        color: workspace.color,
-        logoUrl: workspace.logoUrl,
-        createdAt: workspace.createdAt,
-        updatedAt: workspace.updatedAt,
-      })
-      .from(workspace)
-      .where(eq(workspace.id, workspaceId))
-      .limit(1)
-
-    if (!row) return v2Error('NOT_FOUND', 'Workspace not found')
+    const workspace = await getPublicWorkspaceDetail(workspaceId)
+    if (!workspace) return v2Error('NOT_FOUND', 'Workspace not found')
 
     return v2Data(
       {
-        workspace: {
-          id: row.id,
-          name: row.name,
-          color: row.color,
-          logoUrl: row.logoUrl,
-          createdAt: row.createdAt.toISOString(),
-          updatedAt: row.updatedAt.toISOString(),
-        },
+        ...workspace,
+        createdAt: workspace.createdAt.toISOString(),
+        updatedAt: workspace.updatedAt.toISOString(),
       },
       { rateLimit }
     )
   } catch (error) {
-    logger.error(`[${requestId}] Error fetching workspace`, {
-      error: getErrorMessage(error, 'Unknown error'),
-    })
+    logger.error('Failed to get workspace', { error: getErrorMessage(error) })
     return v2Error('INTERNAL_ERROR', 'Internal server error')
   }
 })

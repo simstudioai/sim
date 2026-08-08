@@ -109,21 +109,23 @@ curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
   -d '{"input": {}, "async": true}'
 ```
 
-This returns immediately with an `executionId` and `statusUrl`:
+Keyed callers can optionally provide `X-Run-Id: my-run-123` to choose the run ID. Run IDs cannot be reused; a duplicate returns `409`.
+
+This returns immediately with a `runId` and `statusUrl`:
 
 ```json
 {
   "data": {
-    "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
-    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflowId}/executions/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "statusUrl": "https://www.sim.ai/api/v2/workflows/{workflowId}/runs/c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74"
   }
 }
 ```
 
-Poll the [Get Execution Status](/api-reference/execution/getWorkflowExecution) endpoint until the status is terminal:
+Poll the run status endpoint until the status is terminal:
 
 ```bash
-curl https://www.sim.ai/api/v2/workflows/{workflowId}/executions/{executionId}?includeOutput=true \
+curl https://www.sim.ai/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 
@@ -133,12 +135,12 @@ curl https://www.sim.ai/api/v2/workflows/{workflowId}/executions/{executionId}?i
 
 ## Response Format
 
-Successful v2 responses wrap the execution resource in `data`:
+Successful v2 responses wrap the run resource in `data`:
 
 ```json
 {
   "data": {
-    "executionId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
+    "runId": "c7a92e15-3f4b-4d8c-a1e6-9b0d5f2c8e74",
     "workflowId": "{workflowId}",
     "status": "completed",
     "output": { "result": "Hello, world!" },

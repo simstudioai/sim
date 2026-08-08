@@ -87,10 +87,10 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
   <Tab>
     ### REST API
     
-    Programmatically resume workflows through the v2 execution resource. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused execution response.
+    Programmatically resume workflows through the v2 run resource. The `contextId` is available from the block's `resumeEndpoint` output or from the `_resume` object in the paused run response.
     
     ```bash
-    POST /api/v2/workflows/{workflowId}/executions/{executionId}/resume
+    POST /api/v2/workflows/{workflowId}/runs/{runId}/resume
     Content-Type: application/json
     X-API-Key: your-api-key
     
@@ -110,7 +110,7 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     ```json
     {
       "data": {
-        "executionId": "<resumeExecutionId>",
+        "runId": "<resumeRunId>",
         "workflowId": "<workflowId>",
         "status": "completed",
         "output": { ... },
@@ -126,27 +126,27 @@ Access resume data in downstream blocks using `<blockId.fieldName>`.
     
     - **Stream mode** (`stream: true` on the original execute call) — The resume response streams SSE events with `selectedOutputs` chunks, just like the initial execution.
     
-    - **Async mode** (`async: true` on the original v2 execute call) — The resume dispatches execution to a background worker and returns immediately with `202`, including the resume attempt's `executionId` and v2 `statusUrl` for polling:
+    - **Async mode** (`async: true` on the original v2 execute call) — The resume dispatches the run to a background worker and returns immediately with `202`, including the resume attempt's `runId` and v2 `statusUrl` for polling:
     
     ```json
     {
       "data": {
-        "executionId": "<resumeExecutionId>",
-        "statusUrl": "/api/v2/workflows/<workflowId>/executions/<resumeExecutionId>"
+        "runId": "<resumeRunId>",
+        "statusUrl": "/api/v2/workflows/<workflowId>/runs/<resumeRunId>"
       }
     }
     ```
     
-    #### Polling execution status
+    #### Polling run status
     
     Poll the `statusUrl` from the async response to check when the resume completes:
     
     ```bash
-    GET /api/v2/workflows/{workflowId}/executions/{resumeExecutionId}?includeOutput=true
+    GET /api/v2/workflows/{workflowId}/runs/{resumeRunId}?includeOutput=true
     X-API-Key: your-api-key
     ```
     
-    Returns the execution status and, when completed, the full workflow output.
+    Returns the run status and, when completed, the full workflow output.
 
     The legacy endpoint remains available without behavior changes for existing integrations:
 
@@ -183,7 +183,7 @@ When triggering a workflow through `POST /api/v2/workflows/{id}/execute`, HITL b
     ```json
     {
       "data": {
-        "executionId": "<executionId>",
+        "runId": "<runId>",
         "workflowId": "<workflowId>",
         "status": "paused",
         "output": {

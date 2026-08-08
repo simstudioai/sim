@@ -6,7 +6,6 @@ type DbAuditLog = Pick<
   InferSelectModel<typeof auditLog>,
   | 'id'
   | 'workspaceId'
-  | 'actorId'
   | 'actorName'
   | 'actorEmail'
   | 'action'
@@ -43,7 +42,6 @@ export function formatV2AuditLogEntry(log: DbAuditLog) {
   return {
     id: log.id,
     workspaceId: log.workspaceId,
-    actorId: log.actorId,
     actorName: log.actorName,
     actorEmail: log.actorEmail,
     action: log.action,

@@ -34,7 +34,6 @@ export type ApiEndpoint =
   | 'workflow-version-detail'
   | 'workflow-export'
   | 'workflow-import'
-  | 'workspace'
   | 'audit-logs'
   | 'tables'
   | 'table-detail'
@@ -67,7 +66,10 @@ export type ApiEndpoint =
   | 'custom-tools'
   | 'custom-tool-detail'
   | 'credentials'
-  | 'credential-detail'
+  | 'secrets'
+  | 'secret-detail'
+  | 'workspaces'
+  | 'workspace-members'
 
 export interface RateLimitResult {
   allowed: boolean

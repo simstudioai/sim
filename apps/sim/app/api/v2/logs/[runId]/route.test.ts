@@ -35,7 +35,7 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
   materializeExecutionData: mockMaterializeExecutionData,
 }))
 
-import { GET } from '@/app/api/v2/logs/[executionId]/route'
+import { GET } from '@/app/api/v2/logs/[runId]/route'
 
 const RATE_LIMIT_OK = {
   allowed: true,
@@ -66,19 +66,20 @@ const LOG_ROW = {
   workflowDescription: 'Handles support requests',
   workflowFolderId: null,
   workflowUserId: 'user-1',
+  workflowOwnerEmail: 'ada@example.com',
   workflowWorkspaceId: 'workspace-1',
   workflowCreatedAt: new Date('2023-12-01T00:00:00Z'),
   workflowUpdatedAt: new Date('2023-12-02T00:00:00Z'),
   workflowArchivedAt: null,
 }
 
-const routeContext = () => ({ params: Promise.resolve({ executionId: 'execution-1' }) })
+const routeContext = () => ({ params: Promise.resolve({ runId: 'execution-1' }) })
 
 function callGet() {
   return GET(new NextRequest('http://localhost:3000/api/v2/logs/execution-1'), routeContext())
 }
 
-describe('GET /api/v2/logs/[executionId]', () => {
+describe('GET /api/v2/logs/[runId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -88,7 +89,7 @@ describe('GET /api/v2/logs/[executionId]', () => {
     dbChainMockFns.limit.mockResolvedValue([LOG_ROW])
   })
 
-  it('uses executionId as the sole public identity and includes diagnostic data', async () => {
+  it('uses runId as the sole public identity and includes diagnostic data', async () => {
     const traceSpans = [
       {
         id: 'span-1',
@@ -108,12 +109,14 @@ describe('GET /api/v2/logs/[executionId]', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.data.executionId).toBe('execution-1')
+    expect(body.data.runId).toBe('execution-1')
     expect(body.data).not.toHaveProperty('id')
     expect(body.data).not.toHaveProperty('executionData')
     expect(body.data.traceSpans).toEqual(traceSpans)
     expect(body.data.finalOutput).toEqual({ answer: 'done' })
     expect(body.data.workflowState).toEqual({ blocks: {}, edges: [] })
+    expect(body.data.workflow.ownerEmail).toBe('ada@example.com')
+    expect(body.data.workflow).not.toHaveProperty('userId')
   })
 
   it('returns empty diagnostic collections when the execution produced none', async () => {

@@ -107,7 +107,7 @@ async function finalizeInternalWorkspaceFile(
 ): Promise<FinalizedUploadPurpose> {
   const finalized = await finalizeWorkspaceFileUpload({ session, actor, request, source: 'ui' })
   return {
-    value: toV2File(finalized.file),
+    value: await toV2File(finalized.file),
     completedFileId: finalized.file.id,
   }
 }

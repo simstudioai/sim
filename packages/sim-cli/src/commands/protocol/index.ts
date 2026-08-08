@@ -28,9 +28,8 @@ export function attachProtocolCommands(program: Command): void {
     createFolder: 'createFileFolder',
   })
 
-  attachKnowledgeDocumentUpload(group(program, 'documents'))
-
   const knowledge = group(program, 'knowledge')
+  attachKnowledgeDocumentUpload(group(knowledge, 'documents'))
   attachResourceDirectoryCommands(knowledge, {
     kind: 'knowledge',
     resources: 'listKnowledgeBases',

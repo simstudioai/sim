@@ -10,7 +10,7 @@ from simstudio import SimStudioClient, SimStudioError, WorkflowExecutionResult, 
 def v2_execution_response(output=None):
     return {
         "data": {
-            "executionId": "execution-123",
+            "runId": "execution-123",
             "workflowId": "workflow-id",
             "status": "completed",
             "output": {} if output is None else output,
@@ -108,15 +108,15 @@ def test_context_manager(mock_close):
 
 
 @patch('simstudio.requests.Session.post')
-def test_async_execution_returns_execution_id(mock_post):
+def test_async_execution_returns_run_id(mock_post):
     """Test async execution returns AsyncExecutionResult."""
     mock_response = Mock()
     mock_response.ok = True
     mock_response.status_code = 202
     mock_response.json.return_value = {
         "data": {
-            "executionId": "execution-123",
-            "statusUrl": "https://sim.ai/api/v2/workflows/workflow-id/executions/execution-123"
+            "runId": "execution-123",
+            "statusUrl": "https://sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
         }
     }
     mock_response.headers.get.return_value = None
@@ -130,8 +130,8 @@ def test_async_execution_returns_execution_id(mock_post):
     )
 
     assert result.success is True
-    assert result.execution_id == "execution-123"
-    assert result.status_url == "https://sim.ai/api/v2/workflows/workflow-id/executions/execution-123"
+    assert result.run_id == "execution-123"
+    assert result.status_url == "https://sim.ai/api/v2/workflows/workflow-id/runs/execution-123"
     assert result.async_execution is True
 
     call_args = mock_post.call_args
@@ -189,8 +189,8 @@ def test_async_execution_timeout_body(mock_post):
     mock_response.status_code = 202
     mock_response.json.return_value = {
         "data": {
-            "executionId": "execution-123",
-            "statusUrl": "/api/v2/workflows/workflow-id/executions/execution-123",
+            "runId": "execution-123",
+            "statusUrl": "/api/v2/workflows/workflow-id/runs/execution-123",
         }
     }
     mock_response.headers.get.return_value = None
@@ -301,12 +301,12 @@ def test_get_job_status_not_found(mock_get):
 
 
 @patch('simstudio.requests.Session.get')
-def test_get_workflow_execution_success(mock_get):
+def test_get_workflow_run_success(mock_get):
     mock_response = Mock()
     mock_response.ok = True
     mock_response.json.return_value = {
         "data": {
-            "executionId": "execution-123",
+            "runId": "execution-123",
             "workflowId": "workflow-123",
             "status": "completed",
             "output": {"result": "done"}
@@ -316,24 +316,24 @@ def test_get_workflow_execution_success(mock_get):
     mock_get.return_value = mock_response
 
     client = SimStudioClient(api_key="test-api-key", base_url="https://test.sim.ai")
-    result = client.get_workflow_execution(
+    result = client.get_workflow_run(
         "workflow-123",
         "execution-123",
         include_output=True,
         selected_outputs=["agent.content"]
     )
 
-    assert result["executionId"] == "execution-123"
+    assert result["runId"] == "execution-123"
     assert result["status"] == "completed"
     assert result["output"]["result"] == "done"
     mock_get.assert_called_once_with(
-        "https://test.sim.ai/api/v2/workflows/workflow-123/executions/execution-123",
+        "https://test.sim.ai/api/v2/workflows/workflow-123/runs/execution-123",
         params={"includeOutput": "true", "selectedOutputs": "agent.content"}
     )
 
 
 @patch('simstudio.requests.Session.get')
-def test_get_workflow_execution_not_found(mock_get):
+def test_get_workflow_run_not_found(mock_get):
     mock_response = Mock()
     mock_response.ok = False
     mock_response.status_code = 404
@@ -341,7 +341,7 @@ def test_get_workflow_execution_not_found(mock_get):
     mock_response.json.return_value = {
         "error": {
             "code": "NOT_FOUND",
-            "message": "Execution not found"
+            "message": "Run not found"
         }
     }
     mock_response.headers.get.return_value = None
@@ -350,8 +350,8 @@ def test_get_workflow_execution_not_found(mock_get):
     client = SimStudioClient(api_key="test-api-key")
 
     with pytest.raises(SimStudioError) as exc_info:
-        client.get_workflow_execution("workflow-123", "invalid-execution")
-    assert "Execution not found" in str(exc_info.value)
+        client.get_workflow_run("workflow-123", "invalid-run")
+    assert "Run not found" in str(exc_info.value)
 
 
 @patch('simstudio.requests.Session.post')

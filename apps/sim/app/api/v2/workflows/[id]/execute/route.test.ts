@@ -216,14 +216,14 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     })
   })
 
-  it('runs sync and returns the execution resource in the v2 envelope', async () => {
+  it('runs sync and returns the run resource in the v2 envelope', async () => {
     const res = await callExecute({ input: { hello: 'world' } })
 
     expect(res.status).toBe(200)
-    expect(res.headers.get('X-Execution-Id')).toBe('execution-123')
+    expect(res.headers.get('X-Run-Id')).toBe('execution-123')
     const body = await res.json()
     expect(body.data).toMatchObject({
-      executionId: 'execution-123',
+      runId: 'execution-123',
       workflowId: 'workflow-1',
       status: 'completed',
       output: { result: 'done' },
@@ -247,7 +247,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.status).toBe('failed')
-    expect(body.data.executionId).toBe('execution-123')
+    expect(body.data.runId).toBe('execution-123')
     expect(body.data.output).toEqual({ partial: true })
     expect(body.data.error).toEqual({
       message: 'Invalid credentials',
@@ -258,14 +258,14 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     })
   })
 
-  it('queues async runs and returns a 202 receipt with the v2 executions statusUrl', async () => {
+  it('queues async runs and returns a 202 receipt with the v2 runs statusUrl', async () => {
     const res = await callExecute({ input: {}, async: true })
 
     expect(res.status).toBe(202)
     const body = await res.json()
     expect(body.data).toEqual({
-      executionId: 'execution-123',
-      statusUrl: 'http://localhost:3000/api/v2/workflows/workflow-1/executions/execution-123',
+      runId: 'execution-123',
+      statusUrl: 'http://localhost:3000/api/v2/workflows/workflow-1/runs/execution-123',
     })
     expect(mockPreprocessExecution).toHaveBeenCalledWith(
       expect.objectContaining({ rateLimitCounter: 'async' })
@@ -326,21 +326,30 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(res.status).toBe(403)
   })
 
-  it('returns 409 CONFLICT for a reused X-Execution-Id', async () => {
+  it('returns 409 CONFLICT for a reused X-Run-Id', async () => {
     mockClaimExecutionId.mockResolvedValue(null)
 
     const res = await callExecute(
       { input: {} },
-      { 'X-Execution-Id': '11111111-1111-4111-8111-111111111111' }
+      { 'X-Run-Id': '11111111-1111-4111-8111-111111111111' }
     )
 
     expect(res.status).toBe(409)
     const body = await res.json()
     expect(body.error.code).toBe('CONFLICT')
+    expect(body.error.message).toBe('Run ID has already been used')
     expect(body.error.details).toMatchObject({
-      code: 'EXECUTION_ID_CONFLICT',
-      executionId: '11111111-1111-4111-8111-111111111111',
+      code: 'RUN_ID_CONFLICT',
+      runId: '11111111-1111-4111-8111-111111111111',
     })
+  })
+
+  it('rejects an invalid X-Run-Id', async () => {
+    const res = await callExecute({ input: {} }, { 'X-Run-Id': 'invalid run id' })
+
+    expect(res.status).toBe(400)
+    expect((await res.json()).error.code).toBe('BAD_REQUEST')
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('surfaces the rate-limit failure with Retry-After', async () => {

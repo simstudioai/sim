@@ -1060,34 +1060,42 @@
                   "properties": {
                     "data": {
                       "type": "object",
-                      "required": ["workspace"],
+                      "required": [
+                        "id",
+                        "name",
+                        "color",
+                        "logoUrl",
+                        "mode",
+                        "memberCount",
+                        "createdAt",
+                        "updatedAt"
+                      ],
                       "properties": {
-                        "workspace": {
-                          "type": "object",
-                          "required": ["id", "name", "color", "logoUrl", "createdAt", "updatedAt"],
-                          "properties": {
-                            "id": { "type": "string" },
-                            "name": { "type": "string" },
-                            "color": { "type": "string" },
-                            "logoUrl": { "type": ["string", "null"] },
-                            "createdAt": { "type": "string", "format": "date-time" },
-                            "updatedAt": { "type": "string", "format": "date-time" }
-                          }
-                        }
+                        "id": { "type": "string", "minLength": 1 },
+                        "name": { "type": "string" },
+                        "color": { "type": "string" },
+                        "logoUrl": { "type": ["string", "null"] },
+                        "mode": {
+                          "type": "string",
+                          "enum": ["personal", "organization", "grandfathered_shared"]
+                        },
+                        "memberCount": { "type": "integer", "minimum": 0 },
+                        "createdAt": { "type": "string", "format": "date-time" },
+                        "updatedAt": { "type": "string", "format": "date-time" }
                       }
                     }
                   }
                 },
                 "example": {
                   "data": {
-                    "workspace": {
-                      "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-                      "name": "Product Operations",
-                      "color": "#7C3AED",
-                      "logoUrl": null,
-                      "createdAt": "2026-08-07T18:00:00.000Z",
-                      "updatedAt": "2026-08-07T18:30:00.000Z"
-                    }
+                    "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
+                    "name": "Product Operations",
+                    "color": "#7C3AED",
+                    "logoUrl": null,
+                    "mode": "organization",
+                    "memberCount": 12,
+                    "createdAt": "2026-08-07T18:00:00.000Z",
+                    "updatedAt": "2026-08-07T18:30:00.000Z"
                   }
                 }
               }
@@ -1919,7 +1927,7 @@
                           "source",
                           "workspaceId",
                           "workflow",
-                          "executionId",
+                          "runId",
                           "creditCost"
                         ],
                         "properties": {
@@ -1966,7 +1974,7 @@
                               }
                             ]
                           },
-                          "executionId": {
+                          "runId": {
                             "type": ["string", "null"]
                           },
                           "creditCost": {
@@ -1990,7 +1998,7 @@
                       "source": "sim-chat",
                       "workspaceId": "ws_1",
                       "workflow": null,
-                      "executionId": null,
+                      "runId": null,
                       "creditCost": 12
                     }
                   ],

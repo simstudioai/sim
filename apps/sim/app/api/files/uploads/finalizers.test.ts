@@ -64,6 +64,10 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkspaceFilesChanged: mockNotifyWorkspaceFilesChanged,
 }))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: vi.fn(async () => new Map([['user-1', 'ada@example.com']])),
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
 
 import { finalizeUploadPurpose } from '@/app/api/files/uploads/finalizers'
 

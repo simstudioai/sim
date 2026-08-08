@@ -66,8 +66,14 @@ describe('buildRequest', () => {
     expect(buildRequest('getTable', ['a/b?c'], {}, WORKSPACE).path).toBe('/api/v2/tables/a%2Fb%3Fc')
   })
 
-  it('combines a named parent scope with a positional resource id in route order', () => {
-    expect(buildRequest('getKnowledgeDocument', ['doc_1'], { kb: 'kb_1' }, WORKSPACE)).toEqual({
+  it('fills a configured workspace path segment from the profile', () => {
+    expect(buildRequest('getWorkspace', [], {}, WORKSPACE).path).toBe(
+      `/api/v2/workspaces/${WORKSPACE}`
+    )
+  })
+
+  it('combines nested resource path arguments in route order', () => {
+    expect(buildRequest('getKnowledgeDocument', ['kb_1', 'doc_1'], {}, WORKSPACE)).toEqual({
       path: '/api/v2/knowledge/kb_1/documents/doc_1',
       query: { workspaceId: WORKSPACE },
       body: undefined,
@@ -79,15 +85,21 @@ describe('buildRequest', () => {
       expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
     })
 
+    it('rejects a profile-backed workspace path when no workspace is configured', () => {
+      expect(() => buildRequest('getWorkspace', [], {}, null)).toThrow(
+        'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+      )
+    })
+
     it('rejects a missing required flag', () => {
       expect(() => buildRequest('upsertTableRow', ['t'], {}, WORKSPACE)).toThrow(
         '--data is required'
       )
     })
 
-    it('rejects a missing named path scope', () => {
-      expect(() => buildRequest('getKnowledgeDocument', ['doc_1'], {}, WORKSPACE)).toThrow(
-        '--kb is required'
+    it('names a missing nested parent path argument clearly', () => {
+      expect(() => buildRequest('getKnowledgeDocument', [], {}, WORKSPACE)).toThrow(
+        'Missing <knowledgeBaseId>'
       )
     })
 

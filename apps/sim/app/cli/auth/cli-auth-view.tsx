@@ -11,8 +11,8 @@ import { cliAuthParsers } from '@/app/cli/auth/search-params'
 import { useApproveCliAuth } from '@/hooks/queries/cli-auth'
 import { useWorkspacesWithMetadata } from '@/hooks/queries/workspace'
 
-/** Sentinel for a profile without a default workspace; an empty string reads as unselected. */
-const NO_WORKSPACE_VALUE = '__no_workspace__'
+/** Sentinel for the "no default workspace" row; an empty string reads as unselected. */
+const NO_DEFAULT_WORKSPACE_VALUE = '__no_default_workspace__'
 
 /**
  * The signed-in half of the CLI key handoff: a consent card that records the
@@ -40,7 +40,7 @@ export function CliAuthView() {
       label: workspace.name,
       value: workspace.id,
     }))
-    return [...rows, { label: 'No default workspace', value: NO_WORKSPACE_VALUE }]
+    return [...rows, { label: 'No default workspace', value: NO_DEFAULT_WORKSPACE_VALUE }]
   }, [workspaces.data])
 
   if (!resolution.valid) {
@@ -64,9 +64,9 @@ export function CliAuthView() {
    *
    * Until it arrives there is no selection to show, and the fallback would read
    * as "No default workspace" — a real answer, not a pending one. Leaving
-   * Connect live through that window let a fast click approve a key with no
-   * default workspace when the picker was about to select the user's workspace.
-   * Blocking is the only way the card can promise what it is about to do.
+   * Connect live through that window let a fast click save no default when a
+   * moment later the same click would have saved the user's workspace. Blocking
+   * is the only way the card can promise what it is about to configure.
    */
   const loadingWorkspaces = isPlatform && workspaces.isPending
 
@@ -105,7 +105,7 @@ export function CliAuthView() {
             <Label className='text-[var(--text-muted)] text-small'>Default workspace</Label>
             <ChipSelect
               options={options}
-              value={workspaceId ?? NO_WORKSPACE_VALUE}
+              value={workspaceId ?? NO_DEFAULT_WORKSPACE_VALUE}
               onChange={setSelected}
               disabled={loadingWorkspaces || workspaces.isError}
               // A placeholder only shows when nothing is selected, and the
@@ -120,11 +120,11 @@ export function CliAuthView() {
             />
             <p className='text-[var(--text-muted)] text-caption'>
               {loadingWorkspaces
-                ? 'Loading your workspaces…'
+                ? 'Loading your workspace options…'
                 : workspaces.isError
                   ? 'Could not load your workspaces. Connecting still works and issues a personal key; reload to pick a default workspace.'
                   : chosen
-                    ? 'Issues a personal key tied to your account, defaulting to this workspace.'
+                    ? `Issues a personal key tied to your account and makes ${chosen.name} the CLI default.`
                     : // No workspace picked, so none is sent and none becomes the
                       // profile default — promising one here would describe a
                       // grant that Connect is not about to make.
@@ -143,9 +143,8 @@ export function CliAuthView() {
                 request: request.request,
                 challenge: request.challenge,
                 scope: request.scope,
-                // The picked workspace is the terminal profile's default. CLI
-                // login represents the signed-in person, so its key remains
-                // personal even when that person administers the workspace.
+                // The picked workspace is only the terminal's default. Login
+                // always mints a personal key so the profile can switch workspaces.
                 ...(isPlatform && chosen ? { workspaceId: chosen.id } : {}),
                 bindKeyToWorkspace: false,
               },

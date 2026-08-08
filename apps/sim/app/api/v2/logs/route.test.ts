@@ -85,6 +85,7 @@ describe('GET /api/v2/logs materialized fields', () => {
     const body = await response.json()
 
     expect(response.status).toBe(200)
+    expect(body.data[0].runId).toBe('execution-1')
     expect(body.data[0].finalOutput).toBe(finalOutput)
     expect(body.data[0].workflow).toMatchObject({ name: 'Support Agent' })
     expect(mockListPublicWorkflowLogs).toHaveBeenCalledWith(

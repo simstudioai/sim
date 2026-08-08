@@ -18,12 +18,12 @@ const logger = createLogger('V2LogDetailAPI')
 export const revalidate = 0
 
 /**
- * Returns the diagnostic representation of an execution. The execution ID is
- * the sole public identity; the workflow-execution-log row key remains an
- * internal storage and pagination detail.
+ * Returns the diagnostic representation of a run. The run ID is the sole
+ * public identity; the workflow-execution-log row key remains an internal
+ * storage and pagination detail.
  */
 export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ executionId: string }> }) => {
+  async (request: NextRequest, context: { params: Promise<{ runId: string }> }) => {
     const requestId = generateId().slice(0, 8)
 
     try {
@@ -40,9 +40,9 @@ export const GET = withRouteHandler(
       })
       if (!parsed.success) return parsed.response
 
-      const { executionId } = parsed.data.params
+      const { runId } = parsed.data.params
 
-      const log = await getPublicWorkflowLog({ column: 'executionId', value: executionId })
+      const log = await getPublicWorkflowLog({ column: 'executionId', value: runId })
 
       if (!log) return v2Error('NOT_FOUND', 'Log not found')
 
@@ -54,9 +54,12 @@ export const GET = withRouteHandler(
         log.executionData as Record<string, unknown> | null,
         { workspaceId: log.workspaceId, workflowId: log.workflowId, executionId: log.executionId }
       )
+      if (log.workflowUserId && !log.workflowOwnerEmail) {
+        throw new Error(`Unable to resolve workflow owner email for ${log.workflowUserId}`)
+      }
 
       const detail: V2LogDetail = {
-        executionId: log.executionId,
+        runId: log.executionId,
         workflowId: log.workflowId,
         deploymentVersionId: log.deploymentVersionId,
         status: v2LogStatusSchema.parse(log.status),
@@ -73,7 +76,7 @@ export const GET = withRouteHandler(
           folderPath: log.workflowFolderId
             ? (folderIndex.pathById.get(log.workflowFolderId) ?? null)
             : null,
-          userId: log.workflowUserId,
+          ownerEmail: log.workflowOwnerEmail,
           workspaceId: log.workflowWorkspaceId,
           createdAt: log.workflowCreatedAt ? log.workflowCreatedAt.toISOString() : null,
           updatedAt: log.workflowUpdatedAt ? log.workflowUpdatedAt.toISOString() : null,

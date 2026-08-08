@@ -16,6 +16,7 @@ import {
   TableViewValidationError,
   updateTableView,
 } from '@/lib/table'
+import { getRequiredUserEmail } from '@/lib/users/queries'
 import { checkAccess } from '@/app/api/table/utils'
 import { checkRateLimit, resolveWorkspaceScope } from '@/app/api/v1/middleware'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
@@ -70,7 +71,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableV
     const view = await getTableView(viewId, tableId, (result.table.schema as TableSchema).columns)
     if (!view) return v2Error('NOT_FOUND', 'View not found')
 
-    return v2Data({ view: toApiView(view) }, { rateLimit })
+    return v2Data(
+      { view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null) },
+      { rateLimit }
+    )
   } catch (error) {
     logger.error(`[${requestId}] Error getting table view`, {
       error: getErrorMessage(error, 'Unknown error'),
@@ -125,7 +129,12 @@ export const PATCH = withRouteHandler(
       })
       if (!view) return v2Error('NOT_FOUND', 'View not found')
 
-      return v2Data({ view: toApiView(view) }, { rateLimit })
+      return v2Data(
+        {
+          view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
+        },
+        { rateLimit }
+      )
     } catch (error) {
       if (error instanceof TableViewValidationError) return v2Error('BAD_REQUEST', error.message)
 

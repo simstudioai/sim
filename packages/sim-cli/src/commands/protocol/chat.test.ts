@@ -502,6 +502,23 @@ describe('chat print mode', () => {
 })
 
 describe('interactive chat', () => {
+  it('shows the resolved workspace name in the terminal header', async () => {
+    mocks.request.mockImplementation((path: string) => {
+      if (path === '/api/v2/workspaces/ws_local') {
+        return Promise.resolve({ data: { name: 'Product Operations' } })
+      }
+      return Promise.resolve({ data: [], nextCursor: null })
+    })
+    const terminal = new FakeTerminal([{ kind: 'line', value: '/exit' }])
+
+    await program(async () => '', vi.fn(), {
+      isInteractive: () => true,
+      createTerminal: () => terminal,
+    }).parseAsync(['node', 'sim', 'chat'])
+
+    await vi.waitFor(() => expect(terminal.workspaceNames).toContain('Product Operations'))
+  })
+
   it('renders Markdown in the fullscreen TUI when TERM is dumb', async () => {
     const originalTerm = process.env.TERM
     const originalIsTTY = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
@@ -578,7 +595,7 @@ describe('interactive chat', () => {
         return Promise.resolve({
           data: Array.from({ length: 55 }, (_, index) => ({
             id: `log-row-${index + 1}`,
-            executionId: `execution-${index + 1}`,
+            runId: `execution-${index + 1}`,
             workflowId: 'wf-1',
             startedAt: '2026-08-07T12:00:00.000Z',
           })),

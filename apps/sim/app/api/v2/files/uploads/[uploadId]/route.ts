@@ -47,7 +47,7 @@ export const DELETE = withRouteHandler(
         uploadToken: parsed.data.headers['upload-token'],
       })
       const aborted = await abortUploadSession(session)
-      return v2Data(toV2FileUpload(aborted, null), { rateLimit })
+      return v2Data(await toV2FileUpload(aborted, null), { rateLimit })
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified

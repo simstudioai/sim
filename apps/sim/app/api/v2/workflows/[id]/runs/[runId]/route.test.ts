@@ -48,12 +48,12 @@ function callStatus(query = '') {
     'GET',
     undefined,
     {},
-    `http://localhost:3000/api/v2/workflows/workflow-1/executions/exec-1${query}`
+    `http://localhost:3000/api/v2/workflows/workflow-1/runs/exec-1${query}`
   )
-  return GET(req, { params: Promise.resolve({ id: 'workflow-1', executionId: 'exec-1' }) })
+  return GET(req, { params: Promise.resolve({ id: 'workflow-1', runId: 'exec-1' }) })
 }
 
-describe('v2 executions status + cancel', () => {
+describe('v2 runs status + cancel', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockAuthenticateV1Request.mockResolvedValue({
@@ -65,7 +65,7 @@ describe('v2 executions status + cancel', () => {
     mockAuthorize.mockResolvedValue({ allowed: true, workflow: workflowRecord })
   })
 
-  it('returns the execution resource with a structured error', async () => {
+  it('returns the run resource with a structured error', async () => {
     mockGetWorkflowExecutionStatus.mockResolvedValue({
       executionId: 'exec-1',
       workflowId: 'workflow-1',
@@ -87,12 +87,13 @@ describe('v2 executions status + cancel', () => {
     expect(res.status).toBe(200)
     const body = await res.json()
     expect(body.data.status).toBe('failed')
+    expect(body.data.runId).toBe('exec-1')
     expect(body.data.error.code).toBe('EXECUTION_FAILED')
     expect(body.data.error.message).toBe('Send Email: Invalid credentials')
     expect(body.data.durationMs).toBe(5000)
   })
 
-  it('returns the queued execution resource before the log row exists', async () => {
+  it('returns the queued run resource before the log row exists', async () => {
     mockGetWorkflowExecutionStatus.mockResolvedValue({
       executionId: 'exec-1',
       workflowId: 'workflow-1',
@@ -145,6 +146,7 @@ describe('v2 executions status + cancel', () => {
     const body = await (await callStatus()).json()
 
     expect(body.data.paused.contextId).toBe('context-1')
+    expect(body.data.paused).not.toHaveProperty('pausedExecutionId')
   })
 
   it('404s when neither a log row nor a matching job exists', async () => {
@@ -183,12 +185,12 @@ describe('v2 executions status + cancel', () => {
 
     const req = createMockRequest('POST', undefined, {})
     const res = await cancelPost(req, {
-      params: Promise.resolve({ id: 'workflow-1', executionId: 'exec-1' }),
+      params: Promise.resolve({ id: 'workflow-1', runId: 'exec-1' }),
     })
 
     expect(res.status).toBe(200)
     const body = await res.json()
-    expect(body.data).toMatchObject({ success: true, reason: 'recorded' })
+    expect(body.data).toMatchObject({ success: true, runId: 'exec-1', reason: 'recorded' })
     expect(mockCancel).toHaveBeenCalledWith({
       executionId: 'exec-1',
       workflowId: 'workflow-1',
@@ -197,7 +199,7 @@ describe('v2 executions status + cancel', () => {
     })
   })
 
-  it('401s without an API key (no session/anonymous path on executions)', async () => {
+  it('401s without an API key (no session/anonymous path on runs)', async () => {
     mockAuthenticateV1Request.mockResolvedValue({ authenticated: false, error: 'API key required' })
 
     const res = await callStatus()

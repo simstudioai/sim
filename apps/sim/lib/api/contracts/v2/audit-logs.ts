@@ -24,9 +24,8 @@ import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/sha
 export const v2AuditLogEntrySchema = z.object({
   id: z.string(),
   workspaceId: z.string().nullable(),
-  actorId: z.string().nullable(),
   actorName: z.string().nullable(),
-  actorEmail: z.string().nullable(),
+  actorEmail: z.email().nullable(),
   action: z.string(),
   resourceType: z.string(),
   resourceId: z.string().nullable(),
@@ -39,7 +38,8 @@ export const v2AuditLogEntrySchema = z.object({
 export type V2AuditLogEntry = z.output<typeof v2AuditLogEntrySchema>
 
 export const v2ListAuditLogsQuerySchema = v1ListAuditLogsQuerySchema
-  .extend({ organizationId: organizationIdSchema })
+  .omit({ actorId: true })
+  .extend({ organizationId: organizationIdSchema, actorEmail: z.email().optional() })
   .strict()
 
 export const v2GetAuditLogQuerySchema = z.object({ organizationId: organizationIdSchema }).strict()

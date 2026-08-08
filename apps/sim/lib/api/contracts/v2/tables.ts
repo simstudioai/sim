@@ -609,8 +609,8 @@ export const v2ApiViewSchema = z.object({
   name: z.string(),
   config: tableViewConfigSchema,
   isDefault: z.boolean(),
-  /** User who saved the view; `null` for views whose author is gone. */
-  createdBy: z.string().nullable(),
+  /** Current email of the user who saved the view; `null` for a removed author. */
+  createdByEmail: z.email().nullable(),
   createdAt: z.string(),
   updatedAt: z.string(),
 })

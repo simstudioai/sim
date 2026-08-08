@@ -370,7 +370,7 @@ export async function handleResumeExecution({
           statusUrl:
             pollingSurface === 'legacy'
               ? `${getBaseUrl()}/api/jobs/${jobId}`
-              : `${getBaseUrl()}/api/v2/workflows/${workflowId}/executions/${enqueueResult.resumeExecutionId}`,
+              : `${getBaseUrl()}/api/v2/workflows/${workflowId}/runs/${enqueueResult.resumeExecutionId}`,
         },
         { status: 202 }
       )

@@ -59,7 +59,7 @@ export const POST = withRouteHandler(
           return { value: finalized.file, completedFileId: finalized.file.id }
         },
       })
-      return v2Data(toV2FileUpload(result.session, result.value), { rateLimit })
+      return v2Data(await toV2FileUpload(result.session, result.value), { rateLimit })
     } catch (error) {
       const classified = v2CaughtOrchestrationError(error)
       if (classified) return classified

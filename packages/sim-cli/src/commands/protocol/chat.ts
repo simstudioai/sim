@@ -651,12 +651,12 @@ function loadSuggestionCandidates(
     resourceGroups.logs = loadedLogs.slice(0, MAX_LOG_SUGGESTIONS).map((log) => {
       const label = logSuggestionLabel(log, workflowNames)
       return {
-        id: `logs:${log.executionId}`,
+        id: `logs:${log.runId}`,
         value: label,
         displayText: label,
         description: 'log',
         tag: 'logs',
-        context: { kind: 'logs' as const, executionId: log.executionId, label },
+        context: { kind: 'logs' as const, executionId: log.runId, label },
       }
     })
     publishCurrent()
@@ -971,7 +971,7 @@ async function resolveWorkspaceName(
       resolvePath(V2_OPERATIONS.getWorkspace.path, { workspaceId }),
       { auth: 'optional' }
     )
-    return response.data.workspace.name || null
+    return response.data.name || null
   } catch {
     return null
   }

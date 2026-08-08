@@ -70,7 +70,7 @@ result = client.execute_workflow(
 - `timeout` (float, keyword-only): Timeout in seconds (default: 30.0)
 - `stream` (bool, keyword-only): Enable streaming responses
 - `selected_outputs` (list, keyword-only): Block outputs to stream (e.g., `["agent1.content"]`)
-- `async_execution` (bool, keyword-only): Execute asynchronously and return execution ID
+- `async_execution` (bool, keyword-only): Execute asynchronously and return a run ID
 - `execution_timeout_seconds` (int, keyword-only): Server-side async execution cap from 1 to 604800 seconds. Requires `async_execution=True` and cannot extend the account policy.
 
 **Returns:** `WorkflowExecutionResult` or `AsyncExecutionResult`
@@ -122,23 +122,23 @@ result = client.execute_workflow_sync("workflow-id", {"data": "some input"}, tim
 
 **Returns:** `WorkflowExecutionResult`
 
-##### get_workflow_execution(workflow_id, execution_id, *, include_output=None, selected_outputs=None)
+##### get_workflow_run(workflow_id, run_id, *, include_output=None, selected_outputs=None)
 
-Get the status and optional outputs of a workflow execution. Use the execution ID returned by async execution.
+Get the status and optional outputs of a workflow run. Use the run ID returned by async execution.
 
 ```python
-status = client.get_workflow_execution(
+status = client.get_workflow_run(
     "workflow-id",
-    "execution-id",
+    "run-id",
     include_output=True,
     selected_outputs=["agent.content"]
 )
-print("Execution status:", status["status"])
+print("Run status:", status["status"])
 ```
 
 **Parameters:**
 - `workflow_id` (str): The workflow ID
-- `execution_id` (str): The execution ID returned from async execution
+- `run_id` (str): The run ID returned from async execution
 - `include_output` (bool, keyword-only): Include the final output for completed executions
 - `selected_outputs` (list, keyword-only): Block output selectors to include
 
@@ -146,7 +146,7 @@ print("Execution status:", status["status"])
 
 ##### get_job_status(job_id)
 
-Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_execution()` with an execution ID.
+Get the status of a job created through the legacy async execution endpoint. New integrations should use `get_workflow_run()` with a run ID.
 
 ```python
 status = client.get_job_status("legacy-job-id")
@@ -273,7 +273,7 @@ class SimStudioError(Exception):
 @dataclass
 class AsyncExecutionResult:
     success: bool
-    execution_id: str
+    run_id: str
     status_url: str
     message: str = ""
     async_execution: bool = True
