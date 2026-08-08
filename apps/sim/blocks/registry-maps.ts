@@ -285,6 +285,7 @@ import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
 import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
+import { SnowflakeBlock, SnowflakeBlockMeta } from '@/blocks/blocks/snowflake'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
 import { SQSBlock, SQSBlockMeta } from '@/blocks/blocks/sqs'
@@ -609,6 +610,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   slack_v2: SlackV2Block,
   smartlead: SmartleadBlock,
   smtp: SmtpBlock,
+  snowflake: SnowflakeBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
   sqs: SQSBlock,
@@ -898,6 +900,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   slack: SlackBlockMeta,
   smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
+  snowflake: SnowflakeBlockMeta,
   sportmonks: SportmonksBlockMeta,
   spotify: SpotifyBlockMeta,
   sqs: SQSBlockMeta,

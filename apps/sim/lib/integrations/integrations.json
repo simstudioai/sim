@@ -18243,6 +18243,109 @@
       "tags": ["messaging", "automation"]
     },
     {
+      "type": "snowflake",
+      "slug": "snowflake",
+      "name": "Snowflake",
+      "description": "Query data and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load staged data, manage warehouses and tasks, inspect schemas, and call stored procedures.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SnowflakeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/snowflake",
+      "operations": [
+        {
+          "name": "Execute SQL",
+          "description": "Execute one parameterized SQL statement through the Snowflake SQL API."
+        },
+        {
+          "name": "Get Statement",
+          "description": "Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors."
+        },
+        {
+          "name": "Cancel Statement",
+          "description": "Cancel a running Snowflake SQL API statement."
+        },
+        {
+          "name": "Insert Rows",
+          "description": "Insert structured JSON rows using bound values."
+        },
+        {
+          "name": "Update Rows",
+          "description": "Update matching rows with a bound MERGE statement without inserting new rows."
+        },
+        {
+          "name": "Upsert Rows",
+          "description": "Update matching rows and insert unmatched rows with a bound MERGE statement."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows matching a required set of bound column filters."
+        },
+        {
+          "name": "Load Data",
+          "description": "Load files from an existing Snowflake stage with COPY INTO."
+        },
+        {
+          "name": "List Warehouses",
+          "description": "List warehouses visible to the active Snowflake role."
+        },
+        {
+          "name": "Get Warehouse",
+          "description": "Get the full details for a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Resume Warehouse",
+          "description": "Resume a Snowflake virtual warehouse if it is suspended."
+        },
+        {
+          "name": "Suspend Warehouse",
+          "description": "Suspend a Snowflake virtual warehouse."
+        },
+        {
+          "name": "List Tasks",
+          "description": "List tasks in a Snowflake schema."
+        },
+        {
+          "name": "Get Task",
+          "description": "Describe a Snowflake task."
+        },
+        {
+          "name": "Run Task",
+          "description": "Run a Snowflake task immediately, optionally retrying its last failed graph."
+        },
+        {
+          "name": "List Task Runs",
+          "description": "Query up to seven days of Snowflake task history, capped at 10000 rows."
+        },
+        {
+          "name": "Get Task Run",
+          "description": "Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters."
+        },
+        {
+          "name": "Cancel Task Query",
+          "description": "Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped."
+        },
+        {
+          "name": "Get Task Run Output",
+          "description": "Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role."
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views."
+        },
+        {
+          "name": "Call Procedure",
+          "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        }
+      ],
+      "operationCount": 21,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-warehouse", "data-analytics", "cloud"]
+    },
+    {
       "type": "sportmonks",
       "slug": "sportmonks",
       "name": "Sportmonks",
