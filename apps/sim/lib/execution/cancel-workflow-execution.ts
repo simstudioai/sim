@@ -135,6 +135,8 @@ export interface CancelWorkflowExecutionInput {
   userId: string
   /** Workflow's workspace; feeds the event writer + analytics grouping. */
   workspaceId?: string
+  /** Legacy callers emit product analytics here; migrated adapters emit it after success. */
+  captureAnalytics?: boolean
 }
 
 export class WorkflowExecutionNotFoundError extends Error {
@@ -294,7 +296,7 @@ export async function cancelWorkflowExecution(
       ? pausedCancelled && pausedCancellationPublished
       : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
 
-  if (success) {
+  if (success && input.captureAnalytics !== false) {
     captureServerEvent(
       userId,
       'workflow_execution_cancelled',

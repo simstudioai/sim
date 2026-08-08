@@ -15,8 +15,10 @@ export {
 } from '@/lib/api/server/routes/internal-json-route'
 export { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
 export {
+  admitV2Request,
   defineV2JsonRoute,
   type V2ErrorPolicy,
+  V2RouteInfrastructureError,
   v2ApiKeyAuth,
   v2OrchestrationErrorPolicy,
   v2RateLimits,

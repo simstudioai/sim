@@ -164,6 +164,11 @@ interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends Applicati
     principal: V2ApiKeyAuthContext['principal']
     params: Record<string, string | string[] | undefined>
   }): void | Promise<void>
+  onSuccess?(args: {
+    principal: V2ApiKeyAuthContext['principal']
+    input: NoInfer<I>
+    result: NoInfer<R>
+  }): void | Promise<void>
 }
 
 export function defineV2JsonRoute<
@@ -213,11 +218,13 @@ export function defineV2JsonRoute<
       if (!parsed.success) return parsed.response
 
       try {
+        const input = options.mapInput(parsed.data)
         const result = await options.useCase.execute({
           principal: auth.principal,
-          input: options.mapInput(parsed.data),
+          input,
           request,
         })
+        await options.onSuccess?.({ principal: auth.principal, input, result })
         const body = await options.present(result)
         const responseSchema = options.contract.response
         if (responseSchema.mode !== 'json') {

@@ -107,6 +107,8 @@ export interface DeleteFolderByPathParams {
 
 export interface DeleteFolderByPathResult extends DeleteFolderResult {
   path?: string
+  folderId?: string
+  folderName?: string
 }
 
 function validatePathLeafName(path: string): string {
@@ -161,9 +163,9 @@ function pathMutationError(error: unknown): FolderPathMutationResult {
   return { success: false, error: 'Internal server error', errorCode: 'internal' }
 }
 
-/** Creates exactly the leaf identified by `path`; every ancestor must already exist. */
-export async function createFolderAtPath(
-  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+async function executeCreateFolderAtPath(
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string },
+  projectLegacyLifecycle: boolean
 ): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
@@ -211,16 +213,18 @@ export async function createFolderAtPath(
       { label: 'create-folder-at-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
-      metadata: { path: params.path, folderResourceType: params.resourceType },
-    })
+    if (projectLegacyLifecycle) {
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_CREATED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
+        metadata: { path: params.path, folderResourceType: params.resourceType },
+      })
+    }
     await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder, path: params.path }
   } catch (error) {
@@ -228,14 +232,32 @@ export async function createFolderAtPath(
   }
 }
 
-/** Renames, moves, or both by replacing one canonical path with another. */
-export async function relocateFolderByPath(params: {
+/** Creates exactly the leaf identified by `path`; every ancestor must already exist. */
+export async function createFolderAtPath(
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+): Promise<FolderPathMutationResult> {
+  return executeCreateFolderAtPath(params, true)
+}
+
+/** Applies the authoritative mutation without projecting audit or realtime side effects. */
+export async function createFolderAtPathTransition(
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+): Promise<FolderPathMutationResult> {
+  return executeCreateFolderAtPath(params, false)
+}
+
+type RelocateFolderByPathParams = {
   resourceType: FolderResourceType
   workspaceId: string
   userId: string
   path: string
   destinationPath: string
-}): Promise<FolderPathMutationResult> {
+}
+
+async function executeRelocateFolderByPath(
+  params: RelocateFolderByPathParams,
+  projectLegacyLifecycle: boolean
+): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
     requireNonRootFolderPath(params.destinationPath)
@@ -287,20 +309,22 @@ export async function relocateFolderByPath(params: {
       { label: 'relocate-folder-by-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_MOVED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
-      metadata: {
-        sourcePath: params.path,
-        destinationPath: params.destinationPath,
-        folderResourceType: params.resourceType,
-      },
-    })
+    if (projectLegacyLifecycle) {
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_MOVED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+        metadata: {
+          sourcePath: params.path,
+          destinationPath: params.destinationPath,
+          folderResourceType: params.resourceType,
+        },
+      })
+    }
     await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder, path: params.destinationPath }
   } catch (error) {
@@ -308,9 +332,23 @@ export async function relocateFolderByPath(params: {
   }
 }
 
-/** Resolves a public path under the tree lock, then delegates the cascade to the domain engine. */
-export async function deleteFolderByPath(
-  params: DeleteFolderByPathParams
+/** Renames, moves, or both by replacing one canonical path with another. */
+export async function relocateFolderByPath(
+  params: RelocateFolderByPathParams
+): Promise<FolderPathMutationResult> {
+  return executeRelocateFolderByPath(params, true)
+}
+
+/** Applies the authoritative mutation without projecting audit or realtime side effects. */
+export async function relocateFolderByPathTransition(
+  params: RelocateFolderByPathParams
+): Promise<FolderPathMutationResult> {
+  return executeRelocateFolderByPath(params, false)
+}
+
+async function executeDeleteFolderByPath(
+  params: DeleteFolderByPathParams,
+  projectLegacyLifecycle: boolean
 ): Promise<DeleteFolderByPathResult> {
   try {
     requireNonRootFolderPath(params.path)
@@ -360,11 +398,30 @@ export async function deleteFolderByPath(
       }
     )
 
-    const result = await deleteFolderWithoutTreeLock(resolved, null)
-    return { ...result, path: result.success ? params.path : undefined }
+    const result = await deleteFolderWithoutTreeLock(resolved, null, projectLegacyLifecycle)
+    return {
+      ...result,
+      path: result.success ? params.path : undefined,
+      folderId: result.success ? resolved.folderId : undefined,
+      folderName: result.success ? resolved.folderName : undefined,
+    }
   } catch (error) {
     return pathMutationError(error)
   }
+}
+
+/** Resolves a public path under the tree lock, then delegates the cascade to the domain engine. */
+export async function deleteFolderByPath(
+  params: DeleteFolderByPathParams
+): Promise<DeleteFolderByPathResult> {
+  return executeDeleteFolderByPath(params, true)
+}
+
+/** Applies the authoritative mutation without projecting audit or realtime side effects. */
+export async function deleteFolderByPathTransition(
+  params: DeleteFolderByPathParams
+): Promise<DeleteFolderByPathResult> {
+  return executeDeleteFolderByPath(params, false)
 }
 
 /**
@@ -669,12 +726,13 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
     return { success: false, error: 'Folder not found', errorCode: 'not_found' }
   }
 
-  return deleteFolderWithoutTreeLock(params, existing.deletedAt)
+  return deleteFolderWithoutTreeLock(params, existing.deletedAt, true)
 }
 
 async function deleteFolderWithoutTreeLock(
   params: DeleteFolderParams,
-  deletedAt: Date | null
+  deletedAt: Date | null,
+  projectLegacyLifecycle: boolean
 ): Promise<DeleteFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
   const config = folderResourceConfig(resourceType)
@@ -700,24 +758,25 @@ async function deleteFolderWithoutTreeLock(
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_DELETED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName,
-    description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
-    metadata: {
-      folderResourceType: resourceType,
-      path: folderPath,
-      affected: {
-        [config.countKey]: counts.children,
-        subfolders: Math.max(counts.folders - 1, 0),
+  if (projectLegacyLifecycle) {
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName,
+      description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
+      metadata: {
+        folderResourceType: resourceType,
+        path: folderPath,
+        affected: {
+          [config.countKey]: counts.children,
+          subfolders: Math.max(counts.folders - 1, 0),
+        },
       },
-    },
-  })
-
+    })
+  }
   // Live resource list (e.g. tables): a delete removes the folder and cascades to its contents.
   await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, deletedItems: toCascadeCounts(config, counts) }
