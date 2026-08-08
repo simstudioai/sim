@@ -27,12 +27,22 @@ import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-tr
 import { executeProviderRequest } from '@/providers'
 import { installStreamingCostPolicy } from '@/providers/cost-policy'
 import { SIM_AUTO_MODEL_ID } from '@/providers/models'
+import { getProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import { executeTool } from '@/tools'
 import { ToolSchemaEnrichmentError } from '@/tools/params'
 
 process.env.NEXT_PUBLIC_APP_URL = 'http://localhost:3000'
+
+const { mockImportWorkspaceFileSecretProvenanceForModelView } = vi.hoisted(() => ({
+  mockImportWorkspaceFileSecretProvenanceForModelView: vi.fn().mockResolvedValue(true),
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  importWorkspaceFileSecretProvenanceForModelView:
+    mockImportWorkspaceFileSecretProvenanceForModelView,
+}))
 
 vi.mock('@/providers/utils', () => ({
   isFunctionToolCall: (toolCall: unknown) =>
@@ -140,6 +150,7 @@ describe('AgentBlockHandler', () => {
   beforeEach(() => {
     handler = new AgentBlockHandler()
     vi.clearAllMocks()
+    mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValue(true)
     resetDbChainMock()
     // The MCP server lookup awaits select().from(mcpServers).where(...) directly;
     // queue a set per lookup so the structural where spy keeps its default wiring.
@@ -489,6 +500,247 @@ describe('AgentBlockHandler', () => {
       })
     })
 
+    it('projects a resolver-recorded document name only after raw file hydration', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FILE_NAME', plaintext: 'classified.txt', encryptedValue: 'encrypted-name' },
+      ])
+      registry.recordResolvedAtInputPath('FILE_NAME', 'classified.txt', ['files', '0', 'name'])
+      registry.recordResolvedInputProjection(
+        ['files', '0', 'name'],
+        'classified.txt',
+        '{{FILE_NAME}}'
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Analyze this file',
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/classified.txt',
+            name: 'classified.txt',
+            size: 5,
+            type: 'text/plain',
+            base64: 'aW1hZ2U=',
+          },
+        ],
+        apiKey: 'test-api-key',
+      }
+      const rawInputs = structuredClone(inputs)
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+        expect.objectContaining({ name: '{{FILE_NAME}}.txt', base64: 'aW1hZ2U=' }),
+      ])
+      expect(inputs).toEqual(rawInputs)
+    })
+
+    it('rejects resolver-derived inline attachment bytes instead of corrupting base64', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FILE_BYTES', plaintext: 'aW1hZ2U=', encryptedValue: 'encrypted-bytes' },
+      ])
+      const inputPath = ['files', '0', 'base64'] as const
+      registry.recordResolvedAtInputPath('FILE_BYTES', 'aW1hZ2U=', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'aW1hZ2U=', '{{FILE_BYTES}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Analyze this file',
+          files: [
+            {
+              id: 'file-1',
+              key: 'workspace/ws-1/example.png',
+              name: 'example.png',
+              size: 5,
+              type: 'image/png',
+              base64: 'aW1hZ2U=',
+            },
+          ],
+        })
+      ).rejects.toThrow('Agent inline file content cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('keeps ordinary direct file fields unchanged without resolver-recorded lineage', async () => {
+      mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+        { name: 'UNUSED_NAME', plaintext: 'example.png', encryptedValue: 'encrypted-name' },
+        { name: 'UNUSED_BYTES', plaintext: 'aW1hZ2U=', encryptedValue: 'encrypted-bytes' },
+      ])
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Analyze this file',
+        files: [
+          {
+            id: 'file-1',
+            key: 'workspace/ws-1/example.png',
+            name: 'example.png',
+            size: 5,
+            type: 'image/png',
+            base64: 'aW1hZ2U=',
+          },
+        ],
+        apiKey: 'test-api-key',
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+        expect.objectContaining({ name: 'example.png', base64: 'aW1hZ2U=' }),
+      ])
+    })
+
+    it('projects a resolver-recorded name inside a persisted serialized file input', async () => {
+      const rawFiles = JSON.stringify([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/private.pdf',
+          name: 'private.pdf',
+          size: 5,
+          type: 'application/pdf',
+          base64: 'JVBERi0=',
+        },
+      ])
+      const projectedFiles = JSON.stringify([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/private.pdf',
+          name: '{{FILE_NAME}}',
+          size: 5,
+          type: 'application/pdf',
+          base64: 'JVBERi0=',
+        },
+      ])
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FILE_NAME', plaintext: 'private.pdf', encryptedValue: 'encrypted-name' },
+      ])
+      registry.recordResolvedAtInputPath('FILE_NAME', 'private.pdf', ['files'])
+      registry.recordResolvedInputProjection(['files'], rawFiles, projectedFiles)
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Analyze this file',
+        files: rawFiles,
+        apiKey: 'test-api-key',
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+        expect.objectContaining({ name: '{{FILE_NAME}}.pdf', base64: 'JVBERi0=' }),
+      ])
+    })
+
+    it('rejects resolver-derived inline bytes inside a persisted serialized file input', async () => {
+      const rawFiles = JSON.stringify([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/example.png',
+          name: 'example.png',
+          size: 5,
+          type: 'image/png',
+          base64: 'aW1hZ2U=',
+        },
+      ])
+      const projectedFiles = JSON.stringify([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/example.png',
+          name: 'example.png',
+          size: 5,
+          type: 'image/png',
+          base64: '{{FILE_BYTES}}',
+        },
+      ])
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FILE_BYTES', plaintext: 'aW1hZ2U=', encryptedValue: 'encrypted-bytes' },
+      ])
+      registry.recordResolvedAtInputPath('FILE_BYTES', 'aW1hZ2U=', ['files'])
+      registry.recordResolvedInputProjection(['files'], rawFiles, projectedFiles)
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Analyze this file',
+          files: rawFiles,
+          apiKey: 'test-api-key',
+        })
+      ).rejects.toThrow('Agent inline file content cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('keeps a serialized file input unchanged without resolver-recorded lineage', async () => {
+      const files = JSON.stringify([
+        {
+          id: 'file-1',
+          key: 'workspace/ws-1/example.png',
+          name: 'example.png',
+          size: 5,
+          type: 'image/png',
+          base64: 'aW1hZ2U=',
+        },
+      ])
+      mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+        { name: 'UNUSED_NAME', plaintext: 'example.png', encryptedValue: 'encrypted-name' },
+        { name: 'UNUSED_BYTES', plaintext: 'aW1hZ2U=', encryptedValue: 'encrypted-bytes' },
+      ])
+      mockGetProviderFromModel.mockReturnValue('openai')
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Analyze this file',
+        files,
+        apiKey: 'test-api-key',
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
+        expect.objectContaining({ name: 'example.png', base64: 'aW1hZ2U=' }),
+      ])
+    })
+
+    it('projects an inbound message document name without mutating the raw message', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FILE_NAME', plaintext: 'private.pdf', encryptedValue: 'encrypted-name' },
+      ])
+      const inputPath = ['messages', '0', 'files', '0', 'name'] as const
+      registry.recordResolvedAtInputPath('FILE_NAME', 'private.pdf', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'private.pdf', '{{FILE_NAME}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockGetProviderFromModel.mockReturnValue('openai')
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user' as const,
+            content: 'Read this document',
+            files: [
+              {
+                id: 'file-1',
+                key: 'workspace/ws-1/private.pdf',
+                name: 'private.pdf',
+                size: 5,
+                type: 'application/pdf',
+                base64: 'JVBERi0=',
+              },
+            ],
+          },
+        ],
+      }
+      const rawInputs = structuredClone(inputs)
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0].files).toEqual([
+        expect.objectContaining({ name: '{{FILE_NAME}}.pdf', base64: 'JVBERi0=' }),
+      ])
+      expect(inputs).toEqual(rawInputs)
+    })
+
     it('normalizes the persisted workspace-picker shape before provider execution', async () => {
       const key = 'workspace/ws-1/example.png'
       const hydrationSpy = vi
@@ -525,6 +777,56 @@ describe('AgentBlockHandler', () => {
         expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([
           expect.objectContaining({ key, name: 'example.png', base64: 'aW1hZ2U=' }),
         ])
+      } finally {
+        hydrationSpy.mockRestore()
+      }
+    })
+
+    it('omits only a generated document whose embedded contributor is not model-safe', async () => {
+      const key = 'workspace/ws-1/report.pdf'
+      mockContext.workspaceId = 'ws-1'
+      const hydrationSpy = vi
+        .spyOn(userFileBase64, 'hydrateUserFilesWithBase64')
+        .mockImplementationOnce(async (files, options) => {
+          await options.onServableFileContributors?.(files[0], [
+            {
+              fileId: 'image-1',
+              key: 'workspace/ws-1/image-1.png',
+              context: 'workspace',
+              contentUpdatedAt: new Date('2026-08-06T00:00:00.000Z'),
+            },
+          ])
+          return files.map((file) => ({ ...file, base64: 'JVBERi0=' }))
+        })
+      mockImportWorkspaceFileSecretProvenanceForModelView.mockResolvedValueOnce(false)
+
+      try {
+        mockGetProviderFromModel.mockReturnValue('openai')
+
+        await handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Analyze this document',
+          files: [
+            {
+              id: 'file-1',
+              name: 'report.pdf',
+              path: `/api/files/serve/${encodeURIComponent(key)}?context=workspace`,
+              key,
+              size: 128,
+              type: 'text/x-python-pdf',
+            },
+          ],
+          apiKey: 'test-api-key',
+        })
+
+        expect(mockExecuteProviderRequest.mock.calls[0][1].messages.at(-1)?.files).toEqual([])
+        expect(mockImportWorkspaceFileSecretProvenanceForModelView).toHaveBeenCalledWith(
+          expect.objectContaining({
+            workspaceId: mockContext.workspaceId,
+            view: 'opaque',
+            identity: expect.objectContaining({ fileId: 'image-1' }),
+          })
+        )
       } finally {
         hydrationSpy.mockRestore()
       }
@@ -833,6 +1135,490 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).toHaveBeenCalled()
     })
 
+    it('projects only resolver-recorded Agent text and keeps equal public text unchanged', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'x', encryptedValue: 'encrypted-token' },
+      ])
+      registry.recordResolvedAtInputPath('TOKEN', 'x', ['userPrompt'])
+      registry.recordResolvedInputProjection(['userPrompt'], 'Box x', 'Box {{TOKEN}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        systemPrompt: 'Box eSign stays public',
+        userPrompt: 'Box x',
+      })
+
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerRequest.messages).toEqual([
+        { role: 'system', content: 'Box eSign stays public' },
+        { role: 'user', content: 'Box {{TOKEN}}' },
+      ])
+      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).toEqual([
+        { plaintext: 'x', replacement: '{{TOKEN}}' },
+      ])
+    })
+
+    it('projects exact message call arguments without mutating protocol structure or raw input', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FUNCTION_ARG', plaintext: 'first-secret', encryptedValue: 'encrypted-first' },
+        { name: 'TOOL_ARG', plaintext: 'second-secret', encryptedValue: 'encrypted-second' },
+        { name: 'UNUSED', plaintext: 'x', encryptedValue: 'encrypted-unused' },
+      ])
+      const functionPath = ['messages', '0', 'function_call', 'arguments'] as const
+      const toolPath = ['messages', '0', 'tool_calls', '0', 'function', 'arguments'] as const
+      registry.recordResolvedAtInputPath('FUNCTION_ARG', 'first-secret', functionPath)
+      registry.recordResolvedInputProjection(
+        functionPath,
+        '{"token":"first-secret","public":"x"}',
+        '{"token":"{{FUNCTION_ARG}}","public":"x"}'
+      )
+      registry.recordResolvedAtInputPath('TOOL_ARG', 'second-secret', toolPath)
+      registry.recordResolvedInputProjection(
+        toolPath,
+        '{"token":"second-secret"}',
+        '{"token":"{{TOOL_ARG}}"}'
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'assistant' as const,
+            content: 'Public x stays unchanged',
+            function_call: {
+              name: 'legacy_lookup',
+              arguments: '{"token":"first-secret","public":"x"}',
+            },
+            tool_calls: [
+              {
+                id: 'call-1',
+                type: 'function' as const,
+                function: { name: 'lookup', arguments: '{"token":"second-secret"}' },
+              },
+            ],
+          },
+        ],
+      }
+      const rawInputs = structuredClone(inputs)
+
+      await handler.execute(mockContext, mockBlock, inputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].messages[0]).toEqual({
+        role: 'assistant',
+        content: 'Public x stays unchanged',
+        function_call: {
+          name: 'legacy_lookup',
+          arguments: '{"token":"{{FUNCTION_ARG}}","public":"x"}',
+        },
+        tool_calls: [
+          {
+            id: 'call-1',
+            type: 'function',
+            function: { name: 'lookup', arguments: '{"token":"{{TOOL_ARG}}"}' },
+          },
+        ],
+      })
+      expect(inputs).toEqual(rawInputs)
+    })
+
+    it('rejects an exact secret-derived message protocol identifier', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'CALL_ID', plaintext: 'private-call', encryptedValue: 'encrypted-call-id' },
+      ])
+      const inputPath = ['messages', '0', 'tool_calls', '0', 'id'] as const
+      registry.recordResolvedAtInputPath('CALL_ID', 'private-call', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'private-call', '{{CALL_ID}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'assistant',
+              content: '',
+              tool_calls: [
+                {
+                  id: 'private-call',
+                  type: 'function',
+                  function: { name: 'lookup', arguments: '{}' },
+                },
+              ],
+            },
+          ],
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('binds a resolved tool preset to the exact formatted provider tool instance', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'API_KEY', plaintext: 'x', encryptedValue: 'encrypted-api-key' },
+      ])
+      const inputPath = ['tools', '0', 'params', 'apiKey'] as const
+      registry.recordResolvedAtInputPath('API_KEY', 'x', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'x', '{{API_KEY}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Use the configured tool.',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'lookup',
+            schema: {
+              function: {
+                name: 'lookup',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+            params: { apiKey: 'x' },
+          },
+        ],
+      })
+
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      const providerTool = providerRequest.tools[0]
+      expect(providerTool.params).toEqual({ apiKey: 'x' })
+      expect(providerTool).not.toHaveProperty('__resolvedSecretTraceProvenance')
+      expect(getProviderToolInputProvenance(providerTool)).toEqual({
+        registry: runtimeContext.resolvedSecretTraceRegistry,
+        sourcePath: ['tools', '0', 'params'],
+        projectedParams: { apiKey: '{{API_KEY}}' },
+      })
+    })
+
+    it('omits a tool with unknown hidden preset provenance without blocking the public prompt', async () => {
+      const registry = new ResolvedSecretTraceRegistry()
+      await registry.importProvenanceForValueAtInputPath(
+        { version: 1 },
+        'unknown-value',
+        ['tools', '0', 'params', 'apiKey'],
+        { trusted: true }
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Use the configured tool.',
+        tools: [
+          {
+            type: 'custom-tool',
+            title: 'lookup',
+            schema: {
+              function: {
+                name: 'lookup',
+                parameters: { type: 'object', properties: {} },
+              },
+            },
+            params: { apiKey: 'unknown-value' },
+          },
+        ],
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledOnce()
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerRequest.messages).toEqual([
+        { role: 'user', content: 'Use the configured tool.' },
+      ])
+      expect(providerRequest.tools).toEqual([])
+      expect(runtimeContext.resolvedSecretTraceRegistry.isComplete()).toBe(true)
+    })
+
+    it('does not let an unrelated unknown input path block public Agent inputs', async () => {
+      const registry = new ResolvedSecretTraceRegistry()
+      await registry.importProvenanceForValueAtInputPath(
+        { version: 1 },
+        'unknown-value',
+        ['unusedInput'],
+        { trusted: true }
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Public prompt',
+      })
+
+      expect(mockExecuteProviderRequest).toHaveBeenCalledOnce()
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerRequest.messages).toEqual([{ role: 'user', content: 'Public prompt' }])
+      expect(runtimeContext.resolvedSecretTraceRegistry.isComplete()).toBe(true)
+    })
+
+    it('projects only resolver-recorded inline and cached tool metadata for the model', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'CUSTOM_DESCRIPTION',
+          plaintext: 'custom-secret',
+          encryptedValue: 'encrypted-custom-description',
+        },
+        {
+          name: 'CUSTOM_PARAMETER',
+          plaintext: 'custom-parameter-secret',
+          encryptedValue: 'encrypted-custom-parameter',
+        },
+        {
+          name: 'MCP_PARAMETER',
+          plaintext: 'mcp-parameter-secret',
+          encryptedValue: 'encrypted-mcp-parameter',
+        },
+        {
+          name: 'MCP_SERVER_LABEL',
+          plaintext: 'private-label',
+          encryptedValue: 'encrypted-mcp-server-label',
+        },
+        { name: 'UNUSED', plaintext: 'x', encryptedValue: 'encrypted-unused' },
+      ])
+      const projections = [
+        {
+          name: 'CUSTOM_DESCRIPTION',
+          plaintext: 'custom-secret',
+          path: ['tools', '0', 'schema', 'function', 'description'],
+          raw: 'Use custom-secret for Box',
+          projected: 'Use {{CUSTOM_DESCRIPTION}} for Box',
+        },
+        {
+          name: 'CUSTOM_PARAMETER',
+          plaintext: 'custom-parameter-secret',
+          path: [
+            'tools',
+            '0',
+            'schema',
+            'function',
+            'parameters',
+            'properties',
+            'query',
+            'description',
+          ],
+          raw: 'Query custom-parameter-secret',
+          projected: 'Query {{CUSTOM_PARAMETER}}',
+        },
+        {
+          name: 'MCP_PARAMETER',
+          plaintext: 'mcp-parameter-secret',
+          path: ['tools', '1', 'schema', 'properties', 'query', 'description'],
+          raw: 'Search mcp-parameter-secret',
+          projected: 'Search {{MCP_PARAMETER}}',
+        },
+        {
+          name: 'MCP_SERVER_LABEL',
+          plaintext: 'private-label',
+          path: ['tools', '1', 'params', 'serverName'],
+          raw: 'Docs private-label',
+          projected: 'Docs {{MCP_SERVER_LABEL}}',
+        },
+      ] as const
+      for (const projection of projections) {
+        registry.recordResolvedAtInputPath(projection.name, projection.plaintext, projection.path)
+        registry.recordResolvedInputProjection(
+          projection.path,
+          projection.raw,
+          projection.projected
+        )
+      }
+      registry.recordResolved('UNUSED', 'x')
+      mockContext.resolvedSecretTraceRegistry = registry
+      mockContext.workspaceId = 'test-workspace-123'
+
+      const tools = [
+        {
+          type: 'custom-tool',
+          title: 'lookup',
+          schema: {
+            function: {
+              name: 'lookup',
+              description: 'Use custom-secret for Box',
+              parameters: {
+                type: 'object',
+                properties: {
+                  query: {
+                    type: 'string',
+                    description: 'Query custom-parameter-secret',
+                    enum: ['x', 'safe'],
+                  },
+                },
+                required: ['query'],
+              },
+            },
+          },
+        },
+        {
+          type: 'mcp',
+          schema: {
+            type: 'object',
+            properties: {
+              query: { type: 'string', description: 'Search mcp-parameter-secret' },
+            },
+            required: ['query'],
+          },
+          params: {
+            serverId: 'mcp-search-server',
+            toolName: 'search_files',
+            serverName: 'Docs private-label',
+          },
+        },
+      ]
+      const rawTools = structuredClone(tools)
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Use Box without changing it.',
+        tools,
+      })
+
+      const [, providerRequest, runtimeContext] = mockExecuteProviderRequest.mock.calls[0]
+      expect(providerRequest.tools).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            id: 'custom_lookup',
+            description: 'Use {{CUSTOM_DESCRIPTION}} for Box',
+            parameters: expect.objectContaining({
+              properties: {
+                query: {
+                  type: 'string',
+                  description: 'Query {{CUSTOM_PARAMETER}}',
+                  enum: ['x', 'safe'],
+                },
+              },
+            }),
+          }),
+          expect.objectContaining({
+            name: 'search_files',
+            description: 'MCP tool search_files from Docs {{MCP_SERVER_LABEL}}',
+            parameters: expect.objectContaining({
+              properties: {
+                query: { type: 'string', description: 'Search {{MCP_PARAMETER}}' },
+              },
+            }),
+          }),
+        ])
+      )
+      expect(tools).toEqual(rawTools)
+      expect(runtimeContext.resolvedSecretTraceRegistry.getActiveMatches()).not.toContainEqual(
+        expect.objectContaining({ plaintext: 'x' })
+      )
+    })
+
+    it('rejects an enabled custom tool whose title resolved from a secret', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOOL_TITLE',
+          plaintext: 'private-title',
+          encryptedValue: 'encrypted-tool-title',
+        },
+      ])
+      const titlePath = ['tools', '0', 'title'] as const
+      registry.recordResolvedAtInputPath('TOOL_TITLE', 'private-title', titlePath)
+      registry.recordResolvedInputProjection(titlePath, 'private-title', '{{TOOL_TITLE}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Use the tool.',
+          tools: [
+            {
+              type: 'custom-tool',
+              title: 'private-title',
+              schema: {
+                function: {
+                  name: 'lookup',
+                  parameters: { type: 'object', properties: {} },
+                },
+              },
+            },
+          ],
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('rejects an inline custom function name resolved from a secret', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'TOOL_NAME',
+          plaintext: 'private_name',
+          encryptedValue: 'encrypted-tool-name',
+        },
+      ])
+      const namePath = ['tools', '0', 'schema', 'function', 'name'] as const
+      registry.recordResolvedAtInputPath('TOOL_NAME', 'private_name', namePath)
+      registry.recordResolvedInputProjection(namePath, 'private_name', '{{TOOL_NAME}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Use the tool.',
+          tools: [
+            {
+              type: 'custom-tool',
+              title: 'lookup',
+              schema: {
+                function: {
+                  name: 'private_name',
+                  parameters: { type: 'object', properties: {} },
+                },
+              },
+            },
+          ],
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('rejects a resolver-recorded semantic schema value instead of changing the contract', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'ENUM_VALUE',
+          plaintext: 'private-option',
+          encryptedValue: 'encrypted-enum-value',
+        },
+      ])
+      const enumPath = [
+        'tools',
+        '0',
+        'schema',
+        'function',
+        'parameters',
+        'properties',
+        'description',
+        'enum',
+        '0',
+      ] as const
+      registry.recordResolvedAtInputPath('ENUM_VALUE', 'private-option', enumPath)
+      registry.recordResolvedInputProjection(enumPath, 'private-option', '{{ENUM_VALUE}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Use the tool.',
+          tools: [
+            {
+              type: 'custom-tool',
+              title: 'lookup',
+              schema: {
+                function: {
+                  name: 'lookup',
+                  parameters: {
+                    type: 'object',
+                    properties: {
+                      description: { type: 'string', enum: ['private-option'] },
+                    },
+                  },
+                },
+              },
+            },
+          ],
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('should execute with standard block tools', async () => {
       const inputs = {
         model: 'gpt-4o',
@@ -955,6 +1741,218 @@ describe('AgentBlockHandler', () => {
         providerTiming: { total: 100 },
         cost: undefined,
       })
+    })
+
+    it('keeps an ordinary response format unchanged without resolver-recorded lineage', async () => {
+      const responseFormat = {
+        name: 'response_schema',
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string', description: 'x' } },
+        },
+        strict: true,
+      }
+      mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([
+        { name: 'UNUSED', plaintext: 'x', encryptedValue: 'encrypted-unused' },
+      ])
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual(responseFormat)
+    })
+
+    it('projects a resolver-recorded nested response format leaf before provider execution', async () => {
+      const responseFormat = {
+        name: 'response_schema',
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string', description: 'classified' } },
+        },
+        strict: true,
+      }
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'DESCRIPTION', plaintext: 'classified', encryptedValue: 'encrypted-description' },
+      ])
+      const inputPath = ['responseFormat', 'schema', 'properties', 'answer', 'description'] as const
+      registry.recordResolvedAtInputPath('DESCRIPTION', 'classified', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'classified', '{{DESCRIPTION}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual({
+        ...responseFormat,
+        schema: {
+          ...responseFormat.schema,
+          properties: {
+            answer: { type: 'string', description: '{{DESCRIPTION}}' },
+          },
+        },
+      })
+    })
+
+    it('projects a resolver-recorded annotation inside a persisted JSON response format', async () => {
+      const rawResponseFormat = JSON.stringify({
+        type: 'object',
+        properties: { answer: { type: 'string', description: 'classified' } },
+      })
+      const projectedResponseFormat = JSON.stringify({
+        type: 'object',
+        properties: { answer: { type: 'string', description: '{{DESCRIPTION}}' } },
+      })
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'DESCRIPTION', plaintext: 'classified', encryptedValue: 'encrypted-description' },
+      ])
+      registry.recordResolvedAtInputPath('DESCRIPTION', 'classified', ['responseFormat'])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        rawResponseFormat,
+        projectedResponseFormat
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat: rawResponseFormat,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual({
+        name: 'response_schema',
+        schema: JSON.parse(projectedResponseFormat),
+        strict: true,
+      })
+    })
+
+    it('rejects a resolver-derived enum inside a persisted JSON response format', async () => {
+      const rawResponseFormat = JSON.stringify({
+        type: 'object',
+        properties: { answer: { type: 'string', enum: ['classified'] } },
+      })
+      const projectedResponseFormat = JSON.stringify({
+        type: 'object',
+        properties: { answer: { type: 'string', enum: ['{{ENUM_VALUE}}'] } },
+      })
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'ENUM_VALUE', plaintext: 'classified', encryptedValue: 'encrypted-enum' },
+      ])
+      registry.recordResolvedAtInputPath('ENUM_VALUE', 'classified', ['responseFormat'])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        rawResponseFormat,
+        projectedResponseFormat
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Return an answer.',
+          responseFormat: rawResponseFormat,
+        })
+      ).rejects.toThrow('Agent model input could not be safely projected')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('does not send a resolver-recorded whole response format value to the provider', async () => {
+      const responseFormat = { type: 'object', properties: { answer: { type: 'string' } } }
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'RESPONSE_FORMAT',
+          plaintext: JSON.stringify(responseFormat),
+          encryptedValue: 'encrypted-response-format',
+        },
+      ])
+      registry.recordResolvedAtInputPath('RESPONSE_FORMAT', JSON.stringify(responseFormat), [
+        'responseFormat',
+      ])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        responseFormat,
+        '{{RESPONSE_FORMAT}}'
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Return an answer.',
+          responseFormat,
+        })
+      ).rejects.toThrow('Agent model input could not be safely projected')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('rejects a resolver-derived response schema enum instead of changing the contract', async () => {
+      const responseFormat = {
+        name: 'response_schema',
+        schema: {
+          type: 'object',
+          properties: {
+            description: { type: 'string', enum: ['private-option'] },
+          },
+        },
+        strict: true,
+      }
+      const registry = new ResolvedSecretTraceRegistry([
+        {
+          name: 'ENUM_VALUE',
+          plaintext: 'private-option',
+          encryptedValue: 'encrypted-option',
+        },
+      ])
+      const inputPath = [
+        'responseFormat',
+        'schema',
+        'properties',
+        'description',
+        'enum',
+        '0',
+      ] as const
+      registry.recordResolvedAtInputPath('ENUM_VALUE', 'private-option', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'private-option', '{{ENUM_VALUE}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Return an answer.',
+          responseFormat,
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('rejects a resolver-derived response format name', async () => {
+      const responseFormat = {
+        name: 'private-schema',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      }
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FORMAT_NAME', plaintext: 'private-schema', encryptedValue: 'encrypted-name' },
+      ])
+      const inputPath = ['responseFormat', 'name'] as const
+      registry.recordResolvedAtInputPath('FORMAT_NAME', 'private-schema', inputPath)
+      registry.recordResolvedInputProjection(inputPath, 'private-schema', '{{FORMAT_NAME}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await expect(
+        handler.execute(mockContext, mockBlock, {
+          model: 'gpt-4o',
+          userPrompt: 'Return an answer.',
+          responseFormat,
+        })
+      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
     it('should handle responseFormat when it is an empty string', async () => {

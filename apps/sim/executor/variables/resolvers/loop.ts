@@ -279,7 +279,13 @@ export class LoopResolver implements Resolver {
     const resolvedValue = await value
     const registry = context.executionContext.resolvedSecretTraceRegistry
     if (!registry || !provenance) return resolvedValue
-    await registry.importProvenanceForValue(provenance, resolvedValue, { trusted: true })
+    const imported = await registry.importProvenanceForValueAtInputPath(
+      provenance,
+      resolvedValue,
+      context.inputPath,
+      { trusted: true }
+    )
+    if (imported.matched) context.onResolvedSecretReference?.()
     return resolvedValue
   }
 

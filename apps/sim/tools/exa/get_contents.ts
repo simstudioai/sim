@@ -125,8 +125,7 @@ export const getContentsTool: ToolConfig<ExaGetContentsParams, ExaGetContentsRes
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) =>
-        params.summaryQuery || params.summary === true ? params.urls : undefined,
+      inputPaths: (params) => (params.summaryQuery || params.summary === true ? [['urls']] : []),
     },
     url: 'https://api.exa.ai/contents',
     method: 'POST',

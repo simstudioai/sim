@@ -1,4 +1,5 @@
 import { isPlainRecord } from '@sim/utils/object'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 interface ModelBoundFileInputOptions {
   includeInlineBase64?: boolean
@@ -6,60 +7,67 @@ interface ModelBoundFileInputOptions {
   parseSerializedFile?: boolean
 }
 
-interface PreferredModelBoundFileInputOptions extends ModelBoundFileInputOptions {
+interface PreferredModelBoundFileInputPathOptions extends ModelBoundFileInputOptions {
   file: unknown
   filePath: unknown
+  fileInputPath: ResolvedSecretInputPath
+  filePathInputPath: ResolvedSecretInputPath
   prefer: 'file' | 'path'
 }
 
-function selectFileRecord(
+function selectFileRecordInputPaths(
   input: Record<string, unknown>,
+  rootPath: ResolvedSecretInputPath,
   options: ModelBoundFileInputOptions
-): Record<string, unknown> | undefined {
-  const selected: Record<string, unknown> = {}
+): ResolvedSecretInputPath[] {
+  const paths: ResolvedSecretInputPath[] = []
   let hasSource = false
 
   if (options.includeInlineBase64 && input.base64) {
     hasSource = true
-    selected.base64 = input.base64
+    paths.push([...rootPath, 'base64'])
   } else if (input.key) {
     hasSource = true
   } else if (input.path) {
     hasSource = true
-    selected.path = input.path
+    paths.push([...rootPath, 'path'])
   } else if (input.url) {
     hasSource = true
-    selected.url = input.url
+    paths.push([...rootPath, 'url'])
   }
 
-  if (!hasSource) return undefined
-  if (options.includeName && input.name !== undefined) selected.name = input.name
-  return Object.keys(selected).length > 0 ? selected : undefined
+  if (hasSource && options.includeName && input.name !== undefined) {
+    paths.push([...rootPath, 'name'])
+  }
+  return paths
 }
 
-/** Selects only the source-bearing fields that can contribute to one opaque model input. */
-export function selectModelBoundFileInput(
+/** Selects resolver input paths for only the source-bearing fields consumed by a model. */
+export function selectModelBoundFileInputPaths(
   input: unknown,
+  rootPath: ResolvedSecretInputPath,
   options: ModelBoundFileInputOptions = {}
-): unknown {
+): ResolvedSecretInputPath[] {
   if (Array.isArray(input)) {
-    return input
-      .map((entry) => selectModelBoundFileInput(entry, options))
-      .filter((entry) => entry !== undefined)
+    return input.flatMap((entry, index) =>
+      selectModelBoundFileInputPaths(entry, [...rootPath, String(index)], options)
+    )
   }
   if (typeof input === 'string') {
     if (options.parseSerializedFile) {
       try {
         const parsed = JSON.parse(input)
-        if (isPlainRecord(parsed)) return selectFileRecord(parsed, options)
+        if (isPlainRecord(parsed)) {
+          return selectFileRecordInputPaths(parsed, rootPath, options).length > 0 ? [rootPath] : []
+        }
       } catch {
-        return input
+        return [rootPath]
       }
     }
-    return input
+    return [rootPath]
   }
-  if (!isPlainRecord(input)) return undefined
-  return selectFileRecord(input, options)
+  if (!isPlainRecord(input)) return []
+  return selectFileRecordInputPaths(input, rootPath, options)
 }
 
 function selectFilePath(input: unknown): string | undefined {
@@ -67,19 +75,19 @@ function selectFilePath(input: unknown): string | undefined {
   return input.trim()
 }
 
-/** Mirrors a request body's file-vs-path precedence without selecting the unused alternative. */
-export function selectPreferredModelBoundFileInput(
-  options: PreferredModelBoundFileInputOptions
-): unknown {
+/** Mirrors file-vs-path precedence while selecting exact resolver input paths. */
+export function selectPreferredModelBoundFileInputPaths(
+  options: PreferredModelBoundFileInputPathOptions
+): ResolvedSecretInputPath[] {
   const hasFile = isPlainRecord(options.file)
   const filePath = selectFilePath(options.filePath)
 
   if (options.prefer === 'file' && hasFile) {
-    return selectModelBoundFileInput(options.file, options)
+    return selectModelBoundFileInputPaths(options.file, options.fileInputPath, options)
   }
-  if (filePath !== undefined) return filePath
+  if (filePath !== undefined) return [options.filePathInputPath]
   if (options.prefer === 'path' && hasFile) {
-    return selectModelBoundFileInput(options.file, options)
+    return selectModelBoundFileInputPaths(options.file, options.fileInputPath, options)
   }
-  return undefined
+  return []
 }

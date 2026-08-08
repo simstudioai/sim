@@ -473,7 +473,7 @@ describe('sse-handlers tool lifecycle', () => {
     expect(updated?.result?.output).toBe('done')
   })
 
-  it('projects resolved Function secrets before every Copilot-visible result sink', async () => {
+  it('projects resolved Function output while leaving resource metadata unchanged', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
         name: 'SECRET',
@@ -485,7 +485,9 @@ describe('sse-handlers tool lifecycle', () => {
     execContext.resolvedSecretTraceRegistry = registry
     execContext.chatId = 'chat-1'
     executeTool.mockImplementationOnce(async (_name, _params, toolContext) => {
-      toolContext.resolvedSecretTraceRegistry?.recordResolved('SECRET', 'secret-value')
+      toolContext.resolvedSecretTraceRegistry?.recordResolved('SECRET', 'secret-value', {
+        propagated: true,
+      })
       return {
         success: true,
         output: {
@@ -542,12 +544,11 @@ describe('sse-handlers tool lifecycle', () => {
         resource: {
           type: 'file',
           id: 'file-1',
-          title: '{{SECRET}}.txt',
+          title: 'secret-value.txt',
         },
       },
     })
     expect(JSON.stringify(completeAsyncToolCall.mock.calls)).not.toContain('secret-value')
-    expect(JSON.stringify(onEvent.mock.calls)).not.toContain('secret-value')
   })
 
   it('emits a structural result for a detached background workflow tool', async () => {
@@ -1658,6 +1659,58 @@ describe('sse-handlers tool lifecycle', () => {
         displayTitle: 'Searching for invoice emails',
         params: { maxResults: 10, credentialId: 'cred-gmail' },
       })
+    )
+  })
+
+  it('forwards workspace secret references unchanged to the resolved integration operation', async () => {
+    isSimExecuted.mockReturnValue(false)
+    executeTool.mockResolvedValueOnce({ success: true, output: { searchResults: [] } })
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-serper',
+          toolName: 'call_integration_tool',
+          executor: MothershipStreamV1ToolExecutor.go,
+          mode: MothershipStreamV1ToolMode.sync,
+          phase: MothershipStreamV1ToolPhase.call,
+          status: 'generating',
+          partial: true,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sseHandlers.tool(
+      {
+        type: MothershipStreamV1EventType.tool,
+        payload: {
+          toolCallId: 'gateway-serper',
+          toolName: 'serper_search',
+          arguments: {
+            query: 'invoice',
+            apiKey: '{{SERPER_API_KEY}}',
+          },
+          executor: MothershipStreamV1ToolExecutor.sim,
+          mode: MothershipStreamV1ToolMode.async,
+          phase: MothershipStreamV1ToolPhase.call,
+        },
+      } satisfies StreamEvent,
+      context,
+      execContext,
+      { interactive: false, timeout: 1000 }
+    )
+
+    await sleep(0)
+
+    expect(executeTool).toHaveBeenCalledOnce()
+    expect(executeTool).toHaveBeenCalledWith(
+      'serper_search',
+      { query: 'invoice', apiKey: '{{SERPER_API_KEY}}' },
+      expect.any(Object)
     )
   })
 

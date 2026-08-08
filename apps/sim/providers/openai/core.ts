@@ -710,7 +710,6 @@ export async function executeResponsesProviderRequest(
             executionParams,
             {
               signal: request.abortSignal,
-              toolInput: toolParams,
             }
           )
           const toolCallEndTime = Date.now()

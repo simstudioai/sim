@@ -54,7 +54,7 @@ export const contextDevExtractProductTool: ToolConfig<
   request: {
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) => params.url,
+      inputPaths: () => [['url']],
     },
     method: 'POST',
     url: () => `${CONTEXT_DEV_BASE_URL}/brand/ai/product`,

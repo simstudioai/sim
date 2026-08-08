@@ -231,7 +231,7 @@ export function containsResolvedSecretLiteral(
   return false
 }
 
-/** Visits exact secret literals with the same bounded automaton used by content projection. */
+/** Visits each distinct exact secret literal once with the content-projection automaton. */
 export function scanResolvedSecretString(
   value: string,
   matcher: ResolvedSecretMatcher,
@@ -240,16 +240,40 @@ export function scanResolvedSecretString(
 ): number {
   let node = matcher.root
   let matchEvents = 0
+  const matchedPlaintexts = new Set<string>()
+  const nextUnmatchedOutput = new WeakMap<SecretTrieNode, SecretTrieNode | null>()
+
+  const findNextUnmatchedOutput = (
+    candidate: SecretTrieNode | undefined
+  ): SecretTrieNode | undefined => {
+    let current = candidate
+    const exhaustedPath: SecretTrieNode[] = []
+    while (current?.replacement && matchedPlaintexts.has(current.replacement.plaintext)) {
+      const cached = nextUnmatchedOutput.get(current)
+      if (cached !== undefined) {
+        current = cached ?? undefined
+        continue
+      }
+      exhaustedPath.push(current)
+      current = current.outputLink
+    }
+    for (const exhausted of exhaustedPath) {
+      nextUnmatchedOutput.set(exhausted, current ?? null)
+    }
+    return current
+  }
+
   for (let index = 0; index < value.length; index += 1) {
     node = advanceMatcher(matcher, node, value[index])
-    let outputNode: SecretTrieNode | undefined = node.replacement ? node : node.outputLink
+    let outputNode = findNextUnmatchedOutput(node.replacement ? node : node.outputLink)
     while (outputNode?.replacement) {
       matchEvents += 1
       if (matchEvents > maxMatchEvents) {
         throw new ResolvedSecretMatcherError('Secret matcher event limit exceeded')
       }
+      matchedPlaintexts.add(outputNode.replacement.plaintext)
       onMatch(outputNode.replacement.plaintext)
-      outputNode = outputNode.outputLink
+      outputNode = findNextUnmatchedOutput(outputNode)
     }
   }
   return matchEvents
