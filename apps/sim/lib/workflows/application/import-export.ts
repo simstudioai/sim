@@ -4,6 +4,7 @@ import type { V1WorkflowExportPayload } from '@/lib/api/contracts/v1/workflows'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
   resolveActiveWorkflowApplicationContext,
@@ -103,10 +104,10 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
   async execute({ context }): Promise<ExportWorkflowResult> {
     const payload = await buildWorkflowExportPayload(context.workflow)
     if (!payload) throw new OrchestrationError('not_found', 'Workflow state not found')
-    const resolution = await resolveWorkflowFolderPath(context.workspaceId, '/')
+    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
     return {
       payload,
-      folderPath: workflowFolderPathForId(resolution.index, context.workflow.folderId),
+      folderPath: workflowFolderPathForId(folderIndex, context.workflow.folderId),
     }
   },
   projectAudit({ context, result }) {

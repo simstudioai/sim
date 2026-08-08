@@ -196,6 +196,7 @@ export const v2CreateMcpServerContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2McpServerDataSchema),
+    status: 201,
   },
 })
 

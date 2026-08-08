@@ -4,151 +4,165 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockGetPublicWorkspaceDetail,
-  mockQueryPublicWorkspaceMembers,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockGetPublicWorkspaceDetail: vi.fn(),
-  mockQueryPublicWorkspaceMembers: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  checkPreauth: vi.fn(),
+  checkOperationRate: vi.fn(),
+  gate: vi.fn(),
+  getWorkspace: vi.fn(),
+  listMembers: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkPreauth
+    checkRateLimitDirectOrThrow = mocks.checkOperationRate
+  },
 }))
 
-vi.mock('@/lib/workspaces/public-queries', () => ({
-  getPublicWorkspaceDetail: mockGetPublicWorkspaceDetail,
-  queryPublicWorkspaceMembers: mockQueryPublicWorkspaceMembers,
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+
+vi.mock('@/lib/workspaces/application/get-public-workspace', () => ({
+  getPublicWorkspace: {
+    operation: { id: 'workspaces.read_public_detail' },
+    execute: mocks.getWorkspace,
+  },
 }))
 
-import { GET as listWorkspaceMembers } from '@/app/api/v2/workspaces/[workspaceId]/members/route'
+vi.mock('@/lib/workspaces/application/list-public-workspace-members', () => ({
+  listPublicWorkspaceMembers: {
+    operation: { id: 'workspaces.members.list_public' },
+    execute: mocks.listMembers,
+  },
+}))
+
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { GET as listMembers } from '@/app/api/v2/workspaces/[workspaceId]/members/route'
 import { GET as getWorkspace } from '@/app/api/v2/workspaces/[workspaceId]/route'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  workspaceId: WORKSPACE_ID,
-  keyType: 'workspace',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2026-08-06T01:00:00.000Z'),
+const auth = {
+  principal: {
+    kind: 'workspace_api_key' as const,
+    workspaceId: WORKSPACE_ID,
+    keyId: 'key-1',
+  },
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
 const context = () => ({ params: Promise.resolve({ workspaceId: WORKSPACE_ID }) })
 
-function callWorkspace() {
-  return getWorkspace(
-    new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}`),
-    context()
-  )
-}
-
-function callMembers(query = '') {
-  return listWorkspaceMembers(
-    new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/members${query}`),
-    context()
-  )
-}
-
-beforeEach(() => {
-  vi.clearAllMocks()
-  mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-  mockResolveWorkspaceAccess.mockResolvedValue(null)
-  mockGetPublicWorkspaceDetail.mockResolvedValue({
-    id: WORKSPACE_ID,
-    name: 'Engineering',
-    color: '#33C482',
-    logoUrl: null,
-    mode: 'organization',
-    memberCount: 2,
-    createdAt: new Date('2026-01-01T00:00:00.000Z'),
-    updatedAt: new Date('2026-01-02T00:00:00.000Z'),
-  })
-  mockQueryPublicWorkspaceMembers.mockResolvedValue({
-    members: [
-      {
-        userId: 'user-1',
-        email: 'ada@example.com',
-        name: 'Ada',
-        image: null,
-        role: 'admin',
-        isExternal: false,
-        joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+describe('v2 workspace routes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkPreauth.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-06T01:00:00Z'),
+    })
+    mocks.checkOperationRate.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-06T01:00:00Z'),
+    })
+    mocks.getWorkspace.mockResolvedValue({
+      workspace: {
+        id: WORKSPACE_ID,
+        name: 'Engineering',
+        color: '#33C482',
+        logoUrl: null,
+        mode: 'organization',
+        memberCount: 1,
+        createdAt: new Date('2026-01-01T00:00:00Z'),
+        updatedAt: new Date('2026-01-02T00:00:00Z'),
       },
-    ],
-    nextEmail: 'ada@example.com',
+    })
+    mocks.listMembers.mockResolvedValue({
+      page: {
+        members: [
+          {
+            userId: 'user-1',
+            email: 'ada@example.com',
+            name: 'Ada',
+            image: null,
+            role: 'admin',
+            isExternal: false,
+            joinedAt: new Date('2026-01-01T00:00:00Z'),
+          },
+        ],
+        nextEmail: 'ada@example.com',
+      },
+    })
   })
-})
 
-describe('GET /api/v2/workspaces/[workspaceId]', () => {
-  it('returns public metadata without governance or billing identities', async () => {
-    const response = await callWorkspace()
+  it('projects public workspace metadata without governance identities', async () => {
+    const request = new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}`)
+    const response = await getWorkspace(request, context())
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.data).toEqual({
-      id: WORKSPACE_ID,
-      name: 'Engineering',
-      color: '#33C482',
-      logoUrl: null,
-      mode: 'organization',
-      memberCount: 2,
-      createdAt: '2026-01-01T00:00:00.000Z',
-      updatedAt: '2026-01-02T00:00:00.000Z',
-    })
+    expect(body.data).toMatchObject({ id: WORKSPACE_ID, name: 'Engineering' })
     expect(body.data).not.toHaveProperty('ownerId')
     expect(body.data).not.toHaveProperty('billedAccountUserId')
-  })
-
-  it('enforces workspace read access before loading metadata', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
+    expect(mocks.getWorkspace).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workspaceId: WORKSPACE_ID },
+      request,
     })
-
-    const response = await callWorkspace()
-
-    expect(response.status).toBe(403)
-    expect(mockGetPublicWorkspaceDetail).not.toHaveBeenCalled()
   })
-})
 
-describe('GET /api/v2/workspaces/[workspaceId]/members', () => {
-  it('returns email-attributed members and keeps user IDs out of data and cursors', async () => {
-    const response = await callMembers('?limit=1')
+  it('keeps member user IDs out of data and cursors', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/members?limit=1`
+    )
+    const response = await listMembers(request, context())
     const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.data).toEqual([
-      {
-        email: 'ada@example.com',
-        name: 'Ada',
-        image: null,
-        role: 'admin',
-        isExternal: false,
-        joinedAt: '2026-01-01T00:00:00.000Z',
-      },
-    ])
-    expect(body.data[0]).not.toHaveProperty('userId')
+    expect(body.data[0]).toEqual({
+      email: 'ada@example.com',
+      name: 'Ada',
+      image: null,
+      role: 'admin',
+      isExternal: false,
+      joinedAt: '2026-01-01T00:00:00.000Z',
+    })
     expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
       email: 'ada@example.com',
     })
   })
 
-  it('rejects malformed cursors without querying members', async () => {
-    const response = await callMembers('?cursor=not-a-cursor')
+  it('rejects malformed cursors before the application read', async () => {
+    const response = await listMembers(
+      new NextRequest(
+        `http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}/members?cursor=not-a-cursor`
+      ),
+      context()
+    )
 
     expect(response.status).toBe(400)
-    expect(mockQueryPublicWorkspaceMembers).not.toHaveBeenCalled()
+    expect(mocks.listMembers).not.toHaveBeenCalled()
+  })
+
+  it('projects typed workspace policy errors', async () => {
+    mocks.getWorkspace.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
+
+    const response = await getWorkspace(
+      new NextRequest(`http://localhost:3000/api/v2/workspaces/${WORKSPACE_ID}`),
+      context()
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 })

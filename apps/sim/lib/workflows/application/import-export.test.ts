@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   importTransition: vi.fn(),
   buildExport: vi.fn(),
+  folderLock: vi.fn(),
   loadIndex: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -31,11 +32,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mocks.recordAudit,
 }))
 vi.mock('@/lib/folders/locks', () => ({
-  withFolderTreeLock: async (
-    _workspaceId: string,
-    _resourceType: string,
-    callback: (tx: Record<string, never>) => unknown
-  ) => callback({}),
+  withFolderTreeLock: mocks.folderLock,
 }))
 vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadIndex,
@@ -112,6 +109,13 @@ describe('workflow import and export application operations', () => {
       workflow: workflowRecord,
     })
     mocks.resolvePermission.mockResolvedValue('write')
+    mocks.folderLock.mockImplementation(
+      async (
+        _workspaceId: string,
+        _resourceType: string,
+        callback: (tx: Record<string, never>) => unknown
+      ) => callback({})
+    )
     mocks.loadIndex.mockResolvedValue(folderIndex)
     mocks.importTransition.mockResolvedValue({ success: true, workflow: imported })
     mocks.buildExport.mockResolvedValue(exportPayload)
@@ -179,6 +183,8 @@ describe('workflow import and export application operations', () => {
 
     expect(mocks.resolveWorkflow).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
     expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord)
+    expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow')
+    expect(mocks.folderLock).not.toHaveBeenCalled()
     expect(result).toEqual({ payload: exportPayload, folderPath: '/Reports' })
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({
