@@ -410,6 +410,29 @@ export async function executeResponsesProviderRequest(
 
   let reasoningSummariesUnavailable = false
 
+  /**
+   * The single point every Responses request leaves through, so a stall waiting for
+   * headers is named on the streaming paths too — they call
+   * {@link fetchResponsesWithSummaryFallback} directly and never reach `postResponses`,
+   * which is where the annotation used to live.
+   */
+  const postOnce = async (
+    payload: Record<string, unknown>,
+    abortSignal: AbortSignal | undefined,
+    startedAt: number
+  ): Promise<Response> => {
+    try {
+      return await fetchImpl(config.endpoint, {
+        method: 'POST',
+        headers: config.headers,
+        body: JSON.stringify(payload),
+        signal: abortSignal,
+      })
+    } catch (error) {
+      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
+    }
+  }
+
   const fetchResponsesWithSummaryFallback = async (
     requestedBody: Record<string, unknown>,
     startedAt: number,
@@ -418,12 +441,7 @@ export async function executeResponsesProviderRequest(
     const body = reasoningSummariesUnavailable
       ? (stripReasoningSummary(requestedBody) ?? requestedBody)
       : requestedBody
-    const response = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(body),
-      signal: abortSignal,
-    })
+    const response = await postOnce(body, abortSignal, startedAt)
     if (response.ok) return response
 
     const message = await parseErrorResponse(response, startedAt)
@@ -439,12 +457,7 @@ export async function executeResponsesProviderRequest(
       `${config.providerLabel} rejected reasoning summaries (organization not verified); retrying without summary`,
       { model: config.modelName }
     )
-    const retryResponse = await fetchImpl(config.endpoint, {
-      method: 'POST',
-      headers: config.headers,
-      body: JSON.stringify(strippedBody),
-      signal: abortSignal,
-    })
+    const retryResponse = await postOnce(strippedBody, abortSignal, startedAt)
     if (!retryResponse.ok) {
       const retryMessage = await parseErrorResponse(retryResponse, startedAt)
       throw new Error(
@@ -459,12 +472,7 @@ export async function executeResponsesProviderRequest(
   ): Promise<OpenAI.Responses.Response> => {
     const startedAt = Date.now()
 
-    let response: Response
-    try {
-      response = await fetchResponsesWithSummaryFallback(body, startedAt)
-    } catch (error) {
-      throw annotateTransportFailure(error, 'awaiting-response-headers', startedAt)
-    }
+    const response = await fetchResponsesWithSummaryFallback(body, startedAt)
 
     const responseMeta = { ...describeResponse(response), ttfbMs: Date.now() - startedAt }
 
@@ -697,16 +705,21 @@ export async function executeResponsesProviderRequest(
           }
 
           const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-          const result = await executeProviderTool(toolName, executionParams, {
-            signal: request.abortSignal,
-          })
+          const { rawResponse, modelResponse } = await executeProviderTool(
+            toolName,
+            executionParams,
+            {
+              signal: request.abortSignal,
+            }
+          )
           const toolCallEndTime = Date.now()
 
           return {
             toolCall,
             toolName,
             toolParams,
-            result,
+            result: rawResponse,
+            modelResult: modelResponse,
             startTime: toolCallStartTime,
             endTime: toolCallEndTime,
             duration: toolCallEndTime - toolCallStartTime,
@@ -739,6 +752,10 @@ export async function executeResponsesProviderRequest(
       for (const executionResult of executionResults) {
         const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
           executionResult
+        const modelResult =
+          'modelResult' in executionResult && executionResult.modelResult
+            ? executionResult.modelResult
+            : result
 
         timeSegments.push({
           type: 'tool',
@@ -762,6 +779,13 @@ export async function executeResponsesProviderRequest(
             tool: toolName,
           }
         }
+        const modelResultContent = modelResult.success
+          ? (modelResult.output ?? null)
+          : {
+              error: true,
+              message: modelResult.error || 'Tool execution failed',
+              tool: toolName,
+            }
 
         toolCalls.push({
           name: toolName,
@@ -776,7 +800,7 @@ export async function executeResponsesProviderRequest(
         currentInput.push({
           type: 'function_call_output',
           call_id: toolCall.id,
-          output: JSON.stringify(resultContent),
+          output: JSON.stringify(modelResultContent),
         })
       }
 

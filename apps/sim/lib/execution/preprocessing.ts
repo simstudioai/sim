@@ -23,7 +23,15 @@ import {
   describeRetryableInfrastructureError,
   isRetryableInfrastructureError,
 } from '@/lib/core/errors/retryable-infrastructure'
-import { getExecutionTimeout } from '@/lib/core/execution-limits'
+import {
+  getExecutionTimeout,
+  RESERVATION_TTL_BUFFER_MS,
+  resolveAsyncExecutionTimeout,
+} from '@/lib/core/execution-limits'
+import {
+  type ExecutionTimeoutSource,
+  recordExecutionTimeoutResolution,
+} from '@/lib/core/execution-limits/metrics'
 import { RateLimiter } from '@/lib/core/rate-limiter/rate-limiter'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { LoggingSession, type SessionStartParams } from '@/lib/logs/execution/logging-session'
@@ -84,6 +92,12 @@ export interface PreprocessExecutionOptions {
    * the previously captured snapshot before calling preprocessing.
    */
   billingAttribution?: BillingAttributionSnapshot
+  /** Attempt type used to size its reservation and return the applicable timeout. */
+  executionType?: 'sync' | 'async'
+  /** Async API-only request cap in seconds. */
+  requestedTimeoutSeconds?: number
+  /** Absolute active-attempt deadline, when the caller already started its timeout clock. */
+  executionDeadlineAt?: number
 }
 
 export interface PreprocessExecutionError {
@@ -93,6 +107,8 @@ export interface PreprocessExecutionError {
   retryable?: boolean
   cause?: Record<string, unknown>
 }
+
+export const WORKFLOW_NOT_DEPLOYED_CODE = 'WORKFLOW_NOT_DEPLOYED'
 
 export interface PreprocessExecutionSuccess {
   success: true
@@ -137,6 +153,9 @@ export async function preprocessExecution(
     useAuthenticatedUserAsActor = false,
     workflowRecord: prefetchedWorkflowRecord,
     billingAttribution: providedBillingAttribution,
+    executionType = 'sync',
+    requestedTimeoutSeconds,
+    executionDeadlineAt,
   } = options
 
   /** Suppresses log rows when the caller surfaces preprocessing failures itself. */
@@ -260,6 +279,7 @@ export async function preprocessExecution(
       error: {
         message: 'Workflow is not deployed',
         statusCode: 403,
+        code: WORKFLOW_NOT_DEPLOYED_CODE,
       },
     }
   }
@@ -353,6 +373,17 @@ export async function preprocessExecution(
         cause: describeRetryableInfrastructureError(error),
       },
     }
+  }
+
+  const plan = billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined
+  const policyAsyncTimeout = getExecutionTimeout(
+    plan,
+    'async',
+    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+  )
+  const executionTimeout = {
+    sync: getExecutionTimeout(plan, 'sync'),
+    async: resolveAsyncExecutionTimeout(policyAsyncTimeout, requestedTimeoutSeconds),
   }
 
   /**
@@ -662,6 +693,13 @@ export async function preprocessExecution(
           billingAttribution.payerSubscription?.enterpriseConcurrencyLimit,
         currentUsage: usageSnapshot.currentUsage,
         limit: usageSnapshot.limit,
+        ...(executionTimeout[executionType] > 0
+          ? {
+              expiresAt:
+                (executionDeadlineAt ?? Date.now() + executionTimeout[executionType]) +
+                RESERVATION_TTL_BUFFER_MS,
+            }
+          : {}),
         ...(billingAttribution.organizationId && usageSnapshot.memberUsage
           ? {
               member: {
@@ -742,17 +780,33 @@ export async function preprocessExecution(
     triggerType,
   })
 
-  const plan = billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined
+  const requestedTimeoutMs = requestedTimeoutSeconds ? requestedTimeoutSeconds * 1000 : undefined
+  const timeoutSource: ExecutionTimeoutSource =
+    executionType === 'async' &&
+    requestedTimeoutMs !== undefined &&
+    (policyAsyncTimeout === 0 || requestedTimeoutMs < policyAsyncTimeout)
+      ? 'async_request_override'
+      : executionType === 'async' &&
+          plan?.toLowerCase() === 'enterprise' &&
+          billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds !==
+            undefined
+        ? 'enterprise_metadata'
+        : executionTimeout[executionType] === 0
+          ? 'unbounded'
+          : 'plan_default'
+  recordExecutionTimeoutResolution({
+    source: timeoutSource,
+    executionType,
+    effectiveTimeoutMs: executionTimeout[executionType],
+  })
+
   return {
     success: true,
     actorUserId,
     workflowRecord,
     actorSubscription,
     billingAttribution,
-    executionTimeout: {
-      sync: getExecutionTimeout(plan, 'sync'),
-      async: getExecutionTimeout(plan, 'async'),
-    },
+    executionTimeout,
   }
 }
 

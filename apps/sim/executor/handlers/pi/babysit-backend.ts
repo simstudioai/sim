@@ -7,7 +7,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
-import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { sleepUntilAborted } from '@/lib/data-drains/destinations/utils'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
 import { type PiSandboxRunner, withPiSandbox } from '@/lib/execution/remote-sandbox'
@@ -371,8 +370,7 @@ function buildRoundPrompt(
   params: PiBabysitContinuationParams,
   threads: BabysitThreadsState,
   failingChecks: readonly BabysitCheck[],
-  diagnostics: ReadonlyMap<string, string>,
-  secrets: readonly string[]
+  diagnostics: ReadonlyMap<string, string>
 ): RoundPrompt {
   const reviewPayload = threads.actionable.slice(0, MAX_THREADS_PER_ROUND).map((thread) => ({
     threadId: thread.id,
@@ -418,15 +416,12 @@ function buildRoundPrompt(
     .filter(Boolean)
     .join('\n\n')
   return {
-    prompt: scrubPiSecrets(
-      buildPiPrompt({
-        skills: params.skills,
-        initialMessages: [],
-        task,
-        guidance: BABYSIT_GUIDANCE,
-      }),
-      secrets
-    ),
+    prompt: buildPiPrompt({
+      skills: params.skills,
+      initialMessages: [],
+      task,
+      guidance: BABYSIT_GUIDANCE,
+    }),
     notes,
   }
 }
@@ -434,8 +429,7 @@ function buildRoundPrompt(
 function createCancellationSignal(
   parent: AbortSignal | undefined,
   executionId: string | undefined,
-  pollMs: number,
-  secrets: readonly string[]
+  pollMs: number
 ): { signal: AbortSignal; cleanup: () => void } {
   const controller = new AbortController()
   const onAbort = () => controller.abort(parent?.reason ?? 'workflow_abort')
@@ -455,12 +449,9 @@ function createCancellationSignal(
               }
             })
             .catch((error) => {
-              // Scrubbed like every other message this file emits. A Redis poll
-              // error is unlikely to carry a run credential, but the invariant is
-              // easier to keep than to reason about per call site.
               logger.warn('Failed to poll Babysit execution cancellation', {
                 executionId,
-                error: scrubPiSecrets(getErrorMessage(error), secrets),
+                error: getErrorMessage(error),
               })
             })
             .finally(() => {
@@ -547,8 +538,7 @@ async function finalizeRound(
   initialHeadSha: string,
   roundBaseSha: string,
   gitConfigDigest: string,
-  signal: AbortSignal,
-  secrets: readonly string[]
+  signal: AbortSignal
 ): Promise<RoundFinalize> {
   await runner.writeFile(COMMIT_MSG_PATH, `Pi Babysit: address PR #${params.pullNumber} feedback`)
   const prepare = await raceAbort(
@@ -611,7 +601,7 @@ async function finalizeRound(
     )
   }
 
-  const diff = capDiff(scrubPiSecrets(await runner.readFile(DIFF_PATH), secrets))
+  const diff = capDiff(await runner.readFile(DIFF_PATH))
   assertBabysitPinned(snapshot, await fetchBabysitSnapshot(params, signal))
   const push = await raceAbort(
     runner.run(BABYSIT_PUSH_SCRIPT, {
@@ -709,9 +699,9 @@ function threadsAreClean(threads: BabysitThreadsState | undefined): boolean {
   return !!threads && threads.actionable.length === 0 && threads.skipped.length === 0
 }
 
-/** Resolves the host-side run budget without imposing E2B's lifetime on other providers. */
+/** Resolves the host-side run budget against the selected provider's lifetime. */
 export function resolveBabysitExecutionBudgetMs(executionBudgetMs?: number): number {
-  return executionBudgetMs ?? resolvePiSandboxLifetimeMs() ?? getMaxExecutionTimeout()
+  return executionBudgetMs ?? resolvePiSandboxLifetimeMs()
 }
 
 /** Injectable variant used by deterministic multi-round tests. */
@@ -737,8 +727,7 @@ export async function runBabysitPiWithOptions(
   const cancellation = createCancellationSignal(
     context.signal,
     params.executionId,
-    options.cancellationPollMs,
-    secrets
+    options.cancellationPollMs
   )
   const { signal } = cancellation
   const startedAt = Date.now()
@@ -792,12 +781,7 @@ export async function runBabysitPiWithOptions(
       { headSha: pinnedHeadSha, headRef: pinnedHeadRef, baseRef: pinnedBaseRef },
       await fetchBabysitSnapshot(params, signal)
     )
-    const initialRequest = await requestBabysitReview(
-      params,
-      params.reviewMentions,
-      secrets,
-      signal
-    )
+    const initialRequest = await requestBabysitReview(params, params.reviewMentions, signal)
     githubWriteOccurred = initialRequest.posted > 0
     if (initialRequest.failures.length) {
       progress.notes.push(`${initialRequest.failures.length} initial review requests failed.`)
@@ -975,13 +959,8 @@ export async function runBabysitPiWithOptions(
           )
         }
 
-        const diagnostics = await fetchBabysitCheckDiagnostics(
-          params,
-          promptChecks,
-          secrets,
-          signal
-        )
-        const round = buildRoundPrompt(params, latestThreads!, promptChecks, diagnostics, secrets)
+        const diagnostics = await fetchBabysitCheckDiagnostics(params, promptChecks, signal)
+        const round = buildRoundPrompt(params, latestThreads!, promptChecks, diagnostics)
         progress.notes.push(...round.notes)
         const agentTimeoutMs = Math.min(
           piTimeoutMs,
@@ -1033,8 +1012,7 @@ export async function runBabysitPiWithOptions(
             initialHeadSha,
             roundBaseSha,
             gitConfigDigest,
-            signal,
-            secrets
+            signal
           )
         } catch (error) {
           if (signal.aborted) throw error
@@ -1052,15 +1030,8 @@ export async function runBabysitPiWithOptions(
           roundBaseSha = finalized.newSha
           progress.commitsPushed += 1
           githubWriteOccurred = true
-          // Scrubbed here rather than in `finalizeRound`, which needs the literal
-          // paths for its `.github/` and quoted-path refusals. File names are
-          // agent-chosen, so a file named after a key would otherwise reach the
-          // block output verbatim — Create PR already scrubs its equivalent.
           progress.changedFiles = [
-            ...new Set([
-              ...progress.changedFiles,
-              ...finalized.changedFiles.map((file) => scrubPiSecrets(file, secrets)),
-            ]),
+            ...new Set([...progress.changedFiles, ...finalized.changedFiles]),
           ]
           progress.diff = capDiff([progress.diff, finalized.diff].filter(Boolean).join('\n'))
           lastKnownChecksGreen = ![...initialRequirements.values()].some((required) => required)
@@ -1126,7 +1097,6 @@ export async function runBabysitPiWithOptions(
             allowedThreadIds: new Set(
               latestThreads!.actionable.slice(0, MAX_THREADS_PER_ROUND).map((thread) => thread.id)
             ),
-            secrets,
             commitPushed: finalized.commitPushed,
           })
         } catch (error) {
@@ -1220,7 +1190,7 @@ export async function runBabysitPiWithOptions(
             { headSha: pinnedHeadSha, headRef: pinnedHeadRef, baseRef: pinnedBaseRef },
             await fetchBabysitSnapshot(params, signal)
           )
-          const request = await requestBabysitReview(params, params.reviewMentions, secrets, signal)
+          const request = await requestBabysitReview(params, params.reviewMentions, signal)
           githubWriteOccurred ||= request.posted > 0
           if (request.posted > 0) {
             reviewRequest = {

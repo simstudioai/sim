@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+// url-guard pulls in @/main/navigation, which imports electron.
+vi.mock('electron', () => import('@/test/electron-mock'))
+
 const { mockLookup } = vi.hoisted(() => ({ mockLookup: vi.fn() }))
 
 // The real resolveHostAddresses runs; only the resolver under it is mocked, so

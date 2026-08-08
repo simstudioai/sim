@@ -18,6 +18,7 @@ import {
   listWorkspaceFiles,
   uploadWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   checkRateLimit,
   checkWorkspaceScope,
@@ -154,7 +155,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       userId,
       buffer,
       file.name,
-      file.type || 'application/octet-stream'
+      file.type || 'application/octet-stream',
+      { secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
     )
 
     logger.info(`[${requestId}] Uploaded file: ${file.name} to workspace ${workspaceId}`)

@@ -4,6 +4,7 @@ import type { PermissionType } from '@sim/platform-authz/workspace'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
 import { generateId } from '@sim/utils/id'
+import { omit } from '@sim/utils/object'
 import {
   type AttributedBillingRequestEnvelope,
   assertBillingAttributionSnapshot,
@@ -67,12 +68,79 @@ import {
   isCopilotToolPermissionsEnabled,
   isHosted,
 } from '@/lib/core/config/env-flags'
+import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
 
 const MAX_RESUME_ATTEMPTS = 3
 const RESUME_BACKOFF_MS = [250, 500, 1000] as const
+const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
+  '/api/copilot',
+  '/api/mothership',
+  '/api/mothership/execute',
+])
+
+class CopilotModelContentProjectionError extends Error {
+  constructor() {
+    super('Copilot model input could not be safely projected')
+    this.name = 'CopilotModelContentProjectionError'
+  }
+}
+
+async function omitUnsafeInitialCopilotAttachments(
+  payload: Record<string, unknown>,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  let projected = payload
+  for (const key of ['attachments', 'fileAttachments'] as const) {
+    if (!Object.hasOwn(projected, key)) continue
+    const attachments = projected[key]
+    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+
+    let safeAttachments: unknown[]
+    try {
+      safeAttachments = await filterModelSafeWorkspaceFileAttachments(attachments, { workspaceId })
+    } catch (error) {
+      logger.error('Workspace file secret provenance could not be verified', {
+        attachmentCount: attachments.length,
+        error: toError(error).message,
+      })
+      throw new CopilotModelContentProjectionError()
+    }
+
+    if (safeAttachments.length === attachments.length) continue
+    logger.warn('Omitting Copilot attachments with unsafe secret provenance', {
+      attachmentCount: attachments.length,
+      omittedCount: attachments.length - safeAttachments.length,
+    })
+    projected =
+      safeAttachments.length > 0 ? { ...projected, [key]: safeAttachments } : omit(projected, [key])
+  }
+  return projected
+}
+
+async function filterInitialCopilotAttachmentsForModel(
+  payload: Record<string, unknown>,
+  workspaceId?: string
+): Promise<Record<string, unknown>> {
+  return omitUnsafeInitialCopilotAttachments(payload, workspaceId)
+}
+
+async function ensureModelEgressRegistry(
+  execContext: ExecutionContext,
+  options: Pick<CopilotLifecycleOptions, 'environmentContext' | 'userId' | 'workspaceId'>
+): Promise<ResolvedSecretTraceRegistry> {
+  let registry = execContext.resolvedSecretTraceRegistry
+  if (!registry) {
+    const environmentContext =
+      options.environmentContext ??
+      (await prepareCopilotEnvironmentContext(options.userId, options.workspaceId))
+    registry = environmentContext.resolvedSecretTraceRegistry
+    execContext.resolvedSecretTraceRegistry = registry
+  }
+  return registry
+}
 
 function nonBlankString(value: unknown): string | undefined {
   if (typeof value !== 'string') return undefined
@@ -202,6 +270,11 @@ export async function runCopilotLifecycle(
       secretMountPolicy: lifecycleOptions.secretMountPolicy,
       secretActorUserId: lifecycleOptions.secretActorUserId,
     }))
+  if (goRoute && MOTHERSHIP_CODE_TOOL_ROUTES.has(goRoute)) {
+    execContext.sandboxProfile = 'mothership'
+  } else {
+    execContext.sandboxProfile = undefined
+  }
   const shouldUseHostedBillingProtocol = isHosted && isCopilotBillingAttributionV1Enabled
   if (
     shouldUseHostedBillingProtocol &&
@@ -237,8 +310,13 @@ export async function runCopilotLifecycle(
   let onCompleteStarted = false
 
   try {
-    await runCheckpointLoop(
+    await ensureModelEgressRegistry(execContext, lifecycleOptions)
+    const modelSafeRequestPayload = await filterInitialCopilotAttachmentsForModel(
       requestPayload,
+      lifecycleOptions.workspaceId
+    )
+    await runCheckpointLoop(
+      modelSafeRequestPayload,
       context,
       execContext,
       lifecycleOptions,
@@ -456,9 +534,10 @@ function collectResultsForToolIds(
         `Cannot resume subagent chain ${checkpointId}: missing result for tool call ${toolCallId}`
       )
     }
+    const name = tool.name || ''
     return {
       callId: toolCallId,
-      name: tool.name || '',
+      name,
       data: getToolCallTerminalData(tool),
       success: requireToolCallStateResult(tool).success,
     }
@@ -955,9 +1034,10 @@ async function runCheckpointLoop(
         })
         throw new Error(`Cannot resume: missing result for pending tool call ${toolCallId}`)
       }
+      const name = tool.name || ''
       results.push({
         callId: toolCallId,
-        name: tool.name || '',
+        name,
         data: getToolCallTerminalData(tool),
         success: requireToolCallStateResult(tool).success,
       })

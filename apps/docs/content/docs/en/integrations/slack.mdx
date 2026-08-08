@@ -45,7 +45,7 @@ Integrate Slack into the workflow. Can send, update, and delete messages, send e
 
 ## Actions
 
-### `slack_message`
+### Slack Message
 
 Send messages to Slack channels or direct messages. Supports Slack mrkdwn formatting.
 
@@ -127,7 +127,7 @@ Send messages to Slack channels or direct messages. Supports Slack mrkdwn format
 | `fileCount` | number | Number of files uploaded \(when files are attached\) |
 | `files` | file[] | Files attached to the message |
 
-### `slack_ephemeral_message`
+### Slack Ephemeral Message
 
 Send an ephemeral message visible only to a specific user in a channel. Optionally reply in a thread. The message does not persist across sessions.
 
@@ -150,7 +150,7 @@ Send an ephemeral message visible only to a specific user in a channel. Optional
 | `messageTs` | string | Timestamp of the ephemeral message \(cannot be used with chat.update\) |
 | `channel` | string | Channel ID where the ephemeral message was sent |
 
-### `slack_canvas`
+### Slack Canvas Writer
 
 Create and share Slack canvases in channels. Canvases are collaborative documents within Slack.
 
@@ -171,7 +171,7 @@ Create and share Slack canvases in channels. Canvases are collaborative document
 | --------- | ---- | ----------- |
 | `canvas_id` | string | Unique canvas identifier |
 
-### `slack_message_reader`
+### Slack Message Reader
 
 Read the latest messages from Slack channels. Retrieve conversation history with filtering options.
 
@@ -248,7 +248,7 @@ Read the latest messages from Slack channels. Retrieve conversation history with
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 
-### `slack_get_message`
+### Slack Get Message
 
 Retrieve a specific message by its timestamp. Useful for getting a thread parent message.
 
@@ -321,7 +321,7 @@ Retrieve a specific message by its timestamp. Useful for getting a thread parent
 |     ↳ `user` | string | User ID who edited the message |
 |     ↳ `ts` | string | Timestamp of the edit |
 
-### `slack_get_thread`
+### Slack Get Thread
 
 Retrieve an entire thread including the parent message and all replies. Useful for getting full conversation context.
 
@@ -507,7 +507,7 @@ Retrieve an entire thread including the parent message and all replies. Useful f
 | `replyCount` | number | Number of replies returned in this response |
 | `hasMore` | boolean | Whether there are more messages in the thread \(pagination needed\) |
 
-### `slack_get_thread_replies`
+### Slack Get Thread Replies
 
 Fetch every message in a Slack thread, automatically following pagination across all pages. Returns the parent message and the full set of replies.
 
@@ -700,7 +700,7 @@ Fetch every message in a Slack thread, automatically following pagination across
 | `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
 | `pages` | number | Number of pages fetched in this invocation |
 
-### `slack_get_channel_history`
+### Slack Get Channel History
 
 Fetch message history from a Slack channel, automatically following pagination. Optionally filter by a time range to scrape messages since a given timestamp.
 
@@ -782,7 +782,7 @@ Fetch message history from a Slack channel, automatically following pagination. 
 | `nextCursor` | string | Cursor to fetch the next page; null when there are no more pages |
 | `pages` | number | Number of pages fetched in this invocation |
 
-### `slack_get_permalink`
+### Slack Get Permalink
 
 Get a stable permalink URL to a specific Slack message.
 
@@ -803,7 +803,7 @@ Get a stable permalink URL to a specific Slack message.
 | `channel` | string | Channel ID containing the message |
 | `permalink` | string | The permalink URL to the message |
 
-### `slack_set_status`
+### Slack Set Assistant Status
 
 Set or clear the assistant thread status indicator (the loading shimmer) on a Slack AI app thread. Pass an empty status to clear it.
 
@@ -826,7 +826,7 @@ Set or clear the assistant thread status indicator (the loading shimmer) on a Sl
 | `channel` | string | Channel ID the status was set on |
 | `threadTs` | string | Thread timestamp the status was set on |
 
-### `slack_set_title`
+### Slack Set Assistant Title
 
 Set the title of a Slack assistant thread (shown in the AI app thread header).
 
@@ -848,7 +848,7 @@ Set the title of a Slack assistant thread (shown in the AI app thread header).
 | `channel` | string | Channel ID the title was set on |
 | `threadTs` | string | Thread timestamp the title was set on |
 
-### `slack_set_suggested_prompts`
+### Slack Set Suggested Prompts
 
 Set the clickable suggested prompts shown in a Slack assistant thread (the prompt chips in an AI app).
 
@@ -871,7 +871,7 @@ Set the clickable suggested prompts shown in a Slack assistant thread (the promp
 | `channel` | string | Channel ID the prompts were set on |
 | `threadTs` | string | Thread timestamp the prompts were set on |
 
-### `slack_list_channels`
+### Slack List Channels
 
 List all channels in a Slack workspace. Returns public and private channels the bot has access to.
 
@@ -912,7 +912,7 @@ List all channels in a Slack workspace. Returns public and private channels the 
 | `count` | number | Total number of channels returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 
-### `slack_list_members`
+### Slack List Channel Members
 
 List all members (user IDs) in a Slack channel. Use with Get User Info to resolve IDs to names.
 
@@ -934,7 +934,7 @@ List all members (user IDs) in a Slack channel. Use with Get User Info to resolv
 | `count` | number | Total number of members returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 
-### `slack_list_users`
+### Slack List Users
 
 List all users in a Slack workspace. Returns user profiles with names and avatars.
 
@@ -971,7 +971,7 @@ List all users in a Slack workspace. Returns user profiles with names and avatar
 | `count` | number | Total number of users returned |
 | `nextCursor` | string | Cursor for the next page; null if no more pages |
 
-### `slack_get_user`
+### Slack Get User Info
 
 Get detailed information about a specific Slack user by their user ID.
 
@@ -1023,7 +1023,7 @@ Get detailed information about a specific Slack user by their user ID.
 |   ↳ `updated` | number | Unix timestamp of last profile update |
 |   ↳ `has_2fa` | boolean | Whether two-factor auth is enabled |
 
-### `slack_download`
+### Download File from Slack
 
 Download a file from Slack
 
@@ -1042,7 +1042,7 @@ Download a file from Slack
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded file stored in execution files |
 
-### `slack_update_message`
+### Slack Update Message
 
 Update a message previously sent by the bot in Slack
 
@@ -1122,7 +1122,7 @@ Update a message previously sent by the bot in Slack
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `text` | string | Updated message text |
 
-### `slack_delete_message`
+### Slack Delete Message
 
 Delete a message previously sent by the bot in Slack
 
@@ -1144,7 +1144,7 @@ Delete a message previously sent by the bot in Slack
 |   ↳ `channel` | string | Channel ID |
 |   ↳ `timestamp` | string | Message timestamp |
 
-### `slack_add_reaction`
+### Slack Add Reaction
 
 Add an emoji reaction to a Slack message
 
@@ -1168,7 +1168,7 @@ Add an emoji reaction to a Slack message
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
 
-### `slack_remove_reaction`
+### Slack Remove Reaction
 
 Remove an emoji reaction from a Slack message
 
@@ -1192,7 +1192,7 @@ Remove an emoji reaction from a Slack message
 |   ↳ `timestamp` | string | Message timestamp |
 |   ↳ `reaction` | string | Emoji reaction name |
 
-### `slack_get_channel_info`
+### Slack Get Channel Info
 
 Get detailed information about a Slack channel by its ID
 
@@ -1227,7 +1227,7 @@ Get detailed information about a Slack channel by its ID
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
-### `slack_get_user_presence`
+### Slack Get User Presence
 
 Check whether a Slack user is currently active or away
 
@@ -1250,7 +1250,7 @@ Check whether a Slack user is currently active or away
 | `connectionCount` | number | Total number of active connections for the user \(only available when checking own presence\) |
 | `lastActivity` | number | Unix timestamp of last detected activity \(only available when checking own presence\) |
 
-### `slack_edit_canvas`
+### Slack Edit Canvas
 
 Edit an existing Slack canvas by inserting, replacing, or deleting content
 
@@ -1272,7 +1272,7 @@ Edit an existing Slack canvas by inserting, replacing, or deleting content
 | --------- | ---- | ----------- |
 | `content` | string | Success message |
 
-### `slack_create_channel_canvas`
+### Slack Create Channel Canvas
 
 Create a canvas pinned to a Slack channel as its resource hub
 
@@ -1292,7 +1292,7 @@ Create a canvas pinned to a Slack channel as its resource hub
 | --------- | ---- | ----------- |
 | `canvas_id` | string | ID of the created channel canvas |
 
-### `slack_get_canvas`
+### Slack Get Canvas Info
 
 Get Slack canvas file metadata by canvas ID
 
@@ -1334,7 +1334,7 @@ Get Slack canvas file metadata by canvas ID
 |   ↳ `linked_channel_id` | string | Channel ID linked to this canvas |
 |   ↳ `canvas_creator_id` | string | User ID of the canvas creator |
 
-### `slack_list_canvases`
+### Slack List Canvases
 
 List Slack canvases available to the authenticated user or bot
 
@@ -1387,7 +1387,7 @@ List Slack canvases available to the authenticated user or bot
 |   ↳ `page` | number | Current page number |
 |   ↳ `pages` | number | Total number of pages |
 
-### `slack_lookup_canvas_sections`
+### Slack Lookup Canvas Sections
 
 Find Slack canvas section IDs matching criteria for later edits
 
@@ -1407,7 +1407,7 @@ Find Slack canvas section IDs matching criteria for later edits
 | `sections` | array | Canvas sections matching the lookup criteria |
 |   ↳ `id` | string | Canvas section identifier |
 
-### `slack_delete_canvas`
+### Slack Delete Canvas
 
 Delete a Slack canvas by its canvas ID
 
@@ -1425,7 +1425,7 @@ Delete a Slack canvas by its canvas ID
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether Slack deleted the canvas successfully |
 
-### `slack_create_conversation`
+### Slack Create Conversation
 
 Create a new public or private channel in a Slack workspace.
 
@@ -1461,7 +1461,7 @@ Create a new public or private channel in a Slack workspace.
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
-### `slack_invite_to_conversation`
+### Slack Invite to Conversation
 
 Invite one or more users to a Slack channel. Supports up to 100 users at a time.
 
@@ -1501,7 +1501,7 @@ Invite one or more users to a Slack channel. Supports up to 100 users at a time.
 |   ↳ `ok` | boolean | Always false for error entries |
 |   ↳ `error` | string | Error code for this user |
 
-### `slack_open_view`
+### Slack Open View
 
 Open a modal view in Slack using a trigger_id from an interaction payload. Used to display forms, confirmations, and other interactive modals.
 
@@ -1547,7 +1547,7 @@ Open a modal view in Slack using a trigger_id from an interaction payload. Used 
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
-### `slack_update_view`
+### Slack Update View
 
 Update an existing modal view in Slack. Identify the view by view_id or external_id, and provide the updated view payload.
 
@@ -1594,7 +1594,7 @@ Update an existing modal view in Slack. Identify the view by view_id or external
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
-### `slack_push_view`
+### Slack Push View
 
 Push a new view onto an existing modal stack in Slack. Limited to 2 additional views after the initial modal is opened.
 
@@ -1640,7 +1640,7 @@ Push a new view onto an existing modal stack in Slack. Limited to 2 additional v
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
-### `slack_publish_view`
+### Slack Publish View
 
 Publish a static view to a user's Home tab in Slack. Used to create or update the app's Home tab experience.
 
@@ -1686,7 +1686,7 @@ Publish a static view to a user's Home tab in Slack. Used to create or update th
 |   ↳ `app_id` | string | Application identifier |
 |   ↳ `bot_id` | string | Bot identifier |
 
-### `slack_schedule_message`
+### Slack Schedule Message
 
 Schedule a message to be sent to a Slack channel or DM at a future time.
 
@@ -1711,7 +1711,7 @@ Schedule a message to be sent to a Slack channel or DM at a future time.
 | `channel` | string | Channel ID where the message is scheduled |
 | `message` | object | The scheduled message object returned by Slack |
 
-### `slack_list_scheduled_messages`
+### Slack List Scheduled Messages
 
 List pending scheduled messages in a Slack workspace, optionally filtered by channel.
 
@@ -1740,7 +1740,7 @@ List pending scheduled messages in a Slack workspace, optionally filtered by cha
 |   ↳ `text` | string | Scheduled message text |
 | `nextCursor` | string | Cursor for the next page \(null when there are no more pages\) |
 
-### `slack_delete_scheduled_message`
+### Slack Delete Scheduled Message
 
 Delete a pending scheduled message before it posts to Slack.
 
@@ -1759,7 +1759,7 @@ Delete a pending scheduled message before it posts to Slack.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the scheduled message was deleted successfully |
 
-### `slack_archive_conversation`
+### Slack Archive Conversation
 
 Archive a Slack channel so it is closed to new activity.
 
@@ -1777,7 +1777,7 @@ Archive a Slack channel so it is closed to new activity.
 | --------- | ---- | ----------- |
 | `ok` | boolean | Whether the conversation was archived successfully |
 
-### `slack_rename_conversation`
+### Slack Rename Conversation
 
 Rename an existing Slack channel.
 
@@ -1812,7 +1812,7 @@ Rename an existing Slack channel.
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
-### `slack_set_conversation_topic`
+### Slack Set Conversation Topic
 
 Set the topic for a Slack channel (max 250 characters).
 
@@ -1847,7 +1847,7 @@ Set the topic for a Slack channel (max 250 characters).
 |   ↳ `creator` | string | User ID of channel creator |
 |   ↳ `updated` | number | Unix timestamp of last update |
 
-### `slack_set_conversation_purpose`
+### Slack Set Conversation Purpose
 
 Set the purpose (description) for a Slack channel (max 250 characters).
 

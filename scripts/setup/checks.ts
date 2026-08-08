@@ -4,7 +4,6 @@ import {
   CORE_CONFIGURATION_KEYS,
   EMAIL_CAPABILITY,
   EnvCapabilityConfigurationError,
-  hasEnvCapabilityValue,
   inspectCapability,
   inspectOAuthClientCapability,
   OAUTH_CLIENT_CAPABILITIES,
@@ -382,25 +381,36 @@ function checkCoherence(ctx: CheckContext): Finding[] {
     })
   }
 
-  // NEXT_PUBLIC_SANDBOX_ENABLED is not a 1:1 twin: remote execution is available
-  // under E2B_ENABLED or, when SANDBOX_PROVIDER=daytona, DAYTONA_API_KEY. Without
-  // it the Function block hides its language dropdown and sandbox selector even
-  // though the server would happily run Python.
-  const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, sim.vars).providerId
+  /**
+   * Function sandbox visibility is not a 1:1 server/client twin. The selected
+   * provider is ready only when its credential and immutable Function base are
+   * valid, while the browser separately reads the public visibility flag.
+   */
+  const sandboxInspection = inspectCapability(SANDBOX_CAPABILITY, sim.vars)
+  const sandboxProvider = sandboxInspection.providerId
+  const selectedSandboxProvider = sandboxInspection.providers.find(
+    (provider) => provider.id === sandboxProvider
+  )
   const remoteSandboxAvailable =
-    sandboxProvider === 'daytona'
-      ? hasEnvCapabilityValue(sim.vars, 'DAYTONA_API_KEY')
-      : sandboxProvider === 'e2b'
-        ? isTruthy(sim.vars.get('E2B_ENABLED'))
-        : false
-  if (remoteSandboxAvailable && !isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOX_ENABLED'))) {
+    !sandboxInspection.error && selectedSandboxProvider?.state === 'ready'
+  const publicSandboxEnabled = isTruthy(sim.vars.get('NEXT_PUBLIC_SANDBOXES_ENABLED'))
+  if (remoteSandboxAvailable && !publicSandboxEnabled) {
     findings.push({
       group: 'coherence',
       status: 'fail',
       message:
-        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOX_ENABLED is unset — the Function block will hide its language and sandbox controls',
-      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOX_ENABLED=true',
-      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOX_ENABLED: 'true' }),
+        'remote sandboxes are configured but NEXT_PUBLIC_SANDBOXES_ENABLED is unset — the Function block will hide its language and sandbox controls',
+      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=true',
+      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'true' }),
+    })
+  } else if (!remoteSandboxAvailable && publicSandboxEnabled) {
+    findings.push({
+      group: 'coherence',
+      status: 'fail',
+      message:
+        'NEXT_PUBLIC_SANDBOXES_ENABLED is on but the selected provider lacks credentials or a valid immutable Function base — the UI exposes a runtime that will reject execution',
+      fix: 'doctor --fix sets NEXT_PUBLIC_SANDBOXES_ENABLED=false; finish provider setup before enabling it',
+      autofix: () => writeEnvValues(sim.target, { NEXT_PUBLIC_SANDBOXES_ENABLED: 'false' }),
     })
   }
 

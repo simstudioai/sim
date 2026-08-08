@@ -3,12 +3,21 @@ import { getErrorMessage, toError } from '@sim/utils/errors'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import type { SecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getOrMaterializeVFS } from '@/lib/copilot/vfs'
 import type { GrepCountEntry, GrepMatch } from '@/lib/copilot/vfs/operations'
 import { WorkspaceFileGrepError } from '@/lib/copilot/vfs/operations'
 import { encodeVfsSegment } from '@/lib/copilot/vfs/path-utils'
+import {
+  importWorkspaceFileSecretProvenanceForModelView,
+  type WorkspaceFileSecretProvenanceIdentity,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { withBlockVisibility } from '@/blocks/visibility/server-context'
-import { grepChatUpload, listChatUploads, readChatUpload } from './upload-file-reader'
+import {
+  grepChatUploadWithProvenance,
+  listChatUploads,
+  readChatUploadWithProvenance,
+} from './upload-file-reader'
 
 const logger = createLogger('VfsTools')
 
@@ -18,9 +27,15 @@ const logger = createLogger('VfsTools')
  * viewer (unrevealed previews, kill-switched types). Visibility is memoized per
  * (userId, workspaceId), so repeated tool calls in one turn resolve once.
  */
-async function getGatedVFS(workspaceId: string, userId: string) {
+async function getGatedVFS(
+  workspaceId: string,
+  userId: string,
+  secretMountPolicy?: SecretMountPolicy
+) {
   const vis = await getBlockVisibilityForCopilot(userId, workspaceId)
-  return withBlockVisibility(vis, () => getOrMaterializeVFS(workspaceId, userId))
+  return withBlockVisibility(vis, () =>
+    getOrMaterializeVFS(workspaceId, userId, { secretMountPolicy })
+  )
 }
 
 /**
@@ -79,6 +94,37 @@ function hasModelAttachment(result: unknown): boolean {
   )
 }
 
+async function canReturnWorkspaceFileValue(
+  file: WorkspaceFileSecretProvenanceIdentity | undefined,
+  value: unknown,
+  context: ExecutionContext,
+  view: 'complete' | 'derived',
+  contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] = []
+): Promise<boolean> {
+  if (!context.workspaceId) return true
+  const files = new Map<string, WorkspaceFileSecretProvenanceIdentity>()
+  for (const identity of file ? [file, ...contributingFiles] : contributingFiles) {
+    files.set(`${identity.context}:${identity.fileId}:${identity.key}`, identity)
+  }
+  if (files.size === 0) return true
+
+  const provenanceView = hasModelAttachment(value) ? 'opaque' : view
+  for (const identity of files.values()) {
+    if (
+      !(await importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: context.workspaceId,
+        identity,
+        registry: context.resolvedSecretTraceRegistry,
+        view: provenanceView,
+        value,
+      }))
+    ) {
+      return false
+    }
+  }
+  return true
+}
+
 export async function executeVfsGrep(
   params: Record<string, unknown>,
   context: ExecutionContext
@@ -113,6 +159,7 @@ export async function executeVfsGrep(
     // map, so an unscoped grep can't touch them — only an explicit uploads/<file>
     // path does, and only one upload at a time.
     let result: GrepMatch[] | string[] | GrepCountEntry[]
+    let provenanceFile: WorkspaceFileSecretProvenanceIdentity | undefined
     if (isChatUploadGrepPath(rawPath)) {
       if (!context.chatId) {
         return { success: false, error: 'No chat context available for uploads/' }
@@ -130,12 +177,23 @@ export async function executeVfsGrep(
             'Grep over chat uploads must target a single upload (e.g. path: "uploads/report.json"). Use glob("uploads/*") to list uploads.',
         }
       }
-      result = await grepChatUpload(filename, context.chatId, pattern, grepOptions)
+      const envelope = await grepChatUploadWithProvenance(
+        filename,
+        context.chatId,
+        pattern,
+        grepOptions
+      )
+      result = envelope.value
+      provenanceFile = envelope.file
     } else {
-      const vfs = await getGatedVFS(workspaceId, context.userId)
-      result = isWorkspaceFileGrepPath(rawPath)
-        ? await vfs.grepFile(rawPath, pattern, grepOptions)
-        : await vfs.grep(pattern, rawPath, grepOptions)
+      const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
+      if (isWorkspaceFileGrepPath(rawPath)) {
+        const envelope = await vfs.grepFileWithProvenance(rawPath, pattern, grepOptions)
+        result = envelope.value
+        provenanceFile = envelope.file
+      } else {
+        result = await vfs.grep(pattern, rawPath, grepOptions)
+      }
     }
     const key =
       outputMode === 'files_with_matches' ? 'files' : outputMode === 'count' ? 'counts' : 'matches'
@@ -145,6 +203,13 @@ export async function executeVfsGrep(
         ? Object.keys(result).length
         : 0
     const output = { [key]: result }
+    if (!(await canReturnWorkspaceFileValue(provenanceFile, output, context, 'derived'))) {
+      return {
+        success: false,
+        error:
+          'This file result cannot be shared safely because its secret provenance is unavailable.',
+      }
+    }
     if (serializedResultSize(output) > TOOL_RESULT_MAX_INLINE_CHARS) {
       return {
         success: false,
@@ -189,7 +254,7 @@ export async function executeVfsGlob(
   }
 
   try {
-    const vfs = await getGatedVFS(workspaceId, context.userId)
+    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
     let files = vfs.glob(pattern)
 
     if (context.chatId && (pattern === 'uploads/*' || pattern.startsWith('uploads/'))) {
@@ -236,12 +301,21 @@ export async function executeVfsRead(
     }
     const offset = parseOptionalNumber(params.offset)
     const limit = parseOptionalNumber(params.limit)
+    /**
+     * Applies the caller's line window, clamped against the content's ACTUAL line count rather than
+     * the self-reported `totalLines`. Synthesized results report `totalLines: 1` for content that is
+     * not one line (e.g. `files/x.pdf/extract` returns a whole extracted document), and clamping to
+     * that collapses the read to its first line — or to nothing for any nonzero offset. An
+     * attachment result is skipped outright: its `content` is a one-line label beside the bytes, so
+     * a window can only blank the label while the model still receives the attachment.
+     */
     const applyWindow = <T extends { content: string; totalLines: number }>(result: T): T => {
       if (offset === undefined && limit === undefined) return result
+      if (hasModelAttachment(result)) return result
       const lines = result.content.split('\n')
-      const start = Math.max(0, Math.min(result.totalLines, offset ?? 0))
-      const endRaw = limit !== undefined ? start + Math.max(0, limit) : result.totalLines
-      const end = Math.max(start, Math.min(result.totalLines, endRaw))
+      const start = Math.max(0, Math.min(lines.length, offset ?? 0))
+      const endRaw = limit !== undefined ? start + Math.max(0, limit) : lines.length
+      const end = Math.max(start, Math.min(lines.length, endRaw))
       return {
         ...result,
         content: lines.slice(start, end).join('\n'),
@@ -257,7 +331,8 @@ export async function executeVfsRead(
         return { success: false, error: 'No chat context available for uploads/' }
       }
       const filename = path.slice('uploads/'.length).split('/')[0]
-      const uploadResult = await readChatUpload(filename, context.chatId)
+      const uploadEnvelope = await readChatUploadWithProvenance(filename, context.chatId)
+      const uploadResult = uploadEnvelope?.value
       if (uploadResult) {
         const isAttachment = hasModelAttachment(uploadResult)
         if (
@@ -282,6 +357,25 @@ export async function executeVfsRead(
           }
         }
         const windowedUpload = applyWindow(uploadResult)
+        const provenanceView =
+          offset === undefined && limit === undefined
+            ? (uploadEnvelope?.view ?? 'derived')
+            : 'derived'
+        if (
+          !(await canReturnWorkspaceFileValue(
+            uploadEnvelope?.file,
+            windowedUpload,
+            context,
+            provenanceView,
+            uploadEnvelope?.contributingFiles
+          ))
+        ) {
+          return {
+            success: false,
+            error:
+              'This file result cannot be shared safely because its secret provenance is unavailable.',
+          }
+        }
         logger.debug('vfs_read resolved chat upload', {
           path,
           totalLines: uploadResult.totalLines,
@@ -297,7 +391,7 @@ export async function executeVfsRead(
       }
     }
 
-    const vfs = await getGatedVFS(workspaceId, context.userId)
+    const vfs = await getGatedVFS(workspaceId, context.userId, context.secretMountPolicy)
 
     // Plain canonical file leaves are metadata resources. Dynamic file content
     // and inspection paths use explicit suffixes like /content, /style,
@@ -305,7 +399,10 @@ export async function executeVfsRead(
     const shouldReadDynamicFileContent =
       /^recently-deleted\/files\/.+\/content$/.test(path) ||
       /^files\/.+\/(?:content|style|compiled-check|compiled|render|extract)$/.test(path)
-    const fileContent = shouldReadDynamicFileContent ? await vfs.readFileContent(path) : null
+    const fileEnvelope = shouldReadDynamicFileContent
+      ? await vfs.readFileContentWithProvenance(path)
+      : null
+    const fileContent = fileEnvelope?.value
     if (fileContent) {
       const isAttachment = hasModelAttachment(fileContent)
       if (
@@ -327,6 +424,23 @@ export async function executeVfsRead(
         }
       }
       const windowedFileContent = applyWindow(fileContent)
+      const provenanceView =
+        offset === undefined && limit === undefined ? (fileEnvelope?.view ?? 'derived') : 'derived'
+      if (
+        !(await canReturnWorkspaceFileValue(
+          fileEnvelope?.file,
+          windowedFileContent,
+          context,
+          provenanceView,
+          fileEnvelope?.contributingFiles
+        ))
+      ) {
+        return {
+          success: false,
+          error:
+            'This file result cannot be shared safely because its secret provenance is unavailable.',
+        }
+      }
       logger.debug('vfs_read resolved workspace file', {
         path,
         totalLines: fileContent.totalLines,

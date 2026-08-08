@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import type { StorageContext } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
@@ -22,24 +23,92 @@ export interface FileMetadataInsertOptions {
   id?: string
 }
 
-/**
- * Insert file metadata into workspaceFiles table
- * Handles duplicate key errors gracefully by returning existing record
- */
-export async function insertFileMetadata(
+export class ActiveFileMetadataKeyConflictError extends Error {
+  readonly code = 'ACTIVE_FILE_KEY_EXISTS' as const
+
+  constructor(key: string) {
+    super(`Storage key ${key} is already registered to an active file`)
+  }
+}
+
+function isSameFileMetadataInsert(
+  existing: FileMetadataRecord,
   options: FileMetadataInsertOptions
+): boolean {
+  return (
+    existing.key === options.key &&
+    existing.userId === options.userId &&
+    existing.workspaceId === (options.workspaceId ?? null) &&
+    existing.folderId === (options.folderId ?? null) &&
+    existing.context === options.context &&
+    existing.originalName === options.originalName &&
+    existing.contentType === options.contentType &&
+    existing.size === options.size &&
+    existing.deletedAt === null &&
+    (options.id === undefined || existing.id === options.id)
+  )
+}
+
+function isSameFileMetadataRequest(
+  left: FileMetadataInsertOptions,
+  right: FileMetadataInsertOptions
+): boolean {
+  return (
+    left.key === right.key &&
+    left.userId === right.userId &&
+    (left.workspaceId ?? null) === (right.workspaceId ?? null) &&
+    (left.folderId ?? null) === (right.folderId ?? null) &&
+    left.context === right.context &&
+    left.originalName === right.originalName &&
+    left.contentType === right.contentType &&
+    left.size === right.size &&
+    (left.id ?? null) === (right.id ?? null)
+  )
+}
+
+async function findActiveFileMetadataByKey(
+  executor: DbOrTx,
+  key: string
+): Promise<FileMetadataRecord | undefined> {
+  const [record] = await executor
+    .select()
+    .from(workspaceFiles)
+    .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
+    .limit(1)
+  return record
+}
+
+function resolveExistingFileMetadata(
+  existing: FileMetadataRecord,
+  options: FileMetadataInsertOptions
+): FileMetadataRecord {
+  if (!isSameFileMetadataInsert(existing, options)) {
+    throw new ActiveFileMetadataKeyConflictError(options.key)
+  }
+  return existing
+}
+
+async function insertFileMetadataWithExecutor(
+  executor: DbOrTx,
+  options: FileMetadataInsertOptions,
+  requireExactActiveIdentity: boolean
 ): Promise<FileMetadataRecord> {
   const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
     options
 
-  const existingDeleted = await db
+  const active = await findActiveFileMetadataByKey(executor, key)
+  if (active) {
+    return requireExactActiveIdentity ? resolveExistingFileMetadata(active, options) : active
+  }
+
+  const [existingDeleted] = await executor
     .select()
     .from(workspaceFiles)
-    .where(eq(workspaceFiles.key, key))
+    .where(and(eq(workspaceFiles.key, key), isNotNull(workspaceFiles.deletedAt)))
     .limit(1)
 
-  if (existingDeleted.length > 0 && existingDeleted[0].deletedAt) {
-    const [restored] = await db
+  if (existingDeleted) {
+    const [restored] = await executor
       .update(workspaceFiles)
       .set({
         userId,
@@ -52,8 +121,9 @@ export async function insertFileMetadata(
         size,
         deletedAt: null,
         uploadedAt: new Date(),
+        contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
       })
-      .where(eq(workspaceFiles.id, existingDeleted[0].id))
+      .where(eq(workspaceFiles.id, existingDeleted.id))
       .returning()
 
     if (restored) {
@@ -61,20 +131,10 @@ export async function insertFileMetadata(
     }
   }
 
-  const existing = await db
-    .select()
-    .from(workspaceFiles)
-    .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
-    .limit(1)
-
-  if (existing.length > 0) {
-    return existing[0]
-  }
-
   const fileId = id || generateId()
 
   try {
-    const [inserted] = await db
+    const [inserted] = await executor
       .insert(workspaceFiles)
       .values({
         id: fileId,
@@ -92,18 +152,18 @@ export async function insertFileMetadata(
       })
       .returning()
 
+    if (!inserted) {
+      throw new Error(`Failed to insert file metadata for key: ${key}`)
+    }
     return inserted
   } catch (error) {
     const code = (error as { code?: string } | null)?.code
     if (code === '23505' || (error instanceof Error && error.message.includes('unique'))) {
-      const existingAfterError = await db
-        .select()
-        .from(workspaceFiles)
-        .where(and(eq(workspaceFiles.key, key), isNull(workspaceFiles.deletedAt)))
-        .limit(1)
-
-      if (existingAfterError.length > 0) {
-        return existingAfterError[0]
+      const existingAfterError = await findActiveFileMetadataByKey(executor, key)
+      if (existingAfterError) {
+        return requireExactActiveIdentity
+          ? resolveExistingFileMetadata(existingAfterError, options)
+          : existingAfterError
       }
     }
 
@@ -112,14 +172,69 @@ export async function insertFileMetadata(
   }
 }
 
+async function insertImmutableFileMetadataWithExecutor(
+  executor: DbOrTx,
+  options: FileMetadataInsertOptions
+): Promise<FileMetadataRecord> {
+  const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
+    options
+  const [inserted] = await executor
+    .insert(workspaceFiles)
+    .values({
+      id: id || generateId(),
+      key,
+      userId,
+      workspaceId: workspaceId || null,
+      folderId: folderId ?? null,
+      context,
+      originalName,
+      displayName: originalName,
+      contentType,
+      size,
+      deletedAt: null,
+      uploadedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning()
+
+  if (inserted) return inserted
+
+  const active = await findActiveFileMetadataByKey(executor, key)
+  if (!active) throw new ActiveFileMetadataKeyConflictError(key)
+  return resolveExistingFileMetadata(active, options)
+}
+
+/**
+ * Inserts file metadata while retaining the legacy active-key reuse behavior.
+ * Internal replacement flows use deterministic storage keys and may write new
+ * bytes before reaching metadata persistence, so existing callers must remain
+ * idempotent even when the replacement's size or content type changed.
+ */
+export async function insertFileMetadata(
+  options: FileMetadataInsertOptions
+): Promise<FileMetadataRecord> {
+  return insertFileMetadataWithExecutor(db, options, false)
+}
+
+/**
+ * Inserts metadata for a create-only object and accepts an active-key retry
+ * only when the complete ownership and file identity are unchanged.
+ */
+export async function insertImmutableFileMetadata(
+  options: FileMetadataInsertOptions
+): Promise<FileMetadataRecord> {
+  return insertFileMetadataWithExecutor(db, options, true)
+}
+
 /**
  * Bulk-insert file metadata rows in a single statement.
  *
  * Intended for batch upload flows that create many fresh keys at once (e.g. the
  * presigned batch route), replacing a fan-out of individual `insertFileMetadata`
  * calls. Uses `ON CONFLICT DO NOTHING` on the active-key unique index, so it is
- * safe against a concurrent single insert and idempotent for already-present
- * active keys. Unlike {@link insertFileMetadata} it does NOT restore
+ * safe against a concurrent single insert. Already-present active keys are
+ * accepted only when every ownership and file-identity field matches; any
+ * mismatch is rejected. Unlike {@link insertFileMetadata} it does NOT restore
  * soft-deleted rows — callers use this only for newly generated keys.
  */
 export async function insertFileMetadataMany(
@@ -129,10 +244,20 @@ export async function insertFileMetadataMany(
     return
   }
 
-  await db
+  const uniqueRowsByKey = new Map<string, (typeof rows)[number]>()
+  for (const row of rows) {
+    const existing = uniqueRowsByKey.get(row.key)
+    if (existing && !isSameFileMetadataRequest(existing, row)) {
+      throw new ActiveFileMetadataKeyConflictError(row.key)
+    }
+    uniqueRowsByKey.set(row.key, existing ?? row)
+  }
+  const uniqueRows = [...uniqueRowsByKey.values()]
+
+  const inserted = await db
     .insert(workspaceFiles)
     .values(
-      rows.map((row) => ({
+      uniqueRows.map((row) => ({
         id: row.id || generateId(),
         key: row.key,
         userId: row.userId,
@@ -148,6 +273,32 @@ export async function insertFileMetadataMany(
       }))
     )
     .onConflictDoNothing()
+    .returning()
+
+  const insertedKeys = new Set(inserted.map((record) => record.key))
+  const conflictingRows = uniqueRows.filter((row) => !insertedKeys.has(row.key))
+  if (conflictingRows.length > 0) {
+    const activeRows = await db
+      .select()
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(
+            workspaceFiles.key,
+            conflictingRows.map((row) => row.key)
+          ),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+    const activeByKey = new Map(activeRows.map((record) => [record.key, record]))
+    for (const row of conflictingRows) {
+      const active = activeByKey.get(row.key)
+      if (!active) {
+        throw new ActiveFileMetadataKeyConflictError(row.key)
+      }
+      resolveExistingFileMetadata(active, row)
+    }
+  }
 }
 
 /**
@@ -235,6 +386,36 @@ export async function deleteFileMetadata(key: string): Promise<boolean> {
 }
 
 /**
+ * Soft-deletes only the active metadata version previously authorized by a caller.
+ * Postgres timestamps are compared at JavaScript `Date` precision because a selected
+ * microsecond timestamp has already been rounded to milliseconds at this boundary.
+ */
+export async function deleteFileMetadataByIdentity(identity: {
+  id: string
+  key: string
+  context: StorageContext
+  contentUpdatedAt: Date
+}): Promise<boolean> {
+  const deleted = await db
+    .update(workspaceFiles)
+    .set({ deletedAt: new Date() })
+    .where(
+      and(
+        eq(workspaceFiles.id, identity.id),
+        eq(workspaceFiles.key, identity.key),
+        eq(workspaceFiles.context, identity.context),
+        eq(
+          sql<Date>`date_trunc('milliseconds', ${workspaceFiles.contentUpdatedAt})`,
+          identity.contentUpdatedAt
+        ),
+        isNull(workspaceFiles.deletedAt)
+      )
+    )
+    .returning({ id: workspaceFiles.id })
+  return deleted.length === 1
+}
+
+/**
  * Fields needed to record a trusted storage-key -> workspace ownership binding
  * for a knowledge-base file. The `context` is always `'knowledge-base'`, so it is
  * not part of this shape.
@@ -256,9 +437,17 @@ export interface KnowledgeBaseFileOwnership {
  * paths — keep all callers routed through here so they cannot drift.
  */
 export async function recordKnowledgeBaseFileOwnership(
-  ownership: KnowledgeBaseFileOwnership
+  ownership: KnowledgeBaseFileOwnership,
+  executor?: DbTransaction
 ): Promise<void> {
-  await insertFileMetadata({ ...ownership, context: 'knowledge-base' })
+  if (!executor) {
+    await insertImmutableFileMetadata({ ...ownership, context: 'knowledge-base' })
+    return
+  }
+  await insertImmutableFileMetadataWithExecutor(executor, {
+    ...ownership,
+    context: 'knowledge-base',
+  })
 }
 
 /**

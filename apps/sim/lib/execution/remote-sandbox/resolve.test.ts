@@ -8,14 +8,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { CodeLanguage } from '@/lib/execution/languages'
 
-const { mockSelect, mockUpdate, mockProviderStrategy, mockEnsureSandboxImage, mockIsMissingImage } =
-  vi.hoisted(() => ({
-    mockSelect: vi.fn(),
-    mockUpdate: vi.fn(),
-    mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
-    mockEnsureSandboxImage: vi.fn(),
-    mockIsMissingImage: vi.fn(),
-  }))
+const {
+  mockSelect,
+  mockUpdate,
+  mockProviderStrategy,
+  mockEnsureSandboxImage,
+  mockIsMissingImage,
+  mockLocalGeneration,
+} = vi.hoisted(() => ({
+  mockSelect: vi.fn(),
+  mockUpdate: vi.fn(),
+  mockProviderStrategy: { current: 'prebuilt' as 'prebuilt' | 'runtime' },
+  mockEnsureSandboxImage: vi.fn(),
+  mockIsMissingImage: vi.fn(),
+  mockLocalGeneration: { current: 1785792000000001 },
+}))
 
 vi.mock('@/lib/execution/remote-sandbox/image-registry', () => ({
   ensureSandboxImage: mockEnsureSandboxImage,
@@ -36,6 +43,8 @@ vi.mock('@sim/db/schema', () => ({
     name: 'name',
     language: 'language',
     dependencies: 'dependencies',
+    cliTools: 'cli_tools',
+    systemPackages: 'system_packages',
     specHash: 'spec_hash',
   },
   sandboxImage: {
@@ -43,6 +52,8 @@ vi.mock('@sim/db/schema', () => ({
     specHash: 'spec_hash',
     status: 'status',
     imageRef: 'image_ref',
+    materializationGeneration: 'materialization_generation',
+    errorCode: 'error_code',
     errorMessage: 'error_message',
     lastUsedAt: 'last_used_at',
   },
@@ -61,7 +72,22 @@ vi.mock('@/lib/execution/remote-sandbox/provider', () => ({
     },
     get images() {
       return mockProviderStrategy.current === 'prebuilt'
-        ? { isMissingImage: mockIsMissingImage }
+        ? {
+            rendererRevision: 1,
+            isMissingImage: mockIsMissingImage,
+            materialization: () => ({
+              rendererRevision: 1,
+              generation: mockLocalGeneration.current,
+              imageRefPrefix: 'sim-sbx-current:',
+              baseImageRef: 'sim-function:f47ac10b-58cc-4372-a567-0e02b2c3d479',
+            }),
+            imageRefGeneration: (imageRef: string) => {
+              if (imageRef.startsWith('sim-sbx-current:')) return mockLocalGeneration.current
+              if (imageRef.startsWith('sim-sbx-newer:')) return mockLocalGeneration.current + 1000
+              if (imageRef.startsWith('sim-sbx-collision:')) return mockLocalGeneration.current
+              return undefined
+            },
+          }
         : undefined
     },
   }),
@@ -89,6 +115,8 @@ const SANDBOX_ROW = {
   name: 'bigquery-etl',
   language: 'python',
   dependencies: ['pandas'],
+  cliTools: [],
+  systemPackages: [],
   specHash: 'hash-1',
 }
 
@@ -96,6 +124,7 @@ beforeEach(() => {
   vi.clearAllMocks()
   invalidateSandboxResolution()
   mockProviderStrategy.current = 'prebuilt'
+  mockLocalGeneration.current = 1785792000000001
   mockUpdate.mockReturnValue({ set: () => ({ where: () => Promise.resolve() }) })
   mockEnsureSandboxImage.mockResolvedValue(undefined)
 })
@@ -111,19 +140,25 @@ describe('resolveWorkspaceSandbox', () => {
     expect(mockSelect).not.toHaveBeenCalled()
   })
 
-  it.each(['doc', 'pi'] as const)('ignores a selection for the %s kind', async (kind) => {
-    const resolved = await resolveWorkspaceSandbox({
-      kind,
-      language: CodeLanguage.Python,
-      workspaceId: 'ws-1',
-      sandboxId: 'sbx-1',
-    })
-    expect(resolved).toBeNull()
-    expect(mockSelect).not.toHaveBeenCalled()
-  })
+  it.each(['mothership', 'doc', 'pi'] as const)(
+    'ignores a selection for the %s kind',
+    async (kind) => {
+      const resolved = await resolveWorkspaceSandbox({
+        kind,
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+      expect(resolved).toBeNull()
+      expect(mockSelect).not.toHaveBeenCalled()
+    }
+  )
 
   it('passes the ready image ref under the prebuilt strategy', async () => {
-    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-current:abc', errorCode: null, errorMessage: null }]
+    )
 
     const resolved = await resolveWorkspaceSandbox({
       kind: 'code',
@@ -132,7 +167,7 @@ describe('resolveWorkspaceSandbox', () => {
       sandboxId: 'sbx-1',
     })
 
-    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-abc' })
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-current:abc' })
     // Python needs no NODE_PATH; only JavaScript does.
     expect(resolved?.envs).toBeUndefined()
   })
@@ -140,7 +175,14 @@ describe('resolveWorkspaceSandbox', () => {
   it('carries NODE_PATH for javascript so installed packages resolve', async () => {
     queueSelects(
       [{ ...SANDBOX_ROW, language: 'javascript', dependencies: ['axios'] }],
-      [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }]
+      [
+        {
+          status: 'ready',
+          imageRef: 'sim-sbx-current:abc',
+          errorCode: null,
+          errorMessage: null,
+        },
+      ]
     )
 
     const resolved = await resolveWorkspaceSandbox({
@@ -152,6 +194,38 @@ describe('resolveWorkspaceSandbox', () => {
 
     expect(resolved?.envs?.NODE_PATH).toContain('node_modules')
   })
+
+  it.each([CodeLanguage.Python, CodeLanguage.JavaScript])(
+    'carries the complete system PATH for %s system-package executions',
+    async (language) => {
+      queueSelects(
+        [{ ...SANDBOX_ROW, language, dependencies: [], systemPackages: ['cowsay'] }],
+        [
+          {
+            status: 'ready',
+            imageRef: 'sim-sbx-current:system',
+            errorCode: null,
+            errorMessage: null,
+          },
+        ]
+      )
+
+      const resolved = await resolveWorkspaceSandbox({
+        kind: 'code',
+        language,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      expect(resolved?.envs?.PATH).toContain('/usr/local/games')
+      expect(resolved?.envs?.PATH).toContain('/usr/games')
+      if (language === CodeLanguage.JavaScript) {
+        expect(resolved?.envs?.NODE_PATH).toContain('node_modules')
+      } else {
+        expect(resolved?.envs?.NODE_PATH).toBeUndefined()
+      }
+    }
+  )
 
   it.each([
     ['building', /still building/],
@@ -206,7 +280,7 @@ describe('resolveWorkspaceSandbox', () => {
     // The cooldown is what stops a scheduled workflow re-enqueueing a build that
     // fails in seconds on every single run.
     expect(mockEnsureSandboxImage).toHaveBeenCalledWith(
-      { language: 'python', dependencies: ['pandas'] },
+      { language: 'python', dependencies: ['pandas'], cliTools: [], systemPackages: [] },
       'hash-1',
       { minFailureAgeMs: 600_000 }
     )
@@ -245,7 +319,10 @@ describe('resolveWorkspaceSandbox', () => {
   })
 
   it('never re-queues when the image is usable', async () => {
-    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-current:abc', errorCode: null, errorMessage: null }]
+    )
 
     await resolveWorkspaceSandbox({
       kind: 'code',
@@ -255,6 +332,127 @@ describe('resolveWorkspaceSandbox', () => {
     })
 
     expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
+  })
+
+  it('keeps using a previously ready image while the current base release is queued', async () => {
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-previous:abc', errorCode: null, errorMessage: null }]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-previous:abc' })
+    expect(mockEnsureSandboxImage).toHaveBeenCalledTimes(1)
+  })
+
+  it.each(['pending', 'building', 'failed'])(
+    'keeps using the retained ready image while its base-release refresh is %s',
+    async (status) => {
+      queueSelects(
+        [SANDBOX_ROW],
+        [
+          {
+            status,
+            imageRef: 'sim-sbx-previous:abc',
+            errorCode: 'base_release_refresh',
+            errorMessage: null,
+          },
+        ]
+      )
+
+      const resolved = await resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+
+      expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-previous:abc' })
+      expect(mockEnsureSandboxImage).toHaveBeenCalledTimes(1)
+    }
+  )
+
+  it('accepts a newer committed generation without rebuilding backward on an old replica', async () => {
+    queueSelects(
+      [SANDBOX_ROW],
+      [
+        {
+          status: 'ready',
+          imageRef: 'sim-sbx-newer:build',
+          materializationGeneration: mockLocalGeneration.current + 1000,
+          errorCode: null,
+          errorMessage: null,
+        },
+      ]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'code',
+      language: CodeLanguage.Python,
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({ strategy: 'prebuilt', imageRef: 'sim-sbx-newer:build' })
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when one generation is reused for a different immutable base', async () => {
+    queueSelects(
+      [SANDBOX_ROW],
+      [
+        {
+          status: 'ready',
+          imageRef: 'sim-sbx-collision:build',
+          materializationGeneration: mockLocalGeneration.current,
+          errorCode: null,
+          errorMessage: null,
+        },
+      ]
+    )
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(/generation that does not match its immutable Function base/)
+    expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['failed', null],
+    ['building', null],
+    ['pending', 'provider_build_failed'],
+  ])('does not fall back to an unproven prior ref from a %s row', async (status, errorCode) => {
+    queueSelects(
+      [SANDBOX_ROW],
+      [
+        {
+          status,
+          imageRef: 'sim-sbx-previous:partial',
+          errorCode,
+          errorMessage: 'unproven build',
+        },
+      ]
+    )
+
+    await expect(
+      resolveWorkspaceSandbox({
+        kind: 'code',
+        language: CodeLanguage.Python,
+        workspaceId: 'ws-1',
+        sandboxId: 'sbx-1',
+      })
+    ).rejects.toThrow(status === 'failed' ? /failed to build/ : /still building/)
   })
 
   it('rejects a deleted or cross-workspace sandbox', async () => {
@@ -271,7 +469,10 @@ describe('resolveWorkspaceSandbox', () => {
   })
 
   it('rejects a language mismatch instead of installing the wrong dependency set', async () => {
-    queueSelects([SANDBOX_ROW], [{ status: 'ready', imageRef: 'sim-sbx-abc', errorMessage: null }])
+    queueSelects(
+      [SANDBOX_ROW],
+      [{ status: 'ready', imageRef: 'sim-sbx-current:abc', errorCode: null, errorMessage: null }]
+    )
 
     await expect(
       resolveWorkspaceSandbox({
@@ -299,16 +500,50 @@ describe('resolveWorkspaceSandbox', () => {
     expect(mockSelect).toHaveBeenCalledTimes(1)
     expect(mockEnsureSandboxImage).not.toHaveBeenCalled()
   })
+
+  it('treats a system-package-only sandbox as image-backed under the prebuilt strategy', async () => {
+    queueSelects(
+      [{ ...SANDBOX_ROW, dependencies: [], systemPackages: ['jq'] }],
+      [
+        {
+          status: 'ready',
+          imageRef: 'sim-sbx-current:system',
+          errorCode: null,
+          errorMessage: null,
+        },
+      ]
+    )
+
+    const resolved = await resolveWorkspaceSandbox({
+      kind: 'shell',
+      workspaceId: 'ws-1',
+      sandboxId: 'sbx-1',
+    })
+
+    expect(resolved).toMatchObject({
+      strategy: 'prebuilt',
+      imageRef: 'sim-sbx-current:system',
+      systemPackages: ['jq'],
+    })
+    expect(mockSelect).toHaveBeenCalledTimes(2)
+  })
 })
 
 describe('provisionRuntimeDependencies', () => {
-  function fakeSandbox(commandResult: { stdout: string; stderr: string; exitCode: number }) {
+  function fakeSandbox(commandResult: {
+    stdout: string
+    stderr: string
+    exitCode: number
+    timedOut?: boolean
+  }) {
     return {
       sandboxId: 'sb_1',
       writeFile: vi.fn().mockResolvedValue(undefined),
       runCommand: vi.fn().mockResolvedValue(commandResult),
       runCode: vi.fn(),
       readFile: vi.fn(),
+      readFileWithLimit: vi.fn(),
+      getFileSize: vi.fn(),
       kill: vi.fn(),
     }
   }
@@ -318,6 +553,9 @@ describe('provisionRuntimeDependencies', () => {
     name: 'etl',
     language: CodeLanguage.Python,
     dependencies: ['pandas'],
+    cliTools: [],
+    systemPackages: [],
+    specHash: 'hash-runtime',
     strategy: 'runtime' as const,
   }
 
@@ -346,6 +584,32 @@ describe('provisionRuntimeDependencies', () => {
     expect(JSON.parse(manifestCall[1]).dependencies).toEqual({ axios: '^1.7.0' })
   })
 
+  it('installs validated Debian packages as root within the shared runtime budget', async () => {
+    const sandbox = fakeSandbox({ stdout: 'ok', stderr: '', exitCode: 0 })
+    const controller = new AbortController()
+
+    await provisionRuntimeDependencies(
+      sandbox,
+      {
+        ...RUNTIME_PY,
+        dependencies: [],
+        systemPackages: ['jq', 'curl=7.88.1-10+deb12u8'],
+      },
+      { timeoutMs: 90_000, signal: controller.signal }
+    )
+
+    const [command, options] = sandbox.runCommand.mock.calls[0] as [
+      string,
+      { rootUser?: boolean; signal?: AbortSignal; timeoutMs: number },
+    ]
+    expect(command).toContain('apt-get update')
+    expect(command).toContain("'curl=7.88.1-10+deb12u8' 'jq'")
+    expect(options).toMatchObject({ rootUser: true, signal: controller.signal })
+    expect(options.timeoutMs).toBeGreaterThan(0)
+    expect(options.timeoutMs).toBeLessThanOrEqual(90_000)
+    expect(sandbox.writeFile).not.toHaveBeenCalled()
+  })
+
   it('aborts with the classified error so user code never runs half-installed', async () => {
     const sandbox = fakeSandbox({
       stdout: '',
@@ -356,6 +620,20 @@ describe('provisionRuntimeDependencies', () => {
     await expect(provisionRuntimeDependencies(sandbox, RUNTIME_PY)).rejects.toThrow(
       /Package "pandsa" was not found on PyPI/
     )
+  })
+
+  it('preserves a provider timeout while installing runtime dependencies', async () => {
+    const sandbox = fakeSandbox({
+      stdout: '',
+      stderr: 'installer timed out',
+      exitCode: 124,
+      timedOut: true,
+    })
+
+    await expect(provisionRuntimeDependencies(sandbox, RUNTIME_PY)).rejects.toMatchObject({
+      name: 'AbortError',
+      message: 'timeout',
+    })
   })
 
   it('does nothing under the prebuilt strategy', async () => {
@@ -375,6 +653,19 @@ describe('provisionRuntimeDependencies', () => {
     const [, options] = sandbox.runCommand.mock.calls.at(-1) as [string, { timeoutMs: number }]
     expect(options.timeoutMs).toBeGreaterThan(0)
   })
+
+  it('forwards workflow cancellation to runtime installation commands', async () => {
+    const sandbox = fakeSandbox({ stdout: 'ok', stderr: '', exitCode: 0 })
+    const controller = new AbortController()
+
+    await provisionRuntimeDependencies(sandbox, RUNTIME_PY, { signal: controller.signal })
+
+    for (const [, options] of sandbox.runCommand.mock.calls as Array<
+      [string, { signal?: AbortSignal }]
+    >) {
+      expect(options.signal).toBe(controller.signal)
+    }
+  })
 })
 
 /**
@@ -388,6 +679,8 @@ describe('repairMissingSandboxImage', () => {
     name: 'bigquery-etl',
     language: CodeLanguage.Python,
     dependencies: ['pandas'],
+    cliTools: [],
+    systemPackages: [],
     specHash: 'hash-1',
     strategy: 'prebuilt' as const,
     imageRef: 'sim-sbx-abc',
@@ -400,9 +693,9 @@ describe('repairMissingSandboxImage', () => {
 
     expect(message).toMatch(/being rebuilt/)
     expect(mockEnsureSandboxImage).toHaveBeenCalledWith(
-      { language: 'python', dependencies: ['pandas'] },
+      { language: 'python', dependencies: ['pandas'], cliTools: [], systemPackages: [] },
       'hash-1',
-      { imageKnownGone: true }
+      { missingImageRef: 'sim-sbx-abc' }
     )
   })
 

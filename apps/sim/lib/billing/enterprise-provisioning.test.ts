@@ -110,17 +110,47 @@ describe('Enterprise issuance serialization decisions', () => {
     }
 
     expect(buildEnterpriseProvisioningRequestKey(input, 'org-1')).toBe(
-      'enterprise-v3:owner-1:org-1:12500:24000:12'
+      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=default:workflow-timeout=default:collection=active'
     )
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, concurrencyLimit: 1250 }, 'org-1')
-    ).toBe('enterprise-v3:owner-1:org-1:12500:24000:12:1250')
+    ).toBe(
+      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=1250:workflow-timeout=default:collection=active'
+    )
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, pausePaymentCollection: true }, 'org-1')
-    ).toBe('enterprise-v3:owner-1:org-1:12500:24000:12:draft-collection')
+    ).toBe(
+      'enterprise-v4:owner-1:org-1:12500:24000:12:concurrency=default:workflow-timeout=default:collection=paused'
+    )
     expect(
       buildEnterpriseProvisioningRequestKey({ ...input, usageLimitCredits: undefined }, 'org-1')
-    ).toBe('enterprise-v3:owner-1:org-1:12500:25000:12')
+    ).toBe(
+      'enterprise-v4:owner-1:org-1:12500:25000:12:concurrency=default:workflow-timeout=default:collection=active'
+    )
+  })
+
+  it('keeps concurrency and workflow timeout in distinct request-key slots', () => {
+    const input = {
+      ownerUserId: 'owner-1',
+      monthlyInvoiceAmountUsd: 125,
+      usageLimitCredits: 24000,
+      seats: 12,
+      requestedByEmail: 'admin@sim.ai',
+      requestedByUserId: 'admin-1',
+    }
+
+    const concurrencyKey = buildEnterpriseProvisioningRequestKey(
+      { ...input, concurrencyLimit: 100 },
+      'org-1'
+    )
+    const workflowTimeoutKey = buildEnterpriseProvisioningRequestKey(
+      { ...input, workflowExecutionTimeoutSeconds: 100 },
+      'org-1'
+    )
+
+    expect(concurrencyKey).not.toBe(workflowTimeoutKey)
+    expect(concurrencyKey).toContain('concurrency=100:workflow-timeout=default')
+    expect(workflowTimeoutKey).toContain('concurrency=default:workflow-timeout=100')
   })
 
   it('deduplicates an identical unresolved request to the existing outbox operation', () => {

@@ -23,6 +23,7 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
   },
 
   request: {
+    secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowGetParams) => {
       const workspaceId = params._context?.workspaceId
       if (!workspaceId) {

@@ -11,6 +11,7 @@ import {
   MothershipStreamV1CompletionStatus,
   MothershipStreamV1EventType,
 } from '@/lib/copilot/generated/mothership-stream-v1'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const {
   runCopilotLifecycle,
@@ -322,6 +323,47 @@ describe('createSSEStream terminal error handling', () => {
     await drainStream(stream)
 
     expect(lifecycleTraceparent).toMatch(/^00-[0-9a-f]{32}-[0-9a-f]{16}-0[0-9a-f]$/)
+  })
+
+  it('does not scan manually authored title input against unrelated active secrets', async () => {
+    runCopilotLifecycle.mockResolvedValue({
+      success: true,
+      content: 'OK',
+      contentBlocks: [],
+      toolCalls: [],
+    })
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret-value')
+
+    const stream = createSSEStream({
+      requestPayload: { message: 'hello secret-value' },
+      userId: 'user-1',
+      streamId: 'stream-title',
+      executionId: 'exec-title',
+      runId: 'run-title',
+      chatId: 'chat-title',
+      currentChat: null,
+      isNewChat: true,
+      message: 'hello secret-value',
+      titleModel: 'gpt-5.4',
+      requestId: 'req-title',
+      orchestrateOptions: {
+        executionContext: {
+          userId: 'user-1',
+          workflowId: 'workflow-1',
+          resolvedSecretTraceRegistry: registry,
+        },
+      },
+    })
+
+    await drainStream(stream)
+    await vi.waitFor(() => expect(fetchGo).toHaveBeenCalled())
+    const [, request] = fetchGo.mock.calls.at(-1) ?? []
+    expect(JSON.parse(request.body)).toEqual(
+      expect.objectContaining({ message: 'hello secret-value' })
+    )
   })
 })
 

@@ -161,7 +161,7 @@ function ConnectionItem({
         </div>
         <span
           className={clsx(
-            'truncate font-medium',
+            'truncate',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
         >

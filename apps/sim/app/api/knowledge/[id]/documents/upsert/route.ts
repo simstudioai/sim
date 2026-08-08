@@ -3,7 +3,7 @@ import { db } from '@sim/db'
 import { document } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { authorizeWorkflowByWorkspacePermission } from '@sim/platform-authz/workflow'
-import { getErrorMessage } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNull } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
@@ -24,6 +24,10 @@ import {
   KnowledgeBaseFileOwnershipError,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
+import {
+  createKnowledgeProvenanceResponse,
+  resolveKnowledgeDocumentWriteSecretProvenance,
+} from '@/app/api/knowledge/secret-provenance'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('DocumentUpsertAPI')
@@ -41,7 +45,8 @@ export const POST = withRouteHandler(
       logger.info(`[${requestId}] Knowledge base document upsert request`, {
         knowledgeBaseId,
         hasDocumentId: !!validatedData.documentId,
-        filename: validatedData.filename,
+        mimeType: validatedData.mimeType,
+        fileSize: validatedData.fileSize,
       })
 
       const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
@@ -107,6 +112,16 @@ export const POST = withRouteHandler(
         )
       }
 
+      const writeProvenance = resolveKnowledgeDocumentWriteSecretProvenance({
+        request: req,
+        payload: validatedData,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        documents: [validatedData],
+      })
+      if (!writeProvenance.success) return writeProvenance.response
+
       let existingDocumentId: string | null = null
       let isUpdate = false
 
@@ -165,7 +180,8 @@ export const POST = withRouteHandler(
         ],
         knowledgeBaseId,
         requestId,
-        userId
+        userId,
+        writeProvenance.provenances
       )
 
       const firstDocument = createdDocuments[0]
@@ -180,7 +196,7 @@ export const POST = withRouteHandler(
         } catch (deleteError) {
           logger.error(
             `[${requestId}] Failed to delete old document ${existingDocumentId}, rolling back new record`,
-            deleteError
+            { errorType: toError(deleteError).name }
           )
           await deleteDocument(firstDocument.documentId, requestId).catch(() => {})
           return NextResponse.json(
@@ -197,7 +213,9 @@ export const POST = withRouteHandler(
         requestId,
         billingAttribution
       ).catch((error: unknown) => {
-        logger.error(`[${requestId}] Critical error in document processing pipeline:`, error)
+        logger.error(`[${requestId}] Critical error in document processing pipeline`, {
+          errorType: toError(error).name,
+        })
       })
 
       try {
@@ -235,27 +253,40 @@ export const POST = withRouteHandler(
         request: req,
       })
 
-      return NextResponse.json({
-        success: true,
-        data: {
-          documentsCreated: [
-            {
-              documentId: firstDocument.documentId,
-              filename: firstDocument.filename,
-              status: 'pending',
+      return createKnowledgeProvenanceResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(kbWorkspaceId ? { workspaceId: kbWorkspaceId } : {}),
+        provenances:
+          writeProvenance.provenances?.flatMap((provenance) => [
+            provenance.filename,
+            ...provenance.tags.map((tag) => tag.provenance),
+          ]) ?? [],
+        body: {
+          success: true,
+          data: {
+            documentsCreated: [
+              {
+                documentId: firstDocument.documentId,
+                filename: firstDocument.filename,
+                status: 'pending',
+              },
+            ],
+            isUpdate,
+            previousDocumentId: existingDocumentId,
+            processingMethod: 'background',
+            processingConfig: {
+              maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
+              batchSize: getProcessingConfig().batchSize,
             },
-          ],
-          isUpdate,
-          previousDocumentId: existingDocumentId,
-          processingMethod: 'background',
-          processingConfig: {
-            maxConcurrentDocuments: getProcessingConfig().maxConcurrentDocuments,
-            batchSize: getProcessingConfig().batchSize,
           },
         },
       })
     } catch (error) {
-      logger.error(`[${requestId}] Error upserting document`, error)
+      logger.error(`[${requestId}] Error upserting document`, {
+        errorType: toError(error).name,
+      })
 
       if (error instanceof KnowledgeBaseFileOwnershipError) {
         return NextResponse.json(
@@ -263,7 +294,6 @@ export const POST = withRouteHandler(
           { status: 403 }
         )
       }
-
       const errorMessage = getErrorMessage(error, 'Failed to upsert document')
       const isStorageLimitError =
         errorMessage.includes('Storage limit exceeded') || errorMessage.includes('storage limit')

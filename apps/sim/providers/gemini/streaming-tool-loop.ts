@@ -465,18 +465,29 @@ export function createGeminiStreamingToolLoopStream(
                     toolArgs,
                     request
                   )
-                  const result = await executeProviderTool(toolName, executionParams, {
-                    signal: loopAbortController.signal,
-                  })
+                  const { rawResponse, modelResponse } = await executeProviderTool(
+                    toolName,
+                    executionParams,
+                    {
+                      signal: loopAbortController.signal,
+                    }
+                  )
                   const toolCallEndTime = Date.now()
-                  const resultContent: Record<string, unknown> = result.success
-                    ? ensureStructResponse(result.output)
+                  const resultContent: Record<string, unknown> = rawResponse.success
+                    ? ensureStructResponse(rawResponse.output)
                     : {
                         error: true,
-                        message: result.error || 'Tool execution failed',
+                        message: rawResponse.error || 'Tool execution failed',
                         tool: toolName,
                       }
-                  const status: ToolCallEndStatus = result.success ? 'success' : 'error'
+                  const modelResultContent: Record<string, unknown> = modelResponse.success
+                    ? ensureStructResponse(modelResponse.output)
+                    : {
+                        error: true,
+                        message: modelResponse.error || 'Tool execution failed',
+                        tool: toolName,
+                      }
+                  const status: ToolCallEndStatus = rawResponse.success ? 'success' : 'error'
                   openToolStarts.delete(toolCallId)
                   controller.enqueue({
                     type: 'tool_call_end',
@@ -491,12 +502,13 @@ export function createGeminiStreamingToolLoopStream(
                     toolArgs,
                     toolParams,
                     resultContent,
-                    result,
+                    modelResultContent,
+                    result: rawResponse,
                     startTime: toolCallStartTime,
                     endTime: toolCallEndTime,
                     duration: toolCallEndTime - toolCallStartTime,
                     status,
-                    success: result.success,
+                    success: rawResponse.success,
                   }
                 } catch (error) {
                   const toolCallEndTime = Date.now()
@@ -568,7 +580,7 @@ export function createGeminiStreamingToolLoopStream(
             const userParts: Part[] = orderedResults.map((r) => ({
               functionResponse: {
                 name: r.toolName,
-                response: r.resultContent,
+                response: 'modelResultContent' in r ? r.modelResultContent : r.resultContent,
                 ...(r.part.functionCall?.id ? { id: r.part.functionCall.id } : {}),
               },
             }))

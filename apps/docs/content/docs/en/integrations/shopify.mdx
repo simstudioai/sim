@@ -32,7 +32,7 @@ Integrate Shopify into your workflow. Manage products, orders, customers, and in
 
 ## Actions
 
-### `shopify_create_product`
+### Shopify Create Product
 
 Create a new product in your Shopify store
 
@@ -66,7 +66,7 @@ Create a new product in your Shopify store
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
 |   ↳ `images` | object | Product images with edges/nodes structure |
 
-### `shopify_get_product`
+### Shopify Get Product
 
 Get a single product by ID from your Shopify store
 
@@ -95,7 +95,7 @@ Get a single product by ID from your Shopify store
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
 |   ↳ `images` | object | Product images with edges/nodes structure |
 
-### `shopify_list_products`
+### Shopify List Products
 
 List products from your Shopify store with optional filtering
 
@@ -128,7 +128,7 @@ List products from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_update_product`
+### Shopify Update Product
 
 Update an existing product in your Shopify store
 
@@ -163,7 +163,7 @@ Update an existing product in your Shopify store
 |   ↳ `variants` | object | Product variants with edges/nodes structure |
 |   ↳ `images` | object | Product images with edges/nodes structure |
 
-### `shopify_delete_product`
+### Shopify Delete Product
 
 Delete a product from your Shopify store
 
@@ -180,7 +180,7 @@ Delete a product from your Shopify store
 | --------- | ---- | ----------- |
 | `deletedId` | string | The ID of the deleted product |
 
-### `shopify_get_order`
+### Shopify Get Order
 
 Get a single order by ID from your Shopify store
 
@@ -218,7 +218,7 @@ Get a single order by ID from your Shopify store
 |   ↳ `billingAddress` | object | Billing address |
 |   ↳ `fulfillments` | array | Order fulfillments |
 
-### `shopify_list_orders`
+### Shopify List Orders
 
 List orders from your Shopify store with optional filtering
 
@@ -261,7 +261,7 @@ List orders from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_update_order`
+### Shopify Update Order
 
 Update an existing order in your Shopify store (note, tags, email)
 
@@ -302,7 +302,7 @@ Update an existing order in your Shopify store (note, tags, email)
 |   ↳ `billingAddress` | object | Billing address |
 |   ↳ `fulfillments` | array | Order fulfillments |
 
-### `shopify_cancel_order`
+### Shopify Cancel Order
 
 Cancel an order in your Shopify store
 
@@ -327,7 +327,7 @@ Cancel an order in your Shopify store
 |   ↳ `cancelled` | boolean | Whether the cancellation completed |
 |   ↳ `message` | string | Status message |
 
-### `shopify_create_customer`
+### Shopify Create Customer
 
 Create a new customer in your Shopify store
 
@@ -362,7 +362,7 @@ Create a new customer in your Shopify store
 |   ↳ `addresses` | array | Customer addresses |
 |   ↳ `defaultAddress` | object | Customer default address |
 
-### `shopify_get_customer`
+### Shopify Get Customer
 
 Get a single customer by ID from your Shopify store
 
@@ -391,7 +391,7 @@ Get a single customer by ID from your Shopify store
 |   ↳ `addresses` | array | Customer addresses |
 |   ↳ `defaultAddress` | object | Customer default address |
 
-### `shopify_list_customers`
+### Shopify List Customers
 
 List customers from your Shopify store with optional filtering
 
@@ -424,7 +424,7 @@ List customers from your Shopify store with optional filtering
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_update_customer`
+### Shopify Update Customer
 
 Update an existing customer in your Shopify store
 
@@ -459,7 +459,7 @@ Update an existing customer in your Shopify store
 |   ↳ `addresses` | array | Customer addresses |
 |   ↳ `defaultAddress` | object | Customer default address |
 
-### `shopify_delete_customer`
+### Shopify Delete Customer
 
 Delete a customer from your Shopify store
 
@@ -476,7 +476,7 @@ Delete a customer from your Shopify store
 | --------- | ---- | ----------- |
 | `deletedId` | string | The ID of the deleted customer |
 
-### `shopify_list_inventory_items`
+### Shopify List Inventory Items
 
 List inventory items from your Shopify store. Use this to find inventory item IDs by SKU.
 
@@ -514,7 +514,7 @@ List inventory items from your Shopify store. Use this to find inventory item ID
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_get_inventory_level`
+### Shopify Get Inventory Level
 
 Get inventory level for a product variant at a specific location
 
@@ -545,7 +545,7 @@ Get inventory level for a product variant at a specific location
 |       ↳ `id` | string | Location identifier \(GID\) |
 |       ↳ `name` | string | Location name |
 
-### `shopify_adjust_inventory`
+### Shopify Adjust Inventory
 
 Adjust inventory quantity for a product variant at a specific location
 
@@ -577,7 +577,7 @@ Adjust inventory quantity for a product variant at a specific location
 |       ↳ `id` | string | Location identifier \(GID\) |
 |       ↳ `name` | string | Location name |
 
-### `shopify_list_locations`
+### Shopify List Locations
 
 List inventory locations from your Shopify store. Use this to find location IDs needed for inventory operations.
 
@@ -603,7 +603,7 @@ List inventory locations from your Shopify store. Use this to find location IDs 
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_create_fulfillment`
+### Shopify Create Fulfillment
 
 Create a fulfillment to mark order items as shipped. Requires a fulfillment order ID (get this from the order details).
 
@@ -634,7 +634,7 @@ Create a fulfillment to mark order items as shipped. Requires a fulfillment orde
 |     ↳ `lineItem` | object | Associated order line item |
 |       ↳ `title` | string | Product title |
 
-### `shopify_list_collections`
+### Shopify List Collections
 
 List product collections from your Shopify store. Filter by title, type (custom/smart), or handle.
 
@@ -664,7 +664,7 @@ List product collections from your Shopify store. Filter by title, type (custom/
 |   ↳ `hasNextPage` | boolean | Whether there are more results after this page |
 |   ↳ `hasPreviousPage` | boolean | Whether there are results before this page |
 
-### `shopify_get_collection`
+### Shopify Get Collection
 
 Get a specific collection by ID, including its products. Use this to retrieve products within a collection.
 

@@ -4,8 +4,15 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { updateKnowledgeChunkContract } from '@/lib/api/contracts/knowledge'
 import { parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createDurableSecretProvenanceRegistry } from '@/lib/execution/durable-secret-provenance'
 import { deleteChunk, updateChunk } from '@/lib/knowledge/chunks/service'
+import { runWithKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
+import {
+  createKnowledgePersistedResponse,
+  resolveKnowledgeWriteSecretProvenance,
+} from '@/app/api/knowledge/secret-provenance'
 import { checkChunkAccess, checkChunkWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('ChunkByIdAPI')
@@ -19,18 +26,14 @@ export const GET = withRouteHandler(
     const { id: knowledgeBaseId, documentId, chunkId } = await params
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized chunk access attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const userId = auth.userId
 
-      const accessCheck = await checkChunkAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
+      const accessCheck = await checkChunkAccess(knowledgeBaseId, documentId, chunkId, userId)
 
       if (!accessCheck.hasAccess) {
         if (accessCheck.notFound) {
@@ -40,7 +43,7 @@ export const GET = withRouteHandler(
           return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
         }
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk access: ${accessCheck.reason}`
+          `[${requestId}] User ${userId} attempted unauthorized chunk access: ${accessCheck.reason}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
@@ -49,9 +52,27 @@ export const GET = withRouteHandler(
         `[${requestId}] Retrieved chunk: ${chunkId} from document ${documentId} in knowledge base ${knowledgeBaseId}`
       )
 
-      return NextResponse.json({
+      const responseBody = {
         success: true,
         data: accessCheck.chunk,
+      }
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: responseBody,
+        chunks: accessCheck.chunk
+          ? [
+              {
+                id: accessCheck.chunk.id,
+                documentId,
+                content: accessCheck.chunk.content,
+                value: accessCheck.chunk,
+              },
+            ]
+          : [],
       })
     } catch (error) {
       logger.error(`[${requestId}] Error fetching chunk`, error)
@@ -69,18 +90,14 @@ export const PUT = withRouteHandler(
     const { id: knowledgeBaseId, documentId, chunkId } = await context.params
 
     try {
-      const session = await getSession()
-      if (!session?.user?.id) {
+      const auth = await checkSessionOrInternalAuth(req, { requireWorkflowId: false })
+      if (!auth.success || !auth.userId) {
         logger.warn(`[${requestId}] Unauthorized chunk update attempt`)
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
+      const userId = auth.userId
 
-      const accessCheck = await checkChunkWriteAccess(
-        knowledgeBaseId,
-        documentId,
-        chunkId,
-        session.user.id
-      )
+      const accessCheck = await checkChunkWriteAccess(knowledgeBaseId, documentId, chunkId, userId)
 
       if (!accessCheck.hasAccess) {
         if (accessCheck.notFound) {
@@ -90,14 +107,14 @@ export const PUT = withRouteHandler(
           return NextResponse.json({ error: accessCheck.reason }, { status: 404 })
         }
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted unauthorized chunk update: ${accessCheck.reason}`
+          `[${requestId}] User ${userId} attempted unauthorized chunk update: ${accessCheck.reason}`
         )
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
       if (accessCheck.document?.connectorId) {
         logger.warn(
-          `[${requestId}] User ${session.user.id} attempted to update chunk on connector-synced document: Doc=${documentId}`
+          `[${requestId}] User ${userId} attempted to update chunk on connector-synced document: Doc=${documentId}`
         )
         return NextResponse.json(
           { error: 'Chunks from connector-synced documents are read-only' },
@@ -109,21 +126,52 @@ export const PUT = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const validatedData = parsed.data.body
+      const workspaceId = accessCheck.knowledgeBase?.workspaceId ?? undefined
+      const writeProvenance = resolveKnowledgeWriteSecretProvenance({
+        request: req,
+        payload: validatedData,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        selectionKeys: validatedData.content === undefined ? [] : ['chunk-content'],
+      })
+      if (!writeProvenance.success) return writeProvenance.response
+      const chunkProvenance = writeProvenance.provenances?.[0]
+      if (chunkProvenance?.status === 'unknown') {
+        return NextResponse.json(
+          { error: 'Knowledge chunk secret provenance is unavailable' },
+          { status: 400 }
+        )
+      }
+      const registry = chunkProvenance
+        ? await createDurableSecretProvenanceRegistry(chunkProvenance, {
+            userId,
+            ...(workspaceId ? { workspaceId } : {}),
+          })
+        : undefined
 
-      const updatedChunk = await updateChunk(
-        chunkId,
-        validatedData,
-        requestId,
-        accessCheck.knowledgeBase?.workspaceId
+      const updatedChunk = await runWithKnowledgeModelInputProvenance(registry, () =>
+        updateChunk(chunkId, validatedData, requestId, workspaceId, chunkProvenance)
       )
 
       logger.info(
         `[${requestId}] Chunk updated: ${chunkId} in document ${documentId} in knowledge base ${knowledgeBaseId}`
       )
 
-      return NextResponse.json({
-        success: true,
-        data: updatedChunk,
+      return createKnowledgePersistedResponse({
+        request: req,
+        authType: auth.authType,
+        userId,
+        ...(workspaceId ? { workspaceId } : {}),
+        body: { success: true, data: updatedChunk },
+        chunks: [
+          {
+            id: updatedChunk.id,
+            documentId,
+            content: updatedChunk.content,
+            value: updatedChunk,
+          },
+        ],
       })
     } catch (error) {
       logger.error(`[${requestId}] Error updating chunk`, error)

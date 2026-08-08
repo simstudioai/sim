@@ -1,7 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
-import type { WorkspaceFileFolderApi } from '@/lib/api/contracts/workspace-file-folders'
-import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
-import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
+import { listWorkspaceFileFolders } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
+import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
+import { getWorkspaceHostContextForViewer } from '@/lib/workspaces/host-context'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import {
   WORKSPACE_FILE_FOLDERS_STALE_TIME,
@@ -20,32 +20,32 @@ import {
  * `useWorkspaceFileFolders`) use (scope `active`), so the browser paints
  * populated on first render.
  *
- * Both payloads carry `Date` fields, so they go through their routes and cache
- * the serialized wire shape — see {@link prefetchInternalJson}.
+ * Files and folders read the data layer; both payloads are shaped to their route contract so
+ * a hydrated entry matches a client fetch. Everything else still goes through its route —
+ * see {@link prefetchInternalJson}.
+ *
+ * Those two reads carry no authorization of their own, so the viewer is proved first. This
+ * reuses the layout's `cache`d host-context lookup rather than re-deriving the permission,
+ * so it costs no additional queries; a viewer without access caches nothing and the client
+ * fetch reaches the route for the real 403.
  */
 export async function prefetchFilesBrowser(
   queryClient: QueryClient,
-  workspaceId: string
+  workspaceId: string,
+  userId: string
 ): Promise<void> {
+  const hostContext = await getWorkspaceHostContextForViewer(workspaceId, userId)
+  if (!hostContext) return
+
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const data = await prefetchInternalJson<ListWorkspaceFilesResponse>(
-          `/api/workspaces/${workspaceId}/files?scope=active`
-        )
-        return data.success ? data.files : []
-      },
+      queryFn: () => listWorkspaceFilesWithShares(workspaceId, 'active'),
       staleTime: WORKSPACE_FILES_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({
       queryKey: workspaceFileFolderKeys.list(workspaceId, 'active'),
-      queryFn: async () => {
-        const data = await prefetchInternalJson<{ folders?: WorkspaceFileFolderApi[] }>(
-          `/api/workspaces/${workspaceId}/files/folders?scope=active`
-        )
-        return data.folders ?? []
-      },
+      queryFn: () => listWorkspaceFileFolders(workspaceId, { scope: 'active' }),
       staleTime: WORKSPACE_FILE_FOLDERS_STALE_TIME,
     }),
     prefetchResourceListChrome(queryClient, workspaceId, 'file'),

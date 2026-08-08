@@ -12,7 +12,9 @@ import {
   successResponseSchema,
   wireDateSchema,
 } from '@/lib/api/contracts/knowledge/shared'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 
@@ -136,11 +138,13 @@ export const bulkCreateDocumentsBodySchema = z.object({
     .optional(),
   bulk: z.literal(true),
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const singleCreateDocumentBodySchema = createDocumentBodySchema.extend({
   bulk: z.literal(false),
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 
 const createKnowledgeDocumentsBodyDiscriminatedUnion = z.discriminatedUnion('bulk', [
@@ -170,6 +174,7 @@ export const upsertDocumentBodySchema = z.object({
     })
     .optional(),
   workflowId: z.string().optional(),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 export type UpsertDocumentBody = z.output<typeof upsertDocumentBodySchema>
 

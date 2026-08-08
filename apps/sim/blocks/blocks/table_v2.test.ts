@@ -65,6 +65,15 @@ describe('table_v2 query_rows transformer', () => {
     })
     expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'test' }] })
   })
+
+  it('normalizes a plain editor condition into the canonical predicate group', () => {
+    const out = params({
+      operation: 'query_rows',
+      tableId: 't',
+      filterInput: '{"field":"name","op":"eq","value":"test"}',
+    })
+    expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'test' }] })
+  })
 })
 
 describe('table_v2 bulk transformers', () => {
@@ -90,6 +99,19 @@ describe('table_v2 bulk transformers', () => {
     expect(out.limit).toBeUndefined()
     expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
   })
+
+  it.each(['update_rows_by_filter', 'delete_rows_by_filter'])(
+    'normalizes a plain editor condition for %s',
+    (operation) => {
+      const out = params({
+        operation,
+        tableId: 't',
+        filterInput: '{"field":"name","op":"eq","value":"x"}',
+        ...(operation === 'update_rows_by_filter' ? { data: '{"active":false}' } : {}),
+      })
+      expect(out.filter).toEqual({ all: [{ field: 'name', op: 'eq', value: 'x' }] })
+    }
+  )
 })
 
 /**
@@ -115,5 +137,11 @@ describe('table_v2 blank and malformed editor inputs', () => {
   it('still reports genuinely malformed JSON', () => {
     expect(() => params({ ...base, filterInput: '{not json}' })).toThrow(/Invalid JSON in Filter/)
     expect(() => params({ ...base, sortInput: '{not json}' })).toThrow(/Invalid JSON in Sort/)
+  })
+
+  it('fails fast on a legacy or malformed filter object', () => {
+    expect(() => params({ ...base, filterInput: '{"status":"active"}' })).toThrow(
+      /group.*condition/i
+    )
   })
 })

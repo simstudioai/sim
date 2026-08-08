@@ -60,3 +60,16 @@ describe('guardrailsValidateTool.request.body', () => {
     expect(parsed.success).toBe(false)
   })
 })
+
+describe('guardrailsValidateTool.request.modelInput', () => {
+  it('delegates only hallucination input provenance to the authenticated guardrails route', () => {
+    const modelInput = guardrailsValidateTool.request.modelInput
+    expect(modelInput?.mode).toBe('private-provenance')
+    if (modelInput?.mode !== 'private-provenance') throw new Error('Unexpected model input mode')
+
+    expect(modelInput.inputPaths({ input: 'claim', validationType: 'hallucination' })).toEqual([
+      ['input'],
+    ])
+    expect(modelInput.inputPaths({ input: 'private text', validationType: 'pii' })).toEqual([])
+  })
+})

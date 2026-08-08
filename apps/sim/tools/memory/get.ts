@@ -41,6 +41,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       return url.pathname + url.search
     },
     method: 'GET',
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

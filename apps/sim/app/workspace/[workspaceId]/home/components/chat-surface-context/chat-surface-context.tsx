@@ -10,7 +10,7 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -34,7 +34,7 @@ interface ChatSurfaceContextValue {
    */
   onContextRemove: (context: ChatContext, remaining: ChatContext[]) => void
   /** Opens a workspace resource referenced from rendered message content. */
-  onWorkspaceResourceSelect: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
@@ -48,7 +48,7 @@ interface ChatSurfaceProviderProps {
   userId?: string
   onContextAdd?: (context: ChatContext) => void
   onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   children: ReactNode
 }
 
@@ -82,7 +82,7 @@ export function ChatSurfaceProvider({
   const stableOnContextRemove = useCallback((context: ChatContext, remaining: ChatContext[]) => {
     onContextRemoveRef.current?.(context, remaining)
   }, [])
-  const stableOnWorkspaceResourceSelect = useCallback((resource: MothershipResource) => {
+  const stableOnWorkspaceResourceSelect = useCallback((resource: WorkspaceResourceRef) => {
     onWorkspaceResourceSelectRef.current?.(resource)
   }, [])
 

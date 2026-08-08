@@ -4,9 +4,19 @@
 import { createHash } from 'node:crypto'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { materializeLargeValueRefMock, storeLargeValueMock } = vi.hoisted(() => ({
+const { materializeLargeValueRefMock, storeLargeValueMock, warnMock } = vi.hoisted(() => ({
   materializeLargeValueRefMock: vi.fn(),
   storeLargeValueMock: vi.fn(),
+  warnMock: vi.fn(),
+}))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({
+    debug: vi.fn(),
+    info: vi.fn(),
+    warn: warnMock,
+    error: vi.fn(),
+  }),
 }))
 
 vi.mock('@/lib/execution/payloads/store', () => ({
@@ -23,6 +33,8 @@ import {
   type ResolvedSecretTraceMatch,
   ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
+
+const MAX_CONTENT_NODES = 100_000
 
 const STORE = {
   workspaceId: 'workspace-1',
@@ -59,6 +71,71 @@ beforeEach(() => {
 })
 
 describe('projectTraceSpansForSecrets', () => {
+  it('removes compiler and legacy runtime aliases from projected trace content', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'API_SECRET',
+        plaintext: 'trace-secret',
+        encryptedValue: 'encrypted-api-secret',
+      },
+    ])
+    expect(registry.recordResolved('API_SECRET', 'trace-secret')).toBe(true)
+
+    const [projected] = await projectTraceSpansForSecrets(
+      [
+        createSpan({
+          output: {
+            legacy: '__var_API_SECRET',
+            compiler: '__sim_code_0_binding_0',
+            runtime: '__sim_runtime_payload_0__',
+          },
+        }),
+      ],
+      { registry, store: STORE }
+    )
+
+    expect(projected.output).toEqual({
+      legacy: '[REDACTED_SECRET]',
+      compiler: '[RUNTIME_BINDING]',
+      runtime: '[RUNTIME_BINDING]',
+    })
+  })
+
+  it('preserves named provenance when an exact secret name and value overlap', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+    ])
+    expect(registry.recordResolved('Test', 'Test')).toBe(true)
+    const source = createSpan({
+      input: { code: 'return {{Test}}' },
+      output: {
+        result: 'Test',
+        legacy: '__var_Test',
+        compiler: '__sim_code_0_binding_0',
+      },
+    })
+
+    const [projected] = await projectTraceSpansForSecrets([source], {
+      registry,
+      store: STORE,
+    })
+
+    expect(projected.input).toEqual({ code: 'return {{Test}}' })
+    expect(projected.output).toEqual({
+      result: '{{Test}}',
+      legacy: '[REDACTED_SECRET]',
+      compiler: '[RUNTIME_BINDING]',
+    })
+    expect(JSON.stringify(projected)).not.toContain('__var_')
+    expect(JSON.stringify(projected)).not.toContain('__sim_code_')
+    expect(source.input).toEqual({ code: 'return {{Test}}' })
+    expect(source.output).toEqual({
+      result: 'Test',
+      legacy: '__var_Test',
+      compiler: '__sim_code_0_binding_0',
+    })
+  })
+
   it('protects only literals activated by a successful Secrets-tab substitution', async () => {
     const plaintext = 'trace/secret+value'
     const registry = new ResolvedSecretTraceRegistry([
@@ -203,7 +280,7 @@ describe('projectTraceSpansForSecrets', () => {
     )
 
     expect(result[0].output).toEqual({
-      value: '{{LONG}} {{SHORT}} ',
+      value: '{{LONG}} {{SHORT}} {{A_SECRET}}',
     })
   })
 
@@ -365,12 +442,43 @@ describe('projectTraceSpansForSecrets', () => {
     const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
       store: STORE,
     })
 
     expect(result[0]).not.toHaveProperty('output')
     expect(source[0].output).toEqual({ apiKey: '[REDACTED]' })
+  })
+
+  it('keeps content whose only literal occurrence sits inside an unrelated word', async () => {
+    const source = [createSpan({ output: { summary: 'the latest news' } })]
+
+    const result = await enforceTraceSpanSecretInvariant(source, {
+      registry: createRegistry([{ plaintext: 'test', replacement: '{{TOKEN}}' }]),
+      store: STORE,
+    })
+
+    expect(result).toBe(source)
+    expect(result[0].output).toEqual({ summary: 'the latest news' })
+  })
+
+  it('names the invariant that forced the structural fallback', async () => {
+    const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
+
+    await enforceTraceSpanSecretInvariant(source, {
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
+      store: STORE,
+    })
+
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace secret invariant failed; retaining structural spans only',
+      {
+        failure: {
+          name: 'TraceSecretProjectionError',
+          reason: expect.any(String),
+        },
+      }
+    )
   })
 
   it('fails the final invariant closed when provenance is incomplete', async () => {
@@ -424,7 +532,7 @@ describe('projectTraceSpansForSecrets', () => {
     materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -875,7 +983,8 @@ describe('projectTraceSpansForSecrets', () => {
       kind: 'array' as const,
       size: 1,
     }))
-    const expandedValue = 'a'.repeat(1024)
+    const expandingSecret = 'a7Kq2Xz9Lm4P'
+    const expandedValue = expandingSecret.repeat(1024)
     materializeLargeValueRefMock.mockImplementation(async () => [expandedValue])
     storeLargeValueMock.mockImplementation(
       async (_value: unknown, _json: string, size: number) => ({
@@ -900,7 +1009,7 @@ describe('projectTraceSpansForSecrets', () => {
     const result = await projectTraceSpansForSecrets(
       [createSpan({ input: { ok: true }, output: { items: manifest } })],
       {
-        registry: createRegistry([{ plaintext: 'a', replacement: 'X'.repeat(1024) }]),
+        registry: createRegistry([{ plaintext: expandingSecret, replacement: 'X'.repeat(1024) }]),
         store: STORE,
       }
     )
@@ -1082,6 +1191,64 @@ describe('projectTraceSpansForSecrets', () => {
     }
 
     expect(result[0].output).toEqual({ token: '{{API_SECRET}}' })
+  })
+
+  it('names the invariant that forced content to be omitted', async () => {
+    const output: Record<string, unknown> = { token: 'top-secret' }
+    output.self = output
+
+    const [result] = await projectTraceSpansForSecrets([createSpan({ output })], {
+      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
+      store: STORE,
+    })
+
+    expect(result).not.toHaveProperty('output')
+    expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
+      failure: {
+        name: 'TraceSecretProjectionError',
+        reason: 'Trace content could not be sanitized',
+      },
+    })
+  })
+
+  it('withholds the message of a failure raised outside the projection module', async () => {
+    const descriptorSpy = vi.spyOn(Object, 'getOwnPropertyDescriptor').mockImplementation(() => {
+      throw new SyntaxError('Unexpected token in "sk-live-top-secret"')
+    })
+
+    try {
+      await projectTraceSpansForSecrets([createSpan({ output: { token: 'top-secret' } })], {
+        registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
+        store: STORE,
+      })
+    } finally {
+      descriptorSpy.mockRestore()
+    }
+
+    expect(warnMock).toHaveBeenCalledWith('Omitting trace content that could not be sanitized', {
+      failure: { name: 'SyntaxError' },
+    })
+  })
+
+  it('names the invariant that forced the whole-tree structural fallback', async () => {
+    const source = Array(MAX_CONTENT_NODES + 1).fill(
+      createSpan({ output: { token: 'top-secret' } })
+    )
+
+    await projectTraceSpansForSecrets(source, {
+      registry: createRegistry([{ plaintext: 'top-secret', replacement: '{{API_SECRET}}' }]),
+      store: STORE,
+    })
+
+    expect(warnMock).toHaveBeenCalledWith(
+      'Trace secret projection failed; retaining structural spans only',
+      {
+        failure: {
+          name: 'TraceSecretProjectionError',
+          reason: 'Trace structure array exceeds the projection limit',
+        },
+      }
+    )
   })
 
   it('uses bounded structural fallback when matcher construction fails', async () => {

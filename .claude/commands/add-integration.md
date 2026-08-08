@@ -1,5 +1,5 @@
 ---
-description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
+description: Add a complete Sim integration from API docs, covering tools, block, icon, optional triggers, registrations, resolved-secret/model-input safety, and integration conventions. Use when introducing a new service under `apps/sim/tools`, `apps/sim/blocks`, and `apps/sim/triggers`.
 argument-hint: <service-name> [api-docs-url]
 ---
 
@@ -120,6 +120,67 @@ export const {service}{Action}Tool: ToolConfig<Params, Response> = {
 - Never output raw JSON dumps - extract meaningful fields
 - When using `type: 'json'` and you know the object shape, define `properties` with the inner fields so downstream consumers know the structure. Only use bare `type: 'json'` when the shape is truly dynamic
 - If you do not know the response JSON shape from docs or verified examples, you MUST tell the user and stop. Never guess outputs or response mappings.
+
+### Resolved Secrets at Model and Persistence Boundaries
+
+Classify every request field before implementing the tool:
+
+This is opt-in, not a blanket integration migration. Add a model-input declaration only when the
+service's official documentation or an unambiguous local execution path proves that the exact
+field is consumed by an AI model. If that cannot be established, preserve existing tool behavior
+and leave the field unannotated.
+
+- **Ordinary provider/API input:** leave it unchanged. Explicit `{{...}}` references resolve and are
+  sent with their normal request semantics. A URL, domain, resource ID, control field, or opaque
+  payload is not model-visible merely because the provider is AI-backed or may process the
+  referenced resource later.
+- **Text or structured content consumed by an AI model:** declare `request.modelInput` with
+  `mode: 'project'` and select only the exact model-visible fields. The shared executor replaces
+  activated Sim secrets with canonical `{{NAME}}` labels before request formatting. For nested or
+  JSON-string fields, use a small shared selector plus `applyProjected`; verify that selecting the
+  rebuilt params reproduces the projected selection.
+- **Serialized model content sent directly to an external provider:** include the serialized
+  top-level param in `request.modelInput`. Project the private copy before the existing request
+  formatter parses it; keep formatter behavior deterministic when a whole-value placeholder is not
+  valid in the serialized grammar. Do not introduce a second hard-rejection path.
+- **Opaque model input owned by an authenticated internal route** such as inline audio, image,
+  video, or document bytes: add `privateProvenance` to a projected request, or use
+  `mode: 'private-provenance'` when there is no textual projection. Do not select storage keys,
+  paths, signed URLs, or ordinary remote URLs as byte provenance; the owning route must authorize
+  stored bytes independently at model egress. The route must call
+  `validateOpaqueModelInputProvenance` before downloading or sending content to the model and must
+  apply the workspace-file provenance guard before reading a persisted workspace file.
+- **Sim-owned durable storage or internal execution handoff** that can later enter a workflow/model
+  (table cells, Agent memory, knowledge documents/chunks, workspace-file contents, or child-workflow
+  input): transport encrypted field-scoped provenance with `request.secretProvenance`. The
+  authenticated receiver validates the exact selection and scope, strips the private envelope, and
+  persists, imports, or propagates it at the owning boundary. Preserve shared legacy behavior for
+  headerless internal calls and rows/files whose provenance marker is `NULL`; never invent a
+  tool-local migration rule.
+
+Hard rules:
+
+- Never substitute secret plaintext into source or serialize plaintext provenance.
+- Never hand-roll private provenance headers/envelopes; the shared `executeTool` boundary owns
+  transport and strips private metadata from functional results.
+- Never attach private provenance to an external URL or to `directExecution`. Project proven
+  model-visible external fields with `request.modelInput`; otherwise preserve ordinary request
+  semantics. Use an authenticated internal route when encrypted provenance must cross the boundary.
+- Never sanitize arbitrary third-party tool results. Projection applies only to secrets activated
+  by Sim's resolved-secret provenance for that execution/tool call.
+- Do not add provenance merely because a value is persisted, returned by a tool, or appears in a
+  filename. Require a concrete Sim `{{...}}` resolution path and a later model/log boundary. If an
+  unsupported field can resolve a secret but does not justify durable tracking (for example a
+  `file_write` path), reject it at that exact ingress.
+- At diagnostic boundaries, project only values carrying execution-scoped provenance. Ordinary
+  provider responses, filenames, URLs, and errors remain unchanged when Sim did not resolve a
+  secret into them.
+
+Add focused tests covering named projection, ordinary identical text without provenance, nested and
+serialized shape handling, unchanged ordinary external inputs, malformed/incomplete private metadata
+failing closed, headerless legacy requests, and absence of private metadata in the public tool result.
+For durable sinks, also cover legacy `NULL` markers, exact-empty new writes, tracked secret writes,
+stale/missing sidecars, and scope isolation.
 
 ## Step 3: Create Block
 
@@ -534,6 +595,11 @@ If creating V2 versions (API-aligned outputs):
 - [ ] Created `index.ts` barrel export
 - [ ] Registered all tools in `tools/registry.ts`
 - [ ] Ran `bun run tool-metadata:generate` and committed the regenerated artifacts
+- [ ] Classified every model-visible, opaque, Sim-durable, and internal-execution request field
+- [ ] Added shared model-input projection or private provenance only where required; ordinary
+      external resource locators and control inputs retain their request semantics
+- [ ] Confirmed ordinary third-party tool results are not generically sanitized
+- [ ] Added provenance compatibility and fail-closed boundary tests where applicable
 
 ### Block
 - [ ] Created `blocks/blocks/{service}.ts`

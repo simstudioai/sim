@@ -97,8 +97,12 @@ export async function handleCreateCredentialFromDraft(params: {
 }
 
 /**
- * Reconnects an existing credential to a new OAuth account.
+ * Reconnects an existing credential to the account the user just authorized.
  * Handles unique constraint checks and orphaned account cleanup.
+ *
+ * Re-authorizing the *same* account is the common case — a dead or expired
+ * token the user refreshes in place — so it still bumps `updatedAt` and clears
+ * the dead flag. Callers treat that timestamp as proof the reconnect landed.
  */
 export async function handleReconnectCredential(params: {
   draft: { credentialId: string | null; workspaceId: string; displayName: string }
@@ -124,34 +128,29 @@ export async function handleReconnectCredential(params: {
   }
 
   const oldAccountId = existingCredential.accountId
+  const accountChanged = oldAccountId !== newAccountId
 
-  if (oldAccountId === newAccountId) {
-    logger.info('Account unchanged during reconnect, skipping update', {
-      credentialId: draft.credentialId,
-      accountId: newAccountId,
-    })
-    return
-  }
-
-  const [conflicting] = await db
-    .select({ id: schema.credential.id })
-    .from(schema.credential)
-    .where(
-      and(
-        eq(schema.credential.workspaceId, workspaceId),
-        eq(schema.credential.accountId, newAccountId),
-        sql`${schema.credential.id} != ${draft.credentialId}`
+  if (accountChanged) {
+    const [conflicting] = await db
+      .select({ id: schema.credential.id })
+      .from(schema.credential)
+      .where(
+        and(
+          eq(schema.credential.workspaceId, workspaceId),
+          eq(schema.credential.accountId, newAccountId),
+          sql`${schema.credential.id} != ${draft.credentialId}`
+        )
       )
-    )
-    .limit(1)
+      .limit(1)
 
-  if (conflicting) {
-    logger.warn('New account already used by another credential, skipping reconnect', {
-      credentialId: draft.credentialId,
-      newAccountId,
-      conflictingCredentialId: conflicting.id,
-    })
-    return
+    if (conflicting) {
+      logger.warn('New account already used by another credential, skipping reconnect', {
+        credentialId: draft.credentialId,
+        newAccountId,
+        conflictingCredentialId: conflicting.id,
+      })
+      return
+    }
   }
 
   await db
@@ -159,11 +158,16 @@ export async function handleReconnectCredential(params: {
     .set({ accountId: newAccountId, updatedAt: now })
     .where(eq(schema.credential.id, draft.credentialId))
 
-  logger.info('Reconnected credential to new account', {
-    credentialId: draft.credentialId,
-    oldAccountId,
-    newAccountId,
-  })
+  logger.info(
+    accountChanged
+      ? 'Reconnected credential to new account'
+      : 'Reconnected credential to the same account',
+    {
+      credentialId: draft.credentialId,
+      oldAccountId,
+      newAccountId,
+    }
+  )
 
   await clearDeadFlag(newAccountId)
 
@@ -174,7 +178,9 @@ export async function handleReconnectCredential(params: {
     resourceType: AuditResourceType.CREDENTIAL,
     resourceId: draft.credentialId,
     resourceName: draft.displayName,
-    description: `Reconnected OAuth credential "${draft.displayName}" to a new account`,
+    description: accountChanged
+      ? `Reconnected OAuth credential "${draft.displayName}" to a new account`
+      : `Reconnected OAuth credential "${draft.displayName}"`,
     metadata: { oldAccountId, newAccountId },
   })
 

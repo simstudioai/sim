@@ -244,7 +244,7 @@ export function IntegrationBlockDetail({ integration, workspaceId }: Integration
               </div>
             )}
             <div className='flex flex-col gap-1'>
-              <h1 className='font-medium text-[var(--text-body)] text-lg'>{integration.name}</h1>
+              <h1 className='text-[var(--text-body)] text-lg'>{integration.name}</h1>
               <p className='text-[var(--text-muted)] text-md'>{integration.description}</p>
             </div>
           </div>

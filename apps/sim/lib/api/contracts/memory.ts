@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 export const memoryIdParamsSchema = z.object({
   id: z.string().min(1),
@@ -23,6 +25,7 @@ export const memoryPutBodySchema = z.object({
     error: 'Invalid memory data structure',
   }),
   workspaceId: z.string().uuid('Invalid workspace ID format'),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
 })
 export type MemoryPutBody = z.input<typeof memoryPutBodySchema>
 
@@ -31,10 +34,7 @@ export const agentMemoryDataSchemaContract = agentMemoryDataSchema
 export const memoryListQuerySchema = z.object({
   workspaceId: z.string().optional(),
   query: z.string().nullable().optional(),
-  limit: z
-    .string()
-    .optional()
-    .transform((value) => Number.parseInt(value || '50')),
+  limit: z.coerce.number().int().min(1).optional().default(50),
 })
 
 export const memoryMessageSchema = z
@@ -49,6 +49,7 @@ export const memoryPostBodySchema = z
     key: z.string().optional(),
     data: z.unknown().optional(),
     workspaceId: z.string().optional(),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   })
   .passthrough()
 export type MemoryPostBody = z.input<typeof memoryPostBodySchema>
@@ -115,7 +116,7 @@ export const getMemoryByIdContract = defineRouteContract({
   query: memoryWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: memorySuccessResponseSchema(memoryRecordSchema),
+    schema: memorySuccessResponseSchema(memoryRecordSchema.nullable()),
   },
 })
 

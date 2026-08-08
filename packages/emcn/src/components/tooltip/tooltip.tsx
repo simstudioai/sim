@@ -10,6 +10,9 @@ const EDGE_GUTTER = 16
 const EDGE_THRESHOLD = 360
 const MIN_FRAME_MS = 16
 
+/** How often a visible tooltip re-verifies that its trigger is still visibly rendered, in ms. */
+const TRIGGER_VISIBILITY_INTERVAL_MS = 150
+
 /**
  * Exponential time constant for smoothing the pointer velocity that drives the
  * flourish, in ms. The flourish is deliberately never handed to a CSS transition:
@@ -94,20 +97,22 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
 
   const lastPointerRef = React.useRef<PointerSnapshot | null>(null)
   const velocityRef = React.useRef({ x: 0, magnitude: 0 })
+  const triggerRef = React.useRef<HTMLElement | null>(null)
   const [state, setState] = React.useState<FloatingTooltipState>(HIDDEN_STATE)
 
+  const reset = React.useCallback(() => {
+    lastPointerRef.current = null
+    velocityRef.current.x = 0
+    velocityRef.current.magnitude = 0
+  }, [])
+
+  const hide = React.useCallback(() => {
+    reset()
+    triggerRef.current = null
+    setState((current) => (current.visible ? HIDDEN_STATE : current))
+  }, [reset])
+
   const handlers = React.useMemo<FloatingTooltipHandlers>(() => {
-    const reset = () => {
-      lastPointerRef.current = null
-      velocityRef.current.x = 0
-      velocityRef.current.magnitude = 0
-    }
-
-    const hide = () => {
-      reset()
-      setState((current) => (current.visible ? HIDDEN_STATE : current))
-    }
-
     const apply = (clientX: number, clientY: number, motion: TooltipMotion) => {
       const next = { ...getTooltipPosition(clientX, clientY), ...motion }
       setState((current) =>
@@ -145,10 +150,12 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
     return {
       onPointerEnter: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
+        triggerRef.current = event.currentTarget
         showFromPointer(event.clientX, event.clientY)
       },
       onPointerMove: (event) => {
         if (!canShowRef.current(event.currentTarget)) return
+        triggerRef.current = event.currentTarget
         const now = performance.now()
         const previous = lastPointerRef.current
         const delta = previous ? Math.max(now - previous.time, 1) : MIN_FRAME_MS
@@ -178,12 +185,28 @@ export function useFloatingTooltip(canShow: (target: HTMLElement) => boolean): {
         const target = event.currentTarget
         if (!canShowRef.current(target)) return
         if (!isFocusVisible(target)) return
+        triggerRef.current = target
         const rect = target.getBoundingClientRect()
         showFromElement(rect.left + rect.width / 2, rect.bottom)
       },
       onBlur: hide,
     }
-  }, [])
+  }, [hide, reset])
+
+  /**
+   * A keyboard- or script-driven UI change can hide the trigger with no pointer or focus event —
+   * browsers don't re-dispatch boundary events until the pointer next moves (e.g. an editor bubble
+   * menu set to `visibility: hidden` by Cmd+A while a toolbar tooltip is open) — so while visible,
+   * the tooltip re-verifies its trigger and dismisses itself once the trigger is gone or hidden.
+   */
+  React.useEffect(() => {
+    if (!state.visible) return undefined
+    const intervalId = window.setInterval(() => {
+      const trigger = triggerRef.current
+      if (!trigger || !isVisiblyRendered(trigger)) hide()
+    }, TRIGGER_VISIBILITY_INTERVAL_MS)
+    return () => window.clearInterval(intervalId)
+  }, [state.visible, hide])
 
   return { state, handlers }
 }
@@ -240,6 +263,26 @@ export function useIsOverflowing<T extends HTMLElement = HTMLElement>(): {
 /** Whether an element's content is wider than its visible box. */
 export function isTextClipped(element: HTMLElement): boolean {
   return element.scrollWidth > element.clientWidth + 1
+}
+
+/**
+ * Whether a tooltip trigger is still visibly rendered. `checkVisibility` (where available) catches
+ * `display: none` and an inherited `visibility: hidden` anywhere up the tree. The fallback for
+ * engines without it (Safari < 17.4, jsdom) reads the element's computed `visibility` — which
+ * inherits from hidden ancestors — and then walks the ancestor chain for `display: none`, which
+ * does not inherit. Computed styles, not layout (`getClientRects`/`offsetParent`), on purpose:
+ * jsdom does no layout, so a layout-based check would misread every trigger as hidden in tests.
+ */
+function isVisiblyRendered(element: HTMLElement): boolean {
+  if (!element.isConnected) return false
+  if (typeof element.checkVisibility === 'function') {
+    return element.checkVisibility({ checkVisibilityCSS: true, visibilityProperty: true })
+  }
+  if (getComputedStyle(element).visibility === 'hidden') return false
+  for (let node: HTMLElement | null = element; node; node = node.parentElement) {
+    if (getComputedStyle(node).display === 'none') return false
+  }
+  return true
 }
 
 /** Clamps `value` to the inclusive `[min, max]` range. */

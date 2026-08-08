@@ -261,7 +261,8 @@ async function callModelRouter(
  * Resolves the sim-auto pseudo-model to a concrete model for one block
  * execution. Never throws and never fails the workflow: any error, timeout,
  * non-hosted deployment, or fully unavailable pool column falls back to
- * `fallbackModel` (the block's standard default).
+ * `fallbackModel` (the block's standard default). Callers must supply the same already-projected
+ * model-facing signals they pass to their provider boundary; this router never rescans them.
  */
 export async function resolveAutoModel(args: {
   ctx: ExecutionContext

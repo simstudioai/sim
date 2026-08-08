@@ -62,7 +62,9 @@ const result = await client.executeWorkflow('workflow-id', 'NVDA');
 
 // With options
 const result = await client.executeWorkflow('workflow-id', { message: 'Hello' }, {
-  timeout: 60000
+  timeout: 60000,
+  async: true,
+  executionTimeoutSeconds: 3600
 });
 ```
 
@@ -74,6 +76,7 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
   - `stream` (boolean): Enable streaming responses
   - `selectedOutputs` (string[]): Block outputs to stream (e.g., `["agent1.content"]`)
   - `async` (boolean): Execute asynchronously and return execution ID
+  - `executionTimeoutSeconds` (number): Server-side async execution cap from 1 to 604800 seconds. Requires `async: true` and cannot extend the account policy.
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
@@ -323,6 +326,7 @@ interface ExecutionOptions {
   stream?: boolean;
   selectedOutputs?: string[];
   async?: boolean;
+  executionTimeoutSeconds?: number;
 }
 ```
 
@@ -533,4 +537,4 @@ bun run dev
 
 ## License
 
-Apache-2.0 
+Apache-2.0

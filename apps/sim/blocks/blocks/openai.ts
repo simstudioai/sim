@@ -13,6 +13,13 @@ export const OpenAIBlock: BlockConfig = {
   docsLink: 'https://docs.sim.ai/integrations/openai',
   bgColor: '#000000',
   icon: OpenAIIcon,
+  /**
+   * Superseded by the multi-provider `embeddings` block. Left otherwise
+   * untouched so placed instances keep working exactly as they do today; it is
+   * only removed from the discovery surfaces.
+   */
+  hideFromToolbar: true,
+  sunset: { status: 'legacy', replacedBy: 'embeddings' },
   subBlocks: [
     {
       id: 'input',
@@ -52,6 +59,14 @@ export const OpenAIBlock: BlockConfig = {
   outputs: {
     embeddings: { type: 'json', description: 'Generated embeddings' },
     model: { type: 'string', description: 'Model used' },
+    /**
+     * `openai_embeddings` is an alias of `embeddings_openai`, so the runtime
+     * payload gained these two. Declaring them is purely additive — it does not
+     * change execution, and without it the tag picker cannot offer fields the
+     * block demonstrably returns.
+     */
+    provider: { type: 'string', description: 'Provider used' },
+    dimensions: { type: 'number', description: 'Dimensionality of each vector' },
     usage: { type: 'json', description: 'Token usage' },
   },
 }

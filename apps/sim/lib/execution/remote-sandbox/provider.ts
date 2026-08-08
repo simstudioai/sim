@@ -1,4 +1,4 @@
-import { getConfiguredSandboxProviderId } from '@/lib/core/config/env-capabilities.server'
+import { getSelectedSandboxProviderId } from '@/lib/core/config/env-capabilities.server'
 import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
 import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
 import type { SandboxProvider, SandboxProviderId } from '@/lib/execution/remote-sandbox/types'
@@ -24,6 +24,6 @@ const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
  * `SANDBOX_PROVIDER` and redeploy; in-flight executions are unaffected.
  */
 export function resolveProvider(): SandboxProvider {
-  const configured = getConfiguredSandboxProviderId()
+  const configured = getSelectedSandboxProviderId()
   return PROVIDERS[configured]
 }

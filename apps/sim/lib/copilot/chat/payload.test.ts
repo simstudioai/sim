@@ -316,7 +316,12 @@ describe('buildCopilotRequestPayload', () => {
       workspaceId: 'ws-1',
       chatId: 'chat-1',
       fileAttachments: [
-        { id: 'a1', key: 'workspace/ws-1/1731000000000-ab12cd34-payroll.xlsx', size: 1 },
+        {
+          id: 'a1',
+          key: 'workspace/ws-1/1731000000000-ab12cd34-payroll.xlsx',
+          filename: 'payroll.xlsx',
+          size: 1,
+        },
       ],
     }
 
@@ -349,6 +354,66 @@ describe('buildCopilotRequestPayload', () => {
         1,
         'msg-1'
       )
+    })
+
+    it('includes successfully prepared attachments in the model context', async () => {
+      const payload = await buildCopilotRequestPayload(
+        { ...attachmentParams, userPermission: 'write' },
+        { selectedModel: 'claude-opus-4-8' }
+      )
+
+      expect(payload.context).toEqual([
+        {
+          type: 'uploaded_file',
+          content: [
+            'File "payroll.xlsx" (application/octet-stream, 1 bytes) uploaded.',
+            'Read with: read("uploads/payroll.xlsx")',
+            'To save permanently: materialize_file(fileName: "payroll.xlsx")',
+          ].join('\n'),
+        },
+      ])
+    })
+
+    it('isolates a failed attachment and still prepares valid siblings', async () => {
+      const cause = new Error('provenance sidecar unavailable')
+      mockTrackChatUpload
+        .mockRejectedValueOnce(cause)
+        .mockResolvedValueOnce({ displayName: 'photo.png' })
+
+      const payload = await buildCopilotRequestPayload(
+        {
+          ...attachmentParams,
+          userPermission: 'write',
+          fileAttachments: [
+            ...attachmentParams.fileAttachments,
+            {
+              id: 'a2',
+              key: 'workspace/ws-1/1731000000001-ab12cd35-photo.png',
+              filename: 'photo.png',
+              media_type: 'image/png',
+              size: 10,
+            },
+          ],
+        },
+        { selectedModel: 'claude-opus-4-8' }
+      )
+
+      expect(mockTrackChatUpload).toHaveBeenCalledTimes(2)
+      expect(payload.context).toEqual([
+        {
+          type: 'uploaded_file',
+          content:
+            'File "payroll.xlsx" could not be prepared for Copilot and was omitted. Other attached files remain available.',
+        },
+        {
+          type: 'uploaded_file',
+          content: [
+            'File "photo.png" (image/png, 10 bytes) uploaded.',
+            'Read with: read("uploads/photo.png")',
+            'To save permanently: materialize_file(fileName: "photo.png")',
+          ].join('\n'),
+        },
+      ])
     })
   })
 

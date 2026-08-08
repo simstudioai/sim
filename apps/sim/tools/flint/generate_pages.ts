@@ -39,6 +39,26 @@ function parseItems(input: FlintGeneratePagesItem[] | string): FlintGeneratePage
   return items as FlintGeneratePagesItem[]
 }
 
+function rebuildItems(
+  original: FlintGeneratePagesItem[] | string,
+  projectedContexts: unknown
+): FlintGeneratePagesItem[] | string {
+  const items = parseItems(original)
+  if (
+    !Array.isArray(projectedContexts) ||
+    projectedContexts.length !== items.length ||
+    projectedContexts.some((value) => typeof value !== 'string')
+  ) {
+    throw new Error('Projected Flint contexts do not match the original items')
+  }
+
+  const rebuilt = items.map((item, index) => ({
+    ...item,
+    context: projectedContexts[index] as string,
+  }))
+  return typeof original === 'string' ? JSON.stringify(rebuilt) : rebuilt
+}
+
 export const flintGeneratePagesTool: ToolConfig<
   FlintGeneratePagesParams,
   FlintGeneratePagesResponse
@@ -93,6 +113,16 @@ export const flintGeneratePagesTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ items: parseItems(params.items).map((item) => item.context) }),
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (selectedParams.items === undefined) throw new Error('Flint items are required')
+        return {
+          items: rebuildItems(selectedParams.items, projectedSelection.items),
+        }
+      },
+    },
     url: `${FLINT_API_BASE_URL}/agent/tasks`,
     method: 'POST',
     headers: (params) => flintHeaders(params),

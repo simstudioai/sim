@@ -71,7 +71,8 @@ describe('OpenAI non-streaming response status handling', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    mockExecuteProviderTool.mockResolvedValue({ success: true, output: { results: [] } })
+    const response = { success: true, output: { results: [] } }
+    mockExecuteProviderTool.mockResolvedValue({ rawResponse: response, modelResponse: response })
   })
 
   function run(fetchMock: unknown, request: Partial<ProviderRequest> = {}) {

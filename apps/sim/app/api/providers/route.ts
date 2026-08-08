@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { executeProviderContract } from '@/lib/api/contracts/providers'
@@ -13,8 +14,13 @@ import {
   type BillingAttributionSnapshot,
   requireBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  inspectModelInputProjectionState,
+  inspectModelInputProvenanceRequest,
+} from '@/lib/execution/model-input-provenance'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getServiceAccountToken,
@@ -28,8 +34,10 @@ import {
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import type { StreamingExecution } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { executeProviderRequest } from '@/providers'
 import { projectStreamingExecutionToByteStream } from '@/providers/stream-pump'
+import type { ProviderRequest } from '@/providers/types'
 
 const logger = createLogger('ProvidersAPI')
 
@@ -220,7 +228,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       hasBillingAttribution: !!billingAttribution,
     })
 
-    const response = await executeProviderRequest(provider, {
+    let providerRequest: ProviderRequest = {
       model,
       systemPrompt,
       context,
@@ -248,7 +256,59 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       billingAttribution,
       reasoningEffort,
       verbosity,
-    })
+    }
+    const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+    const projectionState = inspectModelInputProjectionState(request.headers)
+    if (
+      provenanceInspection.status === 'invalid' ||
+      projectionState === 'invalid' ||
+      (projectionState === 'projected' && provenanceInspection.status !== 'verified')
+    ) {
+      return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+    }
+
+    const providerRuntimeContext = await prepareCopilotEnvironmentContext(auth.userId, workspaceId)
+    if (provenanceInspection.status === 'verified') {
+      const provenanceReady =
+        await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenance(
+          provenanceInspection.value,
+          { trusted: true }
+        )
+      if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
+        return NextResponse.json(
+          { error: 'Model input provenance is unavailable' },
+          { status: 400 }
+        )
+      }
+
+      if (projectionState === 'unmarked') {
+        const projection = projectResolvedSecretModelContent(
+          { systemPrompt: providerRequest.systemPrompt, context: providerRequest.context },
+          providerRuntimeContext.resolvedSecretTraceRegistry
+        )
+        if (!projection.safe || !isPlainRecord(projection.value)) {
+          return NextResponse.json(
+            { error: 'Model input provenance is unavailable' },
+            { status: 400 }
+          )
+        }
+        const projectedSystemPrompt = projection.value.systemPrompt
+        const projectedContext = projection.value.context
+        if (
+          (projectedSystemPrompt !== undefined && typeof projectedSystemPrompt !== 'string') ||
+          (projectedContext !== undefined && typeof projectedContext !== 'string')
+        ) {
+          return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+        }
+        providerRequest = {
+          ...providerRequest,
+          systemPrompt: projectedSystemPrompt,
+          context: projectedContext,
+        }
+      }
+    }
+
+    const response = await executeProviderRequest(provider, providerRequest, providerRuntimeContext)
 
     const executionTime = Date.now() - startTime
     logger.info(`[${requestId}] Provider request completed successfully`, {

@@ -21,11 +21,12 @@ export const searchDocumentationServerTool: BaseServerTool<DocsSearchParams, any
     const { query, topK = 10, threshold } = params
     if (!query || typeof query !== 'string') throw new Error('query is required')
 
-    logger.info('Executing docs search', { query, topK })
+    logger.info('Executing docs search', { queryLength: query.length, topK })
 
     const similarityThreshold = threshold ?? DEFAULT_DOCS_SIMILARITY_THRESHOLD
 
-    const { embedding: queryEmbedding } = await generateSearchEmbedding(query)
+    const modelQuery = query
+    const { embedding: queryEmbedding } = await generateSearchEmbedding(modelQuery)
     if (!queryEmbedding || queryEmbedding.length === 0) {
       return { results: [], query, totalResults: 0 }
     }

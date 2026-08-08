@@ -10,6 +10,7 @@ import {
 } from '@/lib/billing/storage'
 import type { DbOrTx } from '@/lib/db/types'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { copyWorkspaceFileSecretProvenanceInTx } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   deleteFile,
   downloadFile,
@@ -35,6 +36,10 @@ function isMarkdownBlob(task: Pick<BlobCopyTask, 'contentType' | 'fileName'>): b
 }
 
 export interface BlobCopyTask {
+  /** Added after persisted fork jobs shipped; absence marks only copied-file provenance unknown. */
+  sourceFileId?: string
+  /** Added after persisted fork jobs shipped; absence marks only copied-file provenance unknown. */
+  sourceContentUpdatedAtMs?: number
   sourceKey: string
   targetKey: string
   context: StorageContext
@@ -151,6 +156,8 @@ export async function planForkFileCopies(params: {
     keyMap.set(meta.key, targetKey)
     idMap.set(meta.id, childFileId)
     blobTasks.push({
+      sourceFileId: meta.id,
+      sourceContentUpdatedAtMs: meta.contentUpdatedAt.getTime(),
       sourceKey: meta.key,
       targetKey,
       context: meta.context as StorageContext,
@@ -317,6 +324,19 @@ export async function executeForkFileBlobCopies(
               })
               .where(eq(workspaceFiles.id, task.targetFileId))
           }
+          await copyWorkspaceFileSecretProvenanceInTx(
+            tx,
+            typeof task.sourceFileId === 'string' &&
+              typeof task.sourceContentUpdatedAtMs === 'number' &&
+              Number.isFinite(task.sourceContentUpdatedAtMs)
+              ? {
+                  fileId: task.sourceFileId,
+                  key: task.sourceKey,
+                  contentUpdatedAtMs: task.sourceContentUpdatedAtMs,
+                }
+              : undefined,
+            task.targetFileId
+          )
           await incrementStorageUsageForBillingContextInTx(tx, billingContext, task.size)
         })
         copied += 1

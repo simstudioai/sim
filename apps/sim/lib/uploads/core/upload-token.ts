@@ -15,6 +15,8 @@ export interface UploadTokenPayload {
   contentType?: string
   /** File size in bytes, carried for ownership metadata at completion. */
   fileSize?: number
+  /** Present only for create-only single PUTs that can be verified after an ambiguous response. */
+  uploadKind?: 'direct'
 }
 
 interface SignedPayload extends UploadTokenPayload {
@@ -29,8 +31,9 @@ const fromBase64Url = (input: string): string => Buffer.from(input, 'base64url')
 const sign = (payload: string): string => hmacSha256Base64(payload, env.INTERNAL_API_SECRET)
 
 /**
- * Sign an upload session token binding (uploadId, key, userId, workspaceId, context).
- * Used to prevent IDOR on multipart upload follow-up calls (get-part-urls, complete, abort).
+ * Signs an upload session binding (uploadId, key, userId, workspaceId, context).
+ * Multipart control-plane calls and direct-upload receipt verification both use
+ * this capability so the browser cannot substitute another key or workspace.
  */
 export function signUploadToken(payload: UploadTokenPayload, expiresInSeconds = 60 * 60): string {
   const signed: SignedPayload = {
@@ -91,6 +94,7 @@ export function verifyUploadToken(token: string): UploadTokenVerification {
       ...(typeof parsed.fileName === 'string' ? { fileName: parsed.fileName } : {}),
       ...(typeof parsed.contentType === 'string' ? { contentType: parsed.contentType } : {}),
       ...(typeof parsed.fileSize === 'number' ? { fileSize: parsed.fileSize } : {}),
+      ...(parsed.uploadKind === 'direct' ? { uploadKind: parsed.uploadKind } : {}),
     },
   }
 }

@@ -52,8 +52,13 @@ import { runTableImport, type TableImportPayload } from '@/lib/table/import-runn
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -78,6 +83,7 @@ import type {
   TableDefinition,
   TableDeleteJobPayload,
   TablePredicate,
+  TablePredicateInput,
   TableSchema,
   TableUpdateJobPayload,
   WorkflowGroup,
@@ -99,6 +105,7 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   type FlattenedBlockOutput,
   flattenWorkflowOutputs,
@@ -135,6 +142,18 @@ async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspac
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
+
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+    fileId: record.id,
+    key: record.key,
+    context: 'workspace',
+  })
+  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+    throw new Error(
+      `Cannot import "${fileReference}": the file cannot be verified as free of resolved secrets.`
+    )
+  }
+
   return record
 }
 
@@ -384,7 +403,13 @@ async function batchInsertAll(
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = generateId().slice(0, 8)
     const result = await batchInsertRows(
-      { tableId, rows: batch, workspaceId, userId },
+      {
+        tableId,
+        rows: batch,
+        workspaceId,
+        userId,
+        secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
+      },
       // Pass the running total so each batch's capacity check sees cumulative rows,
       // not the same pre-loop snapshot (which would let a multi-batch insert overshoot).
       { ...table, rowCount: table.rowCount + inserted },
@@ -393,6 +418,28 @@ async function batchInsertAll(
     inserted += result.length
   }
   return inserted
+}
+
+async function importRowsForModel(
+  rows: Array<{ id: string; data: RowData; updatedAt: Date | string }>,
+  context: ServerToolContext
+): Promise<void> {
+  const registry = context.resolvedSecretTraceRegistry
+  if (!registry) return
+  if (!context.workspaceId) {
+    registry.markIncomplete()
+    return
+  }
+
+  const provenance = await loadTableRowSecretProvenance(rows, {
+    userId: context.userId,
+    workspaceId: context.workspaceId,
+  })
+  await registry.importCrossingProvenance(
+    provenance,
+    rows.map((row) => row.data),
+    { trusted: true }
+  )
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
@@ -562,13 +609,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // The LLM authors row data by column name; storage keys by id.
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = rowDataNameToId(args.data, idByName)
           const row = await insertRow(
             {
               tableId: args.tableId,
-              data: rowDataNameToId(args.data, idByName),
+              data: rowData,
               workspaceId,
               userId: context.userId,
               position: args.position as number | undefined,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
             },
             table,
             requestId
@@ -607,12 +656,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = args.rows.map((row: RowData) => rowDataNameToId(row, idByName))
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
-              rows: args.rows.map((r: RowData) => rowDataNameToId(r, idByName)),
+              rows: rowData,
               workspaceId,
               userId: context.userId,
+              secretProvenance: rowData.map(createExactEmptyTableRowSecretProvenance),
             },
             table,
             requestId
@@ -651,6 +702,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!row) {
             return { success: false, message: `Row not found: ${args.rowId}` }
           }
+          await importRowsForModel([row], context)
 
           const toNamedRow = namedRowMapper(rowTable.schema.columns)
           return {
@@ -689,8 +741,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // NAMES) then translated to storage ids.
           let predicate: TablePredicate | undefined
           if (args.filter) {
-            validatePredicate(args.filter, table.schema.columns)
-            predicate = predicateToStorage(args.filter, table.schema)
+            const filter = args.filter as TablePredicateInput
+            validatePredicate(filter, table.schema.columns)
+            const normalizedFilter = normalizeTablePredicate(filter)
+            predicate = predicateToStorage(normalizedFilter, table.schema)
           }
           let orderSpec = args.order as SortSpec | undefined
           if (orderSpec?.length) {
@@ -736,6 +790,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          await importRowsForModel(result.rows, context)
 
           // nextCursor covers both cut kinds (explicit limit or the 5MB byte
           // budget) — either way the truthful signal is "more rows exist". The
@@ -780,13 +835,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = rowDataNameToId(args.data, idByName)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
               rowId: args.rowId,
-              data: rowDataNameToId(args.data, idByName),
+              data: rowData,
               workspaceId,
               actorUserId: context.userId,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
             },
             table,
             requestId
@@ -796,6 +853,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          await importRowsForModel([updatedRow], context)
           signalTableRowsChanged(args.tableId)
           // Auto-dispatch for user edits is handled inside `updateRow`
           // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
@@ -872,8 +930,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // Agent authors a predicate object; validate → translate → Filter for
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
-          validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -938,6 +998,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               data: idData,
               limit: args.limit,
               actorUserId: context.userId,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(idData),
             },
             requestId
           )
@@ -975,8 +1036,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // Agent authors a predicate object; validate → translate → Filter for
           // the bulk engine (same fieldPredicate leaf → identical SQL). Select
           // operands arrive as option NAMES and must resolve to stored ids.
-          validatePredicate(args.filter, table.schema.columns)
-          const idFilter = predicateToFilter(predicateToStorage(args.filter, table.schema))
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
@@ -1119,15 +1182,22 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
+          const idUpdates = (updates as Array<{ rowId: string; data: RowData }>).map((update) => ({
+            rowId: update.rowId,
+            data: rowDataNameToId(update.data, idByName),
+          }))
           const result = await batchUpdateRows(
             {
               tableId: args.tableId,
-              updates: (updates as Array<{ rowId: string; data: RowData }>).map((u) => ({
-                rowId: u.rowId,
-                data: rowDataNameToId(u.data, idByName),
-              })),
+              updates: idUpdates,
               workspaceId,
               actorUserId: context.userId,
+              secretProvenanceByRowId: Object.fromEntries(
+                idUpdates.map((update) => [
+                  update.rowId,
+                  createExactEmptyTableRowSecretProvenance(update.data),
+                ])
+              ),
             },
             table,
             requestId
@@ -1477,7 +1547,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             if (mode === 'replace') {
               const requestId = generateId().slice(0, 8)
               const result = await replaceTableRows(
-                { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
+                {
+                  tableId: table.id,
+                  rows: coerced,
+                  workspaceId,
+                  userId: context.userId,
+                  secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
+                },
                 table,
                 requestId
               )

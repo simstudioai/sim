@@ -19,6 +19,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
       return `/api/memory?workspaceId=${encodeURIComponent(workspaceId)}`
     },
     method: 'GET',
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

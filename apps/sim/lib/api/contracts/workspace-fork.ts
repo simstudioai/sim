@@ -212,6 +212,14 @@ export const forkMappingEntrySchema = z.object({
   /** True when `targetId` is an unconfirmed auto-suggestion (no persisted mapping yet). */
   suggested: z.boolean(),
   required: z.boolean(),
+  /**
+   * True when the referenced resource no longer exists in the SOURCE workspace, so `sourceLabel`
+   * falls back to the raw id. Checked by exact id (never the capped candidate list), so this is
+   * unambiguous: a live resource always resolves its name, however many the workspace has. Such a
+   * reference cannot be offered for copy - there is nothing to copy - so the resolutions are
+   * mapping it to a live target, fixing the block in the source, or dropping it.
+   */
+  sourceDeleted: z.boolean(),
   candidates: z.array(forkMappingCandidateSchema),
   /**
    * True when the target workspace has more candidates of this kind than the picker
@@ -486,6 +494,53 @@ export const getForkDiffQuerySchema = z.object({
   otherWorkspaceId: workspaceIdSchema,
   direction: forkDirectionSchema,
 })
+/**
+ * A public trigger URL a sync would stop serving in the target. Surfaced before the overwrite is
+ * confirmed, because the external system calling it - a Slack Request URL, a provider webhook
+ * subscription - has to be repointed by hand afterwards.
+ */
+export const forkTriggerUrlChangeSchema = z.object({
+  workflowName: z.string(),
+  /** The path that stops being served. A URL an arriving trigger adopts is not reported here. */
+  path: z.string(),
+})
+export type ForkTriggerUrlChange = z.output<typeof forkTriggerUrlChangeSchema>
+
+/**
+ * One trigger block in this sync that has a public webhook URL, or whose URL is up for decision.
+ *
+ * Both cases get an entry, not just the decisions, so the Trigger URLs section reads as a
+ * standing statement of each URL rather than an alert that appears only when something is wrong.
+ * A trigger already serving one reports it as `ownPath` and keeps it - `adoptablePaths` is empty
+ * and the row is informational. A trigger arriving without one lists the URLs retiring in the
+ * SAME target workflow; picking one hands that live URL to the new block, so the external caller
+ * - a Slack Request URL, a provider webhook subscription - keeps working untouched.
+ *
+ * Triggers with neither are absent, because whether a block serves a URL at all is only knowable
+ * from its webhook row: a schedule, chat, manual or poller trigger never gets one, and no
+ * declarative flag on the trigger definition separates them cleanly.
+ */
+export const forkTriggerMappingSchema = z.object({
+  /** The SOURCE block id - stable across the sync, and what a chosen mapping is keyed by. */
+  sourceBlockId: z.string(),
+  blockName: z.string(),
+  workflowName: z.string(),
+  /**
+   * The URL path this trigger already serves in the target, which the sync preserves verbatim.
+   * Null when the target block has no webhook yet, i.e. the sync decides its URL.
+   */
+  ownPath: z.string().nullable(),
+  /**
+   * Retiring URLs in the same target workflow this block may take over instead of minting a new
+   * one. Always empty when `ownPath` is set: a trigger that already serves a URL keeps it, and
+   * offering it a second one would only be a way to abandon the first.
+   */
+  adoptablePaths: z.array(z.string()),
+  /** The pre-selected pairing: unambiguous only when one URL retires and one trigger arrives. */
+  defaultAdoptPath: z.string().nullable(),
+})
+export type ForkTriggerMapping = z.output<typeof forkTriggerMappingSchema>
+
 export const getForkDiffContract = defineRouteContract({
   method: 'GET',
   path: '/api/workspaces/[id]/fork/diff',
@@ -548,6 +603,18 @@ export const getForkDiffContract = defineRouteContract({
        * always clear (informational).
        */
       clearedRefs: z.array(forkClearedRefSchema),
+      /**
+       * Every public trigger URL this sync retires in the target, BEFORE any adoption is applied.
+       *
+       * Deliberately pre-adoption: which of these actually stop being served depends on the
+       * caller's live picks in `triggerMappings`, which only exist client-side until the promote
+       * call. Returning the post-default set instead would freeze the preview at the server's
+       * guess, so choosing "Generate new URL" would kill a URL the confirm never warned about.
+       * Defaulted so a new client tolerates an old server's response during rollout.
+       */
+      retiringTriggerUrls: z.array(forkTriggerUrlChangeSchema).default([]),
+      /** Arriving trigger blocks whose URL this sync decides, with their adoptable alternatives. */
+      triggerMappings: z.array(forkTriggerMappingSchema).default([]),
     }),
   },
 })
@@ -598,6 +665,27 @@ export const promoteForkBodySchema = z.object({
   dependentValues: z.array(forkDependentValueEntrySchema).max(2000).optional(),
   /** Referenced-but-unmapped resources to copy into the target before the sync gate (U17). */
   copyResources: promoteCopyResourcesSchema.optional(),
+  /**
+   * References the user explicitly acknowledged dropping, so the sync may clear them in the
+   * target instead of blocking. Honoured ONLY for a reference whose resource no longer exists in
+   * the source workspace - the server re-derives that liveness inside the promote transaction and
+   * ignores an acknowledgment for anything still live, so a working reference can never be
+   * dropped and the zero-cleared-refs invariant relaxes only where the source is already broken.
+   */
+  dropReferences: z
+    .array(z.object({ kind: forkRemapKindSchema, sourceId: z.string().min(1) }))
+    .max(2000)
+    .optional(),
+  /**
+   * Which retiring public URL each arriving trigger takes over, overriding the unambiguous
+   * default. `adoptPath: null` means "mint a new URL for this trigger". The server re-derives the
+   * adoptable set inside the promote transaction and ignores a path that slot did not offer, so a
+   * URL can never be moved between workflows (which the per-workflow path claim forbids anyway).
+   */
+  triggerMappings: z
+    .array(z.object({ sourceBlockId: z.string().min(1), adoptPath: z.string().min(1).nullable() }))
+    .max(500)
+    .optional(),
 })
 export const promoteForkContract = defineRouteContract({
   method: 'POST',
@@ -624,6 +712,20 @@ export const promoteForkContract = defineRouteContract({
       needsConfiguration: z.array(forkNeedsConfigurationSchema),
       /** Workflows whose optional dependent fields a swap cleared (surfaced, not gated). */
       clearedOptional: z.array(forkNeedsConfigurationSchema),
+      /**
+       * Acknowledged source-deleted references this sync cleared in the target instead of
+       * blocking on. Only entries whose source was verified gone in-transaction appear here, so
+       * an acknowledgment the server refused is visibly absent.
+       */
+      droppedReferences: z
+        .array(z.object({ kind: forkRemapKindSchema, sourceId: z.string() }))
+        .default([]),
+      /**
+       * Public trigger URLs this sync stopped serving, because no arriving trigger adopted them.
+       * Reported after the fact so the post-sync toast can name what needs re-registering.
+       * Defaulted alongside the rest, so an old server's response still parses.
+       */
+      triggerUrlChanges: z.array(forkTriggerUrlChangeSchema).default([]),
     }),
   },
 })
@@ -683,6 +785,10 @@ export const backgroundWorkMetadataSchema = z
     needsConfiguration: z.array(forkNeedsConfigurationSchema).optional(),
     /** Workflows whose optional dependent fields a sync cleared (FYI, non-blocking). */
     clearedOptional: z.array(forkNeedsConfigurationSchema).optional(),
+    /** How many source-deleted references the operator explicitly dropped in this sync. */
+    droppedReferences: z.number().int().optional(),
+    /** How many public trigger URLs this sync stopped serving. */
+    triggerUrlChanges: z.number().int().optional(),
   })
   .nullable()
 export const backgroundWorkItemSchema = z.object({

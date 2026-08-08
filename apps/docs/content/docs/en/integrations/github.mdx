@@ -35,7 +35,7 @@ Integrate Github into the workflow. Can get get PR details, create PR comment, g
 
 ## Actions
 
-### `github_pr`
+### GitHub PR Reader
 
 Fetch PR details including diff and files changed
 
@@ -103,7 +103,7 @@ Fetch PR details including diff and files changed
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 
-### `github_comment`
+### GitHub PR Commenter
 
 Create comments on GitHub PRs
 
@@ -143,7 +143,7 @@ Create comments on GitHub PRs
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_repo_info`
+### GitHub Repository Info
 
 Retrieve comprehensive GitHub repository metadata including stars, forks, issues, and primary language. Supports both public and private repositories with optional authentication.
 
@@ -194,7 +194,7 @@ Retrieve comprehensive GitHub repository metadata including stars, forks, issues
 |   ↳ `name` | string | License name |
 |   ↳ `spdx_id` | string | SPDX identifier |
 
-### `github_latest_commit`
+### GitHub Latest Commit
 
 Retrieve the latest commit from a GitHub repository
 
@@ -252,7 +252,7 @@ Retrieve the latest commit from a GitHub repository
 | `sha` | string | Commit SHA |
 | `html_url` | string | GitHub web URL |
 
-### `github_issue_comment`
+### GitHub Issue Comment Creator
 
 Create a comment on a GitHub issue
 
@@ -286,7 +286,7 @@ Create a comment on a GitHub issue
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_list_issue_comments`
+### GitHub Issue Comments Lister
 
 List all comments on a GitHub issue
 
@@ -324,7 +324,7 @@ List all comments on a GitHub issue
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of comments returned |
 
-### `github_update_comment`
+### GitHub Comment Updater
 
 Update an existing comment on a GitHub issue or pull request
 
@@ -358,7 +358,7 @@ Update an existing comment on a GitHub issue or pull request
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_delete_comment`
+### GitHub Comment Deleter
 
 Delete a comment on a GitHub issue or pull request
 
@@ -378,7 +378,7 @@ Delete a comment on a GitHub issue or pull request
 | `deleted` | boolean | Whether deletion was successful |
 | `comment_id` | number | Deleted comment ID |
 
-### `github_list_pr_comments`
+### GitHub PR Review Comments Lister
 
 List all review comments on a GitHub pull request
 
@@ -422,7 +422,7 @@ List all review comments on a GitHub pull request
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of comments returned |
 
-### `github_create_pr`
+### GitHub Create Pull Request
 
 Create a new pull request in a GitHub repository
 
@@ -458,7 +458,7 @@ Create a new pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_update_pr`
+### GitHub Update Pull Request
 
 Update an existing pull request in a GitHub repository
 
@@ -493,7 +493,7 @@ Update an existing pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_merge_pr`
+### GitHub Merge Pull Request
 
 Merge a pull request in a GitHub repository
 
@@ -517,7 +517,7 @@ Merge a pull request in a GitHub repository
 | `merged` | boolean | Whether merge was successful |
 | `message` | string | Response message |
 
-### `github_list_prs`
+### GitHub List Pull Requests
 
 List pull requests in a GitHub repository
 
@@ -571,7 +571,7 @@ List pull requests in a GitHub repository
 |   ↳ `merged_at` | string | Merge timestamp |
 | `count` | number | Number of PRs returned |
 
-### `github_get_pr_files`
+### GitHub Get PR Files
 
 Get the list of files changed in a pull request
 
@@ -604,7 +604,7 @@ Get the list of files changed in a pull request
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 | `count` | number | Total number of files |
 
-### `github_close_pr`
+### GitHub Close Pull Request
 
 Close a pull request in a GitHub repository
 
@@ -636,7 +636,7 @@ Close a pull request in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_request_reviewers`
+### GitHub Request Reviewers
 
 Request reviewers for a pull request
 
@@ -662,7 +662,7 @@ Request reviewers for a pull request
 | `requested_reviewers` | array | Array of requested reviewer objects |
 | `requested_teams` | array | Array of requested team objects |
 
-### `github_create_pr_review`
+### GitHub Create PR Review
 
 Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A body is required for REQUEST_CHANGES and COMMENT reviews.
 
@@ -697,7 +697,7 @@ Submit a review for a pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT. A 
 | `commit_id` | string | SHA of the reviewed commit |
 | `submitted_at` | string | Review submission timestamp |
 
-### `github_get_file_content`
+### GitHub Get File Content
 
 Get the content of a file from a GitHub repository. Supports files up to 1MB. Content is returned decoded and human-readable.
 
@@ -728,7 +728,7 @@ Get the content of a file from a GitHub repository. Supports files up to 1MB. Co
 | `_links` | json | Related links |
 | `file` | file | Downloaded file stored in execution files |
 
-### `github_create_file`
+### GitHub Create File
 
 Create a new file in a GitHub repository. The file content will be automatically Base64 encoded. Supports files up to 1MB.
 
@@ -751,7 +751,7 @@ Create a new file in a GitHub repository. The file content will be automatically
 | `content` | json | Created file content info |
 | `commit` | json | Commit information |
 
-### `github_update_file`
+### GitHub Update File
 
 Update an existing file in a GitHub repository. Requires the file SHA. Content will be automatically Base64 encoded. Supports files up to 1MB.
 
@@ -775,7 +775,7 @@ Update an existing file in a GitHub repository. Requires the file SHA. Content w
 | `content` | json | Updated file content info |
 | `commit` | json | Commit information |
 
-### `github_delete_file`
+### GitHub Delete File
 
 Delete a file from a GitHub repository. Requires the file SHA. This operation cannot be undone through the API.
 
@@ -798,7 +798,7 @@ Delete a file from a GitHub repository. Requires the file SHA. This operation ca
 | `content` | json | File content info \(null for delete\) |
 | `commit` | json | Commit information |
 
-### `github_get_tree`
+### GitHub Get Repository Tree
 
 Get the contents of a directory in a GitHub repository. Returns a list of files and subdirectories. Use empty path or omit to get root directory contents.
 
@@ -829,7 +829,7 @@ Get the contents of a directory in a GitHub repository. Returns a list of files 
 |   ↳ `_links` | json | Related links |
 | `count` | number | Total number of items |
 
-### `github_get_readme`
+### GitHub Get README
 
 Get the preferred README for a GitHub repository, with its content decoded to plain text.
 
@@ -855,7 +855,7 @@ Get the preferred README for a GitHub repository, with its content decoded to pl
 | `download_url` | string | Raw download URL for the README |
 | `content` | string | Decoded README text content |
 
-### `github_list_tags`
+### GitHub List Tags
 
 List tags for a GitHub repository. Returns tag names with their commit SHA and download URLs.
 
@@ -883,7 +883,7 @@ List tags for a GitHub repository. Returns tag names with their commit SHA and d
 |     ↳ `url` | string | Commit API URL |
 | `count` | number | Number of tags returned |
 
-### `github_list_branches`
+### GitHub List Branches
 
 List all branches in a GitHub repository. Optionally filter by protected status and control pagination.
 
@@ -910,7 +910,7 @@ List all branches in a GitHub repository. Optionally filter by protected status 
 |   ↳ `protected` | boolean | Whether branch is protected |
 | `count` | number | Number of branches returned |
 
-### `github_get_branch`
+### GitHub Get Branch
 
 Get detailed information about a specific branch in a GitHub repository, including commit details and protection status.
 
@@ -935,7 +935,7 @@ Get detailed information about a specific branch in a GitHub repository, includi
 | `protection` | json | Protection settings object |
 | `protection_url` | string | URL to protection settings |
 
-### `github_create_branch`
+### GitHub Create Branch
 
 Create a new branch in a GitHub repository by creating a git reference pointing to a specific commit SHA.
 
@@ -958,7 +958,7 @@ Create a new branch in a GitHub repository by creating a git reference pointing 
 | `url` | string | API URL for the reference |
 | `object` | json | Git object with type and sha |
 
-### `github_delete_branch`
+### GitHub Delete Branch
 
 Delete a branch from a GitHub repository by removing its git reference. Protected branches cannot be deleted.
 
@@ -978,7 +978,7 @@ Delete a branch from a GitHub repository by removing its git reference. Protecte
 | `deleted` | boolean | Whether the branch was deleted |
 | `branch` | string | Name of the deleted branch |
 
-### `github_get_branch_protection`
+### GitHub Get Branch Protection
 
 Get the branch protection rules for a specific branch, including status checks, review requirements, and restrictions.
 
@@ -1007,7 +1007,7 @@ Get the branch protection rules for a specific branch, including status checks, 
 | `required_conversation_resolution` | json | Conversation resolution requirement |
 | `required_signatures` | json | Signature requirements |
 
-### `github_update_branch_protection`
+### GitHub Update Branch Protection
 
 Update branch protection rules for a specific branch, including status checks, review requirements, admin enforcement, and push restrictions.
 
@@ -1040,7 +1040,7 @@ Update branch protection rules for a specific branch, including status checks, r
 | `required_conversation_resolution` | json | Conversation resolution requirement |
 | `required_signatures` | json | Signature requirements |
 
-### `github_create_issue`
+### GitHub Create Issue
 
 Create a new issue in a GitHub repository
 
@@ -1108,7 +1108,7 @@ Create a new issue in a GitHub repository
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
 
-### `github_update_issue`
+### GitHub Update Issue
 
 Update an existing issue in a GitHub repository
 
@@ -1177,7 +1177,7 @@ Update an existing issue in a GitHub repository
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `closed_at` | string | Close timestamp |
 
-### `github_list_issues`
+### GitHub List Issues
 
 List issues in a GitHub repository. Note: This includes pull requests as PRs are considered issues in GitHub
 
@@ -1211,7 +1211,7 @@ List issues in a GitHub repository. Note: This includes pull requests as PRs are
 |   ↳ `default` | boolean | Whether this is a default label |
 | `count` | number | Number of issues returned |
 
-### `github_get_issue`
+### GitHub Get Issue
 
 Get detailed information about a specific issue in a GitHub repository
 
@@ -1281,7 +1281,7 @@ Get detailed information about a specific issue in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
-### `github_close_issue`
+### GitHub Close Issue
 
 Close an issue in a GitHub repository
 
@@ -1330,7 +1330,7 @@ Close an issue in a GitHub repository
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
-### `github_add_labels`
+### GitHub Add Labels
 
 Add labels to an issue in a GitHub repository
 
@@ -1355,7 +1355,7 @@ Add labels to an issue in a GitHub repository
 |   ↳ `description` | string | Label description |
 | `count` | number | Number of labels |
 
-### `github_remove_label`
+### GitHub Remove Label
 
 Remove a label from an issue in a GitHub repository
 
@@ -1380,7 +1380,7 @@ Remove a label from an issue in a GitHub repository
 |   ↳ `description` | string | Label description |
 | `count` | number | Number of remaining labels |
 
-### `github_add_assignees`
+### GitHub Add Assignees
 
 Add assignees to an issue in a GitHub repository
 
@@ -1410,7 +1410,7 @@ Add assignees to an issue in a GitHub repository
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_create_release`
+### GitHub Create Release
 
 Create a new release for a GitHub repository. Specify tag name, target commit, title, description, and whether it should be a draft or prerelease.
 
@@ -1470,7 +1470,7 @@ Create a new release for a GitHub repository. Specify tag name, target commit, t
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
-### `github_update_release`
+### GitHub Update Release
 
 Update an existing GitHub release. Modify tag name, target commit, title, description, draft status, or prerelease status.
 
@@ -1531,7 +1531,7 @@ Update an existing GitHub release. Modify tag name, target commit, title, descri
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
-### `github_list_releases`
+### GitHub List Releases
 
 List all releases for a GitHub repository. Returns release information including tags, names, and download URLs.
 
@@ -1589,7 +1589,7 @@ List all releases for a GitHub repository. Returns release information including
 |     ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of releases returned |
 
-### `github_get_release`
+### GitHub Get Release
 
 Get detailed information about a specific GitHub release by ID. Returns release metadata including assets and download URLs.
 
@@ -1644,7 +1644,7 @@ Get detailed information about a specific GitHub release by ID. Returns release 
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
-### `github_get_latest_release`
+### GitHub Get Latest Release
 
 Get the latest published, non-draft, non-prerelease release for a GitHub repository. Returns release metadata including assets and download URLs.
 
@@ -1698,7 +1698,7 @@ Get the latest published, non-draft, non-prerelease release for a GitHub reposit
 |   ↳ `created_at` | string | Upload timestamp |
 |   ↳ `updated_at` | string | Last update timestamp |
 
-### `github_delete_release`
+### GitHub Delete Release
 
 Delete a GitHub release by ID. This permanently removes the release but does not delete the associated Git tag.
 
@@ -1718,7 +1718,7 @@ Delete a GitHub release by ID. This permanently removes the release but does not
 | `deleted` | boolean | Whether the release was deleted |
 | `release_id` | number | ID of the deleted release |
 
-### `github_list_workflows`
+### GitHub List Workflows
 
 List all workflows in a GitHub repository. Returns workflow details including ID, name, path, state, and badge URL.
 
@@ -1750,7 +1750,7 @@ List all workflows in a GitHub repository. Returns workflow details including ID
 |   ↳ `updated_at` | string | Last update timestamp |
 |   ↳ `deleted_at` | string | Deletion timestamp |
 
-### `github_get_workflow`
+### GitHub Get Workflow
 
 Get details of a specific GitHub Actions workflow by ID or filename. Returns workflow information including name, path, state, and badge URL.
 
@@ -1779,7 +1779,7 @@ Get details of a specific GitHub Actions workflow by ID or filename. Returns wor
 | `updated_at` | string | Last update timestamp |
 | `deleted_at` | string | Deletion timestamp |
 
-### `github_trigger_workflow`
+### GitHub Trigger Workflow
 
 Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow must have a workflow_dispatch trigger configured. Returns 204 No Content on success.
 
@@ -1802,7 +1802,7 @@ Trigger a workflow dispatch event for a GitHub Actions workflow. The workflow mu
 | `workflow_id` | string | Workflow ID or filename |
 | `ref` | string | Git reference used |
 
-### `github_list_workflow_runs`
+### GitHub List Workflow Runs
 
 List workflow runs for a repository. Supports filtering by actor, branch, event, and status. Returns run details including status, conclusion, and links.
 
@@ -1830,7 +1830,7 @@ List workflow runs for a repository. Supports filtering by actor, branch, event,
 |   ↳ `number` | number | Pull request number |
 |   ↳ `url` | string | API URL |
 
-### `github_get_workflow_run`
+### GitHub Get Workflow Run
 
 Get detailed information about a specific workflow run by ID. Returns status, conclusion, timing, and links to the run.
 
@@ -1884,7 +1884,7 @@ Get detailed information about a specific workflow run by ID. Returns status, co
 |   ↳ `sha` | string | Commit SHA of referenced workflow |
 |   ↳ `ref` | string | Git ref of referenced workflow |
 
-### `github_cancel_workflow_run`
+### GitHub Cancel Workflow Run
 
 Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409 Conflict if the run cannot be cancelled (already completed).
 
@@ -1904,7 +1904,7 @@ Cancel a workflow run. Returns 202 Accepted if cancellation is initiated, or 409
 | `cancelled` | boolean | Whether cancellation was initiated |
 | `run_id` | number | Workflow run ID |
 
-### `github_rerun_workflow`
+### GitHub Rerun Workflow
 
 Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201 Created on success.
 
@@ -1925,7 +1925,7 @@ Rerun a workflow run. Optionally enable debug logging for the rerun. Returns 201
 | `rerun_requested` | boolean | Whether rerun was requested |
 | `run_id` | number | Workflow run ID |
 
-### `github_list_projects`
+### GitHub List Projects
 
 List GitHub Projects V2 for an organization or user. Returns up to 20 projects with their details including ID, title, number, URL, and status.
 
@@ -1951,7 +1951,7 @@ List GitHub Projects V2 for an organization or user. Returns up to 20 projects w
 |   ↳ `shortDescription` | string | Short description |
 | `totalCount` | number | Total number of projects |
 
-### `github_get_project`
+### GitHub Get Project
 
 Get detailed information about a specific GitHub Project V2 by its number. Returns project details including ID, title, description, URL, and status.
 
@@ -1979,7 +1979,7 @@ Get detailed information about a specific GitHub Project V2 by its number. Retur
 | `createdAt` | string | Creation timestamp |
 | `updatedAt` | string | Last update timestamp |
 
-### `github_create_project`
+### GitHub Create Project
 
 Create a new GitHub Project V2. Requires the owner Node ID (not login name). Returns the created project with ID, title, and URL.
 
@@ -2003,7 +2003,7 @@ Create a new GitHub Project V2. Requires the owner Node ID (not login name). Ret
 | `public` | boolean | Whether project is public |
 | `shortDescription` | string | Short description |
 
-### `github_update_project`
+### GitHub Update Project
 
 Update an existing GitHub Project V2. Can update title, description, visibility (public), or status (closed). Requires the project Node ID.
 
@@ -2030,7 +2030,7 @@ Update an existing GitHub Project V2. Can update title, description, visibility 
 | `public` | boolean | Whether project is public |
 | `shortDescription` | string | Short description |
 
-### `github_delete_project`
+### GitHub Delete Project
 
 Delete a GitHub Project V2. This action is permanent and cannot be undone. Requires the project Node ID.
 
@@ -2050,7 +2050,7 @@ Delete a GitHub Project V2. This action is permanent and cannot be undone. Requi
 | `number` | number | Deleted project number |
 | `url` | string | Deleted project URL |
 
-### `github_search_code`
+### GitHub Search Code
 
 Search for code across GitHub repositories. Use qualifiers like repo:owner/name, language:js, path:src, extension:py
 
@@ -2107,9 +2107,9 @@ Search for code across GitHub repositories. Use qualifiers like repo:owner/name,
 |       ↳ `text` | string | Matched text |
 |       ↳ `indices` | array | Start and end indices |
 
-### `github_search_commits`
+### GitHub Search Commits
 
-Search for commits across GitHub. Use qualifiers like repo:owner/name, author:user, committer:user, author-date:>2023-01-01
+Search for commits across GitHub. Use qualifiers like repo:owner/name, author:user, committer:user, author-date:&gt;2023-01-01
 
 #### Input
 
@@ -2190,7 +2190,7 @@ Search for commits across GitHub. Use qualifiers like repo:owner/name, author:us
 |     ↳ `url` | string | Parent API URL |
 |     ↳ `html_url` | string | Parent web URL |
 
-### `github_search_issues`
+### GitHub Search Issues
 
 Search for issues and pull requests across GitHub. Use qualifiers like repo:owner/name, is:issue, is:pr, state:open, label:bug, author:user
 
@@ -2278,9 +2278,9 @@ Search for issues and pull requests across GitHub. Use qualifiers like repo:owne
 |     ↳ `diff_url` | string | Diff URL |
 |     ↳ `patch_url` | string | Patch URL |
 
-### `github_search_repos`
+### GitHub Search Repositories
 
-Search for repositories across GitHub. Use qualifiers like language:python, stars:>1000, topic:react, user:owner, org:name
+Search for repositories across GitHub. Use qualifiers like language:python, stars:&gt;1000, topic:react, user:owner, org:name
 
 #### Input
 
@@ -2338,9 +2338,9 @@ Search for repositories across GitHub. Use qualifiers like language:python, star
 |     ↳ `type` | string | User or Organization |
 |     ↳ `site_admin` | boolean | GitHub staff indicator |
 
-### `github_search_users`
+### GitHub Search Users
 
-Search for users and organizations on GitHub. Use qualifiers like type:user, type:org, followers:>1000, repos:>10, location:city
+Search for users and organizations on GitHub. Use qualifiers like type:user, type:org, followers:&gt;1000, repos:&gt;10, location:city
 
 #### Input
 
@@ -2377,7 +2377,7 @@ Search for users and organizations on GitHub. Use qualifiers like type:user, typ
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 |   ↳ `score` | number | Search relevance score |
 
-### `github_list_commits`
+### GitHub List Commits
 
 List commits in a repository with optional filtering by SHA, path, author, committer, or date range
 
@@ -2451,7 +2451,7 @@ List commits in a repository with optional filtering by SHA, path, author, commi
 |     ↳ `html_url` | string | Parent web URL |
 | `count` | number | Number of commits returned |
 
-### `github_get_commit`
+### GitHub Get Commit
 
 Get detailed information about a specific commit including files changed and stats
 
@@ -2532,7 +2532,7 @@ Get detailed information about a specific commit including files changed and sta
 |   ↳ `url` | string | Parent API URL |
 |   ↳ `html_url` | string | Parent web URL |
 
-### `github_compare_commits`
+### GitHub Compare Commits
 
 Compare two commits or branches to see the diff, commits between them, and changed files
 
@@ -2659,7 +2659,7 @@ Compare two commits or branches to see the diff, commits between them, and chang
 |   ↳ `patch` | string | Diff patch |
 |   ↳ `previous_filename` | string | Previous filename \(for renames\) |
 
-### `github_create_gist`
+### GitHub Create Gist
 
 Create a new gist with one or more files
 
@@ -2702,7 +2702,7 @@ Create a new gist with one or more files
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
-### `github_get_gist`
+### GitHub Get Gist
 
 Get a gist by ID including its file contents
 
@@ -2750,7 +2750,7 @@ Get a gist by ID including its file contents
 | `created_at` | string | Creation timestamp |
 | `updated_at` | string | Last update timestamp |
 
-### `github_list_gists`
+### GitHub List Gists
 
 List gists for a user or the authenticated user
 
@@ -2803,7 +2803,7 @@ List gists for a user or the authenticated user
 |   ↳ `updated_at` | string | Last update timestamp |
 | `count` | number | Number of gists returned |
 
-### `github_update_gist`
+### GitHub Update Gist
 
 Update a gist description or files. To delete a file, set its value to null in files object
 
@@ -2846,7 +2846,7 @@ Update a gist description or files. To delete a file, set its value to null in f
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
-### `github_delete_gist`
+### GitHub Delete Gist
 
 Delete a gist by ID
 
@@ -2864,7 +2864,7 @@ Delete a gist by ID
 | `deleted` | boolean | Whether deletion succeeded |
 | `gist_id` | string | The deleted gist ID |
 
-### `github_fork_gist`
+### GitHub Fork Gist
 
 Fork a gist to create your own copy
 
@@ -2887,7 +2887,7 @@ Fork a gist to create your own copy
 | `owner` | object | Owner info |
 | `files` | object | Files |
 
-### `github_star_gist`
+### GitHub Star Gist
 
 Star a gist
 
@@ -2905,7 +2905,7 @@ Star a gist
 | `starred` | boolean | Whether starring succeeded |
 | `gist_id` | string | The gist ID |
 
-### `github_unstar_gist`
+### GitHub Unstar Gist
 
 Unstar a gist
 
@@ -2923,7 +2923,7 @@ Unstar a gist
 | `unstarred` | boolean | Whether unstarring succeeded |
 | `gist_id` | string | The gist ID |
 
-### `github_fork_repo`
+### GitHub Fork Repository
 
 Fork a repository to your account or an organization
 
@@ -2975,7 +2975,7 @@ Fork a repository to your account or an organization
 |   ↳ `full_name` | string | Full name |
 |   ↳ `html_url` | string | Web URL |
 
-### `github_list_forks`
+### GitHub List Forks
 
 List forks of a repository
 
@@ -3028,7 +3028,7 @@ List forks of a repository
 |     ↳ `site_admin` | boolean | GitHub staff indicator |
 | `count` | number | Number of forks returned |
 
-### `github_create_milestone`
+### GitHub Create Milestone
 
 Create a milestone in a repository
 
@@ -3073,7 +3073,7 @@ Create a milestone in a repository
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
 
-### `github_get_milestone`
+### GitHub Get Milestone
 
 Get a specific milestone by number
 
@@ -3115,7 +3115,7 @@ Get a specific milestone by number
 | `updated_at` | string | Last update timestamp |
 | `closed_at` | string | Close timestamp |
 
-### `github_list_milestones`
+### GitHub List Milestones
 
 List milestones in a repository
 
@@ -3163,7 +3163,7 @@ List milestones in a repository
 |   ↳ `closed_at` | string | Close timestamp |
 | `count` | number | Number of milestones returned |
 
-### `github_update_milestone`
+### GitHub Update Milestone
 
 Update a milestone in a repository
 
@@ -3209,7 +3209,7 @@ Update a milestone in a repository
 |   ↳ `type` | string | User or Organization |
 |   ↳ `site_admin` | boolean | GitHub staff indicator |
 
-### `github_delete_milestone`
+### GitHub Delete Milestone
 
 Delete a milestone from a repository
 
@@ -3229,7 +3229,7 @@ Delete a milestone from a repository
 | `deleted` | boolean | Whether deletion succeeded |
 | `milestone_number` | number | The deleted milestone number |
 
-### `github_create_issue_reaction`
+### GitHub Create Issue Reaction
 
 Add a reaction to an issue
 
@@ -3258,7 +3258,7 @@ Add a reaction to an issue
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
-### `github_delete_issue_reaction`
+### GitHub Delete Issue Reaction
 
 Remove a reaction from an issue
 
@@ -3279,7 +3279,7 @@ Remove a reaction from an issue
 | `deleted` | boolean | Whether deletion succeeded |
 | `reaction_id` | number | The deleted reaction ID |
 
-### `github_create_comment_reaction`
+### GitHub Create Comment Reaction
 
 Add a reaction to an issue comment
 
@@ -3308,7 +3308,7 @@ Add a reaction to an issue comment
 |   ↳ `html_url` | string | Profile URL |
 |   ↳ `type` | string | Account type \(User or Organization\) |
 
-### `github_delete_comment_reaction`
+### GitHub Delete Comment Reaction
 
 Remove a reaction from an issue comment
 
@@ -3329,7 +3329,7 @@ Remove a reaction from an issue comment
 | `deleted` | boolean | Whether deletion succeeded |
 | `reaction_id` | number | The deleted reaction ID |
 
-### `github_star_repo`
+### GitHub Star Repository
 
 Star a repository
 
@@ -3349,7 +3349,7 @@ Star a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
-### `github_unstar_repo`
+### GitHub Unstar Repository
 
 Remove star from a repository
 
@@ -3369,7 +3369,7 @@ Remove star from a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
-### `github_check_star`
+### GitHub Check Star
 
 Check if you have starred a repository
 
@@ -3389,7 +3389,7 @@ Check if you have starred a repository
 | `owner` | string | Repository owner |
 | `repo` | string | Repository name |
 
-### `github_list_stargazers`
+### GitHub List Stargazers
 
 List users who have starred a repository
 
@@ -4583,7 +4583,14 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 |     ↳ `user_view_type` | string | User view type |
 |     ↳ `site_admin` | boolean | Whether the owner is a site admin |
 |   ↳ `license` | object | Repository license information |
+|     ↳ `key` | string | License key \(e.g., apache-2.0\) |
+|     ↳ `name` | string | License name |
+|     ↳ `spdx_id` | string | SPDX license identifier |
+|     ↳ `url` | string | License URL |
+|     ↳ `node_id` | string | License node ID |
 | `pusher` | object | Information about who pushed the changes |
+|   ↳ `name` | string | Pusher name |
+|   ↳ `email` | string | Pusher email |
 | `sender` | object | sender output from the tool |
 |   ↳ `login` | string | Sender username |
 |   ↳ `id` | number | Sender ID |
@@ -4596,6 +4603,21 @@ Trigger workflow from GitHub events like push, pull requests, issues, and more
 |   ↳ `site_admin` | boolean | Whether the sender is a site admin |
 | `commits` | array | Array of commit objects |
 | `head_commit` | object | Head commit object |
+|   ↳ `id` | string | Commit SHA |
+|   ↳ `tree_id` | string | Tree SHA |
+|   ↳ `distinct` | boolean | Whether the commit is distinct |
+|   ↳ `message` | string | Commit message |
+|   ↳ `timestamp` | string | Commit timestamp |
+|   ↳ `url` | string | Commit URL |
+|   ↳ `author` | object | Commit author |
+|     ↳ `name` | string | Author name |
+|     ↳ `email` | string | Author email |
+|   ↳ `committer` | object | Commit committer |
+|     ↳ `name` | string | Committer name |
+|     ↳ `email` | string | Committer email |
+|   ↳ `added` | array | Array of added files |
+|   ↳ `removed` | array | Array of removed files |
+|   ↳ `modified` | array | Array of modified files |
 | `event_type` | string | Type of GitHub event \(e.g., push, pull_request, issues\) |
 | `action` | string | The action that was performed \(e.g., opened, closed, synchronize\) |
 | `branch` | string | Branch name extracted from ref |

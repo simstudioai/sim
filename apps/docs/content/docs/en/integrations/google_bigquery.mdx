@@ -32,7 +32,7 @@ Connect to Google BigQuery to run SQL queries, list datasets and tables, get tab
 
 ## Actions
 
-### `google_bigquery_query`
+### BigQuery Run Query
 
 Run a SQL query against Google BigQuery and return the results
 
@@ -63,7 +63,7 @@ Run a SQL query against Google BigQuery and return the results
 |   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
-### `google_bigquery_get_query_results`
+### BigQuery Get Query Results
 
 Fetch results for a previously submitted BigQuery job, or the next page of a Run Query result
 
@@ -95,7 +95,7 @@ Fetch results for a previously submitted BigQuery job, or the next page of a Run
 |   ↳ `location` | string | Geographic location of the job |
 | `pageToken` | string | Token for fetching additional result pages |
 
-### `google_bigquery_list_datasets`
+### BigQuery List Datasets
 
 List all datasets in a Google BigQuery project
 
@@ -118,7 +118,7 @@ List all datasets in a Google BigQuery project
 |   ↳ `location` | string | Geographic location where the data resides |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_bigquery_create_dataset`
+### BigQuery Create Dataset
 
 Create a new dataset in a Google BigQuery project
 
@@ -143,7 +143,7 @@ Create a new dataset in a Google BigQuery project
 | `location` | string | Geographic location where the data resides |
 | `creationTime` | string | Dataset creation time \(milliseconds since epoch\) |
 
-### `google_bigquery_delete_dataset`
+### BigQuery Delete Dataset
 
 Delete a dataset from a Google BigQuery project
 
@@ -161,7 +161,7 @@ Delete a dataset from a Google BigQuery project
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the dataset was deleted |
 
-### `google_bigquery_list_tables`
+### BigQuery List Tables
 
 List all tables in a Google BigQuery dataset
 
@@ -188,7 +188,7 @@ List all tables in a Google BigQuery dataset
 | `totalItems` | number | Total number of tables in the dataset |
 | `nextPageToken` | string | Token for fetching next page of results |
 
-### `google_bigquery_get_table`
+### BigQuery Get Table
 
 Get metadata and schema for a Google BigQuery table
 
@@ -220,7 +220,7 @@ Get metadata and schema for a Google BigQuery table
 | `lastModifiedTime` | string | Last modification time \(milliseconds since epoch\) |
 | `location` | string | Geographic location where the table resides |
 
-### `google_bigquery_create_table`
+### BigQuery Create Table
 
 Create a new table in a Google BigQuery dataset
 
@@ -252,7 +252,7 @@ Create a new table in a Google BigQuery dataset
 | `creationTime` | string | Table creation time \(milliseconds since epoch\) |
 | `location` | string | Geographic location where the table resides |
 
-### `google_bigquery_delete_table`
+### BigQuery Delete Table
 
 Delete a table from a Google BigQuery dataset
 
@@ -270,7 +270,7 @@ Delete a table from a Google BigQuery dataset
 | --------- | ---- | ----------- |
 | `deleted` | boolean | Whether the table was deleted |
 
-### `google_bigquery_list_table_data`
+### BigQuery List Table Data
 
 Preview rows from a Google BigQuery table without running a query. Pair with Get Table to know the column order.
 
@@ -294,7 +294,7 @@ Preview rows from a Google BigQuery table without running a query. Pair with Get
 | `totalRows` | string | Total number of rows in the table |
 | `pageToken` | string | Token for fetching the next page of results |
 
-### `google_bigquery_insert_rows`
+### BigQuery Insert Rows
 
 Insert rows into a Google BigQuery table using streaming insert
 

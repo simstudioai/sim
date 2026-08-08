@@ -9,6 +9,27 @@ import type { ToolConfig } from '@/tools/types'
 
 const logger = createLogger('TextractParserTool')
 
+type TextractQuery = NonNullable<TextractParserInput['queries']>[number]
+
+function selectTextractQueryText(
+  params: Pick<TextractParserInput, 'featureTypes' | 'queries'>
+): string[] | undefined {
+  if (!params.featureTypes?.includes('QUERIES') || !params.queries) return undefined
+  return params.queries.map((query) => query.Text)
+}
+
+function rebuildTextractQueries(original: TextractQuery[], projected: unknown): TextractQuery[] {
+  if (
+    !Array.isArray(projected) ||
+    projected.length !== original.length ||
+    !projected.every((text) => typeof text === 'string')
+  ) {
+    throw new Error('Projected Textract queries do not match the original queries')
+  }
+
+  return original.map((query, index) => ({ ...query, Text: projected[index] }))
+}
+
 export const textractParserTool: ToolConfig<TextractParserInput, TextractParserOutput> = {
   id: 'textract_parser',
   name: 'AWS Textract Parser',
@@ -87,6 +108,19 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => {
+        const queries = selectTextractQueryText(params)
+        return queries === undefined ? {} : { queries }
+      },
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (selectedParams.queries === undefined) return {}
+        return {
+          queries: rebuildTextractQueries(selectedParams.queries, projectedSelection.queries),
+        }
+      },
+    },
     url: '/api/tools/textract/parse',
     method: 'POST',
     headers: () => {

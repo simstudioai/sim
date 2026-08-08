@@ -1,7 +1,6 @@
 ---
 title: Pi Coding Agent
 description: The Pi Coding Agent block runs an autonomous coding agent on a real repository — creating or updating a pull request, reviewing a PR, or editing files over SSH.
-pageType: reference
 ---
 
 import { Callout } from 'fumadocs-ui/components/callout'
@@ -217,7 +216,7 @@ Create PR runs in a sandbox image with the Pi CLI, Git, Node.js, and Bun baked i
 
    The template requests **4 vCPU and 8 GB of RAM** (within the per-build maximum on every E2B plan). Sizing is fixed when the template is built — E2B has no per-sandbox override — so changing it means rebuilding the template, not restarting Sim. Sandboxes are billed per second against the resources they are allocated, not the ones they use. Both numbers live in `apps/sim/scripts/pi-sandbox-packages.ts` and are shared with the Daytona snapshot so the failover image cannot drift from the primary.
 
-   Sim sizes each Pi sandbox to **the execution's own remaining time**, so a run never holds a sandbox longer than the platform would let it run. The ceiling when there is no deadline to narrow to is the longest execution any plan permits (90 minutes); E2B rejects a create above the session length its plan allows, which is 1 hour on Hobby and 24 hours on Professional. `PI_SANDBOX_LIFETIME_MS` may lower that ceiling but has a **31-minute minimum**; lower values are raised to the minimum. A run that outlives the sandbox loses its work before the push, and an orphaned sandbox — one whose Sim process died mid-run — bills until the lifetime expires, which is why that lifetime tracks the deadline. Babysit Mode uses a second sequential sandbox after the creation sandbox has been destroyed; it is billed while polling checks and reviews. Daytona remains unchanged because its auto-stop setting is inactivity-based rather than an absolute lifetime.
+   Sim sizes each Pi sandbox to **the execution's own remaining time**, so a run never holds a sandbox longer than the platform would let it run. E2B also imposes a 24-hour continuous-sandbox ceiling on the Professional plan, so one Pi sandbox is capped there even when an Enterprise workflow policy is longer. `PI_SANDBOX_LIFETIME_MS` may lower that ceiling but has a **31-minute minimum**; lower values are raised to the minimum. A run that outlives the sandbox loses its work before the push, and an orphaned sandbox — one whose Sim process died mid-run — bills until the lifetime expires, which is why that lifetime tracks the deadline. Babysit Mode uses a second sequential sandbox after the creation sandbox has been destroyed; it is billed while polling checks and reviews. Daytona remains unchanged because its auto-stop setting is inactivity-based rather than an absolute lifetime.
 2. **Bring your own model key.** Set the provider API key in the block's API Key field, or store it in **Settings → BYOK** when the provider supports workspace BYOK.
 3. **Create a GitHub token** with permission to clone, push, and open a PR:
    - *Fine-grained:* select the repo, then **Contents: Read and write** + **Pull requests: Read and write**.

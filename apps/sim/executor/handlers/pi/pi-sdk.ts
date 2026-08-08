@@ -24,9 +24,9 @@ function isToolArguments(value: unknown): value is Record<string, unknown> {
 }
 
 /**
- * Converts a backend-neutral {@link PiToolSpec} into a Pi `ToolDefinition`, scrubbing `secrets` out
- * of the result text and any thrown error. Tool results do not travel through Pi events — `tool_end`
- * carries only the tool name and error flag — so this is the only boundary that redacts them.
+ * Converts a backend-neutral {@link PiToolSpec} into a Pi `ToolDefinition`, redacting transport
+ * credentials from thrown and reported tool errors. Successful tool output is ordinary model
+ * content and stays verbatim; Sim-secret projection is owned by the tool adapter's provenance.
  *
  * A spec's `isError` is rethrown rather than reported in the result: Pi derives a call's error state
  * solely from whether `execute` threw, so a resolved failure would reach the model as a successful
@@ -50,10 +50,9 @@ export function toPiTool(sdk: PiSdk, spec: PiToolSpec, secrets: readonly string[
       const result = await spec.execute(params).catch((error) => {
         throw createScrubbedPiError(error, secrets, 'Pi tool failed')
       })
-      const text = scrubPiSecrets(result.text, secrets)
       // Some providers reject an empty text block, and a spec is free to report a failure with none.
-      if (result.isError) throw new Error(text || 'Pi tool failed')
-      return { content: [{ type: 'text', text }], details: {} }
+      if (result.isError) throw new Error(scrubPiSecrets(result.text, secrets) || 'Pi tool failed')
+      return { content: [{ type: 'text', text: result.text }], details: {} }
     },
   })
 }

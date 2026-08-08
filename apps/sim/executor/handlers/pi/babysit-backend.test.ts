@@ -247,7 +247,7 @@ describe('runBabysitPiWithOptions', () => {
     mockReplyAndResolve.mockReset()
     mockRequestReview.mockReset()
     mockReviewLanded.mockReset()
-    mockResolvePiSandboxLifetime.mockReturnValue(undefined)
+    mockResolvePiSandboxLifetime.mockReturnValue(getMaxExecutionTimeout())
     mockSleepUntilAborted.mockResolvedValue(undefined)
     mockFetchDiagnostics.mockResolvedValue(new Map([['check:ci', 'failure output']]))
     mockReplyAndResolve.mockResolvedValue({
@@ -268,7 +268,7 @@ describe('runBabysitPiWithOptions', () => {
     mockReviewLanded.mockResolvedValue(true)
   })
 
-  it('uses the platform execution budget when the provider has no absolute lifetime', () => {
+  it('uses the selected provider lifetime when no execution budget is supplied', () => {
     expect(resolveBabysitExecutionBudgetMs()).toBe(getMaxExecutionTimeout())
   })
 
@@ -341,7 +341,6 @@ describe('runBabysitPiWithOptions', () => {
     expect(mockRequestReview).toHaveBeenCalledWith(
       expect.objectContaining({ pullNumber: 7 }),
       ['@review-bot'],
-      expect.any(Array),
       expect.any(AbortSignal)
     )
     expect(mockWithPiSandbox).toHaveBeenCalledTimes(1)

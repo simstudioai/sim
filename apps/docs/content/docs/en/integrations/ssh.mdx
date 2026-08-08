@@ -31,7 +31,7 @@ Execute commands, transfer files, and manage remote servers via SSH. Supports pa
 
 ## Actions
 
-### `ssh_execute_command`
+### SSH Execute Command
 
 Execute a shell command on a remote SSH server
 
@@ -58,7 +58,7 @@ Execute a shell command on a remote SSH server
 | `success` | boolean | Whether command succeeded \(exit code 0\) |
 | `message` | string | Operation status message |
 
-### `ssh_execute_script`
+### SSH Execute Script
 
 Upload and execute a multi-line script on a remote SSH server
 
@@ -87,7 +87,7 @@ Upload and execute a multi-line script on a remote SSH server
 | `scriptPath` | string | Temporary path where script was uploaded |
 | `message` | string | Operation status message |
 
-### `ssh_check_command_exists`
+### SSH Check Command Exists
 
 Check if a command/program exists on the remote SSH server
 
@@ -112,7 +112,7 @@ Check if a command/program exists on the remote SSH server
 | `version` | string | Command version output \(if applicable\) |
 | `message` | string | Operation status message |
 
-### `ssh_upload_file`
+### SSH Upload File
 
 Upload a file to a remote SSH server
 
@@ -141,7 +141,7 @@ Upload a file to a remote SSH server
 | `size` | number | File size in bytes |
 | `message` | string | Operation status message |
 
-### `ssh_download_file`
+### SSH Download File
 
 Download a file from a remote SSH server
 
@@ -169,7 +169,7 @@ Download a file from a remote SSH server
 | `size` | number | File size in bytes |
 | `message` | string | Operation status message |
 
-### `ssh_list_directory`
+### SSH List Directory
 
 List files and directories in a remote directory
 
@@ -201,7 +201,7 @@ List files and directories in a remote directory
 | `totalDirectories` | number | Total number of directories |
 | `message` | string | Operation status message |
 
-### `ssh_check_file_exists`
+### SSH Check File Exists
 
 Check if a file or directory exists on the remote SSH server
 
@@ -229,7 +229,7 @@ Check if a file or directory exists on the remote SSH server
 | `modified` | string | Last modified timestamp |
 | `message` | string | Operation status message |
 
-### `ssh_create_directory`
+### SSH Create Directory
 
 Create a directory on the remote SSH server
 
@@ -256,7 +256,7 @@ Create a directory on the remote SSH server
 | `alreadyExists` | boolean | Whether the directory already existed |
 | `message` | string | Operation status message |
 
-### `ssh_delete_file`
+### SSH Delete File
 
 Delete a file or directory from the remote SSH server
 
@@ -282,7 +282,7 @@ Delete a file or directory from the remote SSH server
 | `remotePath` | string | Deleted path |
 | `message` | string | Operation status message |
 
-### `ssh_move_rename`
+### SSH Move/Rename
 
 Move or rename a file or directory on the remote SSH server
 
@@ -309,7 +309,7 @@ Move or rename a file or directory on the remote SSH server
 | `destinationPath` | string | New path |
 | `message` | string | Operation status message |
 
-### `ssh_get_system_info`
+### SSH Get System Info
 
 Retrieve system information from the remote SSH server
 
@@ -336,7 +336,7 @@ Retrieve system information from the remote SSH server
 | `diskSpace` | json | Disk space information \(total, free, used\) |
 | `message` | string | Operation status message |
 
-### `ssh_read_file_content`
+### SSH Read File Content
 
 Read the contents of a remote file
 
@@ -364,7 +364,7 @@ Read the contents of a remote file
 | `remotePath` | string | Remote file path |
 | `message` | string | Operation status message |
 
-### `ssh_write_file_content`
+### SSH Write File Content
 
 Write or append content to a remote file
 

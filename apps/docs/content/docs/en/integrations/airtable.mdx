@@ -32,7 +32,7 @@ Integrates Airtable into the workflow. Can list bases, list tables (with schema)
 
 ## Actions
 
-### `airtable_list_bases`
+### Airtable List Bases
 
 List all bases the authenticated user has access to
 
@@ -54,7 +54,7 @@ List all bases the authenticated user has access to
 |   ↳ `offset` | string | Offset for next page of results |
 |   ↳ `totalBases` | number | Number of bases returned |
 
-### `airtable_list_tables`
+### Airtable List Tables
 
 List all tables and their schema in an Airtable base
 
@@ -83,7 +83,7 @@ List all tables and their schema in an Airtable base
 |   ↳ `baseId` | string | The base ID queried |
 |   ↳ `totalTables` | number | Number of tables in the base |
 
-### `airtable_list_records`
+### Airtable List Records
 
 Read records from an Airtable table
 
@@ -108,7 +108,7 @@ Read records from an Airtable table
 |   ↳ `offset` | string | Pagination offset for next page |
 |   ↳ `totalRecords` | number | Number of records returned |
 
-### `airtable_get_record`
+### Airtable Get Record
 
 Retrieve a single record from an Airtable table by its ID
 
@@ -131,7 +131,7 @@ Retrieve a single record from an Airtable table by its ID
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of records returned \(always 1\) |
 
-### `airtable_create_records`
+### Airtable Create Records
 
 Write new records to an Airtable table
 
@@ -155,7 +155,7 @@ Write new records to an Airtable table
 | `metadata` | json | Operation metadata |
 |   ↳ `recordCount` | number | Number of records created |
 
-### `airtable_update_record`
+### Airtable Update Record
 
 Update an existing record in an Airtable table by ID
 
@@ -181,7 +181,7 @@ Update an existing record in an Airtable table by ID
 |   ↳ `recordCount` | number | Number of records updated \(always 1\) |
 |   ↳ `updatedFields` | array | List of field names that were updated |
 
-### `airtable_update_multiple_records`
+### Airtable Update Multiple Records
 
 Update multiple existing records in an Airtable table
 
@@ -206,7 +206,7 @@ Update multiple existing records in an Airtable table
 |   ↳ `recordCount` | number | Number of records updated |
 |   ↳ `updatedRecordIds` | array | List of updated record IDs |
 
-### `airtable_upsert_records`
+### Airtable Upsert Records
 
 Update existing records or create new ones in an Airtable table, matching on the specified merge fields
 
@@ -235,7 +235,7 @@ Update existing records or create new ones in an Airtable table, matching on the
 |   ↳ `createdCount` | number | Number of records created |
 |   ↳ `updatedCount` | number | Number of records updated |
 
-### `airtable_delete_records`
+### Airtable Delete Records
 
 Delete one or more records from an Airtable table by ID
 
@@ -258,7 +258,7 @@ Delete one or more records from an Airtable table by ID
 |   ↳ `recordCount` | number | Number of records deleted |
 |   ↳ `deletedRecordIds` | array | List of deleted record IDs |
 
-### `airtable_get_base_schema`
+### Airtable Get Base Schema
 
 Get the schema of all tables, fields, and views in an Airtable base
 

@@ -18,7 +18,7 @@ Integrate Buffer into your workflow. Create, schedule, edit, and delete posts ac
 
 ## Actions
 
-### `buffer_create_post`
+### Buffer Create Post
 
 Create a post in Buffer for a channel — add it to the queue, share it immediately, schedule it for a specific time, or save it as a draft, optionally with an image or video attachment
 
@@ -68,7 +68,7 @@ Create a post in Buffer for a channel — add it to the queue, share it immediat
 |     ↳ `source` | string | Source URL of the asset |
 |     ↳ `thumbnail` | string | Thumbnail URL of the asset |
 
-### `buffer_edit_post`
+### Buffer Edit Post
 
 Edit an existing Buffer post — update its text, schedule, or media. Attaching new media replaces the existing attachments
 
@@ -118,7 +118,7 @@ Edit an existing Buffer post — update its text, schedule, or media. Attaching 
 |     ↳ `source` | string | Source URL of the asset |
 |     ↳ `thumbnail` | string | Thumbnail URL of the asset |
 
-### `buffer_get_posts`
+### Buffer Get Posts
 
 List posts in a Buffer organization, optionally filtered by channel and status (draft, needs_approval, scheduled, sending, sent, error)
 
@@ -169,7 +169,7 @@ List posts in a Buffer organization, optionally filtered by channel and status (
 |   ↳ `hasNextPage` | boolean | Whether more results are available |
 |   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
 
-### `buffer_get_post`
+### Buffer Get Post
 
 Get a single Buffer post by ID, including its status, schedule, and media
 
@@ -211,7 +211,7 @@ Get a single Buffer post by ID, including its status, schedule, and media
 |     ↳ `source` | string | Source URL of the asset |
 |     ↳ `thumbnail` | string | Thumbnail URL of the asset |
 
-### `buffer_delete_post`
+### Buffer Delete Post
 
 Delete a Buffer post by ID
 
@@ -229,7 +229,7 @@ Delete a Buffer post by ID
 | `deleted` | boolean | Whether the post was deleted |
 | `id` | string | ID of the deleted post |
 
-### `buffer_get_channels`
+### Buffer Get Channels
 
 List the social media channels connected to a Buffer organization, including their channel IDs (needed to create posts)
 
@@ -257,7 +257,7 @@ List the social media channels connected to a Buffer organization, including the
 |   ↳ `isDisconnected` | boolean | Whether the channel needs reconnection |
 |   ↳ `organizationId` | string | Organization the channel belongs to |
 
-### `buffer_create_idea`
+### Buffer Create Idea
 
 Save a content idea to a Buffer organization for later drafting and scheduling
 
@@ -282,7 +282,7 @@ Save a content idea to a Buffer organization for later drafting and scheduling
 |   ↳ `title` | string | Idea title |
 |   ↳ `text` | string | Idea text content |
 
-### `buffer_get_ideas`
+### Buffer Get Ideas
 
 List content ideas saved in a Buffer organization
 
@@ -309,7 +309,7 @@ List content ideas saved in a Buffer organization
 |   ↳ `hasNextPage` | boolean | Whether more results are available |
 |   ↳ `endCursor` | string | Cursor to pass as "after" for the next page |
 
-### `buffer_get_idea_groups`
+### Buffer Get Idea Groups
 
 List idea groups (board columns) in a Buffer organization, including the group IDs used when creating ideas
 
@@ -329,7 +329,7 @@ List idea groups (board columns) in a Buffer organization, including the group I
 |   ↳ `name` | string | Idea group name |
 |   ↳ `isLocked` | boolean | Whether the group is locked |
 
-### `buffer_get_account`
+### Buffer Get Account
 
 Get the authenticated Buffer account, including its organizations and their IDs (needed for channel and post operations)
 

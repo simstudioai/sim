@@ -2,6 +2,12 @@ import { createLogger } from '@sim/logger'
 import { sleep } from '@sim/utils/helpers'
 import { DEFAULT_EXECUTION_TIMEOUT_MS } from '@/lib/core/execution-limits'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlFormatModelInput,
+  applyFirecrawlScrapeOptionsModelInput,
+  selectFirecrawlFormatModelInput,
+  selectFirecrawlScrapeOptionsModelInput,
+} from '@/tools/firecrawl/model-input'
 import type { FirecrawlCrawlParams, FirecrawlCrawlResponse } from '@/tools/firecrawl/types'
 import { CRAWLED_PAGE_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -44,6 +50,18 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
       description:
         'Output formats for scraped content (e.g., ["markdown"], ["markdown", "html"], ["markdown", "links"])',
     },
+    prompt: {
+      type: 'string',
+      required: false,
+      visibility: 'hidden',
+      description: 'Natural-language crawl guidance supplied by existing configurations',
+    },
+    scrapeOptions: {
+      type: 'json',
+      required: false,
+      visibility: 'hidden',
+      description: 'Advanced scrape options supplied by existing configurations',
+    },
     excludePaths: {
       type: 'json',
       required: false,
@@ -74,6 +92,37 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
   hosting: firecrawlHosting(),
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) =>
+        params.scrapeOptions
+          ? {
+              prompt: params.prompt,
+              scrapeOptions: selectFirecrawlScrapeOptionsModelInput(params.scrapeOptions),
+            }
+          : {
+              prompt: params.prompt,
+              formats: selectFirecrawlFormatModelInput(params.formats),
+            },
+      applyProjected: (selectedParams, projectedSelection) => {
+        if (Object.hasOwn(projectedSelection, 'scrapeOptions')) {
+          return {
+            prompt: projectedSelection.prompt,
+            scrapeOptions: applyFirecrawlScrapeOptionsModelInput(
+              selectedParams.scrapeOptions,
+              projectedSelection.scrapeOptions
+            ),
+          }
+        }
+        return {
+          prompt: projectedSelection.prompt,
+          formats: applyFirecrawlFormatModelInput(
+            selectedParams.formats,
+            projectedSelection.formats
+          ),
+        }
+      },
+    },
     url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',
     headers: (params) => ({

@@ -14,6 +14,8 @@ export const COLUMN_SIDEBAR_WIDTH = 400
 
 export const CELL =
   'border-[var(--border)] border-r border-b px-2 py-[7px] align-middle select-none'
+/** `z-[6]` is load-bearing: the remote-selection overlay splits its layers around it so a
+ *  peer's selection scrolled behind this cell is hidden by paint order. */
 export const CELL_CHECKBOX =
   'sticky left-0 z-[6] border-[var(--border)] border-r border-b bg-[var(--bg)] px-0 py-[7px] align-middle select-none'
 export const CELL_HEADER_CHECKBOX =

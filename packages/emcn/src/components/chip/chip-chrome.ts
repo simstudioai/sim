@@ -26,9 +26,18 @@ export const chipFieldSurfaceClass = `rounded-lg ${chipFilledSurfaceTokens} tran
  */
 export const chipBorderShadowRing =
   'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]'
-/** Typography shared by the chip text fields — normal weight, `--text-body`, muted placeholder, no focus outline. */
+/**
+ * Typography shared by the chip text fields — normal weight, `--text-body`, muted
+ * placeholder, no focus outline.
+ *
+ * `[letter-spacing:inherit]` undoes the UA stylesheet, which pins form controls to
+ * `letter-spacing: normal`. Without it a chip field's text tracks differently from
+ * the labels around it, and any transparent-field-over-mirror overlay diverges from
+ * its mirror by the inherited tracking on every character — so the caret drifts
+ * further from the visible text the longer the value. Matches `Input`/`Textarea`.
+ */
 export const chipFieldTextClass =
-  'text-[var(--text-body)] text-sm outline-none placeholder:text-[var(--text-muted)]'
+  'text-[var(--text-body)] text-sm [letter-spacing:inherit] outline-none placeholder:text-[var(--text-muted)]'
 
 /**
  * Icon↔label gap of the canonical chip-content row — the icon↔label pair inside
@@ -49,6 +58,20 @@ export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounde
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
 /** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentLabelClass = 'min-w-0 truncate text-[var(--text-body)] text-sm'
+/**
+ * The disclosure chevron that rotates to expand or collapse a sidebar section or a
+ * tree row: 14px at `--text-icon`, animating on the same 150ms curve the section
+ * body expands on so the chevron and what it reveals read as one gesture. Opacity
+ * is in the property list for the consumers that also fade the chevron in.
+ *
+ * Single source for the sidebar section headers and the two sidebar trees. Other
+ * collapsible surfaces still carry their own literals at 8-12px and 100-200ms;
+ * migrating them onto this token is the remaining half of the consolidation.
+ */
+export const disclosureChevronClass =
+  'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-[opacity,transform] duration-150'
+/** The 16px square a chip-row icon or chevron centers in, so every row's label starts on the same baseline. */
+export const chipIconSlotClass = 'inline-flex size-[16px] flex-shrink-0 items-center justify-center'
 /**
  * Force-sizes a PRE-RENDERED icon node (`<svg>`/`<img>`/`<span>` avatar) to the
  * 14px resource-row standard + `--text-icon` color — regardless of the size the

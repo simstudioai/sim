@@ -668,7 +668,7 @@ function ProviderRow({
             isProviderAllowed ? 'cursor-pointer' : 'cursor-default opacity-60'
           )}
         >
-          <span className='truncate font-medium text-sm'>{providerName}</span>
+          <span className='truncate text-sm'>{providerName}</span>
           {isProviderAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -755,7 +755,7 @@ function BlockToolRow({
             !isBlockAllowed && 'opacity-60'
           )}
         >
-          <span className='truncate font-medium text-sm'>{block.name}</span>
+          <span className='truncate text-sm'>{block.name}</span>
           {isBlockAllowed && deniedCount > 0 && (
             <ChipTag variant='gray' className='flex-shrink-0'>
               {deniedCount} blocked
@@ -1786,7 +1786,7 @@ export function GroupDetail({
                           >
                             {BlockIcon && <BlockIcon className='!size-[9px] text-white' />}
                           </div>
-                          <span className='truncate font-medium text-sm'>{block.name}</span>
+                          <span className='truncate text-sm'>{block.name}</span>
                         </label>
                         {block.description && (
                           <Info side='top' className='flex-shrink-0'>

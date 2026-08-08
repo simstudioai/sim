@@ -33,7 +33,7 @@ Integrate GitLab into the workflow. Can manage projects, issues, merge requests,
 
 ## Actions
 
-### `gitlab_list_projects`
+### GitLab List Projects
 
 List GitLab projects accessible to the authenticated user
 
@@ -58,7 +58,7 @@ List GitLab projects accessible to the authenticated user
 | `projects` | array | List of GitLab projects |
 | `total` | number | Total number of projects |
 
-### `gitlab_get_project`
+### GitLab Get Project
 
 Get details of a specific GitLab project
 
@@ -75,7 +75,7 @@ Get details of a specific GitLab project
 | --------- | ---- | ----------- |
 | `project` | object | The GitLab project details |
 
-### `gitlab_list_groups`
+### GitLab List Groups
 
 List GitLab groups accessible to the authenticated user
 
@@ -102,7 +102,7 @@ List GitLab groups accessible to the authenticated user
 | `groups` | array | List of GitLab groups |
 | `total` | number | Total number of groups |
 
-### `gitlab_get_group`
+### GitLab Get Group
 
 Get details of a specific GitLab group
 
@@ -119,7 +119,7 @@ Get details of a specific GitLab group
 | --------- | ---- | ----------- |
 | `group` | object | The GitLab group details |
 
-### `gitlab_list_user_memberships`
+### GitLab List User Memberships
 
 List a user's project and group memberships. Requires an administrator access token (GET /users/:id/memberships is admin-only). For a non-admin path, iterate List Members on each project or group instead.
 
@@ -140,7 +140,7 @@ List a user's project and group memberships. Requires an administrator access to
 | `memberships` | array | The user's project and group memberships |
 | `total` | number | Total number of memberships |
 
-### `gitlab_list_issues`
+### GitLab List Issues
 
 List issues in a GitLab project
 
@@ -167,7 +167,7 @@ List issues in a GitLab project
 | `issues` | array | List of GitLab issues |
 | `total` | number | Total number of issues |
 
-### `gitlab_get_issue`
+### GitLab Get Issue
 
 Get details of a specific GitLab issue
 
@@ -185,7 +185,7 @@ Get details of a specific GitLab issue
 | --------- | ---- | ----------- |
 | `issue` | object | The GitLab issue details |
 
-### `gitlab_create_issue`
+### GitLab Create Issue
 
 Create a new issue in a GitLab project
 
@@ -209,7 +209,7 @@ Create a new issue in a GitLab project
 | --------- | ---- | ----------- |
 | `issue` | object | The created GitLab issue |
 
-### `gitlab_update_issue`
+### GitLab Update Issue
 
 Update an existing issue in a GitLab project
 
@@ -235,7 +235,7 @@ Update an existing issue in a GitLab project
 | --------- | ---- | ----------- |
 | `issue` | object | The updated GitLab issue |
 
-### `gitlab_delete_issue`
+### GitLab Delete Issue
 
 Delete an issue from a GitLab project
 
@@ -253,7 +253,7 @@ Delete an issue from a GitLab project
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the issue was deleted successfully |
 
-### `gitlab_create_issue_note`
+### GitLab Create Issue Comment
 
 Add a comment to a GitLab issue
 
@@ -273,7 +273,7 @@ Add a comment to a GitLab issue
 | --------- | ---- | ----------- |
 | `note` | object | The created comment |
 
-### `gitlab_list_merge_requests`
+### GitLab List Merge Requests
 
 List merge requests in a GitLab project
 
@@ -299,7 +299,7 @@ List merge requests in a GitLab project
 | `mergeRequests` | array | List of GitLab merge requests |
 | `total` | number | Total number of merge requests |
 
-### `gitlab_get_merge_request`
+### GitLab Get Merge Request
 
 Get details of a specific GitLab merge request
 
@@ -317,7 +317,7 @@ Get details of a specific GitLab merge request
 | --------- | ---- | ----------- |
 | `mergeRequest` | object | The GitLab merge request details |
 
-### `gitlab_create_merge_request`
+### GitLab Create Merge Request
 
 Create a new merge request in a GitLab project
 
@@ -344,7 +344,7 @@ Create a new merge request in a GitLab project
 | --------- | ---- | ----------- |
 | `mergeRequest` | object | The created GitLab merge request |
 
-### `gitlab_update_merge_request`
+### GitLab Update Merge Request
 
 Update an existing merge request in a GitLab project
 
@@ -372,7 +372,7 @@ Update an existing merge request in a GitLab project
 | --------- | ---- | ----------- |
 | `mergeRequest` | object | The updated GitLab merge request |
 
-### `gitlab_merge_merge_request`
+### GitLab Merge Merge Request
 
 Merge a merge request in a GitLab project
 
@@ -395,7 +395,7 @@ Merge a merge request in a GitLab project
 | --------- | ---- | ----------- |
 | `mergeRequest` | object | The merged GitLab merge request |
 
-### `gitlab_create_merge_request_note`
+### GitLab Create Merge Request Comment
 
 Add a comment to a GitLab merge request
 
@@ -415,7 +415,7 @@ Add a comment to a GitLab merge request
 | --------- | ---- | ----------- |
 | `note` | object | The created comment |
 
-### `gitlab_list_pipelines`
+### GitLab List Pipelines
 
 List pipelines in a GitLab project
 
@@ -439,7 +439,7 @@ List pipelines in a GitLab project
 | `pipelines` | array | List of GitLab pipelines |
 | `total` | number | Total number of pipelines |
 
-### `gitlab_get_pipeline`
+### GitLab Get Pipeline
 
 Get details of a specific GitLab pipeline
 
@@ -457,7 +457,7 @@ Get details of a specific GitLab pipeline
 | --------- | ---- | ----------- |
 | `pipeline` | object | The GitLab pipeline details |
 
-### `gitlab_create_pipeline`
+### GitLab Create Pipeline
 
 Trigger a new pipeline in a GitLab project
 
@@ -477,7 +477,7 @@ Trigger a new pipeline in a GitLab project
 | --------- | ---- | ----------- |
 | `pipeline` | object | The created GitLab pipeline |
 
-### `gitlab_retry_pipeline`
+### GitLab Retry Pipeline
 
 Retry a failed GitLab pipeline
 
@@ -495,7 +495,7 @@ Retry a failed GitLab pipeline
 | --------- | ---- | ----------- |
 | `pipeline` | object | The retried GitLab pipeline |
 
-### `gitlab_cancel_pipeline`
+### GitLab Cancel Pipeline
 
 Cancel a running GitLab pipeline
 
@@ -513,7 +513,7 @@ Cancel a running GitLab pipeline
 | --------- | ---- | ----------- |
 | `pipeline` | object | The cancelled GitLab pipeline |
 
-### `gitlab_list_repository_tree`
+### GitLab List Repository Tree
 
 List files and directories in a GitLab project repository
 
@@ -536,7 +536,7 @@ List files and directories in a GitLab project repository
 | `tree` | array | List of repository tree entries |
 | `total` | number | Total number of tree entries |
 
-### `gitlab_get_file`
+### GitLab Get File
 
 Get the contents of a file from a GitLab project repository
 
@@ -562,7 +562,7 @@ Get the contents of a file from a GitLab project repository
 | `content` | string | The decoded file content, truncated to 1M characters |
 | `truncated` | boolean | Whether the content was truncated |
 
-### `gitlab_create_file`
+### GitLab Create File
 
 Create a new file in a GitLab project repository
 
@@ -588,7 +588,7 @@ Create a new file in a GitLab project repository
 | `filePath` | string | The created file path |
 | `branch` | string | The branch the file was committed to |
 
-### `gitlab_update_file`
+### GitLab Update File
 
 Update an existing file in a GitLab project repository
 
@@ -615,7 +615,7 @@ Update an existing file in a GitLab project repository
 | `filePath` | string | The updated file path |
 | `branch` | string | The branch the update was committed to |
 
-### `gitlab_create_branch`
+### GitLab Create Branch
 
 Create a new branch in a GitLab project repository
 
@@ -637,7 +637,7 @@ Create a new branch in a GitLab project repository
 | `protected` | boolean | Whether the branch is protected |
 | `commit` | object | The commit the branch points to |
 
-### `gitlab_delete_branch`
+### GitLab Delete Branch
 
 Delete a branch from a GitLab project repository
 
@@ -655,7 +655,7 @@ Delete a branch from a GitLab project repository
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the branch was deleted successfully |
 
-### `gitlab_compare_branches`
+### GitLab Compare Branches
 
 Compare two branches, tags, or commits in a GitLab project repository
 
@@ -682,7 +682,7 @@ Compare two branches, tags, or commits in a GitLab project repository
 | `compareSameRef` | boolean | Whether both references point to the same commit |
 | `webUrl` | string | The web URL for viewing the comparison |
 
-### `gitlab_list_branches`
+### GitLab List Branches
 
 List branches in a GitLab project repository
 
@@ -703,7 +703,7 @@ List branches in a GitLab project repository
 | `branches` | array | List of branches |
 | `total` | number | Total number of branches |
 
-### `gitlab_list_commits`
+### GitLab List Commits
 
 List commits in a GitLab project repository
 
@@ -728,7 +728,7 @@ List commits in a GitLab project repository
 | `commits` | array | List of commits |
 | `total` | number | Number of commits returned on this page \(GitLab does not report a grand total for commits\) |
 
-### `gitlab_get_merge_request_changes`
+### GitLab Get Merge Request Changes
 
 Get the file changes (diffs) of a GitLab merge request
 
@@ -749,7 +749,7 @@ Get the file changes (diffs) of a GitLab merge request
 | `changesCount` | number | Number of changed files returned \(first 100\) |
 | `hasMore` | boolean | Whether the merge request has more than 100 changed files \(results truncated\) |
 
-### `gitlab_approve_merge_request`
+### GitLab Approve Merge Request
 
 Approve a GitLab merge request
 
@@ -770,7 +770,7 @@ Approve a GitLab merge request
 | `approvalsLeft` | number | Number of approvals still needed |
 | `approvedBy` | array | List of approvers |
 
-### `gitlab_list_pipeline_jobs`
+### GitLab List Pipeline Jobs
 
 List jobs for a GitLab pipeline
 
@@ -793,7 +793,7 @@ List jobs for a GitLab pipeline
 | `jobs` | array | List of pipeline jobs |
 | `total` | number | Total number of jobs |
 
-### `gitlab_get_job_log`
+### GitLab Get Job Log
 
 Get the log (trace) of a GitLab job
 
@@ -812,7 +812,7 @@ Get the log (trace) of a GitLab job
 | `log` | string | The job log \(trace\) output, truncated to 200k characters |
 | `truncated` | boolean | Whether the log was truncated |
 
-### `gitlab_play_job`
+### GitLab Play Job
 
 Trigger (play) a manual GitLab job
 
@@ -834,7 +834,7 @@ Trigger (play) a manual GitLab job
 | `status` | string | The job status |
 | `webUrl` | string | The web URL of the job |
 
-### `gitlab_list_releases`
+### GitLab List Releases
 
 List releases in a GitLab project
 
@@ -856,7 +856,7 @@ List releases in a GitLab project
 | `releases` | array | List of GitLab releases |
 | `total` | number | Total number of releases |
 
-### `gitlab_create_release`
+### GitLab Create Release
 
 Create a new release in a GitLab project
 
@@ -881,7 +881,7 @@ Create a new release in a GitLab project
 | --------- | ---- | ----------- |
 | `release` | object | The created GitLab release |
 
-### `gitlab_list_members`
+### GitLab List Members
 
 List members of a GitLab project or group. Includes members inherited from ancestor groups by default.
 
@@ -907,7 +907,7 @@ List members of a GitLab project or group. Includes members inherited from ances
 | `members` | array | List of project or group members |
 | `total` | number | Total number of members |
 
-### `gitlab_add_member`
+### GitLab Add Member
 
 Add an existing GitLab user to a project or group at a given access level
 
@@ -931,7 +931,7 @@ Add an existing GitLab user to a project or group at a given access level
 | `member` | object | The added member |
 | `alreadyMember` | boolean | Whether the user was already a member \(add was a no-op\) |
 
-### `gitlab_update_member`
+### GitLab Update Member
 
 Update a member's access level in a GitLab project or group
 
@@ -953,7 +953,7 @@ Update a member's access level in a GitLab project or group
 | --------- | ---- | ----------- |
 | `member` | object | The updated member |
 
-### `gitlab_remove_member`
+### GitLab Remove Member
 
 Remove a member from a GitLab project or group
 
@@ -974,7 +974,7 @@ Remove a member from a GitLab project or group
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the member was removed successfully |
 
-### `gitlab_invite_member`
+### GitLab Invite Member
 
 Invite a person to a GitLab project or group by email address
 
@@ -998,7 +998,7 @@ Invite a person to a GitLab project or group by email address
 | `status` | string | Invitation status returned by GitLab |
 | `message` | object | Per-email result detail, if any |
 
-### `gitlab_list_invitations`
+### GitLab List Invitations
 
 List pending email invitations for a GitLab project or group
 
@@ -1020,7 +1020,7 @@ List pending email invitations for a GitLab project or group
 | `invitations` | array | List of pending invitations |
 | `total` | number | Total number of invitations |
 
-### `gitlab_update_invitation`
+### GitLab Update Invitation
 
 Update a pending invitation to a GitLab project or group
 
@@ -1041,7 +1041,7 @@ Update a pending invitation to a GitLab project or group
 | --------- | ---- | ----------- |
 | `invitation` | object | The updated invitation |
 
-### `gitlab_revoke_invitation`
+### GitLab Revoke Invitation
 
 Revoke a pending email invitation to a GitLab project or group
 
@@ -1060,7 +1060,7 @@ Revoke a pending email invitation to a GitLab project or group
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the invitation was revoked successfully |
 
-### `gitlab_list_access_requests`
+### GitLab List Access Requests
 
 List pending access requests for a GitLab project or group
 
@@ -1081,7 +1081,7 @@ List pending access requests for a GitLab project or group
 | `accessRequests` | array | List of pending access requests |
 | `total` | number | Total number of access requests |
 
-### `gitlab_approve_access_request`
+### GitLab Approve Access Request
 
 Approve a pending access request for a GitLab project or group
 
@@ -1101,7 +1101,7 @@ Approve a pending access request for a GitLab project or group
 | --------- | ---- | ----------- |
 | `accessRequest` | object | The approved access request |
 
-### `gitlab_deny_access_request`
+### GitLab Deny Access Request
 
 Deny (delete) a pending access request for a GitLab project or group
 
@@ -1120,7 +1120,7 @@ Deny (delete) a pending access request for a GitLab project or group
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the access request was denied successfully |
 
-### `gitlab_list_saml_group_links`
+### GitLab List SAML Group Links
 
 List SAML group links for a GitLab group. Use this to detect whether a group is governed by SAML group sync before provisioning members.
 
@@ -1138,7 +1138,7 @@ List SAML group links for a GitLab group. Use this to detect whether a group is 
 | `samlGroupLinks` | array | List of SAML group links |
 | `total` | number | Number of SAML group links |
 
-### `gitlab_search_users`
+### GitLab Search Users
 
 Search for GitLab users by name, username, or email. Email matches must be exact; private emails match only with an admin token. Use this to resolve an email to a user ID before adding a member.
 
@@ -1158,7 +1158,7 @@ Search for GitLab users by name, username, or email. Email matches must be exact
 | `users` | array | List of matching users |
 | `total` | number | Total number of matching users |
 
-### `gitlab_create_user`
+### GitLab Create User
 
 Create a new GitLab user. Requires an administrator token with admin_mode on the instance.
 
@@ -1182,7 +1182,7 @@ Create a new GitLab user. Requires an administrator token with admin_mode on the
 | --------- | ---- | ----------- |
 | `user` | object | The created user |
 
-### `gitlab_update_user`
+### GitLab Update User
 
 Modify an existing GitLab user. Requires an administrator token with admin_mode on the instance.
 
@@ -1203,7 +1203,7 @@ Modify an existing GitLab user. Requires an administrator token with admin_mode 
 | --------- | ---- | ----------- |
 | `user` | object | The updated user |
 
-### `gitlab_delete_user`
+### GitLab Delete User
 
 Delete a GitLab user. Requires an administrator token with admin_mode on the instance.
 
@@ -1221,7 +1221,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the user was deleted successfully |
 
-### `gitlab_block_user`
+### GitLab Block User
 
 #### Input
 
@@ -1291,7 +1291,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_unblock_user`
+### GitLab Unblock User
 
 #### Input
 
@@ -1361,7 +1361,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_deactivate_user`
+### GitLab Deactivate User
 
 #### Input
 
@@ -1431,7 +1431,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_activate_user`
+### GitLab Activate User
 
 #### Input
 
@@ -1501,7 +1501,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_ban_user`
+### GitLab Ban User
 
 #### Input
 
@@ -1571,7 +1571,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_unban_user`
+### GitLab Unban User
 
 #### Input
 
@@ -1641,7 +1641,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_approve_user`
+### GitLab Approve User
 
 #### Input
 
@@ -1711,7 +1711,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_reject_user`
+### GitLab Reject User
 
 #### Input
 
@@ -1781,7 +1781,7 @@ Delete a GitLab user. Requires an administrator token with admin_mode on the ins
 | `truncated` | boolean | Whether returned content \(file content or job log\) was truncated |
 | `success` | boolean | Operation success status |
 
-### `gitlab_delete_user_identity`
+### GitLab Delete User Identity
 
 Delete a user's authentication identity (e.g. SAML or LDAP). Requires an administrator token with admin_mode on the instance.
 
@@ -1799,7 +1799,7 @@ Delete a user's authentication identity (e.g. SAML or LDAP). Requires an adminis
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the identity was deleted successfully |
 
-### `gitlab_add_saml_group_link`
+### GitLab Add SAML Group Link
 
 Add a SAML group link that maps an identity-provider group to a GitLab group at a given access level (GitLab Premium/Ultimate)
 
@@ -1820,7 +1820,7 @@ Add a SAML group link that maps an identity-provider group to a GitLab group at 
 | --------- | ---- | ----------- |
 | `samlGroupLink` | object | The created SAML group link |
 
-### `gitlab_delete_saml_group_link`
+### GitLab Delete SAML Group Link
 
 Delete a SAML group link from a GitLab group (GitLab Premium/Ultimate)
 
@@ -1863,6 +1863,15 @@ Trigger workflow when a comment is added on a commit, merge request, or issue
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(note\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Comment ID |
 |   ↳ `note` | string | Comment body |
@@ -1892,6 +1901,11 @@ Trigger workflow from any GitLab webhook event
 | `object_kind` | string | Event kind \(push, merge_request, issue, etc.\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
 | `user` | json | Actor that triggered the event \(when present\) |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | json | Event-specific attributes \(varies by object_kind\) |
 
 
@@ -1915,6 +1929,15 @@ Trigger workflow when an issue is opened, updated, or closed in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(issue\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Global issue ID |
 |   ↳ `iid` | number | Project-scoped issue number |
@@ -1947,6 +1970,15 @@ Trigger workflow when a merge request is opened, updated, or merged in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(merge_request\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Global merge request ID |
 |   ↳ `iid` | number | Project-scoped merge request number |
@@ -1981,6 +2013,15 @@ Trigger workflow when a pipeline status changes in GitLab
 | --------- | ---- | ----------- |
 | `object_kind` | string | Event kind \(pipeline\) |
 | `event_type` | string | GitLab event type from the X-Gitlab-Event header |
+| `user` | object | user output from the tool |
+|   ↳ `id` | number | User ID |
+|   ↳ `name` | string | User display name |
+|   ↳ `username` | string | Username |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `object_attributes` | object | object_attributes output from the tool |
 |   ↳ `id` | number | Pipeline ID |
 |   ↳ `status` | string | Pipeline status \(success, failed, running, etc.\) |
@@ -2021,5 +2062,10 @@ Trigger workflow when commits are pushed to a GitLab project
 | `user_name` | string | Display name of the pusher |
 | `user_email` | string | Email of the pusher |
 | `total_commits_count` | number | Number of commits in the push |
+| `project` | object | project output from the tool |
+|   ↳ `id` | number | Project ID |
+|   ↳ `name` | string | Project name |
+|   ↳ `web_url` | string | Project web URL |
+|   ↳ `path_with_namespace` | string | Full path \(namespace/project\) |
 | `commits` | json | Array of commit objects included in this push |
 

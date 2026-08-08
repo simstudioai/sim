@@ -197,6 +197,11 @@ export const guardrailsValidateTool: ToolConfig<GuardrailsValidateInput, Guardra
       headers: () => ({
         'Content-Type': 'application/json',
       }),
+      modelInput: {
+        mode: 'private-provenance',
+        inputPaths: (params: GuardrailsValidateInput) =>
+          params.validationType === 'hallucination' ? [['input']] : [],
+      },
       body: (params: GuardrailsValidateInput) => ({
         input: params.input,
         validationType: params.validationType,

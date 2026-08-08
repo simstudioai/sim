@@ -198,6 +198,20 @@ describe('OpenAI transport phase annotation', () => {
     expect(error.message.match(/phase=/g)).toHaveLength(1)
   })
 
+  /**
+   * Streaming calls the request helper directly and never reaches `postResponses`, so a
+   * header stall on a chat or SSE run used to surface as the bare runtime string with no
+   * phase, elapsed time, or request id.
+   */
+  it('names the header phase on a streaming request too', async () => {
+    const error = await run(vi.fn().mockRejectedValue(timeoutError()), {
+      stream: true,
+    }).catch((e) => e)
+
+    expect(error.message).toContain('phase=awaiting-response-headers')
+    expect(error.message).toMatch(/elapsedMs=\d+/)
+  })
+
   it('leaves a healthy response entirely unaffected', async () => {
     const fetchMock = vi.fn().mockResolvedValue({
       ok: true,

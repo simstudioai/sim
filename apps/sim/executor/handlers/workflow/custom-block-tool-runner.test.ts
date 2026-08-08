@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecute } = vi.hoisted(() => ({ mockExecute: vi.fn() }))
@@ -19,6 +20,11 @@ import {
   runCustomBlockTool,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockRunnerLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'CustomBlockToolRunner')
+  ].value
 
 describe('buildCustomBlockExecutionContext', () => {
   it('carries consumer identity, inherits the call chain, and is fully scaffolded', () => {
@@ -87,6 +93,33 @@ describe('runCustomBlockTool', () => {
 
     expect(res.success).toBe(false)
     expect(res.error).toContain('not deployed')
+  })
+
+  it('does not log a secret-bearing child workflow error with or without provenance', async () => {
+    const secret = 'custom-block-child-secret-value'
+    const message = `${secret} __var_API_KEY __sim_code_0_binding_0`
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('API_KEY', secret)
+    mockExecute.mockRejectedValue(new Error(message))
+
+    const projected = await runCustomBlockTool(
+      { blockType: 'custom_block_abc', _context: {} },
+      { resolvedSecretTraceRegistry: registry }
+    )
+    const structural = await runCustomBlockTool({ blockType: 'custom_block_abc', _context: {} })
+
+    expect(projected.error).toBe(message)
+    expect(structural.error).toBe(message)
+    const logged = JSON.stringify(mockRunnerLogger.info.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+    expect(mockRunnerLogger.info).toHaveBeenLastCalledWith(
+      'Custom block tool execution failed',
+      expect.objectContaining({ errorName: 'Error', redacted: true })
+    )
   })
 
   it('reports no cost on failure — the child session billed its own run', async () => {

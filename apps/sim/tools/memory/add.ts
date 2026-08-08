@@ -39,6 +39,10 @@ export const memoryAddTool: ToolConfig<any, MemoryResponse> = {
   request: {
     url: '/api/memory',
     method: 'POST',
+    secretProvenance: {
+      request: () => [{ key: 'data', inputPaths: [['role'], ['content']] }],
+      response: { incomplete: 'reject' },
+    },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

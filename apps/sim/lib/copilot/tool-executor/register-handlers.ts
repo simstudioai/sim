@@ -28,6 +28,7 @@ import {
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
+  ManageSandbox,
   ManageSkill,
   MaterializeFile,
   Mkdir as MkdirTool,
@@ -76,6 +77,7 @@ import { executeListIntegrationTools } from '../tools/handlers/integration-tools
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
+import { executeManageSandbox } from '../tools/handlers/management/manage-sandbox'
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
@@ -180,9 +182,13 @@ function buildHandlerMap(): Record<string, ToolHandler> {
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),
+    [ManageSandbox.id]: h(executeManageSandbox),
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
+    // Rolling-deploy compatibility for calls/checkpoints created before OAuth
+    // moved into terminal credential cards. New agents no longer receive this
+    // tool, but old calls must remain resumable until both services have soaked.
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),

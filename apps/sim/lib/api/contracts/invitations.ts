@@ -230,13 +230,6 @@ export const getInvitationContract = defineRouteContract({
       invitation: invitationDetailsSchema,
       /** Invitee-only preview of what accepting will do; null for other viewers. */
       joinPreview: invitationJoinPreviewSchema.nullable(),
-      /**
-       * True when the preview could not be computed for a pending
-       * invitee-viewed invitation. Accepting may still move owned workspaces,
-       * so the client must fall back to a generic migration notice rather
-       * than treating the missing preview as "nothing moves".
-       */
-      joinPreviewUnavailable: z.boolean().optional(),
     }),
   },
 })
@@ -338,4 +331,3 @@ export const removeWorkspaceMemberContract = defineRouteContract({
 export type PendingInvitationRow = z.infer<typeof pendingWorkspaceInvitationSchema>
 export type BatchInvitationResult = z.infer<typeof batchInvitationResultSchema>
 export type InvitationDetails = z.infer<typeof invitationDetailsSchema>
-export type InvitationJoinPreview = z.infer<typeof invitationJoinPreviewSchema>

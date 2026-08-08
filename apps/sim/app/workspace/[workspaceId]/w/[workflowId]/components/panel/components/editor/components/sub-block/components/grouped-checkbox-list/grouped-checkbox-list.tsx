@@ -24,20 +24,12 @@ interface SelectedCountDisplayProps {
 
 function SelectedCountDisplay({ noneSelected, allSelected, count }: SelectedCountDisplayProps) {
   if (noneSelected) {
-    return (
-      <span className='truncate font-medium text-[var(--text-muted)] text-sm'>None selected</span>
-    )
+    return <span className='truncate text-[var(--text-muted)] text-sm'>None selected</span>
   }
   if (allSelected) {
-    return (
-      <span className='truncate font-medium text-[var(--text-primary)] text-sm'>All selected</span>
-    )
+    return <span className='truncate text-[var(--text-primary)] text-sm'>All selected</span>
   }
-  return (
-    <span className='truncate font-medium text-[var(--text-primary)] text-sm'>
-      {count} selected
-    </span>
-  )
+  return <span className='truncate text-[var(--text-primary)] text-sm'>{count} selected</span>
 }
 
 interface GroupedCheckboxListProps {
@@ -130,7 +122,7 @@ export function GroupedCheckboxList({
         disabled={disabled}
         onClick={() => setOpen(true)}
         className={cn(
-          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-medium font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
+          'flex w-full cursor-pointer items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 font-sans text-[var(--text-primary)] text-sm outline-none focus:outline-none focus-visible:outline-none focus-visible:ring-0 focus-visible:ring-offset-0 dark:bg-[var(--surface-5)]',
           'hover-hover:bg-[var(--surface-active)]'
         )}
       >
@@ -168,7 +160,7 @@ export function GroupedCheckboxList({
                 />
                 <label
                   htmlFor='select-all'
-                  className='cursor-pointer font-medium text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
+                  className='cursor-pointer text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70'
                 >
                   Select all entities
                 </label>
@@ -183,7 +175,7 @@ export function GroupedCheckboxList({
             <div className='flex flex-col gap-6'>
               {Object.entries(groupedOptions).map(([groupName, groupOptions]) => (
                 <div key={groupName}>
-                  <h3 className='mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-wider'>
+                  <h3 className='mb-3 text-muted-foreground text-xs uppercase tracking-wider'>
                     {groupName}
                   </h3>
                   <div className='flex flex-col gap-3'>

@@ -5,7 +5,7 @@ import { DEVIN_SESSION_LIST_ITEM_PROPERTIES } from './types'
 export const devinListSessionsTool: ToolConfig<DevinListSessionsParams, DevinListSessionsResponse> =
   {
     id: 'devin_list_sessions',
-    name: 'list_sessions',
+    name: 'Devin List Sessions',
     description: 'List Devin sessions in the organization. Returns up to 100 sessions by default.',
     version: '1.0.0',
 

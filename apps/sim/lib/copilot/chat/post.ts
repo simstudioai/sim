@@ -53,8 +53,9 @@ import {
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import {
-  canonicalizeDesktopSessionResources,
+  hasAddressableId,
   isEphemeralResource,
+  sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -142,6 +143,20 @@ function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSche
     type: resource.type,
     id: resource.id,
     title: resource.title ?? '',
+  })
+}
+
+/**
+ * Drops open tabs the client cannot address, so one unusable tab does not fail
+ * the whole message — clients on a stale bundle still send them. A non-string
+ * id is left in place for the schema to reject, since that is a malformed
+ * request rather than a resource we merely cannot open.
+ */
+function dropUnaddressableAttachments(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  return value.filter((resource) => {
+    const id = (resource as { id?: unknown } | null)?.id
+    return typeof id !== 'string' || hasAddressableId(id)
   })
 }
 
@@ -254,7 +269,9 @@ const ChatMessageSchema = z.object({
   createNewChat: z.boolean().optional().default(false),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
-  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
+  resourceAttachments: z
+    .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
+    .optional(),
   provider: z.string().optional(),
   contexts: z.array(ChatContextSchema).optional(),
   commands: z.array(z.string()).optional(),
@@ -1057,7 +1074,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
-        const persistable = canonicalizeDesktopSessionResources(
+        // Canonicalizes here, not just inside `persistChatResources`: several
+        // browser tabs collapse onto the one Browser panel before they are
+        // stored, so the chat reopens with a single tab rather than one per page.
+        const persistable = sanitizeChatResources(
           body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
             type: resource.type,
             id: resource.id,
@@ -1146,34 +1166,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             activeOtelRoot.context
           )
         : Promise.resolve(undefined)
-      const agentContextsPromise = withCopilotSpan(
-        TraceSpan.CopilotChatResolveAgentContexts,
-        {
-          [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
-          [TraceAttr.CopilotResourceAttachmentsCount]: body.resourceAttachments?.length ?? 0,
-        },
-        () =>
-          resolveAgentContexts({
-            contexts: normalizedContexts,
-            resourceAttachments: body.resourceAttachments,
-            userId: authenticatedUserId,
-            message: body.message,
-            workspaceId,
-            chatId: actualChatId,
-            requestId,
-          }),
-        activeOtelRoot.context
-      )
-      const persistUserMessagePromise = persistUserMessage({
-        chatId: actualChatId,
-        userMessageId,
-        message: body.message,
-        fileAttachments: body.fileAttachments,
-        contexts: normalizedContexts,
-        workspaceId,
-        notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
-        parentOtelContext: activeOtelRoot.context,
-      })
       const executionContextPromise = withCopilotSpan(
         TraceSpan.CopilotChatBuildExecutionContext,
         { [TraceAttr.CopilotBranchKind]: branch.kind },
@@ -1186,7 +1178,36 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-
+      const agentContextsPromise = executionContextPromise.then(() => {
+        return withCopilotSpan(
+          TraceSpan.CopilotChatResolveAgentContexts,
+          {
+            [TraceAttr.CopilotContextsCount]: normalizedContexts.length,
+            [TraceAttr.CopilotResourceAttachmentsCount]: body.resourceAttachments?.length ?? 0,
+          },
+          () =>
+            resolveAgentContexts({
+              contexts: normalizedContexts,
+              resourceAttachments: body.resourceAttachments,
+              userId: authenticatedUserId,
+              message: body.message,
+              workspaceId,
+              chatId: actualChatId,
+              requestId,
+            }),
+          activeOtelRoot.context
+        )
+      })
+      const persistUserMessagePromise = persistUserMessage({
+        chatId: actualChatId,
+        userMessageId,
+        message: body.message,
+        fileAttachments: body.fileAttachments,
+        contexts: normalizedContexts,
+        workspaceId,
+        notifyWorkspaceStatus: branch.notifyWorkspaceStatus,
+        parentOtelContext: activeOtelRoot.context,
+      })
       const [agentContexts, userPermission, entitlements, workspaceSnapshot, , executionContext] =
         await Promise.all([
           agentContextsPromise,
@@ -1359,6 +1380,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     otelRoot?.finish('error', error)
 
     if (isZodError(error)) {
+      // A rejected body otherwise leaves no trace: the client sees a 400 and
+      // its stream reconnect 404s, which reads as the stream dying for no reason.
+      logger.warn(`[${requestId}] Rejected chat request as invalid`, {
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      })
       return validationErrorResponse(error, 'Invalid request data')
     }
 

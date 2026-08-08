@@ -34,7 +34,7 @@ Integrate Cloudflare into the workflow. Manage zones (domains), DNS records, SSL
 
 ## Actions
 
-### `cloudflare_list_zones`
+### Cloudflare List Zones
 
 Lists all zones (domains) in the Cloudflare account.
 
@@ -95,7 +95,7 @@ Lists all zones (domains) in the Cloudflare account.
 |   ↳ `permissions` | array | User permissions for the zone |
 | `total_count` | number | Total number of zones matching the query |
 
-### `cloudflare_get_zone`
+### Cloudflare Get Zone
 
 Gets details for a specific zone (domain) by its ID.
 
@@ -147,7 +147,7 @@ Gets details for a specific zone (domain) by its ID.
 | `vanity_name_servers` | array | Custom vanity name servers |
 | `permissions` | array | User permissions for the zone |
 
-### `cloudflare_create_zone`
+### Cloudflare Create Zone
 
 Adds a new zone (domain) to the Cloudflare account.
 
@@ -201,7 +201,7 @@ Adds a new zone (domain) to the Cloudflare account.
 | `vanity_name_servers` | array | Custom vanity name servers |
 | `permissions` | array | User permissions for the zone |
 
-### `cloudflare_delete_zone`
+### Cloudflare Delete Zone
 
 Deletes a zone (domain) from the Cloudflare account.
 
@@ -218,7 +218,7 @@ Deletes a zone (domain) from the Cloudflare account.
 | --------- | ---- | ----------- |
 | `id` | string | Deleted zone ID |
 
-### `cloudflare_list_dns_records`
+### Cloudflare List DNS Records
 
 Lists DNS records for a specific zone.
 
@@ -268,7 +268,7 @@ Lists DNS records for a specific zone.
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the record was last modified |
 | `total_count` | number | Total number of DNS records matching the query |
 
-### `cloudflare_create_dns_record`
+### Cloudflare Create DNS Record
 
 Creates a new DNS record for a zone.
 
@@ -311,7 +311,7 @@ Creates a new DNS record for a zone.
 | `created_on` | string | ISO 8601 timestamp when the record was created |
 | `modified_on` | string | ISO 8601 timestamp when the record was last modified |
 
-### `cloudflare_update_dns_record`
+### Cloudflare Update DNS Record
 
 Updates an existing DNS record for a zone.
 
@@ -355,7 +355,7 @@ Updates an existing DNS record for a zone.
 | `created_on` | string | ISO 8601 timestamp when the record was created |
 | `modified_on` | string | ISO 8601 timestamp when the record was last modified |
 
-### `cloudflare_delete_dns_record`
+### Cloudflare Delete DNS Record
 
 Deletes a DNS record from a zone.
 
@@ -373,7 +373,7 @@ Deletes a DNS record from a zone.
 | --------- | ---- | ----------- |
 | `id` | string | Deleted record ID |
 
-### `cloudflare_list_certificates`
+### Cloudflare List Certificates
 
 Lists SSL/TLS certificate packs for a zone.
 
@@ -438,7 +438,7 @@ Lists SSL/TLS certificate packs for a zone.
 |     ↳ `txt_value` | string | TXT record value |
 | `total_count` | number | Total number of certificate packs |
 
-### `cloudflare_get_zone_settings`
+### Cloudflare Get Zone Settings
 
 Gets all settings for a zone including SSL mode, caching level, and security settings.
 
@@ -460,7 +460,7 @@ Gets all settings for a zone including SSL mode, caching level, and security set
 |   ↳ `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
 |   ↳ `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
 
-### `cloudflare_update_zone_setting`
+### Cloudflare Update Zone Setting
 
 Updates a specific zone setting such as SSL mode, security level, cache level, or other configuration.
 
@@ -483,7 +483,7 @@ Updates a specific zone setting such as SSL mode, security level, cache level, o
 | `modified_on` | string | ISO 8601 timestamp when the setting was last modified |
 | `time_remaining` | number | Seconds remaining until the setting can be modified again \(only present for rate-limited settings\) |
 
-### `cloudflare_dns_analytics`
+### Cloudflare DNS Analytics
 
 Gets DNS analytics report for a zone including query counts and trends.
 
@@ -543,7 +543,7 @@ Gets DNS analytics report for a zone including query counts and trends.
 |   ↳ `sort` | array | Sort order applied to the query |
 |   ↳ `limit` | number | Maximum number of results requested |
 
-### `cloudflare_purge_cache`
+### Cloudflare Purge Cache
 
 Purges cached content for a zone. Can purge everything or specific files/tags/hosts/prefixes.
 

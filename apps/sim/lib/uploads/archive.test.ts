@@ -107,6 +107,46 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     )
   })
 
+  it('marks extracted files unknown when an archive has secret provenance', async () => {
+    const buffer = await buildZip({ 'one.txt': 'one', 'two.txt': 'two' })
+    const secretProvenance = {
+      status: 'exact' as const,
+      entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
+    }
+
+    await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      userId: 'u',
+      secretProvenance,
+    })
+
+    expect(mockUpload).toHaveBeenCalledTimes(2)
+    for (const call of mockUpload.mock.calls) {
+      expect(call[5]).toEqual(expect.objectContaining({ secretProvenance: { status: 'unknown' } }))
+    }
+  })
+
+  it('preserves an exact-empty classification across extraction', async () => {
+    const buffer = await buildZip({ 'one.txt': 'one' })
+
+    await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      userId: 'u',
+      secretProvenance: { status: 'exact', entries: [] },
+    })
+
+    expect(mockUpload).toHaveBeenCalledWith(
+      'ws',
+      'u',
+      expect.any(Buffer),
+      'one.txt',
+      'text/plain',
+      expect.objectContaining({
+        secretProvenance: { status: 'exact', entries: [] },
+      })
+    )
+  })
+
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {
     // A structurally valid central directory (EOCD-anchored) with one record more
     // than the parse-graph cap. JSZip would build one entry per record in the

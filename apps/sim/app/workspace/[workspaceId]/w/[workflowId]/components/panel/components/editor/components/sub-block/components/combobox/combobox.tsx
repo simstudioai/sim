@@ -4,6 +4,7 @@ import { Plus } from '@sim/emcn/icons'
 import { useReactFlow } from 'reactflow'
 import { SandboxCreateModal } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/components/sandbox-create-modal'
 import type { SandboxLanguage } from '@/app/workspace/[workspaceId]/settings/components/sandboxes/utils'
+import { shouldClearMissingOption } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/combobox/missing-option'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import { SubBlockInputController } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/sub-block-input-controller'
 import { getWorkflowSearchLabelHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
@@ -137,6 +138,7 @@ export const ComboBox = memo(function ComboBox({
     isLoadingOptions,
     fetchError,
     hydratedOption,
+    missingOptionId,
     refetch: refetchOptions,
   } = useFetchedOptions({
     blockId,
@@ -152,6 +154,30 @@ export const ComboBox = memo(function ComboBox({
   const [isCreateOpen, setIsCreateOpen] = useState(false)
   const [createLanguage, setCreateLanguage] = useState<SandboxLanguage | undefined>(undefined)
   const [createdOption, setCreatedOption] = useState<{ label: string; id: string } | null>(null)
+
+  useEffect(() => {
+    const currentValue = useSubBlockStore.getState().getValue(blockId, subBlockId)
+    if (
+      !shouldClearMissingOption({
+        clearOnMissingOption: Boolean(config.clearOnMissingOption),
+        missingOptionId,
+        currentValue,
+        isPreview: Boolean(isPreview),
+        disabled: Boolean(disabled),
+      })
+    ) {
+      return
+    }
+    setStoreValue('')
+  }, [
+    blockId,
+    config.clearOnMissingOption,
+    disabled,
+    isPreview,
+    missingOptionId,
+    setStoreValue,
+    subBlockId,
+  ])
 
   /**
    * The pinned "create a new one" row, when the field declares one. Seeded from

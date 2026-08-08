@@ -5,8 +5,19 @@ const mocks = vi.hoisted(() => {
     readonly code = 'FILE_EXISTS' as const
   }
 
+  /**
+   * Stands in for the production error, which extends `HttpError`. Only the message is
+   * asserted here; the real class is what carries `statusCode = 403` to `withRouteHandler`.
+   */
+  class WorkspaceAccessDeniedError extends Error {
+    constructor(readonly workspaceId: string) {
+      super(`Workspace access denied: ${workspaceId}`)
+    }
+  }
+
   return {
     FileConflictError,
+    WorkspaceAccessDeniedError,
     ensureWorkspaceFileFolderPath: vi.fn(),
     findWorkspaceFileFolderIdByPath: vi.fn(),
     normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
@@ -14,8 +25,14 @@ const mocks = vi.hoisted(() => {
     resolveWorkspaceFileReference: vi.fn(),
     updateWorkspaceFileContent: vi.fn(),
     uploadWorkspaceFile: vi.fn(),
+    resolveWorkspaceAccess: vi.fn(),
   }
 })
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  resolveWorkspaceAccess: mocks.resolveWorkspaceAccess,
+  WorkspaceAccessDeniedError: mocks.WorkspaceAccessDeniedError,
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
@@ -37,6 +54,89 @@ describe('resource writer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-id')
+    mocks.resolveWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+      workspace: { id: 'workspace-1' },
+      permission: 'admin',
+    })
+  })
+
+  it('refuses to write into a workspace the acting user is not a member of', async () => {
+    mocks.resolveWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+      workspace: { id: 'workspace-victim' },
+      permission: null,
+    })
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-victim',
+        userId: 'attacker',
+        target: { path: 'files/README.md', mode: 'overwrite' },
+        buffer: Buffer.from('owned'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow('Workspace access denied: workspace-victim')
+
+    expect(mocks.resolveWorkspaceAccess).toHaveBeenCalledWith(
+      'workspace-victim',
+      'attacker',
+      undefined
+    )
+    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
+    expect(mocks.updateWorkspaceFileContent).not.toHaveBeenCalled()
+    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to write for a read-only workspace member', async () => {
+    mocks.resolveWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: true,
+      canWrite: false,
+      canAdmin: false,
+      workspace: { id: 'workspace-1' },
+      permission: 'read',
+    })
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        userId: 'reader',
+        target: { path: 'files/notes.md', mode: 'create' },
+        buffer: Buffer.from('hello'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow('Workspace access denied: workspace-1')
+
+    expect(mocks.uploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('refuses to validate a write target in a workspace the user cannot write to', async () => {
+    mocks.resolveWorkspaceAccess.mockResolvedValue({
+      exists: true,
+      hasAccess: false,
+      canWrite: false,
+      canAdmin: false,
+      workspace: { id: 'workspace-victim' },
+      permission: null,
+    })
+
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-victim',
+        userId: 'attacker',
+        target: { path: 'files/README.md', mode: 'overwrite' },
+      })
+    ).rejects.toThrow('Workspace access denied: workspace-victim')
+
+    expect(mocks.resolveWorkspaceFileReference).not.toHaveBeenCalled()
+    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
   })
 
   it('auto-creates missing parent folders for plain workspace file creates', async () => {
@@ -73,7 +173,10 @@ describe('resource writer', () => {
       Buffer.from('content'),
       'summary.csv',
       'text/csv',
-      { folderId: 'folder-nested' }
+      {
+        folderId: 'folder-nested',
+        secretProvenance: { status: 'exact', entries: [] },
+      }
     )
     expect(result).toMatchObject({
       id: 'file-report',

@@ -12,10 +12,12 @@ const {
   mockValidateFileType,
   mockGetUserEntityPermissions,
   mockRecordKnowledgeBaseFileOwnershipMany,
+  mockSignUploadToken,
 } = vi.hoisted(() => ({
   mockValidateFileType: vi.fn().mockReturnValue(null),
   mockGetUserEntityPermissions: vi.fn().mockResolvedValue('write'),
   mockRecordKnowledgeBaseFileOwnershipMany: vi.fn().mockResolvedValue(undefined),
+  mockSignUploadToken: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/config', () => ({
@@ -23,6 +25,10 @@ vi.mock('@/lib/uploads/config', () => ({
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
+
+vi.mock('@/lib/uploads/core/upload-token', () => ({
+  signUploadToken: mockSignUploadToken,
+}))
 
 vi.mock('@/lib/uploads/utils/validation', () => ({
   validateFileType: mockValidateFileType,
@@ -56,12 +62,14 @@ describe('/api/files/presigned/batch', () => {
     mockValidateFileType.mockReturnValue(null)
     mockGetUserEntityPermissions.mockResolvedValue('write')
     mockRecordKnowledgeBaseFileOwnershipMany.mockResolvedValue(undefined)
+    mockSignUploadToken.mockReturnValue('signed-receipt-token')
     storageServiceMockFns.mockHasCloudStorage.mockReturnValue(true)
     storageServiceMockFns.mockGenerateBatchPresignedUploadUrls.mockImplementation(
       async (files: Array<{ fileName: string }>, context: string) =>
         files.map((file) => ({
           url: `https://example.com/${context}/${file.fileName}`,
           key: `${context}/${file.fileName}`,
+          uploadId: `receipt-${file.fileName}`,
         }))
     )
   })
@@ -162,6 +170,17 @@ describe('/api/files/presigned/batch', () => {
     expect(data.files).toHaveLength(1)
     expect(data.files[0].fileInfo.key).toBe('knowledge-base/doc.pdf')
     expect(data.files[0].fileInfo.path).toContain('?context=knowledge-base')
+    expect(data.files[0].uploadToken).toBe('signed-receipt-token')
+    expect(mockSignUploadToken).toHaveBeenCalledWith(
+      expect.objectContaining({
+        uploadId: 'receipt-doc.pdf',
+        key: 'knowledge-base/doc.pdf',
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+        context: 'knowledge-base',
+        uploadKind: 'direct',
+      })
+    )
     expect(data.directUploadSupported).toBe(true)
     expect(mockRecordKnowledgeBaseFileOwnershipMany).toHaveBeenCalledWith([
       {

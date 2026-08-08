@@ -40,6 +40,7 @@ import {
   waitForWorkflowToolCompletion,
 } from '@/lib/copilot/request/tools/client'
 import { sealClientToolContext } from '@/lib/copilot/request/tools/client-completion-seal.server'
+import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/copilot/request/tools/resolved-secret-result'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const TRACE_SCOPE = { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -85,7 +86,7 @@ function trustedExecution(executionId: string) {
     provenance: {
       version: 1 as const,
       complete: true,
-      entries: [],
+      entries: [{ name: 'PARENT_SECRET', encryptedValue: 'encrypted-parent-secret' }],
       scope: TRACE_SCOPE,
     },
   }
@@ -94,7 +95,14 @@ function trustedExecution(executionId: string) {
 describe('workflow client tool completion', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    decryptSecret.mockResolvedValue({ decrypted: 'child-secret-value' })
+    decryptSecret.mockImplementation(async (encrypted: string) => ({
+      decrypted:
+        encrypted === 'encrypted-parent-secret'
+          ? 'parent-secret-value'
+          : encrypted === 'encrypted-child-secret'
+            ? 'child-secret-value'
+            : encrypted,
+    }))
     replaceTerminalAsyncToolCallResult.mockResolvedValue({ status: 'completed' })
   })
 
@@ -165,7 +173,7 @@ describe('workflow client tool completion', () => {
         executionId: 'execution-1',
       },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
     expect(JSON.stringify(completion)).not.toContain('untrusted')
   })
@@ -199,7 +207,7 @@ describe('workflow client tool completion', () => {
         executionId: 'execution-1',
       },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
   })
 
@@ -229,7 +237,7 @@ describe('workflow client tool completion', () => {
         cancelledByUser: true,
       },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
   })
 
@@ -252,9 +260,43 @@ describe('workflow client tool completion', () => {
       message: 'Workflow execution failed.',
       data: { success: false, workflowId: 'workflow-1' },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
     expect(JSON.stringify(completion)).not.toContain('untrusted')
+  })
+
+  it('preserves an allowlisted async deployment failure without an execution identity', async () => {
+    const registry = createParentRegistry()
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'error',
+      message: 'Workflow execution failed.',
+      data: {
+        success: false,
+        workflowId: 'workflow-1',
+        code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        error: 'untrusted client detail',
+      },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry,
+    })
+
+    expect(completion).toEqual({
+      status: 'error',
+      message: 'Async execution requires the current workflow to match its deployed version',
+      data: {
+        success: false,
+        workflowId: 'workflow-1',
+        code: 'ASYNC_WORKFLOW_DEPLOYMENT_STALE',
+        error: 'Async execution requires the current workflow to match its deployed version',
+      },
+    })
+    expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
+    expect(JSON.stringify(completion)).not.toContain('untrusted client detail')
   })
 
   it('uses the bound execution status when provenance is incomplete', async () => {
@@ -291,7 +333,7 @@ describe('workflow client tool completion', () => {
         executionId: 'execution-1',
       },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
   })
 
@@ -331,6 +373,53 @@ describe('workflow client tool completion', () => {
       output: { value: '{{CHILD_SECRET}}' },
       logs: [],
     })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: 'child-secret-value', replacement: '{{CHILD_SECRET}}' },
+    ])
+    expect(JSON.stringify(completion)).not.toContain('child-secret-value')
+  })
+
+  it('discards imported child provenance when workflow-result projection fails', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], TRACE_SCOPE)
+    const cyclicOutput: Record<string, unknown> = { value: 'child-secret-value' }
+    cyclicOutput.self = cyclicOutput
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: { workflowId: 'workflow-1', executionId: 'execution-1' },
+    })
+    getTrustedWorkflowToolExecution.mockResolvedValue({
+      executionId: 'execution-1',
+      workflowId: 'workflow-1',
+      status: 'completed',
+      contentAvailable: true,
+      finalOutput: cyclicOutput,
+      blockLogs: [],
+      provenance: {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'CHILD_SECRET', encryptedValue: 'encrypted-child-secret' }],
+        scope: TRACE_SCOPE,
+      },
+    })
+
+    const completion = await waitForWorkflowToolCompletion({
+      toolCallId: 'tool-1',
+      workflowId: 'workflow-1',
+      timeoutMs: 1_000,
+      registry,
+    })
+
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Workflow execution completed.',
+      data: {
+        success: true,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+      },
+    })
+    expect(registry.isComplete()).toBe(true)
+    expect(registry.getActiveMatches()).toEqual([])
     expect(JSON.stringify(completion)).not.toContain('child-secret-value')
   })
 
@@ -398,16 +487,16 @@ describe('workflow client tool completion', () => {
       message: 'Workflow execution is continuing in the background.',
       data: { workflowId: 'workflow-1', executionId: 'execution-1' },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(getTrustedWorkflowToolExecution).not.toHaveBeenCalled()
     expect(replaceTerminalAsyncToolCallResult).not.toHaveBeenCalled()
   })
 
   it('fails structurally when trusted child provenance cannot be imported', async () => {
     const registry = createParentRegistry()
-    vi.spyOn(registry, 'importCrossingProvenance').mockRejectedValueOnce(
-      new Error('decryption unavailable')
-    )
+    const importSpy = vi
+      .spyOn(ResolvedSecretTraceRegistry.prototype, 'importCrossingProvenance')
+      .mockRejectedValueOnce(new Error('decryption unavailable'))
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
       data: { workflowId: 'workflow-1', executionId: 'execution-1' },
@@ -420,6 +509,7 @@ describe('workflow client tool completion', () => {
       timeoutMs: 1_000,
       registry,
     })
+    importSpy.mockRestore()
 
     expect(completion).toEqual({
       status: 'success',
@@ -430,7 +520,7 @@ describe('workflow client tool completion', () => {
         executionId: 'execution-1',
       },
     })
-    expect(registry.isComplete()).toBe(false)
+    expect(registry.isComplete()).toBe(true)
     expect(JSON.stringify(completion)).not.toContain('parent-secret-value')
   })
 
@@ -478,6 +568,8 @@ describe('workflow client tool completion', () => {
         success: true,
         workflowId: 'workflow-1',
         executionId: 'execution-1',
+        output: { value: 'child read {{PARENT_SECRET}} from execution-1' },
+        logs: [],
       },
     })
 
@@ -522,6 +614,7 @@ describe('generic client tool completion', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry,
+      toolInput: { query: 'resolved-secret' },
     })
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
@@ -562,6 +655,59 @@ describe('generic client tool completion', () => {
     )
   })
 
+  it('preserves trusted public output equal to an unrelated active low-entropy secret', async () => {
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        {
+          name: 'LOW_ENTROPY_SECRET',
+          plaintext: 'true',
+          encryptedValue: 'encrypted-low-entropy-secret',
+        },
+      ],
+      TRACE_SCOPE
+    )
+    registry.recordResolved('LOW_ENTROPY_SECRET', 'true')
+    const sealedContext = await sealClientToolContext({
+      toolCallId: 'tool-1',
+      runId: 'run-1',
+      userId: 'user-1',
+      registry,
+      toolInput: { query: 'public status' },
+    })
+    waitForToolConfirmation.mockResolvedValue({
+      status: 'success',
+      data: {
+        __sealedClientToolCompletionV1: JSON.stringify({
+          toolCallId: 'tool-1',
+          runId: 'run-1',
+          userId: 'user-1',
+          data: { enabled: true, label: 'true' },
+        }),
+        ...sealedContext,
+      },
+    })
+
+    const completion = await waitForClientToolCompletion({
+      toolCallId: 'tool-1',
+      runId: 'run-1',
+      userId: 'user-1',
+      timeoutMs: 1_000,
+      registry,
+    })
+
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { enabled: true, label: 'true' },
+    })
+    expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
+      toolCallId: 'tool-1',
+      status: 'completed',
+      result: { enabled: true, label: 'true' },
+      error: null,
+    })
+  })
+
   it('does not invalidate later tool results while a sibling activation is pending', async () => {
     const registry = createClientRegistry()
     const firstContext = await sealClientToolContext({
@@ -569,6 +715,7 @@ describe('generic client tool completion', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry,
+      toolInput: { query: 'resolved-secret' },
     })
     waitForToolConfirmation.mockResolvedValueOnce({
       status: 'success',
@@ -592,7 +739,11 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(first).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(first).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { content: '{{SECRET}}' },
+    })
     expect(registry.isPermanentlyIncomplete()).toBe(false)
     finishSiblingActivation()
     expect(registry.isComplete()).toBe(true)
@@ -602,6 +753,7 @@ describe('generic client tool completion', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry,
+      toolInput: { query: 'resolved-secret' },
     })
     waitForToolConfirmation.mockResolvedValueOnce({
       status: 'success',
@@ -647,12 +799,16 @@ describe('generic client tool completion', () => {
       timeoutMs: 1_000,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
     expect(decryptSecret).not.toHaveBeenCalled()
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
   })
@@ -663,7 +819,11 @@ describe('generic client tool completion', () => {
     ['wrong user', { toolCallId: 'tool-1', runId: 'run-1', userId: 'other-user' }],
   ])('fails structurally for a completion bound to the %s', async (_label, sealedBinding) => {
     const registry = createClientRegistry()
-    const sealedContext = await sealClientToolContext({ ...sealedBinding, registry })
+    const sealedContext = await sealClientToolContext({
+      ...sealedBinding,
+      registry,
+      toolInput: { query: 'resolved-secret' },
+    })
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
       data: {
@@ -683,12 +843,16 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
-    expect(registry.isComplete()).toBe(false)
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
     expect(JSON.stringify(completion)).not.toContain('untrusted-secret')
@@ -702,6 +866,7 @@ describe('generic client tool completion', () => {
       runId: 'run-1',
       userId: 'user-1',
       registry: sourceRegistry,
+      toolInput: { query: 'resolved-secret' },
     })
     waitForToolConfirmation.mockResolvedValue({
       status: 'success',
@@ -724,12 +889,16 @@ describe('generic client tool completion', () => {
       registry: resumedRegistry,
     })
 
-    expect(completion).toEqual({ status: 'success', message: 'Tool completed' })
-    expect(resumedRegistry.isComplete()).toBe(false)
+    expect(completion).toEqual({
+      status: 'success',
+      message: 'Tool completed',
+      data: { success: true },
+    })
+    expect(resumedRegistry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'completed',
-      result: null,
+      result: { success: true },
       error: null,
     })
     expect(JSON.stringify(completion)).not.toContain('resolved-secret')
@@ -751,13 +920,17 @@ describe('generic client tool completion', () => {
       registry,
     })
 
-    expect(completion).toEqual({ status: 'error', message: 'Tool result omitted' })
-    expect(registry.isComplete()).toBe(false)
+    expect(completion).toEqual({
+      status: 'error',
+      message: TOOL_RESULT_UNAVAILABLE_ERROR,
+      data: { error: TOOL_RESULT_UNAVAILABLE_ERROR },
+    })
+    expect(registry.isComplete()).toBe(true)
     expect(replaceTerminalAsyncToolCallResult).toHaveBeenCalledWith({
       toolCallId: 'tool-1',
       status: 'failed',
-      result: null,
-      error: 'Tool result omitted',
+      result: { error: TOOL_RESULT_UNAVAILABLE_ERROR },
+      error: TOOL_RESULT_UNAVAILABLE_ERROR,
     })
     expect(JSON.stringify(completion)).not.toContain('raw')
   })

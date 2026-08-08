@@ -1,4 +1,5 @@
 import type { CodeLanguage } from '@/lib/execution/languages'
+import type { PrivateSecretProvenanceBundleV1 } from '@/lib/execution/model-input-provenance'
 import type { ToolResponse } from '@/tools/types'
 
 export interface CodeExecutionInput {
@@ -66,6 +67,7 @@ export interface CodeExecutionInput {
     | { type?: 'content'; path: string; content: string; encoding?: 'base64' }
     | { type: 'url'; path: string; url: string }
   >
+  __privateSecretProvenance?: PrivateSecretProvenanceBundleV1
 }
 
 export interface CodeExecutionOutput extends ToolResponse {

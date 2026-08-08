@@ -2,12 +2,12 @@ import { createMockResponse, inputValidationMock, inputValidationMockFns } from 
 import type { QueryClient } from '@tanstack/react-query'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import * as getQueryClientModule from '@/app/_shell/providers/get-query-client'
+import { prepareToolRequest } from '@/tools/request-transport'
 import { transformTable } from '@/tools/shared/table'
 import type { ToolConfig } from '@/tools/types'
 import {
   createCustomToolRequestBody,
   createParamSchema,
-  formatRequestParams,
   getClientEnvVars,
   validateRequiredParametersAfterMerge,
 } from '@/tools/utils'
@@ -122,7 +122,7 @@ describe('transformTable', () => {
   })
 })
 
-describe('formatRequestParams', () => {
+describe('prepareToolRequest', () => {
   let mockTool: ToolConfig
 
   beforeEach(() => {
@@ -145,14 +145,14 @@ describe('formatRequestParams', () => {
 
   it.concurrent('should format request with static URL', () => {
     const params = { foo: 'bar' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       url: 'https://api.example.com',
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
       body: undefined, // No body for GET
     })
+    expect(result.headers.get('content-type')).toBe('application/json')
 
     expect(mockTool.request.headers).toHaveBeenCalledWith(params)
   })
@@ -161,19 +161,19 @@ describe('formatRequestParams', () => {
     mockTool.request.url = (params) => `https://api.example.com/${params.id}`
     const params = { id: '123' }
 
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       url: 'https://api.example.com/123',
       method: 'GET',
-      headers: { 'Content-Type': 'application/json' },
       body: undefined,
     })
+    expect(result.headers.get('content-type')).toBe('application/json')
   })
 
   it.concurrent('should use method from params over tool default', () => {
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.method).toBe('POST')
     expect(result.body).toBe(JSON.stringify({ data: 'test-data' }))
@@ -190,7 +190,7 @@ describe('formatRequestParams', () => {
     mockTool.request.body = vi.fn().mockReturnValue('key1=value1&key2=value2')
 
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.body).toBe('key1=value1&key2=value2')
   })
@@ -205,20 +205,22 @@ describe('formatRequestParams', () => {
     mockTool.request.body = vi.fn().mockReturnValue('{"prompt": "Hello"}\n{"prompt": "World"}')
 
     const params = { method: 'POST' }
-    const result = formatRequestParams(mockTool, params)
+    const result = prepareToolRequest(mockTool, params)
 
     expect(result.body).toBe('{"prompt": "Hello"}\n{"prompt": "World"}')
   })
 
   it.concurrent('should pass through a non-empty proxyUrl (trimmed)', () => {
-    const result = formatRequestParams(mockTool, { proxyUrl: '  http://user:pass@host:8080  ' })
+    const result = prepareToolRequest(mockTool, {
+      proxyUrl: '  http://user:pass@host:8080  ',
+    })
     expect(result.proxyUrl).toBe('http://user:pass@host:8080')
   })
 
   it.concurrent('should omit proxyUrl when blank, whitespace, or absent', () => {
-    expect(formatRequestParams(mockTool, {}).proxyUrl).toBeUndefined()
-    expect(formatRequestParams(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
-    expect(formatRequestParams(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, {}).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, { proxyUrl: '' }).proxyUrl).toBeUndefined()
+    expect(prepareToolRequest(mockTool, { proxyUrl: '   ' }).proxyUrl).toBeUndefined()
   })
 })
 

@@ -32,7 +32,7 @@ Integrate Calendly into your workflow. Manage event types, scheduled events, inv
 
 ## Actions
 
-### `calendly_get_current_user`
+### Calendly Get Current User
 
 Get information about the currently authenticated Calendly user
 
@@ -58,7 +58,7 @@ Get information about the currently authenticated Calendly user
 |   ↳ `updated_at` | string | ISO timestamp when user was last updated |
 |   ↳ `current_organization` | string | URI of current organization |
 
-### `calendly_list_event_types`
+### Calendly List Event Types
 
 Retrieve a list of all event types for a user or organization
 
@@ -99,7 +99,7 @@ Retrieve a list of all event types for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_get_event_type`
+### Calendly Get Event Type
 
 Get detailed information about a specific event type
 
@@ -136,7 +136,7 @@ Get detailed information about a specific event type
 |   ↳ `type` | string | Event type classification |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
-### `calendly_list_scheduled_events`
+### Calendly List Scheduled Events
 
 Retrieve a list of scheduled events for a user or organization
 
@@ -183,7 +183,7 @@ Retrieve a list of scheduled events for a user or organization
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_get_scheduled_event`
+### Calendly Get Scheduled Event
 
 Get detailed information about a specific scheduled event
 
@@ -224,7 +224,7 @@ Get detailed information about a specific scheduled event
 |   ↳ `created_at` | string | ISO timestamp of event creation |
 |   ↳ `updated_at` | string | ISO timestamp of last update |
 
-### `calendly_list_event_invitees`
+### Calendly List Event Invitees
 
 Retrieve a list of invitees for a scheduled event
 
@@ -269,7 +269,7 @@ Retrieve a list of invitees for a scheduled event
 |   ↳ `next_page_token` | string | Token for next page |
 |   ↳ `previous_page_token` | string | Token for previous page |
 
-### `calendly_cancel_event`
+### Calendly Cancel Event
 
 Cancel a scheduled event
 
@@ -324,6 +324,14 @@ Trigger workflow when someone cancels a scheduled event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -379,6 +387,14 @@ Trigger workflow when someone schedules a new event on Calendly
 |   ↳ `status` | string | Invitee status \(active or canceled\) |
 |   ↳ `timezone` | string | Invitee timezone |
 |   ↳ `event` | string | Scheduled event URI |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `text_reminder_number` | string | Phone number for text reminders |
 |   ↳ `rescheduled` | boolean | Whether this invitee rescheduled |
 |   ↳ `old_invitee` | string | URI of the old invitee \(if rescheduled\) |
@@ -433,6 +449,14 @@ Trigger workflow when someone submits a Calendly routing form
 |     ↳ `email` | string | Submitter email address |
 |     ↳ `name` | string | Submitter full name |
 |   ↳ `submitter_type` | string | Type of submitter |
+|   ↳ `questions_and_answers` | array | Questions and answers from the booking form |
+|   ↳ `tracking` | object | tracking output from the tool |
+|     ↳ `utm_campaign` | string | UTM campaign parameter |
+|     ↳ `utm_source` | string | UTM source parameter |
+|     ↳ `utm_medium` | string | UTM medium parameter |
+|     ↳ `utm_content` | string | UTM content parameter |
+|     ↳ `utm_term` | string | UTM term parameter |
+|     ↳ `salesforce_uuid` | string | Salesforce UUID |
 |   ↳ `result` | object | Routing result details |
 |     ↳ `type` | string | Result type \(event_type, custom_message, or external_url\) |
 |     ↳ `value` | string | Result value \(event type URI, message, or URL\) |

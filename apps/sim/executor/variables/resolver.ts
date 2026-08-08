@@ -149,7 +149,8 @@ export class VariableResolver {
    *
    * Returns runtime inputs, display inputs, and a `contextVariables` map. Callers
    * should inject contextVariables into the function execution request body so the
-   * isolated VM can access them as global variables.
+   * runtime can access them as globals. Environment placeholders remain in source so
+   * the shared execution-boundary compiler handles both Function blocks and Custom Tools.
    */
   async resolveInputsForFunctionBlock(
     ctx: ExecutionContext,
@@ -214,11 +215,15 @@ export class VariableResolver {
           resolved[key] = resolvedItems
           display[key] = displayItems
         } else {
-          resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
+          resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
+            inputPath: [key],
+          })
           display[key] = resolved[key]
         }
       } else {
-        resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block)
+        resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
+          inputPath: [key],
+        })
         display[key] = resolved[key]
       }
     }
@@ -238,43 +243,49 @@ export class VariableResolver {
     const resolved: Record<string, any> = {}
 
     const isConditionBlock = block?.metadata?.id === BlockType.CONDITION
-    if (isConditionBlock && typeof params.conditions === 'string') {
-      try {
-        const parsed = JSON.parse(params.conditions)
-        if (Array.isArray(parsed)) {
-          resolved.conditions = await Promise.all(
-            parsed.map(async (cond: any) => ({
-              ...cond,
+    if (isConditionBlock) {
+      let conditions: unknown = params.conditions
+      if (typeof conditions === 'string') {
+        try {
+          const parsedConditions: unknown = JSON.parse(conditions)
+          if (Array.isArray(parsedConditions)) conditions = parsedConditions
+        } catch (parseError) {
+          conditions = params.conditions
+          logger.warn('Failed to parse conditions JSON, falling back to normal resolution', {
+            errorName: toError(parseError).name,
+            inputLength: params.conditions.length,
+          })
+        }
+      }
+
+      if (Array.isArray(conditions)) {
+        resolved.conditions = await Promise.all(
+          conditions.map(async (condition, conditionIndex) => {
+            if (!condition || typeof condition !== 'object') return condition
+            const value = Reflect.get(condition, 'value')
+            return {
+              ...condition,
               value:
-                typeof cond.value === 'string'
+                typeof value === 'string'
                   ? await this.resolveTemplateWithoutConditionFormatting(
                       ctx,
                       currentNodeId,
-                      cond.value
+                      value,
+                      undefined,
+                      ['conditions', String(conditionIndex), 'value']
                     )
-                  : cond.value,
-            }))
-          )
-        } else {
-          resolved.conditions = await this.resolveValue(
-            ctx,
-            currentNodeId,
-            params.conditions,
-            undefined,
-            block
-          )
-        }
-      } catch (parseError) {
-        logger.warn('Failed to parse conditions JSON, falling back to normal resolution', {
-          error: parseError,
-          conditions: params.conditions,
-        })
+                  : value,
+            }
+          })
+        )
+      } else {
         resolved.conditions = await this.resolveValue(
           ctx,
           currentNodeId,
-          params.conditions,
+          conditions,
           undefined,
-          block
+          block,
+          { inputPath: ['conditions'] }
         )
       }
     }
@@ -285,6 +296,7 @@ export class VariableResolver {
       }
       resolved[key] = await this.resolveValue(ctx, currentNodeId, value, undefined, block, {
         allowLargeValueRefs: this.canResolveInputToLargeValueRef(block, key),
+        inputPath: [key],
       })
     }
     return resolved
@@ -307,7 +319,7 @@ export class VariableResolver {
     currentNodeId: string,
     reference: string,
     loopScope?: LoopScope,
-    options: { allowLargeValueRefs?: boolean } = {}
+    options: { allowLargeValueRefs?: boolean; inputPath?: readonly string[] } = {}
   ): Promise<any> {
     if (typeof reference === 'string') {
       const trimmed = reference.trim()
@@ -318,17 +330,21 @@ export class VariableResolver {
           currentNodeId,
           loopScope,
           allowLargeValueRefs: options.allowLargeValueRefs,
+          inputPath: options.inputPath,
         }
 
         const result = await this.resolveReference(trimmed, resolutionContext)
-        if (result === RESOLVED_EMPTY) {
-          return null
-        }
-        return result
+        const resolved = result === RESOLVED_EMPTY ? null : result
+        ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
+          options.inputPath,
+          resolved,
+          trimmed
+        )
+        return resolved
       }
     }
 
-    return this.resolveValue(ctx, currentNodeId, reference, loopScope)
+    return this.resolveValue(ctx, currentNodeId, reference, loopScope, undefined, options)
   }
 
   private async resolveValue(
@@ -337,7 +353,7 @@ export class VariableResolver {
     value: any,
     loopScope?: LoopScope,
     block?: SerializedBlock,
-    options: { allowLargeValueRefs?: boolean } = {}
+    options: { allowLargeValueRefs?: boolean; inputPath?: readonly string[] } = {}
   ): Promise<any> {
     if (value === null || value === undefined) {
       return value
@@ -345,16 +361,24 @@ export class VariableResolver {
 
     if (Array.isArray(value)) {
       return Promise.all(
-        value.map((v) => this.resolveValue(ctx, currentNodeId, v, loopScope, block, options))
+        value.map((v, index) =>
+          this.resolveValue(ctx, currentNodeId, v, loopScope, block, {
+            ...options,
+            inputPath: options.inputPath ? [...options.inputPath, String(index)] : undefined,
+          })
+        )
       )
     }
 
     if (typeof value === 'object') {
       const entries = await Promise.all(
-        Object.entries(value).map(async ([key, val]) => [
-          key,
-          await this.resolveValue(ctx, currentNodeId, val, loopScope, block, options),
-        ])
+        Object.entries(value).map(async ([key, val]) => {
+          const resolvedValue = await this.resolveValue(ctx, currentNodeId, val, loopScope, block, {
+            ...options,
+            inputPath: options.inputPath ? [...options.inputPath, key] : undefined,
+          })
+          return [key, resolvedValue]
+        })
       )
       return Object.fromEntries(entries)
     }
@@ -367,9 +391,8 @@ export class VariableResolver {
   /**
    * Resolves a code template for a function block. Block output references are stored
    * in `contextVarAccumulator` as named variables (e.g. `__blockRef_0`) and replaced
-   * with those variable names in the returned code string. Non-block references (loop
-   * items, workflow variables, env vars) are still inlined as literals so they remain
-   * available without any extra passing mechanism.
+   * with those variable names in the returned code string. Environment placeholders are
+   * deliberately preserved for the shared execution-boundary compiler.
    */
   private async resolveCodeWithContextVars(
     ctx: ExecutionContext,
@@ -396,7 +419,7 @@ export class VariableResolver {
     let displayResult = ''
     let displayCursor = 0
 
-    let result = await replaceValidReferencesAsync(template, async (match, index) => {
+    const result = await replaceValidReferencesAsync(template, async (match, index) => {
       if (replacementError) return match
       displayResult += template.slice(displayCursor, index)
       displayCursor = index + match.length
@@ -593,15 +616,6 @@ export class VariableResolver {
     if (replacementError !== null) {
       throw replacementError
     }
-
-    result = await replaceEnvVarsAsync(result, async (match) => {
-      const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
-    })
-    displayResult = await replaceEnvVarsAsync(displayResult, async (match) => {
-      const resolved = await this.resolveReference(match, resolutionContext)
-      return typeof resolved === 'string' ? resolved : match
-    })
 
     return { resolvedCode: result, displayCode: displayResult }
   }
@@ -1247,7 +1261,7 @@ export class VariableResolver {
     template: string,
     loopScope?: LoopScope,
     block?: SerializedBlock,
-    options: { allowLargeValueRefs?: boolean } = {}
+    options: { allowLargeValueRefs?: boolean; inputPath?: readonly string[] } = {}
   ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
@@ -1255,6 +1269,7 @@ export class VariableResolver {
       currentNodeId,
       loopScope,
       allowLargeValueRefs: options.allowLargeValueRefs,
+      inputPath: options.inputPath,
     }
 
     let replacementError: Error | null = null
@@ -1267,28 +1282,48 @@ export class VariableResolver {
             | undefined)
         : undefined
 
-    let result = await replaceValidReferencesAsync(template, async (match) => {
+    let projectedReferenceResult = ''
+    let projectedReferenceCursor = 0
+    let result = await replaceValidReferencesAsync(template, async (match, index) => {
       if (replacementError) return match
 
+      projectedReferenceResult += template.slice(projectedReferenceCursor, index)
+      projectedReferenceCursor = index + match.length
+      let containsResolvedSecret = false
+      const referenceContext: ResolutionContext = {
+        ...resolutionContext,
+        onResolvedSecretReference: () => {
+          containsResolvedSecret = true
+        },
+      }
+
       try {
-        const resolved = await this.resolveReference(match, resolutionContext)
+        const resolved = await this.resolveReference(match, referenceContext)
         if (resolved === undefined) {
+          projectedReferenceResult += match
           return match
         }
 
         if (resolved === RESOLVED_EMPTY) {
           if (blockType === BlockType.FUNCTION) {
-            return this.blockResolver.formatValueForBlock(null, blockType, language)
+            const formatted = this.blockResolver.formatValueForBlock(null, blockType, language)
+            projectedReferenceResult += formatted
+            return formatted
           }
+          projectedReferenceResult += ''
           return ''
         }
 
-        return this.blockResolver.formatValueForBlock(resolved, blockType, language)
+        const formatted = this.blockResolver.formatValueForBlock(resolved, blockType, language)
+        projectedReferenceResult += containsResolvedSecret ? match : formatted
+        return formatted
       } catch (error) {
         replacementError = toError(error)
+        projectedReferenceResult += match
         return match
       }
     })
+    projectedReferenceResult += template.slice(projectedReferenceCursor)
 
     if (replacementError !== null) {
       throw replacementError
@@ -1298,6 +1333,11 @@ export class VariableResolver {
       const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
+    ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
+      options.inputPath,
+      result,
+      projectedReferenceResult
+    )
     return result
   }
 
@@ -1305,27 +1345,43 @@ export class VariableResolver {
     ctx: ExecutionContext,
     currentNodeId: string,
     template: string,
-    loopScope?: LoopScope
+    loopScope?: LoopScope,
+    inputPath?: readonly string[]
   ): Promise<string> {
     const resolutionContext: ResolutionContext = {
       executionContext: ctx,
       executionState: this.state,
       currentNodeId,
       loopScope,
+      inputPath,
     }
 
     let replacementError: Error | null = null
 
-    let result = await replaceValidReferencesAsync(template, async (match) => {
+    let projectedReferenceResult = ''
+    let projectedReferenceCursor = 0
+    let result = await replaceValidReferencesAsync(template, async (match, index) => {
       if (replacementError) return match
 
+      projectedReferenceResult += template.slice(projectedReferenceCursor, index)
+      projectedReferenceCursor = index + match.length
+      let containsResolvedSecret = false
+      const referenceContext: ResolutionContext = {
+        ...resolutionContext,
+        onResolvedSecretReference: () => {
+          containsResolvedSecret = true
+        },
+      }
+
       try {
-        const resolved = await this.resolveReference(match, resolutionContext)
+        const resolved = await this.resolveReference(match, referenceContext)
         if (resolved === undefined) {
+          projectedReferenceResult += match
           return match
         }
 
         if (resolved === RESOLVED_EMPTY) {
+          projectedReferenceResult += 'null'
           return 'null'
         }
 
@@ -1337,17 +1393,25 @@ export class VariableResolver {
             .replace(/\r/g, '\\r')
             .replace(/\u2028/g, '\\u2028')
             .replace(/\u2029/g, '\\u2029')
-          return `'${escaped}'`
+          const formatted = `'${escaped}'`
+          projectedReferenceResult += containsResolvedSecret ? match : formatted
+          return formatted
         }
         if (typeof resolved === 'object' && resolved !== null) {
-          return JSON.stringify(resolved)
+          const formatted = JSON.stringify(resolved)
+          projectedReferenceResult += containsResolvedSecret ? match : formatted
+          return formatted
         }
-        return String(resolved)
+        const formatted = String(resolved)
+        projectedReferenceResult += containsResolvedSecret ? match : formatted
+        return formatted
       } catch (error) {
         replacementError = toError(error)
+        projectedReferenceResult += match
         return match
       }
     })
+    projectedReferenceResult += template.slice(projectedReferenceCursor)
 
     if (replacementError !== null) {
       throw replacementError
@@ -1357,6 +1421,11 @@ export class VariableResolver {
       const resolved = await this.resolveReference(match, resolutionContext)
       return typeof resolved === 'string' ? resolved : match
     })
+    ctx.resolvedSecretTraceRegistry?.recordResolvedInputProjection(
+      inputPath,
+      result,
+      projectedReferenceResult
+    )
     return result
   }
 

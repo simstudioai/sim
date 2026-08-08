@@ -37,7 +37,7 @@ Integrate Amplitude into your workflow to track events, identify users and group
 
 ## Actions
 
-### `amplitude_send_event`
+### Amplitude Send Event
 
 Track an event in Amplitude using the HTTP V2 API.
 
@@ -75,7 +75,7 @@ Track an event in Amplitude using the HTTP V2 API.
 | `payloadSizeBytes` | number | Size of the payload in bytes |
 | `serverUploadTime` | number | Server upload timestamp |
 
-### `amplitude_identify_user`
+### Amplitude Identify User
 
 Set user properties in Amplitude using the Identify API. Supports $set, $setOnce, $add, $append, $unset operations.
 
@@ -96,7 +96,7 @@ Set user properties in Amplitude using the Identify API. Supports $set, $setOnce
 | `code` | number | HTTP response status code |
 | `message` | string | Response message |
 
-### `amplitude_group_identify`
+### Amplitude Group Identify
 
 Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append, $unset operations.
 
@@ -117,7 +117,7 @@ Set group-level properties in Amplitude. Supports $set, $setOnce, $add, $append,
 | `code` | number | HTTP response status code |
 | `message` | string | Response message |
 
-### `amplitude_user_search`
+### Amplitude User Search
 
 Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard REST API.
 
@@ -139,7 +139,7 @@ Search for a user by User ID, Device ID, or Amplitude ID using the Dashboard RES
 |   ↳ `userId` | string | External user ID |
 | `type` | string | Match type \(e.g., match_user_or_device_id\) |
 
-### `amplitude_user_activity`
+### Amplitude User Activity
 
 Get the event stream for a specific user by their Amplitude ID.
 
@@ -178,7 +178,7 @@ Get the event stream for a specific user by their Amplitude ID.
 |   ↳ `firstUsed` | string | Date the user first appeared |
 |   ↳ `lastUsed` | string | Date of most recent user activity |
 
-### `amplitude_user_profile`
+### Amplitude User Profile
 
 Get a user profile including properties, cohort memberships, and computed properties. Not available for EU data-residency projects.
 
@@ -203,7 +203,7 @@ Get a user profile including properties, cohort memberships, and computed proper
 | `cohortIds` | array | List of cohort IDs the user belongs to |
 | `computations` | json | Computed user properties |
 
-### `amplitude_event_segmentation`
+### Amplitude Event Segmentation
 
 Query event analytics data with segmentation. Get event counts, uniques, averages, and more.
 
@@ -235,7 +235,7 @@ Query event analytics data with segmentation. Get event counts, uniques, average
 | `seriesCollapsed` | json | Collapsed aggregate totals per series |
 | `xValues` | array | Date values for the x-axis |
 
-### `amplitude_get_active_users`
+### Amplitude Get Active Users
 
 Get active or new user counts over a date range from the Dashboard REST API.
 
@@ -261,7 +261,7 @@ Get active or new user counts over a date range from the Dashboard REST API.
 | `seriesMeta` | array | Metadata labels for each data series \(e.g., segment names\) |
 | `xValues` | array | Date values for the x-axis |
 
-### `amplitude_realtime_active_users`
+### Amplitude Real-time Active Users
 
 Get real-time active user counts at 5-minute granularity for the last 2 days.
 
@@ -281,7 +281,7 @@ Get real-time active user counts at 5-minute granularity for the last 2 days.
 | `seriesLabels` | array | Labels for each series \(e.g., "Today", "Yesterday"\) |
 | `xValues` | array | Time values for the x-axis \(e.g., "15:00", "15:05"\) |
 
-### `amplitude_list_events`
+### Amplitude List Events
 
 List all event types in the Amplitude project with their weekly totals and unique counts.
 
@@ -306,7 +306,7 @@ List all event types in the Amplitude project with their weekly totals and uniqu
 |   ↳ `nonActive` | boolean | Whether the event is excluded from active user calculations |
 |   ↳ `flowHidden` | boolean | Whether the event is hidden from user flow charts |
 
-### `amplitude_get_revenue`
+### Amplitude Get Revenue
 
 Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user counts.
 
@@ -333,7 +333,7 @@ Get revenue LTV data including ARPU, ARPPU, total revenue, and paying user count
 |   ↳ `values` | json | Per-date metric values keyed by date \(r1d..r90d, count, paid, total_amount\) |
 | `seriesLabels` | array | Labels for each data series |
 
-### `amplitude_funnels`
+### Amplitude Funnels
 
 Analyze conversion rates and drop-off between a sequence of events.
 
@@ -368,7 +368,7 @@ Analyze conversion rates and drop-off between a sequence of events.
 |   ↳ `events` | json | Event names for each funnel step |
 |   ↳ `dayFunnels` | json | Daily funnel breakdown \{series, xValues\} |
 
-### `amplitude_retention`
+### Amplitude Retention
 
 Measure how many users return to perform an action after a starting action.
 

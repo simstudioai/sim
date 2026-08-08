@@ -3,17 +3,29 @@
  */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  PRIVATE_MODEL_INPUT_STATE_HEADER,
+  PROJECTED_MODEL_INPUT_PATHS_V1,
+} from '@/lib/execution/model-input-provenance'
 
 const {
   mockExecuteProviderRequest,
   mockRequireBillingAttributionHeader,
   mockCheckWorkspaceAccess,
   mockAuthorizeCredentialUse,
+  mockPrepareCopilotEnvironmentContext,
+  mockImportProvenance,
+  mockRegistryIsComplete,
+  mockProjectResolvedSecretModelContent,
 } = vi.hoisted(() => ({
   mockExecuteProviderRequest: vi.fn(),
   mockRequireBillingAttributionHeader: vi.fn(),
   mockCheckWorkspaceAccess: vi.fn(),
   mockAuthorizeCredentialUse: vi.fn(),
+  mockPrepareCopilotEnvironmentContext: vi.fn(),
+  mockImportProvenance: vi.fn(),
+  mockRegistryIsComplete: vi.fn(),
+  mockProjectResolvedSecretModelContent: vi.fn(),
 }))
 
 vi.mock('@/providers', () => ({
@@ -31,6 +43,14 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 
 vi.mock('@/lib/auth/credential-access', () => ({
   authorizeCredentialUse: mockAuthorizeCredentialUse,
+}))
+
+vi.mock('@/lib/copilot/environment-context', () => ({
+  prepareCopilotEnvironmentContext: mockPrepareCopilotEnvironmentContext,
+}))
+
+vi.mock('@/executor/utils/resolved-secret-content-projection', () => ({
+  projectResolvedSecretModelContent: mockProjectResolvedSecretModelContent,
 }))
 
 vi.mock('@/app/api/auth/oauth/utils', () => ({
@@ -61,6 +81,24 @@ const BILLING_ATTRIBUTION = {
   payerSubscription: null,
 }
 
+function createProviderRequest(
+  body: Record<string, unknown>,
+  headers: Record<string, string> = {}
+) {
+  return createMockRequest(
+    'POST',
+    {
+      ...body,
+      __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+    },
+    {
+      'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1',
+      [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1,
+      ...headers,
+    }
+  )
+}
+
 describe('POST /api/providers', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -76,12 +114,23 @@ describe('POST /api/providers', () => {
       model: 'gpt-4o',
       tokens: { input: 1, output: 1, total: 2 },
     })
+    mockImportProvenance.mockResolvedValue(true)
+    mockRegistryIsComplete.mockReturnValue(true)
+    mockProjectResolvedSecretModelContent.mockImplementation((value) => ({
+      safe: true,
+      value,
+    }))
+    mockPrepareCopilotEnvironmentContext.mockResolvedValue({
+      resolvedSecretTraceRegistry: {
+        importProvenance: mockImportProvenance,
+        isComplete: mockRegistryIsComplete,
+      },
+    })
   })
 
   it('validates the attribution header and forwards it to executeProviderRequest', async () => {
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )
@@ -94,21 +143,183 @@ describe('POST /api/providers', () => {
     })
     expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
       'openai',
-      expect.objectContaining({ billingAttribution: BILLING_ATTRIBUTION })
+      expect.objectContaining({ billingAttribution: BILLING_ATTRIBUTION }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.anything(),
+      })
     )
   })
 
   it('executes without attribution when the header is absent', async () => {
     const res = await POST(
-      createMockRequest('POST', { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' })
+      createProviderRequest({ provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' })
     )
 
     expect(res.status).toBe(200)
     expect(mockRequireBillingAttributionHeader).not.toHaveBeenCalled()
     expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
       'openai',
-      expect.objectContaining({ billingAttribution: undefined })
+      expect.objectContaining({ billingAttribution: undefined }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.anything(),
+      })
     )
+  })
+
+  it('passes caller environment values and model-egress context to the provider boundary', async () => {
+    const res = await POST(
+      createProviderRequest({
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+        environmentVariables: { RUNTIME_TOKEN: 'runtime-secret' },
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockPrepareCopilotEnvironmentContext).toHaveBeenCalledWith('user-1', 'ws-1')
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        environmentVariables: { RUNTIME_TOKEN: 'runtime-secret' },
+      }),
+      expect.objectContaining({ resolvedSecretTraceRegistry: expect.anything() })
+    )
+  })
+
+  it('imports authenticated active provenance', async () => {
+    const provenance = {
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'encrypted-secret', name: 'TOKEN' }],
+      scope: { userId: 'user-1', workspaceId: 'ws-1' },
+    }
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          provider: 'openai',
+          model: 'gpt-4o',
+          workspaceId: 'ws-1',
+          __resolvedSecretTraceProvenance: provenance,
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, { trusted: true })
+  })
+
+  it('projects legacy private prompt provenance on the provider-facing copy', async () => {
+    mockProjectResolvedSecretModelContent.mockReturnValue({
+      safe: true,
+      value: {
+        systemPrompt: 'Use {{TOKEN}} safely',
+        context: '[{"role":"user","content":"{{TOKEN}}"}]',
+      },
+    })
+
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        {
+          provider: 'openai',
+          model: 'gpt-4o',
+          workspaceId: 'ws-1',
+          systemPrompt: 'Use secret-value safely',
+          context: '[{"role":"user","content":"secret-value"}]',
+          __resolvedSecretTraceProvenance: { version: 1, complete: true, entries: [] },
+        },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({
+        systemPrompt: 'Use {{TOKEN}} safely',
+        context: '[{"role":"user","content":"{{TOKEN}}"}]',
+      }),
+      expect.anything()
+    )
+  })
+
+  it('does not re-project an explicitly projected private request', async () => {
+    mockProjectResolvedSecretModelContent.mockReturnValue({
+      safe: true,
+      value: { systemPrompt: 'Bo{{TOKEN}}', context: undefined },
+    })
+
+    const res = await POST(
+      createProviderRequest({
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+        systemPrompt: 'Box',
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockProjectResolvedSecretModelContent).not.toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).toHaveBeenCalledWith(
+      'openai',
+      expect.objectContaining({ systemPrompt: 'Box' }),
+      expect.anything()
+    )
+  })
+
+  it('rejects a projected marker without a private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { [PRIVATE_MODEL_INPUT_STATE_HEADER]: PROJECTED_MODEL_INPUT_PATHS_V1 }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects an unknown private projection marker', async () => {
+    const res = await POST(
+      createProviderRequest(
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { [PRIVATE_MODEL_INPUT_STATE_HEADER]: 'unknown-projection' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('rejects a partial private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest(
+        'POST',
+        { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
+        { 'x-sim-private-model-input-provenance': 'resolved-secret-provenance-v1' }
+      )
+    )
+
+    expect(res.status).toBe(400)
+    expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+  })
+
+  it('preserves legacy internal requests without the private provenance envelope', async () => {
+    const res = await POST(
+      createMockRequest('POST', {
+        provider: 'openai',
+        model: 'gpt-4o',
+        workspaceId: 'ws-1',
+      })
+    )
+
+    expect(res.status).toBe(200)
+    expect(mockImportProvenance).not.toHaveBeenCalled()
+    expect(mockExecuteProviderRequest).toHaveBeenCalled()
   })
 
   it('omits provisional stream output from the execution header', async () => {
@@ -144,7 +355,7 @@ describe('POST /api/providers', () => {
     })
 
     const res = await POST(
-      createMockRequest('POST', {
+      createProviderRequest({
         provider: 'openai',
         model: 'gpt-4o',
         workspaceId: 'ws-1',
@@ -161,8 +372,7 @@ describe('POST /api/providers', () => {
 
   it('rejects an attribution header when the body has no workspaceId to validate against', async () => {
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )
@@ -179,8 +389,7 @@ describe('POST /api/providers', () => {
     })
 
     const res = await POST(
-      createMockRequest(
-        'POST',
+      createProviderRequest(
         { provider: 'openai', model: 'gpt-4o', workspaceId: 'ws-1' },
         { 'x-sim-billing-attribution': 'encoded-attribution' }
       )

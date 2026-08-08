@@ -14,22 +14,86 @@ import { getAllBlocks } from '@/blocks/registry'
 import type { ToolInput } from '@/executor/handlers/agent/types'
 import type { PiToolResult, PiToolSpec } from '@/executor/handlers/pi/backend'
 import type { ExecutionContext } from '@/executor/types'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { transformBlockTool } from '@/providers/utils'
 import { executeTool } from '@/tools'
 import { mergeToolParameters } from '@/tools/merge-params'
+import { ToolSchemaEnrichmentError } from '@/tools/params'
 import type { ToolResponse } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('PiSimTools')
+const TOOL_RESULT_UNAVAILABLE_MESSAGE =
+  'Tool execution settled, but its result could not be returned safely. Do not retry a mutation automatically.'
+const TOOL_EXECUTION_FAILED_MESSAGE = 'Tool execution failed'
 
-function toToolResult(result: ToolResponse): PiToolResult {
-  if (result.success) {
-    const text =
-      typeof result.output === 'string' ? result.output : JSON.stringify(result.output ?? {})
-    return { text, isError: false }
+function unavailableToolResult(): PiToolResult {
+  return {
+    text: TOOL_RESULT_UNAVAILABLE_MESSAGE,
+    isError: true,
   }
-  return { text: result.error || 'Tool execution failed', isError: true }
+}
+
+type PiToolResultProjection =
+  | { safe: true; result: PiToolResult }
+  | { safe: false; result: PiToolResult }
+
+function projectToolResult(
+  result: ToolResponse,
+  registry: ResolvedSecretTraceRegistry | undefined
+): PiToolResultProjection {
+  try {
+    if (!registry) {
+      if (!result.success) {
+        return {
+          safe: true,
+          result: {
+            text: result.error || TOOL_EXECUTION_FAILED_MESSAGE,
+            isError: true,
+          },
+        }
+      }
+
+      const text =
+        typeof result.output === 'string' ? result.output : JSON.stringify(result.output ?? {})
+      return typeof text === 'string'
+        ? { safe: true, result: { text, isError: false } }
+        : { safe: false, result: unavailableToolResult() }
+    }
+
+    if (result.success) {
+      const projection = projectResolvedSecretModelContent(result.output, registry)
+      if (!projection.safe) {
+        return { safe: false, result: unavailableToolResult() }
+      }
+
+      const text =
+        typeof projection.value === 'string'
+          ? projection.value
+          : JSON.stringify(projection.value ?? {})
+      return typeof text === 'string'
+        ? { safe: true, result: { text, isError: false } }
+        : { safe: false, result: unavailableToolResult() }
+    }
+
+    if (!result.error) {
+      return registry.isComplete()
+        ? {
+            safe: true,
+            result: { text: TOOL_EXECUTION_FAILED_MESSAGE, isError: true },
+          }
+        : { safe: false, result: unavailableToolResult() }
+    }
+
+    const projection = projectResolvedSecretModelContent(result.error, registry)
+    return projection.safe && typeof projection.value === 'string'
+      ? { safe: true, result: { text: projection.value, isError: true } }
+      : { safe: false, result: unavailableToolResult() }
+  } catch {
+    return { safe: false, result: unavailableToolResult() }
+  }
 }
 
 /**
@@ -44,7 +108,7 @@ export async function buildSimToolSpecs(
 
   const specs: PiToolSpec[] = []
 
-  for (const tool of inputTools as ToolInput[]) {
+  for (const [toolIndex, tool] of (inputTools as ToolInput[]).entries()) {
     if ((tool.usageControl || 'auto') === 'none') continue
     if (!tool.type || tool.type === 'mcp' || tool.type === 'custom-tool') continue
 
@@ -54,6 +118,12 @@ export async function buildSimToolSpecs(
         getAllBlocks,
         getTool,
         getToolAsync,
+        enrichmentContext: {
+          workflowId: ctx.workflowId,
+          workspaceId: ctx.workspaceId,
+          executionId: ctx.executionId,
+          userId: ctx.userId,
+        },
         resolveCustomBlockBinding: (blockType: string) =>
           resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
       })
@@ -71,6 +141,34 @@ export async function buildSimToolSpecs(
           properties: {},
         },
         execute: async (args) => {
+          const params = mergeToolParameters(preseededParams, args as Record<string, unknown>)
+          const registry = ctx.resolvedSecretTraceRegistry
+          const sourcePath = ['tools', String(toolIndex), 'params'] as const
+          const toolCallRegistry = registry?.forkForInputPaths([sourcePath], {
+            propagated: true,
+          })
+          if (toolCallRegistry && !toolCallRegistry.isComplete()) {
+            return unavailableToolResult()
+          }
+
+          if (toolCallRegistry) {
+            const inputProjection = toolCallRegistry.projectResolvedInputSelection({
+              tools: inputTools,
+            })
+            const projectedTool = inputProjection.complete
+              ? (inputProjection.value.tools as ToolInput[] | undefined)?.[toolIndex]
+              : undefined
+            if (!inputProjection.complete || !projectedTool) {
+              return unavailableToolResult()
+            }
+            const projectedParams = mergeToolParameters(
+              projectedTool.params || {},
+              args as Record<string, unknown>
+            )
+            toolCallRegistry.recordTransformedInputProjection(params, projectedParams)
+            if (!toolCallRegistry.isComplete()) return unavailableToolResult()
+          }
+
           try {
             const result = await executeTool(
               toolId,
@@ -79,7 +177,7 @@ export async function buildSimToolSpecs(
                 // win over LLM args, and `inputMapping` is deep-merged rather than
                 // replaced — a partial mapping from the model must not drop the
                 // user-filled fields baked onto the block.
-                ...mergeToolParameters(preseededParams, args as Record<string, unknown>),
+                ...params,
                 // Trusted execution context, spread last so an LLM-supplied
                 // `_context` arg can't override it. executeTool reads this directly
                 // for OAuth-credential resolution and internal-route identity, the
@@ -94,15 +192,37 @@ export async function buildSimToolSpecs(
                   callChain: ctx.callChain,
                 },
               },
-              { executionContext: ctx }
+              {
+                executionContext: ctx,
+                resolvedSecretTraceRegistry: toolCallRegistry,
+              }
             )
-            return toToolResult(result)
+            const projection = projectToolResult(
+              result,
+              toolCallRegistry?.forkForPropagatedEntries()
+            )
+            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
+              registry.mergeToolCallRegistry(toolCallRegistry)
+            }
+            return projection.result
           } catch (error) {
-            return { text: getErrorMessage(error, 'Tool execution failed'), isError: true }
+            const projection = projectToolResult(
+              {
+                success: false,
+                output: {},
+                error: getErrorMessage(error, 'Tool execution failed'),
+              },
+              toolCallRegistry?.forkForPropagatedEntries()
+            )
+            if (projection.safe && registry && toolCallRegistry?.isComplete()) {
+              registry.mergeToolCallRegistry(toolCallRegistry)
+            }
+            return projection.result
           }
         },
       })
     } catch (error) {
+      if (error instanceof ToolSchemaEnrichmentError) throw error
       logger.warn('Failed to adapt Sim tool for Pi', {
         type: tool.type,
         error: getErrorMessage(error),

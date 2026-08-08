@@ -139,6 +139,26 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+## Resolved Secrets and Provenance Boundaries
+
+- Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
+  when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
+- Project AI-consumed text/structured fields with the smallest exact `request.modelInput` selector.
+- Treat URLs, domains, resource IDs, and control fields as ordinary request values unless the exact
+  field is proven model-visible. For serialized external model content, project the serialized
+  top-level param through `request.modelInput` before the existing formatter parses it; do not add a
+  separate hard-rejection mechanism.
+- For authenticated internal routes, use `privateProvenance` for actual inline/raw model bytes or
+  `request.secretProvenance` for durable writes and execution handoffs. Do not treat a storage key,
+  path, signed URL, or remote URL as provenance for fetched bytes; authorize tracked stored bytes at
+  the owning model-egress boundary. Authenticate first, validate the exact selection and scope,
+  strip the private envelope, then import or propagate provenance at the receiving boundary.
+  Preserve documented headerless legacy behavior.
+- Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
+  headers, or blanket-sanitize tool results.
+- Add focused tests for named projection, identical unproven public text, malformed/incomplete
+  metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
+
 ## Critical Rules for Outputs
 
 ### Output Types
@@ -450,6 +470,9 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Tools registered in `tools/registry.ts`
 - [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
+- [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
+      only where a concrete Sim `{{...}}` resolution path requires them
+- [ ] Ordinary third-party inputs/results remain unchanged and private metadata never leaves Sim
 
 ## Final Validation (Required)
 

@@ -1,7 +1,7 @@
 /**
  * Shared helpers for the Pi sandbox backends.
  * Keeps E2B path constants, the finalize/push scripts, abort racing, marker
- * parsing, and secret scrubbing in one place so the backends cannot drift on
+ * parsing, and credential-bearing git diagnostic redaction in one place so backends cannot drift on
  * security-sensitive details.
  */
 
@@ -49,12 +49,11 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * time — a clone takes seconds in practice — so this is a budget that adds up,
  * not a guarantee that the sandbox outlives the run.
  *
- * The reserve only applies when the provider imposes an absolute lifetime, which
- * is E2B alone. Daytona stops on inactivity, so subtracting E2B's ceiling there
- * would cut the agent turn to fit a limit Daytona does not have.
+ * Both adapters impose an absolute lifetime: E2B through `timeoutMs` and Daytona
+ * through `ttlMinutes`. Reserving the surrounding commands keeps the agent turn
+ * inside the lifetime the selected provider actually received.
  */
 export function resolvePiTimeoutMs(lifetimeMs = resolvePiSandboxLifetimeMs()): number {
-  if (lifetimeMs === undefined) return getMaxExecutionTimeout()
   return Math.min(
     getMaxExecutionTimeout(),
     Math.max(lifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)

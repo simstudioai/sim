@@ -49,6 +49,9 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       contentType: params.contentType,
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
+    secretProvenance: {
+      request: () => [{ key: 'content', inputPaths: [['content']] }],
+    },
   },
 
   transformResponse: async (response) => {

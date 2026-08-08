@@ -36,7 +36,7 @@ Integrate Apify into your workflow. Run any Apify actor or saved task with custo
 
 ## Actions
 
-### `apify_run_actor_sync`
+### APIFY Run Actor (Sync)
 
 Run an APIFY actor synchronously and get results (max 5 minutes)
 
@@ -60,7 +60,7 @@ Run an APIFY actor synchronously and get results (max 5 minutes)
 | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
 | `items` | array | Dataset items \(if completed\) |
 
-### `apify_run_actor_async`
+### APIFY Run Actor (Async)
 
 Run an APIFY actor asynchronously with polling for long-running tasks
 
@@ -87,7 +87,7 @@ Run an APIFY actor asynchronously with polling for long-running tasks
 | `datasetId` | string | Dataset ID containing results |
 | `items` | array | Dataset items \(if completed\) |
 
-### `apify_run_task`
+### APIFY Run Task
 
 Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
 
@@ -111,7 +111,7 @@ Run a saved APIFY actor task synchronously and get dataset items (max 5 minutes)
 | `status` | string | Run status \(SUCCEEDED, FAILED, etc.\) |
 | `items` | array | Dataset items produced by the run |
 
-### `apify_get_dataset_items`
+### APIFY Get Dataset Items
 
 Retrieve items stored in an APIFY dataset
 
@@ -134,7 +134,7 @@ Retrieve items stored in an APIFY dataset
 | `items` | array | Items stored in the dataset |
 | `count` | number | Number of items returned |
 
-### `apify_get_run`
+### APIFY Get Run
 
 Get the status and details of an APIFY actor run
 

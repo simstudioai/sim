@@ -1,3 +1,5 @@
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
+import { validatePredicateShape } from '@/lib/table/query-builder/validate'
 import type { TableQueryV2Response, TableRowQueryV2Params } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -10,8 +12,8 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
   name: 'Query Rows',
   description:
     'Query rows with a typed predicate filter and cursor pagination. ' +
-    'Filter is a predicate tree: `{"all":[{"field":"wins","op":"gte","value":10},{"field":"status","op":"in","value":["active","pending"]}]}` ' +
-    '(`all` = AND, `any` = OR; groups nest). Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
+    'A single filter can be a plain condition: `{"field":"wins","op":"gte","value":10}`. ' +
+    'Use `all` (AND) or `any` (OR) groups for multiple or nested conditions. Operators: eq, ne, gt, gte, lt, lte, in, nin, like, ilike, ' +
     'nlike, nilike, contains, startsWith, endsWith, isNull, isNotNull, isEmpty, isNotEmpty. ' +
     'Order is a sort spec, e.g. `[{"field":"wins","direction":"desc"}]`. Omit limit to return the entire result — ' +
     'the query fails if it exceeds the 5MB budget (narrow with a filter or set a limit). With a limit, ' +
@@ -30,7 +32,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       type: 'json',
       required: false,
       description:
-        'Predicate tree, e.g. `{"all":[{"field":"wins","op":"gte","value":10}]}`. Omit to match all rows.',
+        'Predicate condition, e.g. `{"field":"wins","op":"gte","value":10}`. Use `all` or `any` for multiple conditions; omit to match all rows.',
       visibility: 'user-or-llm',
     },
     order: {
@@ -55,6 +57,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
   },
 
   request: {
+    secretProvenance: { response: { incomplete: 'propagate' } },
     url: (params: TableRowQueryV2Params) => `/api/table/${params.tableId}/query`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
@@ -63,9 +66,10 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
+      if (params.filter) validatePredicateShape(params.filter)
       return {
         workspaceId,
-        ...(params.filter ? { predicate: params.filter } : {}),
+        ...(params.filter ? { predicate: normalizeTablePredicate(params.filter) } : {}),
         ...(params.order ? { sort: params.order } : {}),
         ...(params.limit !== undefined ? { limit: params.limit } : {}),
         ...(params.cursor ? { cursor: params.cursor } : {}),

@@ -672,7 +672,7 @@ const ModalHeader = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
         className={cn('flex min-w-0 items-center justify-between gap-2 px-4 pt-4 pb-2', className)}
         {...props}
       >
-        <DialogPrimitive.Title className='min-w-0 font-medium text-[var(--text-primary)] text-base leading-none'>
+        <DialogPrimitive.Title className='min-w-0 text-[var(--text-primary)] text-base leading-none'>
           {children}
         </DialogPrimitive.Title>
         <DialogPrimitive.Close asChild>
@@ -825,7 +825,7 @@ const ModalTabsTrigger = React.forwardRef<
   <TabsPrimitive.Trigger
     ref={ref}
     className={cn(
-      'px-1 pb-2 font-medium text-[var(--text-secondary)] text-small transition-colors',
+      'px-1 pb-2 text-[var(--text-secondary)] text-small transition-colors',
       'hover-hover:text-[var(--text-primary)] data-[state=active]:text-[var(--text-primary)]',
       className
     )}

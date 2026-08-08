@@ -81,6 +81,9 @@ function createBaseSpan(log: ValidBlockLog): TraceSpan {
     ...(log.parallelId && { parallelId: log.parallelId }),
     ...(log.iterationIndex !== undefined && { iterationIndex: log.iterationIndex }),
     ...(log.parentIterations?.length && { parentIterations: log.parentIterations }),
+    ...(log.displayResolvedSecretTraceProvenance
+      ? { displayResolvedSecretTraceProvenance: log.displayResolvedSecretTraceProvenance }
+      : {}),
   }
 }
 

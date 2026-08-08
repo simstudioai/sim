@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import {
   buildOpenAIMessageContent,
   INLINE_ATTACHMENT_THRESHOLD_BYTES,
@@ -12,6 +13,7 @@ import {
   getInlineHydrationMaxBytes,
   uploadLargeFilesToProvider,
 } from '@/providers/file-attachments.server'
+import { runWithProviderRuntimeContext } from '@/providers/runtime-context'
 import type { ProviderRequest } from '@/providers/types'
 
 const {
@@ -120,6 +122,23 @@ describe('OpenAI large-file attachment lifecycle', () => {
       { type: 'input_text', text: 'what does this say' },
       { type: 'input_file', file_id: 'file-abc' },
     ])
+  })
+
+  it('preserves a multipart filename that collides with a configured secret', async () => {
+    const request = makeRequest(CSV_BYTES)
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FILE_NAME', plaintext: 'data_10mb.csv', encryptedValue: 'ciphertext' },
+    ])
+
+    await runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, async () => {
+      await attachLargeFileRemoteUrls(request, 'openai')
+      await uploadLargeFilesToProvider(request, 'openai')
+    })
+
+    const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
+    const uploaded = (init.body as FormData).get('file') as File
+    expect(uploaded.name).toBe('data_10mb.csv')
+    expect(request.messages?.[0].files?.[0].name).toBe('data_10mb.csv')
   })
 
   /** Exactly at the crossover — `shouldUseLargeFilePath` uses `>`, so this must stay inline. */

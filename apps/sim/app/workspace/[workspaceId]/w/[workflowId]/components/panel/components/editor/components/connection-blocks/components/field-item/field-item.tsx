@@ -92,7 +92,7 @@ export function FieldItem({
     >
       <span
         className={clsx(
-          'min-w-0 flex-1 truncate font-medium',
+          'min-w-0 flex-1 truncate',
           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
       >

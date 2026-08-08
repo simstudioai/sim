@@ -103,6 +103,10 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ instructions: params.instructions }),
+    },
     url: 'https://api.tavily.com/crawl',
     method: 'POST',
     headers: (params) => ({

@@ -16,13 +16,10 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
-import {
-  FileConflictError,
-  listWorkspaceFiles,
-  uploadWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace'
+import { FileConflictError, uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { MAX_WORKSPACE_FORMDATA_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { listWorkspaceFilesWithShares } from '@/lib/workspace-files/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { verifyWorkspaceMembership } from '@/app/api/workflows/utils'
 
@@ -72,15 +69,11 @@ export const GET = withRouteHandler(
       }
       const { scope } = queryResult.data
 
-      const files = await listWorkspaceFiles(workspaceId, { scope })
+      const filesWithShares = await listWorkspaceFilesWithShares(workspaceId, scope)
 
-      const shares = await getWorkspaceShares('file', workspaceId)
-      const filesWithShares = files.map((file) => ({
-        ...file,
-        share: shares.get(file.id) ?? null,
-      }))
-
-      logger.info(`[${requestId}] Listed ${files.length} files for workspace ${workspaceId}`)
+      logger.info(
+        `[${requestId}] Listed ${filesWithShares.length} files for workspace ${workspaceId}`
+      )
 
       return NextResponse.json({
         success: true,
@@ -177,7 +170,7 @@ export const POST = withRouteHandler(
         buffer,
         fileName,
         rawFile.type || 'application/octet-stream',
-        { folderId }
+        { folderId, secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
       )
 
       logger.info(`[${requestId}] Uploaded workspace file: ${fileName}`)

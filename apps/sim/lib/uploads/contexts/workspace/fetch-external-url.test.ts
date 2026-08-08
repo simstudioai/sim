@@ -9,6 +9,13 @@
  * the module graph is fresh or reused.
  */
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { warnMock } = vi.hoisted(() => ({ warnMock: vi.fn() }))
+
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: warnMock, error: vi.fn() }),
+}))
+
 import * as inputValidation from '@/lib/core/security/input-validation.server'
 import {
   ExternalUrlValidationError,
@@ -198,6 +205,33 @@ describe('fetchExternalUrlToWorkspace', () => {
 
     expect(result.buffer.toString()).toBe('bytes')
     expect(result.savedWorkspaceFile).toBeUndefined()
+  })
+
+  it('logs the driver cause and SQLSTATE behind a swallowed workspace save error', async () => {
+    const driver = Object.assign(
+      new Error('cannot execute SELECT FOR UPDATE in a read-only transaction'),
+      { code: '25006' }
+    )
+    secureFetchWithPinnedIPSpy.mockResolvedValue(makeResponse('bytes', 'text/plain'))
+    uploadWorkspaceFileSpy.mockRejectedValueOnce(
+      new Error('Failed to upload file: storage accounting failed', { cause: driver })
+    )
+
+    await fetchExternalUrlToWorkspace({
+      url: 'https://example.com/file.txt',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+    })
+
+    expect(warnMock).toHaveBeenCalledWith(
+      'Failed to save fetched URL to workspace storage',
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          code: '25006',
+          message: 'cannot execute SELECT FOR UPDATE in a read-only transaction',
+        }),
+      })
+    )
   })
 
   it('forwards custom headers to the fetch', async () => {

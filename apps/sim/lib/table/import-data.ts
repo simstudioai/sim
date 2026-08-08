@@ -19,6 +19,10 @@ import {
   guardBatch,
   type MutationRevalidator,
 } from '@/lib/table/rows/ordering'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  mutateTableRowsWithSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import { batchInsertRowsWithTx, replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { addTableColumnsWithTx, auditTableColumnsAdded, getTableById } from '@/lib/table/service'
 import type {
@@ -118,7 +122,21 @@ export async function bulkInsertImportBatch(
 
   await db.transaction(async (trx) => {
     await guardBatch(trx, data.tableId, revalidate)
-    await trx.insert(userTableRows).values(rowsToInsert)
+    await mutateTableRowsWithSecretProvenance(trx, {
+      rows: rowsToInsert.map((row) => ({
+        rowId: row.id,
+        provenance: createExactEmptyTableRowSecretProvenance(row.data),
+      })),
+      rowState: 'new',
+      mode: 'replace',
+      mutate: async () => {
+        const inserted = await trx
+          .insert(userTableRows)
+          .values(rowsToInsert)
+          .returning({ id: userTableRows.id })
+        return { value: undefined, affectedRowIds: inserted.map((row) => row.id) }
+      },
+    })
   })
   logger.info(`[${requestId}] Bulk-imported ${rowsToInsert.length} rows into table ${data.tableId}`)
   return {
@@ -244,7 +262,13 @@ export async function importAppendRows(
       const batch = rows.slice(i, i + CSV_MAX_BATCH_SIZE)
       const batchInserted = await batchInsertRowsWithTx(
         trx,
-        { tableId: working.id, rows: batch, workspaceId: ctx.workspaceId, userId: ctx.userId },
+        {
+          tableId: working.id,
+          rows: batch,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
+        },
         working,
         generateId().slice(0, 8)
       )
@@ -294,7 +318,13 @@ export async function importReplaceRows(
     }
     return replaceTableRowsWithTx(
       trx,
-      { tableId: working.id, rows: data.rows, workspaceId: data.workspaceId, userId: data.userId },
+      {
+        tableId: working.id,
+        rows: data.rows,
+        workspaceId: data.workspaceId,
+        userId: data.userId,
+        secretProvenance: data.rows.map(createExactEmptyTableRowSecretProvenance),
+      },
       working,
       requestId
     )

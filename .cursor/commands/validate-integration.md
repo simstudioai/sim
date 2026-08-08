@@ -123,6 +123,56 @@ For **every** tool file, check:
 - [ ] Registry keys use snake_case and match tool IDs exactly
 - [ ] Entries are in alphabetical order within the file
 
+### Resolved-Secret Provenance and Model Input
+
+For every request field, determine whether it is ordinary API input, model-visible text/structured
+content, opaque model input, or a value persisted into Sim-owned durable storage.
+
+Treat model-input provenance as opt-in. Require official documentation or an unambiguous local
+execution path proving that the exact field reaches an AI model. If the evidence is ambiguous,
+leave the integration unchanged; do not infer a model boundary merely from natural-language,
+search, extraction, or "AI-powered" marketing terminology.
+
+- [ ] AI-consumed text/structured fields use `request.modelInput` with `mode: 'project'` and a
+      minimal exact selector; nested/JSON-string adapters preserve shape through `applyProjected`
+- [ ] Ordinary external URLs, domains, resource IDs, and control fields retain normal request
+      semantics unless the exact field is proven model-visible; an AI-backed provider or later model
+      processing of the referenced resource is not sufficient evidence
+- [ ] Serialized content proven to be sent directly to an external model is selected by
+      `request.modelInput`, projected before the existing formatter parses it, and has deterministic
+      formatter behavior when a whole-value placeholder is invalid for the serialized grammar
+- [ ] Actual inline/raw AI-consumed bytes owned by an authenticated internal route use
+      `privateProvenance` (or `mode: 'private-provenance'`), and the route validates
+      `validateOpaqueModelInputProvenance` before model egress; storage keys, paths, signed URLs,
+      and ordinary remote URLs are not treated as byte provenance, while tracked stored bytes are
+      authorized independently at the owning model-egress boundary
+- [ ] Persisted workspace-file contents are checked with the shared provenance guard only when
+      their bytes or decoded content cross into a model/tool-result boundary; ordinary file APIs
+      remain unchanged. Unsupported secret-bearing file paths are rejected at `file_write`
+- [ ] Sim-owned durable writes and internal execution handoffs that can enter workflows/models use
+      field-scoped `request.secretProvenance`; authenticated receivers validate the exact selection
+      and scope, strip private metadata, and persist, import, or propagate it at the owning boundary
+- [ ] Private provenance is never attached to external URLs or `directExecution`; proven
+      model-visible external fields use projection, while other external inputs remain unchanged
+- [ ] No tool performs raw secret plaintext/source substitution or serializes plaintext provenance
+- [ ] No `transformResponse` or tool-local helper blanket-sanitizes ordinary third-party results;
+      only execution-scoped, activated Sim provenance is projected at shared model/log boundaries
+- [ ] Private headers/envelopes are produced and stripped by the shared tool executor, never
+      hand-rolled or returned as functional output
+- [ ] Every added provenance hook has a concrete Sim `{{...}}` resolution path and a later
+      persistence/model/log crossing; there is no generic handling for arbitrary filenames,
+      metadata, provider results, or API payloads
+- [ ] Diagnostic projection is applied only to values carrying execution-scoped provenance;
+      ordinary provider responses, filenames, URLs, and errors are unchanged
+- [ ] Tests cover named `{{NAME}}` projection, unproven identical public text, nested and serialized
+      shape handling, unchanged ordinary external inputs, malformed/incomplete metadata, headerless
+      legacy requests, metadata stripping, and durable legacy/stale/scope cases when applicable
+
+Treat a missing or bypassed model, durable, or internal-execution provenance boundary as
+**critical**. Do not fix it with a tool-specific string replacer or by sanitizing every provider
+result; repair the shared request, authenticated internal-route, persistence, or re-entry boundary
+that owns the data.
+
 ## Step 4: Validate Block
 
 ### Block ↔ Tool Alignment (CRITICAL)
@@ -295,6 +345,12 @@ Group findings by severity:
 - Service-account metadata disagrees with the canonical OAuth service configuration
 - `tools.config.tool` returning wrong tool ID for an operation
 - Type coercions in `tools.config.tool` instead of `tools.config.params`
+- Proven model-visible request fields bypass the shared projection or private-provenance boundary
+- Opaque model input is downloaded or sent before provenance and workspace-file checks
+- A Sim-owned durable sink or internal execution handoff drops encrypted provenance or breaks
+  legacy headerless/`NULL` data
+- A tool substitutes secret plaintext into source, leaks private metadata, or generically sanitizes
+  unrelated third-party results
 
 **Warning** (follows conventions incorrectly or has usability issues):
 - Optional field not set to `mode: 'advanced'`
@@ -369,6 +425,10 @@ After fixing, confirm:
 - [ ] Validated memory load safety using `.agents/skills/memory-load-check/SKILL.md` when tools list/search/download/import/export/batch data
 - [ ] Validated error handling (error checks, meaningful messages)
 - [ ] Validated registry entries (tools and block, alphabetical, correct imports)
+- [ ] Validated model-visible/opaque inputs and Sim-durable/internal-execution provenance at their
+      owning boundaries
+- [ ] Confirmed legacy persisted data keeps working and tracked invalid provenance fails closed
+- [ ] Confirmed ordinary third-party results remain unchanged absent activated Sim provenance
 - [ ] Validated `{Service}BlockMeta` exported with at least 7 templates
 - [ ] Reported all issues grouped by severity
 - [ ] Fixed all critical and warning issues

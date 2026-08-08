@@ -115,7 +115,9 @@ Workflows can execute user-authored JavaScript and Python. Know which sandbox yo
 | **E2B** | `E2B_ENABLED=true`, `E2B_API_KEY` | Remote sandbox per execution. Strongest isolation; requires outbound access to E2B. |
 | **Daytona** | `SANDBOX_PROVIDER=daytona`, `DAYTONA_API_KEY` | Remote sandbox per execution. |
 
-Python execution and the tooling-dependent blocks require a remote sandbox provider — the in-process isolate runs JavaScript only.
+Python, Shell, JavaScript with external imports, and tooling-dependent blocks
+require a remote sandbox provider. JavaScript without `import` or `require`
+continues to run in the in-process isolate when no remote provider is configured.
 
 <Callout type="warn">
   With the default in-process sandbox, treat everyone who can author a workflow as someone running code in your app container's security context. If your Sim instance is open to a wide or partly-trusted audience, use a remote sandbox provider and enable the NetworkPolicy egress restrictions.
