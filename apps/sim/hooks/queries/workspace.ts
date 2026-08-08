@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import type { QueryClient } from '@tanstack/react-query'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { ApiClientError } from '@/lib/api/client/errors'
@@ -127,11 +128,30 @@ export function usePinnedWorkspaceIds(enabled = true) {
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
   const queryKey = workspaceKeys.list('active')
+  /**
+   * Tail of the in-flight write chain, and the count of toggles still outstanding.
+   * A burst of clicks is a burst of independent mutations, and this endpoint takes
+   * the whole list — so both are needed, for the two different ways that races.
+   */
+  const writeChainRef = useRef<Promise<unknown>>(Promise.resolve())
+  const outstandingRef = useRef(0)
 
   return useMutation({
-    mutationFn: ({ pinnedWorkspaceIds }: { pinnedWorkspaceIds: string[] }) =>
-      requestJson(updateUserSettingsContract, { body: { pinnedWorkspaceIds } }),
+    /**
+     * Chained rather than fired concurrently: each request carries the complete
+     * list, so if two overlap and the network delivers them out of order the older
+     * one lands last and silently undoes the newer click. Serializing makes the
+     * final stored state the last one the user actually asked for.
+     */
+    mutationFn: ({ pinnedWorkspaceIds }: { pinnedWorkspaceIds: string[] }) => {
+      const send = writeChainRef.current
+        .catch(() => {})
+        .then(() => requestJson(updateUserSettingsContract, { body: { pinnedWorkspaceIds } }))
+      writeChainRef.current = send
+      return send
+    },
     onMutate: async ({ pinnedWorkspaceIds }) => {
+      outstandingRef.current += 1
       await queryClient.cancelQueries({ queryKey })
       const previous = queryClient.getQueryData<WorkspacesResponse>(queryKey)
       queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
@@ -143,12 +163,17 @@ export function useToggleWorkspacePin() {
       if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
     },
     /**
-     * Reconciles unconditionally, and this is the only thing that does: the
-     * settings route answers `{ success: true }` even when the write throws, so a
-     * failed save never reaches `onError` and the optimistic list would otherwise
-     * stay wrong until something else refetched.
+     * Reconciles only once the last queued write has settled. Refetching while
+     * another is still chained would render the server's pre-that-write state and
+     * visibly bounce the row out of the pinned group and back.
+     *
+     * Reconciling at all is not optional: the settings route answers
+     * `{ success: true }` even when the write throws, so a failed save never
+     * reaches `onError` and the optimistic list would otherwise stay wrong.
      */
     onSettled: () => {
+      outstandingRef.current -= 1
+      if (outstandingRef.current > 0) return
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
     },
   })
