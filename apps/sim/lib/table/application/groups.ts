@@ -1,7 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import { getActiveWorkflowContext } from '@sim/platform-authz/workflow'
 import { generateId } from '@sim/utils/id'
 import type { V2AddWorkflowGroupBody } from '@/lib/api/contracts/v2/tables'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -18,12 +17,17 @@ import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
 import { startTableRun } from '@/lib/table/application/runs'
+import { columnTypeForLeaf } from '@/lib/table/column-naming'
 import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   addWorkflowGroup,
+  addWorkflowGroupOutput,
   deleteWorkflowGroup,
+  deleteWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
+import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
+import { resolveWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 
 const logger = createLogger('TableGroupApplication')
 
@@ -42,14 +46,25 @@ function groupFromTable(table: TableDefinition, groupId: string): WorkflowGroup 
   return group
 }
 
-async function requireWorkflowInTableWorkspace(
+async function resolveAuthorizedWorkflowForTableGroup(
+  principal: Principal,
   workflowId: string,
-  workspaceId: string
-): Promise<void> {
-  const workflow = await getActiveWorkflowContext(workflowId)
-  if (!workflow || workflow.workspaceId !== workspaceId) {
-    throw new OrchestrationError('validation', 'Workflow not found in this workspace')
+  workspaceId: string,
+  provided?: ResolveWorkflowOutputsResult
+): Promise<ResolveWorkflowOutputsResult> {
+  if (provided) {
+    if (provided.workflowId !== workflowId) {
+      throw new OrchestrationError('not_found', 'Workflow not found')
+    }
+    return provided
   }
+  if (principal.kind === 'delegated') {
+    throw new OrchestrationError('not_found', 'Workflow not found')
+  }
+  return resolveWorkflowOutputs.execute({
+    principal,
+    input: { workflowId, assertedWorkspaceId: workspaceId },
+  })
 }
 
 export const listTableGroupsUseCase = defineAuthorizedTableUseCase({
@@ -68,6 +83,7 @@ export interface CreateTableGroupInput extends TableGroupInput {
   group: V2AddWorkflowGroupBody['group']
   outputColumns: V2AddWorkflowGroupBody['outputColumns']
   autoRun?: boolean
+  resolvedWorkflow?: ResolveWorkflowOutputsResult
 }
 
 export const createTableGroupUseCase = defineAuthorizedTableUseCase({
@@ -79,7 +95,12 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
     }),
   async execute({ principal, input, context }) {
     if (input.group.workflowId) {
-      await requireWorkflowInTableWorkspace(input.group.workflowId, context.workspaceId)
+      await resolveAuthorizedWorkflowForTableGroup(
+        principal,
+        input.group.workflowId,
+        context.workspaceId,
+        input.resolvedWorkflow
+      )
     }
     const outputNames = new Set(input.group.outputs.map((output) => output.columnName))
     const orphan = input.outputColumns.find((column) => !outputNames.has(column.name))
@@ -150,7 +171,9 @@ export interface UpdateTableGroupInput
     Omit<
       UpdateWorkflowGroupData,
       'tableId' | 'workspaceId' | 'actorUserId' | 'suppressAutoRunDispatch'
-    > {}
+    > {
+  resolvedWorkflow?: ResolveWorkflowOutputsResult
+}
 
 export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.updateGroup,
@@ -160,15 +183,52 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
-    if (input.workflowId !== undefined) {
-      await requireWorkflowInTableWorkspace(input.workflowId, context.workspaceId)
+    const previousGroup = (context.table.schema.workflowGroups ?? []).find(
+      (group) => group.id === input.groupId
+    )
+    const workflowMetadataRequired =
+      input.workflowId !== undefined ||
+      input.outputs !== undefined ||
+      (input.mappingUpdates?.length ?? 0) > 0
+    const targetWorkflowId = input.workflowId ?? previousGroup?.workflowId
+    let resolvedWorkflow: ResolveWorkflowOutputsResult | undefined
+    if (workflowMetadataRequired) {
+      if (!targetWorkflowId) {
+        throw new OrchestrationError('not_found', 'Workflow not found')
+      }
+      resolvedWorkflow = await resolveAuthorizedWorkflowForTableGroup(
+        principal,
+        targetWorkflowId,
+        context.workspaceId,
+        input.resolvedWorkflow
+      )
     }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
-    const previousGroup = (context.table.schema.workflowGroups ?? []).find(
-      (group) => group.id === input.groupId
-    )
+    const hasMappingUpdates = Boolean(input.mappingUpdates && input.mappingUpdates.length > 0)
+    if (hasMappingUpdates && !resolvedWorkflow) {
+      throw new Error('Workflow metadata is required for workflow group mapping updates')
+    }
+    const resolvedMappingTypes =
+      input.mappingUpdates && input.mappingUpdates.length > 0 && resolvedWorkflow
+        ? {
+            workflowId: resolvedWorkflow.workflowId,
+            columns: input.mappingUpdates.map((mapping) => {
+              const output = resolvedWorkflow.outputs?.find(
+                (candidate) =>
+                  candidate.blockId === mapping.blockId && candidate.path === mapping.path
+              )
+              if (!output) {
+                throw new OrchestrationError(
+                  'validation',
+                  `Output ${mapping.blockId}::${mapping.path} is not a valid pickable output on workflow ${targetWorkflowId}`
+                )
+              }
+              return { columnName: mapping.columnName, type: columnTypeForLeaf(output.leafType) }
+            }),
+          }
+        : undefined
     const table = await updateWorkflowGroup(
       {
         tableId: context.table.id,
@@ -189,6 +249,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
             }
           : {}),
         ...(input.mappingUpdates !== undefined ? { mappingUpdates: input.mappingUpdates } : {}),
+        ...(resolvedMappingTypes ? { resolvedMappingTypes } : {}),
         ...(input.inputMappings !== undefined ? { inputMappings: input.inputMappings } : {}),
         ...(input.deploymentMode !== undefined ? { deploymentMode: input.deploymentMode } : {}),
         ...(input.type !== undefined ? { type: input.type } : {}),
@@ -275,5 +336,130 @@ export const deleteTableGroupUseCase = defineAuthorizedTableUseCase({
   },
   afterSuccess({ context }) {
     signalTableSchemaChanged(context.table.id)
+  },
+})
+
+export interface AddTableGroupOutputInput extends TableGroupInput {
+  groupId: string
+  blockId: string
+  path: string
+  columnName?: string
+  resolvedWorkflow: ResolveWorkflowOutputsResult
+}
+
+export const addTableGroupOutputUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateGroup,
+  resolveContext: ({ input }: { input: AddTableGroupOutputInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ principal, input, context }) {
+    const group = context.table.schema.workflowGroups?.find(
+      (candidate) => candidate.id === input.groupId
+    )
+    if (!group)
+      throw new OrchestrationError('not_found', `Workflow group "${input.groupId}" not found`)
+    if (group.workflowId !== input.resolvedWorkflow.workflowId) {
+      throw new OrchestrationError('not_found', 'Workflow not found')
+    }
+    const outputs = input.resolvedWorkflow.outputs
+    if (!outputs) {
+      throw new OrchestrationError('validation', 'Workflow has no pickable outputs')
+    }
+    const output = outputs.find(
+      (candidate) => candidate.blockId === input.blockId && candidate.path === input.path
+    )
+    if (!output) {
+      throw new OrchestrationError(
+        'validation',
+        `Output ${input.blockId}::${input.path} is not a valid pickable output on workflow ${group.workflowId}`
+      )
+    }
+    const table = await addWorkflowGroupOutput(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: input.groupId,
+        blockId: input.blockId,
+        path: input.path,
+        columnName: input.columnName,
+        actorUserId: resolvePrincipalAttribution(principal, {
+          workspaceBillingOwnerUserId: context.billedAccountUserId,
+        }).attributedUserId,
+        resolvedOutput: {
+          workflowId: input.resolvedWorkflow.workflowId,
+          columnType: columnTypeForLeaf(output.leafType),
+          order: outputs.map((candidate, discoveryIndex) => {
+            const distance = input.resolvedWorkflow.executionOrderByBlockId[candidate.blockId]
+            return {
+              blockId: candidate.blockId,
+              path: candidate.path,
+              executionDistance:
+                distance === undefined || distance < 0 ? Number.POSITIVE_INFINITY : distance,
+              discoveryIndex,
+            }
+          }),
+        },
+      },
+      generateRequestId()
+    )
+    return { table, groupId: input.groupId }
+  },
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Added an output to workflow group "${result.groupId}"`,
+      metadata: { op: 'add_group_output', groupId: result.groupId },
+    }
+  },
+  afterSuccess({ context }) {
+    signalTableSchemaChanged(context.tableId)
+  },
+})
+
+export interface DeleteTableGroupOutputInput extends TableGroupInput {
+  groupId: string
+  columnName: string
+}
+
+export const deleteTableGroupOutputUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateGroup,
+  resolveContext: ({ input }: { input: DeleteTableGroupOutputInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ input, context }) {
+    const table = await deleteWorkflowGroupOutput(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: input.groupId,
+        columnName: input.columnName,
+      },
+      generateRequestId()
+    )
+    return { table, groupId: input.groupId, columnName: input.columnName }
+  },
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Deleted an output from workflow group "${result.groupId}"`,
+      metadata: {
+        op: 'delete_group_output',
+        groupId: result.groupId,
+        columnName: result.columnName,
+      },
+    }
+  },
+  afterSuccess({ context }) {
+    signalTableSchemaChanged(context.tableId)
   },
 })

@@ -6,6 +6,7 @@ import {
   type ColumnDefinition,
   type ColumnType,
   deleteColumn,
+  deleteColumns,
   type SelectOption,
   type TableDefinition,
 } from '@/lib/table'
@@ -149,6 +150,43 @@ export const deleteTableColumnUseCase = defineAuthorizedTableUseCase({
       resourceName: result.table.name,
       description: `Deleted column "${input.columnName}" from table "${context.table.name}"`,
       metadata: { columnName: input.columnName },
+    }
+  },
+  afterSuccess({ context }) {
+    signalTableSchemaChanged(context.table.id)
+  },
+})
+
+export interface DeleteTableColumnsInput extends TableColumnInput {
+  columnNames: string[]
+}
+
+export const deleteTableColumnsUseCase = defineAuthorizedTableUseCase({
+  operation: tableOperations.deleteColumn,
+  resolveContext: ({ input }: { input: DeleteTableColumnsInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ input, context }): Promise<{ table: TableDefinition }> {
+    if (input.columnNames.length < 1) {
+      throw new Error('At least one column name is required')
+    }
+    const table = await deleteColumns(
+      { tableId: context.table.id, columnNames: input.columnNames },
+      generateRequestId(),
+      { expectedWorkspaceId: context.workspaceId }
+    )
+    return { table }
+  },
+  projectAudit({ input, context, result }) {
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Deleted ${input.columnNames.length} columns from table "${context.table.name}"`,
+      metadata: { columnNames: input.columnNames },
     }
   },
   afterSuccess({ context }) {

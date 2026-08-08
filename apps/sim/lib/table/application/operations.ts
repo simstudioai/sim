@@ -23,6 +23,25 @@ function writeOperation<const Id extends string>(id: Id) {
   })
 }
 
+function delegatedWriteOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  })
+}
+
+function nonDelegatedWriteOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+  })
+}
+
 export const tableOperations = {
   list: readOperation('tables.list'),
   read: readOperation('tables.read'),
@@ -58,10 +77,12 @@ export const tableOperations = {
   deleteGroup: writeOperation('tables.groups.delete'),
   startRun: writeOperation('tables.runs.start'),
   cancelRuns: writeOperation('tables.runs.cancel'),
-  createImport: writeOperation('tables.imports.create'),
+  createImport: nonDelegatedWriteOperation('tables.imports.create'),
+  createFromWorkspaceFile: delegatedWriteOperation('tables.imports.create_from_workspace_file'),
+  importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file'),
   readImport: readOperation('tables.imports.read'),
-  createImportParts: writeOperation('tables.imports.create_parts'),
-  completeImport: writeOperation('tables.imports.complete'),
+  createImportParts: nonDelegatedWriteOperation('tables.imports.create_parts'),
+  completeImport: nonDelegatedWriteOperation('tables.imports.complete'),
   cancelImport: writeOperation('tables.imports.cancel'),
   createExport: readOperation('tables.exports.create'),
   readExport: readOperation('tables.exports.read'),

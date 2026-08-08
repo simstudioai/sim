@@ -55,7 +55,19 @@ describe('table operation registry', () => {
 
   it('keeps delegated table operations Copilot-only', () => {
     for (const operation of Object.values(tableOperations)) {
-      expect(operation.delegatedServices).toEqual(['copilot'])
+      if (operation.principalKinds.includes('delegated')) {
+        expect(operation.delegatedServices).toEqual(['copilot'])
+      } else {
+        expect(operation.delegatedServices).toBeUndefined()
+      }
     }
+  })
+
+  it('separates Copilot file imports from the credential-bound HTTP lifecycle', () => {
+    expect(tableOperations.createImport.principalKinds).not.toContain('delegated')
+    expect(tableOperations.createImportParts.principalKinds).not.toContain('delegated')
+    expect(tableOperations.completeImport.principalKinds).not.toContain('delegated')
+    expect(tableOperations.createFromWorkspaceFile.principalKinds).toEqual(['delegated'])
+    expect(tableOperations.importWorkspaceFile.principalKinds).toEqual(['delegated'])
   })
 })

@@ -1,12 +1,9 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { getErrorMessage, toError } from '@sim/utils/errors'
+import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import {
-  admitCopilotTableOperation,
-  executeCopilotTableUseCase,
-} from '@/lib/copilot/application/execute-table-use-case'
-import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
+import { executeCopilotWorkflowUseCase } from '@/lib/copilot/application/execute-workflow-use-case'
 import {
   messageForCopilotTableError,
   resolveCopilotTablePrincipal,
@@ -17,34 +14,35 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
-import { runDetached } from '@/lib/core/utils/background'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import {
-  buildAutoMapping,
   COLUMN_TYPES,
   CSV_ASYNC_IMPORT_THRESHOLD_BYTES,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
-  CsvImportValidationError,
-  coerceRowsForTable,
-  getWorkspaceTableLimits,
   inferSchemaFromCsv,
   parseFileRows,
   sanitizeName,
   TABLE_LIMITS,
-  validateMapping,
 } from '@/lib/table'
 import {
   addTableColumnUseCase,
+  deleteTableColumnsUseCase,
   deleteTableColumnUseCase,
   updateTableColumnUseCase,
 } from '@/lib/table/application/columns'
 import {
+  copilotBatchUpdateRows,
+  copilotDeleteRowsByFilter,
+  copilotUpdateRowsByFilter,
+} from '@/lib/table/application/copilot-bulk-rows'
+import {
+  addTableGroupOutputUseCase,
   createTableGroupUseCase,
+  deleteTableGroupOutputUseCase,
   deleteTableGroupUseCase,
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
-import { type TableOperation, tableOperations } from '@/lib/table/application/operations'
 import {
   createTableRows,
   deleteTableRow,
@@ -60,68 +58,35 @@ import {
   readTableUseCase,
   updateTableUseCase,
 } from '@/lib/table/application/tables'
-import { namedRowMapper } from '@/lib/table/cell-format'
-import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
-import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
-import { deleteColumns } from '@/lib/table/columns/service'
-import { isSupportedCurrencyCode } from '@/lib/table/currency'
-import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
-import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
-import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import {
-  markTableJobRunningInWorkspace,
-  releaseJobClaimInWorkspace,
-} from '@/lib/table/jobs/service'
-import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
-import { predicateToFilter } from '@/lib/table/query-builder/converters'
+  createTableFromWorkspaceFile,
+  importWorkspaceFileIntoTable,
+  type TableWorkspaceFileSource,
+} from '@/lib/table/application/workspace-file-imports'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
-import { validatePredicate } from '@/lib/table/query-builder/validate'
 import {
   createExactEmptyTableRowSecretProvenance,
   loadTableRowSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
-import {
-  batchInsertRows,
-  batchUpdateRows,
-  deleteRowsByFilter,
-  queryRows,
-  replaceTableRows,
-  updateRowsByFilter,
-} from '@/lib/table/rows/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
-import { predicateToStorage } from '@/lib/table/select-values'
-import { createTable, deleteTable, getTableById } from '@/lib/table/service'
 import type {
   ColumnDefinition,
-  Filter,
   RowData,
   SortSpec,
-  TableDefinition,
-  TableDeleteJobPayload,
   TablePredicateInput,
   TableSchema,
-  TableUpdateJobPayload,
   WorkflowGroup,
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
   WorkflowGroupInputMapping,
   WorkflowGroupOutput,
 } from '@/lib/table/types'
-import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
-import {
-  addWorkflowGroup,
-  addWorkflowGroupOutput,
-  deleteWorkflowGroupOutput,
-} from '@/lib/table/workflow-groups/service'
-import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import {
-  type FlattenedBlockOutput,
-  flattenWorkflowOutputs,
-} from '@/lib/workflows/blocks/flatten-outputs'
-import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
+import { resolveWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import type { FlattenedBlockOutput } from '@/lib/workflows/blocks/flatten-outputs'
+import { readSafeWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 
 const logger = createLogger('UserTableServerTool')
 
@@ -139,110 +104,35 @@ type UserTableResult = {
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 const MAX_INLINE_FILE_BYTES = 50 * 1024 * 1024
 
-const USER_TABLE_OPERATIONS: Readonly<Record<string, TableOperation | undefined>> = {
-  create: tableOperations.create,
-  create_from_file: tableOperations.create,
-  import_file: tableOperations.createImport,
-  get: tableOperations.read,
-  get_schema: tableOperations.read,
-  delete: tableOperations.delete,
-  insert_row: tableOperations.createRows,
-  batch_insert_rows: tableOperations.createRows,
-  get_row: tableOperations.readRow,
-  query_rows: tableOperations.queryRows,
-  update_row: tableOperations.updateRow,
-  delete_row: tableOperations.deleteRow,
-  update_rows_by_filter: tableOperations.updateRows,
-  delete_rows_by_filter: tableOperations.deleteRows,
-  batch_update_rows: tableOperations.updateRows,
-  batch_delete_rows: tableOperations.deleteRows,
-  add_column: tableOperations.addColumn,
-  rename_column: tableOperations.updateColumn,
-  delete_column: tableOperations.deleteColumn,
-  update_column: tableOperations.updateColumn,
-  rename: tableOperations.update,
-  add_workflow_group: tableOperations.createGroup,
-  update_workflow_group: tableOperations.updateGroup,
-  delete_workflow_group: tableOperations.deleteGroup,
-  add_workflow_group_output: tableOperations.updateGroup,
-  delete_workflow_group_output: tableOperations.updateGroup,
-  run_column: tableOperations.startRun,
-  cancel_table_runs: tableOperations.cancelRuns,
-  add_enrichment: tableOperations.createGroup,
-}
-
-const DIRECT_APPLICATION_OPERATIONS = new Set([
-  'create',
-  'get',
-  'get_schema',
-  'delete',
-  'rename',
-  'insert_row',
-  'batch_insert_rows',
-  'get_row',
-  'query_rows',
-  'update_row',
-  'delete_row',
-  'batch_delete_rows',
-  'add_column',
-  'rename_column',
-  'update_column',
-  'add_workflow_group',
-  'update_workflow_group',
-  'delete_workflow_group',
-  'run_column',
-  'cancel_table_runs',
-])
-
 async function resolveWorkspaceFileRecordOrThrow(
   fileReference: string,
   workspaceId: string,
-  principal: ReturnType<typeof resolveCopilotFilePrincipal>
-) {
-  let record
+  context: ServerToolContext,
+  maxBytes?: number
+): Promise<{ file: TableWorkspaceFileSource; content?: Buffer }> {
   try {
-    record = await resolveWorkspaceFileReference({
-      principal,
-      operation: fileOperations.readContent,
+    const result = await executeCopilotFileUseCase(context, readSafeWorkspaceFileReference, {
       workspaceId,
       reference: fileReference,
+      maxBytes,
     })
-  } catch {
+    return { file: result.file as TableWorkspaceFileSource, content: result.content }
+  } catch (error) {
+    if (asOrchestrationError(error)?.code !== 'not_found') throw error
     // Only workspace files resolve here. A chat upload is a real, correctly-copied
     // path, so pointing it at glob("files/**") would send the agent looking for a
     // file that is not in that tree until materialize_file moves it there.
     if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
       )
     }
-    throw new Error(
+    throw new OrchestrationError(
+      'not_found',
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
-  if (!record) {
-    if (fileReference.replace(/^\/+/, '').startsWith('uploads/')) {
-      throw new Error(
-        `Cannot import "${fileReference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
-      )
-    }
-    throw new Error(
-      `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
-    )
-  }
-
-  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
-    fileId: record.id,
-    key: record.key,
-    context: 'workspace',
-  })
-  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
-    throw new Error(
-      `Cannot import "${fileReference}": the file cannot be verified as free of resolved secrets.`
-    )
-  }
-
-  return record
 }
 
 /**
@@ -255,209 +145,15 @@ function shouldImportInBackground(record: { name: string; size: number }): boole
   return (ext === 'csv' || ext === 'tsv') && record.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES
 }
 
-/**
- * Dispatches a background import for an already-claimed job slot, mirroring the
- * import-async routes: trigger.dev when enabled (survives deploys, retries),
- * detached in-process worker otherwise. A failed dispatch releases the claim so
- * a ghost `running` job can't hold the table's one-write-job slot.
- */
-async function dispatchImportJob(payload: TableImportPayload): Promise<void> {
-  if (isTriggerDevEnabled) {
-    try {
-      const [{ tableImportTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-import'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableImportTask>('table-import', payload, {
-        tags: [`tableId:${payload.tableId}`, `jobId:${payload.importId}`],
-        region: await resolveTriggerRegion(),
-      })
-    } catch (error) {
-      try {
-        const released = await releaseJobClaimInWorkspace(
-          payload.tableId,
-          payload.workspaceId,
-          payload.importId
-        )
-        if (!released) throw new Error('Table import claim was no longer active')
-      } catch (cleanupError) {
-        logger.error('Failed to release table import claim after dispatch failure', {
-          tableId: payload.tableId,
-          jobId: payload.importId,
-          error: getErrorMessage(cleanupError),
-        })
-      }
-      throw error
-    }
-  } else {
-    runDetached('table-import', () => runTableImport(payload))
-  }
-}
-
-/**
- * Dispatches a background filter-delete for an already-claimed job slot,
- * mirroring the delete-async route. Same release-on-failed-dispatch guard as
- * {@link dispatchImportJob}.
- */
-async function dispatchDeleteJob(params: {
-  jobId: string
-  tableId: string
-  workspaceId: string
-  filter: Filter
-  cutoff: Date
-  maxRows?: number
-}): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, cutoff, maxRows } = params
-  if (isTriggerDevEnabled) {
-    try {
-      const [{ tableDeleteTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-delete'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableDeleteTask>(
-        'table-delete',
-        { jobId, tableId, workspaceId, filter, cutoff: cutoff.toISOString(), maxRows },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
-      )
-    } catch (error) {
-      try {
-        const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
-        if (!released) throw new Error('Table delete claim was no longer active')
-      } catch (cleanupError) {
-        logger.error('Failed to release table delete claim after dispatch failure', {
-          tableId,
-          jobId,
-          error: getErrorMessage(cleanupError),
-        })
-      }
-      throw error
-    }
-  } else {
-    runDetached('table-delete', () =>
-      runTableDelete({ jobId, tableId, workspaceId, filter, cutoff, maxRows }).catch(
-        async (error) => {
-          await markTableDeleteFailed(tableId, jobId, error)
-          throw error
-        }
-      )
-    )
-  }
-}
-
-/**
- * Dispatches a background bulk update for an already-claimed job slot, mirroring
- * {@link dispatchDeleteJob}: trigger.dev when enabled, detached worker otherwise, releasing the
- * slot on a failed dispatch.
- */
-async function dispatchUpdateJob(params: {
-  jobId: string
-  tableId: string
-  workspaceId: string
-  filter: Filter
-  data: RowData
-  cutoff: Date
-  maxRows?: number
-}): Promise<void> {
-  const { jobId, tableId, workspaceId, filter, data, cutoff, maxRows } = params
-  if (isTriggerDevEnabled) {
-    try {
-      const [{ tableUpdateTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
-        import('@/background/table-update'),
-        import('@trigger.dev/sdk'),
-        import('@/lib/core/async-jobs/region'),
-      ])
-      await tasks.trigger<typeof tableUpdateTask>(
-        'table-update',
-        { jobId, tableId, workspaceId, filter, data, cutoff: cutoff.toISOString(), maxRows },
-        { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
-      )
-    } catch (error) {
-      try {
-        const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
-        if (!released) throw new Error('Table update claim was no longer active')
-      } catch (cleanupError) {
-        logger.error('Failed to release table update claim after dispatch failure', {
-          tableId,
-          jobId,
-          error: getErrorMessage(cleanupError),
-        })
-      }
-      throw error
-    }
-  } else {
-    runDetached('table-update', () =>
-      runTableUpdate({ jobId, tableId, workspaceId, filter, data, cutoff, maxRows }).catch(
-        async (error) => {
-          await markTableUpdateFailed(tableId, jobId, error)
-          throw error
-        }
-      )
-    )
-  }
-}
-
-async function withReleasedTableJobClaim<T>(
-  tableId: string,
+function resolveAuthorizedWorkflowOutputs(
+  workflowId: string,
   workspaceId: string,
-  jobId: string,
-  run: () => Promise<T>
-): Promise<T> {
-  let result: T
-  try {
-    result = await run()
-  } catch (error) {
-    try {
-      const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
-      if (!released) {
-        logger.error('Table job claim was no longer active after operation failure', {
-          tableId,
-          workspaceId,
-          jobId,
-        })
-      }
-    } catch (cleanupError) {
-      logger.error('Failed to release table job claim after operation failure', {
-        tableId,
-        workspaceId,
-        jobId,
-        error: getErrorMessage(cleanupError),
-      })
-    }
-    throw error
-  }
-  const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
-  if (!released) {
-    logger.error('Table job claim was no longer active after successful operation', {
-      tableId,
-      workspaceId,
-      jobId,
-    })
-    throw new Error('Table job claim was no longer active')
-  }
-  return result
-}
-
-/**
- * Loads the live workflow state and flattens it into pickable outputs. Used
- * to validate `(blockId, path)` pairs the AI passes to add/update_workflow_group
- * before they get stored as stale references — and to power `list_workflow_outputs`
- * so the AI can discover valid picks instead of guessing.
- */
-async function loadFlattenedWorkflowOutputs(
-  workflowId: string
-): Promise<FlattenedBlockOutput[] | null> {
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!normalized) return null
-  const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
-    id: b.id,
-    type: b.type,
-    name: b.name,
-    triggerMode: (b as { triggerMode?: boolean }).triggerMode,
-    subBlocks: b.subBlocks as Record<string, unknown> | undefined,
-  }))
-  return flattenWorkflowOutputs(blocks, normalized.edges ?? [])
+  context: ServerToolContext
+) {
+  return executeCopilotWorkflowUseCase(context, resolveWorkflowOutputs, {
+    workflowId,
+    assertedWorkspaceId: workspaceId,
+  })
 }
 
 /**
@@ -525,37 +221,6 @@ function normalizeSchemaSelectColumns(schema: TableSchema): TableSchema {
   }
 }
 
-async function batchInsertAll(
-  tableId: string,
-  rows: RowData[],
-  table: TableDefinition,
-  workspaceId: string,
-  context?: ServerToolContext
-): Promise<number> {
-  let inserted = 0
-  const userId = context?.userId
-  for (let i = 0; i < rows.length; i += MAX_BATCH_SIZE) {
-    assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
-    const batch = rows.slice(i, i + MAX_BATCH_SIZE)
-    const requestId = generateId().slice(0, 8)
-    const result = await batchInsertRows(
-      {
-        tableId,
-        rows: batch,
-        workspaceId,
-        userId,
-        secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
-      },
-      // Pass the running total so each batch's capacity check sees cumulative rows,
-      // not the same pre-loop snapshot (which would let a multi-batch insert overshoot).
-      { ...table, rowCount: table.rowCount + inserted },
-      requestId
-    )
-    inserted += result.length
-  }
-  return inserted
-}
-
 async function importRowsForModel(
   rows: Array<{ id: string; data: RowData; updatedAt: Date | string }>,
   context: ServerToolContext
@@ -597,14 +262,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
       assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
 
     try {
-      const semanticOperation = USER_TABLE_OPERATIONS[operation]
-      if (semanticOperation && !DIRECT_APPLICATION_OPERATIONS.has(operation)) {
-        await admitCopilotTableOperation(
-          context,
-          semanticOperation,
-          tableId ? { workspaceId, tableId } : { workspaceId }
-        )
-      }
       switch (operation) {
         case 'create': {
           if (!args.name) {
@@ -986,95 +643,26 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: updateLimitError }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
-          const idByName = buildIdByName(table.schema)
-          // Agent authors a predicate object; validate → translate → Filter for
-          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
-          // operands arrive as option NAMES and must resolve to stored ids.
-          const filter = args.filter as TablePredicateInput
-          validatePredicate(filter, table.schema.columns)
-          const normalizedFilter = normalizeTablePredicate(filter)
-          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
-          const idData = rowDataNameToId(args.data, idByName)
-
-          // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
-          // (an explicit limit above the cap, or unbounded "update everything matching") runs in the
-          // background worker so a broad update on a huge table doesn't load every matching row into
-          // this request. A small explicit limit is the fast path — no count needed. A patch
-          // touching a unique column always stays inline (the service rejects bulk-setting a unique
-          // value across multiple rows).
-          const patchTouchesUnique = table.schema.columns.some(
-            (c) => c.unique === true && (c.id ?? c.name) in idData
+          assertNotAborted()
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotUpdateRowsByFilter,
+            {
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              filter: normalizeTablePredicate(args.filter as TablePredicateInput),
+              data: args.data as RowData,
+              limit: args.limit,
+            },
+            { tableId: args.tableId }
           )
-          const updateInlineEligible =
-            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
-          if (!updateInlineEligible && !patchTouchesUnique) {
-            const { totalCount } = await queryRows(
-              table,
-              { filter: idFilter, limit: 1, withExecutions: false },
-              requestId
-            )
-            const matchCount = totalCount ?? 0
-            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
-            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-              const cutoff = new Date()
-              const jobId = generateId()
-              const payload: TableUpdateJobPayload = {
-                filter: idFilter,
-                data: idData,
-                cutoff: cutoff.toISOString(),
-                affectedCount: target,
-                maxRows: args.limit,
-              }
-              // Gate the update lock at enqueue — the background worker is a
-              // trusted continuation and does not re-check.
-              assertRowUpdate(table, patchColumnIds(idData))
-              assertNotAborted()
-              const claimed = await markTableJobRunningInWorkspace(
-                table.id,
-                workspaceId,
-                jobId,
-                'update',
-                payload
-              )
-              if (!claimed) {
-                return { success: false, message: 'A job is already in progress for this table' }
-              }
-              await dispatchUpdateJob({
-                jobId,
-                tableId: table.id,
-                workspaceId,
-                filter: idFilter,
-                data: idData,
-                cutoff,
-                maxRows: args.limit,
-              })
-              return {
-                success: true,
-                message: `Started background update of ${target} matching rows (job ${jobId}). Rows update in the background — query_rows to check progress. Note: background updates don't auto-recompute workflow/enrichment columns; use run_column afterward if needed.`,
-                data: { jobId, affectedCount: target },
-              }
+          if (result.kind === 'background') {
+            return {
+              success: true,
+              message: `Started background update of ${result.affectedCount} matching rows (job ${result.jobId}). Rows update in the background — query_rows to check progress. Note: background updates don't auto-recompute workflow/enrichment columns; use run_column afterward if needed.`,
+              data: { jobId: result.jobId, affectedCount: result.affectedCount },
             }
           }
-
-          assertNotAborted()
-          const result = await updateRowsByFilter(
-            table,
-            {
-              filter: idFilter,
-              data: idData,
-              limit: args.limit,
-              actorUserId: context.userId,
-              secretProvenance: createExactEmptyTableRowSecretProvenance(idData),
-            },
-            requestId
-          )
-          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -1098,115 +686,26 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: deleteLimitError }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
-          const idByName = buildIdByName(table.schema)
-          // Agent authors a predicate object; validate → translate → Filter for
-          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
-          // operands arrive as option NAMES and must resolve to stored ids.
-          const filter = args.filter as TablePredicateInput
-          validatePredicate(filter, table.schema.columns)
-          const normalizedFilter = normalizeTablePredicate(filter)
-          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
-
-          // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
-          // above the cap, or unbounded "delete everything matching") hands off to the background
-          // delete worker so a broad delete on a huge table doesn't load every matching id into this
-          // request. A small explicit limit is the fast path.
-          const deleteInlineEligible =
-            args.limit !== undefined && args.limit <= TABLE_LIMITS.MAX_BULK_OPERATION_SIZE
-          if (!deleteInlineEligible) {
-            const { totalCount } = await queryRows(
-              table,
-              { filter: idFilter, limit: 1, withExecutions: false },
-              requestId
-            )
-            const matchCount = totalCount ?? 0
-            const target = args.limit !== undefined ? Math.min(args.limit, matchCount) : matchCount
-            if (target > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-              const doomedCount = Math.min(target, table.rowCount)
-              const cutoff = new Date()
-              const jobId = generateId()
-              // Unbounded: mask the whole matching set (instant post-delete view), so `doomedCount`
-              // drives the count adjustment. Bounded (maxRows): no mask — `doomedCount` is omitted so
-              // the count isn't double-subtracted; rows disappear progressively as they're deleted.
-              const bounded = args.limit !== undefined
-              const payload: TableDeleteJobPayload = bounded
-                ? { filter: idFilter, cutoff: cutoff.toISOString(), maxRows: args.limit }
-                : { filter: idFilter, cutoff: cutoff.toISOString(), doomedCount }
-              // Gate the delete lock at enqueue — the worker is a trusted continuation.
-              assertRowDelete(table)
-              assertNotAborted()
-              const claimed = await markTableJobRunningInWorkspace(
-                table.id,
-                workspaceId,
-                jobId,
-                'delete',
-                payload
-              )
-              if (!claimed) {
-                return { success: false, message: 'A job is already in progress for this table' }
-              }
-              await dispatchDeleteJob({
-                jobId,
-                tableId: table.id,
-                workspaceId,
-                filter: idFilter,
-                cutoff,
-                maxRows: args.limit,
-              })
-              return {
-                success: true,
-                message: bounded
-                  ? `Started background delete of up to ${doomedCount} matching rows (job ${jobId}). Rows delete in the background — query_rows to check progress.`
-                  : `Started background delete of ${doomedCount} matching rows (job ${jobId}). The rows are hidden from reads immediately — query_rows already reflects the post-delete view.`,
-                data: { jobId, doomedCount },
-              }
-            }
-          }
-
-          // Claim the table's one-write-job slot for the inline delete too, so it
-          // can't interleave with a running background import/delete. Mask-safe: a
-          // payload-less delete job is ignored by pendingDeleteMask, and the delete
-          // completes synchronously within this request before the slot is released.
           assertNotAborted()
-          const inlineDeleteId = generateId()
-          const deleteClaimed = await markTableJobRunningInWorkspace(
-            table.id,
-            workspaceId,
-            inlineDeleteId,
-            'delete'
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotDeleteRowsByFilter,
+            {
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              filter: normalizeTablePredicate(args.filter as TablePredicateInput),
+              limit: args.limit,
+            },
+            { tableId: args.tableId }
           )
-          if (!deleteClaimed) {
-            return { success: false, message: 'A job is already in progress for this table' }
-          }
-          const result = await withReleasedTableJobClaim(
-            table.id,
-            workspaceId,
-            inlineDeleteId,
-            () => deleteRowsByFilter(table, { filter: idFilter, limit: args.limit }, requestId)
-          )
-          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
-
-          if (result.affectedCount > 0) {
-            recordAudit({
-              workspaceId,
-              actorId: context.userId,
-              action: AuditAction.TABLE_UPDATED,
-              resourceType: AuditResourceType.TABLE,
-              resourceId: table.id,
-              resourceName: table.name,
-              description: `Deleted ${result.affectedCount} row(s) from table "${table.name}"`,
-              metadata: {
-                op: 'bulk_delete',
-                rowsDeleted: result.affectedCount,
-                source: 'tool_input',
-              },
-            })
+          if (result.kind === 'background') {
+            return {
+              success: true,
+              message: result.bounded
+                ? `Started background delete of up to ${result.doomedCount} matching rows (job ${result.jobId}). Rows delete in the background — query_rows to check progress.`
+                : `Started background delete of ${result.doomedCount} matching rows (job ${result.jobId}). The rows are hidden from reads immediately — query_rows already reflects the post-delete view.`,
+              data: { jobId: result.jobId, doomedCount: result.doomedCount },
+            }
           }
 
           return {
@@ -1255,35 +754,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const idByName = buildIdByName(table.schema)
-          const idUpdates = (updates as Array<{ rowId: string; data: RowData }>).map((update) => ({
-            rowId: update.rowId,
-            data: rowDataNameToId(update.data, idByName),
-          }))
-          const result = await batchUpdateRows(
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotBatchUpdateRows,
             {
               tableId: args.tableId,
-              updates: idUpdates,
-              workspaceId,
-              actorUserId: context.userId,
-              secretProvenanceByRowId: Object.fromEntries(
-                idUpdates.map((update) => [
-                  update.rowId,
-                  createExactEmptyTableRowSecretProvenance(update.data),
-                ])
-              ),
+              assertedWorkspaceId: workspaceId,
+              updates: updates as Array<{ rowId: string; data: RowData }>,
             },
-            table,
-            requestId
+            { tableId: args.tableId }
           )
-          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -1351,172 +832,84 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const filePrincipal = resolveCopilotFilePrincipal(context)
-          const record = await resolveWorkspaceFileRecordOrThrow(
+          const { file: record } = await resolveWorkspaceFileRecordOrThrow(
             fileReference,
             workspaceId,
-            filePrincipal
+            context
           )
-
-          // Large CSV/TSV: create a placeholder table whose creation claims the
-          // job slot, then let the streaming import worker infer the schema and
-          // populate rows in the background (mirrors POST /api/table/import-async).
-          if (shouldImportInBackground(record)) {
-            const planLimits = await getWorkspaceTableLimits(workspaceId)
-            const tableName =
-              args.name ||
-              sanitizeName(record.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
-                0,
-                TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
-              )
-            const requestId = generateId().slice(0, 8)
-            const importId = generateId()
-            assertNotAborted()
-            const table = await createTable(
-              {
-                name: tableName,
-                description: args.description || `Imported from ${record.name}`,
-                schema: { columns: [{ name: 'column_1', type: 'string' }] },
-                workspaceId,
-                userId: context.userId,
-                maxRows: planLimits.maxRowsPerTable,
-                maxTables: planLimits.maxTables,
-                jobStatus: 'running',
-                jobType: 'import',
-                jobId: importId,
-              },
-              requestId
+          const tableName =
+            args.name ||
+            sanitizeName(record.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+              0,
+              TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
             )
-            try {
-              await dispatchImportJob({
-                importId,
-                tableId: table.id,
-                workspaceId,
-                userId: context.userId,
-                fileKey: record.key,
-                fileName: record.name,
-                delimiter: record.name.toLowerCase().endsWith('.tsv') ? '\t' : ',',
-                mode: 'create',
-                deleteSourceFile: false,
-              })
-            } catch (dispatchError) {
-              try {
-                await deleteTable(table.id, generateId().slice(0, 8))
-              } catch (cleanupError) {
-                logger.error('Failed to remove placeholder table after import dispatch failure', {
-                  tableId: table.id,
-                  error: getErrorMessage(cleanupError),
-                })
-              }
-              throw dispatchError
+          const description = args.description || `Imported from ${record.name}`
+          if (shouldImportInBackground(record)) {
+            assertNotAborted()
+            const result = await executeCopilotTableUseCase(context, createTableFromWorkspaceFile, {
+              kind: 'background',
+              workspaceId,
+              sourceFile: record,
+              name: tableName,
+              description,
+            })
+            if (result.kind !== 'background') {
+              throw new Error('Background table import returned an inline result')
             }
             return {
               success: true,
-              message: `Created table "${table.name}" (${table.id}); importing rows from "${record.name}" in the background (job ${importId}). Columns and rows appear as the import progresses — query_rows to check what has landed.`,
+              message: `Created table "${result.table.name}" (${result.table.id}); importing rows from "${record.name}" in the background (job ${result.jobId}). Columns and rows appear as the import progresses — query_rows to check what has landed.`,
               data: {
-                tableId: table.id,
-                tableName: table.name,
-                jobId: importId,
+                tableId: result.table.id,
+                tableName: result.table.name,
+                jobId: result.jobId,
                 sourceFile: record.name,
               },
             }
           }
 
-          const file = {
-            buffer: (
-              await readWorkspaceFileContent.execute({
-                principal: filePrincipal,
-                input: {
-                  fileId: record.id,
-                  assertedWorkspaceId: workspaceId,
-                  maxBytes: MAX_INLINE_FILE_BYTES,
-                },
-              })
-            ).content,
-            name: record.name,
-            type: record.type,
-          }
-          const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
+          const { content } = await resolveWorkspaceFileRecordOrThrow(
+            fileReference,
+            workspaceId,
+            context,
+            MAX_INLINE_FILE_BYTES
+          )
+          if (!content) throw new Error('Workspace file content was not loaded')
+          const { headers, rows } = await parseFileRows(content, record.name, record.type)
           if (rows.length === 0) {
             return { success: false, message: 'File contains no data rows' }
           }
 
           const { columns, headerToColumn } = inferSchemaFromCsv(headers, rows)
-          const tableName = args.name || file.name.replace(/\.[^.]+$/, '')
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const planLimits = await getWorkspaceTableLimits(workspaceId)
-
-          const droppedRows = Math.max(0, rows.length - planLimits.maxRowsPerTable)
-          const rowsToImport = droppedRows > 0 ? rows.slice(0, planLimits.maxRowsPerTable) : rows
-
-          const table = await createTable(
-            {
-              name: tableName,
-              description: args.description || `Imported from ${file.name}`,
-              schema: { columns },
-              workspaceId,
-              userId: context.userId,
-              maxTables: planLimits.maxTables,
-            },
-            requestId
-          )
-
-          // Coerce against the created table's schema so rows key by the ids
-          // `createTable` assigned (not the inferred, id-less columns).
-          const coerced = coerceRowsForTable(rowsToImport, table.schema, headerToColumn)
-          let inserted: number
-          try {
-            inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
-          } catch (insertError) {
-            const cleanupRequestId = generateId().slice(0, 8)
-            await deleteTable(table.id, cleanupRequestId).catch((cleanupError) => {
-              logger.error('Failed to roll back table after import failure', {
-                tableId: table.id,
-                error: toError(cleanupError).message,
-              })
-            })
-            const reason = toError(insertError).message
-            const cause =
-              insertError instanceof Error && insertError.cause
-                ? toError(insertError.cause).message
-                : undefined
-            logger.error('Failed to import rows into new table', {
-              tableId: table.id,
-              fileName: file.name,
-              error: reason,
-              cause,
-            })
-            return {
-              success: false,
-              message: `Failed to import rows from "${file.name}" — the table was rolled back. ${cause ? `${reason} (${cause})` : reason}`,
-            }
-          }
-
-          logger.info('Table created from file', {
-            tableId: table.id,
-            fileName: file.name,
-            columns: columns.length,
-            rows: inserted,
-            droppedRows,
-            userId: context.userId,
+          const result = await executeCopilotTableUseCase(context, createTableFromWorkspaceFile, {
+            kind: 'inline',
+            workspaceId,
+            sourceFile: record,
+            name: tableName,
+            description,
+            columns,
+            headerToColumn,
+            rows,
           })
-
-          const createdMessage = `Created table "${table.name}" with ${columns.length} columns and ${inserted.toLocaleString()} rows from "${file.name}"`
+          if (result.kind !== 'inline') {
+            throw new Error('Inline table import returned a background result')
+          }
+          const createdMessage = `Created table "${result.table.name}" with ${columns.length} columns and ${result.insertedCount.toLocaleString()} rows from "${record.name}"`
           const message =
-            droppedRows > 0
-              ? `${createdMessage}. Dropped ${droppedRows.toLocaleString()} row(s) that exceed this plan's limit of ${planLimits.maxRowsPerTable.toLocaleString()} rows per table.`
+            result.droppedRows > 0
+              ? `${createdMessage}. Dropped ${result.droppedRows.toLocaleString()} row(s) that exceed this plan's limit of ${result.maxRowsPerTable.toLocaleString()} rows per table.`
               : createdMessage
 
           return {
             success: true,
             message,
             data: {
-              tableId: table.id,
-              tableName: table.name,
+              tableId: result.table.id,
+              tableName: result.table.name,
               columns: columns.map((c) => ({ name: c.name, type: c.type })),
-              rowCount: inserted,
-              sourceFile: file.name,
+              rowCount: result.insertedCount,
+              sourceFile: record.name,
             },
           }
         }
@@ -1551,182 +944,100 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const mode: 'append' | 'replace' = rawMode === 'replace' ? 'replace' : 'append'
 
-          const table = await getTableById(tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${tableId}` }
-          }
-          if (table.archivedAt) {
-            return { success: false, message: `Table is archived: ${tableId}` }
-          }
-
-          const filePrincipal = resolveCopilotFilePrincipal(context)
-          const record = await resolveWorkspaceFileRecordOrThrow(
+          await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId, workspaceId },
+            { tableId }
+          )
+          const { file: record } = await resolveWorkspaceFileRecordOrThrow(
             fileReference,
             workspaceId,
-            filePrincipal
+            context
           )
-
-          // Large CSV/TSV: claim the table's one-write-job slot and hand the
-          // file to the streaming import worker (mirrors
-          // POST /api/table/[tableId]/import-async).
           if (shouldImportInBackground(record)) {
-            const importId = generateId()
             assertNotAborted()
-            const claimed = await markTableJobRunningInWorkspace(
-              table.id,
-              workspaceId,
-              importId,
-              'import'
+            const result = await executeCopilotTableUseCase(
+              context,
+              importWorkspaceFileIntoTable,
+              {
+                kind: 'background',
+                tableId,
+                assertedWorkspaceId: workspaceId,
+                sourceFile: record,
+                mode,
+                mapping: rawMapping,
+              },
+              { tableId }
             )
-            if (!claimed) {
-              return { success: false, message: 'A job is already in progress for this table' }
+            if (result.kind !== 'background') {
+              throw new Error('Background table import returned an inline result')
             }
-            await dispatchImportJob({
-              importId,
-              tableId: table.id,
-              workspaceId,
-              userId: context.userId,
-              fileKey: record.key,
-              fileName: record.name,
-              delimiter: record.name.toLowerCase().endsWith('.tsv') ? '\t' : ',',
+            return {
+              success: true,
+              message: `Started background ${mode} import of "${record.name}" into "${result.table.name}" (job ${result.jobId}). Rows appear as the import progresses — query_rows to check what has landed.`,
+              data: { tableId: result.table.id, jobId: result.jobId, mode },
+            }
+          }
+
+          assertNotAborted()
+          const result = await executeCopilotTableUseCase(
+            context,
+            importWorkspaceFileIntoTable,
+            {
+              kind: 'inline',
+              tableId,
+              assertedWorkspaceId: workspaceId,
+              sourceFile: record,
               mode,
               mapping: rawMapping,
-              deleteSourceFile: false,
-            })
-            return {
-              success: true,
-              message: `Started background ${mode} import of "${record.name}" into "${table.name}" (job ${importId}). Rows appear as the import progresses — query_rows to check what has landed.`,
-              data: { tableId: table.id, jobId: importId, mode },
-            }
-          }
-
-          // Claim the table's one-write-job slot up front — before the download
-          // and parse — so the inline import is mutually exclusive with any
-          // background import/delete for its whole duration, not just the write,
-          // and contention is detected before the parse work is spent.
-          const inlineImportId = generateId()
-          assertNotAborted()
-          const inlineClaimed = await markTableJobRunningInWorkspace(
-            table.id,
-            workspaceId,
-            inlineImportId,
-            'import'
-          )
-          if (!inlineClaimed) {
-            return { success: false, message: 'A job is already in progress for this table' }
-          }
-          return withReleasedTableJobClaim(table.id, workspaceId, inlineImportId, async () => {
-            const file = {
-              buffer: (
-                await readWorkspaceFileContent.execute({
-                  principal: filePrincipal,
-                  input: {
-                    fileId: record.id,
-                    assertedWorkspaceId: workspaceId,
-                    maxBytes: MAX_INLINE_FILE_BYTES,
-                  },
-                })
-              ).content,
-              name: record.name,
-              type: record.type,
-            }
-            const { headers, rows } = await parseFileRows(file.buffer, file.name, file.type)
-            if (rows.length === 0) {
-              return { success: false, message: 'File contains no data rows' }
-            }
-
-            const mapping: CsvHeaderMapping = rawMapping ?? buildAutoMapping(headers, table.schema)
-
-            let validation: ReturnType<typeof validateMapping>
-            try {
-              validation = validateMapping({
-                csvHeaders: headers,
-                mapping,
-                tableSchema: table.schema,
-              })
-            } catch (err) {
-              if (err instanceof CsvImportValidationError) {
-                return { success: false, message: err.message }
-              }
-              throw err
-            }
-
-            if (validation.mappedHeaders.length === 0) {
-              return {
-                success: false,
-                message: `No matching columns between file (${headers.join(', ')}) and table (${table.schema.columns.map((c) => c.name).join(', ')})`,
-              }
-            }
-
-            const coerced = coerceRowsForTable(rows, table.schema, validation.effectiveMap)
-
-            if (mode === 'replace') {
-              const requestId = generateId().slice(0, 8)
-              const result = await replaceTableRows(
-                {
-                  tableId: table.id,
-                  rows: coerced,
+              loadRows: async () => {
+                const { content } = await resolveWorkspaceFileRecordOrThrow(
+                  fileReference,
                   workspaceId,
-                  userId: context.userId,
-                  secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
-                },
-                table,
-                requestId
-              )
-              signalTableRowsChanged(table.id)
-
-              logger.info('Rows replaced from file', {
-                tableId: table.id,
-                fileName: file.name,
-                mode,
-                matchedColumns: validation.mappedHeaders.length,
-                deleted: result.deletedCount,
-                inserted: result.insertedCount,
-                userId: context.userId,
-              })
-
-              return {
-                success: true,
-                message: `Replaced rows in "${table.name}" from "${file.name}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
-                data: {
-                  tableId: table.id,
-                  tableName: table.name,
-                  mode,
-                  matchedColumns: validation.mappedHeaders,
-                  skippedColumns: validation.skippedHeaders,
-                  deletedCount: result.deletedCount,
-                  insertedCount: result.insertedCount,
-                  sourceFile: file.name,
-                },
-              }
-            }
-
-            const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
-            if (inserted > 0) signalTableRowsChanged(table.id)
-
-            logger.info('Rows imported from file', {
-              tableId: table.id,
-              fileName: file.name,
-              mode,
-              matchedColumns: validation.mappedHeaders.length,
-              rows: inserted,
-              userId: context.userId,
-            })
-
+                  context,
+                  MAX_INLINE_FILE_BYTES
+                )
+                if (!content) throw new Error('Workspace file content was not loaded')
+                return parseFileRows(content, record.name, record.type)
+              },
+            },
+            { tableId }
+          )
+          if (result.kind === 'empty') {
+            return { success: false, message: 'File contains no data rows' }
+          }
+          if (result.kind !== 'inline')
+            throw new Error('Inline table import returned a background job')
+          if (result.mode === 'replace') {
             return {
               success: true,
-              message: `Imported ${inserted} rows into "${table.name}" from "${file.name}" (${validation.mappedHeaders.length} columns matched)`,
+              message: `Replaced rows in "${result.table.name}" from "${record.name}": deleted ${result.deletedCount}, inserted ${result.insertedCount}`,
               data: {
-                tableId: table.id,
-                tableName: table.name,
+                tableId: result.table.id,
+                tableName: result.table.name,
                 mode,
-                matchedColumns: validation.mappedHeaders,
-                skippedColumns: validation.skippedHeaders,
-                rowCount: inserted,
-                sourceFile: file.name,
+                matchedColumns: result.matchedColumns,
+                skippedColumns: result.skippedColumns,
+                deletedCount: result.deletedCount,
+                insertedCount: result.insertedCount,
+                sourceFile: record.name,
               },
             }
-          })
+          }
+          return {
+            success: true,
+            message: `Imported ${result.insertedCount} rows into "${result.table.name}" from "${record.name}" (${result.matchedColumns.length} columns matched)`,
+            data: {
+              tableId: result.table.id,
+              tableName: result.table.name,
+              mode,
+              matchedColumns: result.matchedColumns,
+              skippedColumns: result.skippedColumns,
+              rowCount: result.insertedCount,
+              sourceFile: record.name,
+            },
+          }
         }
 
         case 'add_column': {
@@ -1836,19 +1147,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               data: { schema: updated.schema },
             }
           }
-          await executeCopilotTableUseCase(
+          assertNotAborted()
+          const { table: updated } = await executeCopilotTableUseCase(
             context,
-            readTableUseCase,
-            { tableId: args.tableId, workspaceId },
+            deleteTableColumnsUseCase,
+            { tableId: args.tableId, workspaceId, columnNames: names },
             { tableId: args.tableId }
           )
-          assertNotAborted()
-          const updated = await deleteColumns(
-            { tableId: args.tableId, columnNames: names },
-            generateId().slice(0, 8),
-            { expectedWorkspaceId: workspaceId }
-          )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted ${names.length} columns: ${names.join(', ')}`,
@@ -1962,7 +1267,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'workflowId is required for list_workflow_outputs',
             }
           }
-          const flattened = await loadFlattenedWorkflowOutputs(workflowId)
+          const resolvedWorkflow = await resolveAuthorizedWorkflowOutputs(
+            workflowId,
+            workspaceId,
+            context
+          )
+          const flattened = resolvedWorkflow.outputs
           if (!flattened) {
             return {
               success: false,
@@ -2013,7 +1323,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
 
-          const flattened = await loadFlattenedWorkflowOutputs(workflowId)
+          const resolvedWorkflow = await resolveAuthorizedWorkflowOutputs(
+            workflowId,
+            workspaceId,
+            context
+          )
+          const flattened = resolvedWorkflow.outputs
           if (!flattened) {
             return {
               success: false,
@@ -2071,6 +1386,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               group,
               outputColumns,
               autoRun,
+              resolvedWorkflow,
             },
             { tableId: args.tableId }
           )
@@ -2098,34 +1414,47 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId }
           )
           const updateOutputs = args.outputs as WorkflowGroupOutput[] | undefined
-          if (updateOutputs && updateOutputs.length > 0) {
-            // Resolve which workflow these outputs apply to: explicit override
-            // wins, else the existing group's workflowId.
-            const existingGroup = tableForUpdate.schema.workflowGroups?.find(
-              (g) => g.id === groupId
-            )
-            const targetWorkflowId =
-              (args.workflowId as string | undefined) ?? existingGroup?.workflowId
+          const mappingUpdates = args.mappingUpdates as
+            | Array<{ columnName: string; blockId: string; path: string }>
+            | undefined
+          const explicitWorkflowId = args.workflowId as string | undefined
+          const existingGroup = tableForUpdate.schema.workflowGroups?.find((g) => g.id === groupId)
+          const targetWorkflowId = explicitWorkflowId ?? existingGroup?.workflowId
+          const workflowMetadataRequired =
+            explicitWorkflowId !== undefined ||
+            updateOutputs !== undefined ||
+            (mappingUpdates?.length ?? 0) > 0
+          let resolvedWorkflow:
+            | Awaited<ReturnType<typeof resolveAuthorizedWorkflowOutputs>>
+            | undefined
+          if (workflowMetadataRequired) {
             if (!targetWorkflowId) {
               return {
                 success: false,
                 message: `Cannot validate outputs — workflow group ${groupId} not found and no workflowId provided`,
               }
             }
-            const flattened = await loadFlattenedWorkflowOutputs(targetWorkflowId)
-            if (!flattened) {
+            resolvedWorkflow = await resolveAuthorizedWorkflowOutputs(
+              targetWorkflowId,
+              workspaceId,
+              context
+            )
+            const flattened = resolvedWorkflow.outputs
+            if ((updateOutputs?.length ?? 0) > 0 && !flattened) {
               return {
                 success: false,
                 message: `Workflow not found or has no blocks: ${targetWorkflowId}`,
               }
             }
-            const validationError = validateOutputsAgainstWorkflow(
-              updateOutputs.map((o) => ({ blockId: o.blockId, path: o.path })),
-              flattened,
-              targetWorkflowId
-            )
-            if (validationError) {
-              return { success: false, message: validationError }
+            if (updateOutputs && updateOutputs.length > 0 && flattened) {
+              const validationError = validateOutputsAgainstWorkflow(
+                updateOutputs.map((o) => ({ blockId: o.blockId, path: o.path })),
+                flattened,
+                targetWorkflowId
+              )
+              if (validationError) {
+                return { success: false, message: validationError }
+              }
             }
           }
           assertNotAborted()
@@ -2136,14 +1465,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               tableId: args.tableId,
               workspaceId,
               groupId,
-              workflowId: args.workflowId as string | undefined,
+              workflowId: explicitWorkflowId,
               name: args.name as string | undefined,
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
               outputs: updateOutputs,
               newOutputColumns: args.newOutputColumns as ColumnDefinition[] | undefined,
-              mappingUpdates: args.mappingUpdates as
-                | Array<{ columnName: string; blockId: string; path: string }>
-                | undefined,
+              mappingUpdates,
+              resolvedWorkflow,
               deploymentMode: parseDeploymentMode(args.deploymentMode),
               autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
             },
@@ -2190,25 +1518,38 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'groupId, blockId, and path are required for add_workflow_group_output',
             }
           }
-          const tableForAdd = await getTableById(args.tableId)
-          if (!tableForAdd || tableForAdd.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
+          const { table: tableForAdd } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
+          const workflowId = tableForAdd.schema.workflowGroups?.find(
+            (candidate) => candidate.id === groupId
+          )?.workflowId
+          if (!workflowId) {
+            return { success: false, message: `Workflow group not found: ${groupId}` }
           }
-          const requestId = generateId().slice(0, 8)
+          const resolvedWorkflow = await resolveAuthorizedWorkflowOutputs(
+            workflowId,
+            workspaceId,
+            context
+          )
           assertNotAborted()
-          const updated = await addWorkflowGroupOutput(
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            addTableGroupOutputUseCase,
             {
               tableId: args.tableId,
+              workspaceId,
               groupId,
               blockId,
               path,
               columnName,
-              actorUserId: context.userId,
-              workspaceId,
+              resolvedWorkflow,
             },
-            requestId
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added output to workflow group ${groupId}`,
@@ -2227,17 +1568,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'groupId and columnName are required for delete_workflow_group_output',
             }
           }
-          const tableForRemove = await getTableById(args.tableId)
-          if (!tableForRemove || tableForRemove.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await deleteWorkflowGroupOutput(
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            deleteTableGroupOutputUseCase,
             { tableId: args.tableId, groupId, columnName, workspaceId },
-            requestId
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
@@ -2379,10 +1716,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Unknown enrichment "${enrichmentId}". Call list_enrichments to see available ids.`,
             }
           }
-          const tableForEnrichment = await getTableById(args.tableId)
-          if (!tableForEnrichment || tableForEnrichment.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
+          const { table: tableForEnrichment } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           // Validate the input mapping: every required input must be mapped, and
           // each mapped column must already exist on the table.
@@ -2457,13 +1796,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             inputMappings,
             autoRun,
           }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
-            requestId
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            createTableGroupUseCase,
+            { tableId: args.tableId, workspaceId, group, outputColumns, autoRun },
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added enrichment "${name}" with ${outputs.length} output column(s)${

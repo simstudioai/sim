@@ -44,6 +44,8 @@ const logger = createLogger('TableImportResource')
 
 type TableImportStatus = 'uploading' | 'running' | 'ready' | 'failed' | 'canceled' | 'expired'
 
+export type CreateTableImportRequest = V2CreateTableImportBody
+
 export interface TableImportResource {
   id: string
   workspaceId: string
@@ -66,7 +68,7 @@ export interface CreateTableImportResult {
 }
 
 interface AuthorizedTableImportResourceParams {
-  body: V2CreateTableImportBody
+  body: CreateTableImportRequest
   userId: string
   principal?: Principal
   localOrigin?: string

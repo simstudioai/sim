@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   fetchBuffer: vi.fn(),
+  getProvenance: vi.fn(),
   loadContext: vi.fn(),
   resolvePermission: vi.fn(),
   resolveStoredReference: vi.fn(),
@@ -21,9 +22,14 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mocks.resolveStoredReference,
 }))
 
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.getProvenance,
+}))
+
 import { defineWorkspaceOperation } from '@/lib/core/application'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import {
+  readSafeWorkspaceFileReference,
   readWorkspaceFileReference,
   resolveWorkspaceFileReference,
 } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
@@ -51,6 +57,7 @@ describe('workspace file reference application service', () => {
     mocks.loadContext.mockResolvedValue(context)
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
+    mocks.getProvenance.mockResolvedValue({ status: 'exact', entries: [] })
   })
 
   it('uses one fixed semantic use case for an authorized reference lookup', async () => {
@@ -103,5 +110,32 @@ describe('workspace file reference application service', () => {
 
     expect(mocks.resolveStoredReference).not.toHaveBeenCalled()
     expect(mocks.loadContext).not.toHaveBeenCalled()
+  })
+
+  it('returns only workspace files with exact empty secret provenance', async () => {
+    await expect(
+      readSafeWorkspaceFileReference.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', reference: 'files/source.txt', maxBytes: 512 },
+      })
+    ).resolves.toEqual({ file, content: Buffer.from('source') })
+
+    expect(mocks.getProvenance).toHaveBeenCalledWith('workspace-1', {
+      fileId: 'file-1',
+      key: file.key,
+      context: 'workspace',
+    })
+  })
+
+  it('rejects unknown provenance before reading file content', async () => {
+    mocks.getProvenance.mockResolvedValueOnce({ status: 'unknown' })
+
+    await expect(
+      readSafeWorkspaceFileReference.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', reference: 'files/source.txt', maxBytes: 512 },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
   })
 })

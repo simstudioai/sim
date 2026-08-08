@@ -7,6 +7,7 @@ import {
   resolveWorkspaceFileReference as resolveStoredWorkspaceFileReference,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
@@ -123,3 +124,37 @@ export async function readWorkspaceFileReference({
     input: { workspaceId, reference, maxBytes },
   })
 }
+
+export interface ReadSafeWorkspaceFileReferenceInput extends WorkspaceFileReferenceInput {
+  maxBytes?: number
+}
+
+export interface ReadSafeWorkspaceFileReferenceResult {
+  file: WorkspaceFileRecord
+  content?: Buffer
+}
+
+export const readSafeWorkspaceFileReference = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.readContent,
+  resolveContext: ({ input }: { input: ReadSafeWorkspaceFileReferenceInput }) =>
+    resolveWorkspaceFileReferenceContext({ input }),
+  async execute({ input, context }): Promise<ReadSafeWorkspaceFileReferenceResult> {
+    const provenance = await getBoundWorkspaceFileSecretProvenance(context.workspaceId, {
+      fileId: context.file.id,
+      key: context.file.key,
+      context: 'workspace',
+    })
+    if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+      throw new OrchestrationError(
+        'validation',
+        `Cannot import "${input.reference}": the file cannot be verified as free of resolved secrets.`
+      )
+    }
+    return {
+      file: context.file,
+      ...(input.maxBytes === undefined
+        ? {}
+        : { content: await fetchWorkspaceFileBuffer(context.file, { maxBytes: input.maxBytes }) }),
+    }
+  },
+})

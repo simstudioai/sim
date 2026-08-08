@@ -42,26 +42,3 @@ export function executeCopilotTableUseCase<O extends TableOperation, I, R>(
 ): Promise<R> {
   return executeTableUseCase(context, useCase, input, options)
 }
-
-/**
- * Authorizes a Copilot operation that still retains a compatibility-specific
- * presenter or execution strategy before that trusted adapter invokes it.
- */
-export function admitCopilotTableOperation<O extends TableOperation>(
-  context: CopilotTableDelegationContext | undefined,
-  operation: O,
-  input: AdmitCopilotTableOperationInput
-): Promise<void> {
-  const useCase = defineAuthorizedTableUseCase({
-    operation,
-    resolveContext: ({ input: admitted }: { input: AdmitCopilotTableOperationInput }) =>
-      admitted.tableId
-        ? resolveActiveTableContext({
-            tableId: admitted.tableId,
-            assertedWorkspaceId: admitted.workspaceId,
-          })
-        : resolveTableWorkspaceContext(admitted.workspaceId),
-    async execute() {},
-  })
-  return executeCopilotTableUseCase(context, useCase, input, { tableId: input.tableId })
-}

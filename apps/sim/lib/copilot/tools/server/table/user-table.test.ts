@@ -2,8 +2,8 @@
  * @vitest-environment node
  */
 
-import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition } from '@/lib/table'
 
 const {
@@ -27,7 +27,9 @@ const {
   mockRunTableImport,
   mockRunTableDelete,
   mockRunTableUpdate,
+  mockExecuteCopilotFileUseCase,
   mockExecuteCopilotTableUseCase,
+  mockExecuteCopilotWorkflowUseCase,
   fakeEnrichment,
 } = vi.hoisted(() => ({
   mockUpdateColumnType: vi.fn(),
@@ -50,7 +52,9 @@ const {
   mockRunTableImport: vi.fn(),
   mockRunTableDelete: vi.fn(),
   mockRunTableUpdate: vi.fn(),
+  mockExecuteCopilotFileUseCase: vi.fn(),
   mockExecuteCopilotTableUseCase: vi.fn(),
+  mockExecuteCopilotWorkflowUseCase: vi.fn(),
   fakeEnrichment: {
     id: 'work-email',
     name: 'Work Email',
@@ -75,7 +79,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
 }))
 vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+  readSafeWorkspaceFileReference: { operation: { id: 'files.content.read' } },
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: {
@@ -96,7 +100,12 @@ vi.mock('@/lib/copilot/auth/file-delegation', () => ({
 }))
 
 vi.mock('@/lib/copilot/auth/table-delegation', () => ({
-  messageForCopilotTableError: (error: unknown) => getErrorMessage(error, 'Table operation failed'),
+  messageForCopilotTableError: (error: unknown) => {
+    const classified = error as { code?: string; message?: string }
+    return classified.code && classified.code !== 'internal'
+      ? (classified.message ?? 'Table operation failed')
+      : 'Table operation failed'
+  },
   resolveCopilotTablePrincipal: (_context: unknown, tableId?: string) => ({
     kind: 'delegated',
     serviceId: 'copilot',
@@ -111,8 +120,51 @@ vi.mock('@/lib/copilot/auth/table-delegation', () => ({
 }))
 
 vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
-  admitCopilotTableOperation: vi.fn(),
   executeCopilotTableUseCase: mockExecuteCopilotTableUseCase,
+}))
+
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: mockExecuteCopilotFileUseCase,
+}))
+
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: mockExecuteCopilotWorkflowUseCase,
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
+  },
+  resolveEffectiveWorkspacePermission: vi.fn().mockResolvedValue('write'),
+}))
+
+vi.mock('@/lib/table/application/context', () => ({
+  resolveActiveTableContext: async (input: { tableId: string; assertedWorkspaceId?: string }) => {
+    const table = await mockGetTableById(input.tableId)
+    if (!table || (input.assertedWorkspaceId && table.workspaceId !== input.assertedWorkspaceId)) {
+      throw Object.assign(new Error('Table not found'), { code: 'not_found' })
+    }
+    if (table.archivedAt) {
+      throw Object.assign(new Error('Table is archived'), { code: 'conflict' })
+    }
+    return {
+      tableId: table.id,
+      table,
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    }
+  },
+  resolveTableWorkspaceContext: async (workspaceId: string) => ({
+    workspaceId,
+    workspaceOrganizationId: null,
+    allowPersonalApiKeys: true,
+    billedAccountUserId: 'user-1',
+  }),
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
@@ -190,10 +242,54 @@ import { userTableServerTool } from '@/lib/copilot/tools/server/table/user-table
 import { decodeCursor, encodeCursor } from '@/lib/table/rows/cursor'
 
 beforeEach(() => {
+  mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+    workflowId: 'workflow-1',
+    outputs: [
+      {
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        path: 'content',
+        leafType: 'string',
+      },
+    ],
+    executionOrderByBlockId: { 'block-1': 1 },
+  })
+  mockExecuteCopilotFileUseCase.mockImplementation(
+    async (_context: unknown, _useCase: unknown, input: Record<string, unknown>) => {
+      const workspaceId = String(input.workspaceId)
+      const reference = String(input.reference)
+      const file = await mockResolveWorkspaceFileReference(workspaceId, reference)
+      if (!file) throw new OrchestrationError('not_found', 'File not found')
+      const provenance = await mockGetBoundWorkspaceFileSecretProvenance(workspaceId, {
+        fileId: file.id,
+        key: file.key,
+        context: 'workspace',
+      })
+      if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot import "${reference}": the file cannot be verified as free of resolved secrets.`
+        )
+      }
+      return {
+        file: { ...file, workspaceId },
+        ...(input.maxBytes === undefined
+          ? {}
+          : { content: await mockDownloadWorkspaceFile(file, { maxBytes: input.maxBytes }) }),
+      }
+    }
+  )
   mockExecuteCopilotTableUseCase.mockImplementation(
     async (
       _context: unknown,
-      useCase: { operation: { id: string } },
+      useCase: {
+        operation: { id: string }
+        execute?: (args: {
+          principal: Record<string, unknown>
+          input: Record<string, unknown>
+        }) => Promise<unknown>
+      },
       input: Record<string, unknown>
     ) => {
       const table = await mockGetTableById(input.tableId)
@@ -206,7 +302,7 @@ beforeEach(() => {
         case 'tables.rows.query': {
           if (!table) throw new Error('Table not found')
           if (input.cursor && Array.isArray(input.sort) && input.sort.length > 0) {
-            throw new Error('Cursor is not valid for a sorted query')
+            throw new OrchestrationError('validation', 'Cursor is not valid for a sorted query')
           }
           const cursor = input.cursor ? decodeCursor(String(input.cursor)) : undefined
           const result = await mockQueryRows(table, {
@@ -219,6 +315,29 @@ beforeEach(() => {
             withExecutions: false,
           })
           return { table, ...result }
+        }
+        case 'tables.read': {
+          if (!table || table.workspaceId !== input.workspaceId) {
+            throw Object.assign(new Error('Table not found'), { code: 'not_found' })
+          }
+          if (table.archivedAt) {
+            throw Object.assign(new Error('Table is archived'), { code: 'conflict' })
+          }
+          return { table }
+        }
+        case 'tables.groups.create': {
+          if (!table) throw Object.assign(new Error('Table not found'), { code: 'not_found' })
+          const updated = await mockAddWorkflowGroup(
+            {
+              tableId: input.tableId,
+              workspaceId: input.workspaceId,
+              group: input.group,
+              outputColumns: input.outputColumns,
+              autoRun: input.autoRun,
+            },
+            'request-1'
+          )
+          return { table: updated, group: input.group }
         }
         case 'tables.columns.update': {
           if (!table) throw new Error('Table not found')
@@ -245,8 +364,25 @@ beforeEach(() => {
                 })
           return { table: next, changed: true }
         }
-        default:
-          throw new Error(`Unexpected application operation ${useCase.operation.id}`)
+        default: {
+          if (!useCase.execute) {
+            throw new Error(`Unexpected application operation ${useCase.operation.id}`)
+          }
+          return useCase.execute({
+            principal: {
+              kind: 'delegated',
+              serviceId: 'copilot',
+              subjectUserId: 'user-1',
+              workspaceId: 'workspace-1',
+              delegationId: 'test-tool',
+              audience: 'sim:tables',
+              issuedAt: new Date(0),
+              expiresAt: new Date(Date.now() + 60_000),
+              ...(input.tableId ? { resourceScope: { tableId: input.tableId } } : {}),
+            },
+            input,
+          })
+        }
       }
     }
   )
@@ -559,6 +695,7 @@ describe('userTableServerTool.import_file', () => {
 
   it('rejects a background import while another job holds the table slot', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -629,7 +766,7 @@ describe('userTableServerTool.create_from_file', () => {
     expect(mockDeleteTable).not.toHaveBeenCalled()
   })
 
-  it('rolls back the created table and reports the reason when row insertion fails', async () => {
+  it('rolls back the created table and safely conceals unknown insertion failures', async () => {
     mockBatchInsertRows.mockRejectedValueOnce(new Error('Row 2: Column "email" must be unique'))
 
     const result = await userTableServerTool.execute(
@@ -639,8 +776,8 @@ describe('userTableServerTool.create_from_file', () => {
 
     expect(result.success).toBe(false)
     expect(mockDeleteTable).toHaveBeenCalledWith('tbl_new', expect.any(String))
-    expect(result.message).toMatch(/rolled back/i)
-    expect(result.message).toMatch(/must be unique/i)
+    expect(result.message).toBe('Operation failed: Table operation failed')
+    expect(result.message).not.toMatch(/must be unique/i)
   })
 
   it('creates a placeholder table and dispatches a background import for large CSV files', async () => {
@@ -716,6 +853,55 @@ describe('userTableServerTool.create', () => {
     expect(mockGetWorkspaceTableLimits).toHaveBeenCalledWith('workspace-1')
     const createArgs = mockCreateTable.mock.calls[0][0] as { maxTables: number }
     expect(createArgs.maxTables).toBe(3)
+  })
+})
+
+describe('userTableServerTool workflow scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetTableById.mockResolvedValue(buildTable())
+    mockAddWorkflowGroup.mockResolvedValue(buildTable())
+  })
+
+  it('conceals a cross-workspace workflow id before persisting a group', async () => {
+    mockExecuteCopilotWorkflowUseCase.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workflow not found')
+    )
+
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'add_workflow_group',
+        args: {
+          tableId: 'tbl_1',
+          workflowId: 'workflow-cross-workspace',
+          outputs: [{ blockId: 'block-1', path: 'content' }],
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toEqual({ success: false, message: 'Operation failed: Workflow not found' })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.read' }) }),
+      {
+        workflowId: 'workflow-cross-workspace',
+        assertedWorkspaceId: 'workspace-1',
+      }
+    )
+    expect(mockAddWorkflowGroup).not.toHaveBeenCalled()
+  })
+
+  it('conceals unknown application failures from tool output', async () => {
+    mockExecuteCopilotTableUseCase.mockRejectedValueOnce(new Error('database host unavailable'))
+
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result).toEqual({ success: false, message: 'Operation failed: Table operation failed' })
+    expect(result.message).not.toContain('database host unavailable')
   })
 })
 
