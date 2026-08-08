@@ -11,15 +11,11 @@ import {
   useState,
 } from 'react'
 import {
-  type DesktopAppearanceTheme,
   type DesktopZoomAction,
   type DesktopZoomPercent,
   resolveDesktopZoom,
-  TERMINAL_DARK_THEME,
-  TERMINAL_LIGHT_THEME,
   type TerminalAppearanceTheme,
   type TerminalShortcutCommand,
-  type TerminalThemePalette,
   type TerminalThemeProfile,
 } from '@sim/desktop-bridge'
 import {
@@ -45,7 +41,8 @@ import { getDesktopBridge } from '@/lib/desktop'
 import {
   loadDesktopTerminalAppearance,
   loadDesktopTerminalThemeProfiles,
-  resolveDesktopAppearanceTheme,
+  refreshSelectedTerminalProfile,
+  resolveTerminalThemePalette,
   withSelectedProfile,
 } from '@/lib/desktop/appearance'
 import { trackPanelFocus } from '@/lib/desktop/panel-focus'
@@ -314,15 +311,7 @@ const TerminalView = memo(function TerminalView({
   defaultZoom: DesktopZoomPercent
 }) {
   const { resolvedTheme } = useTheme()
-  const profileTheme = typeof appearanceTheme === 'string' ? undefined : appearanceTheme
-  const builtInTheme: DesktopAppearanceTheme =
-    typeof appearanceTheme === 'string' ? appearanceTheme : 'app'
-  const colorScheme = resolveDesktopAppearanceTheme(builtInTheme, resolvedTheme)
-  const terminalTheme: TerminalThemePalette = profileTheme
-    ? profileTheme.palette
-    : colorScheme === 'dark'
-      ? TERMINAL_DARK_THEME
-      : TERMINAL_LIGHT_THEME
+  const terminalTheme = resolveTerminalThemePalette(appearanceTheme, resolvedTheme)
   const hostRef = useRef<HTMLDivElement>(null)
   const terminalRef = useRef<Terminal | null>(null)
   const fitRef = useRef<FitAddon | null>(null)
@@ -756,26 +745,20 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   )
 
   useEffect(() => {
+    if (!visible) return
     let active = true
-    void loadDesktopTerminalAppearance().then((next) => {
-      if (!active) return
-      setAppearanceTheme(next.theme)
-      setDefaultZoom(next.defaultZoom)
-    })
+    void Promise.all([loadDesktopTerminalAppearance(), loadDesktopTerminalThemeProfiles()]).then(
+      ([nextAppearance, nextProfiles]) => {
+        if (!active) return
+        setProfiles(nextProfiles)
+        setAppearanceTheme(refreshSelectedTerminalProfile(nextProfiles, nextAppearance.theme))
+        setDefaultZoom(nextAppearance.defaultZoom)
+      }
+    )
     return () => {
       active = false
     }
-  }, [])
-
-  useEffect(() => {
-    let active = true
-    void loadDesktopTerminalThemeProfiles().then((next) => {
-      if (active) setProfiles(next)
-    })
-    return () => {
-      active = false
-    }
-  }, [])
+  }, [visible])
 
   useEffect(() => {
     let active = true

@@ -510,7 +510,8 @@ describe('ReadlineChatTerminal', () => {
 
     expect(suggestion).toBeGreaterThanOrEqual(0)
     expect(thinking).toBeGreaterThan(suggestion)
-    expect(thinking).toBe(composer - 2)
+    expect(thinking).toBe(composer - 3)
+    expect(lines[composer - 2]).toBe('')
     expect(lines[composer - 1]).toBe(' ')
     expect(lines[composer + 1]).toBe(' ')
     expect(composer + 1).toBe(lines.length - 2)
@@ -523,7 +524,7 @@ describe('ReadlineChatTerminal', () => {
     const renderedThinking = renderedLines.findIndex((line) => line?.includes('Thinking…'))
     const renderedComposer = renderedLines.findIndex((line) => line?.startsWith(' ❯ /'))
     expect(renderedThinking).toBeGreaterThanOrEqual(0)
-    expect(renderedComposer).toBe(renderedThinking + 2)
+    expect(renderedComposer).toBe(renderedThinking + 3)
     expectUserPanelRow(screen.terminal, renderedComposer - 1, columns)
     expectUserPanelRow(screen.terminal, renderedComposer, columns)
     expectUserPanelRow(screen.terminal, renderedComposer + 1, columns)
@@ -2028,7 +2029,8 @@ describe('ReadlineChatTerminal', () => {
     expect(status).toMatch(/^[·•●] Thinking…$/u)
     expect(status).not.toContain('Planning next step')
     expect(statusRow).toBeGreaterThanOrEqual(0)
-    expect(statusRow).toBe(composerRow - 2)
+    expect(statusRow).toBe(composerRow - 3)
+    expect(panel[composerRow - 2]).toBe('')
     expect(panel[composerRow - 1]).toBe(' ')
     expect(panel[composerRow + 1]).toBe(' ')
 

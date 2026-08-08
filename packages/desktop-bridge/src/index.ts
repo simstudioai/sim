@@ -724,7 +724,15 @@ export interface TerminalSelectedProfile {
   id: string
   name: string
   source: TerminalThemeSource
+  /**
+   * Palette used when the source does not provide appearance-specific colors.
+   * Ignored once both `lightPalette` and `darkPalette` are present.
+   */
   palette: TerminalThemePalette
+  /** Optional palette used while Sim is in light appearance. */
+  lightPalette?: TerminalThemePalette
+  /** Optional palette used while Sim is in dark appearance. */
+  darkPalette?: TerminalThemePalette
 }
 
 export type TerminalThemeProfile = TerminalSelectedProfile
@@ -737,39 +745,58 @@ const TERMINAL_THEME_PALETTE_KEYS: readonly (keyof TerminalThemePalette)[] = [
   ...TERMINAL_THEME_ANSI_KEYS,
 ]
 
+const TERMINAL_THEME_OPTIONAL_PALETTE_KEYS = ['cursorAccent', 'selectionForeground'] as const
+
 const TERMINAL_THEME_COLOR_PATTERN = /^#[0-9a-f]{6}$/i
+
+function isTerminalThemeColor(value: unknown): value is string {
+  return typeof value === 'string' && TERMINAL_THEME_COLOR_PATTERN.test(value)
+}
+
+function isTerminalThemePalette(value: unknown): value is TerminalThemePalette {
+  if (typeof value !== 'object' || value === null) return false
+  const palette = value as Partial<TerminalThemePalette>
+  return (
+    TERMINAL_THEME_PALETTE_KEYS.every((key) => isTerminalThemeColor(palette[key])) &&
+    TERMINAL_THEME_OPTIONAL_PALETTE_KEYS.every(
+      (key) => palette[key] === undefined || isTerminalThemeColor(palette[key])
+    )
+  )
+}
 
 export function isTerminalSelectedProfile(value: unknown): value is TerminalSelectedProfile {
   if (typeof value !== 'object' || value === null) return false
   const candidate = value as Partial<TerminalSelectedProfile>
-  if (
-    typeof candidate.id !== 'string' ||
-    candidate.id.length === 0 ||
-    candidate.id.length > 300 ||
-    typeof candidate.name !== 'string' ||
-    candidate.name.length === 0 ||
-    candidate.name.length > 200 ||
-    (candidate.source !== 'terminal' && candidate.source !== 'iterm2') ||
-    typeof candidate.palette !== 'object' ||
-    candidate.palette === null
-  ) {
-    return false
-  }
-  if (
-    !TERMINAL_THEME_PALETTE_KEYS.every(
-      (key) =>
-        typeof candidate.palette?.[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key])
-    )
-  ) {
-    return false
-  }
-  return (['cursorAccent', 'selectionForeground'] as const).every(
-    (key) =>
-      candidate.palette?.[key] === undefined ||
-      (typeof candidate.palette[key] === 'string' &&
-        TERMINAL_THEME_COLOR_PATTERN.test(candidate.palette[key]))
+  return (
+    typeof candidate.id === 'string' &&
+    candidate.id.length > 0 &&
+    candidate.id.length <= 300 &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    candidate.name.length <= 200 &&
+    (candidate.source === 'terminal' || candidate.source === 'iterm2') &&
+    isTerminalThemePalette(candidate.palette) &&
+    (candidate.lightPalette === undefined || isTerminalThemePalette(candidate.lightPalette)) &&
+    (candidate.darkPalette === undefined || isTerminalThemePalette(candidate.darkPalette))
   )
+}
+
+/**
+ * Copies only the known profile fields, so untrusted source output and stored
+ * config never carry extra keys. The single definition of a profile's shape —
+ * new palette slots are added here rather than at each call site.
+ */
+export function cloneTerminalSelectedProfile(
+  profile: TerminalSelectedProfile
+): TerminalSelectedProfile {
+  return {
+    id: profile.id,
+    name: profile.name,
+    source: profile.source,
+    palette: { ...profile.palette },
+    ...(profile.lightPalette ? { lightPalette: { ...profile.lightPalette } } : {}),
+    ...(profile.darkPalette ? { darkPalette: { ...profile.darkPalette } } : {}),
+  }
 }
 
 export interface DesktopPreferences {

@@ -1014,7 +1014,7 @@ describe('interactive chat', () => {
     mocks.requestRaw.mockResolvedValueOnce(completed('Retried', 'next-token'))
     const terminal = new FakeTerminal(
       [
-        { kind: 'line', value: '/attach "/private/tmp/notes.txt"' },
+        { kind: 'clipboard', value: '' },
         { kind: 'line', value: '/chats' },
         { kind: 'line', value: prompt, display, pastes, contexts },
         { kind: 'line', value: prompt, display, pastes, contexts },
@@ -1027,8 +1027,8 @@ describe('interactive chat', () => {
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      loadAttachments: async (paths) => (paths.length ? [attachment] : []),
-      pastedAttachmentPaths: async () => null,
+      clipboardAttachment: async () => attachment,
+      extractAttachmentPaths: async () => null,
     }).parseAsync(['node', 'sim', 'chat'])
 
     expect(detailRequests).toBe(3)
@@ -1413,7 +1413,7 @@ describe('interactive chat', () => {
     ])
   })
 
-  it('waits for queued path confirmation before answering a retained question', async () => {
+  it('attaches a queued path without answering a retained question', async () => {
     const question =
       '<question>{"type":"single_select","prompt":"Proceed?","options":[{"id":"yes","label":"Yes"}]}</question>'
     const attachment: ChatAttachment = {
@@ -1432,7 +1432,6 @@ describe('interactive chat', () => {
           queued: true,
           display: '/private/tmp/report.txt',
         },
-        { kind: 'line', value: '/attach "/private/tmp/report.txt"' },
         { kind: 'line', value: '/exit' },
       ],
       [{ kind: 'answer', values: ['Yes'] }]
@@ -1441,21 +1440,18 @@ describe('interactive chat', () => {
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      pastedAttachmentPaths: async (value) =>
-        value === '/private/tmp/report.txt' ? ['/private/tmp/report.txt'] : null,
+      extractAttachmentPaths: async (value: string) =>
+        value === '/private/tmp/report.txt'
+          ? { paths: ['/private/tmp/report.txt'], text: '[File #1]' }
+          : null,
       loadAttachments: async () => [attachment],
     }).parseAsync(['node', 'sim', 'chat', 'start'])
 
-    expect(terminal.preloads).toContainEqual({
-      value: '/attach "/private/tmp/report.txt"',
-      queued: false,
-    })
     expect(terminal.questions).toHaveLength(1)
     expect(mocks.requestRaw.mock.calls[1][1].body).toEqual({
       workspaceId: 'ws_local',
       prompt: 'Proceed? — Yes',
       continuationToken: 'token-1',
-      attachments: [attachment],
     })
   })
 
@@ -1549,7 +1545,7 @@ describe('interactive chat', () => {
     )
   })
 
-  it('requires an explicit Enter on a preloaded /attach command for pasted paths', async () => {
+  it('attaches a pasted path inline and sends the surrounding text', async () => {
     const attachment: ChatAttachment = {
       name: 'report.txt',
       mediaType: 'text/plain',
@@ -1557,58 +1553,55 @@ describe('interactive chat', () => {
     }
     const absolutePath = '/private/tmp/report.txt'
     const terminal = new FakeTerminal([
-      { kind: 'line', value: absolutePath },
-      { kind: 'line', value: `/attach "${absolutePath}"` },
-      { kind: 'line', value: 'Inspect this file' },
+      { kind: 'line', value: `Inspect ${absolutePath} closely` },
       { kind: 'line', value: '/exit' },
     ])
     mocks.requestRaw.mockResolvedValue(completed('Done'))
-    const pastedAttachmentPaths = vi.fn(async (value: string) =>
-      value === absolutePath ? [absolutePath] : null
+    const extractAttachmentPaths = vi.fn(async (value: string) =>
+      value.includes(absolutePath)
+        ? { paths: [absolutePath], text: value.replace(absolutePath, '[File #1]') }
+        : null
     )
     const loadAttachments = vi.fn(async (paths: string[]) => (paths.length ? [attachment] : []))
 
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      pastedAttachmentPaths,
+      extractAttachmentPaths,
       loadAttachments,
     }).parseAsync(['node', 'sim', 'chat'])
 
     expect(loadAttachments).toHaveBeenCalledWith([absolutePath])
-    expect(terminal.reads[1].initialValue).toBe(`/attach "${absolutePath}"`)
-    expect(terminal.statuses).toContain(
-      'File path detected. Press Enter to attach it, or edit the command.'
-    )
+    expect(terminal.preloads).toEqual([])
     expect(terminal.statuses.some((status) => status.startsWith('Unknown command:'))).toBe(false)
     expect(mocks.requestRaw.mock.calls[0][1].body).toEqual({
       workspaceId: 'ws_local',
-      prompt: 'Inspect this file',
+      prompt: 'Inspect [File #1] closely',
       attachments: [attachment],
     })
   })
 
-  it('does not read or upload a detected path when confirmation is cancelled', async () => {
+  it('never reads a path out of a slash command', async () => {
     const absolutePath = '/private/tmp/private.txt'
     const terminal = new FakeTerminal([
-      { kind: 'line', value: absolutePath },
+      { kind: 'line', value: `/rename ${absolutePath}` },
       { kind: 'line', value: '/exit' },
     ])
-    const pastedAttachmentPaths = vi.fn(async (value: string) =>
-      value === absolutePath ? [absolutePath] : null
-    )
+    const extractAttachmentPaths = vi.fn(async () => ({
+      paths: [absolutePath],
+      text: '[File #1]',
+    }))
     const loadAttachments = vi.fn(async () => [])
 
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      pastedAttachmentPaths,
+      extractAttachmentPaths,
       loadAttachments,
     }).parseAsync(['node', 'sim', 'chat'])
 
-    expect(terminal.reads[1].initialValue).toBe(`/attach "${absolutePath}"`)
-    expect(loadAttachments).toHaveBeenCalledTimes(1)
-    expect(loadAttachments).toHaveBeenCalledWith([])
+    expect(extractAttachmentPaths).not.toHaveBeenCalled()
+    expect(loadAttachments).not.toHaveBeenCalledWith([absolutePath])
     expect(mocks.requestRaw).not.toHaveBeenCalled()
   })
 
@@ -1628,8 +1621,8 @@ describe('interactive chat', () => {
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      clipboardImage: async () => attachment,
-      pastedAttachmentPaths: async () => null,
+      clipboardAttachment: async () => attachment,
+      extractAttachmentPaths: async () => null,
     }).parseAsync(['node', 'sim', 'chat'])
 
     expect(terminal.reads[1].initialValue).toBe('')
@@ -1738,7 +1731,7 @@ describe('interactive chat', () => {
     expect(terminal.preloads).toEqual([])
   })
 
-  it('leaves the active turn running for a queued path recognized by normal chat input', async () => {
+  it('steers the active turn with a queued line carrying a file path', async () => {
     const pathInput = {
       kind: 'line' as const,
       value: 'report.txt',
@@ -1747,8 +1740,8 @@ describe('interactive chat', () => {
     }
     const terminal = new FakeTerminal([pathInput, { kind: 'line', value: '/exit' }])
     let requestSignal: AbortSignal | undefined
-    const pastedAttachmentPaths = vi.fn(async (value: string) =>
-      value === 'report.txt' ? ['report.txt'] : null
+    const extractAttachmentPaths = vi.fn(async (value: string) =>
+      value === 'report.txt' ? { paths: ['report.txt'], text: '[File #1]' } : null
     )
     mocks.requestRaw.mockImplementationOnce(
       async (_path: string, options: { signal: AbortSignal }) => {
@@ -1762,15 +1755,11 @@ describe('interactive chat', () => {
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal: () => terminal,
-      pastedAttachmentPaths,
+      extractAttachmentPaths,
     }).parseAsync(['node', 'sim', 'chat', 'original'])
 
-    expect(requestSignal?.aborted).toBe(false)
-    expect(terminal.preloads).toContainEqual({
-      value: '/attach "report.txt"',
-      queued: false,
-    })
-    expect(mocks.requestRaw).toHaveBeenCalledTimes(1)
+    expect(requestSignal?.aborted).toBe(true)
+    expect(terminal.preloads).toEqual([{ value: 'report.txt', queued: true }])
   })
 
   it('queues /chats without interrupting the active stream', async () => {

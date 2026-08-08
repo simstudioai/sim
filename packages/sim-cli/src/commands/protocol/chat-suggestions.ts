@@ -185,13 +185,6 @@ export function contextSpans(
 /** Composer slash commands, the source for the `/` menu. */
 export const SLASH_COMMANDS: SuggestionItem[] = [
   {
-    id: 'attach',
-    value: '/attach',
-    displayText: '/attach <paths>',
-    description: 'attach local files to the next turn',
-    tag: 'command',
-  },
-  {
     id: 'clear',
     value: '/clear',
     displayText: '/clear',

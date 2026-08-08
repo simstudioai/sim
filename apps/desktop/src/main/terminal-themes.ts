@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
 import {
+  cloneTerminalSelectedProfile,
   isTerminalSelectedProfile,
   TERMINAL_DARK_THEME,
   TERMINAL_LIGHT_THEME,
@@ -86,21 +87,25 @@ function terminalPalette(profile) {
   return palette
 }
 
-function itermPalette(profile) {
-  const background = dictionaryColor(profile['Background Color'], LIGHT_THEME.background)
+function itermColor(profile, key, suffix, fallback) {
+  return dictionaryColor(profile[key + suffix], dictionaryColor(profile[key], fallback))
+}
+
+function itermPalette(profile, suffix) {
+  const background = itermColor(profile, 'Background Color', suffix, LIGHT_THEME.background)
   const dark = isDark(background)
   const fallback = dark ? DARK_THEME : LIGHT_THEME
   const palette = {
     background: background,
-    foreground: dictionaryColor(profile['Foreground Color'], fallback.foreground),
-    cursor: dictionaryColor(profile['Cursor Color'], fallback.cursor),
-    cursorAccent: dictionaryColor(profile['Cursor Text Color'], background),
-    selectionBackground: dictionaryColor(profile['Selection Color'], fallback.selectionBackground),
-    selectionForeground: dictionaryColor(profile['Selected Text Color'], fallback.foreground)
+    foreground: itermColor(profile, 'Foreground Color', suffix, fallback.foreground),
+    cursor: itermColor(profile, 'Cursor Color', suffix, fallback.cursor),
+    cursorAccent: itermColor(profile, 'Cursor Text Color', suffix, background),
+    selectionBackground: itermColor(profile, 'Selection Color', suffix, fallback.selectionBackground),
+    selectionForeground: itermColor(profile, 'Selected Text Color', suffix, fallback.foreground)
   }
   for (let index = 0; index < PALETTE_KEYS.length; index += 1) {
     const key = PALETTE_KEYS[index]
-    palette[key] = dictionaryColor(profile['Ansi ' + index + ' Color'], fallback[key])
+    palette[key] = itermColor(profile, 'Ansi ' + index + ' Color', suffix, fallback[key])
   }
   return palette
 }
@@ -131,12 +136,18 @@ try {
     const guid = String(profile.Guid || '')
     const name = String(profile.Name || '')
     if (!guid || !name) continue
-    profiles.push({
+    const result = {
       id: 'iterm2:' + encodeURIComponent(guid),
       name: name,
       source: 'iterm2',
-      palette: itermPalette(profile)
-    })
+      palette: itermPalette(profile, '')
+    }
+    const separateColors = profile['Use Separate Colors for Light and Dark Mode']
+    if (separateColors === true || separateColors === 1) {
+      result.lightPalette = itermPalette(profile, ' (Light)')
+      result.darkPalette = itermPalette(profile, ' (Dark)')
+    }
+    profiles.push(result)
   }
 } catch (_) {}
 
@@ -151,12 +162,7 @@ export function parseTerminalThemeProfiles(value: unknown): TerminalThemeProfile
   for (const candidate of value) {
     if (!isTerminalSelectedProfile(candidate) || seen.has(candidate.id)) continue
     seen.add(candidate.id)
-    profiles.push({
-      id: candidate.id,
-      name: candidate.name,
-      source: candidate.source,
-      palette: { ...candidate.palette },
-    })
+    profiles.push(cloneTerminalSelectedProfile(candidate))
   }
   return profiles.sort(
     (left, right) => left.source.localeCompare(right.source) || left.name.localeCompare(right.name)
@@ -180,9 +186,8 @@ async function readTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
 let cachedProfiles: TerminalThemeProfile[] | null = null
 let profileLoad: Promise<TerminalThemeProfile[]> | null = null
 
-/** Reads Terminal.app and iTerm2 profiles once per desktop process. */
+/** Reads current Terminal.app and iTerm2 profiles, coalescing concurrent requests. */
 export async function listTerminalThemeProfiles(): Promise<TerminalThemeProfile[]> {
-  if (cachedProfiles) return cachedProfiles
   profileLoad ??= readTerminalThemeProfiles()
     .then((profiles) => {
       cachedProfiles = profiles

@@ -205,22 +205,34 @@ export async function loadChatAttachments(paths: string[]): Promise<ChatAttachme
   return attachments
 }
 
+/** A token from a submitted line, with its span in the original input. */
+interface AttachmentToken {
+  value: string
+  start: number
+  end: number
+}
+
 /**
- * Splits `/attach` input using the subset terminals produce for dragged paths:
- * whitespace separation, single/double quotes, and backslash escapes.
+ * Splits an input line into shell-style tokens, honoring single quotes, double
+ * quotes and backslash escapes, and keeping each token's span so callers can
+ * rewrite the original text in place.
  */
-export function parseAttachmentPaths(input: string): string[] {
-  const paths: string[] = []
+function tokenizeAttachmentInput(input: string): AttachmentToken[] {
+  const tokens: AttachmentToken[] = []
   let value = ''
   let quote: 'single' | 'double' | null = null
   let escaped = false
+  let start = -1
 
-  const push = () => {
-    if (value) paths.push(value)
+  const push = (end: number) => {
+    if (value) tokens.push({ value, start, end })
     value = ''
+    start = -1
   }
 
-  for (const character of input.trim()) {
+  for (let index = 0; index < input.length; index++) {
+    const character = input[index] as string
+    if (start < 0 && !/\s/.test(character)) start = index
     if (escaped) {
       value += character
       escaped = false
@@ -239,7 +251,7 @@ export function parseAttachmentPaths(input: string): string[] {
       continue
     }
     if (/\s/.test(character) && quote === null) {
-      push()
+      push(index)
       continue
     }
     value += character
@@ -247,8 +259,8 @@ export function parseAttachmentPaths(input: string): string[] {
 
   if (escaped) value += '\\'
   if (quote !== null) throw attachmentError('Unclosed quote in attachment path.')
-  push()
-  return paths
+  push(input.length)
+  return tokens
 }
 
 /**
@@ -259,6 +271,13 @@ export function parseAttachmentPaths(input: string): string[] {
  * image and the whole read fails. `loadChatAttachment` caps the size on fstat
  * and again on read, which is where the limit belongs anyway.
  */
+/** Returns the POSIX path of a file copied in Finder, which carries no text flavor. */
+const APPLE_SCRIPT_FILE = [
+  'on run',
+  'return POSIX path of (the clipboard as «class furl»)',
+  'end run',
+]
+
 const APPLE_SCRIPT = [
   'on run argv',
   'set outputPath to item 1 of argv',
@@ -278,9 +297,12 @@ const APPLE_SCRIPT = [
 ]
 
 /** Best-effort macOS clipboard image extraction, used by the paste keystroke. */
-export async function readClipboardImage(): Promise<ChatAttachment | null> {
+export async function readClipboardAttachment(): Promise<ChatAttachment | null> {
   if (process.platform !== 'darwin') return null
+  return (await readClipboardImage()) ?? (await readClipboardFile())
+}
 
+async function readClipboardImage(): Promise<ChatAttachment | null> {
   const directory = await mkdtemp(join(tmpdir(), 'sim-chat-clipboard-'))
   const path = join(directory, 'clipboard.png')
   try {
@@ -296,29 +318,76 @@ export async function readClipboardImage(): Promise<ChatAttachment | null> {
   }
 }
 
-/** True when every parsed path names an existing regular file. */
-export async function existingAttachmentPaths(input: string): Promise<string[] | null> {
-  let wholePath
+/**
+ * Reads a file copied in Finder.
+ *
+ * The `furl` coercion is lenient — plain clipboard text comes back as a path
+ * that was never on disk — so the result is only trusted once it stats as a
+ * real file.
+ */
+async function readClipboardFile(): Promise<ChatAttachment | null> {
   try {
-    wholePath = await stat(input.trim())
-  } catch {
-    wholePath = null
-  }
-  if (wholePath?.isFile()) return [input.trim()]
-
-  let paths: string[]
-  try {
-    paths = parseAttachmentPaths(input)
+    const args = APPLE_SCRIPT_FILE.flatMap((line) => ['-e', line])
+    const { stdout } = await execFileAsync('osascript', args, { timeout: 5_000 })
+    const path = stdout.trim()
+    if (!path || !(await stat(path)).isFile()) return null
+    return await loadChatAttachment(path)
   } catch {
     return null
   }
-  if (paths.length === 0 || paths.length > MAX_CHAT_ATTACHMENTS) return null
-  for (const path of paths) {
-    try {
-      if (!(await stat(path)).isFile()) return null
-    } catch {
-      return null
-    }
+}
+
+/** True when every parsed path names an existing regular file. */
+async function isFile(path: string): Promise<boolean> {
+  try {
+    return (await stat(path)).isFile()
+  } catch {
+    return false
   }
-  return paths
+}
+
+/** Paths found inside a message, and the message with each replaced by a tag. */
+export interface ExtractedAttachments {
+  paths: string[]
+  text: string
+}
+
+/**
+ * Pulls existing file paths out of a message, wherever they appear.
+ *
+ * A token only counts when it resolves to a real file, so prose that merely
+ * looks path-like — a snippet, a URL fragment — stays literal text. Each match
+ * is swapped for a `[File #N]` tag so the reader can see what was attached and
+ * delete it to detach.
+ */
+export async function extractAttachmentPaths(input: string): Promise<ExtractedAttachments | null> {
+  /* A path pasted whole may contain unescaped spaces, which tokenizing would
+     split apart, so the entire line gets the first look. */
+  const whole = input.trim()
+  if (whole.includes('/') && (await isFile(whole))) return { paths: [whole], text: '[File #1]' }
+
+  let tokens: AttachmentToken[]
+  try {
+    tokens = tokenizeAttachmentInput(input)
+  } catch {
+    return null
+  }
+
+  const matches: Array<{ token: AttachmentToken; path: string }> = []
+  for (const token of tokens) {
+    if (matches.length >= MAX_CHAT_ATTACHMENTS) break
+    if (!token.value.includes('/') && !token.value.includes('\\')) continue
+    if (await isFile(token.value)) matches.push({ token, path: token.value })
+  }
+  if (matches.length === 0) return null
+
+  let text = ''
+  let cursor = 0
+  for (const [index, match] of matches.entries()) {
+    text += `${input.slice(cursor, match.token.start)}[File #${index + 1}]`
+    cursor = match.token.end
+  }
+  text += input.slice(cursor)
+
+  return { paths: matches.map((match) => match.path), text: text.trim() }
 }

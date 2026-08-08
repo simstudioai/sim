@@ -4,10 +4,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
   combineChatAttachments,
-  existingAttachmentPaths,
   loadChatAttachment,
   loadChatAttachments,
-  parseAttachmentPaths,
 } from './chat-attachments.js'
 
 const temporaryDirectories: string[] = []
@@ -108,27 +106,5 @@ describe('chat attachments', () => {
     await expect(loadChatAttachments([first, second, third, missing])).rejects.toThrow(
       /aggregate limit/
     )
-  })
-})
-
-describe('attachment path parsing', () => {
-  it('supports quoted and terminal-escaped paths', () => {
-    expect(parseAttachmentPaths("'/tmp/one two.md' /tmp/three\\ four.png")).toEqual([
-      '/tmp/one two.md',
-      '/tmp/three four.png',
-    ])
-    expect(() => parseAttachmentPaths("'/tmp/open")).toThrow(/Unclosed quote/)
-  })
-
-  it('recognizes a pasted path containing spaces before trying shell splitting', async () => {
-    const path = await fixture('a file.txt', 'hello')
-    await expect(existingAttachmentPaths(path)).resolves.toEqual([path])
-    await expect(existingAttachmentPaths('this is a normal question')).resolves.toBeNull()
-  })
-
-  it('rejects pasted candidate lists beyond the per-turn limit', async () => {
-    const candidates = Array.from({ length: 6 }, (_, index) => `/tmp/sim-file-${index}`).join(' ')
-
-    await expect(existingAttachmentPaths(candidates)).resolves.toBeNull()
   })
 })

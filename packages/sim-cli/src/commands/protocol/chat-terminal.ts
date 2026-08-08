@@ -15,6 +15,9 @@ import {
   truncateDisplay,
 } from '../../output/terminal-text.js'
 
+/** Which tag `noteAttachment` writes into the composer. */
+export type ChatAttachmentKind = 'Image' | 'File'
+
 export type ChatTerminalInput =
   | {
       kind: 'line'
@@ -97,8 +100,8 @@ export interface ChatTerminal {
   setChatTitle(title: string): void
   /** Fills in the workspace name once the lookup resolves. */
   setWorkspaceName(name: string): void
-  /** Inserts an `[Image #N]` tag at the cursor for a just-attached image. */
-  noteAttachment(): void
+  /** Inserts an `[Image #N]` or `[File #N]` tag at the cursor for a just-attached file. */
+  noteAttachment(kind?: ChatAttachmentKind): void
   /** Supplies the home-composer `@` resource and `/` skill/MCP pools. */
   setSuggestionCandidates?(candidates: ChatSuggestionCandidates): void
   /** Clears the visible conversation while preserving the active terminal session. */
@@ -321,7 +324,7 @@ export class ReadlineChatTerminal implements ChatTerminal {
   private resourceCandidates: SuggestionItem[] = []
   private slashCandidates: SuggestionItem[] = []
   private selectedContexts: ChatContext[] = []
-  private nextAttachmentNumber = 1
+  private readonly nextAttachmentNumber = new Map<ChatAttachmentKind, number>()
   private pasting = false
   private pasteBuffer = ''
   private pastedText = new Map<number, string>()
@@ -1754,12 +1757,14 @@ export class ReadlineChatTerminal implements ChatTerminal {
     /* Keep the suggestion menu visually separate from the activity line. The
        composer's shaded top row already separates activity from input. */
     const suggestionGap = suggestionRows.length ? [''] : []
+    const activityGap = activityRows.length ? [''] : []
     const composerCursor = {
       row:
         topMargin.length +
         suggestionRows.length +
         suggestionGap.length +
         activityRows.length +
+        activityGap.length +
         1 +
         layout.cursor.row -
         firstVisible,
@@ -1771,6 +1776,7 @@ export class ReadlineChatTerminal implements ChatTerminal {
         ...suggestionRows,
         ...suggestionGap,
         ...activityRows,
+        ...activityGap,
         userPanelRow(),
         ...visibleRows.map((line) => userPanelRow(line)),
         userPanelRow(),
@@ -2034,8 +2040,10 @@ export class ReadlineChatTerminal implements ChatTerminal {
     )}${RESET}\n\n`
   }
 
-  noteAttachment(): void {
-    const token = `[Image #${this.nextAttachmentNumber++}]`
+  noteAttachment(kind: ChatAttachmentKind = 'Image'): void {
+    const number = this.nextAttachmentNumber.get(kind) ?? 1
+    this.nextAttachmentNumber.set(kind, number + 1)
+    const token = `[${kind} #${number}]`
     const before = this.draft.slice(0, this.cursor)
     const separator = !before || /\s$/u.test(before) ? '' : ' '
     this.insertText(`${separator}${token} `)
@@ -2561,11 +2569,11 @@ function cursorTo(row: number, column: number): string {
 }
 
 /**
- * Spans of `[Image #N]` tags, so a pasted attachment reads as a tag rather than
- * loose text. Derived per render like context spans, so deleting the tag stops
- * the highlight with no bookkeeping.
+ * Spans of `[Image #N]` and `[File #N]` tags, so an attachment reads as a tag
+ * rather than loose text. Derived per render like context spans, so deleting the
+ * tag stops the highlight with no bookkeeping.
  */
-const ATTACHMENT_TOKEN = /\[Image #\d+\]/gu
+const ATTACHMENT_TOKEN = /\[(?:Image|File) #\d+\]/gu
 
 function attachmentSpans(text: string): Array<{ start: number; end: number }> {
   return [...text.matchAll(ATTACHMENT_TOKEN)].map((match) => ({

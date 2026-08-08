@@ -21,10 +21,10 @@ import { safeOneLine, sanitize } from '../../output/render.js'
 import {
   type ChatAttachment,
   combineChatAttachments,
-  existingAttachmentPaths,
+  type ExtractedAttachments,
+  extractAttachmentPaths,
   loadChatAttachments,
-  parseAttachmentPaths,
-  readClipboardImage,
+  readClipboardAttachment,
 } from './chat-attachments.js'
 import { ChatMarkdownStream } from './chat-markdown.js'
 import {
@@ -50,8 +50,8 @@ export interface ChatDependencies {
   isInteractive: () => boolean
   createTerminal: () => ChatTerminal
   loadAttachments: (paths: string[]) => Promise<ChatAttachment[]>
-  clipboardImage: () => Promise<ChatAttachment | null>
-  pastedAttachmentPaths: (input: string) => Promise<string[] | null>
+  clipboardAttachment: () => Promise<ChatAttachment | null>
+  extractAttachmentPaths: (input: string) => Promise<ExtractedAttachments | null>
   formatMarkdown: () => boolean
 }
 
@@ -383,8 +383,8 @@ function explainInteractiveCommands(terminal: ChatTerminal): void {
   terminal.status(
     [
       'Commands:',
-      '  /attach <paths>  attach local files to the next turn',
-      '  ctrl+v          attach an image from the clipboard (or cmd+v on macOS)',
+      '  ctrl+v           attach the clipboard image or file (or cmd+v on macOS)',
+      '  <file path>      drop or type a path to attach the file',
       '  /clear           start a new conversation',
       '  /chats           view and switch chats',
       '  /rename <title>  rename the active chat',
@@ -397,12 +397,6 @@ function explainInteractiveCommands(terminal: ChatTerminal): void {
 function attachmentStatus(attachments: ChatAttachment[]): string {
   const names = attachments.map((attachment) => attachment.name).join(', ')
   return `Attached for the next turn (${attachments.length}/${5}): ${names}`
-}
-
-function attachmentCommand(paths: string[]): string | null {
-  if (paths.some((path) => /[\u0000-\u001f\u007f]/u.test(path))) return null
-  const quoted = paths.map((path) => `"${path.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`)
-  return `/attach ${quoted.join(' ')}`
 }
 
 async function addPaths(
@@ -423,18 +417,18 @@ async function addPaths(
   }
 }
 
-async function addClipboardImage(
+async function addClipboardAttachment(
   current: ChatAttachment[],
   terminal: ChatTerminal,
   dependencies: ChatDependencies
 ): Promise<ChatAttachment[]> {
-  const image = await dependencies.clipboardImage()
+  const pasted = await dependencies.clipboardAttachment()
   /* Paste feedback is the `[Image #N]` tag in the composer, not a transcript
      line: the tag says what was attached and disappears when it is deleted. */
-  if (!image) return current
+  if (!pasted) return current
   try {
-    const combined = combineChatAttachments(current, [image])
-    terminal.noteAttachment()
+    const combined = combineChatAttachments(current, [pasted])
+    terminal.noteAttachment(pasted.mediaType.startsWith('image/') ? 'Image' : 'File')
     return combined
   } catch {
     return current
@@ -461,12 +455,12 @@ async function readUserTurn(
       continue
     }
     if (input.kind === 'clipboard') {
-      attachments = await addClipboardImage(attachments, terminal, dependencies)
+      attachments = await addClipboardAttachment(attachments, terminal, dependencies)
       continue
     }
     if (input.kind === 'selection') continue
 
-    const trimmed = input.value.trim()
+    let trimmed = input.value.trim()
     if (trimmed === '/exit' || trimmed === '/quit') return { kind: 'exit' }
     if (trimmed === '/help') {
       explainInteractiveCommands(terminal)
@@ -492,42 +486,18 @@ async function readUserTurn(
       }
       return { kind: 'rename', title, attachments }
     }
-    if (trimmed === '/attach' || trimmed.startsWith('/attach ')) {
-      const rawPaths = trimmed.slice('/attach'.length).trim()
-      if (!rawPaths) {
-        terminal.status('Usage: /attach <path> [more paths]')
-        continue
-      }
-      try {
-        attachments = await addPaths(
-          attachments,
-          parseAttachmentPaths(rawPaths),
-          terminal,
-          dependencies
-        )
-      } catch (error) {
-        terminal.status(`Error: ${error instanceof Error ? error.message : String(error)}`)
-      }
-      continue
-    }
-    if (trimmed) {
-      const pastedPaths = await dependencies.pastedAttachmentPaths(input.value)
-      if (pastedPaths) {
-        // A dragged path is still just user input. Preload an explicit command
-        // so the next Enter is the user's confirmation before any bytes are read.
-        const command = attachmentCommand(pastedPaths)
-        if (!command) {
-          terminal.status('The detected path cannot be safely preloaded. Use /attach manually.')
+    let prompt = input.value
+    if (trimmed && !trimmed.startsWith('/')) {
+      const extracted = await dependencies.extractAttachmentPaths(input.value)
+      if (extracted) {
+        try {
+          attachments = await addPaths(attachments, extracted.paths, terminal, dependencies)
+          prompt = extracted.text
+          trimmed = prompt.trim()
+        } catch (error) {
+          terminal.status(`Error: ${error instanceof Error ? error.message : String(error)}`)
           continue
         }
-        if (!terminal.preload(command)) {
-          terminal.status(
-            'File path detected, but newer composer input took priority. Use /attach to add it.'
-          )
-          continue
-        }
-        terminal.status('File path detected. Press Enter to attach it, or edit the command.')
-        continue
       }
     }
     if (trimmed.startsWith('/')) {
@@ -540,13 +510,13 @@ async function readUserTurn(
       }
     }
     if (!trimmed && attachments.length === 0) continue
-    if (utf8Bytes(input.value) > MAX_CHAT_PROMPT_BYTES) {
+    if (utf8Bytes(prompt) > MAX_CHAT_PROMPT_BYTES) {
       terminal.status('Error: Chat input exceeds the 10 MiB limit.')
       continue
     }
     return {
       kind: 'turn',
-      prompt: input.value,
+      prompt,
       attachments,
       queued: input.queued === true,
       ...(input.display === undefined ? {} : { display: input.display }),
@@ -577,19 +547,13 @@ async function answerQuestions(
   return { kind: 'answer', value: answers.join('\n') }
 }
 
-async function isChatTurnInput(
-  input: Extract<ChatTerminalInput, { kind: 'line' }>,
-  dependencies: Pick<ChatDependencies, 'pastedAttachmentPaths'>
-): Promise<boolean> {
+function isChatTurnInput(input: Extract<ChatTerminalInput, { kind: 'line' }>): boolean {
   const trimmed = input.value.trim()
   if (!trimmed) return false
-  if (
-    trimmed.startsWith('/') &&
-    !input.contexts?.some((context) => context.kind === 'skill' || context.kind === 'mcp')
-  ) {
-    return false
-  }
-  return !(await dependencies.pastedAttachmentPaths(input.value))
+  return (
+    !trimmed.startsWith('/') ||
+    input.contexts?.some((context) => context.kind === 'skill' || context.kind === 'mcp') === true
+  )
 }
 
 function logSuggestionLabel(
@@ -1192,7 +1156,7 @@ async function runInteractive(
         }
         if (input?.kind !== 'line') return
         submitChecks = submitChecks.then(async () => {
-          if (!(await isChatTurnInput(input, dependencies))) return
+          if (!isChatTurnInput(input)) return
           if (!submitRequested) {
             submitRequested = true
             if (sessionReady && !controller.signal.aborted) controller.abort(reason)
@@ -1493,8 +1457,8 @@ export function chatCommand(overrides: Partial<ChatDependencies> = {}): Command 
       Boolean(process.stdin.isTTY && process.stdout.isTTY && process.stderr.isTTY),
     createTerminal: () => new ReadlineChatTerminal(),
     loadAttachments: loadChatAttachments,
-    clipboardImage: readClipboardImage,
-    pastedAttachmentPaths: existingAttachmentPaths,
+    clipboardAttachment: readClipboardAttachment,
+    extractAttachmentPaths,
     // The fullscreen chat already requires a TTY and uses ANSI throughout. A
     // propagated TERM=dumb value must not leave model Markdown visible inside
     // an otherwise fully rendered TUI.
