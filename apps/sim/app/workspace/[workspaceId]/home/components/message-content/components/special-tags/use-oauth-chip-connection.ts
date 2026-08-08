@@ -34,6 +34,13 @@ const OAUTH_POPUP_FEATURES = 'width=560,height=720,resizable=yes,scrollbars=yes'
  * polling the handle is the only way to observe it.
  */
 const OAUTH_POPUP_POLL_INTERVAL_MS = 400
+/**
+ * How long to keep waiting on a popup whose outcome became unobservable before
+ * deciding from the credential list anyway. Matches the MCP OAuth popup's
+ * safety timeout — long enough not to cut a slow consent short, short enough
+ * that an abandoned flow does not leave the row waiting forever.
+ */
+const OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS = 10 * 60 * 1000
 
 /**
  * Same-origin pages an OAuth flow can die on without ever reaching the return
@@ -374,6 +381,7 @@ export function useOAuthChipConnection({
    */
   useEffect(() => {
     if (connectionStatus !== 'pending' || !popupRef.current) return
+    let unobservableTimer: number | undefined
     const poll = window.setInterval(() => {
       const observation = observePopup(popupRef.current)
       if (observation === 'live') return
@@ -382,13 +390,24 @@ export function useOAuthChipConnection({
       // could resolve an attempt a retry had since replaced.
       window.clearInterval(poll)
       popupRef.current = null
-      // Only `ended` is proof the flow finished with nothing published. A
-      // closed-or-disowned handle is not, so this publishes no verdict for it —
-      // closing a popup hands focus back to this tab anyway, and the focus
-      // verification settles it with the same refetch.
-      if (observation === 'ended') void settleFromCredentials()
+      // Only `ended` is proof the flow finished with nothing published.
+      if (observation === 'ended') {
+        void settleFromCredentials()
+        return
+      }
+      // A closed handle and a disowned one are indistinguishable, so neither
+      // deciding now nor waiting forever is right. Closing a popup normally
+      // hands focus back and the focus verification settles it; this bounds the
+      // case where that never arrives — the opener was never blurred, or the
+      // flow completed somewhere this tab cannot see.
+      unobservableTimer = window.setTimeout(() => {
+        void settleFromCredentials()
+      }, OAUTH_POPUP_UNOBSERVABLE_TIMEOUT_MS)
     }, OAUTH_POPUP_POLL_INTERVAL_MS)
-    return () => window.clearInterval(poll)
+    return () => {
+      window.clearInterval(poll)
+      if (unobservableTimer !== undefined) window.clearTimeout(unobservableTimer)
+    }
   }, [connectionStatus, settleFromCredentials])
 
   useEffect(() => {

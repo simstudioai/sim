@@ -577,6 +577,15 @@ describe('CredentialDisplay link tag', () => {
 
     expect(container.textContent).toContain('Waiting for Gmail connection')
     expect(container.textContent).not.toContain('Not connected')
+
+    // Indistinguishable from a popup the user simply closed, so the wait is
+    // bounded rather than indefinite: past the safety timeout the row decides
+    // from the credential list instead of waiting on a verdict that never came.
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(10 * 60 * 1000)
+    })
+
+    expect(container.textContent).toContain('Not connected — connect Gmail')
     vi.useRealTimers()
     openSpy.mockRestore()
     act(() => root.unmount())
