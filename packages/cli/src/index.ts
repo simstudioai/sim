@@ -2,7 +2,7 @@
 
 import { execSync, spawn } from 'child_process'
 import { randomBytes } from 'crypto'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
+import { chmodSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
@@ -27,6 +27,10 @@ const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
  * Postgres volume under `~/.simstudio/data`, so minting a fresh one each launch would
  * leave that data permanently unreadable. Any value that is not a 32-byte hex key is
  * replaced.
+ *
+ * Permissions are reasserted on every run: `writeFileSync`'s `mode` applies only when it
+ * creates the file, so a file left by an earlier run — or one the user created — would
+ * otherwise keep whatever mode it already had and stay readable by other local accounts.
  */
 function resolveSecrets(): Record<string, string> {
   const configDir = join(homedir(), '.simstudio')
@@ -49,6 +53,8 @@ function resolveSecrets(): Record<string, string> {
     writeFileSync(secretsPath, `${contents}\n`, { mode: 0o600 })
     console.log(chalk.gray(`🔑 Generated local secrets in ${secretsPath}`))
   }
+
+  chmodSync(secretsPath, 0o600)
 
   return secrets
 }
