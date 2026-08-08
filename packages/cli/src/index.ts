@@ -18,7 +18,7 @@ const DEFAULT_PORT = '3000'
 
 const SECRET_KEYS = ['BETTER_AUTH_SECRET', 'ENCRYPTION_KEY', 'INTERNAL_API_SECRET'] as const
 
-const AES_KEY_PATTERN = /^[0-9a-f]{64}$/
+const AES_KEY_PATTERN = /^[0-9a-f]{64}$/i
 
 /**
  * Per-install secrets, generated on first run and reused afterwards.
