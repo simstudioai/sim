@@ -1,6 +1,6 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, type Column, eq, inArray, isNotNull, or } from 'drizzle-orm'
+import { and, type Column, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
 import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import { listOrderBy, searchFilter } from '@/lib/api/list-query'
@@ -123,6 +123,61 @@ export async function listVisibleWorkspaceCredentials(params: {
       (isWorkspaceAdmin && isSharedCredentialType(rest.type))
         ? 'admin'
         : (memberRole ?? 'member'),
+  }))
+}
+
+/**
+ * Lists workspace-shared connection metadata for a workspace principal.
+ *
+ * Workspace API keys have no human identity and therefore never borrow their
+ * creator's credential memberships. The public operation is limited to OAuth
+ * and service-account connections, and this query does not select encrypted
+ * credential material.
+ */
+export async function listWorkspacePrincipalCredentials(params: {
+  workspaceId: string
+  types: Array<'oauth' | 'service_account'>
+  providerId?: string
+  search?: string
+  sortBy?: V2CredentialSortBy
+  sortOrder?: V2SortOrder
+}): Promise<VisibleWorkspaceCredential[]> {
+  const {
+    workspaceId,
+    types,
+    providerId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'desc',
+  } = params
+  if (types.length === 0) throw new Error('Workspace credential types cannot be empty')
+
+  const whereClauses = [eq(credential.workspaceId, workspaceId), inArray(credential.type, types)]
+  if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+
+  const rows = await db
+    .select({
+      id: credential.id,
+      workspaceId: credential.workspaceId,
+      type: credential.type,
+      displayName: credential.displayName,
+      description: credential.description,
+      providerId: credential.providerId,
+      accountId: credential.accountId,
+      createdBy: credential.createdBy,
+      createdAt: credential.createdAt,
+      updatedAt: credential.updatedAt,
+      hasServiceAccountKey: sql<boolean>`${credential.encryptedServiceAccountKey} IS NOT NULL`,
+    })
+    .from(credential)
+    .where(and(...whereClauses, searchFilter(credential.displayName, search)))
+    .orderBy(...listOrderBy(CREDENTIAL_SORTS[sortBy], sortOrder))
+
+  return rows.map((row) => ({
+    ...row,
+    envKey: null,
+    envOwnerUserId: null,
+    role: 'member',
   }))
 }
 

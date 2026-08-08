@@ -4,168 +4,106 @@
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const {
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockCheckBillingBlocked,
-  mockCheckUsageStatus,
-  mockGetHighestPrioritySubscription,
-  mockDeriveBillingContext,
-  mockResolveBillingAttribution,
-  mockCheckAttributedBillingBlocks,
-  mockToUsageLimitSubscription,
-} = vi.hoisted(() => ({
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockCheckBillingBlocked: vi.fn(),
-  mockCheckUsageStatus: vi.fn(),
-  mockGetHighestPrioritySubscription: vi.fn(),
-  mockDeriveBillingContext: vi.fn(),
-  mockResolveBillingAttribution: vi.fn(),
-  mockCheckAttributedBillingBlocks: vi.fn(),
-  mockToUsageLimitSubscription: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  checkPreauth: vi.fn(),
+  checkOperationRate: vi.fn(),
+  gate: vi.fn(),
+  execute: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
-vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
-  checkBillingBlocked: mockCheckBillingBlocked,
-  checkBillingEntityBlocked: vi.fn(),
-  checkUsageStatus: mockCheckUsageStatus,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkPreauth
+    checkRateLimitDirectOrThrow = mocks.checkOperationRate
+  },
 }))
 
-vi.mock('@/lib/billing/core/subscription', () => ({
-  getHighestPrioritySubscription: mockGetHighestPrioritySubscription,
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+
+vi.mock('@/lib/billing/application/get-billing-status', () => ({
+  getBillingStatus: { operation: { id: 'billing.status.read' }, execute: mocks.execute },
 }))
 
-vi.mock('@/lib/billing/core/usage-log', () => ({
-  deriveBillingContext: mockDeriveBillingContext,
-}))
-
-vi.mock('@/lib/billing/core/billing-attribution', () => ({
-  resolveBillingAttribution: mockResolveBillingAttribution,
-  checkAttributedBillingBlocks: mockCheckAttributedBillingBlocks,
-  toUsageLimitSubscription: mockToUsageLimitSubscription,
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET } from '@/app/api/v2/billing/status/route'
 
-const RATE_LIMIT_OK = {
-  allowed: true,
-  userId: 'user-1',
-  keyType: 'personal',
-  limit: 100,
-  remaining: 99,
-  resetAt: new Date('2026-01-01T01:00:00Z'),
+const auth = {
+  principal: { kind: 'workspace_api_key' as const, workspaceId: 'workspace-1', keyId: 'key-1' },
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
 }
-
-function callStatus(query = '') {
-  return GET(new NextRequest(`http://localhost:3000/api/v2/billing/status${query}`))
+const result = {
+  workspaceId: 'workspace-1',
+  period: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
+  plan: 'team',
+  status: 'active' as const,
+  credits: { used: 500, limit: 20_000, remaining: 19_500 },
 }
 
 describe('GET /api/v2/billing/status', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetHighestPrioritySubscription.mockResolvedValue({ plan: 'pro' })
-    mockDeriveBillingContext.mockReturnValue({
-      billingEntity: { type: 'user', id: 'user-1' },
-      billingPeriod: {
-        start: new Date('2026-07-01T00:00:00Z'),
-        end: new Date('2026-08-01T00:00:00Z'),
-      },
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.gate.mockResolvedValue(null)
+    mocks.checkPreauth.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-01T01:00:00Z'),
     })
-    mockCheckUsageStatus.mockResolvedValue({
-      isExceeded: false,
-      currentUsage: 2.5,
-      limit: 100,
+    mocks.checkOperationRate.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-01T01:00:00Z'),
     })
-    mockCheckBillingBlocked.mockResolvedValue({ blocked: false })
-    mockCheckAttributedBillingBlocks.mockResolvedValue({ blocked: false })
-    mockToUsageLimitSubscription.mockReturnValue({
-      referenceId: 'org-1',
-      plan: 'team',
-      status: 'active',
-      seats: 5,
-      periodStart: new Date('2026-07-01T00:00:00Z'),
-      periodEnd: new Date('2026-08-01T00:00:00Z'),
-    })
+    mocks.execute.mockResolvedValue(result)
   })
 
-  it('returns status and allowance without ledger rows or source summaries', async () => {
-    const response = await callStatus()
-    const body = await response.json()
+  it('passes only the authenticated principal and requested scope to the use case', async () => {
+    const request = new NextRequest(
+      'http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1'
+    )
+    const response = await GET(request)
 
     expect(response.status).toBe(200)
-    expect(body.data).toEqual({
-      workspaceId: null,
-      period: { start: '2026-07-01T00:00:00.000Z', end: '2026-08-01T00:00:00.000Z' },
-      plan: 'pro',
-      status: 'active',
-      credits: { used: 500, limit: 20000, remaining: 19500 },
+    expect(await response.json()).toEqual({ data: result })
+    expect(mocks.execute).toHaveBeenCalledWith({
+      principal: auth.principal,
+      input: { workspaceId: 'workspace-1' },
+      request,
     })
-    expect(body.data).not.toHaveProperty('bySourceCredits')
+    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
   })
 
-  it('reports billing blocks before usage-limit state', async () => {
-    mockCheckUsageStatus.mockResolvedValue({ isExceeded: true, currentUsage: 100, limit: 100 })
-    mockCheckBillingBlocked.mockResolvedValue({ blocked: true })
-
-    const body = await (await callStatus()).json()
-
-    expect(body.data.status).toBe('billing_blocked')
-  })
-
-  it('resolves a workspace billing status against the workspace payer', async () => {
-    mockResolveBillingAttribution.mockResolvedValue({
-      actorUserId: 'user-1',
-      workspaceId: 'ws-1',
-      organizationId: 'org-1',
-      billedAccountUserId: 'owner-1',
-      billingEntity: { type: 'organization', id: 'org-1' },
-      billingPeriod: {
-        start: '2026-07-01T00:00:00.000Z',
-        end: '2026-08-01T00:00:00.000Z',
-      },
-      payerSubscription: {
-        id: 'sub-1',
-        referenceId: 'org-1',
-        plan: 'team',
-        status: 'active',
-        seats: 5,
-        periodStart: '2026-07-01T00:00:00.000Z',
-        periodEnd: '2026-08-01T00:00:00.000Z',
-      },
-    })
-
-    const body = await (await callStatus('?workspaceId=ws-1')).json()
-
-    expect(body.data.workspaceId).toBe('ws-1')
-    expect(body.data.plan).toBe('team')
-    expect(mockCheckUsageStatus).toHaveBeenCalledWith(
-      'owner-1',
-      expect.objectContaining({ referenceId: 'org-1', plan: 'team' })
+  it('projects typed workspace-policy errors', async () => {
+    mocks.execute.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'API key is not authorized for this workspace')
     )
-  })
 
-  it('403s a workspace API key asking for a different workspace', async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      ...RATE_LIMIT_OK,
-      keyType: 'workspace',
-      workspaceId: 'ws-1',
-    })
-
-    const response = await callStatus('?workspaceId=ws-2')
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-2')
+    )
 
     expect(response.status).toBe(403)
-    expect(mockCheckUsageStatus).not.toHaveBeenCalled()
+    expect(await response.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
+  })
+
+  it('hides unknown billing infrastructure errors', async () => {
+    mocks.execute.mockRejectedValueOnce(new Error('stripe account details'))
+
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/billing/status'))
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toMatchObject({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
   })
 })
