@@ -10,7 +10,6 @@ import {
   useMemo,
   useRef,
   useState,
-  useSyncExternalStore,
 } from 'react'
 import { Button, cn, toast } from '@sim/emcn'
 import { PanelLeft } from '@sim/emcn/icons'
@@ -27,7 +26,6 @@ import {
   LandingWorkflowSeedStorage,
   MothershipHandoffStorage,
 } from '@/lib/core/utils/browser-storage'
-import { isDesktopApp } from '@/lib/desktop'
 import {
   addMothershipContexts,
   MOTHERSHIP_SEND_MESSAGE_EVENT,
@@ -65,8 +63,6 @@ import type {
 } from './types'
 
 const logger = createLogger('Home')
-const subscribeToDesktopApp = () => () => {}
-const getServerDesktopAppSnapshot = () => false
 
 /**
  * The resource preview panel pulls in the file-viewer stack (rich-markdown
@@ -89,11 +85,6 @@ interface HomeProps {
 
 export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps) {
   useOAuthReturnRouter()
-  const isDesktop = useSyncExternalStore(
-    subscribeToDesktopApp,
-    isDesktopApp,
-    getServerDesktopAppSnapshot
-  )
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const router = useRouter()
   const queryClient = useQueryClient()
@@ -513,9 +504,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             className={cn(
               'absolute z-10',
               RESOURCE_HEADER_CLASSES.contentTop,
-              isDesktop || isResourceCollapsed
-                ? RESOURCE_HEADER_CLASSES.adjacentEndPosition
-                : RESOURCE_HEADER_CLASSES.endPosition
+              RESOURCE_HEADER_CLASSES.adjacentEndPosition
             )}
           >
             <CreditsChip />
@@ -610,7 +599,6 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             resources={resources}
             activeResourceId={activeResourceId}
             isCollapsed={isResourceCollapsed}
-            useFixedResourceToggle={isDesktop}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
@@ -620,47 +608,24 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         </Suspense>
       </MothershipResourcesProvider>
 
-      {isDesktop ? (
-        <div
-          className={cn(
-            'absolute top-0 z-30 flex items-center',
-            RESOURCE_HEADER_CLASSES.controls,
-            RESOURCE_HEADER_CLASSES.endPosition
-          )}
+      <div
+        className={cn(
+          'absolute top-0 z-30 flex items-center',
+          RESOURCE_HEADER_CLASSES.controls,
+          RESOURCE_HEADER_CLASSES.endPosition
+        )}
+      >
+        <Button
+          variant='ghost'
+          size={null}
+          type='button'
+          onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
+          className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
+          aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
         >
-          <Button
-            variant='ghost'
-            size={null}
-            type='button'
-            onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
-            className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-            aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
-          >
-            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
-          </Button>
-        </div>
-      ) : (
-        isResourceCollapsed && (
-          <div
-            className={cn(
-              'absolute',
-              RESOURCE_HEADER_CLASSES.contentTop,
-              RESOURCE_HEADER_CLASSES.endPosition
-            )}
-          >
-            <Button
-              variant='ghost'
-              size={null}
-              type='button'
-              onClick={() => setIsResourceCollapsed(false)}
-              className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
-              aria-label='Expand resource view'
-            >
-              <PanelLeft className='size-[16px] text-[var(--text-icon)]' />
-            </Button>
-          </div>
-        )
-      )}
+          <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
+        </Button>
+      </div>
     </div>
   )
 }
