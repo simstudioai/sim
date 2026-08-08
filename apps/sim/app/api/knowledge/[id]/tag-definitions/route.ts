@@ -76,6 +76,11 @@ export const POST = withRouteHandler(
       if (!parsed.success) return parsed.response
 
       const validatedData = parsed.data.body
+      /**
+       * Defense-in-depth runtime check: the contract types `fieldType` as a plain
+       * string because tightening to the field-type enum cascades into UI form
+       * state types. Cast here to allow `includes` to accept the wider input.
+       */
       if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(validatedData.fieldType)) {
         return NextResponse.json(
           { error: 'Invalid request data', details: 'Invalid field type' },
