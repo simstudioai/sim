@@ -1,0 +1,617 @@
+import { AuditAction, AuditResourceType } from '@sim/audit'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { getRequestContext } from '@sim/logger'
+import { generateId } from '@sim/utils/id'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type {
+  BulkDeleteByIdsResult,
+  BulkOperationResult,
+  Filter,
+  ReplaceRowsResult,
+  RowData,
+  Sort,
+  SortSpec,
+  TableDefinition,
+  TablePredicate,
+  TableRow,
+  TableRowSecretProvenanceWrite,
+} from '@/lib/table'
+import {
+  batchInsertRows,
+  deleteRow,
+  deleteRowsByFilter,
+  deleteRowsByIds,
+  findRowMatches,
+  getRowById,
+  insertRow,
+  queryRows,
+  replaceTableRows as replaceTableRowsPrimitive,
+  rowDataNameToId,
+  sortSpecNamesToIds,
+  TABLE_LIMITS,
+  updateRow,
+  updateRowsByFilter,
+  upsertRow,
+  validateBatchRows,
+  validateRowData,
+} from '@/lib/table'
+import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
+import { resolveActiveTableContext } from '@/lib/table/application/context'
+import { tableOperations } from '@/lib/table/application/operations'
+import { buildIdByName } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import {
+  validatePredicate,
+  validatePredicateShape,
+  validateSortSpec,
+  validateStoragePredicate,
+} from '@/lib/table/query-builder/validate'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import type { FindRowMatch } from '@/lib/table/rows/service'
+import { predicateToStorage } from '@/lib/table/select-values'
+
+export class TableRowsValidationError extends OrchestrationError {
+  constructor(
+    message: string,
+    readonly details?: unknown
+  ) {
+    super('validation', message)
+    this.name = 'TableRowsValidationError'
+  }
+}
+
+interface TableScopedInput {
+  tableId: string
+  assertedWorkspaceId?: string
+  requestId?: string
+}
+
+interface TableResult {
+  table: TableDefinition
+}
+
+function requestId(input: TableScopedInput): string {
+  return input.requestId ?? getRequestContext()?.requestId ?? generateId().slice(0, 8)
+}
+
+function actorUserId(
+  principal: Parameters<typeof resolvePrincipalAttribution>[0],
+  billedAccountUserId: string
+): string {
+  return resolvePrincipalAttribution(principal, {
+    workspaceBillingOwnerUserId: billedAccountUserId,
+  }).attributedUserId
+}
+
+function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
+  return rowDataNameToId(data, buildIdByName(table.schema))
+}
+
+function requireIntegerInRange(value: number, min: number, max: number, label: string): void {
+  if (!Number.isSafeInteger(value) || value < min || value > max) {
+    throw new TableRowsValidationError(`${label} must be between ${min} and ${max}`)
+  }
+}
+
+export function tablePredicateNamesToFilter(
+  predicate: TablePredicate,
+  table: TableDefinition
+): Filter {
+  validatePredicateShape(predicate)
+  const translated = predicateToStorage(predicate, table.schema)
+  validateStoragePredicate(translated, table.schema.columns)
+  return predicateToFilter(translated)
+}
+
+async function throwValidationResponse(
+  validation:
+    | { valid: true }
+    | { valid: false; response: { clone(): { json(): Promise<unknown> } } }
+): Promise<void> {
+  if (validation.valid) return
+  const body = (await validation.response.clone().json()) as {
+    error?: string
+    details?: unknown
+  }
+  throw new TableRowsValidationError(body.error ?? 'Invalid row data', body.details)
+}
+
+function rethrowQueryValidation(error: unknown): never {
+  if (error instanceof TableQueryValidationError) {
+    throw new TableRowsValidationError(error.message, error.code ? { code: error.code } : undefined)
+  }
+  throw error
+}
+
+export interface ListTableRowsInput extends TableScopedInput {
+  limit: number
+  offset: number
+}
+
+export interface ListTableRowsResult extends TableResult {
+  rows: TableRow[]
+  nextOffset: number | null
+}
+
+export const listTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.listRows,
+  resolveContext: ({ input }: { input: ListTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<ListTableRowsResult> {
+    requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
+    if (!Number.isSafeInteger(input.offset) || input.offset < 0) {
+      throw new TableRowsValidationError('Offset must be 0 or greater')
+    }
+    try {
+      const result = await queryRows(
+        context.table,
+        {
+          limit: input.limit,
+          offset: input.offset,
+          includeTotal: true,
+          withExecutions: false,
+        },
+        requestId(input)
+      )
+      const total = result.totalCount ?? 0
+      return {
+        table: context.table,
+        rows: result.rows,
+        nextOffset: input.offset + result.rowCount < total ? input.offset + input.limit : null,
+      }
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  },
+})
+
+export interface QueryTableRowsInput extends TableScopedInput {
+  predicate?: TablePredicate
+  sort?: SortSpec
+  limit?: number
+  cursor?: string
+  includeTotal?: boolean
+}
+
+export interface QueryTableRowsResult extends TableResult {
+  rows: TableRow[]
+  rowCount: number
+  totalCount: number | null
+  nextCursor: string | null
+}
+
+export const queryTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.queryRows,
+  resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<QueryTableRowsResult> {
+    try {
+      if (input.limit !== undefined) {
+        requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
+      }
+      let predicate = input.predicate
+      if (predicate) {
+        validatePredicate(predicate, context.table.schema.columns)
+        predicate = predicateToStorage(predicate, context.table.schema)
+      }
+      let sortSpec = input.sort
+      if (sortSpec?.length) {
+        validateSortSpec(sortSpec, context.table.schema.columns)
+        sortSpec = sortSpecNamesToIds(sortSpec, buildIdByName(context.table.schema))
+      }
+      const sort: Sort | undefined = sortSpec?.length
+        ? Object.fromEntries(sortSpec.map((item) => [item.field, item.direction]))
+        : undefined
+      const cursor = input.cursor ? decodeCursor(input.cursor) : undefined
+      if (cursor) assertCursorSortBinding(cursor, sort)
+      const result = await queryRows(
+        context.table,
+        {
+          predicate,
+          sort,
+          limit: input.limit,
+          after: cursor?.after,
+          offset: cursor?.offset,
+          includeTotal: input.includeTotal ?? false,
+          withExecutions: false,
+        },
+        requestId(input)
+      )
+      return { table: context.table, ...result }
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  },
+})
+
+export interface FindTableRowsInput extends TableScopedInput {
+  q: string
+  predicate?: TablePredicate
+  sort?: SortSpec
+}
+
+export interface FindTableRowsResult extends TableResult {
+  matches: FindRowMatch[]
+  truncated: boolean
+}
+
+export const findTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.findRows,
+  resolveContext: ({ input }: { input: FindTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<FindTableRowsResult> {
+    try {
+      if (input.q.length === 0) {
+        throw new TableRowsValidationError('q must be a non-empty search string')
+      }
+      const filter = input.predicate
+        ? tablePredicateNamesToFilter(input.predicate, context.table)
+        : undefined
+      let sort: Sort | undefined
+      if (input.sort?.length) {
+        validateSortSpec(input.sort, context.table.schema.columns)
+        const translated = sortSpecNamesToIds(input.sort, buildIdByName(context.table.schema))
+        sort = Object.fromEntries(translated.map((item) => [item.field, item.direction]))
+      }
+      const result = await findRowMatches(
+        context.table,
+        { q: input.q, filter, sort },
+        requestId(input)
+      )
+      return { table: context.table, ...result }
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  },
+})
+
+export interface ReadTableRowInput extends TableScopedInput {
+  rowId: string
+}
+
+export interface ReadTableRowResult extends TableResult {
+  row: TableRow
+}
+
+export const readTableRow = defineAuthorizedTableUseCase({
+  operation: tableOperations.readRow,
+  resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<ReadTableRowResult> {
+    const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
+    if (!row) throw new OrchestrationError('not_found', 'Row not found')
+    return { table: context.table, row }
+  },
+})
+
+interface CreateSingleTableRowInput extends TableScopedInput {
+  kind: 'single'
+  data: RowData
+  position?: number
+  afterRowId?: string
+  beforeRowId?: string
+  secretProvenance?: TableRowSecretProvenanceWrite
+}
+
+interface CreateBatchTableRowsInput extends TableScopedInput {
+  kind: 'batch'
+  rows: RowData[]
+  orderKeys?: string[]
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
+}
+
+export type CreateTableRowsInput = CreateSingleTableRowInput | CreateBatchTableRowsInput
+
+export type CreateTableRowsResult =
+  | (TableResult & { kind: 'single'; row: TableRow })
+  | (TableResult & { kind: 'batch'; rows: TableRow[] })
+
+export const createTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.createRows,
+  resolveContext: ({ input }: { input: CreateTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<CreateTableRowsResult> {
+    const userId = actorUserId(principal, context.billedAccountUserId)
+    if (input.kind === 'single') {
+      if (input.afterRowId && input.beforeRowId) {
+        throw new TableRowsValidationError('afterRowId and beforeRowId are mutually exclusive')
+      }
+      if (
+        input.position !== undefined &&
+        (!Number.isSafeInteger(input.position) || input.position < 0)
+      ) {
+        throw new TableRowsValidationError('Position must be 0 or greater')
+      }
+      const data = namedDataToStorage(input.data, context.table)
+      await throwValidationResponse(
+        await validateRowData({
+          rowData: data,
+          schema: context.table.schema,
+          tableId: context.tableId,
+        })
+      )
+      const row = await insertRow(
+        {
+          tableId: context.tableId,
+          workspaceId: context.workspaceId,
+          data,
+          userId,
+          position: input.position,
+          afterRowId: input.afterRowId,
+          beforeRowId: input.beforeRowId,
+          secretProvenance: input.secretProvenance,
+        },
+        context.table,
+        requestId(input)
+      )
+      return { kind: 'single', table: context.table, row }
+    }
+    if (input.rows.length < 1 || input.rows.length > TABLE_LIMITS.MAX_BATCH_INSERT_SIZE) {
+      throw new TableRowsValidationError(
+        `Batch row count must be between 1 and ${TABLE_LIMITS.MAX_BATCH_INSERT_SIZE}`
+      )
+    }
+    if (input.secretProvenance && input.secretProvenance.length !== input.rows.length) {
+      throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
+    }
+    if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
+      throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
+    }
+    const rows = input.rows.map((row) => namedDataToStorage(row, context.table))
+    await throwValidationResponse(
+      await validateBatchRows({
+        rows,
+        schema: context.table.schema,
+        tableId: context.tableId,
+      })
+    )
+    const created = await batchInsertRows(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        rows,
+        userId,
+        orderKeys: input.orderKeys,
+        secretProvenance: input.secretProvenance,
+      },
+      context.table,
+      requestId(input)
+    )
+    return { kind: 'batch', table: context.table, rows: created }
+  },
+  afterSuccess: ({ context, result }) => {
+    const affected = result.kind === 'single' ? 1 : result.rows.length
+    if (affected > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+const MAX_REPLACE_TABLE_ROWS = 10_000
+
+export interface ReplaceTableRowsInput extends TableScopedInput {
+  rows: RowData[]
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
+}
+
+export interface ReplaceTableRowsResult extends TableResult, ReplaceRowsResult {}
+
+export const replaceTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.replaceRows,
+  resolveContext: ({ input }: { input: ReplaceTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<ReplaceTableRowsResult> {
+    if (input.rows.length > MAX_REPLACE_TABLE_ROWS) {
+      throw new TableRowsValidationError(
+        `Table row replacement limit exceeded: got ${input.rows.length}, max is ${MAX_REPLACE_TABLE_ROWS}`
+      )
+    }
+    if (input.secretProvenance && input.secretProvenance.length !== input.rows.length) {
+      throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
+    }
+
+    const result = await replaceTableRowsPrimitive(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        rows: input.rows.map((row) => namedDataToStorage(row, context.table)),
+        userId: actorUserId(principal, context.billedAccountUserId),
+        secretProvenance: input.secretProvenance,
+      },
+      context.table,
+      requestId(input)
+    )
+    return { table: context.table, ...result }
+  },
+  afterSuccess: ({ context, result }) => {
+    if (result.deletedCount > 0 || result.insertedCount > 0) {
+      signalTableRowsChanged(context.tableId)
+    }
+  },
+})
+
+export interface UpdateTableRowInput extends TableScopedInput {
+  rowId: string
+  data: RowData
+  secretProvenance?: TableRowSecretProvenanceWrite
+}
+
+export interface UpdateTableRowResult extends TableResult {
+  row: TableRow
+  changed: boolean
+}
+
+export const updateTableRow = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateRow,
+  resolveContext: ({ input }: { input: UpdateTableRowInput }) => resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<UpdateTableRowResult> {
+    const data = namedDataToStorage(input.data, context.table)
+    const row = await updateRow(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        rowId: input.rowId,
+        data,
+        actorUserId: actorUserId(principal, context.billedAccountUserId),
+        secretProvenance: input.secretProvenance,
+      },
+      context.table,
+      requestId(input)
+    )
+    if (!row) throw new Error('Unconditional table row update was rejected')
+    return { table: context.table, row, changed: Object.keys(data).length > 0 }
+  },
+  afterSuccess: ({ context, result }) => {
+    if (result.changed) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface UpdateTableRowsInput extends TableScopedInput {
+  filter: TablePredicate
+  data: RowData
+  limit?: number
+  secretProvenance?: TableRowSecretProvenanceWrite
+}
+
+export interface UpdateTableRowsResult extends TableResult, BulkOperationResult {}
+
+export const updateTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateRows,
+  resolveContext: ({ input }: { input: UpdateTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<UpdateTableRowsResult> {
+    try {
+      if (input.limit !== undefined) {
+        requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
+      }
+      const result = await updateRowsByFilter(
+        context.table,
+        {
+          filter: tablePredicateNamesToFilter(input.filter, context.table),
+          data: namedDataToStorage(input.data, context.table),
+          limit: input.limit,
+          actorUserId: actorUserId(principal, context.billedAccountUserId),
+          secretProvenance: input.secretProvenance,
+        },
+        requestId(input)
+      )
+      return { table: context.table, ...result }
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  },
+  afterSuccess: ({ context, result }) => {
+    if (result.affectedCount > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface DeleteTableRowInput extends TableScopedInput {
+  rowId: string
+}
+
+export interface DeleteTableRowResult extends TableResult {
+  deletedRowId: string
+}
+
+export const deleteTableRow = defineAuthorizedTableUseCase({
+  operation: tableOperations.deleteRow,
+  resolveContext: ({ input }: { input: DeleteTableRowInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<DeleteTableRowResult> {
+    await deleteRow(context.table, input.rowId, requestId(input))
+    return { table: context.table, deletedRowId: input.rowId }
+  },
+  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+})
+
+export type DeleteTableRowsInput = TableScopedInput &
+  ({ kind: 'ids'; rowIds: string[] } | { kind: 'filter'; filter: TablePredicate; limit?: number })
+
+export type DeleteTableRowsResult = TableResult &
+  (({ kind: 'ids' } & BulkDeleteByIdsResult) | ({ kind: 'filter' } & BulkOperationResult))
+
+export const deleteTableRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.deleteRows,
+  resolveContext: ({ input }: { input: DeleteTableRowsInput }) => resolveActiveTableContext(input),
+  async execute({ input, context }): Promise<DeleteTableRowsResult> {
+    try {
+      if (input.kind === 'ids') {
+        if (input.rowIds.length < 1 || input.rowIds.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
+          throw new TableRowsValidationError(
+            `Row ID count must be between 1 and ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE}`
+          )
+        }
+        const result = await deleteRowsByIds(
+          context.table,
+          {
+            tableId: context.tableId,
+            workspaceId: context.workspaceId,
+            rowIds: input.rowIds,
+          },
+          requestId(input)
+        )
+        return { kind: 'ids', table: context.table, ...result }
+      }
+      if (input.limit !== undefined) {
+        requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
+      }
+      const result = await deleteRowsByFilter(
+        context.table,
+        {
+          filter: tablePredicateNamesToFilter(input.filter, context.table),
+          limit: input.limit,
+        },
+        requestId(input)
+      )
+      return { kind: 'filter', table: context.table, ...result }
+    } catch (error) {
+      rethrowQueryValidation(error)
+    }
+  },
+  projectAudit: ({ result }) => {
+    const affected = result.kind === 'ids' ? result.deletedCount : result.affectedCount
+    if (affected === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Deleted ${affected} row(s) from table "${result.table.name}"`,
+      metadata: {
+        op: 'bulk_delete',
+        rowsDeleted: affected,
+      },
+    }
+  },
+  afterSuccess: ({ context, result }) => {
+    const affected = result.kind === 'ids' ? result.deletedCount : result.affectedCount
+    if (affected > 0) signalTableRowsChanged(context.tableId)
+  },
+})
+
+export interface UpsertTableRowInput extends TableScopedInput {
+  data: RowData
+  conflictTarget?: string
+  secretProvenance?: TableRowSecretProvenanceWrite
+}
+
+export interface UpsertTableRowResult extends TableResult {
+  row: TableRow
+  operation: 'insert' | 'update'
+}
+
+export const upsertTableRow = defineAuthorizedTableUseCase({
+  operation: tableOperations.upsertRow,
+  resolveContext: ({ input }: { input: UpsertTableRowInput }) => resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<UpsertTableRowResult> {
+    const conflictTarget = input.conflictTarget
+      ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
+      : undefined
+    const result = await upsertRow(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        data: namedDataToStorage(input.data, context.table),
+        conflictTarget,
+        userId: actorUserId(principal, context.billedAccountUserId),
+        secretProvenance: input.secretProvenance,
+      },
+      context.table,
+      requestId(input)
+    )
+    return { table: context.table, row: result.row, operation: result.operation }
+  },
+  afterSuccess: ({ context }) => signalTableRowsChanged(context.tableId),
+})

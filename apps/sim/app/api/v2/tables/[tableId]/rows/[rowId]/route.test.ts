@@ -1,122 +1,164 @@
 /**
  * @vitest-environment node
- *
- * Public v2 single-row delete: goes through the row service so the delete lock
- * and row-count bookkeeping are enforced, and renders lock/not-found in the v2
- * error envelope.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceScope, mockCheckAccess, mockPerformDeleteRow } =
-  vi.hoisted(() => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceScope: vi.fn(),
-    mockCheckAccess: vi.fn(),
-    mockPerformDeleteRow: vi.fn(),
-  }))
+const { mocks, MockTableRowsValidationError } = vi.hoisted(() => {
+  class MockTableRowsValidationError extends Error {}
+  return {
+    mocks: {
+      authenticate: vi.fn(),
+      preauthRate: vi.fn(),
+      operationRate: vi.fn(),
+      gate: vi.fn(),
+      readRow: vi.fn(),
+      updateRow: vi.fn(),
+      deleteRow: vi.fn(),
+    },
+    MockTableRowsValidationError,
+  }
+})
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceScope: mockResolveWorkspaceScope,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/rows', () => ({
+  TableRowsValidationError: MockTableRowsValidationError,
+  readTableRow: { operation: { id: 'tables.rows.read' }, execute: mocks.readRow },
+  updateTableRow: { operation: { id: 'tables.rows.update' }, execute: mocks.updateRow },
+  deleteTableRow: { operation: { id: 'tables.rows.delete' }, execute: mocks.deleteRow },
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
-  checkAccess: mockCheckAccess,
-  normalizeColumn: (col: Record<string, unknown>) => col,
-  rootErrorMessage: (error: unknown) => String(error),
-  rowWriteErrorResponse: () => null,
-}))
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
 
-vi.mock('@/lib/table', () => ({
-  updateTable: vi.fn(),
-  getTableById: vi.fn(),
-  updateRow: vi.fn(),
-  rowDataNameToId: vi.fn(),
-  buildIdByName: vi.fn(),
-}))
+const WORKSPACE_ID = 'workspace-1'
+const PRINCIPAL = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const AUTH = {
+  principal: PRINCIPAL,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const RATE = {
+  allowed: true,
+  remaining: 99,
+  resetAt: new Date('2026-01-01T01:00:00Z'),
+  retryAfterMs: 0,
+}
+const TABLE = {
+  id: 'table-1',
+  workspaceId: WORKSPACE_ID,
+  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' as const }] },
+}
+const ROW = {
+  id: 'row-1',
+  data: { 'column-name': 'Ada' },
+  createdAt: new Date('2026-01-01T00:00:00Z'),
+  updatedAt: new Date('2026-01-02T00:00:00Z'),
+}
+const CONTEXT = { params: Promise.resolve({ tableId: 'table-1', rowId: 'row-1' }) }
 
-vi.mock('@/lib/table/orchestration', () => ({ performDeleteTableRow: mockPerformDeleteRow }))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-import { DELETE } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
-
-const TABLE = { id: 'table-1', workspaceId: 'ws-1', schema: { columns: [] } }
-
-function callDelete() {
-  const req = new NextRequest(
-    'http://localhost:3000/api/v2/tables/table-1/rows/row-1?workspaceId=ws-1',
-    { method: 'DELETE' }
+function request(method: 'GET' | 'PATCH' | 'DELETE', body?: unknown) {
+  return new NextRequest(
+    `http://localhost/api/v2/tables/table-1/rows/row-1${method === 'PATCH' ? '' : `?workspaceId=${WORKSPACE_ID}`}`,
+    {
+      method,
+      headers: {
+        'x-api-key': 'secret',
+        ...(body === undefined ? {} : { 'content-type': 'application/json' }),
+      },
+      ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }
   )
-  return DELETE(req, { params: Promise.resolve({ tableId: 'table-1', rowId: 'row-1' }) })
 }
 
-describe('DELETE /api/v2/tables/[tableId]/rows/[rowId]', () => {
+describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workspaceId: 'ws-1',
-      limit: 100,
-      remaining: 99,
-      resetAt: new Date('2026-01-01T01:00:00Z'),
-    })
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
+    mocks.authenticate.mockResolvedValue(AUTH)
+    mocks.preauthRate.mockResolvedValue(RATE)
+    mocks.operationRate.mockResolvedValue(RATE)
+    mocks.gate.mockResolvedValue(null)
+    mocks.readRow.mockResolvedValue({ table: TABLE, row: ROW })
+    mocks.updateRow.mockResolvedValue({ table: TABLE, row: ROW, changed: true })
+    mocks.deleteRow.mockResolvedValue({ table: TABLE, deletedRowId: ROW.id })
   })
 
-  it('delegates to the orchestration function rather than deleting inline', async () => {
-    mockPerformDeleteRow.mockResolvedValue({ success: true })
+  it('reads through the shared use case and strips storage internals', async () => {
+    const req = request('GET')
+    const response = await GET(req, CONTEXT)
 
-    const res = await callDelete()
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.row).toEqual({
+      id: 'row-1',
+      data: { name: 'Ada' },
+      createdAt: '2026-01-01T00:00:00.000Z',
+      updatedAt: '2026-01-02T00:00:00.000Z',
+    })
+    expect(mocks.readRow).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: { tableId: 'table-1', rowId: 'row-1', assertedWorkspaceId: WORKSPACE_ID },
+      request: req,
+    })
+  })
 
-    expect(res.status).toBe(200)
-    expect((await res.json()).data).toEqual({ deletedCount: 1, deletedRowIds: ['row-1'] })
-    // The orchestration function routes through the row service, which applies
-    // the delete lock and the row-count decrement; the raw delete this replaced
-    // skipped both.
-    expect(mockPerformDeleteRow).toHaveBeenCalledWith(
-      expect.objectContaining({ table: TABLE, rowId: 'row-1' })
+  it('updates through the shared use case with the exact patch', async () => {
+    const req = request('PATCH', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } })
+    const response = await PATCH(req, CONTEXT)
+
+    expect(response.status).toBe(200)
+    expect(mocks.updateRow).toHaveBeenCalledWith({
+      principal: PRINCIPAL,
+      input: {
+        tableId: 'table-1',
+        rowId: 'row-1',
+        assertedWorkspaceId: WORKSPACE_ID,
+        data: { name: 'Ada' },
+      },
+      request: req,
+    })
+  })
+
+  it('returns the compatible authoritative single-delete envelope', async () => {
+    const req = request('DELETE')
+    const response = await DELETE(req, CONTEXT)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data).toEqual({
+      deletedCount: 1,
+      deletedRowIds: ['row-1'],
+    })
+    expect(mocks.deleteRow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: PRINCIPAL,
+        input: expect.objectContaining({ tableId: 'table-1', rowId: 'row-1' }),
+      })
     )
   })
 
-  it.each([
-    ['locked', 423, 'LOCKED'],
-    ['not_found', 404, 'NOT_FOUND'],
-  ])('maps a %s failure to %i', async (errorCode, status, code) => {
-    mockPerformDeleteRow.mockResolvedValue({ success: false, errorCode, error: 'nope' })
+  it('conceals a forbidden canonical lookup as not found', async () => {
+    mocks.readRow.mockRejectedValue(new OrchestrationError('forbidden', 'Forbidden'))
 
-    const res = await callDelete()
+    const response = await GET(request('GET'), CONTEXT)
 
-    expect(res.status).toBe(status)
-    expect((await res.json()).error.code).toBe(code)
-  })
-
-  it('names the lock on a 423 that arrived as a classified outcome, not a throw', async () => {
-    mockPerformDeleteRow.mockResolvedValue({
-      success: false,
-      errorCode: 'locked',
-      error: 'Row deletes are locked for this table',
-      lock: 'delete',
-    })
-
-    const res = await callDelete()
-
-    expect(res.status).toBe(423)
-    expect((await res.json()).error.details).toEqual({ lock: 'delete' })
-  })
-
-  it('omits details entirely when the lock kind is unknown', async () => {
-    // A caller branching on `details.lock` should see absence, not a null.
-    mockPerformDeleteRow.mockResolvedValue({ success: false, errorCode: 'locked', error: 'nope' })
-
-    const res = await callDelete()
-
-    expect((await res.json()).error.details).toBeUndefined()
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 })

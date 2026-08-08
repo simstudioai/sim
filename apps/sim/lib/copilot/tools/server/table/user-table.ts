@@ -2,7 +2,15 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import {
+  admitCopilotTableOperation,
+  executeCopilotTableUseCase,
+} from '@/lib/copilot/application/execute-table-use-case'
 import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import {
+  messageForCopilotTableError,
+  resolveCopilotTablePrincipal,
+} from '@/lib/copilot/auth/table-delegation'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -26,30 +34,48 @@ import {
   TABLE_LIMITS,
   validateMapping,
 } from '@/lib/table'
-import { namedRowMapper } from '@/lib/table/cell-format'
-import { buildIdByName, rowDataNameToId, sortSpecNamesToIds } from '@/lib/table/column-keys'
-import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import {
-  addTableColumn,
-  deleteColumn,
-  deleteColumns,
-  renameColumn,
-} from '@/lib/table/columns/service'
+  addTableColumnUseCase,
+  deleteTableColumnUseCase,
+  updateTableColumnUseCase,
+} from '@/lib/table/application/columns'
+import {
+  createTableGroupUseCase,
+  deleteTableGroupUseCase,
+  updateTableGroupUseCase,
+} from '@/lib/table/application/groups'
+import { type TableOperation, tableOperations } from '@/lib/table/application/operations'
+import {
+  createTableRows,
+  deleteTableRow,
+  deleteTableRows,
+  queryTableRows,
+  readTableRow,
+  updateTableRow,
+} from '@/lib/table/application/rows'
+import { cancelTableRuns, startTableRun } from '@/lib/table/application/runs'
+import {
+  createTableUseCase,
+  deleteTableUseCase,
+  readTableUseCase,
+  updateTableUseCase,
+} from '@/lib/table/application/tables'
+import { namedRowMapper } from '@/lib/table/cell-format'
+import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { deleteColumns } from '@/lib/table/columns/service'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
 import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
-import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
-import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import {
-  performDeleteTable,
-  performRenameTable,
-  performUpdateTableColumn,
-} from '@/lib/table/orchestration'
+  markTableJobRunningInWorkspace,
+  releaseJobClaimInWorkspace,
+} from '@/lib/table/jobs/service'
+import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
-import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
-import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import { validatePredicate } from '@/lib/table/query-builder/validate'
 import {
   createExactEmptyTableRowSecretProvenance,
   loadTableRowSecretProvenance,
@@ -57,14 +83,9 @@ import {
 import {
   batchInsertRows,
   batchUpdateRows,
-  deleteRow,
   deleteRowsByFilter,
-  deleteRowsByIds,
-  getRowById,
-  insertRow,
   queryRows,
   replaceTableRows,
-  updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
@@ -77,7 +98,6 @@ import type {
   SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
-  TablePredicate,
   TablePredicateInput,
   TableSchema,
   TableUpdateJobPayload,
@@ -88,13 +108,10 @@ import type {
   WorkflowGroupOutput,
 } from '@/lib/table/types'
 import { markTableUpdateFailed, runTableUpdate } from '@/lib/table/update-runner'
-import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   addWorkflowGroup,
   addWorkflowGroupOutput,
-  deleteWorkflowGroup,
   deleteWorkflowGroupOutput,
-  updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
@@ -121,6 +138,61 @@ type UserTableResult = {
 
 const MAX_BATCH_SIZE = CSV_MAX_BATCH_SIZE
 const MAX_INLINE_FILE_BYTES = 50 * 1024 * 1024
+
+const USER_TABLE_OPERATIONS: Readonly<Record<string, TableOperation | undefined>> = {
+  create: tableOperations.create,
+  create_from_file: tableOperations.create,
+  import_file: tableOperations.createImport,
+  get: tableOperations.read,
+  get_schema: tableOperations.read,
+  delete: tableOperations.delete,
+  insert_row: tableOperations.createRows,
+  batch_insert_rows: tableOperations.createRows,
+  get_row: tableOperations.readRow,
+  query_rows: tableOperations.queryRows,
+  update_row: tableOperations.updateRow,
+  delete_row: tableOperations.deleteRow,
+  update_rows_by_filter: tableOperations.updateRows,
+  delete_rows_by_filter: tableOperations.deleteRows,
+  batch_update_rows: tableOperations.updateRows,
+  batch_delete_rows: tableOperations.deleteRows,
+  add_column: tableOperations.addColumn,
+  rename_column: tableOperations.updateColumn,
+  delete_column: tableOperations.deleteColumn,
+  update_column: tableOperations.updateColumn,
+  rename: tableOperations.update,
+  add_workflow_group: tableOperations.createGroup,
+  update_workflow_group: tableOperations.updateGroup,
+  delete_workflow_group: tableOperations.deleteGroup,
+  add_workflow_group_output: tableOperations.updateGroup,
+  delete_workflow_group_output: tableOperations.updateGroup,
+  run_column: tableOperations.startRun,
+  cancel_table_runs: tableOperations.cancelRuns,
+  add_enrichment: tableOperations.createGroup,
+}
+
+const DIRECT_APPLICATION_OPERATIONS = new Set([
+  'create',
+  'get',
+  'get_schema',
+  'delete',
+  'rename',
+  'insert_row',
+  'batch_insert_rows',
+  'get_row',
+  'query_rows',
+  'update_row',
+  'delete_row',
+  'batch_delete_rows',
+  'add_column',
+  'rename_column',
+  'update_column',
+  'add_workflow_group',
+  'update_workflow_group',
+  'delete_workflow_group',
+  'run_column',
+  'cancel_table_runs',
+])
 
 async function resolveWorkspaceFileRecordOrThrow(
   fileReference: string,
@@ -202,7 +274,20 @@ async function dispatchImportJob(payload: TableImportPayload): Promise<void> {
         region: await resolveTriggerRegion(),
       })
     } catch (error) {
-      await releaseJobClaim(payload.tableId, payload.importId).catch(() => {})
+      try {
+        const released = await releaseJobClaimInWorkspace(
+          payload.tableId,
+          payload.workspaceId,
+          payload.importId
+        )
+        if (!released) throw new Error('Table import claim was no longer active')
+      } catch (cleanupError) {
+        logger.error('Failed to release table import claim after dispatch failure', {
+          tableId: payload.tableId,
+          jobId: payload.importId,
+          error: getErrorMessage(cleanupError),
+        })
+      }
       throw error
     }
   } else {
@@ -237,7 +322,16 @@ async function dispatchDeleteJob(params: {
         { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
-      await releaseJobClaim(tableId, jobId).catch(() => {})
+      try {
+        const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
+        if (!released) throw new Error('Table delete claim was no longer active')
+      } catch (cleanupError) {
+        logger.error('Failed to release table delete claim after dispatch failure', {
+          tableId,
+          jobId,
+          error: getErrorMessage(cleanupError),
+        })
+      }
       throw error
     }
   } else {
@@ -280,7 +374,16 @@ async function dispatchUpdateJob(params: {
         { tags: [`tableId:${tableId}`, `jobId:${jobId}`], region: await resolveTriggerRegion() }
       )
     } catch (error) {
-      await releaseJobClaim(tableId, jobId).catch(() => {})
+      try {
+        const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
+        if (!released) throw new Error('Table update claim was no longer active')
+      } catch (cleanupError) {
+        logger.error('Failed to release table update claim after dispatch failure', {
+          tableId,
+          jobId,
+          error: getErrorMessage(cleanupError),
+        })
+      }
       throw error
     }
   } else {
@@ -293,6 +396,47 @@ async function dispatchUpdateJob(params: {
       )
     )
   }
+}
+
+async function withReleasedTableJobClaim<T>(
+  tableId: string,
+  workspaceId: string,
+  jobId: string,
+  run: () => Promise<T>
+): Promise<T> {
+  let result: T
+  try {
+    result = await run()
+  } catch (error) {
+    try {
+      const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
+      if (!released) {
+        logger.error('Table job claim was no longer active after operation failure', {
+          tableId,
+          workspaceId,
+          jobId,
+        })
+      }
+    } catch (cleanupError) {
+      logger.error('Failed to release table job claim after operation failure', {
+        tableId,
+        workspaceId,
+        jobId,
+        error: getErrorMessage(cleanupError),
+      })
+    }
+    throw error
+  }
+  const released = await releaseJobClaimInWorkspace(tableId, workspaceId, jobId)
+  if (!released) {
+    logger.error('Table job claim was no longer active after successful operation', {
+      tableId,
+      workspaceId,
+      jobId,
+    })
+    throw new Error('Table job claim was no longer active')
+  }
+  return result
 }
 
 /**
@@ -446,12 +590,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
     }
 
     const { operation, args = {} } = params
-    const workspaceId =
-      context.workspaceId || ((args as Record<string, unknown>).workspaceId as string | undefined)
+    const tableId = typeof args.tableId === 'string' ? args.tableId : undefined
+    const tablePrincipal = resolveCopilotTablePrincipal(context, tableId)
+    const workspaceId = tablePrincipal.workspaceId
     const assertNotAborted = () =>
       assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
 
     try {
+      const semanticOperation = USER_TABLE_OPERATIONS[operation]
+      if (semanticOperation && !DIRECT_APPLICATION_OPERATIONS.has(operation)) {
+        await admitCopilotTableOperation(
+          context,
+          semanticOperation,
+          tableId ? { workspaceId, tableId } : { workspaceId }
+        )
+      }
       switch (operation) {
         case 'create': {
           if (!args.name) {
@@ -464,31 +617,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const planLimits = await getWorkspaceTableLimits(workspaceId)
-          const table = await createTable(
-            {
-              name: args.name,
-              description: args.description,
-              // Agent authors select options by name; generate their stable ids here.
-              schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
-              workspaceId,
-              userId: context.userId,
-              maxTables: planLimits.maxTables,
-            },
-            requestId
-          )
-
-          recordAudit({
+          const { table } = await executeCopilotTableUseCase(context, createTableUseCase, {
+            name: args.name,
+            description: args.description,
+            schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
             workspaceId,
-            actorId: context.userId,
-            action: AuditAction.TABLE_CREATED,
-            resourceType: AuditResourceType.TABLE,
-            resourceId: table.id,
-            resourceName: table.name,
-            description: `Created table "${table.name}"`,
-            metadata: { source: 'tool_input' },
           })
 
           return {
@@ -506,10 +640,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
+          const { table } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -526,10 +662,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
+          const { table } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -547,6 +685,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (tableIds.length === 0) {
             return { success: false, message: 'tableId or tableIds is required' }
           }
+          if (tableIds.length > TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE) {
+            return {
+              success: false,
+              message: `Cannot delete more than ${TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE} tables at once`,
+            }
+          }
           if (!workspaceId) {
             return { success: false, message: 'Workspace ID is required' }
           }
@@ -555,23 +699,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const failed: string[] = []
 
           for (const tableId of tableIds) {
-            const table = await getTableById(tableId)
-            if (!table || table.workspaceId !== workspaceId) {
-              failed.push(tableId)
-              continue
+            try {
+              assertNotAborted()
+              await executeCopilotTableUseCase(
+                context,
+                deleteTableUseCase,
+                { tableId, workspaceId },
+                { tableId }
+              )
+              deleted.push(tableId)
+            } catch (error) {
+              const classified = messageForCopilotTableError(error, '')
+              if (classified === 'Table not found') {
+                failed.push(tableId)
+                continue
+              }
+              throw error
             }
-
-            const requestId = generateId().slice(0, 8)
-            assertNotAborted()
-            const deleteOutcome = await performDeleteTable({
-              table,
-              userId: context.userId,
-              requestId,
-            })
-            if (!deleteOutcome.success) {
-              return { success: false, message: deleteOutcome.error ?? 'Failed to delete table' }
-            }
-            deleted.push(tableId)
           }
 
           return {
@@ -592,30 +736,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          // The LLM authors row data by column name; storage keys by id.
-          const idByName = buildIdByName(table.schema)
-          const toNamedRow = namedRowMapper(table.schema.columns)
-          const rowData = rowDataNameToId(args.data, idByName)
-          const row = await insertRow(
+          const result = await executeCopilotTableUseCase(
+            context,
+            createTableRows,
             {
+              kind: 'single',
               tableId: args.tableId,
-              data: rowData,
-              workspaceId,
-              userId: context.userId,
+              assertedWorkspaceId: workspaceId,
+              data: args.data,
               position: args.position as number | undefined,
-              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
+              secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),
             },
-            table,
-            requestId
+            { tableId: args.tableId }
           )
-          signalTableRowsChanged(args.tableId)
+          if (result.kind !== 'single') throw new Error('Single row insert returned a batch')
+          const { table, row } = result
+          const toNamedRow = namedRowMapper(table.schema.columns)
 
           return {
             success: true,
@@ -640,28 +777,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const idByName = buildIdByName(table.schema)
-          const toNamedRow = namedRowMapper(table.schema.columns)
-          const rowData = args.rows.map((row: RowData) => rowDataNameToId(row, idByName))
-          const rows = await batchInsertRows(
+          const sourceRows = args.rows as RowData[]
+          const result = await executeCopilotTableUseCase(
+            context,
+            createTableRows,
             {
+              kind: 'batch',
               tableId: args.tableId,
-              rows: rowData,
-              workspaceId,
-              userId: context.userId,
-              secretProvenance: rowData.map(createExactEmptyTableRowSecretProvenance),
+              assertedWorkspaceId: workspaceId,
+              rows: sourceRows,
+              secretProvenance: sourceRows.map(createExactEmptyTableRowSecretProvenance),
             },
-            table,
-            requestId
+            { tableId: args.tableId }
           )
-          signalTableRowsChanged(args.tableId)
+          if (result.kind !== 'batch') throw new Error('Batch row insert returned one row')
+          const { table, rows } = result
+          const toNamedRow = namedRowMapper(table.schema.columns)
 
           return {
             success: true,
@@ -687,14 +819,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const rowTable = await getTableById(args.tableId)
-          if (!rowTable || rowTable.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const row = await getRowById(args.tableId, args.rowId, workspaceId)
-          if (!row) {
-            return { success: false, message: `Row not found: ${args.rowId}` }
-          }
+          const { table: rowTable, row } = await executeCopilotTableUseCase(
+            context,
+            readTableRow,
+            {
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              rowId: args.rowId,
+            },
+            { tableId: args.tableId }
+          )
           await importRowsForModel([row], context)
 
           const toNamedRow = namedRowMapper(rowTable.schema.columns)
@@ -723,66 +857,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: queryLimitError }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
-          const idByName = buildIdByName(table.schema)
-          // Typed predicate/sort objects, validated against the schema (column
-          // NAMES) then translated to storage ids.
-          let predicate: TablePredicate | undefined
-          if (args.filter) {
-            const filter = args.filter as TablePredicateInput
-            validatePredicate(filter, table.schema.columns)
-            const normalizedFilter = normalizeTablePredicate(filter)
-            predicate = predicateToStorage(normalizedFilter, table.schema)
-          }
-          let orderSpec = args.order as SortSpec | undefined
-          if (orderSpec?.length) {
-            validateSortSpec(orderSpec, table.schema.columns)
-            orderSpec = sortSpecNamesToIds(orderSpec, idByName)
-          }
-          const sort = orderSpec?.length
-            ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
-            : undefined
-
-          // Opaque cursor pagination (keyset seek on the default order; the token
-          // hides an internal offset only for custom-sorted views, which a keyset
-          // physically can't page). A keyset cursor is bound to the default order,
-          // so it can't be combined with a fresh sort.
-          const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
-          if (cursor) {
-            try {
-              // Keyset cursors bind to the default order; offset cursors to the
-              // exact sort they were minted under.
-              assertCursorSortBinding(cursor, sort)
-            } catch (bindError) {
-              return { success: false, message: getErrorMessage(bindError, 'Invalid cursor') }
-            }
-          }
-
-          // No limit returns the ENTIRE matching result, failing fast once the
-          // 5MB byte budget is exceeded (caught below → structured tool error
-          // the model can react to by adding a filter or a limit). An explicit
-          // limit pages; byte-cut pages set nextCursor and the message says to
-          // continue with the opaque cursor.
-          const toNamedRow = namedRowMapper(table.schema.columns)
-          const result = await queryRows(
-            table,
+          const result = await executeCopilotTableUseCase(
+            context,
+            queryTableRows,
             {
-              predicate,
-              sort,
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              predicate: args.filter
+                ? normalizeTablePredicate(args.filter as TablePredicateInput)
+                : undefined,
+              sort: args.order as SortSpec | undefined,
               limit: args.limit,
-              after: cursor?.after,
-              offset: cursor?.offset,
-              // Only the first page (no inbound cursor) pays for the COUNT(*).
+              cursor: args.cursor,
               includeTotal: !args.cursor,
-              withExecutions: false,
             },
-            requestId
+            { tableId: args.tableId }
           )
+          const { table } = result
+          const toNamedRow = namedRowMapper(table.schema.columns)
           await importRowsForModel(result.rows, context)
 
           // nextCursor covers both cut kinds (explicit limit or the 5MB byte
@@ -819,40 +911,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const idByName = buildIdByName(table.schema)
-          const toNamedRow = namedRowMapper(table.schema.columns)
-          const rowData = rowDataNameToId(args.data, idByName)
-          const updatedRow = await updateRow(
+          const { table, row: updatedRow } = await executeCopilotTableUseCase(
+            context,
+            updateTableRow,
             {
               tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
               rowId: args.rowId,
-              data: rowData,
-              workspaceId,
-              actorUserId: context.userId,
-              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
+              data: args.data,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),
             },
-            table,
-            requestId
+            { tableId: args.tableId }
           )
-          if (!updatedRow) {
-            // Only the cell-task path passes a `cancellationGuard`; this caller
-            // doesn't, so the guard never trips here. Defensive narrowing.
-            return { success: false, message: 'Row update was skipped' }
-          }
+          const toNamedRow = namedRowMapper(table.schema.columns)
           await importRowsForModel([updatedRow], context)
-          signalTableRowsChanged(args.tableId)
-          // Auto-dispatch for user edits is handled inside `updateRow`
-          // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
-          // downstream groups). Firing a second mode: 'incomplete' dispatch
-          // here would race with the internal one AND bulk-clear sibling-group
-          // outputs (mode: 'incomplete' wipes terminal-state cells in scope).
 
           return {
             success: true,
@@ -877,17 +950,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const deleteRowTable = await getTableById(args.tableId)
-          // The old signature passed `workspaceId` into `deleteRow`, which scoped
-          // the query; taking a TableDefinition instead means the ownership check
-          // has to happen here, as every other operation in this tool does.
-          if (!deleteRowTable || deleteRowTable.workspaceId !== workspaceId) {
-            return { success: false, message: `Table ${args.tableId} not found` }
-          }
-          await deleteRow(deleteRowTable, args.rowId, requestId)
-          signalTableRowsChanged(args.tableId)
+          await executeCopilotTableUseCase(
+            context,
+            deleteTableRow,
+            {
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              rowId: args.rowId,
+            },
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -962,7 +1035,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               // trusted continuation and does not re-check.
               assertRowUpdate(table, patchColumnIds(idData))
               assertNotAborted()
-              const claimed = await markTableJobRunning(table.id, jobId, 'update', payload)
+              const claimed = await markTableJobRunningInWorkspace(
+                table.id,
+                workspaceId,
+                jobId,
+                'update',
+                payload
+              )
               if (!claimed) {
                 return { success: false, message: 'A job is already in progress for this table' }
               }
@@ -1062,7 +1141,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               // Gate the delete lock at enqueue — the worker is a trusted continuation.
               assertRowDelete(table)
               assertNotAborted()
-              const claimed = await markTableJobRunning(table.id, jobId, 'delete', payload)
+              const claimed = await markTableJobRunningInWorkspace(
+                table.id,
+                workspaceId,
+                jobId,
+                'delete',
+                payload
+              )
               if (!claimed) {
                 return { success: false, message: 'A job is already in progress for this table' }
               }
@@ -1090,36 +1175,39 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // completes synchronously within this request before the slot is released.
           assertNotAborted()
           const inlineDeleteId = generateId()
-          const deleteClaimed = await markTableJobRunning(table.id, inlineDeleteId, 'delete')
+          const deleteClaimed = await markTableJobRunningInWorkspace(
+            table.id,
+            workspaceId,
+            inlineDeleteId,
+            'delete'
+          )
           if (!deleteClaimed) {
             return { success: false, message: 'A job is already in progress for this table' }
           }
-          let result: Awaited<ReturnType<typeof deleteRowsByFilter>>
-          try {
-            result = await deleteRowsByFilter(
-              table,
-              { filter: idFilter, limit: args.limit },
-              requestId
-            )
-          } finally {
-            await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
-          }
+          const result = await withReleasedTableJobClaim(
+            table.id,
+            workspaceId,
+            inlineDeleteId,
+            () => deleteRowsByFilter(table, { filter: idFilter, limit: args.limit }, requestId)
+          )
           if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
-          recordAudit({
-            workspaceId,
-            actorId: context.userId,
-            action: AuditAction.TABLE_UPDATED,
-            resourceType: AuditResourceType.TABLE,
-            resourceId: table.id,
-            resourceName: table.name,
-            description: `Deleted ${result.affectedCount} row(s) from table "${table.name}"`,
-            metadata: {
-              op: 'bulk_delete',
-              rowsDeleted: result.affectedCount,
-              source: 'tool_input',
-            },
-          })
+          if (result.affectedCount > 0) {
+            recordAudit({
+              workspaceId,
+              actorId: context.userId,
+              action: AuditAction.TABLE_UPDATED,
+              resourceType: AuditResourceType.TABLE,
+              resourceId: table.id,
+              resourceName: table.name,
+              description: `Deleted ${result.affectedCount} row(s) from table "${table.name}"`,
+              metadata: {
+                op: 'bulk_delete',
+                rowsDeleted: result.affectedCount,
+                source: 'tool_input',
+              },
+            })
+          }
 
           return {
             success: true,
@@ -1224,28 +1312,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
 
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const batchDeleteTable = await getTableById(args.tableId)
-          if (!batchDeleteTable || batchDeleteTable.workspaceId !== workspaceId) {
-            return { success: false, message: `Table ${args.tableId} not found` }
-          }
-          const result = await deleteRowsByIds(
-            batchDeleteTable,
-            { tableId: args.tableId, rowIds, workspaceId },
-            requestId
+          const result = await executeCopilotTableUseCase(
+            context,
+            deleteTableRows,
+            {
+              kind: 'ids',
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              rowIds,
+            },
+            { tableId: args.tableId }
           )
-          if (result.deletedCount > 0) signalTableRowsChanged(args.tableId)
-
-          recordAudit({
-            workspaceId,
-            actorId: context.userId,
-            action: AuditAction.TABLE_UPDATED,
-            resourceType: AuditResourceType.TABLE,
-            resourceId: args.tableId,
-            description: `Deleted ${result.deletedCount} row(s)`,
-            metadata: { op: 'bulk_delete', rowsDeleted: result.deletedCount, source: 'tool_input' },
-          })
+          if (result.kind !== 'ids') throw new Error('Row ID deletion returned a filter result')
 
           return {
             success: true,
@@ -1321,8 +1400,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 deleteSourceFile: false,
               })
             } catch (dispatchError) {
-              // The user never saw the placeholder — archive it back out.
-              await deleteTable(table.id, generateId().slice(0, 8)).catch(() => {})
+              try {
+                await deleteTable(table.id, generateId().slice(0, 8))
+              } catch (cleanupError) {
+                logger.error('Failed to remove placeholder table after import dispatch failure', {
+                  tableId: table.id,
+                  error: getErrorMessage(cleanupError),
+                })
+              }
               throw dispatchError
             }
             return {
@@ -1487,7 +1572,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (shouldImportInBackground(record)) {
             const importId = generateId()
             assertNotAborted()
-            const claimed = await markTableJobRunning(table.id, importId, 'import')
+            const claimed = await markTableJobRunningInWorkspace(
+              table.id,
+              workspaceId,
+              importId,
+              'import'
+            )
             if (!claimed) {
               return { success: false, message: 'A job is already in progress for this table' }
             }
@@ -1516,11 +1606,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // and contention is detected before the parse work is spent.
           const inlineImportId = generateId()
           assertNotAborted()
-          const inlineClaimed = await markTableJobRunning(table.id, inlineImportId, 'import')
+          const inlineClaimed = await markTableJobRunningInWorkspace(
+            table.id,
+            workspaceId,
+            inlineImportId,
+            'import'
+          )
           if (!inlineClaimed) {
             return { success: false, message: 'A job is already in progress for this table' }
           }
-          try {
+          return withReleasedTableJobClaim(table.id, workspaceId, inlineImportId, async () => {
             const file = {
               buffer: (
                 await readWorkspaceFileContent.execute({
@@ -1631,9 +1726,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 sourceFile: file.name,
               },
             }
-          } finally {
-            await releaseJobClaim(table.id, inlineImportId).catch(() => {})
-          }
+          })
         }
 
         case 'add_column': {
@@ -1660,11 +1753,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'column with name and type is required for add_column',
             }
           }
-          const tableForAdd = await getTableById(args.tableId)
-          if (!tableForAdd || tableForAdd.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
           if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
             return {
@@ -1677,8 +1765,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             col.type === 'select'
               ? { ...col, options: normalizeSelectOptionsInput(col.options) }
               : { ...col, options: undefined }
-          const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
-          signalTableSchemaChanged(args.tableId)
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            addTableColumnUseCase,
+            { tableId: args.tableId, workspaceId, column: columnToAdd },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1698,17 +1790,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!colName || !newColName) {
             return { success: false, message: 'columnName and newName are required' }
           }
-          const tableForRename = await getTableById(args.tableId)
-          if (!tableForRename || tableForRename.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await renameColumn(
-            { tableId: args.tableId, oldName: colName, newName: newColName },
-            requestId
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            updateTableColumnUseCase,
+            {
+              tableId: args.tableId,
+              workspaceId,
+              columnName: colName,
+              updates: { name: newColName },
+            },
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Renamed column "${colName}" to "${newColName}"`,
@@ -1729,28 +1822,31 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!names || names.length === 0) {
             return { success: false, message: 'columnName or columnNames is required' }
           }
-          const tableForDelete = await getTableById(args.tableId)
-          if (!tableForDelete || tableForDelete.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
           if (names.length === 1) {
             assertNotAborted()
-            const updated = await deleteColumn(
-              { tableId: args.tableId, columnName: names[0] },
-              requestId
+            const { table: updated } = await executeCopilotTableUseCase(
+              context,
+              deleteTableColumnUseCase,
+              { tableId: args.tableId, workspaceId, columnName: names[0] },
+              { tableId: args.tableId }
             )
-            signalTableSchemaChanged(args.tableId)
             return {
               success: true,
               message: `Deleted column "${names[0]}"`,
               data: { schema: updated.schema },
             }
           }
+          await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
           assertNotAborted()
           const updated = await deleteColumns(
             { tableId: args.tableId, columnNames: names },
-            requestId
+            generateId().slice(0, 8),
+            { expectedWorkspaceId: workspaceId }
           )
           signalTableSchemaChanged(args.tableId)
           return {
@@ -1801,31 +1897,30 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: `Invalid column type "${newType}". Must be one of: ${COLUMN_TYPES.join(', ')}`,
             }
           }
-          const tableForUpdate = await getTableById(args.tableId)
-          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
           assertNotAborted()
-          const outcome = await performUpdateTableColumn({
-            table: tableForUpdate,
-            columnName: colName,
-            userId: context.userId,
-            updates: {
-              ...(newType !== undefined ? { type: newType as (typeof COLUMN_TYPES)[number] } : {}),
-              ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
-              ...(rawOptions !== undefined ? { options: rawOptions } : {}),
-              ...(multiple !== undefined ? { multiple } : {}),
-              ...(currencyCode !== undefined ? { currencyCode } : {}),
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            updateTableColumnUseCase,
+            {
+              tableId: args.tableId,
+              workspaceId,
+              columnName: colName,
+              updates: {
+                ...(newType !== undefined
+                  ? { type: newType as (typeof COLUMN_TYPES)[number] }
+                  : {}),
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+                ...(rawOptions !== undefined ? { options: rawOptions } : {}),
+                ...(multiple !== undefined ? { multiple } : {}),
+                ...(currencyCode !== undefined ? { currencyCode } : {}),
+              },
             },
-          })
-          if (!outcome.success || !outcome.table) {
-            return { success: false, message: outcome.error ?? 'Failed to update column' }
-          }
-          signalTableSchemaChanged(args.tableId)
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Updated column "${colName}"`,
-            data: { schema: outcome.table.schema },
+            data: { schema: updated.schema },
           }
         }
         case 'rename': {
@@ -1840,28 +1935,21 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const table = await getTableById(args.tableId)
-          if (!table || table.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const renameOutcome = await performRenameTable({
-            table,
-            newName,
-            userId: context.userId,
-            requestId,
-          })
-          if (!renameOutcome.success) {
-            return { success: false, message: renameOutcome.error ?? 'Failed to rename table' }
+          const result = await executeCopilotTableUseCase(
+            context,
+            updateTableUseCase,
+            { tableId: args.tableId, workspaceId, name: newName },
+            { tableId: args.tableId }
+          )
+          if (result.failure) {
+            throw result.failure
           }
-          signalTableSchemaChanged(args.tableId)
 
           return {
             success: true,
             message: `Renamed table to "${newName}"`,
-            data: { table: { id: args.tableId, name: newName } },
+            data: { table: { id: args.tableId, name: result.table?.name ?? newName } },
           }
         }
 
@@ -1909,10 +1997,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               message: 'outputs array (with blockId + path entries) is required',
             }
           }
-          const tableForGroup = await getTableById(args.tableId)
-          if (!tableForGroup || tableForGroup.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
+          const { table: tableForGroup } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           for (const o of rawOutputs) {
             if (!o.blockId || !o.path) {
@@ -1970,17 +2060,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             ...(deploymentMode ? { deploymentMode } : {}),
             outputs,
           }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          // Mothership stages groups silently by default — the AI may add more
-          // columns or update deps before the user wants rows to fire. Caller
-          // can opt in by passing `autoRun: true`.
           const autoRun = args.autoRun === true
-          const updated = await addWorkflowGroup(
-            { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
-            requestId
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            createTableGroupUseCase,
+            {
+              tableId: args.tableId,
+              workspaceId,
+              group,
+              outputColumns,
+              autoRun,
+            },
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added workflow group "${name ?? groupId}" with ${outputs.length} output column(s)`,
@@ -1998,10 +2091,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!groupId) {
             return { success: false, message: 'groupId is required for update_workflow_group' }
           }
-          const tableForUpdate = await getTableById(args.tableId)
-          if (!tableForUpdate || tableForUpdate.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
+          const { table: tableForUpdate } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
           const updateOutputs = args.outputs as WorkflowGroupOutput[] | undefined
           if (updateOutputs && updateOutputs.length > 0) {
             // Resolve which workflow these outputs apply to: explicit override
@@ -2033,13 +2128,14 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               return { success: false, message: validationError }
             }
           }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await updateWorkflowGroup(
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            updateTableGroupUseCase,
             {
               tableId: args.tableId,
+              workspaceId,
               groupId,
-              actorUserId: context.userId,
               workflowId: args.workflowId as string | undefined,
               name: args.name as string | undefined,
               dependencies: args.dependencies as WorkflowGroupDependencies | undefined,
@@ -2051,9 +2147,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               deploymentMode: parseDeploymentMode(args.deploymentMode),
               autoRun: typeof args.autoRun === 'boolean' ? args.autoRun : undefined,
             },
-            requestId
+            { tableId: args.tableId }
           )
-          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated workflow group ${groupId}`,
@@ -2068,14 +2163,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!groupId) {
             return { success: false, message: 'groupId is required for delete_workflow_group' }
           }
-          const tableForDelete = await getTableById(args.tableId)
-          if (!tableForDelete || tableForDelete.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updated = await deleteWorkflowGroup({ tableId: args.tableId, groupId }, requestId)
-          signalTableSchemaChanged(args.tableId)
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            deleteTableGroupUseCase,
+            { tableId: args.tableId, workspaceId, groupId },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
@@ -2110,6 +2204,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               path,
               columnName,
               actorUserId: context.userId,
+              workspaceId,
             },
             requestId
           )
@@ -2139,7 +2234,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await deleteWorkflowGroupOutput(
-            { tableId: args.tableId, groupId, columnName },
+            { tableId: args.tableId, groupId, columnName, workspaceId },
             requestId
           )
           signalTableSchemaChanged(args.tableId)
@@ -2187,17 +2282,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             rowIds = rawRowIds as string[]
           }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const { dispatchId } = await runWorkflowColumn({
-            tableId: args.tableId,
-            workspaceId,
-            groupIds,
-            mode: runMode,
-            rowIds,
-            requestId,
-            triggeredByUserId: context.userId,
-          })
+          const { dispatchId } = await executeCopilotTableUseCase(
+            context,
+            startTableRun,
+            {
+              kind: 'selection',
+              tableId: args.tableId,
+              assertedWorkspaceId: workspaceId,
+              groupIds,
+              mode: runMode,
+              rowIds,
+            },
+            { tableId: args.tableId }
+          )
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
@@ -2220,14 +2318,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (scope === 'row' && !rowId) {
             return { success: false, message: 'rowId is required when scope is "row"' }
           }
-          const tableForCancel = await getTableById(args.tableId)
-          if (!tableForCancel || tableForCancel.workspaceId !== workspaceId) {
-            return { success: false, message: `Table not found: ${args.tableId}` }
-          }
           assertNotAborted()
-          const cancelled = await cancelWorkflowGroupRuns(
-            args.tableId,
-            scope === 'row' ? rowId : undefined
+          const { cancelled } = await executeCopilotTableUseCase(
+            context,
+            cancelTableRuns,
+            scope === 'row'
+              ? {
+                  scope: 'row',
+                  tableId: args.tableId,
+                  assertedWorkspaceId: workspaceId,
+                  rowId: rowId as string,
+                }
+              : {
+                  scope: 'all',
+                  tableId: args.tableId,
+                  assertedWorkspaceId: workspaceId,
+                },
+            { tableId: args.tableId }
           )
           return {
             success: true,
@@ -2377,8 +2484,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
         error: errorMessage,
         cause,
       })
-      const displayMessage = cause ? `${errorMessage} (${cause})` : errorMessage
-      return { success: false, message: `Operation failed: ${displayMessage}` }
+      return {
+        success: false,
+        message: `Operation failed: ${messageForCopilotTableError(error)}`,
+      }
     }
   },
 }

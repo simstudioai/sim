@@ -57,7 +57,7 @@ export function toApiTable(table: TableDefinition, folderPath: string) {
   return {
     id: table.id,
     name: table.name,
-    description: table.description,
+    description: table.description ?? null,
     schema: {
       columns: (table.schema as TableSchema).columns.map(normalizeColumn),
     },

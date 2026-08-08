@@ -1,292 +1,160 @@
 /**
  * @vitest-environment node
- *
- * Public v2 tables list: auth/scope gating, rollout gate ordering, typed
- * summary output in the `{ data, nextCursor }` envelope, private cache header.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import type { TableDefinition } from '@/lib/table/types'
 
-const {
-  mockQueryTables,
-  mockCheckRateLimit,
-  mockResolveWorkspaceAccess,
-  mockIsFeatureEnabled,
-  mockGetWorkspaceOrganizationId,
-  mockLoadActiveFolderPathIndex,
-  mockResolveFolderPathIdentity,
-  mockCreateTable,
-  mockGetWorkspaceTableLimits,
-} = vi.hoisted(() => ({
-  mockQueryTables: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
-  mockResolveWorkspaceAccess: vi.fn(),
-  mockIsFeatureEnabled: vi.fn(),
-  mockGetWorkspaceOrganizationId: vi.fn(),
-  mockLoadActiveFolderPathIndex: vi.fn(),
-  mockResolveFolderPathIdentity: vi.fn(),
-  mockCreateTable: vi.fn(),
-  mockGetWorkspaceTableLimits: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  preauthRate: vi.fn(),
+  operationRate: vi.fn(),
+  gate: vi.fn(),
+  list: vi.fn(),
+  create: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceAccess: mockResolveWorkspaceAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
-
-vi.mock('@/lib/table', async () => {
-  const actual = await import('@/lib/table/column-keys')
-  return {
-    ...actual,
-    queryTables: mockQueryTables,
-    createTable: mockCreateTable,
-    getWorkspaceTableLimits: mockGetWorkspaceTableLimits,
-  }
-})
-
-vi.mock('@/app/api/table/utils', () => ({
-  normalizeColumn: (col: Record<string, unknown>) => col,
-  rootErrorMessage: (error: unknown) => String(error),
-  rowWriteErrorResponse: () => null,
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
 }))
-
-vi.mock('@/lib/core/config/feature-flags', () => ({
-  isFeatureEnabled: mockIsFeatureEnabled,
-}))
-
-vi.mock('@/lib/workspaces/utils', () => ({
-  getWorkspaceOrganizationId: mockGetWorkspaceOrganizationId,
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-vi.mock('@/lib/folders/queries', () => ({
-  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
-}))
-
-vi.mock('@/app/api/v2/lib/folders', () => ({
-  folderPathForId: (_index: unknown, folderId: string | null | undefined) =>
-    folderId ? '/Reports' : '/',
-  resolveFolderPathId: (
-    index: { idByPath: Map<string, string> },
-    path: string
-  ): string | null | undefined => (path === '/' ? null : index.idByPath.get(path)),
-  resolveFolderPathIdentity: mockResolveFolderPathIdentity,
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/tables', () => ({
+  listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
+  createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
 }))
 
 import { GET, POST } from '@/app/api/v2/tables/route'
 
-const RATE_LIMIT_OK = {
+const WORKSPACE_ID = 'workspace-1'
+const principal = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const auth = {
+  principal,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const rate = {
   allowed: true,
-  userId: 'user-1',
-  keyType: 'workspace',
-  limit: 100,
   remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
+  resetAt: new Date('2026-01-01T01:00:00.000Z'),
+  retryAfterMs: 0,
+}
+const table = {
+  id: 'table-1',
+  workspaceId: WORKSPACE_ID,
+  userId: 'owner-1',
+  name: 'Contacts',
+  description: null,
+  schema: {
+    columns: [
+      { id: 'col-1', name: 'Name', type: 'string' as const, required: false, unique: false },
+    ],
+  },
+  rowCount: 0,
+  maxRows: 100,
+  folderId: null,
+  metadata: null,
+  locks: {
+    schemaLocked: false,
+    insertLocked: false,
+    updateLocked: false,
+    deleteLocked: false,
+  },
+  createdAt: new Date('2026-01-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-01-01T00:00:00.000Z'),
 }
 
-function buildTable(): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: 'A table',
-    schema: { columns: [{ id: 'col_name', name: 'name', type: 'string' }] },
-    metadata: null,
-    rowCount: 5,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-02'),
-  }
-}
-
-function callList(query: string) {
-  const req = new NextRequest(`http://localhost:3000/api/v2/tables?${query}`)
-  return GET(req)
-}
-
-function callCreate(body: Record<string, unknown>) {
-  return POST(
-    new NextRequest('http://localhost:3000/api/v2/tables', {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-  )
-}
-
-describe('GET /api/v2/tables', () => {
+describe('/api/v2/tables', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: null })
-    mockIsFeatureEnabled.mockResolvedValue(true)
-    mockGetWorkspaceOrganizationId.mockResolvedValue('org-1')
-    mockLoadActiveFolderPathIndex.mockResolvedValue({
-      rowById: new Map(),
-      pathById: new Map(),
-      idByPath: new Map(),
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.preauthRate.mockResolvedValue(rate)
+    mocks.operationRate.mockResolvedValue(rate)
+    mocks.gate.mockResolvedValue(null)
+    mocks.list.mockResolvedValue({
+      tables: [{ table, folderPath: '/' }],
+      nextKeys: undefined,
+      sortBy: 'name',
+      sortOrder: 'asc',
+    })
+    mocks.create.mockResolvedValue({ table, folderPath: '/' })
+  })
+
+  it('lists through the semantic use case and preserves the cursor envelope', async () => {
+    const request = new NextRequest(
+      `http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`
+    )
+    const response = await GET(request)
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toMatchObject({
+      data: [{ id: 'table-1', folderPath: '/', description: null }],
+      nextCursor: null,
+    })
+    expect(mocks.list).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ workspaceId: WORKSPACE_ID, limit: 25 }),
+      request,
     })
   })
 
-  it('returns 404 when the v2 API surface flag is off', async () => {
-    const { v2ApiGateError } = await import('@/app/api/v2/lib/gate')
-    const { v2Error } = await import('@/app/api/v2/lib/response')
-    vi.mocked(v2ApiGateError).mockResolvedValueOnce(v2Error('NOT_FOUND', 'Not found'))
+  it('authenticates and rate-limits before rejecting invalid query input', async () => {
+    const response = await GET(new NextRequest('http://localhost:3000/api/v2/tables'))
 
-    const res = await callList('workspaceId=workspace-1')
-
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
-    expect(mockQueryTables).not.toHaveBeenCalled()
+    expect(response.status).toBe(400)
+    expect(mocks.authenticate).toHaveBeenCalled()
+    expect(mocks.operationRate).toHaveBeenCalled()
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
-  it('400s when workspaceId is missing', async () => {
-    const res = await callList('')
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-    expect(mockQueryTables).not.toHaveBeenCalled()
-  })
+  it('maps operation rate-limit infrastructure failures to service unavailable', async () => {
+    mocks.operationRate.mockRejectedValueOnce(new Error('rate store unavailable'))
 
-  it('surfaces an access-denied failure in the v2 error envelope', async () => {
-    mockResolveWorkspaceAccess.mockResolvedValue({
-      status: 403,
-      code: 'FORBIDDEN',
-      message: 'Access denied',
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(403)
-    expect((await res.json()).error).toMatchObject({ code: 'FORBIDDEN', message: 'Access denied' })
-    expect(mockQueryTables).not.toHaveBeenCalled()
-  })
-
-  it('returns the rate-limit response when denied', async () => {
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: false,
-      limit: 100,
-      remaining: 0,
-      resetAt: new Date('2024-01-01T01:00:00Z'),
-      retryAfterMs: 1000,
-    })
-    const res = await callList('workspaceId=workspace-1')
-    expect(res.status).toBe(429)
-    expect((await res.json()).error.code).toBe('RATE_LIMITED')
-  })
-  it('400s on a sort field outside the enum instead of letting it reach the query', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortBy=name);--`)
-
-    expect(res.status).toBe(400)
-    expect((await res.json()).error.code).toBe('BAD_REQUEST')
-  })
-
-  it('400s on a sort direction outside the enum', async () => {
-    const res = await callList(`workspaceId=workspace-1&sortOrder=sideways`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('400s on an empty search rather than treating it as unsearched', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=`)
-
-    expect(res.status).toBe(400)
-  })
-
-  it('forwards search and sort into the query and still terminates pagination', async () => {
-    const res = await callList(`workspaceId=workspace-1&search=report&sortBy=name&sortOrder=asc`)
-
-    expect(res.status).toBe(200)
-    expect((await res.json()).nextCursor).toBeNull()
-  })
-
-  it('treats folderPath=/ as root-only while omission lists every folder', async () => {
-    await callList('workspaceId=workspace-1&folderPath=%2F')
-
-    expect(mockQueryTables).toHaveBeenCalledWith(
-      'workspace-1',
-      expect.objectContaining({ folderId: null })
-    )
-  })
-
-  it('passes limit and the decoded cursor through to the query', async () => {
-    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: null })
-
-    await callList('workspaceId=workspace-1&limit=25&sortBy=name&sortOrder=desc')
-
-    // The slice must happen in the query, not after a full-workspace read.
-    expect(mockQueryTables).toHaveBeenCalledWith(
-      'workspace-1',
-      expect.objectContaining({ limit: 25, sortBy: 'name', sortOrder: 'desc' })
-    )
-  })
-
-  it('returns a nextCursor when the query reports another page', async () => {
-    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: ['Alpha', 'tbl_1'] })
-
-    const res = await callList('workspaceId=workspace-1&limit=1')
-    const body = await res.json()
-
-    expect(res.status).toBe(200)
-    expect(body.nextCursor).toEqual(expect.any(String))
-  })
-
-  it('rejects a cursor that does not match the requested sort', async () => {
-    const first = await callList('workspaceId=workspace-1&sortBy=name')
-    // Encoded under sortBy=name, replayed under sortBy=createdAt.
-    mockQueryTables.mockResolvedValue({ tables: [buildTable()], nextKeys: ['Alpha', 'tbl_1'] })
-    const paged = await callList('workspaceId=workspace-1&sortBy=name&limit=1')
-    const cursor = (await paged.json()).nextCursor
-
-    const res = await callList(
-      `?workspaceId=workspace-1&sortBy=createdAt&cursor=${encodeURIComponent(cursor)}`
+    const response = await GET(
+      new NextRequest(`http://localhost:3000/api/v2/tables?workspaceId=${WORKSPACE_ID}&limit=25`)
     )
 
-    expect(res.status).toBe(400)
-    expect(first.status).toBe(200)
-  })
-})
-
-describe('POST /api/v2/tables', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockResolveWorkspaceAccess.mockResolvedValue(null)
-    mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100 })
-    mockResolveFolderPathIdentity.mockResolvedValue({
-      found: true,
-      folderId: 'folder-1',
-      index: {
-        rowById: new Map(),
-        pathById: new Map([['folder-1', '/Reports']]),
-        idByPath: new Map([['/Reports', 'folder-1']]),
+    expect(response.status).toBe(503)
+    expect(await response.json()).toEqual({
+      error: {
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Service temporarily unavailable',
       },
     })
-    mockCreateTable.mockResolvedValue({ ...buildTable(), folderId: 'folder-1' })
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
-  it('resolves a slashless folder path before creating the table outside the folder lock', async () => {
-    const res = await callCreate({
-      workspaceId: 'workspace-1',
-      name: 'People',
-      folderPath: 'Reports',
-      schema: { columns: [{ name: 'email', type: 'string' }] },
+  it('creates through the shared use case and keeps the 201 response contract', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string' }] },
+      }),
     })
+    const response = await POST(request)
 
-    expect(res.status).toBe(201)
-    expect(mockResolveFolderPathIdentity).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      resourceType: 'table',
-      path: '/Reports',
+    expect(response.status).toBe(201)
+    expect((await response.json()).data.table.id).toBe('table-1')
+    expect(mocks.create).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ workspaceId: WORKSPACE_ID, name: 'Contacts' }),
+      request,
     })
-    expect(mockCreateTable).toHaveBeenCalledWith(
-      expect.objectContaining({ folderId: 'folder-1' }),
-      expect.any(String)
-    )
-    expect((await res.json()).data.table.folderPath).toBe('/Reports')
   })
 })

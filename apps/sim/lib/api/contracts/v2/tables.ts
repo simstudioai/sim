@@ -262,6 +262,7 @@ export const v2CreateTableContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableDataSchema),
+    status: 201,
   },
 })
 
@@ -343,7 +344,7 @@ export const v2CreateTableFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema), status: 201 },
 })
 
 export const v2RelocateTableFolderContract = defineRouteContract({
@@ -648,6 +649,7 @@ export const v2CreateTableViewContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableViewDataSchema),
+    status: 201,
   },
 })
 
@@ -834,6 +836,7 @@ export const v2AddWorkflowGroupContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowGroupDataSchema),
+    status: 201,
   },
 })
 
@@ -1131,7 +1134,11 @@ export const v2CreateTableImportContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/imports',
   body: v2CreateTableImportBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2CreateTableImportDataSchema) },
+  response: {
+    mode: 'json',
+    schema: v2DataResponse(v2CreateTableImportDataSchema),
+    status: 201,
+  },
 })
 
 export const v2GetTableImportContract = defineRouteContract({
@@ -1198,7 +1205,7 @@ export const v2CreateTableExportContract = defineRouteContract({
   path: '/api/v2/tables/[tableId]/exports',
   params: tableIdParamsSchema,
   body: exportTableAsyncBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema), status: 201 },
 })
 
 export const v2GetTableExportContract = defineRouteContract({

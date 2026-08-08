@@ -1,50 +1,19 @@
 import { v2CreateTableImportContract } from '@/lib/api/contracts/v2/tables'
-import {
-  createTableImportResource,
-  toV2CreateTableImport,
-} from '@/lib/table/orchestration/import-resource'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import { resolveFolderPathIdentity } from '@/app/api/v2/lib/folders'
-import {
-  v2CaughtOrchestrationError,
-  v2Data,
-  v2Error,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
-import { v2TableLockError } from '@/app/api/v2/tables/utils'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2TableErrorPolicies } from '@/lib/table/api'
+import { createTableImportUseCase } from '@/lib/table/application/imports'
+import { tableOperations } from '@/lib/table/application/operations'
 
-export const POST = withPublicApiRouteHandler({
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export const POST = defineV2JsonRoute({
   contract: v2CreateTableImportContract,
-  rateLimitEndpoint: 'table-import',
-  handler: async ({ request, input, auth: { userId, rateLimit } }) => {
-    try {
-      const scopeError = await resolveWorkspaceScope(rateLimit, input.body.workspaceId)
-      if (scopeError) return v2WorkspaceAccessError(scopeError)
-      let created: Awaited<ReturnType<typeof createTableImportResource>>
-      if (input.body.target.type === 'new') {
-        const resolution = await resolveFolderPathIdentity({
-          workspaceId: input.body.workspaceId,
-          resourceType: 'table',
-          path: input.body.target.folderPath ?? '/',
-        })
-        if (!resolution.found) return v2Error('NOT_FOUND', 'Folder not found')
-        created = await createTableImportResource(
-          input.body,
-          userId,
-          request.nextUrl.origin,
-          resolution.folderId
-        )
-      } else {
-        created = await createTableImportResource(input.body, userId, request.nextUrl.origin)
-      }
-      return v2Data(toV2CreateTableImport(created), { rateLimit, status: 201 })
-    } catch (error) {
-      const lockError = v2TableLockError(error)
-      if (lockError) return lockError
-      const classified = v2CaughtOrchestrationError(error)
-      if (classified) return classified
-      throw error
-    }
-  },
+  operation: tableOperations.createImport,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  mapInput: ({ body }) => ({ body }),
+  useCase: createTableImportUseCase,
+  present: ({ import: tableImport }) => ({ data: tableImport }),
 })

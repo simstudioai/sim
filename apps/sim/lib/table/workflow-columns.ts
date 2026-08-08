@@ -490,10 +490,7 @@ export async function cancelWorkflowGroupRuns(
   )
 
   const table = await getTableById(tableId)
-  if (!table) {
-    logger.warn(`cancelWorkflowGroupRuns: table ${tableId} not found`)
-    return 0
-  }
+  if (!table) throw new OrchestrationError('not_found', 'Table not found')
 
   // Per-row cancel leaves the dispatcher alone — other rows in the same
   // dispatch keep running. Table-wide cancel must stop it, else the cursor
@@ -581,7 +578,13 @@ export async function cancelWorkflowGroupRuns(
           db
             .select({ id: userTableRowsTable.id })
             .from(userTableRowsTable)
-            .where(and(eq(userTableRowsTable.tableId, tableId), filterClause))
+            .where(
+              and(
+                eq(userTableRowsTable.tableId, tableId),
+                eq(userTableRowsTable.workspaceId, table.workspaceId),
+                filterClause
+              )
+            )
         )
       )
     }
@@ -599,6 +602,7 @@ export async function cancelWorkflowGroupRuns(
     : Promise.resolve()
   let cursor: { rowId: string; groupId: string } | undefined
   let processedCount = 0
+  let cancelledCount = 0
   let reachedEnd = false
   const handledGroupIds = new Set<string>()
 
@@ -711,7 +715,7 @@ export async function cancelWorkflowGroupRuns(
     )
 
     await mapWithConcurrency(mutations, TABLE_CANCELLATION_CONCURRENCY, async (mutation) => {
-      await updateRow(
+      const updated = await updateRow(
         {
           tableId,
           rowId: mutation.rowId,
@@ -721,12 +725,10 @@ export async function cancelWorkflowGroupRuns(
         },
         table,
         `wfgrp-cancel-${mutation.rowId}`
-      ).catch((error) => {
-        logger.error(`Failed to write cancelled state for row ${mutation.rowId}`, {
-          error: toError(error).message,
-        })
-      })
+      )
+      if (!updated) throw new Error('Authoritative cancellation write was rejected')
     })
+    cancelledCount += mutations.reduce((total, mutation) => total + mutation.cancelledCount, 0)
 
     if (inFlightRows.length < pageSize) {
       reachedEnd = true
@@ -740,17 +742,28 @@ export async function cancelWorkflowGroupRuns(
       tableId,
       maxRows: TABLE_CANCELLATION_MAX_ROWS,
     })
-    await db
-      .update(tableRowExecutions)
-      .set({
-        status: 'cancelled',
-        jobId: null,
-        error: 'Cancelled',
-        runningBlockIds: [],
-        cancelledAt: now,
-        updatedAt: now,
-      })
-      .where(and(...inFlightFilters))
+    const rows = await db.execute<{ count: number | string }>(sql`
+      WITH cancelled AS (
+        UPDATE ${tableRowExecutions}
+        SET
+          status = 'cancelled',
+          job_id = NULL,
+          error = 'Cancelled',
+          running_block_ids = ARRAY[]::text[],
+          cancelled_at = ${sql.param(now, tableRowExecutions.cancelledAt)},
+          updated_at = ${sql.param(now, tableRowExecutions.updatedAt)}
+        WHERE ${and(...inFlightFilters)}
+        RETURNING 1
+      )
+      SELECT count(*)::integer AS count FROM cancelled
+    `)
+    const [countRow] = Array.isArray(rows) ? rows : []
+    if (!countRow) throw new Error('Cancellation update did not return an affected count')
+    const remainingCancelled = Number(countRow.count)
+    if (!Number.isSafeInteger(remainingCancelled) || remainingCancelled < 0) {
+      throw new Error('Cancellation update returned an invalid affected count')
+    }
+    cancelledCount += remainingCancelled
   }
 
   await tagSweepPromise
@@ -787,18 +800,12 @@ export async function cancelWorkflowGroupRuns(
             .onConflictDoNothing({
               target: [tableRowExecutions.rowId, tableRowExecutions.groupId],
             })
-            .catch((error) => {
-              logger.error(
-                `Failed to write tombstone for ${tableId}/${rowId}/${tombstone.groupId}`,
-                { error: toError(error).message }
-              )
-            })
         }
       )
     }
   }
 
-  return processedCount
+  return cancelledCount
 }
 
 /**
@@ -1316,6 +1323,6 @@ export function findSplitGroups(
 export function assertValidSchema(schema: TableSchema, columnOrder: string[] | undefined): void {
   const errs = validateSchema(schema, columnOrder)
   if (errs.length > 0) {
-    throw new Error(`Schema validation failed: ${errs.join('; ')}`)
+    throw new OrchestrationError('validation', `Schema validation failed: ${errs.join('; ')}`)
   }
 }

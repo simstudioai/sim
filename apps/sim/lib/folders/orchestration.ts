@@ -42,6 +42,7 @@ export interface CreateFolderParams {
   id?: string
   parentId?: string | null
   sortOrder?: number
+  recordAudit?: boolean
 }
 
 export interface FolderMutationResult {
@@ -69,6 +70,7 @@ export interface DeleteFolderParams {
   userId: string
   folderName?: string
   folderPath?: string
+  recordAudit?: boolean
 }
 
 export interface DeleteFolderResult {
@@ -76,6 +78,7 @@ export interface DeleteFolderResult {
   error?: string
   errorCode?: FolderMutationErrorCode
   deletedItems?: FolderCascadeCountsApi
+  deletedFolder?: { id: string; name: string }
 }
 
 export interface RestoreFolderParams {
@@ -103,6 +106,7 @@ export interface DeleteFolderByPathParams {
   userId: string
   path: string
   recursive: boolean
+  recordAudit?: boolean
 }
 
 export interface DeleteFolderByPathResult extends DeleteFolderResult {
@@ -211,16 +215,18 @@ export async function createFolderAtPath(
       { label: 'create-folder-at-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
-      metadata: { path: params.path, folderResourceType: params.resourceType },
-    })
+    if (params.recordAudit !== false) {
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_CREATED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
+        metadata: { path: params.path, folderResourceType: params.resourceType },
+      })
+    }
     await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder, path: params.path }
   } catch (error) {
@@ -235,6 +241,7 @@ export async function relocateFolderByPath(params: {
   userId: string
   path: string
   destinationPath: string
+  recordAudit?: boolean
 }): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
@@ -287,20 +294,22 @@ export async function relocateFolderByPath(params: {
       { label: 'relocate-folder-by-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_MOVED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
-      metadata: {
-        sourcePath: params.path,
-        destinationPath: params.destinationPath,
-        folderResourceType: params.resourceType,
-      },
-    })
+    if (params.recordAudit !== false) {
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_MOVED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+        metadata: {
+          sourcePath: params.path,
+          destinationPath: params.destinationPath,
+          folderResourceType: params.resourceType,
+        },
+      })
+    }
     await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder, path: params.destinationPath }
   } catch (error) {
@@ -356,6 +365,7 @@ export async function deleteFolderByPath(
           userId: params.userId,
           folderName: row.name,
           folderPath: params.path,
+          recordAudit: params.recordAudit,
         }
       }
     )
@@ -700,27 +710,35 @@ async function deleteFolderWithoutTreeLock(
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_DELETED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName,
-    description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
-    metadata: {
-      folderResourceType: resourceType,
-      path: folderPath,
-      affected: {
-        [config.countKey]: counts.children,
-        subfolders: Math.max(counts.folders - 1, 0),
+  if (params.recordAudit !== false) {
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName,
+      description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
+      metadata: {
+        folderResourceType: resourceType,
+        path: folderPath,
+        affected: {
+          [config.countKey]: counts.children,
+          subfolders: Math.max(counts.folders - 1, 0),
+        },
       },
-    },
-  })
+    })
+  }
 
   // Live resource list (e.g. tables): a delete removes the folder and cascades to its contents.
   await notifyFolderResourceChanged(resourceType, workspaceId)
-  return { success: true, deletedItems: toCascadeCounts(config, counts) }
+  return {
+    success: true,
+    deletedItems: toCascadeCounts(config, counts),
+    ...(params.recordAudit === false && folderName
+      ? { deletedFolder: { id: folderId, name: folderName } }
+      : {}),
+  }
 }
 
 /**

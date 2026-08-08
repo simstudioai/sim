@@ -1,105 +1,136 @@
 /**
  * @vitest-environment node
- *
- * v2 column update wiring: the route authenticates, scopes, delegates to the
- * orchestration function, and maps its failure classes onto the v2 envelope.
- * The guards themselves are covered in lib/table/orchestration/columns.test.ts.
  */
+
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckRateLimit, mockResolveWorkspaceScope, mockCheckAccess, mockPerformUpdate } =
-  vi.hoisted(() => ({
-    mockCheckRateLimit: vi.fn(),
-    mockResolveWorkspaceScope: vi.fn(),
-    mockCheckAccess: vi.fn(),
-    mockPerformUpdate: vi.fn(),
-  }))
-
-vi.mock('@/app/api/v1/middleware', () => ({
-  checkRateLimit: mockCheckRateLimit,
-  resolveWorkspaceScope: mockResolveWorkspaceScope,
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  preauthRate: vi.fn(),
+  operationRate: vi.fn(),
+  gate: vi.fn(),
+  add: vi.fn(),
+  update: vi.fn(),
+  remove: vi.fn(),
 }))
 
-vi.mock('@/app/api/table/utils', () => ({
-  checkAccess: mockCheckAccess,
-  normalizeColumn: (col: Record<string, unknown>) => col,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
+}))
+vi.mock('@/lib/core/rate-limiter', () => ({
+  RateLimiter: class {
+    checkRateLimitDirect = mocks.preauthRate
+    checkRateLimitDirectOrThrow = mocks.operationRate
+  },
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
+}))
+vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/lib/table/application/columns', () => ({
+  addTableColumnUseCase: { operation: { id: 'tables.columns.add' }, execute: mocks.add },
+  updateTableColumnUseCase: { operation: { id: 'tables.columns.update' }, execute: mocks.update },
+  deleteTableColumnUseCase: { operation: { id: 'tables.columns.delete' }, execute: mocks.remove },
 }))
 
-vi.mock('@/lib/table', () => ({ addTableColumn: vi.fn(), deleteColumn: vi.fn() }))
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { DELETE, PATCH, POST } from '@/app/api/v2/tables/[tableId]/columns/route'
 
-vi.mock('@/lib/table/orchestration', () => ({
-  performUpdateTableColumn: mockPerformUpdate,
-}))
+const WORKSPACE_ID = 'workspace-1'
+const principal = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: WORKSPACE_ID,
+  keyId: 'key-1',
+}
+const auth = {
+  principal,
+  rolloutUserId: 'owner-1',
+  rateLimitSubjectIds: [`workspace:${WORKSPACE_ID}`],
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
+const rate = {
+  allowed: true,
+  remaining: 99,
+  resetAt: new Date('2026-01-01T01:00:00.000Z'),
+  retryAfterMs: 0,
+}
+const table = {
+  id: 'table-1',
+  name: 'Contacts',
+  schema: {
+    columns: [
+      { id: 'col-1', name: 'Name', type: 'string' as const, required: false, unique: false },
+    ],
+  },
+}
+const context = { params: Promise.resolve({ tableId: 'table-1' }) }
 
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: vi.fn().mockResolvedValue(null),
-}))
-
-import { PATCH } from '@/app/api/v2/tables/[tableId]/columns/route'
-
-const COLUMN = { id: 'col-1', name: 'Status', type: 'text' }
-const TABLE = { id: 'table-1', name: 'Tasks', workspaceId: 'ws-1', schema: { columns: [COLUMN] } }
-
-function patch(updates: Record<string, unknown> = { name: 'State' }) {
-  const req = new NextRequest('http://localhost:3000/api/v2/tables/table-1/columns', {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ workspaceId: 'ws-1', columnName: 'Status', updates }),
+function request(method: 'POST' | 'PATCH' | 'DELETE', body: unknown) {
+  return new NextRequest('http://localhost:3000/api/v2/tables/table-1/columns', {
+    method,
+    headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+    body: JSON.stringify(body),
   })
-  return PATCH(req, { params: Promise.resolve({ tableId: 'table-1' }) })
 }
 
-describe('PATCH /api/v2/tables/[tableId]/columns', () => {
+describe('/api/v2/tables/[tableId]/columns', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckRateLimit.mockResolvedValue({
-      allowed: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workspaceId: 'ws-1',
-      limit: 100,
-      remaining: 99,
-      resetAt: new Date('2026-01-01T01:00:00Z'),
-    })
-    mockResolveWorkspaceScope.mockResolvedValue(null)
-    mockCheckAccess.mockResolvedValue({ ok: true, table: TABLE })
-    mockPerformUpdate.mockResolvedValue({ success: true, table: TABLE })
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.preauthRate.mockResolvedValue(rate)
+    mocks.operationRate.mockResolvedValue(rate)
+    mocks.gate.mockResolvedValue(null)
+    mocks.add.mockResolvedValue({ table })
+    mocks.update.mockResolvedValue({ table, changed: false })
+    mocks.remove.mockResolvedValue({ table })
   })
 
-  it('delegates to the orchestration function with the resolved table and actor', async () => {
-    const res = await patch()
+  it('delegates column creation with canonical path and body inputs', async () => {
+    const req = request('POST', {
+      workspaceId: WORKSPACE_ID,
+      column: { name: 'Name', type: 'string' },
+    })
+    const response = await POST(req, context)
 
-    expect(res.status).toBe(200)
-    expect((await res.json()).data).toEqual({ columns: [COLUMN] })
-    expect(mockPerformUpdate).toHaveBeenCalledWith(
-      expect.objectContaining({ table: TABLE, columnName: 'Status', userId: 'user-1' })
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.columns).toEqual([
+      { id: 'col-1', name: 'Name', type: 'string', required: false, unique: false },
+    ])
+    expect(mocks.add).toHaveBeenCalledWith({
+      principal,
+      input: {
+        tableId: 'table-1',
+        workspaceId: WORKSPACE_ID,
+        column: { name: 'Name', type: 'string' },
+      },
+      request: req,
+    })
+  })
+
+  it('maps typed application validation failures without inspecting messages', async () => {
+    mocks.update.mockRejectedValueOnce(new OrchestrationError('validation', 'Invalid column'))
+
+    const response = await PATCH(
+      request('PATCH', {
+        workspaceId: WORKSPACE_ID,
+        columnName: 'Name',
+        updates: { name: 'Renamed' },
+      }),
+      context
     )
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error.message).toBe('Invalid column')
   })
 
-  it.each([
-    ['validation', 400, 'BAD_REQUEST'],
-    ['not_found', 404, 'NOT_FOUND'],
-    ['locked', 423, 'LOCKED'],
-  ])('maps a %s failure to %i', async (errorCode, status, code) => {
-    mockPerformUpdate.mockResolvedValue({ success: false, errorCode, error: 'nope' })
+  it('delegates deletion and returns the authoritative surviving schema', async () => {
+    const response = await DELETE(
+      request('DELETE', { workspaceId: WORKSPACE_ID, columnName: 'Other' }),
+      context
+    )
 
-    const res = await patch()
-
-    expect(res.status).toBe(status)
-    expect((await res.json()).error.code).toBe(code)
-  })
-
-  it('does not leak an internal failure message', async () => {
-    mockPerformUpdate.mockResolvedValue({
-      success: false,
-      errorCode: 'internal',
-      error: 'connection string leaked',
-    })
-
-    const res = await patch()
-
-    expect(res.status).toBe(500)
-    expect(await res.text()).not.toContain('connection string')
+    expect(response.status).toBe(200)
+    expect(mocks.remove).toHaveBeenCalledOnce()
   })
 })

@@ -1,9 +1,11 @@
 import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
+import {
+  messageForCopilotTableError,
+  resolveCopilotTablePrincipal,
+} from '@/lib/copilot/auth/table-delegation'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -17,11 +19,10 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import type { RowData, TableDefinition } from '@/lib/table'
-import { buildIdByName, rowDataNameToId } from '@/lib/table/column-keys'
+import { replaceTableRows } from '@/lib/table/application/rows'
+import { readTableUseCase } from '@/lib/table/application/tables'
 import { columnTypeOf } from '@/lib/table/column-types'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
-import { replaceTableRows } from '@/lib/table/rows/service'
-import { getTableById } from '@/lib/table/service'
 
 const logger = createLogger('CopilotToolResultTables')
 
@@ -53,46 +54,63 @@ function hasUnsupportedProjectedCell(
  * locking, validation, plan row limits, batching, and rowCount maintenance.
  */
 async function replaceTableRowsFromWire(
-  table: TableDefinition,
+  tableId: string,
   rows: Array<Record<string, unknown>>,
   context: ExecutionContext
-): Promise<{ error?: string }> {
+): Promise<
+  | { success: false; error: string }
+  | { success: true; table: TableDefinition; insertedCount: number; deletedCount: number }
+> {
+  const principal = resolveCopilotTablePrincipal(context, tableId)
+  const { table } = await readTableUseCase.execute({
+    principal,
+    input: { tableId, workspaceId: principal.workspaceId },
+  })
   const persistenceProjection = context.resolvedSecretTraceRegistry
     ? projectToolOutputForPersistence(rows, context.resolvedSecretTraceRegistry)
     : { safe: true as const, value: rows }
-  if (!persistenceProjection.safe) return { error: persistenceProjection.error }
+  if (!persistenceProjection.safe) {
+    return { success: false, error: persistenceProjection.error }
+  }
   if (
     !Array.isArray(persistenceProjection.value) ||
     !persistenceProjection.value.every(isPlainRecord)
   ) {
-    return { error: 'Table rows could not be persisted safely' }
+    return { success: false, error: 'Table rows could not be persisted safely' }
   }
   if (hasUnsupportedProjectedCell(table, rows, persistenceProjection.value)) {
-    return { error: TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR }
+    return { success: false, error: TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR }
   }
 
-  const idByName = buildIdByName(table.schema)
-  const idKeyedRows = persistenceProjection.value.map((row) =>
-    rowDataNameToId(row as RowData, idByName)
+  const projectedRows = persistenceProjection.value.map((row) => row as RowData)
+  const columnNames = new Set(table.schema.columns.map((column) => column.name))
+  const emptyIndex = projectedRows.findIndex(
+    (row) => !Object.keys(row).some((name) => columnNames.has(name))
   )
-  const emptyIndex = idKeyedRows.findIndex((row) => Object.keys(row).length === 0)
   if (emptyIndex !== -1) {
     return {
+      success: false,
       error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
     }
   }
-  await replaceTableRows(
-    {
+  const replacement = await replaceTableRows.execute({
+    principal,
+    input: {
       tableId: table.id,
-      rows: idKeyedRows,
-      workspaceId: table.workspaceId,
-      userId: context.userId,
-      secretProvenance: idKeyedRows.map(createExactEmptyTableRowSecretProvenance),
+      assertedWorkspaceId: principal.workspaceId,
+      rows: projectedRows,
+      secretProvenance: projectedRows.map(createExactEmptyTableRowSecretProvenance),
     },
+  })
+  if (replacement.insertedCount !== projectedRows.length) {
+    throw new Error('Table row replacement inserted an unexpected row count')
+  }
+  return {
+    success: true,
     table,
-    generateId().slice(0, 8)
-  )
-  return {}
+    insertedCount: replacement.insertedCount,
+    deletedCount: replacement.deletedCount,
+  }
 }
 
 export async function maybeWriteOutputToTable(
@@ -103,8 +121,6 @@ export async function maybeWriteOutputToTable(
 ): Promise<ToolCallResult> {
   if (toolName !== FunctionExecute.id) return result
   if (!result.success || !result.output) return result
-  if (!context.workspaceId || !context.userId) return result
-
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
 
@@ -116,19 +132,10 @@ export async function maybeWriteOutputToTable(
     {
       [TraceAttr.ToolName]: toolName,
       [TraceAttr.CopilotTableId]: outputTable,
-      [TraceAttr.WorkspaceId]: context.workspaceId,
+      [TraceAttr.WorkspaceId]: context.workspaceId ?? '',
     },
     async (span) => {
       try {
-        const table = await getTableById(outputTable)
-        if (!table || table.workspaceId !== context.workspaceId) {
-          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.TableNotFound)
-          return {
-            success: false,
-            error: `Table "${outputTable}" not found`,
-          }
-        }
-
         const rawOutput = result.output
         let rows: Array<Record<string, unknown>>
 
@@ -174,8 +181,8 @@ export async function maybeWriteOutputToTable(
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
         }
-        const replaceResult = await replaceTableRowsFromWire(table, rows, context)
-        if (replaceResult.error) {
+        const replaceResult = await replaceTableRowsFromWire(outputTable, rows, context)
+        if (!replaceResult.success) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
           return { success: false, error: replaceResult.error }
         }
@@ -183,21 +190,22 @@ export async function maybeWriteOutputToTable(
         logger.info('Tool output written to table', {
           toolName,
           tableId: outputTable,
-          rowCount: rows.length,
+          rowCount: replaceResult.insertedCount,
+          deletedCount: replaceResult.deletedCount,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Wrote)
         return {
           success: true,
           output: {
-            message: `Wrote ${rows.length} rows to table ${outputTable}`,
+            message: `Wrote ${replaceResult.insertedCount} rows to table ${outputTable}`,
             tableId: outputTable,
-            rowCount: rows.length,
+            rowCount: replaceResult.insertedCount,
           },
         }
       } catch (err) {
-        const rawMessage = toError(err).message
+        const safeMessage = messageForCopilotTableError(err)
         const projectedMessage = projectToolErrorMessageForCopilot(
-          rawMessage,
+          safeMessage,
           context.resolvedSecretTraceRegistry
         )
         logger.warn('Failed to write tool output to table', {
@@ -211,7 +219,7 @@ export async function maybeWriteOutputToTable(
         })
         return {
           success: false,
-          error: `Failed to write to table: ${rawMessage}`,
+          error: `Failed to write to table: ${projectedMessage}`,
         }
       }
     }
@@ -226,8 +234,6 @@ export async function maybeWriteReadCsvToTable(
 ): Promise<ToolCallResult> {
   if (toolName !== ReadTool.id) return result
   if (!result.success || !result.output) return result
-  if (!context.workspaceId || !context.userId) return result
-
   const outputTable = params?.outputTable as string | undefined
   if (!outputTable) return result
 
@@ -239,16 +245,10 @@ export async function maybeWriteReadCsvToTable(
     {
       [TraceAttr.ToolName]: toolName,
       [TraceAttr.CopilotTableId]: outputTable,
-      [TraceAttr.WorkspaceId]: context.workspaceId,
+      [TraceAttr.WorkspaceId]: context.workspaceId ?? '',
     },
     async (span) => {
       try {
-        const table = await getTableById(outputTable)
-        if (!table || table.workspaceId !== context.workspaceId) {
-          span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.TableNotFound)
-          return { success: false, error: `Table "${outputTable}" not found` }
-        }
-
         const output = result.output as Record<string, unknown>
         const content = output.content
         if (typeof content !== 'string') {
@@ -310,8 +310,8 @@ export async function maybeWriteReadCsvToTable(
         if (context.abortSignal?.aborted) {
           throw new Error('Request aborted before tool mutation could be applied')
         }
-        const replaceResult = await replaceTableRowsFromWire(table, rows, context)
-        if (replaceResult.error) {
+        const replaceResult = await replaceTableRowsFromWire(outputTable, rows, context)
+        if (!replaceResult.success) {
           span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.InvalidShape)
           return { success: false, error: replaceResult.error }
         }
@@ -319,24 +319,25 @@ export async function maybeWriteReadCsvToTable(
         logger.info('Read output written to table', {
           toolName,
           tableId: outputTable,
-          tableName: table.name,
-          rowCount: rows.length,
+          tableName: replaceResult.table.name,
+          rowCount: replaceResult.insertedCount,
+          deletedCount: replaceResult.deletedCount,
           filePath,
         })
         span.setAttribute(TraceAttr.CopilotTableOutcome, CopilotTableOutcome.Imported)
         return {
           success: true,
           output: {
-            message: `Imported ${rows.length} rows from "${filePath}" into table "${table.name}"`,
+            message: `Imported ${replaceResult.insertedCount} rows from "${filePath}" into table "${replaceResult.table.name}"`,
             tableId: outputTable,
-            tableName: table.name,
-            rowCount: rows.length,
+            tableName: replaceResult.table.name,
+            rowCount: replaceResult.insertedCount,
           },
         }
       } catch (err) {
-        const rawMessage = toError(err).message
+        const safeMessage = messageForCopilotTableError(err)
         const projectedMessage = projectToolErrorMessageForCopilot(
-          rawMessage,
+          safeMessage,
           context.resolvedSecretTraceRegistry
         )
         logger.warn('Failed to write read output to table', {
@@ -350,7 +351,7 @@ export async function maybeWriteReadCsvToTable(
         })
         return {
           success: false,
-          error: `Failed to import into table: ${rawMessage}`,
+          error: `Failed to import into table: ${projectedMessage}`,
         }
       }
     }

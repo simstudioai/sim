@@ -33,6 +33,7 @@ export interface DelegatedPrincipal {
   expiresAt: Date
   resourceScope?: {
     fileId?: string
+    tableId?: string
     chatId?: string
     executionId?: string
   }

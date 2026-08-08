@@ -2,68 +2,39 @@ import {
   v2CancelTableImportContract,
   v2GetTableImportContract,
 } from '@/lib/api/contracts/v2/tables'
-import {
-  abortTableImportUpload,
-  cancelTableImportResource,
-  getOwnedTableImport,
-  toV2TableImport,
-} from '@/lib/table/orchestration/import-resource'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceScope } from '@/app/api/v1/middleware'
-import {
-  v2CaughtOrchestrationError,
-  v2Data,
-  v2WorkspaceAccessError,
-} from '@/app/api/v2/lib/response'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2TableErrorPolicies } from '@/lib/table/api'
+import { cancelTableImportUseCase, readTableImportUseCase } from '@/lib/table/application/imports'
+import { tableOperations } from '@/lib/table/application/operations'
 
-export const GET = withPublicApiRouteHandler({
+export const dynamic = 'force-dynamic'
+export const revalidate = 0
+
+export const GET = defineV2JsonRoute({
   contract: v2GetTableImportContract,
-  rateLimitEndpoint: 'table-import',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    try {
-      const scopeError = await resolveWorkspaceScope(rateLimit, input.query.workspaceId)
-      if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const record = await getOwnedTableImport({
-        importId: input.params.importId,
-        workspaceId: input.query.workspaceId,
-        userId,
-      })
-      return v2Data(await toV2TableImport(record), { rateLimit })
-    } catch (error) {
-      const classified = v2CaughtOrchestrationError(error)
-      if (classified) return classified
-      throw error
-    }
-  },
+  operation: tableOperations.readImport,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.concealImportAuthorization,
+  mapInput: ({ params, query }) => ({
+    importId: params.importId,
+    workspaceId: query.workspaceId,
+  }),
+  useCase: readTableImportUseCase,
+  present: ({ import: tableImport }) => ({ data: tableImport }),
 })
 
-export const DELETE = withPublicApiRouteHandler({
+export const DELETE = defineV2JsonRoute({
   contract: v2CancelTableImportContract,
-  rateLimitEndpoint: 'table-import',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    try {
-      const scopeError = await resolveWorkspaceScope(rateLimit, input.query.workspaceId)
-      if (scopeError) return v2WorkspaceAccessError(scopeError)
-      const uploadToken = input.headers['upload-token']
-      const record = uploadToken
-        ? await abortTableImportUpload({
-            importId: input.params.importId,
-            workspaceId: input.query.workspaceId,
-            userId,
-            uploadToken,
-          })
-        : await cancelTableImportResource(
-            await getOwnedTableImport({
-              importId: input.params.importId,
-              workspaceId: input.query.workspaceId,
-              userId,
-            })
-          )
-      return v2Data(toV2TableImport(record), { rateLimit })
-    } catch (error) {
-      const classified = v2CaughtOrchestrationError(error)
-      if (classified) return classified
-      throw error
-    }
-  },
+  operation: tableOperations.cancelImport,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.concealImportAuthorization,
+  mapInput: ({ params, query, headers }) => ({
+    importId: params.importId,
+    workspaceId: query.workspaceId,
+    uploadToken: headers['upload-token'],
+  }),
+  useCase: cancelTableImportUseCase,
+  present: ({ import: tableImport }) => ({ data: tableImport }),
 })

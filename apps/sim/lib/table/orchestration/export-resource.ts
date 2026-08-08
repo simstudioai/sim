@@ -9,7 +9,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { runTableExport, type TableExportPayload } from '@/lib/table/export-runner'
-import { markJobCanceled, markJobFailed, markTableJobRunning } from '@/lib/table/jobs/service'
+import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import type { TableDefinition, TableExportJobPayload } from '@/lib/table/types'
 
 export type TableExportRecord = typeof tableJobs.$inferSelect
@@ -20,7 +20,15 @@ export async function createTableExportResource(params: {
 }): Promise<TableExportRecord> {
   const exportId = generateId()
   const payload: TableExportJobPayload = { format: params.format }
-  if (!(await markTableJobRunning(params.table.id, exportId, 'export', payload))) {
+  if (
+    !(await markTableJobRunningInWorkspace(
+      params.table.id,
+      params.table.workspaceId,
+      exportId,
+      'export',
+      payload
+    ))
+  ) {
     throw new OrchestrationError('conflict', 'Failed to start export')
   }
   const runnerPayload: TableExportPayload = {
@@ -48,11 +56,12 @@ export async function createTableExportResource(params: {
         runDetached('table-export', () => runTableExport(runnerPayload))
       }
     } catch (error) {
-      await markJobFailed(
-        params.table.id,
+      await markExportFailed({
+        tableId: params.table.id,
+        workspaceId: params.table.workspaceId,
         exportId,
-        getErrorMessage(error, 'Failed to dispatch table export')
-      )
+        error: getErrorMessage(error, 'Failed to dispatch table export'),
+      })
       throw error
     }
   }
@@ -62,7 +71,7 @@ export async function createTableExportResource(params: {
 
 export async function requireTableExport(
   exportId: string,
-  workspaceId: string
+  assertedWorkspaceId?: string
 ): Promise<TableExportRecord> {
   const [record] = await db
     .select()
@@ -70,8 +79,10 @@ export async function requireTableExport(
     .where(
       and(
         eq(tableJobs.id, exportId),
-        eq(tableJobs.workspaceId, workspaceId),
-        eq(tableJobs.type, 'export')
+        eq(tableJobs.type, 'export'),
+        assertedWorkspaceId === undefined
+          ? undefined
+          : eq(tableJobs.workspaceId, assertedWorkspaceId)
       )
     )
     .limit(1)
@@ -86,8 +97,55 @@ export async function cancelTableExportResource(
   if (record.status !== 'running') {
     throw new OrchestrationError('conflict', `Table export is ${publicExportStatus(record.status)}`)
   }
-  await markJobCanceled(record.tableId, record.id)
+  const now = new Date()
+  const canceled = await db
+    .update(tableJobs)
+    .set({ status: 'canceled', completedAt: now, updatedAt: now })
+    .where(
+      and(
+        eq(tableJobs.id, record.id),
+        eq(tableJobs.tableId, record.tableId),
+        eq(tableJobs.workspaceId, record.workspaceId),
+        eq(tableJobs.type, 'export'),
+        eq(tableJobs.status, 'running')
+      )
+    )
+    .returning({ id: tableJobs.id })
+  if (canceled.length === 0) {
+    const current = await requireTableExport(record.id, record.workspaceId)
+    if (current.status === 'canceled') return current
+    throw new OrchestrationError(
+      'conflict',
+      `Table export is ${publicExportStatus(current.status)}`
+    )
+  }
   return requireTableExport(record.id, record.workspaceId)
+}
+
+async function markExportFailed(params: {
+  tableId: string
+  workspaceId: string
+  exportId: string
+  error: string
+}): Promise<void> {
+  const now = new Date()
+  await db
+    .update(tableJobs)
+    .set({
+      status: 'failed',
+      error: params.error.slice(0, 2000),
+      completedAt: now,
+      updatedAt: now,
+    })
+    .where(
+      and(
+        eq(tableJobs.id, params.exportId),
+        eq(tableJobs.tableId, params.tableId),
+        eq(tableJobs.workspaceId, params.workspaceId),
+        eq(tableJobs.type, 'export'),
+        eq(tableJobs.status, 'running')
+      )
+    )
 }
 
 export function toV2TableExport(record: TableExportRecord, queued = false): V2TableExport {

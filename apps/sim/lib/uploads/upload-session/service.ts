@@ -158,10 +158,13 @@ export async function createUploadSession(
   const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
   const metadata = { ...(params.metadata ?? {}) }
   if (params.purpose === 'workspace_file') {
-    if (!workspaceId) throw new Error('Workspace-file upload is missing workspaceId')
+    if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
     if (!params.principal) {
-      throw new Error('Workspace-file upload requires an authenticated principal')
+      throw new Error(`${params.purpose} upload requires an authenticated principal`)
     }
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+  } else if (params.purpose === 'table_import' && params.principal) {
+    if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
@@ -315,7 +318,10 @@ export async function getOwnedUploadSession(params: {
   if (params.executionId !== undefined && session.executionId !== params.executionId) {
     throw uploadNotFound()
   }
-  if (params.principal && session.purpose === 'workspace_file') {
+  if (
+    params.principal &&
+    (session.purpose === 'workspace_file' || session.purpose === 'table_import')
+  ) {
     assertUploadSessionAuthBinding(session, params.principal)
   }
   return session
@@ -380,11 +386,14 @@ export function assertUploadSessionAuthBinding(
   session: UploadSessionRecord,
   principal: Principal
 ): void {
-  if (session.purpose !== 'workspace_file') return
+  if (session.purpose !== 'workspace_file' && session.purpose !== 'table_import') return
   const candidate = session.metadata.authBinding
   if (candidate === undefined) {
-    assertLegacyUploadSessionOwner(session, principal)
-    return
+    if (session.purpose === 'workspace_file') {
+      assertLegacyUploadSessionOwner(session, principal)
+      return
+    }
+    throw uploadNotFound()
   }
   if (!isUploadSessionAuthBinding(candidate) || candidate.workspaceId !== session.workspaceId) {
     throw uploadNotFound()
