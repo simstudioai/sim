@@ -53,11 +53,16 @@ export const GET = withRouteHandler(async (request: Request) => {
     activeOrganizationId,
     scope,
   })
-  const { lastActiveWorkspaceId, creationPolicy } = payload
+  const { lastActiveWorkspaceId, pinnedWorkspaceIds, creationPolicy } = payload
 
   if (scope === 'active' && payload.workspaces.length === 0) {
     if (!creationPolicy.canCreate) {
-      return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
+      return NextResponse.json({
+        workspaces: [],
+        lastActiveWorkspaceId,
+        pinnedWorkspaceIds,
+        creationPolicy,
+      })
     }
 
     let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
@@ -100,6 +105,7 @@ export const GET = withRouteHandler(async (request: Request) => {
     return NextResponse.json({
       workspaces: [defaultWorkspace],
       lastActiveWorkspaceId,
+      pinnedWorkspaceIds,
       creationPolicy: refreshedCreationPolicy,
     })
   }

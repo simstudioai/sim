@@ -6,8 +6,11 @@ import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
+  EMPTY_PINNED_WORKSPACE_IDS,
   useCreateWorkspace,
   useDeleteWorkspace,
+  usePinnedWorkspaceIds,
+  useToggleWorkspacePin,
   useUpdateWorkspace,
   useWorkspaceCreationPolicy,
   useWorkspacesQuery,
@@ -45,6 +48,10 @@ export function useWorkspaceManagement({
   const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
     Boolean(sessionUserId)
   )
+  const { data: pinnedWorkspaceIds = EMPTY_PINNED_WORKSPACE_IDS } = usePinnedWorkspaceIds(
+    Boolean(sessionUserId)
+  )
+  const { mutate: toggleWorkspacePinMutate } = useToggleWorkspacePin()
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
   const createWorkspaceMutation = useCreateWorkspace()
@@ -87,10 +94,29 @@ export function useWorkspaceManagement({
     }, 1000)
   }, [])
 
-  const sortedWorkspaces = useMemo(
-    () => WorkspaceRecencyStorage.sortByRecency(workspaces),
+  /**
+   * Pinned workspaces float to the top, recency ordering them within each group.
+   * Matches `resource-sort.ts`: pinning is a user-declared priority layered over
+   * the list's own sort, not a competing sort key.
+   */
+  const sortedWorkspaces = useMemo(() => {
+    const byRecency = WorkspaceRecencyStorage.sortByRecency(workspaces)
+    if (pinnedWorkspaceIds.size === 0) return byRecency
+    const pinned: Workspace[] = []
+    const unpinned: Workspace[] = []
+    for (const workspace of byRecency) {
+      if (pinnedWorkspaceIds.has(workspace.id)) pinned.push(workspace)
+      else unpinned.push(workspace)
+    }
+    return [...pinned, ...unpinned]
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [workspaces, recencySortKey]
+  }, [workspaces, recencySortKey, pinnedWorkspaceIds])
+
+  const toggleWorkspacePin = useCallback(
+    (workspaceId: string) => {
+      toggleWorkspacePinMutate({ workspaceId, pinned: !pinnedWorkspaceIds.has(workspaceId) })
+    },
+    [pinnedWorkspaceIds, toggleWorkspacePinMutate]
   )
 
   const activeWorkspace = useMemo(() => {
@@ -233,6 +259,8 @@ export function useWorkspaceManagement({
 
   return {
     workspaces: sortedWorkspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,

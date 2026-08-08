@@ -2,7 +2,7 @@ import { db, pinnedItem } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, ne } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import {
   createPinnedItemContract,
@@ -59,7 +59,15 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       and(
         eq(pinnedItem.userId, session.user.id),
         eq(pinnedItem.workspaceId, workspaceId),
-        resourceType ? eq(pinnedItem.resourceType, resourceType) : undefined
+        /**
+         * A `workspace` pin stores `workspaceId === resourceId`, so it would otherwise
+         * appear in this workspace's unscoped listing as a resource *inside* itself.
+         * It is read from the workspace-list payload instead, so it is excluded here
+         * rather than left for a future unscoped caller to mistake for a real resource.
+         */
+        resourceType
+          ? eq(pinnedItem.resourceType, resourceType)
+          : ne(pinnedItem.resourceType, 'workspace')
       )
     )
 
