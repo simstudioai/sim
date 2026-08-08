@@ -69,6 +69,7 @@ vi.mock('@/lib/core/execution-limits', () => ({
   getMaxExecutionTimeout: () => 10_000,
 }))
 
+import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import {
   MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
   PRIVATE_TOOL_METADATA_REQUEST_HEADER,
@@ -349,7 +350,7 @@ describe('MCP Serve Route', () => {
     const body = await response.json()
 
     expect(response.status).toBe(403)
-    expect(body.error).toBe('Personal API keys are not allowed for this workspace')
+    expect(body.error).toBe(PERSONAL_KEY_DENIED)
     expect(fetchMock).not.toHaveBeenCalled()
     expect(mockGenerateInternalToken).not.toHaveBeenCalled()
   })

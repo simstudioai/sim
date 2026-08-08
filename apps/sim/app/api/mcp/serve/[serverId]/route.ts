@@ -34,6 +34,7 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
+import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import {
@@ -433,10 +434,7 @@ async function authorizeMcpServeRequest(
   const isPersonalApiKey = auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal'
   if (isPersonalApiKey && !server.workspaceAllowsPersonalApiKeys) {
     return {
-      response: NextResponse.json(
-        { error: 'Personal API keys are not allowed for this workspace' },
-        { status: 403 }
-      ),
+      response: NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 }),
     }
   }
 
