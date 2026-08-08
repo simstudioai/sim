@@ -102,7 +102,7 @@ function renderSpan(value: unknown, depth: number): string[] {
   return lines
 }
 
-/** Prints the complete recursive execution trace for an explicitly expanded log. */
+/** Prints the complete recursive run trace for an explicitly expanded log. */
 export function printTraceSpans(format: OutputFormat, traceSpans: unknown[]): void {
   if (format === 'json' || format === 'yaml') return
   console.log('')

@@ -47,7 +47,7 @@ export type AbortFileUploadResponse = {
       type: string
       key: string
       folderPath: string
-      uploadedBy: string
+      uploadedByEmail: string
       uploadedAt: string
       updatedAt: string
     } | null
@@ -329,16 +329,16 @@ export type CancelTableRunsResponse = {
   }
 }
 
-/** `POST /api/v2/workflows/[id]/executions/[executionId]/cancel` */
-export type CancelWorkflowExecutionParams = {
+/** `POST /api/v2/workflows/[id]/runs/[runId]/cancel` */
+export type CancelWorkflowRunParams = {
   id: string
-  executionId: string
+  runId: string
 }
 
-export type CancelWorkflowExecutionResponse = {
+export type CancelWorkflowRunResponse = {
   data: {
     success: boolean
-    executionId: string
+    runId: string
     redisAvailable: boolean
     durablyRecorded: boolean
     locallyAborted: boolean
@@ -389,7 +389,7 @@ export type CompleteFileUploadResponse = {
       type: string
       key: string
       folderPath: string
-      uploadedBy: string
+      uploadedByEmail: string
       uploadedAt: string
       updatedAt: string
     } | null
@@ -493,43 +493,6 @@ export type CompleteTableImportResponse = {
   }
 }
 
-/** `POST /api/v2/credentials` */
-export type CreateCredentialBody = {
-  workspaceId: string
-  type: 'env_workspace' | 'env_personal' | 'service_account'
-  displayName?: string
-  description?: string
-  providerId?: string
-  envKey?: string
-  serviceAccountJson?: string
-  signingSecret?: string
-  botToken?: string
-  apiToken?: string
-  domain?: string
-  clientId?: string
-  clientSecret?: string
-  orgId?: string
-  dataCenter?: string
-}
-
-export type CreateCredentialResponse = {
-  data: {
-    credential: {
-      id: string
-      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
-      displayName: string
-      description: string | null
-      providerId: string | null
-      accountId: string | null
-      envKey: string | null
-      hasServiceAccountKey: boolean
-      role: 'admin' | 'member'
-      createdAt: string
-      updatedAt: string
-    }
-  }
-}
-
 /** `POST /api/v2/custom-tools` */
 export type CreateCustomToolBody = {
   workspaceId: string
@@ -591,7 +554,7 @@ export type CreateFileResponse = {
     type: string
     key: string
     folderPath: string
-    uploadedBy: string
+    uploadedByEmail: string
     uploadedAt: string
     updatedAt: string
   }
@@ -649,7 +612,7 @@ export type CreateFileUploadResponse = {
         type: string
         key: string
         folderPath: string
-        uploadedBy: string
+        uploadedByEmail: string
         uploadedAt: string
         updatedAt: string
       } | null
@@ -1280,7 +1243,7 @@ export type CreateTableViewResponse = {
         }> | null
       }
       isDefault: boolean
-      createdBy: string | null
+      createdByEmail: string | null
       createdAt: string
       updatedAt: string
     }
@@ -1327,22 +1290,6 @@ export type CreateWorkflowFolderResponse = {
       updatedAt: string
       locked: boolean
     }
-  }
-}
-
-/** `DELETE /api/v2/credentials/[id]` */
-export type DeleteCredentialParams = {
-  id: string
-}
-
-export type DeleteCredentialQuery = {
-  workspaceId: string
-}
-
-export type DeleteCredentialResponse = {
-  data: {
-    id: string
-    deleted: true
   }
 }
 
@@ -1459,6 +1406,24 @@ export type DeleteMcpServerQuery = {
 export type DeleteMcpServerResponse = {
   data: {
     id: string
+    deleted: true
+  }
+}
+
+/** `DELETE /api/v2/secrets/[name]` */
+export type DeleteSecretParams = {
+  name: string
+}
+
+export type DeleteSecretQuery = {
+  workspaceId: string
+  scope: 'workspace' | 'personal'
+}
+
+export type DeleteSecretResponse = {
+  data: {
+    name: string
+    scope: 'workspace' | 'personal'
     deleted: true
   }
 }
@@ -1726,9 +1691,13 @@ export type ExecuteWorkflowBody = {
   base64MaxBytes?: number
 }
 
+export type ExecuteWorkflowHeaders = {
+  'x-run-id'?: string
+}
+
 export type ExecuteWorkflowResponse = {
   data: {
-    executionId: string
+    runId: string
     workflowId: string
     status: 'completed' | 'failed' | 'paused' | 'cancelled'
     output: unknown
@@ -1916,7 +1885,6 @@ export type GetAuditLogResponse = {
   data: {
     id: string
     workspaceId: string | null
-    actorId: string | null
     actorName: string | null
     actorEmail: string | null
     action: string
@@ -1947,33 +1915,6 @@ export type GetBillingStatusResponse = {
       used: number
       limit: number
       remaining: number
-    }
-  }
-}
-
-/** `GET /api/v2/credentials/[id]` */
-export type GetCredentialParams = {
-  id: string
-}
-
-export type GetCredentialQuery = {
-  workspaceId: string
-}
-
-export type GetCredentialResponse = {
-  data: {
-    credential: {
-      id: string
-      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
-      displayName: string
-      description: string | null
-      providerId: string | null
-      accountId: string | null
-      envKey: string | null
-      hasServiceAccountKey: boolean
-      role: 'admin' | 'member'
-      createdAt: string
-      updatedAt: string
     }
   }
 }
@@ -2028,7 +1969,7 @@ export type GetFileResponse = {
     type: string
     key: string
     folderPath: string
-    uploadedBy: string
+    uploadedByEmail: string
     uploadedAt: string
     updatedAt: string
   }
@@ -2132,9 +2073,9 @@ export type GetKnowledgeDocumentResponse = {
   }
 }
 
-/** `GET /api/v2/logs/[executionId]` */
+/** `GET /api/v2/logs/[runId]` */
 export type GetLogParams = {
-  executionId: string
+  runId: string
 }
 
 type GetLogResponseRef0 = {
@@ -2181,7 +2122,7 @@ type GetLogResponseRef0 = {
 
 export type GetLogResponse = {
   data: {
-    executionId: string
+    runId: string
     workflowId: string | null
     deploymentVersionId: string | null
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -2196,7 +2137,7 @@ export type GetLogResponse = {
       name: string
       description: string | null
       folderPath: string | null
-      userId: string | null
+      ownerEmail: string | null
       workspaceId: string | null
       createdAt: string | null
       updatedAt: string | null
@@ -2442,7 +2383,7 @@ export type GetTableViewResponse = {
         }> | null
       }
       isDefault: boolean
-      createdBy: string | null
+      createdByEmail: string | null
       createdAt: string
       updatedAt: string
     }
@@ -2476,20 +2417,20 @@ export type GetWorkflowResponse = {
   }
 }
 
-/** `GET /api/v2/workflows/[id]/executions/[executionId]` */
-export type GetWorkflowExecutionParams = {
+/** `GET /api/v2/workflows/[id]/runs/[runId]` */
+export type GetWorkflowRunParams = {
   id: string
-  executionId: string
+  runId: string
 }
 
-export type GetWorkflowExecutionQuery = {
+export type GetWorkflowRunQuery = {
   includeOutput?: 'true' | 'false'
   selectedOutputs?: string
 }
 
-export type GetWorkflowExecutionResponse = {
+export type GetWorkflowRunResponse = {
   data: {
-    executionId: string
+    runId: string
     workflowId: string
     status: 'queued' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
     trigger: string | null
@@ -2503,7 +2444,6 @@ export type GetWorkflowExecutionResponse = {
       pauseKind: 'time' | 'human' | null
       blockedOnBlockId: string | null
       automaticResumeWaitingReason: string | null
-      pausedExecutionId: string
       pausePointCount: number
       resumedCount: number
     } | null
@@ -2548,6 +2488,24 @@ export type GetWorkflowVersionResponse = {
   }
 }
 
+/** `GET /api/v2/workspaces/[workspaceId]` */
+export type GetWorkspaceParams = {
+  workspaceId: string
+}
+
+export type GetWorkspaceResponse = {
+  data: {
+    id: string
+    name: string
+    color: string
+    logoUrl: string | null
+    mode: 'personal' | 'organization' | 'grandfathered_shared'
+    memberCount: number
+    createdAt: string
+    updatedAt: string
+  }
+}
+
 /** `POST /api/v2/workflows/import` */
 export type ImportWorkflowBody = {
   workspaceId: string
@@ -2575,20 +2533,19 @@ export type ListAuditLogsQuery = {
   resourceType?: string
   resourceId?: string
   workspaceId?: string
-  actorId?: string
   startDate?: string
   endDate?: string
   includeDeparted?: 'true' | 'false'
   limit?: number
   cursor?: string
   organizationId: string
+  actorEmail?: string
 }
 
 export type ListAuditLogsResponse = {
   data: Array<{
     id: string
     workspaceId: string | null
-    actorId: string | null
     actorName: string | null
     actorEmail: string | null
     action: string
@@ -2641,7 +2598,7 @@ export type ListBillingLogsResponse = {
       id: string
       name: string | null
     } | null
-    executionId: string | null
+    runId: string | null
     creditCost: number
   }>
   nextCursor: string | null
@@ -2650,7 +2607,7 @@ export type ListBillingLogsResponse = {
 /** `GET /api/v2/credentials` */
 export type ListCredentialsQuery = {
   workspaceId: string
-  type?: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+  type?: 'oauth' | 'service_account'
   providerId?: string
   search?: string
   sortBy?: 'displayName' | 'createdAt' | 'updatedAt'
@@ -2660,12 +2617,11 @@ export type ListCredentialsQuery = {
 export type ListCredentialsResponse = {
   data: Array<{
     id: string
-    type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
+    type: 'oauth' | 'service_account'
     displayName: string
     description: string | null
     providerId: string | null
     accountId: string | null
-    envKey: string | null
     hasServiceAccountKey: boolean
     role: 'admin' | 'member'
     createdAt: string
@@ -2744,7 +2700,7 @@ export type ListFilesResponse = {
     type: string
     key: string
     folderPath: string
-    uploadedBy: string
+    uploadedByEmail: string
     uploadedAt: string
     updatedAt: string
   }>
@@ -2856,7 +2812,6 @@ export type ListLogsQuery = {
   level?: 'info' | 'error'
   startDate?: string
   endDate?: string
-  executionId?: string
   minDurationMs?: number
   maxDurationMs?: number
   minCost?: number
@@ -2868,6 +2823,7 @@ export type ListLogsQuery = {
   limit?: number
   cursor?: string
   order?: 'desc' | 'asc'
+  runId?: string
   folderPaths?: string
 }
 
@@ -2915,7 +2871,7 @@ type ListLogsResponseRef0 = {
 
 export type ListLogsResponse = {
   data: Array<{
-    executionId: string
+    runId: string
     workflowId: string | null
     deploymentVersionId: string | null
     status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled'
@@ -2970,6 +2926,26 @@ export type ListMcpServersResponse = {
     hasHeaders: boolean
     headerNames: Array<string>
     hasOauthClientSecret: boolean
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/secrets` */
+export type ListSecretsQuery = {
+  workspaceId: string
+  scope?: 'workspace' | 'personal'
+  search?: string
+  sortBy?: 'name' | 'createdAt' | 'updatedAt'
+  sortOrder?: 'asc' | 'desc'
+}
+
+export type ListSecretsResponse = {
+  data: Array<{
+    name: string
+    scope: 'workspace' | 'personal'
+    role: 'admin' | 'member'
+    createdAt: string
+    updatedAt: string
   }>
   nextCursor: string | null
 }
@@ -3115,40 +3091,9 @@ export type ListTableViewsResponse = {
       }> | null
     }
     isDefault: boolean
-    createdBy: string | null
+    createdByEmail: string | null
     createdAt: string
     updatedAt: string
-  }>
-  nextCursor: string | null
-}
-
-/** `GET /api/v2/workflows/[id]/executions` */
-export type ListWorkflowExecutionsParams = {
-  id: string
-}
-
-export type ListWorkflowExecutionsQuery = {
-  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
-  trigger?: string
-  startDate?: string
-  endDate?: string
-  limit?: number
-  cursor?: string
-  order?: 'asc' | 'desc'
-}
-
-export type ListWorkflowExecutionsResponse = {
-  data: Array<{
-    executionId: string
-    workflowId: string
-    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
-    trigger: string
-    startedAt: string
-    endedAt: string | null
-    durationMs: number | null
-    cost: {
-      total: number
-    } | null
   }>
   nextCursor: string | null
 }
@@ -3209,6 +3154,37 @@ export type ListWorkflowGroupsResponse = {
   nextCursor: string | null
 }
 
+/** `GET /api/v2/workflows/[id]/runs` */
+export type ListWorkflowRunsParams = {
+  id: string
+}
+
+export type ListWorkflowRunsQuery = {
+  status?: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+  trigger?: string
+  startDate?: string
+  endDate?: string
+  limit?: number
+  cursor?: string
+  order?: 'asc' | 'desc'
+}
+
+export type ListWorkflowRunsResponse = {
+  data: Array<{
+    runId: string
+    workflowId: string
+    status: 'pending' | 'running' | 'completed' | 'failed' | 'cancelled' | 'paused'
+    trigger: string
+    startedAt: string
+    endedAt: string | null
+    durationMs: number | null
+    cost: {
+      total: number
+    } | null
+  }>
+  nextCursor: string | null
+}
+
 /** `GET /api/v2/workflows` */
 export type ListWorkflowsQuery = {
   workspaceId: string
@@ -3258,6 +3234,28 @@ export type ListWorkflowVersionsResponse = {
     createdAt: string
     deployedBy?: string | null
     latestOperationStatus?: 'preparing' | 'activating' | 'active' | 'failed' | 'superseded' | null
+  }>
+  nextCursor: string | null
+}
+
+/** `GET /api/v2/workspaces/[workspaceId]/members` */
+export type ListWorkspaceMembersParams = {
+  workspaceId: string
+}
+
+export type ListWorkspaceMembersQuery = {
+  limit?: number
+  cursor?: string
+}
+
+export type ListWorkspaceMembersResponse = {
+  data: Array<{
+    email: string
+    name: string
+    image: string | null
+    role: 'admin' | 'write' | 'read'
+    isExternal: boolean
+    joinedAt: string
   }>
   nextCursor: string | null
 }
@@ -3398,16 +3396,16 @@ export type RenameFileResponse = {
     type: string
     key: string
     folderPath: string
-    uploadedBy: string
+    uploadedByEmail: string
     uploadedAt: string
     updatedAt: string
   }
 }
 
-/** `POST /api/v2/workflows/[id]/executions/[executionId]/resume` */
+/** `POST /api/v2/workflows/[id]/runs/[runId]/resume` */
 export type ResumeWorkflowParams = {
   id: string
-  executionId: string
+  runId: string
 }
 
 export type ResumeWorkflowBody = {
@@ -3418,7 +3416,7 @@ export type ResumeWorkflowBody = {
 export type ResumeWorkflowResponse =
   | {
       data: {
-        executionId: string
+        runId: string
         workflowId: string
         status: 'completed' | 'failed' | 'paused' | 'cancelled'
         output: unknown
@@ -3444,7 +3442,7 @@ export type ResumeWorkflowResponse =
     }
   | {
       data: {
-        executionId: string
+        runId: string
         statusUrl: string
         queuePosition?: number
       }
@@ -3565,6 +3563,29 @@ export type SearchKnowledgeResponse = {
   }
 }
 
+/** `PUT /api/v2/secrets/[name]` */
+export type SetSecretParams = {
+  name: string
+}
+
+export type SetSecretBody = {
+  workspaceId: string
+  scope: 'workspace' | 'personal'
+  value: string
+}
+
+export type SetSecretResponse = {
+  data: {
+    secret: {
+      name: string
+      scope: 'workspace' | 'personal'
+      role: 'admin' | 'member'
+      createdAt: string
+      updatedAt: string
+    }
+  }
+}
+
 /** `GET /api/v2/tables/exports/[exportId]/download` */
 export type TableExportDownloadParams = {
   exportId: string
@@ -3618,44 +3639,6 @@ export type UndeployWorkflowResponse = {
         retryable: boolean
       } | null
     } | null
-  }
-}
-
-/** `PATCH /api/v2/credentials/[id]` */
-export type UpdateCredentialParams = {
-  id: string
-}
-
-export type UpdateCredentialBody = {
-  workspaceId: string
-  displayName?: string
-  description?: string | null
-  serviceAccountJson?: string
-  signingSecret?: string
-  botToken?: string
-  apiToken?: string
-  domain?: string
-  clientId?: string
-  clientSecret?: string
-  orgId?: string
-  dataCenter?: string
-}
-
-export type UpdateCredentialResponse = {
-  data: {
-    credential: {
-      id: string
-      type: 'oauth' | 'env_workspace' | 'env_personal' | 'service_account'
-      displayName: string
-      description: string | null
-      providerId: string | null
-      accountId: string | null
-      envKey: string | null
-      hasServiceAccountKey: boolean
-      role: 'admin' | 'member'
-      createdAt: string
-      updatedAt: string
-    }
   }
 }
 
@@ -3725,7 +3708,7 @@ export type UpdateFileContentResponse = {
     type: string
     key: string
     folderPath: string
-    uploadedBy: string
+    uploadedByEmail: string
     uploadedAt: string
     updatedAt: string
   }
@@ -4079,7 +4062,7 @@ export type UpdateTableViewResponse = {
         }> | null
       }
       isDefault: boolean
-      createdBy: string | null
+      createdByEmail: string | null
       createdAt: string
       updatedAt: string
     }
@@ -4393,12 +4376,12 @@ export const V2_OPERATIONS = {
       excludeRowIds: { kind: 'array' },
     },
   },
-  cancelWorkflowExecution: {
+  cancelWorkflowRun: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/executions/[executionId]/cancel',
-    pathParams: ['id', 'executionId'] as const,
+    path: '/api/v2/workflows/[id]/runs/[runId]/cancel',
+    pathParams: ['id', 'runId'] as const,
     responseMode: 'json',
-    summary: 'Cancel an execution',
+    summary: 'Cancel a run',
   },
   completeFileUpload: {
     method: 'POST',
@@ -4428,34 +4411,6 @@ export const V2_OPERATIONS = {
     summary: 'Complete Table Import Upload',
     query: {
       workspaceId: { kind: 'string', required: true },
-    },
-  },
-  createCredential: {
-    method: 'POST',
-    path: '/api/v2/credentials',
-    pathParams: [] as const,
-    responseMode: 'json',
-    summary: 'Create Credential',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      type: {
-        kind: 'enum',
-        required: true,
-        values: ['env_workspace', 'env_personal', 'service_account'] as const,
-      },
-      displayName: { kind: 'string' },
-      description: { kind: 'string' },
-      providerId: { kind: 'string' },
-      envKey: { kind: 'string' },
-      serviceAccountJson: { kind: 'string' },
-      signingSecret: { kind: 'string' },
-      botToken: { kind: 'string' },
-      apiToken: { kind: 'string' },
-      domain: { kind: 'string' },
-      clientId: { kind: 'string' },
-      clientSecret: { kind: 'string' },
-      orgId: { kind: 'string' },
-      dataCenter: { kind: 'string' },
     },
   },
   createCustomTool: {
@@ -4728,16 +4683,6 @@ export const V2_OPERATIONS = {
       path: { kind: 'string', required: true },
     },
   },
-  deleteCredential: {
-    method: 'DELETE',
-    path: '/api/v2/credentials/[id]',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'Delete Credential',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-    },
-  },
   deleteCustomTool: {
     method: 'DELETE',
     path: '/api/v2/custom-tools/[id]',
@@ -4810,6 +4755,17 @@ export const V2_OPERATIONS = {
     summary: 'Delete MCP Server',
     query: {
       workspaceId: { kind: 'string', required: true },
+    },
+  },
+  deleteSecret: {
+    method: 'DELETE',
+    path: '/api/v2/secrets/[name]',
+    pathParams: ['name'] as const,
+    responseMode: 'json',
+    summary: 'Delete Secret',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', required: true, values: ['workspace', 'personal'] as const },
     },
   },
   deleteSkill: {
@@ -4993,16 +4949,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string' },
     },
   },
-  getCredential: {
-    method: 'GET',
-    path: '/api/v2/credentials/[id]',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'Get Credential',
-    query: {
-      workspaceId: { kind: 'string', required: true },
-    },
-  },
   getCustomTool: {
     method: 'GET',
     path: '/api/v2/custom-tools/[id]',
@@ -5055,8 +5001,8 @@ export const V2_OPERATIONS = {
   },
   getLog: {
     method: 'GET',
-    path: '/api/v2/logs/[executionId]',
-    pathParams: ['executionId'] as const,
+    path: '/api/v2/logs/[runId]',
+    pathParams: ['runId'] as const,
     responseMode: 'json',
     summary: 'Get Log',
   },
@@ -5137,12 +5083,12 @@ export const V2_OPERATIONS = {
     responseMode: 'json',
     summary: 'Get Workflow',
   },
-  getWorkflowExecution: {
+  getWorkflowRun: {
     method: 'GET',
-    path: '/api/v2/workflows/[id]/executions/[executionId]',
-    pathParams: ['id', 'executionId'] as const,
+    path: '/api/v2/workflows/[id]/runs/[runId]',
+    pathParams: ['id', 'runId'] as const,
     responseMode: 'json',
-    summary: 'Get execution status',
+    summary: 'Get run status',
     query: {
       includeOutput: { kind: 'enum', values: ['true', 'false'] as const },
       selectedOutputs: { kind: 'string' },
@@ -5154,6 +5100,13 @@ export const V2_OPERATIONS = {
     pathParams: ['id', 'version'] as const,
     responseMode: 'json',
     summary: 'Get Workflow Version',
+  },
+  getWorkspace: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]',
+    pathParams: ['workspaceId'] as const,
+    responseMode: 'json',
+    summary: 'Get Workspace',
   },
   importWorkflow: {
     method: 'POST',
@@ -5180,13 +5133,13 @@ export const V2_OPERATIONS = {
       resourceType: { kind: 'string' },
       resourceId: { kind: 'string' },
       workspaceId: { kind: 'string' },
-      actorId: { kind: 'string' },
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
       includeDeparted: { kind: 'enum', values: ['true', 'false'] as const },
       limit: { kind: 'number', default: 50 },
       cursor: { kind: 'string' },
       organizationId: { kind: 'string', required: true },
+      actorEmail: { kind: 'string' },
     },
   },
   listBillingLogs: {
@@ -5230,10 +5183,7 @@ export const V2_OPERATIONS = {
     summary: 'List Credentials',
     query: {
       workspaceId: { kind: 'string', required: true },
-      type: {
-        kind: 'enum',
-        values: ['oauth', 'env_workspace', 'env_personal', 'service_account'] as const,
-      },
+      type: { kind: 'enum', values: ['oauth', 'service_account'] as const },
       providerId: { kind: 'string' },
       search: { kind: 'string' },
       sortBy: {
@@ -5380,7 +5330,6 @@ export const V2_OPERATIONS = {
       level: { kind: 'enum', values: ['info', 'error'] as const },
       startDate: { kind: 'string' },
       endDate: { kind: 'string' },
-      executionId: { kind: 'string' },
       minDurationMs: { kind: 'number' },
       maxDurationMs: { kind: 'number' },
       minCost: { kind: 'number' },
@@ -5392,6 +5341,7 @@ export const V2_OPERATIONS = {
       limit: { kind: 'number', default: 100 },
       cursor: { kind: 'string' },
       order: { kind: 'enum', values: ['desc', 'asc'] as const, default: 'desc' },
+      runId: { kind: 'string' },
       folderPaths: { kind: 'string' },
     },
   },
@@ -5410,6 +5360,24 @@ export const V2_OPERATIONS = {
         default: 'createdAt',
       },
       sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
+    },
+  },
+  listSecrets: {
+    method: 'GET',
+    path: '/api/v2/secrets',
+    pathParams: [] as const,
+    responseMode: 'json',
+    summary: 'List Secrets',
+    query: {
+      workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', values: ['workspace', 'personal'] as const },
+      search: { kind: 'string' },
+      sortBy: {
+        kind: 'enum',
+        values: ['name', 'createdAt', 'updatedAt'] as const,
+        default: 'name',
+      },
+      sortOrder: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'asc' },
     },
   },
   listSkills: {
@@ -5489,25 +5457,6 @@ export const V2_OPERATIONS = {
       workspaceId: { kind: 'string', required: true },
     },
   },
-  listWorkflowExecutions: {
-    method: 'GET',
-    path: '/api/v2/workflows/[id]/executions',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'List workflow executions',
-    query: {
-      status: {
-        kind: 'enum',
-        values: ['pending', 'running', 'completed', 'failed', 'cancelled', 'paused'] as const,
-      },
-      trigger: { kind: 'string' },
-      startDate: { kind: 'string' },
-      endDate: { kind: 'string' },
-      limit: { kind: 'integer', default: 50 },
-      cursor: { kind: 'string' },
-      order: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
-    },
-  },
   listWorkflowFolders: {
     method: 'GET',
     path: '/api/v2/workflows/folders',
@@ -5534,6 +5483,25 @@ export const V2_OPERATIONS = {
     summary: 'List Workflow Groups',
     query: {
       workspaceId: { kind: 'string', required: true },
+    },
+  },
+  listWorkflowRuns: {
+    method: 'GET',
+    path: '/api/v2/workflows/[id]/runs',
+    pathParams: ['id'] as const,
+    responseMode: 'json',
+    summary: 'List workflow runs',
+    query: {
+      status: {
+        kind: 'enum',
+        values: ['pending', 'running', 'completed', 'failed', 'cancelled', 'paused'] as const,
+      },
+      trigger: { kind: 'string' },
+      startDate: { kind: 'string' },
+      endDate: { kind: 'string' },
+      limit: { kind: 'integer', default: 50 },
+      cursor: { kind: 'string' },
+      order: { kind: 'enum', values: ['asc', 'desc'] as const, default: 'desc' },
     },
   },
   listWorkflows: {
@@ -5563,6 +5531,17 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'List Workflow Versions',
+    query: {
+      limit: { kind: 'integer', default: 50 },
+      cursor: { kind: 'string' },
+    },
+  },
+  listWorkspaceMembers: {
+    method: 'GET',
+    path: '/api/v2/workspaces/[workspaceId]/members',
+    pathParams: ['workspaceId'] as const,
+    responseMode: 'json',
+    summary: 'List Workspace Members',
     query: {
       limit: { kind: 'integer', default: 50 },
       cursor: { kind: 'string' },
@@ -5655,10 +5634,10 @@ export const V2_OPERATIONS = {
   },
   resumeWorkflow: {
     method: 'POST',
-    path: '/api/v2/workflows/[id]/executions/[executionId]/resume',
-    pathParams: ['id', 'executionId'] as const,
+    path: '/api/v2/workflows/[id]/runs/[runId]/resume',
+    pathParams: ['id', 'runId'] as const,
     responseMode: 'json',
-    summary: 'Resume a workflow execution',
+    summary: 'Resume a workflow run',
     body: {
       contextId: { kind: 'string', required: true },
       input: { kind: 'unknown' },
@@ -5712,6 +5691,18 @@ export const V2_OPERATIONS = {
       searchMode: { kind: 'enum', default: 'vector' },
     },
   },
+  setSecret: {
+    method: 'PUT',
+    path: '/api/v2/secrets/[name]',
+    pathParams: ['name'] as const,
+    responseMode: 'json',
+    summary: 'Set Secret',
+    body: {
+      workspaceId: { kind: 'string', required: true },
+      scope: { kind: 'enum', required: true, values: ['workspace', 'personal'] as const },
+      value: { kind: 'string', required: true },
+    },
+  },
   tableExportDownload: {
     method: 'GET',
     path: '/api/v2/tables/exports/[exportId]/download',
@@ -5728,27 +5719,6 @@ export const V2_OPERATIONS = {
     pathParams: ['id'] as const,
     responseMode: 'json',
     summary: 'Undeploy Workflow',
-  },
-  updateCredential: {
-    method: 'PATCH',
-    path: '/api/v2/credentials/[id]',
-    pathParams: ['id'] as const,
-    responseMode: 'json',
-    summary: 'Update Credential',
-    body: {
-      workspaceId: { kind: 'string', required: true },
-      displayName: { kind: 'string' },
-      description: { kind: 'string' },
-      serviceAccountJson: { kind: 'string' },
-      signingSecret: { kind: 'string' },
-      botToken: { kind: 'string' },
-      apiToken: { kind: 'string' },
-      domain: { kind: 'string' },
-      clientId: { kind: 'string' },
-      clientSecret: { kind: 'string' },
-      orgId: { kind: 'string' },
-      dataCenter: { kind: 'string' },
-    },
   },
   updateCustomTool: {
     method: 'PATCH',

@@ -17,9 +17,11 @@ const GROUP_ALIASES: Readonly<Record<string, string>> = {
   knowledge: 'kb',
   logs: 'log',
   'mcp-servers': 'mcp-server',
+  secrets: 'secret',
   skills: 'skill',
   tables: 'table',
   workflows: 'workflow',
+  workspaces: 'workspace',
 }
 
 function argumentSyntax(command: Command): string {

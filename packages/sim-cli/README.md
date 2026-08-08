@@ -123,13 +123,13 @@ sim workflows update <id> [--name <name>] [--description <text>] [--folder <path
 sim workflows mv <id> <folder>
 sim workflows deploy|undeploy|rollback <id>
 sim workflows run <id> [--input <json|@file>] [--select-output <path>…] [--async]
-sim workflows executions list --workflow <workflowId> [--status <status>]
-sim workflows executions get <executionId> --workflow <workflowId> [--include-output]
-sim workflows executions cancel <executionId> --workflow <workflowId>
-sim workflows executions resume <executionId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
+sim workflows runs list --workflow <workflowId> [--status <status>]
+sim workflows runs get <runId> --workflow <workflowId> [--include-output]
+sim workflows runs cancel <runId> --workflow <workflowId>
+sim workflows runs resume <runId> --workflow <workflowId> --context <contextId> [--input <json|@file>]
 
 sim logs list [--level error] [--workflow <id>…] [--trigger <name>…] [--start-date <date>]
-sim logs get <executionId>
+sim logs get <runId>
 
 sim audit-logs list --organization <organizationId> [--all-workspaces]
 sim audit-logs get <id> --organization <organizationId>
@@ -178,17 +178,17 @@ The `sim-chat` billing source combines Copilot and workspace chat usage.
 Organization audit logs require a personal API key. Commands with
 `--all-workspaces` otherwise default to the workspace in the active profile.
 
-`workflows executions get` is the lightweight status and polling resource.
-`--workflow` names the parent resource, while the execution ID remains positional.
-For a paused execution, its status includes the context ID needed by `resume`.
+`workflows runs get` is the lightweight status and polling resource.
+`--workflow` names the parent resource, while the run ID remains positional.
+For a paused run, its status includes the context ID needed by `resume`.
 `logs get` is the full diagnostic resource. It keeps the default human output
 concise; add `--trace` for the expanded recursive trace with span inputs,
 outputs, errors, timing, and cost. JSON and YAML retain the complete structured
 response:
 
 ```bash
-sim logs get <executionId> --trace
-sim logs get <executionId> --output json | jq '.traceSpans'
+sim logs get <runId> --trace
+sim logs get <runId> --output json | jq '.traceSpans'
 sim logs list --include-trace-spans --output json
 ```
 
@@ -272,8 +272,8 @@ parsing.
 sim configure --set-output json                      # for this profile, from now on
 sim configure --set-output text --profile scripts    # a profile dedicated to scripting
 
-sim --output json logs list --level error | jq -r '.[].executionId'
-sim logs list --level error --output json | jq -r '.[].executionId'
+sim --output json logs list --level error | jq -r '.[].runId'
+sim logs list --level error --output json | jq -r '.[].runId'
 SIM_OUTPUT=yaml sim logs list --level error > logs.yaml
 
 SIM_OUTPUT=text sim files list | while IFS=$'\t' read -r id name size type uploaded; do
