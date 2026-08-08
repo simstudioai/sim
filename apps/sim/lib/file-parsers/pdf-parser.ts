@@ -125,7 +125,12 @@ async function extractTextWithinBudget(pdf: PdfDocumentProxy): Promise<BoundedEx
     const { text, used, completed } = await readPageWithinBudget(page, remainingChars, deadline)
 
     remainingChars -= used
-    pageTexts.push(text)
+
+    // A page the budget cut off before it yielded anything was never really
+    // read, so it must not count toward `pagesRead` or add a blank separator.
+    if (completed || text.length > 0) {
+      pageTexts.push(text)
+    }
     page.cleanup()
 
     if (!completed) {
@@ -181,18 +186,22 @@ export class PdfParser implements FileParser {
           logger.warn(PDF_TRUNCATION_WARNING, { totalPages, pagesRead, textLength: text.length })
         }
 
+        const body = sanitizeTextForUTF8(text)
+
         // Callers only ever read `content`, so without an inline notice a truncated
-        // document is indistinguishable from a complete one. Empty text yields no
-        // notice, so a text-free PDF still reports as empty rather than as a lone notice.
+        // document is indistinguishable from a complete one. Tested after sanitizing
+        // and against `trim`, because a text-free multi-page PDF collapses to a lone
+        // separator — appending a notice to that would turn a document callers treat
+        // as empty into one that looks like it holds content.
         const notice =
-          truncated && text.length > 0
+          truncated && body.trim().length > 0
             ? truncationNotice(
                 `PDF text truncated at parser limits, showing first ${pagesRead} of ${totalPages} pages`
               )
             : ''
 
         return {
-          content: sanitizeTextForUTF8(text + notice),
+          content: body + notice,
           metadata: {
             pageCount: totalPages,
             source: 'unpdf',

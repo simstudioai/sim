@@ -33,6 +33,24 @@ function buildTextBombPdf(repeats: number): Buffer {
     Buffer.from('<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'),
   ]
 
+  return assemblePdf(objects)
+}
+
+/** Builds a PDF whose pages carry no content stream, so nothing is extractable. */
+function buildTextFreePdf(pageCount: number): Buffer {
+  const pageIds = Array.from({ length: pageCount }, (_, i) => 3 + i)
+
+  return assemblePdf([
+    Buffer.from('<< /Type /Catalog /Pages 2 0 R >>'),
+    Buffer.from(
+      `<< /Type /Pages /Kids [${pageIds.map((id) => `${id} 0 R`).join(' ')}] /Count ${pageCount} >>`
+    ),
+    ...pageIds.map(() => Buffer.from('<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>')),
+  ])
+}
+
+/** Serializes numbered objects into a PDF with a matching xref table and trailer. */
+function assemblePdf(objects: Buffer[]): Buffer {
   const chunks: Buffer[] = [Buffer.from('%PDF-1.4\n')]
   const offsets: number[] = []
   let offset = chunks[0].length
@@ -87,5 +105,12 @@ describe('PdfParser', () => {
     expect(result.metadata?.pageCount).toBe(1)
     expect(result.content).toContain('AAAA')
     expect(result.content).not.toContain('truncated')
+  }, 30_000)
+
+  it('reports a multi-page PDF with no extractable text as empty', async () => {
+    const result = await new PdfParser().parseBuffer(buildTextFreePdf(3))
+
+    expect(result.content.trim()).toBe('')
+    expect(result.content).not.toContain('[...')
   }, 30_000)
 })
