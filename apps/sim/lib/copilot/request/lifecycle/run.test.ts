@@ -1841,6 +1841,7 @@ describe('runCopilotLifecycle', () => {
     )
 
     expect(fetchUrls[1]).toBe('http://mothership.test/api/tools/resume')
+    expect(mockUpdateRunStatus).toHaveBeenCalledWith('run-1', 'resuming')
     expect(requestBodies[1]).toEqual(
       expect.objectContaining({
         checkpointId: 'ckpt-1',

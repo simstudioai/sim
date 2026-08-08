@@ -32,7 +32,7 @@ program
   .name('sim')
   .description('Talk to the Sim API from your terminal')
   .version(readPackageVersion())
-  .option('-P, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
+  .option('-p, --profile <name>', 'Profile to use (env: SIM_PROFILE)')
   .option('--endpoint <url>', 'Sim deployment to talk to (env: SIM_ENDPOINT)')
   .option('-w, --workspace <id>', 'Workspace to target (env: SIM_WORKSPACE)')
   .addOption(
@@ -55,12 +55,12 @@ program.addHelpText(
   'after',
   `
 Profiles work like the AWS CLI: settings live in ~/.sim/config, keys in
-~/.sim/credentials (0600). Select one with -P, --profile, or SIM_PROFILE.
+~/.sim/credentials (0600). Select one with -p, --profile, or SIM_PROFILE.
 
 Examples:
   $ sim login                                    Authorize the default profile
   $ sim login --profile dev --endpoint http://localhost:3000
-  $ sim chat -p "Which workflows handle support tickets?"
+  $ sim chat ask "Which workflows handle support tickets?"
   $ sim workflows list
   $ sim logs list --level error --limit 20
   $ sim --output json tables get tbl_123        Override output for one command

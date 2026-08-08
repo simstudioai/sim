@@ -88,8 +88,9 @@ const FILE_SUBAGENT = 'file'
 
 /**
  * Request-local projection of the private Mothership stream onto the public
- * activity tree. Raw span/tool ids, arguments, results, errors, and thinking
- * never cross this boundary.
+ * activity tree. Raw span/tool ids, argument/result objects, errors, and
+ * thinking never cross this boundary. Labels may summarize the same
+ * user-visible target or operation shown in Sim Home.
  */
 export class ChatActivityProjector {
   private readonly calls = new Map<string, ToolProjection>()

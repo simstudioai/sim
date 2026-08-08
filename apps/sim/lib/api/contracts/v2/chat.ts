@@ -170,6 +170,20 @@ export const v2ChatBodySchema = z
     continuationToken: z.string().min(1).max(MAX_V2_CHAT_CONTINUATION_TOKEN_LENGTH).optional(),
     /** Normal Mothership is the default; this explicitly selects its read-only projection. */
     readOnly: z.boolean().optional().default(false),
+    /**
+     * Keep an accepted persisted turn running after the caller disconnects.
+     * The route requires a personal API key and `persistChat: true` so it can
+     * return a durable run id that another client can follow.
+     */
+    async: z.boolean().optional().default(false),
+    /**
+     * Whether this turn may create a chat that shows up in the workspace's chat
+     * list. `false` matches the Mothership block: the turn still gets a chat id
+     * and stays continuable through its token, but leaves no row behind for the
+     * UI or `sim chats list` to surface. Only suppresses *creating* a chat — a
+     * continuation token for an already-persisted chat keeps persisting.
+     */
+    persistChat: z.boolean().optional().default(true),
     attachments: z.array(v2ChatAttachmentSchema).max(MAX_V2_CHAT_ATTACHMENTS).optional(),
     contexts: z.array(v2ChatContextSchema).max(MAX_V2_CHAT_CONTEXTS).optional(),
   })
@@ -189,8 +203,10 @@ export type V2ChatBody = z.input<typeof v2ChatBodySchema>
  * A normal workspace Mothership turn. Omit `continuationToken` for a one-shot
  * or the first interactive turn; pass the latest server-issued token to
  * continue the same private conversation. `readOnly` explicitly selects the
- * secretless query projection. Successful responses are SSE so proxies stay
- * alive during long agent turns and callers can cancel the run.
+ * secretless query projection. `async: true` keeps an accepted persisted turn
+ * running after disconnect. `persistChat: false` runs the turn without leaving
+ * a chat behind in the workspace's chat list. Successful responses are SSE so
+ * proxies stay alive during long agent turns and callers can cancel the run.
  */
 export const v2ChatContract = defineRouteContract({
   method: 'POST',

@@ -12,8 +12,8 @@ import {
   listOrderBy,
   numberKey,
   searchFilter,
-  textKey,
   timestampKey,
+  uuidKey,
 } from '@/lib/api/list-query'
 import { parseRequest } from '@/lib/api/server'
 import { reconcileChatStreamMarkers } from '@/lib/copilot/chat/stream-liveness'
@@ -50,7 +50,7 @@ const pinnedRank = sql<number>`case when ${copilotChats.pinned} then 1 else 0 en
 const CHAT_KEYS = [
   numberKey<ChatRow>(pinnedRank, (row) => (row.pinned ? 1 : 0)),
   timestampKey<ChatRow>(copilotChats.updatedAt, (row) => row.updatedAt),
-  textKey<ChatRow>(copilotChats.id, (row) => row.id),
+  uuidKey<ChatRow>(copilotChats.id, (row) => row.id),
 ]
 
 /** GET /api/v2/chats — bounded personal chat history for the terminal picker. */

@@ -1490,6 +1490,17 @@ async function runCheckpointLoop(
       break
     }
 
+    if (isResume && options.runId) {
+      try {
+        await updateRunStatus(options.runId, 'resuming')
+      } catch (error) {
+        logger.warn('Failed to mark run as resuming', {
+          runId: options.runId,
+          error: toError(error).message,
+        })
+      }
+    }
+
     const loopOptions = {
       ...options,
       onEvent: async (event: StreamEvent) => {

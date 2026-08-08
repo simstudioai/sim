@@ -34,8 +34,20 @@ describe('v2ChatBodySchema', () => {
       prompt: 'Read this',
       continuationToken: 'opaque-token',
       readOnly: false,
+      async: false,
+      persistChat: true,
       attachments: [{ name: 'Notes.MD', mediaType: 'text/markdown', data: 'aGk=' }],
     })
+  })
+
+  it('accepts explicit asynchronous execution', () => {
+    expect(
+      v2ChatBodySchema.parse({
+        workspaceId: 'workspace-1',
+        prompt: 'Run this in the background',
+        async: true,
+      }).async
+    ).toBe(true)
   })
 
   it('accepts only the identity-bearing contexts supported by public resource lists', () => {

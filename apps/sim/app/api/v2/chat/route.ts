@@ -14,6 +14,7 @@ import {
   getAccessibleCopilotChatContinuationMetadata,
   resolveOrCreateChat,
 } from '@/lib/copilot/chat/lifecycle'
+import { ChatActivityProjector, type V2ChatActivity } from '@/lib/copilot/chat/public-activity'
 import {
   buildCopilotTurnOnComplete,
   buildCopilotTurnOnError,
@@ -62,7 +63,6 @@ import { isAuthDisabled } from '@/lib/core/config/env-flags'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { checkRateLimit, resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import { ChatActivityProjector, type V2ChatActivity } from '@/app/api/v2/chat/activity'
 import { v2ApiGateError } from '@/app/api/v2/lib/gate'
 import {
   rateLimitHeaders,
@@ -71,6 +71,7 @@ import {
   v2ValidationError,
   v2WorkspaceAccessError,
 } from '@/app/api/v2/lib/response'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export const maxDuration = 3600
 export const runtime = 'nodejs'
@@ -81,6 +82,22 @@ const encoder = new TextEncoder()
 const HEARTBEAT_INTERVAL_MS = 15_000
 const ATTACHMENT_ONLY_PROMPT = 'Please inspect the attached file(s).'
 const V2_CHAT_TITLE_MODEL = 'claude-opus-4-8'
+
+/**
+ * An empty, complete secret-trace registry for title generation.
+ *
+ * `projectResolvedSecretModelContent` fails closed on a missing registry, so
+ * without one every title on this route is skipped. The empty registry is the
+ * accurate claim rather than a bypass: the title is generated from
+ * `effectivePrompt`, which is the request body's own `prompt` verbatim — this
+ * route runs no workflow and resolves no secrets into it, so there is nothing
+ * for the matcher to redact. Shared because it is immutable and the matcher
+ * cache is keyed on the instance.
+ *
+ * If this route ever resolves secrets into the prompt, thread that execution's
+ * real registry through here instead.
+ */
+const V2_CHAT_TITLE_SECRET_REGISTRY = new ResolvedSecretTraceRegistry([])
 
 interface SyncedChat {
   chat: { title?: string | null } | null
@@ -130,8 +147,16 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         : parsed.response
     }
 
-    const { workspaceId, prompt, continuationToken, readOnly, attachments, contexts } =
-      parsed.data.body
+    const {
+      workspaceId,
+      prompt,
+      continuationToken,
+      readOnly,
+      async: asyncRequested,
+      attachments,
+      contexts,
+      persistChat,
+    } = parsed.data.body
     const credentialType = rateLimit.keyType === 'workspace' ? 'workspace' : 'personal'
     const effectivePrompt = prompt.trim() ? prompt : ATTACHMENT_ONLY_PROMPT
     // DISABLE_AUTH produces an anonymous pseudo-personal principal. It is not
@@ -151,6 +176,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     // semantics cannot be changed by a caller-controlled credential.
     if (!env.COPILOT_API_KEY?.trim()) {
       return v2Error('SERVICE_UNAVAILABLE', 'Sim Chat is not configured on this deployment', {
+        headers: rateLimitHeaders(rateLimit),
+      })
+    }
+
+    if (asyncRequested && rateLimit.keyType !== 'personal') {
+      return v2Error('FORBIDDEN', 'Asynchronous chat requires a personal API key', {
+        headers: rateLimitHeaders(rateLimit),
+      })
+    }
+    if (asyncRequested && !persistChat) {
+      return v2Error('BAD_REQUEST', 'Asynchronous chat requires persistChat to be true', {
         headers: rateLimitHeaders(rateLimit),
       })
     }
@@ -203,6 +239,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         }
       }
     }
+    if (asyncRequested && continuation?.valid && !continuedSyncedChat) {
+      return v2Error('BAD_REQUEST', 'Asynchronous chat requires a persisted chat', {
+        headers: rateLimitHeaders(rateLimit),
+      })
+    }
 
     const preparedAttachments = prepareV2ChatAttachments(attachments)
     if (!preparedAttachments.success) {
@@ -236,7 +277,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     if (continuation?.valid) {
       chatId = continuation.chatId
-    } else if (shouldSyncChat) {
+    } else if (shouldSyncChat && persistChat) {
+      /* `persistChat: false` gates chat *creation* only. It deliberately does
+         not reach the continuation branch above: detaching a chat that is
+         already persisted would silently drop the rest of its transcript. */
       const created = await resolveOrCreateChat({
         userId: authenticatedUserId,
         workspaceId,
@@ -321,7 +365,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let lifecycleStarted = false
     let abortRequested = false
     let allowExplicitAbort = true
+    let sessionAccepted = false
     let explicitAbortRequest: Promise<void> | undefined
+    const acceptedAsyncTurnIsDetached = () => asyncRequested && sessionAccepted
+    const requestAbortStopsLifecycle = () =>
+      request.signal.aborted && !acceptedAsyncTurnIsDetached()
 
     const requestExplicitAbortOnce = () => {
       if (!lifecycleStarted || !allowExplicitAbort) return undefined
@@ -346,12 +394,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     /**
-     * A disconnected public reader is an explicit stop request. Match the web
-     * UI's Stop path: stop Sim-side work, mark the detached Go execution, and
-     * keep draining the active Go leg so persistence settles before cleanup.
-     * The route owns the chat lease until that lifecycle has unwound.
+     * A normal disconnect is an explicit stop request. Once an asynchronous
+     * caller has received its durable session receipt, however, disconnect is
+     * passive and the route keeps draining the Go leg into persisted state.
+     * In either case the route owns the chat lease until lifecycle settlement.
      */
     const abortLifecycle = () => {
+      if (acceptedAsyncTurnIsDetached()) return
       abortRequested = true
       requestExplicitAbortOnce()
       if (allowExplicitAbort && !userStopController.signal.aborted) {
@@ -383,7 +432,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           for (const activity of activities) send({ type: 'activity', data: activity })
         }
 
-        let sessionSent = false
         let pendingTitle = syncedChat?.chat?.title?.trim() || undefined
         let publishedTitle: string | undefined
         let replayFinalized = false
@@ -392,20 +440,31 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           const next = title.trim()
           if (!next) return
           pendingTitle = next
-          if (!sessionSent || next === publishedTitle) return
-          if (send({ type: 'session', chatId, title: next })) publishedTitle = next
+          if (!sessionAccepted || next === publishedTitle) return
+          if (
+            send({
+              type: 'session',
+              chatId,
+              ...(asyncRequested && runId ? { runId } : {}),
+              title: next,
+            })
+          ) {
+            publishedTitle = next
+          }
         }
         const sendSession = () => {
-          if (sessionSent) return
-          sessionSent = true
+          if (sessionAccepted) return
           const sent = send({
             type: 'session',
             continuationToken: refreshedContinuationToken,
             requestId,
             ...(syncedChat ? { chatId } : {}),
+            ...(asyncRequested && runId ? { runId } : {}),
             ...(pendingTitle ? { title: pendingTitle } : {}),
           })
-          if (sent && pendingTitle) publishedTitle = pendingTitle
+          if (!sent) return
+          sessionAccepted = true
+          if (pendingTitle) publishedTitle = pendingTitle
         }
         heartbeatId = setInterval(() => {
           if (!cancelled && publicStreamOpen) {
@@ -421,7 +480,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
             if (replayPublisher && syncedChat && executionId && runId) {
               await Promise.all([resetBuffer(messageId), clearFilePreviewSessions(messageId)])
-              runSegmentPromise = createRunSegment({
+              const createRunSegmentPromise = createRunSegment({
                 id: runId,
                 executionId,
                 chatId,
@@ -430,11 +489,15 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 streamId: messageId,
                 model: null,
                 requestContext: { requestId, source: 'v2_chat' },
-              }).catch((error) => {
-                logger.warn(`[${requestId}] Failed to create v2 chat run segment`, {
-                  error: getErrorMessage(error),
-                })
               })
+              runSegmentPromise = asyncRequested
+                ? createRunSegmentPromise
+                : createRunSegmentPromise.catch((error) => {
+                    logger.warn(`[${requestId}] Failed to create v2 chat run segment`, {
+                      error: getErrorMessage(error),
+                    })
+                  })
+              if (asyncRequested) await runSegmentPromise
               replayPublisher.publish({
                 type: MothershipStreamV1EventType.session,
                 payload: { kind: MothershipStreamV1SessionKind.chat, chatId },
@@ -458,6 +521,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 workspaceId,
                 billingAttribution,
                 requestId,
+                resolvedSecretTraceRegistry: V2_CHAT_TITLE_SECRET_REGISTRY,
                 publisher: {
                   publish(event) {
                     replayPublisher.publish(event)
@@ -519,7 +583,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 : result.cancelled ||
                     lifecycleAbortController.signal.aborted ||
                     userStopController.signal.aborted ||
-                    request.signal.aborted
+                    requestAbortStopsLifecycle()
                   ? RequestTraceV1Outcome.cancelled
                   : RequestTraceV1Outcome.error
               await finalizeStream(result, replayPublisher, runId, replayOutcome, requestId)
@@ -540,13 +604,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               return
             }
 
-            if (!sessionSent) {
+            if (!sessionAccepted) {
               throw new Error('Mothership did not acknowledge the initial chat stream')
             }
             if (
               lifecycleAbortController.signal.aborted ||
               userStopController.signal.aborted ||
-              request.signal.aborted ||
+              requestAbortStopsLifecycle() ||
               result.cancelled
             ) {
               requestExplicitAbortOnce()
@@ -589,7 +653,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
             const aborted =
               lifecycleAbortController.signal.aborted ||
               userStopController.signal.aborted ||
-              request.signal.aborted ||
+              requestAbortStopsLifecycle() ||
               isAbortError(error)
             const terminalResult: OrchestratorResult = {
               success: false,

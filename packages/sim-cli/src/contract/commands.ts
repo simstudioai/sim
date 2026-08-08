@@ -317,6 +317,30 @@ export const CLI_CONTRACT: CliContract = {
       { header: 'active', format: 'bool' },
     ],
   },
+  listChatRuns: {
+    describe: 'List recent Sim Chat runs',
+    auth: 'optional',
+    flags: { status: { describe: 'Filter by durable run status' } },
+    columns: [
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'status' },
+      { header: 'title', path: 'chatTitle' },
+      { header: 'chat', path: 'chatId' },
+      { header: 'run', path: 'runId' },
+    ],
+  },
+  getChatRun: {
+    describe: 'Show chat run status (response and activity are included in JSON or YAML output)',
+    auth: 'optional',
+    fields: [
+      { header: 'run', path: 'runId' },
+      { header: 'chat', path: 'chatId' },
+      { header: 'title', path: 'chatTitle' },
+      { header: 'status' },
+      { header: 'started', path: 'startedAt', format: 'timestamp' },
+      { header: 'completed', path: 'completedAt', format: 'timestamp' },
+    ],
+  },
   renameChat: {
     command: 'chats rename',
     describe: 'Rename a chat',
@@ -547,6 +571,7 @@ export const CLI_CONTRACT: CliContract = {
   unshareFile: {
     command: 'files unshare',
     describe: 'Disable sharing for a file',
+    confirm: 'This disables shared access to the file.',
     fields: [{ header: 'shared', path: 'sharing.enabled', format: 'bool' }],
   },
 

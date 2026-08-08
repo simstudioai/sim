@@ -23,21 +23,32 @@ import type {
   ChatTerminalSelectResult,
   ChatTerminalWelcome,
 } from './chat-terminal.js'
+import { attachProtocolCommands } from './index.js'
 
 const mocks = vi.hoisted(() => ({
+  output: 'table' as 'table' | 'text' | 'json' | 'yaml',
   request: vi.fn(),
   requestRaw: vi.fn(),
   requireWorkspace: vi.fn(() => 'ws_local'),
+  selectedProfile: vi.fn(),
 }))
 
 vi.mock('../../context.js', () => ({
-  clientFrom: () => ({ client: mocks, profile: { endpoint: 'https://sim.example' } }),
+  clientFrom: (command: Command) => {
+    mocks.selectedProfile(command.optsWithGlobals().profile)
+    return {
+      client: mocks,
+      profile: { endpoint: 'https://sim.example', name: 'default', output: mocks.output },
+    }
+  },
 }))
 
 beforeEach(() => {
   mocks.request.mockReset().mockResolvedValue({ data: [], nextCursor: null })
   mocks.requestRaw.mockReset()
   mocks.requireWorkspace.mockClear()
+  mocks.selectedProfile.mockReset()
+  mocks.output = 'table'
 })
 
 function sse(chunks: string[]): Response {
@@ -50,12 +61,18 @@ function sse(chunks: string[]): Response {
   return new Response(body, { headers: { 'content-type': 'text/event-stream' } })
 }
 
-function completed(content: string, token = 'continuation-1', deltas: string[] = []): Response {
+function completed(
+  content: string,
+  token = 'continuation-1',
+  deltas: string[] = [],
+  chatId: string | null = null
+): Response {
   return sse([
     `event: session\ndata: ${JSON.stringify({
       type: 'session',
       continuationToken: token,
       requestId: 'req_1',
+      ...(chatId ? { chatId } : {}),
     })}\n\n`,
     ...deltas.map((delta) => `event: text\ndata: ${JSON.stringify({ type: 'text', delta })}\n\n`),
     `event: complete\ndata: ${JSON.stringify({
@@ -85,8 +102,8 @@ function program(
   writeOutput = vi.fn(),
   overrides: Partial<ChatDependencies> = {}
 ): Command {
-  const root = new Command('sim').exitOverride()
-  root.option('-P, --profile <name>')
+  const root = new Command('sim')
+  root.option('-p, --profile <name>')
   root.addCommand(
     chatCommand({
       readInput,
@@ -95,6 +112,11 @@ function program(
       ...overrides,
     })
   )
+  const overrideExit = (command: Command) => {
+    command.exitOverride()
+    command.commands.forEach(overrideExit)
+  }
+  overrideExit(root)
   return root
 }
 
@@ -236,7 +258,7 @@ class FakeTerminal implements ChatTerminal {
   }
 }
 
-describe('chat print mode', () => {
+describe('chat ask', () => {
   it('posts to the selected workspace and prints only the completed answer', async () => {
     const wire = [
       ': keepalive\n\n',
@@ -262,7 +284,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       'What',
       'is',
       'here?',
@@ -278,6 +300,62 @@ describe('chat print mode', () => {
     })
     expect(writeOutput).toHaveBeenCalledOnce()
     expect(writeOutput).toHaveBeenCalledWith('Hello world')
+  })
+
+  it('shows the reusable saved chat ID on stderr without changing answer stdout', async () => {
+    mocks.requestRaw.mockResolvedValue(completed('Saved answer', 'token', [], 'chat-1'))
+    const writeOutput = vi.fn()
+    const writeProgress = vi.fn()
+
+    await program(async () => '', writeOutput, {
+      showProgress: () => true,
+      writeProgress,
+    }).parseAsync(['node', 'sim', 'chat', 'ask', 'Save this'])
+
+    expect(writeOutput).toHaveBeenCalledWith('Saved answer')
+    expect(writeProgress).toHaveBeenCalledWith('chat: chat-1\n')
+  })
+
+  it.each([
+    ['json', '{"content":"Saved answer","chatId":"chat-1"}'],
+    ['yaml', 'content: Saved answer\nchatId: chat-1'],
+  ] as const)('returns content and reusable chat ID in %s output', async (format, expected) => {
+    mocks.requestRaw.mockResolvedValue(completed('Saved answer', 'token', [], 'chat-1'))
+    mocks.output = format
+    const writeOutput = vi.fn()
+    const writeProgress = vi.fn()
+    const logged: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    try {
+      await program(async () => '', writeOutput, {
+        showProgress: () => true,
+        writeProgress,
+      }).parseAsync(['node', 'sim', 'chat', 'ask', 'Save this'])
+    } finally {
+      log.mockRestore()
+    }
+
+    expect(writeOutput).not.toHaveBeenCalled()
+    expect(writeProgress).not.toHaveBeenCalled()
+    expect(logged).toHaveLength(1)
+    expect(format === 'json' ? JSON.stringify(JSON.parse(logged[0])) : logged[0]).toBe(expected)
+  })
+
+  it('keeps workspace-key one-shot answers usable when no saved chat ID is available', async () => {
+    mocks.requestRaw.mockResolvedValue(completed('Unsynced answer', 'token', [], null))
+    const writeOutput = vi.fn()
+    const writeProgress = vi.fn()
+
+    await program(async () => '', writeOutput, {
+      showProgress: () => true,
+      writeProgress,
+    }).parseAsync(['node', 'sim', 'chat', 'ask', 'Read this'])
+
+    expect(writeOutput).toHaveBeenCalledWith('Unsynced answer')
+    expect(writeProgress).toHaveBeenCalledWith(
+      'chat: not saved (a personal API key is required for resumable history)\n'
+    )
   })
 
   it('resumes an existing chat by ID for one print-mode turn', async () => {
@@ -297,7 +375,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       '--chat',
       'chat-1',
       'Continue here',
@@ -331,7 +409,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       '--read-only',
       '--chat',
       'chat-1',
@@ -350,16 +428,13 @@ describe('chat print mode', () => {
     })
   })
 
-  it('rejects --chat outside print mode', async () => {
-    await expect(
-      program(async () => '', vi.fn(), { isInteractive: () => true }).parseAsync([
-        'node',
-        'sim',
-        'chat',
-        '--chat',
-        'chat-1',
-      ])
-    ).rejects.toThrow('--chat can only be used with -p/--print')
+  it('keeps --chat scoped to one-shot asks', async () => {
+    const root = program(async () => '', vi.fn(), { isInteractive: () => true })
+    const chat = root.commands.find((command) => command.name() === 'chat')
+    const ask = chat?.commands.find((command) => command.name() === 'ask')
+
+    expect(chat?.helpInformation()).not.toContain('--chat')
+    expect(ask?.helpInformation()).toContain('--chat <chatId>')
 
     expect(mocks.request).not.toHaveBeenCalled()
     expect(mocks.requestRaw).not.toHaveBeenCalled()
@@ -381,7 +456,7 @@ describe('chat print mode', () => {
         'node',
         'sim',
         'chat',
-        '-p',
+        'ask',
         '--chat',
         'chat-1',
         'Continue here',
@@ -411,7 +486,7 @@ describe('chat print mode', () => {
         'node',
         'sim',
         'chat',
-        '-p',
+        'ask',
         '--chat',
         'chat-1',
         'Continue here',
@@ -430,7 +505,7 @@ describe('chat print mode', () => {
         'node',
         'sim',
         'chat',
-        '-p',
+        'ask',
         '--chat',
         'missing-chat',
         'Continue here',
@@ -440,15 +515,24 @@ describe('chat print mode', () => {
     expect(mocks.requestRaw).not.toHaveBeenCalled()
   })
 
-  it('keeps the profile shorthand distinct from chat -p', async () => {
+  it('accepts the global profile shorthand after chat ask', async () => {
     mocks.requestRaw.mockResolvedValue(completed('answer'))
 
-    await program(async () => '').parseAsync(['node', 'sim', '-P', 'dev', 'chat', '-p', 'question'])
+    await program(async () => '').parseAsync([
+      'node',
+      'sim',
+      'chat',
+      'ask',
+      '-p',
+      'dev',
+      'question',
+    ])
 
     expect(mocks.requestRaw.mock.calls[0][1].body).toEqual({
       workspaceId: 'ws_local',
       prompt: 'question',
     })
+    expect(mocks.selectedProfile).toHaveBeenCalledWith('dev')
   })
 
   it('opts into query-only chat only when --read-only is passed', async () => {
@@ -458,7 +542,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       '--read-only',
       'question',
     ])
@@ -477,7 +561,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '--print',
+      'ask',
       'Explain',
       'this',
     ])
@@ -488,7 +572,7 @@ describe('chat print mode', () => {
   it('accepts piped input without a positional prompt', async () => {
     mocks.requestRaw.mockResolvedValue(completed('answer'))
 
-    await program(async () => 'question from stdin\n').parseAsync(['node', 'sim', 'chat', '-p'])
+    await program(async () => 'question from stdin\n').parseAsync(['node', 'sim', 'chat', 'ask'])
 
     expect(mocks.requestRaw.mock.calls[0][1].body.prompt).toBe('question from stdin\n')
   })
@@ -506,7 +590,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       '--file',
       '/private/local/notes.md',
     ])
@@ -521,9 +605,9 @@ describe('chat print mode', () => {
   })
 
   it('requires a prompt, attachment, or stdin', async () => {
-    await expect(program(async () => '').parseAsync(['node', 'sim', 'chat', '-p'])).rejects.toThrow(
-      /Provide a prompt, attach a file, or pipe input/
-    )
+    await expect(
+      program(async () => '').parseAsync(['node', 'sim', 'chat', 'ask'])
+    ).rejects.toThrow(/Provide a prompt, attach a file, or pipe input/)
     expect(mocks.requestRaw).not.toHaveBeenCalled()
   })
 
@@ -534,7 +618,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
     ])
 
     await expect(result).rejects.toMatchObject({
@@ -547,11 +631,11 @@ describe('chat print mode', () => {
   it('fails clearly instead of blocking when bare chat has no interactive terminal', async () => {
     await expect(
       program(async () => '').parseAsync(['node', 'sim', 'chat', 'question'])
-    ).rejects.toThrow(/Use sim chat -p/)
+    ).rejects.toThrow(/Use sim chat ask/)
     expect(mocks.requestRaw).not.toHaveBeenCalled()
   })
 
-  it('never constructs a terminal prompt in -p mode', async () => {
+  it('never constructs a terminal prompt for chat ask', async () => {
     mocks.requestRaw.mockResolvedValue(completed('answer'))
     const createTerminal = vi.fn(() => {
       throw new Error('must not prompt')
@@ -560,7 +644,7 @@ describe('chat print mode', () => {
     await program(async () => '', vi.fn(), {
       isInteractive: () => true,
       createTerminal,
-    }).parseAsync(['node', 'sim', 'chat', '-p', 'question'])
+    }).parseAsync(['node', 'sim', 'chat', 'ask', 'question'])
 
     expect(createTerminal).not.toHaveBeenCalled()
   })
@@ -574,18 +658,30 @@ describe('chat print mode', () => {
     )
     const writeOutput = vi.fn()
 
-    await program(async () => '', writeOutput).parseAsync(['node', 'sim', 'chat', '-p', 'question'])
+    await program(async () => '', writeOutput).parseAsync([
+      'node',
+      'sim',
+      'chat',
+      'ask',
+      'question',
+    ])
 
     expect(writeOutput).toHaveBeenCalledWith('Safe text')
     expect(writeOutput.mock.calls[0][0]).not.toContain(terminalEscape)
   })
 
-  it('trims whitespace owned by hidden options in print mode', async () => {
+  it('trims whitespace owned by hidden options in one-shot output', async () => {
     const options = '<options>{"1":{"title":"Next","description":"Continue"}}</options>'
     mocks.requestRaw.mockResolvedValue(completed(`Answer\n\n${options}\n\n`))
     const writeOutput = vi.fn()
 
-    await program(async () => '', writeOutput).parseAsync(['node', 'sim', 'chat', '-p', 'question'])
+    await program(async () => '', writeOutput).parseAsync([
+      'node',
+      'sim',
+      'chat',
+      'ask',
+      'question',
+    ])
 
     expect(writeOutput).toHaveBeenCalledOnce()
     expect(writeOutput).toHaveBeenCalledWith('Answer')
@@ -603,7 +699,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       'find file',
     ])
 
@@ -611,7 +707,7 @@ describe('chat print mode', () => {
     expect(writeOutput).toHaveBeenCalledWith('Q4 report')
   })
 
-  it('omits a trailing standalone workspace link in print mode', async () => {
+  it('omits a trailing standalone workspace link in one-shot output', async () => {
     const resource =
       '<workspace_resource>{"type":"workflow","id":"wf-forceful","title":"forceful-arm"}</workspace_resource>'
     mocks.requestRaw.mockResolvedValue(completed(`Summary.\n\n${resource}`))
@@ -621,7 +717,7 @@ describe('chat print mode', () => {
       'node',
       'sim',
       'chat',
-      '-p',
+      'ask',
       'inspect forceful-arm',
     ])
 
@@ -638,12 +734,12 @@ describe('chat print mode', () => {
     const writeOutput = vi.fn()
 
     await expect(
-      program(async () => '', writeOutput).parseAsync(['node', 'sim', 'chat', '-p', 'question'])
+      program(async () => '', writeOutput).parseAsync(['node', 'sim', 'chat', 'ask', 'question'])
     ).rejects.toThrow('No answer')
     expect(writeOutput).not.toHaveBeenCalled()
   })
 
-  it('keeps thinking and activity events silent in print mode', async () => {
+  it('keeps thinking and activity events silent in one-shot output', async () => {
     mocks.requestRaw.mockResolvedValue(
       sse([
         'event: thinking\ndata: {"type":"thinking","delta":"Checking the workspace"}\n\n',
@@ -655,9 +751,293 @@ describe('chat print mode', () => {
       ])
     )
     const writeOutput = vi.fn()
-    await program(async () => '', writeOutput).parseAsync(['node', 'sim', 'chat', '-p', 'question'])
+    await program(async () => '', writeOutput).parseAsync([
+      'node',
+      'sim',
+      'chat',
+      'ask',
+      'question',
+    ])
 
     expect(writeOutput).toHaveBeenCalledWith('Answer')
+  })
+
+  it('starts an asynchronous run, closes the accepted stream, and prints a normal receipt', async () => {
+    const accepted = openSse(
+      'event: session\ndata: {"type":"session","runId":"run-1","chatId":"chat-1"}\n\n'
+    )
+    mocks.requestRaw.mockResolvedValue(accepted.response)
+    mocks.output = 'json'
+    const logged: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    try {
+      await program(async () => '').parseAsync([
+        'node',
+        'sim',
+        'chat',
+        'ask',
+        '--async',
+        'inspect workspace',
+      ])
+    } finally {
+      log.mockRestore()
+    }
+
+    expect(mocks.requestRaw).toHaveBeenCalledWith('/api/v2/chat', {
+      method: 'POST',
+      headers: { accept: 'text/event-stream' },
+      body: {
+        workspaceId: 'ws_local',
+        prompt: 'inspect workspace',
+        persistChat: true,
+        async: true,
+      },
+      signal: expect.any(AbortSignal),
+      auth: 'optional',
+    })
+    expect(accepted.cancel).toHaveBeenCalledOnce()
+    expect(JSON.parse(logged.join('\n'))).toEqual({
+      runId: 'run-1',
+      chatId: 'chat-1',
+      status: 'active',
+    })
+  })
+})
+
+describe('chat follow', () => {
+  const snapshot = (
+    status: string,
+    response: string,
+    activities: Array<Record<string, unknown>> = []
+  ) => ({
+    data: {
+      runId: 'run-1',
+      chatId: 'chat-1',
+      chatTitle: 'Workspace audit',
+      status,
+      startedAt: '2026-08-08T12:00:00.000Z',
+      completedAt: status === 'complete' ? '2026-08-08T12:00:02.000Z' : null,
+      response,
+      activities,
+    },
+  })
+
+  it('prints only newly accumulated response text and useful progress', async () => {
+    mocks.request
+      .mockResolvedValueOnce(
+        snapshot('active', 'Hel', [
+          { kind: 'tool', id: 'tool-1', label: 'Read file', state: 'running' },
+        ])
+      )
+      .mockResolvedValueOnce(
+        snapshot('active', 'Hello', [
+          { kind: 'tool', id: 'tool-1', label: 'Read file', state: 'running' },
+        ])
+      )
+      .mockResolvedValueOnce(
+        snapshot('complete', 'Hello world', [
+          { kind: 'tool', id: 'tool-1', label: 'Read file', state: 'running' },
+          { kind: 'tool', id: 'tool-1', label: 'Read file', state: 'complete' },
+        ])
+      )
+    const terminalWrites: string[] = []
+    const writeStream = vi.fn((content: string) => terminalWrites.push(content))
+    const writeProgress = vi.fn((content: string) => terminalWrites.push(content))
+    const pollDelay = vi.fn(async () => {})
+
+    await program(async () => '', vi.fn(), {
+      writeStream,
+      writeProgress,
+      showProgress: () => true,
+      pollDelay,
+    }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+
+    expect(mocks.request).toHaveBeenCalledTimes(3)
+    for (const [path, options] of mocks.request.mock.calls) {
+      expect(path).toBe('/api/v2/chat/runs/run-1')
+      expect(options).toMatchObject({ query: { workspaceId: 'ws_local' }, auth: 'optional' })
+      expect(options.signal).toBeInstanceOf(AbortSignal)
+    }
+    expect(pollDelay).toHaveBeenCalledTimes(2)
+    expect(writeStream.mock.calls.map(([value]) => value)).toEqual(['Hel', 'lo', ' world', '\n'])
+    expect(writeProgress.mock.calls.map(([value]) => value)).toEqual([
+      'status: active\n',
+      '● Read file\n',
+      'status: complete\n',
+      '✓ Read file\n',
+    ])
+    expect(terminalWrites).toEqual([
+      'status: active\n',
+      '● Read file\n',
+      'Hel',
+      'lo',
+      ' world',
+      '\n',
+      'status: complete\n',
+      '✓ Read file\n',
+    ])
+  })
+
+  it('retries transient status failures without regressing accumulated output', async () => {
+    mocks.request
+      .mockRejectedValueOnce(new SimApiError('Progress unavailable', 503, 'SERVICE_UNAVAILABLE'))
+      .mockResolvedValueOnce(snapshot('complete', 'Recovered answer'))
+    const writeStream = vi.fn()
+    const pollDelay = vi.fn(async () => {})
+
+    await program(async () => '', vi.fn(), {
+      writeStream,
+      showProgress: () => false,
+      pollDelay,
+    }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+
+    expect(mocks.request).toHaveBeenCalledTimes(2)
+    expect(pollDelay).toHaveBeenCalledOnce()
+    expect(writeStream.mock.calls.map(([value]) => value)).toEqual(['Recovered answer', '\n'])
+  })
+
+  it('emits one safe final snapshot for JSON output', async () => {
+    const terminalEscape = `${String.fromCharCode(27)}]0;owned\u0007`
+    mocks.request.mockResolvedValueOnce(snapshot('complete', `${terminalEscape}Answer`))
+    mocks.output = 'json'
+    const writeStream = vi.fn()
+    const writeProgress = vi.fn()
+    const logged: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    try {
+      await program(async () => '', vi.fn(), {
+        writeStream,
+        writeProgress,
+        showProgress: () => true,
+      }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+    } finally {
+      log.mockRestore()
+    }
+
+    expect(writeStream).not.toHaveBeenCalled()
+    expect(writeProgress).not.toHaveBeenCalled()
+    expect(logged).toHaveLength(1)
+    expect(JSON.parse(logged[0])).toMatchObject({
+      runId: 'run-1',
+      chatId: 'chat-1',
+      status: 'complete',
+      response: `${terminalEscape}Answer`,
+    })
+  })
+
+  it('streams through the normal structured renderer and omits a trailing resource', async () => {
+    const options = '<options>{"1":{"title":"Next","description":"Continue"}}</options>'
+    const resource =
+      '<workspace_resource>{"type":"workflow","id":"wf-1","title":"forceful-arm"}</workspace_resource>'
+    mocks.request
+      .mockResolvedValueOnce(snapshot('active', 'Answer\n\n<op'))
+      .mockResolvedValueOnce(snapshot('complete', `Answer\n\n${options}\n\n${resource}`))
+    const writeStream = vi.fn()
+
+    await program(async () => '', vi.fn(), {
+      writeStream,
+      showProgress: () => false,
+      pollDelay: async () => {},
+    }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+
+    expect(writeStream.mock.calls.map(([value]) => value)).toEqual(['Answer', '\n'])
+    expect(writeStream.mock.calls.flat().join('')).not.toContain('<options>')
+    expect(writeStream.mock.calls.flat().join('')).not.toContain('forceful-arm')
+  })
+
+  it('prints the safe partial answer before failing an errored run', async () => {
+    mocks.request.mockResolvedValueOnce(snapshot('error', 'Partial answer'))
+    const writeStream = vi.fn()
+
+    await expect(
+      program(async () => '', vi.fn(), {
+        writeStream,
+        showProgress: () => false,
+      }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+    ).rejects.toMatchObject({
+      message: 'Sim Chat run ended with status "error".',
+      code: 'CHAT_RUN_FAILED',
+    })
+
+    expect(writeStream.mock.calls.map(([value]) => value)).toEqual(['Partial answer', '\n'])
+  })
+
+  it('emits one final JSON snapshot before failing a cancelled run', async () => {
+    mocks.request.mockResolvedValueOnce(snapshot('cancelled', 'Stopped safely'))
+    mocks.output = 'json'
+    const logged: string[] = []
+    const log = vi.spyOn(console, 'log').mockImplementation((line: string) => logged.push(line))
+
+    try {
+      await expect(
+        program(async () => '', vi.fn(), {
+          showProgress: () => false,
+        }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+      ).rejects.toMatchObject({ code: 'CHAT_RUN_FAILED' })
+    } finally {
+      log.mockRestore()
+    }
+
+    expect(logged).toHaveLength(1)
+    expect(JSON.parse(logged[0])).toMatchObject({
+      runId: 'run-1',
+      status: 'cancelled',
+      response: 'Stopped safely',
+    })
+  })
+
+  it('detaches on Ctrl+C without cancelling the run', async () => {
+    mocks.request.mockResolvedValueOnce(snapshot('active', 'partial'))
+    let interrupt: (() => void) | undefined
+    const writeStream = vi.fn()
+    const pollDelay = vi.fn(async () => {
+      interrupt?.()
+    })
+
+    await program(async () => '', vi.fn(), {
+      writeStream,
+      showProgress: () => false,
+      pollDelay,
+      onInterrupt: (listener) => {
+        interrupt = listener
+        return () => {
+          interrupt = undefined
+        }
+      },
+    }).parseAsync(['node', 'sim', 'chat', 'follow', 'run-1'])
+
+    expect(mocks.request).toHaveBeenCalledTimes(1)
+    expect(mocks.request.mock.calls[0][0]).toBe('/api/v2/chat/runs/run-1')
+    expect(writeStream.mock.calls.map(([value]) => value)).toEqual(['partial', '\n'])
+  })
+
+  it('rejects extra positional arguments after the run ID', async () => {
+    await expect(
+      program(async () => '').parseAsync(['node', 'sim', 'chat', 'follow', 'run-1', 'unexpected'])
+    ).rejects.toThrow(/too many arguments/i)
+
+    expect(mocks.request).not.toHaveBeenCalled()
+  })
+})
+
+describe('chat command composition', () => {
+  it('merges the manual chat protocol into an existing generated chat group', () => {
+    const root = new Command('sim')
+    const generatedChat = new Command('chat')
+    const runs = new Command('runs').addCommand(new Command('get'))
+    generatedChat.addCommand(runs)
+    root.addCommand(generatedChat)
+
+    attachProtocolCommands(root)
+
+    expect(root.commands.filter((command) => command.name() === 'chat')).toEqual([generatedChat])
+    expect(generatedChat.commands.map((command) => command.name()).sort()).toEqual([
+      'ask',
+      'follow',
+      'runs',
+    ])
   })
 })
 
