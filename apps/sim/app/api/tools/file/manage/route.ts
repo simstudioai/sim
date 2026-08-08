@@ -330,26 +330,37 @@ function resolveFileMutationSecretProvenance(options: {
   if (
     inspection.status !== 'verified' ||
     options.authType !== AuthType.INTERNAL_JWT ||
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== options.selectionKeys.length
+    !isPrivateSecretProvenanceBundleV1(inspection.value)
   ) {
     return { success: false, error: 'Invalid file secret provenance' }
   }
 
-  const destinationScope = { userId: options.userId, workspaceId: options.workspaceId }
   const provenanceBySelection = new Map<string, WorkspaceFileSecretProvenance>()
+  if (!inspection.value.complete) {
+    for (const selectionKey of options.selectionKeys) {
+      provenanceBySelection.set(selectionKey, { status: 'unknown' })
+    }
+    return { success: true, provenanceBySelection }
+  }
+  if (inspection.value.selections.length !== options.selectionKeys.length) {
+    return { success: false, error: 'Invalid file secret provenance' }
+  }
+
+  const destinationScope = { userId: options.userId, workspaceId: options.workspaceId }
   for (const selectionKey of options.selectionKeys) {
     const provenance = durableSecretProvenanceFromPrivateBundle(
       inspection.value,
       selectionKey,
       destinationScope
     )
-    if (
-      !provenance ||
-      provenance.status === 'unknown' ||
-      provenance.entries.some((entry) => !entry.name || !entry.sourceUserId)
-    ) {
+    if (!provenance) {
+      return { success: false, error: 'Invalid file secret provenance' }
+    }
+    if (provenance.status === 'unknown') {
+      provenanceBySelection.set(selectionKey, provenance)
+      continue
+    }
+    if (provenance.entries.some((entry) => !entry.name || !entry.sourceUserId)) {
       return { success: false, error: 'Invalid file secret provenance' }
     }
     provenanceBySelection.set(selectionKey, {
@@ -383,7 +394,7 @@ function resolveFileWriteSecretProvenance(options: {
   })
   if (!resolution.success || !resolution.provenanceBySelection) return resolution
   const content = resolution.provenanceBySelection.get('content')
-  if (!content || content.status !== 'exact') {
+  if (!content) {
     return { success: false, error: 'Invalid file secret provenance' }
   }
   return { success: true, contentProvenance: content }
@@ -1129,16 +1140,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           targetOwnerUserId: userId,
           sources: canonicalArchiveSource.concat(selectedArchiveSource),
         })
-        if (archiveProvenance.status === 'unknown' || archiveProvenance.entries.length > 0) {
-          return NextResponse.json(
-            {
-              success: false,
-              error:
-                'Archive cannot be decompressed because its secret provenance is not exact-empty',
-            },
-            { status: 422 }
-          )
-        }
 
         const archiveBuffer = await downloadFileFromStorage(archive, requestId, logger, {
           maxBytes: MAX_ARCHIVE_BYTES,

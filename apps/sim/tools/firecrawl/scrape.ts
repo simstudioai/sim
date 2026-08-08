@@ -73,10 +73,10 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) =>
+      inputPaths: (params) =>
         hasFirecrawlModelInputFormat(params.scrapeOptions?.formats ?? params.formats)
-          ? params.url
-          : undefined,
+          ? [['url']]
+          : [],
     },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/scrape',

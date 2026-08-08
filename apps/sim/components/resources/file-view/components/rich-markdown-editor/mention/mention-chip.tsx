@@ -52,7 +52,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
   const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
-  const navigable = editor.storage.mention?.navigable === true
+  const navigable = editor.storage.mentionMenu?.navigable === true
   /**
    * The destination comes from the file this mention is written in, never from
    * the route: on `/f/[token]` there is no `[workspaceId]` segment to read, and

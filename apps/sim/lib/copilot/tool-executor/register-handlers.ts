@@ -186,6 +186,9 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
+    // Rolling-deploy compatibility for calls/checkpoints created before OAuth
+    // moved into terminal credential cards. New agents no longer receive this
+    // tool, but old calls must remain resumable until both services have soaked.
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),

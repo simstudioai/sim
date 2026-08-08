@@ -6,6 +6,7 @@ import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
 import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { DbTransaction } from '@/lib/db/types'
 
 vi.unmock('@sim/db/schema')
 vi.unmock('drizzle-orm')
@@ -16,7 +17,98 @@ import {
   insertFileMetadata,
   insertFileMetadataMany,
   insertImmutableFileMetadata,
+  recordKnowledgeBaseFileOwnership,
 } from '@/lib/uploads/server/metadata'
+
+describe('recordKnowledgeBaseFileOwnership', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('uses the supplied transaction executor for the immutable ownership binding', async () => {
+    const ownership = {
+      key: 'kb/fork-document-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      originalName: 'document.pdf',
+      contentType: 'application/pdf',
+      size: 321,
+    }
+    const returning = vi.fn().mockResolvedValue([{ id: 'file-1', ...ownership }])
+    const select = vi.fn()
+    const onConflictDoNothing = vi.fn(() => ({ returning }))
+    const insert = vi.fn(() => ({
+      values: vi.fn(() => ({ onConflictDoNothing })),
+    }))
+    const executor = { select, insert } as unknown as DbTransaction
+
+    await expect(recordKnowledgeBaseFileOwnership(ownership, executor)).resolves.toBeUndefined()
+
+    expect(onConflictDoNothing).toHaveBeenCalledTimes(1)
+    expect(select).not.toHaveBeenCalled()
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('retains the existing non-transactional retry behavior when no executor is supplied', async () => {
+    const ownership = {
+      key: 'kb/manual-document.pdf',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      originalName: 'document.pdf',
+      contentType: 'application/pdf',
+      size: 321,
+    }
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'file-1',
+        ...ownership,
+        folderId: null,
+        context: 'knowledge-base',
+        deletedAt: null,
+      },
+    ])
+
+    await expect(recordKnowledgeBaseFileOwnership(ownership)).resolves.toBeUndefined()
+
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(1)
+    expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+  })
+
+  it('validates an exact active binding after a conflict without aborting the executor', async () => {
+    const ownership = {
+      key: 'kb/fork-document-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      originalName: 'document.pdf',
+      contentType: 'application/pdf',
+      size: 321,
+    }
+    const active = {
+      id: 'file-1',
+      ...ownership,
+      folderId: null,
+      context: 'knowledge-base',
+      deletedAt: null,
+    }
+    const limit = vi.fn().mockResolvedValue([active])
+    const select = vi.fn(() => ({
+      from: vi.fn(() => ({ where: vi.fn(() => ({ limit })) })),
+    }))
+    const returning = vi.fn().mockResolvedValue([])
+    const insert = vi.fn(() => ({
+      values: vi.fn(() => ({ onConflictDoNothing: vi.fn(() => ({ returning })) })),
+    }))
+    const executor = { select, insert } as unknown as DbTransaction
+
+    await expect(recordKnowledgeBaseFileOwnership(ownership, executor)).resolves.toBeUndefined()
+
+    expect(insert).toHaveBeenCalledTimes(1)
+    expect(select).toHaveBeenCalledTimes(1)
+  })
+})
 
 describe('deleteFileMetadataByIdentity', () => {
   beforeEach(() => {

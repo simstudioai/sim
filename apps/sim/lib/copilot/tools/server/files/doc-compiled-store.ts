@@ -10,15 +10,23 @@ const logger = createLogger('CopilotDocCompiledStore')
  *
  * The Python doc path keeps the SOURCE as the primary file (the agent reads and
  * edits it exactly like the JS path). The compiled binary is stored as its own
- * S3 object, content-addressed by (workspaceId, sha256(source), ext) — the hash
- * is in the key, so when the source changes the key changes. Every read path
+ * S3 object, content-addressed by (workspaceId, sha256(source + referenced-input identity), ext) —
+ * the hash is in the key, so source or referenced-file content changes invalidate the artifact. Every read path
  * (serve, preview, /compiled) loads the artifact for the current source hash and
  * recompiles only when it is absent. No fileId in the key means any site with
  * the source (e.g. the serve route) can find it. S3 is cheap; stale artifacts
  * are inert.
  */
-function compiledArtifactKey(workspaceId: string, source: string, ext: string): string {
-  const hash = createHash('sha256').update(source, 'utf-8').digest('hex')
+function compiledArtifactKey(
+  workspaceId: string,
+  source: string,
+  ext: string,
+  referencedInputIdentity?: string
+): string {
+  const cacheInput = referencedInputIdentity
+    ? JSON.stringify({ version: 1, source, referencedInputIdentity })
+    : source
+  const hash = createHash('sha256').update(cacheInput, 'utf-8').digest('hex')
   return `copilot-doc-compiled/${workspaceId}/${hash}.${ext}`
 }
 
@@ -26,9 +34,10 @@ function compiledArtifactKey(workspaceId: string, source: string, ext: string): 
 export async function loadCompiledDoc(
   workspaceId: string,
   source: string,
-  ext: string
+  ext: string,
+  referencedInputIdentity?: string
 ): Promise<Buffer | null> {
-  const key = compiledArtifactKey(workspaceId, source, ext)
+  const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
   try {
     return await downloadFile({ key, context: 'copilot' })
   } catch {
@@ -49,9 +58,10 @@ export async function storeCompiledDoc(
   source: string,
   ext: string,
   contentType: string,
-  binary: Buffer
+  binary: Buffer,
+  referencedInputIdentity?: string
 ): Promise<void> {
-  const key = compiledArtifactKey(workspaceId, source, ext)
+  const key = compiledArtifactKey(workspaceId, source, ext, referencedInputIdentity)
   try {
     await uploadFile({
       file: binary,

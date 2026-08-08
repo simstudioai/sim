@@ -24,7 +24,7 @@ function activeQueryRegistry(): ResolvedSecretTraceRegistry {
       encryptedValue: 'encrypted-query',
     },
   ])
-  registry.recordResolved('SEARCH_QUERY', 'private search query')
+  registry.recordResolved('SEARCH_QUERY', 'private search query', { propagated: true })
   return registry
 }
 

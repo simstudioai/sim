@@ -21,7 +21,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { projectServerToolModelInput } from '@/lib/copilot/tools/server/model-input'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
   createSingleDocument,
@@ -264,7 +263,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const { query: modelQuery } = projectServerToolModelInput({ query: args.query }, context)
+          const modelQuery = args.query
           const { embedding: queryEmbedding, isBYOK: queryEmbeddingIsBYOK } =
             await generateSearchEmbedding(modelQuery, kb.embeddingModel, kb.workspaceId)
           const queryVector = JSON.stringify(queryEmbedding)

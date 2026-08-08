@@ -126,13 +126,13 @@ export const crawlTool: ToolConfig<FirecrawlCrawlParams, FirecrawlCrawlResponse>
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) =>
+      inputPaths: (params) =>
         params.prompt ||
         hasFirecrawlModelInputFormat(
           params.scrapeOptions ? params.scrapeOptions.formats : params.formats
         )
-          ? params.url
-          : undefined,
+          ? [['url']]
+          : [],
     },
     url: 'https://api.firecrawl.dev/v2/crawl',
     method: 'POST',

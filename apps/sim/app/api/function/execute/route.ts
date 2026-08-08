@@ -113,8 +113,6 @@ const TAG_PATTERN = createReferencePattern()
 const E2B_JS_WRAPPER_LINES = 3
 const E2B_PYTHON_WRAPPER_LINES = 1
 const MAX_SANDBOX_OUTPUT_FILES = 20
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES = 10_000
-const MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES = 1024 * 1024
 const MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS = 1_000_000
 const SANDBOX_RUNTIME_PAYLOAD_PATH_ENV = '__SIM_RUNTIME_PAYLOAD_PATH'
 
@@ -984,12 +982,10 @@ interface FunctionRouteExecutionContext {
   resolvedSecretNames: Set<string>
   includePrivateResolvedSecretNames: boolean
   privateResolvedSecretNamesMetadataType?: ResolvedSecretNamesMetadataType
-  outputProvenanceComplete: boolean
   outputSecretMatcher?: ResolvedSecretMatcher
   outputSecretNamesByScanLiteral: Map<string, string[]>
   outputSecretPlaintextsByName: Map<string, string>
   mountedFileSecretProvenanceScanner?: MountedFileSecretProvenanceScanner
-  hasMountedSandboxFiles: boolean
 }
 
 type ResolvedSecretNamesMetadataType =
@@ -1007,10 +1003,16 @@ function inspectMountedWorkspaceFileProvenance(
 ): MountedWorkspaceFileProvenanceInspection {
   const inspection = inspectPrivateSecretProvenanceRequest(headers, body)
   if (inspection.status === 'unsupported') return { status: 'none' }
+  if (inspection.status !== 'verified' || !isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { status: 'invalid' }
+  }
+  if (!inspection.value.complete) {
+    return {
+      status: 'verified',
+      provenance: { version: 1, complete: false, entries: [] },
+    }
+  }
   if (
-    inspection.status !== 'verified' ||
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
     inspection.value.selections.length !== 1 ||
     inspection.value.selections[0]?.key !== MOUNTED_WORKSPACE_FILES_PROVENANCE_KEY
   ) {
@@ -1188,7 +1190,10 @@ function activateOutputSecretProvenance(
   body: unknown,
   context: FunctionRouteExecutionContext
 ): void {
-  if (!context.outputSecretMatcher) return
+  if (!context.outputSecretMatcher) {
+    activateCompiledSecretProvenance(context)
+    return
+  }
 
   const matchedPlaintexts = new Set<string>()
   const projection = projectResolvedSecretContent(
@@ -1200,7 +1205,7 @@ function activateOutputSecretProvenance(
     }
   )
   if (!projection.safe) {
-    context.outputProvenanceComplete = false
+    activateCompiledSecretProvenance(context)
     return
   }
   for (const plaintext of matchedPlaintexts) {
@@ -1211,19 +1216,24 @@ function activateOutputSecretProvenance(
 }
 
 /**
- * True when any secret material was in scope for this execution — a mounted environment secret, or
- * a secret carried by a mounted input file. When false, nothing secret ever reached the sandbox, so
- * no export of any kind can carry one.
- *
- * Mounted bytes are classified from the caller's provenance envelope. Files mounted *without* one
- * are unclassifiable rather than clean: absence of an envelope is absence of evidence, not evidence
- * the mount carried nothing. Those fail closed here so the classification can never be stronger
- * than what the caller actually attested to.
+ * Conservatively activates only secrets whose placeholders were compiled for this invocation.
+ * This fallback is used when the bounded output classifier cannot inspect a result; it never
+ * considers configured-but-unused environment values and never mutates the functional result.
+ */
+function activateCompiledSecretProvenance(context: FunctionRouteExecutionContext): void {
+  for (const name of context.outputSecretPlaintextsByName.keys()) {
+    context.resolvedSecretNames.add(name)
+  }
+}
+
+/**
+ * True when this execution compiled a secret placeholder or received a mounted file with verified
+ * secret provenance. Ordinary mounts without a provenance envelope are user data, not evidence that
+ * a Sim secret was resolved in this call.
  */
 function hasSecretMaterialInScope(context: FunctionRouteExecutionContext): boolean {
   if (context.outputSecretPlaintextsByName.size > 0) return true
-  const scanner = context.mountedFileSecretProvenanceScanner
-  return scanner ? scanner.hasSecrets : context.hasMountedSandboxFiles
+  return context.mountedFileSecretProvenanceScanner?.hasSecrets ?? false
 }
 
 /**
@@ -1268,7 +1278,6 @@ async function getOutputFileSecretProvenance(
       MAX_PRIVATE_FILE_SECRET_MATCH_EVENTS
     )
   } catch {
-    context.outputProvenanceComplete = false
     return { status: 'unknown' }
   }
 
@@ -1293,17 +1302,8 @@ async function getOutputFileSecretProvenance(
   }
 }
 
-function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] | null {
-  if (!context.outputProvenanceComplete) return null
-  if (context.resolvedSecretNames.size > MAX_PRIVATE_RESOLVED_SECRET_NAMES) return null
-
-  const names = Array.from(context.resolvedSecretNames).sort()
-  let bytes = 0
-  for (const name of names) {
-    bytes += Buffer.byteLength(name, 'utf8')
-    if (bytes > MAX_PRIVATE_RESOLVED_SECRET_NAMES_BYTES) return null
-  }
-  return names
+function getPrivateResolvedSecretNames(context: FunctionRouteExecutionContext): string[] {
+  return Array.from(context.resolvedSecretNames).sort()
 }
 
 async function appendResolvedSecretNames(
@@ -1327,21 +1327,17 @@ async function appendPrivateResolvedSecretNames(
 ): Promise<NextResponse> {
   if (!names || !metadataType) return response
 
-  try {
-    const body = (await response.clone().json()) as Record<string, unknown>
-    const headers = new Headers(response.headers)
-    headers.delete('content-length')
-    headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
-    return NextResponse.json(
-      {
-        ...body,
-        [RESOLVED_SECRET_NAMES_FIELD]: names,
-      },
-      { status: response.status, statusText: response.statusText, headers }
-    )
-  } catch {
-    return response
-  }
+  const body = (await response.json()) as Record<string, unknown>
+  const headers = new Headers(response.headers)
+  headers.delete('content-length')
+  headers.set(PRIVATE_TOOL_METADATA_RESPONSE_HEADER, metadataType)
+  return NextResponse.json(
+    {
+      ...body,
+      [RESOLVED_SECRET_NAMES_FIELD]: names,
+    },
+    { status: response.status, statusText: response.statusText, headers }
+  )
 }
 
 /**
@@ -2026,33 +2022,9 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       resolvedSecretNames: new Set<string>(),
       includePrivateResolvedSecretNames,
       privateResolvedSecretNamesMetadataType,
-      outputProvenanceComplete: true,
       outputSecretNamesByScanLiteral: new Map(),
       outputSecretPlaintextsByName: new Map(),
       mountedFileSecretProvenanceScanner,
-      hasMountedSandboxFiles: (_sandboxFiles?.length ?? 0) > 0,
-    }
-    for (const [name, plaintext] of Object.entries(envVars)) {
-      if (!plaintext) continue
-      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
-      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
-      for (const scanLiteral of scanLiterals) {
-        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
-        names.push(name)
-        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
-      }
-    }
-    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
-      try {
-        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
-          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
-            plaintext,
-            replacement: `{{${names[0]}}}`,
-          }))
-        )
-      } catch {
-        routeContext.outputProvenanceComplete = false
-      }
     }
 
     const lang = isValidCodeLanguage(language) ? language : DEFAULT_CODE_LANGUAGE
@@ -2081,6 +2053,30 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       environmentVariables: envVars,
       reservedNames: Object.keys(contextVariables),
     })
+    for (const name of compilation.resolvedSecretNames) {
+      if (!Object.hasOwn(envVars, name)) continue
+      const plaintext = envVars[name]
+      if (!plaintext) continue
+      routeContext.outputSecretPlaintextsByName.set(name, plaintext)
+      const scanLiterals = new Set([plaintext, JSON.stringify(plaintext).slice(1, -1)])
+      for (const scanLiteral of scanLiterals) {
+        const names = routeContext.outputSecretNamesByScanLiteral.get(scanLiteral) ?? []
+        names.push(name)
+        routeContext.outputSecretNamesByScanLiteral.set(scanLiteral, names)
+      }
+    }
+    if (routeContext.outputSecretNamesByScanLiteral.size > 0) {
+      try {
+        routeContext.outputSecretMatcher = createResolvedSecretMatcher(
+          [...routeContext.outputSecretNamesByScanLiteral].map(([plaintext, names]) => ({
+            plaintext,
+            replacement: `{{${[...names].sort()[0]}}}`,
+          }))
+        )
+      } catch {
+        activateCompiledSecretProvenance(routeContext)
+      }
+    }
     resolvedCode = compilation.code
     compilerInternalIdentifiers = [...compilation.internalIdentifiers]
     compilerPrivateInputs = [...compilation.privateInputs]

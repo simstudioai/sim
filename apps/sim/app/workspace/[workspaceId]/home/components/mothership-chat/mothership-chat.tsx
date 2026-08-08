@@ -24,7 +24,13 @@ import {
   type MessagePhase,
 } from '@/app/workspace/[workspaceId]/home/components/message-content'
 import { parseQuestionAnswerMessage } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
-import { parseLastQuestionTag } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import {
+  type CredentialSubmissionPayload,
+  credentialTagHasVisibleCard,
+  parseCredentialSubmissionProgress,
+  parseLastCredentialTag,
+  parseLastQuestionTag,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -39,6 +45,7 @@ import type {
   QueuedMessage,
   WorkspaceResourceRef,
 } from '@/app/workspace/[workspaceId]/home/types'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
@@ -181,6 +188,8 @@ interface AssistantMessageRowProps {
   precedingUserContent?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
   rowClassName: string
   onOptionSelect?: (id: string) => void
   onAnimatingChange?: (animating: boolean) => void
@@ -192,10 +201,12 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   isLast,
   precedingUserContent,
   questionAnswers,
+  credentialSubmission,
   rowClassName,
   onOptionSelect,
   onAnimatingChange,
 }: AssistantMessageRowProps) {
+  const { canEdit } = useUserPermissionsContext()
   const blocks = message.contentBlocks ?? EMPTY_BLOCKS
   const hasAnyBlocks = blocks.length > 0
   const trimmedContent = message.content?.trim() ?? ''
@@ -214,10 +225,15 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
     return null
   }
 
-  // A trailing question card replaces the copy/thumbs row while active or
-  // answered. Its raw tag is the dismissal identity so a later question added
-  // to the same turn cannot inherit an earlier card's dismissed state.
+  // A trailing question or credential card replaces the copy/thumbs row while
+  // active or answered. A question's raw tag is its dismissal identity so a
+  // later question added to the same turn cannot inherit an earlier dismissal.
   const endsWithQuestion = trimmedContent.endsWith('</question>')
+  const endsWithCredential = trimmedContent.endsWith('</credential>')
+  const trailingCredentials = endsWithCredential ? parseLastCredentialTag(trimmedContent) : null
+  const showsCredentialCard = trailingCredentials
+    ? credentialTagHasVisibleCard(trailingCredentials, canEdit)
+    : false
   const questionTag = endsWithQuestion
     ? trimmedContent.slice(trimmedContent.lastIndexOf('<question>'))
     : null
@@ -231,25 +247,27 @@ const AssistantMessageRow = memo(function AssistantMessageRow({
   const actionsEligible = shouldShowAssistantMessageActions({
     phase: 'settled',
     hasContent: Boolean(message.content) || hasAnyBlocks,
-    endsWithQuestion,
+    endsWithInteraction: endsWithQuestion || showsCredentialCard,
     questionDismissed,
   })
 
-  // A visible question card (active or answered recap) sits 12px below the
+  // A visible interaction card (active or answered recap) sits 12px below the
   // preceding prose (chat-content's `space-y-3`). The row's default `pb-6`
   // would leave 24px underneath — asymmetric. Shrink the trailing gap to match
   // so the card breathes equally top and bottom. Dismissed cards fall back to
   // the normal message rhythm (they render the standard actions row instead).
-  const showsQuestionCard = endsWithQuestion && !questionDismissed
+  const showsInteractionCard = (endsWithQuestion && !questionDismissed) || showsCredentialCard
 
   return (
-    <div className={cn(rowClassName, showsQuestionCard && 'pb-3')}>
+    <div className={cn(rowClassName, showsInteractionCard && 'pb-3')}>
       <MessageContent
+        messageId={message.id}
         blocks={blocks}
         fallbackContent={message.content}
         isStreaming={isStreaming}
         isLast={isLast}
         questionAnswers={questionAnswers}
+        credentialSubmission={credentialSubmission}
         onOptionSelect={onOptionSelect}
         onQuestionDismiss={handleQuestionDismiss}
         onPhaseChange={setPhase}
@@ -473,13 +491,13 @@ export function MothershipChat({
   }, [messages])
 
   /**
-   * Pairs each assistant question card with the user message that answered it
-   * (strict `Prompt — Answer` match). The paired user message is hidden — the
-   * answered card IS the user turn — and the assistant row renders the card
-   * as a recap with these answers, both live and after reload.
+   * Pairs each assistant question/credential card with the user message that
+   * completed it. The paired user message is hidden — the answered card IS the
+   * user turn — and the assistant row renders a recap both live and on reload.
    */
-  const questionPairing = useMemo(() => {
+  const interactionPairing = useMemo(() => {
     const answersByIndex: Array<string[] | undefined> = []
+    const credentialSubmissionByIndex: Array<CredentialSubmissionPayload | undefined> = []
     const hiddenUserByIndex: Array<boolean | undefined> = []
     for (const [index, message] of messages.entries()) {
       if (message.role !== 'assistant') continue
@@ -489,15 +507,27 @@ export function MothershipChat({
       // snapshot flush.
       const next = messages[index + 1]
       if (!next || next.role !== 'user' || !next.content) continue
-      if (!message.content?.includes('</question>')) continue
-      const questions = parseLastQuestionTag(message.content)
-      if (!questions) continue
-      const answers = parseQuestionAnswerMessage(questions, next.content)
-      if (!answers) continue
-      answersByIndex[index] = answers
-      hiddenUserByIndex[index + 1] = true
+      if (message.content?.includes('</question>')) {
+        const questions = parseLastQuestionTag(message.content)
+        const answers = questions ? parseQuestionAnswerMessage(questions, next.content) : null
+        if (answers) {
+          answersByIndex[index] = answers
+          hiddenUserByIndex[index + 1] = true
+          continue
+        }
+      }
+      if (message.content?.includes('</credential>')) {
+        const credentials = parseLastCredentialTag(message.content)
+        const submission = credentials
+          ? parseCredentialSubmissionProgress(credentials, next.content)
+          : null
+        if (submission) {
+          credentialSubmissionByIndex[index] = submission
+          hiddenUserByIndex[index + 1] = true
+        }
+      }
     }
-    return { answersByIndex, hiddenUserByIndex }
+    return { answersByIndex, credentialSubmissionByIndex, hiddenUserByIndex }
   }, [messages])
 
   /**
@@ -641,7 +671,7 @@ export function MothershipChat({
                     style={{ transform: `translateY(${virtualItem.start}px)` }}
                   >
                     {msg.role === 'user' ? (
-                      questionPairing.hiddenUserByIndex[index] ? null : (
+                      interactionPairing.hiddenUserByIndex[index] ? null : (
                         <UserMessageRow
                           content={msg.content}
                           contexts={msg.contexts}
@@ -657,7 +687,8 @@ export function MothershipChat({
                         isStreaming={isStreamActive && isLast}
                         isLast={isLast}
                         precedingUserContent={precedingUserContentByIndex[index]}
-                        questionAnswers={questionPairing.answersByIndex[index]}
+                        questionAnswers={interactionPairing.answersByIndex[index]}
+                        credentialSubmission={interactionPairing.credentialSubmissionByIndex[index]}
                         rowClassName={cn(styles.assistantRow, styles.rowGap)}
                         onOptionSelect={isLast ? stableOnOptionSelect : undefined}
                         onAnimatingChange={isLast ? setLastRowAnimating : undefined}

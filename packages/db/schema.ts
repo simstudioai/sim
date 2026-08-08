@@ -1990,8 +1990,13 @@ export const workspaceFiles = pgTable(
 )
 
 export interface WorkspaceFileSecretProvenanceEntry extends DurableSecretProvenanceEntry {
-  name: string
   sourceUserId: string
+}
+
+export interface StoredWorkspaceFileSecretProvenanceEntry
+  extends WorkspaceFileSecretProvenanceEntry {
+  name: string
+  anonymous?: true
 }
 
 /**
@@ -2010,7 +2015,10 @@ export const workspaceFileSecretProvenance = pgTable(
       .references(() => workspaceFiles.id, { onDelete: 'cascade' }),
     contentUpdatedAt: timestamp('content_updated_at').notNull(),
     status: text('status').notNull(),
-    entries: jsonb('entries').$type<WorkspaceFileSecretProvenanceEntry[]>().notNull().default([]),
+    entries: jsonb('entries')
+      .$type<StoredWorkspaceFileSecretProvenanceEntry[]>()
+      .notNull()
+      .default([]),
     updatedAt: timestamp('updated_at').notNull().defaultNow(),
   },
   (table) => ({

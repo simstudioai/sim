@@ -17,16 +17,19 @@ interface TableWriteRequestBody {
 
 describe('selectTableRowSecretProvenance', () => {
   it('omits undefined properties that JSON object serialization drops', () => {
-    const selections = selectTableRowSecretProvenance([
-      { email: 'user@example.com', status: null, processed_at: undefined },
-      { email: 'other@example.com', processed_at: '2026-08-06T10:00:00.000Z' },
-    ])
+    const selections = selectTableRowSecretProvenance(
+      [
+        { email: 'user@example.com', status: null, processed_at: undefined },
+        { email: 'other@example.com', processed_at: '2026-08-06T10:00:00.000Z' },
+      ],
+      'rows'
+    )
 
     expect(selections).toEqual([
-      { key: '[0,"email"]', value: 'user@example.com' },
-      { key: '[0,"status"]', value: null },
-      { key: '[1,"email"]', value: 'other@example.com' },
-      { key: '[1,"processed_at"]', value: '2026-08-06T10:00:00.000Z' },
+      { key: '[0,"email"]', inputPaths: [['rows', '0', 'email']] },
+      { key: '[0,"status"]', inputPaths: [['rows', '0', 'status']] },
+      { key: '[1,"email"]', inputPaths: [['rows', '1', 'email']] },
+      { key: '[1,"processed_at"]', inputPaths: [['rows', '1', 'processed_at']] },
     ])
   })
 

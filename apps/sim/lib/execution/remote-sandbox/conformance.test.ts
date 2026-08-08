@@ -377,19 +377,17 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
   })
 
-  it('exempts a caller-consumed stream from the budget and keeps a diagnostic tail', async () => {
-    // A Pi agent turn streams one JSONL event per step and routinely passes the retention budget
-    // while producing no oversized result — the caller parses every chunk and keeps none of it.
-    const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1024)
+  it('keeps only a diagnostic tail from a caller-consumed stream', async () => {
+    const streamedOutput = 'x'.repeat(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + 1024)
     if (provider === 'e2b') {
       mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
-        options.onStdout(`${oversized}TAIL_MARKER`)
-        return { stdout: `${oversized}TAIL_MARKER`, stderr: '', exitCode: 0 }
+        options.onStdout(`${streamedOutput}TAIL_MARKER`)
+        return { stdout: `${streamedOutput}TAIL_MARKER`, stderr: '', exitCode: 0 }
       })
     } else {
       mockGetSessionCommandLogs.mockImplementationOnce(
         async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
-          onStdout(`${oversized}TAIL_MARKER`)
+          onStdout(`${streamedOutput}TAIL_MARKER`)
         }
       )
       mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
@@ -406,10 +404,9 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
     )
 
     // Delivered in full to the caller...
-    expect(streamedBytes).toBeGreaterThan(MAX_SANDBOX_PROCESS_OUTPUT_BYTES)
+    expect(streamedBytes).toBeGreaterThan(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES)
     expect(result.exitCode).toBe(0)
-    // ...but only the tail is retained. Reaching exitCode 0 at all is the point: before the
-    // exemption this threw `sandbox_output_limit_exceeded` and killed the sandbox mid-run.
+    /** Only a small diagnostic tail is returned after the caller consumes the full live stream. */
     expect(result.stdout).toContain('TAIL_MARKER')
     // The tail plus its truncation note, NOT a multiple of it. A looser bound here passes on both
     // providers even when one returns twice as much as the other, which is the divergence this
@@ -466,7 +463,7 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       )
     }
 
-    // stdout is streamed, stderr is not — the exemption is per stream, not per command.
+    /** A stdout callback must not exempt unconsumed stderr from the process-output budget. */
     await expect(
       withPiSandbox({}, (runner) => runner.run('pi run', { timeoutMs: 1000, onStdout: () => {} }))
     ).rejects.toMatchObject({ code: 'sandbox_output_limit_exceeded', outputKind: 'process' })
@@ -1154,6 +1151,35 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       reason: 'cleanup',
     })
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('E2B streamed output safety', () => {
+  it('bounds callback-delivered output that the E2B SDK also retains', async () => {
+    useProvider('e2b')
+    mockE2BCommandsRun.mockImplementationOnce(async (_command, options) => {
+      options.onStdout?.('1234')
+      options.onStdout?.('56789')
+      return { stdout: '123456789', stderr: '', exitCode: 0 }
+    })
+
+    const streamed: string[] = []
+    const sandbox = await e2bProvider.create('pi')
+
+    await expect(
+      sandbox.runCommand('pi run', {
+        timeoutMs: 1000,
+        maxOutputBytes: 8,
+        onStdout: (chunk) => streamed.push(chunk),
+      })
+    ).rejects.toMatchObject({
+      code: 'sandbox_output_limit_exceeded',
+      outputKind: 'process',
+      attemptedBytes: 9,
+      limitBytes: 8,
+    })
+    expect(streamed).toEqual(['1234'])
+    expect(mockE2BKill).toHaveBeenCalledTimes(1)
   })
 })
 

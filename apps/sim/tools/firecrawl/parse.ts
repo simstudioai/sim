@@ -1,4 +1,4 @@
-import { selectModelBoundFileInput } from '@/lib/uploads/utils/model-input'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
@@ -99,10 +99,10 @@ export const parseTool: ToolConfig<ParseParams, ParseResponse> = {
       applyProjected: (selectedParams, projectedSelection) => ({
         formats: applyFirecrawlFormatModelInput(selectedParams.formats, projectedSelection.formats),
       }),
-      privateProvenance: (params) =>
+      privateInputPaths: (params) =>
         hasFirecrawlParseModelInput(params)
-          ? selectModelBoundFileInput(params.file, { includeName: true })
-          : undefined,
+          ? selectModelBoundFileInputPaths(params.file, ['file'], { includeName: true })
+          : [],
     },
     method: 'POST',
     url: '/api/tools/firecrawl/parse',

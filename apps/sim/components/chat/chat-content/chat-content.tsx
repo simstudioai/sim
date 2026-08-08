@@ -23,7 +23,11 @@ import { Checkbox, CopyCodeButton, cn, languages, highlight as prismHighlight } 
 import { sanitizeChatDisplayContent } from '@/components/chat/chat-content/chat-sanitize'
 import { ExternalLink, externalLinkHostname } from '@/components/chat/chat-content/external-link'
 import { ContextMentionIcon } from '@/components/chat/context-mention-icon'
-import { type ContentSegment, parseSpecialTags } from '@/components/chat/special-tags/parse'
+import {
+  type ContentSegment,
+  type CredentialSubmissionPayload,
+  parseSpecialTags,
+} from '@/components/chat/special-tags/parse'
 import type { ChatContextKind } from '@/components/chat/types'
 import type { WorkspaceResourceRef } from '@/lib/copilot/resources/types'
 import { decodeVfsSegmentSafe } from '@/lib/copilot/vfs/path-utils'
@@ -407,17 +411,24 @@ export type SpecialTagSegment = Exclude<
 
 export interface SpecialTagRendererProps {
   segment: SpecialTagSegment
+  /** Stable identity for interaction state owned by this message/tag. */
+  interactionId?: string
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
 }
 
 interface ChatContentProps {
   content: string
+  messageId?: string
   isStreaming?: boolean
   /** Transcript-derived answers for this message's question card (renders the recap). */
   questionAnswers?: string[]
+  /** Transcript-derived status payload for this message's credential card. */
+  credentialSubmission?: CredentialSubmissionPayload
   onOptionSelect?: (id: string) => void
   onQuestionDismiss?: () => void
   onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
@@ -449,8 +460,10 @@ interface ChatContentProps {
 
 function ChatContentInner({
   content,
+  messageId,
   isStreaming = false,
   questionAnswers,
+  credentialSubmission,
   onOptionSelect,
   onQuestionDismiss,
   onWorkspaceResourceSelect,
@@ -671,7 +684,9 @@ function ChatContentInner({
           <SpecialTags
             key={`special-${group.index}`}
             segment={group.segment}
+            interactionId={`${messageId ?? 'message'}:${group.index}`}
             questionAnswers={questionAnswers}
+            credentialSubmission={credentialSubmission}
             onOptionSelect={onOptionSelect}
             onQuestionDismiss={onQuestionDismiss}
           />

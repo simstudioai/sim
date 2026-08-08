@@ -109,7 +109,7 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: (params) => (params.instructions ? params.url : undefined),
+      inputPaths: (params) => (params.instructions ? [['url']] : []),
     },
     url: 'https://api.tavily.com/crawl',
     method: 'POST',

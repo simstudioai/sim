@@ -1,6 +1,6 @@
 import {
   selectCursorPromptModelInput,
-  selectCursorPromptOpaqueModelInput,
+  selectCursorPromptOpaqueModelInputPaths,
 } from '@/tools/cursor/model-input'
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
@@ -40,7 +40,7 @@ const addFollowupBase = {
     },
     opaqueModelInput: {
       mode: 'reject-resolved-secrets',
-      select: selectCursorPromptOpaqueModelInput,
+      inputPaths: selectCursorPromptOpaqueModelInputPaths,
     },
     url: (params: AddFollowupParams) =>
       `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,

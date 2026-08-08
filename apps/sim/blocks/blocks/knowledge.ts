@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
@@ -377,6 +378,7 @@ export const KnowledgeBlock: BlockConfig = {
         }
       },
       params: (params) => {
+        params = { ...params }
         const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
         if (!knowledgeBaseId) {
           throw new Error('Knowledge base ID is required')
@@ -426,6 +428,19 @@ export const KnowledgeBlock: BlockConfig = {
         // Map upsert sub-block field to tool param
         if (params.operation === 'upsert_document' && params.upsertDocumentId) {
           params.documentId = String(params.upsertDocumentId).trim()
+        }
+
+        if (
+          (params.operation === 'create_document' || params.operation === 'upsert_document') &&
+          typeof params.documentTags === 'string' &&
+          params.documentTags.trim().length > 0
+        ) {
+          try {
+            const documentTags: unknown = JSON.parse(params.documentTags)
+            if (Array.isArray(documentTags) || isPlainRecord(documentTags)) {
+              params.documentTags = documentTags
+            }
+          } catch {}
         }
 
         // Convert enabled dropdown string to boolean for update_chunk
