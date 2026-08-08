@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { POLLING_PROVIDERS } from '@/triggers/constants'
+import { getProviderHandler } from '@/lib/webhooks/providers'
+import { isInternalTriggerProvider, POLLING_PROVIDERS } from '@/triggers/constants'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 
 describe('POLLING_PROVIDERS sync with TriggerConfig.polling', () => {
@@ -27,31 +28,36 @@ describe('POLLING_PROVIDERS sync with TriggerConfig.polling', () => {
   })
 
   /**
-   * `acceptsPathWebhookDelivery` gates the public trigger route on the PROVIDER, not the trigger
-   * id, so a provider owning both families would have its HTTP deliveries rejected as though they
-   * were forged. Sim already models dual-delivery services as two providers - Slack ships
-   * `slack` (path) and `slack_app` (shared ingress) rather than one mixed provider. Adding, say, a
-   * Gmail push trigger under the existing `gmail` provider is the shape this guards against: every
-   * other assertion here would still pass while real deliveries 404.
+   * `acceptsPathWebhookDelivery` gates the whole PROVIDER, not the trigger id, so a provider that
+   * serves the public path route must not also own a polling trigger - membership in
+   * `POLLING_PROVIDERS` would 404 its real deliveries. Providers gated wholesale for a
+   * provider-level reason (internal, or an app-level ingress route) never serve that route, so
+   * mixing is harmless there and they are exempt. Split dual-delivery services into two providers
+   * instead, as Slack does with `slack` and `slack_app`.
    */
-  it('no provider mixes polling and HTTP triggers', () => {
-    const byProvider = new Map<string, { polling: string[]; http: string[] }>()
+  it('no path-delivered provider also owns a polling trigger', () => {
+    const byProvider = new Map<string, { polling: string[]; path: string[] }>()
     for (const trigger of Object.values(TRIGGER_REGISTRY)) {
-      const entry = byProvider.get(trigger.provider) ?? { polling: [], http: [] }
-      entry[trigger.polling === true ? 'polling' : 'http'].push(trigger.id)
+      const gatedByProvider =
+        isInternalTriggerProvider(trigger.provider) ||
+        getProviderHandler(trigger.provider).ingressMode === 'provider'
+      if (gatedByProvider) continue
+
+      const entry = byProvider.get(trigger.provider) ?? { polling: [], path: [] }
+      entry[trigger.polling === true ? 'polling' : 'path'].push(trigger.id)
       byProvider.set(trigger.provider, entry)
     }
 
     const mixed = [...byProvider]
-      .filter(([, entry]) => entry.polling.length > 0 && entry.http.length > 0)
+      .filter(([, entry]) => entry.polling.length > 0 && entry.path.length > 0)
       .map(
         ([provider, entry]) =>
-          `${provider}: polling=[${entry.polling.join(', ')}] http=[${entry.http.join(', ')}]`
+          `${provider}: polling=[${entry.polling.join(', ')}] path=[${entry.path.join(', ')}]`
       )
 
     expect(
       mixed,
-      'Split the HTTP triggers onto their own provider - the public trigger route rejects the whole provider'
+      'Split the path-delivered triggers onto their own provider - the public trigger route rejects the whole provider'
     ).toEqual([])
   })
 
