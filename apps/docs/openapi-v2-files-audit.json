@@ -747,7 +747,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/V2FileResponse"
+                  "$ref": "#/components/schemas/V2FileMetadataResponse"
                 }
               }
             }
@@ -2193,6 +2193,40 @@
         "properties": {
           "data": {
             "$ref": "#/components/schemas/V2File"
+          }
+        }
+      },
+      "V2FileMetadata": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/V2File"
+          },
+          {
+            "type": "object",
+            "required": ["share"],
+            "properties": {
+              "share": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/V2FileShare"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The file's public share state, or null when the file has never been shared."
+              }
+            }
+          }
+        ]
+      },
+      "V2FileMetadataResponse": {
+        "type": "object",
+        "description": "A single file resource with its public share state.",
+        "required": ["data"],
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/V2FileMetadata"
           }
         }
       },

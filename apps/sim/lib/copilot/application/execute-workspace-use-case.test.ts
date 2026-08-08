@@ -9,6 +9,7 @@ const operation = {
   minimumRole: 'read' as const,
   workspaceApiKey: 'deny' as const,
   principalKinds: ['delegated'] as const,
+  delegatedServices: ['copilot'] as const,
 }
 
 describe('Copilot workspace application delegation', () => {

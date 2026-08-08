@@ -52,4 +52,10 @@ describe('table operation registry', () => {
     expect(tableOperations.createExport.minimumRole).toBe('read')
     expect(tableOperations.cancelExport.minimumRole).toBe('read')
   })
+
+  it('keeps delegated table operations Copilot-only', () => {
+    for (const operation of Object.values(tableOperations)) {
+      expect(operation.delegatedServices).toEqual(['copilot'])
+    }
+  })
 })

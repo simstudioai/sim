@@ -36,6 +36,23 @@ describe('file operation registry', () => {
     expect(new Set(ids).size).toBe(ids.length)
   })
 
+  it('allows executor delegation only for operations used by the internal file tool', () => {
+    const executorOperationIds = Object.values(fileOperations)
+      .filter((operation) => operation.delegatedServices?.includes('executor'))
+      .map((operation) => operation.id)
+
+    expect(executorOperationIds).toEqual([
+      'files.read_metadata',
+      'files.read_content',
+      'files.download',
+      'files.create',
+      'files.update_content',
+      'files.move',
+      'files.share.update',
+      'files.folders.create',
+    ])
+  })
+
   it('keeps external sharing policy changes human-delegated', () => {
     expect(fileOperations.updateShare.workspaceApiKey).toBe('deny')
     expect(fileOperations.updateShare.principalKinds).toEqual([
@@ -43,6 +60,7 @@ describe('file operation registry', () => {
       'personal_api_key',
       'delegated',
     ])
+    expect(fileOperations.updateShare.delegatedServices).toEqual(['copilot', 'executor'])
   })
 
   it('restricts compiled checks to authenticated sessions', () => {
