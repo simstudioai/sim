@@ -19,6 +19,13 @@ import {
 } from '@sim/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
+/**
+ * Wider than the menu's 220px default. The row-scoped workflow labels name both
+ * the action and the selected row count ("Run empty or failed cells on 2 rows"),
+ * which does not fit the default width.
+ */
+const CONTENT_WIDTH_CLASS = 'max-w-[320px]'
+
 interface ContextMenuProps {
   contextMenu: ContextMenuState
   onClose: () => void
@@ -150,6 +157,7 @@ export function ContextMenu({
         align='start'
         side='bottom'
         sideOffset={4}
+        className={CONTENT_WIDTH_CLASS}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
