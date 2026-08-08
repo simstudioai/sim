@@ -1,7 +1,8 @@
 import type { QueryClient } from '@tanstack/react-query'
 import { listFoldersForWorkspace } from '@/lib/folders/queries'
-import { listTablesForWorkspace } from '@/lib/table/queries'
+import type { TableDefinition } from '@/lib/table'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-keys'
@@ -14,9 +15,9 @@ import { TABLE_LIST_STALE_TIME, tableKeys } from '@/hooks/queries/utils/table-ke
  * only placed correctly relative to the folder rows it sits beside, so
  * prefetching one without the other still flashes an ungrouped list.
  *
- * `listTablesForWorkspace` returns the same wire shape `GET /api/table` does, and folders
- * are mapped with the same `mapFolder` the hook applies — so both hydrated entries match a
- * client fetch exactly.
+ * The tables list goes through its route rather than the data layer — see
+ * {@link prefetchInternalJson}. Folders are mapped with the same `mapFolder` the hook
+ * applies, so that entry matches a client fetch exactly.
  */
 export async function prefetchTables(
   queryClient: QueryClient,
@@ -29,7 +30,12 @@ export async function prefetchTables(
   await Promise.all([
     queryClient.prefetchQuery({
       queryKey: tableKeys.list(workspaceId, 'active'),
-      queryFn: () => listTablesForWorkspace(workspaceId, 'active'),
+      queryFn: async () => {
+        const response = await prefetchInternalJson<{ data: { tables: TableDefinition[] } }>(
+          `/api/table?workspaceId=${workspaceId}&scope=active`
+        )
+        return response.data.tables
+      },
       staleTime: TABLE_LIST_STALE_TIME,
     }),
     queryClient.prefetchQuery({

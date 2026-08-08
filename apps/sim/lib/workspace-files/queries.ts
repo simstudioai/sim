@@ -1,3 +1,4 @@
+import { listWorkspaceFilesContract } from '@/lib/api/contracts/workspace-files'
 import { getWorkspaceShares } from '@/lib/public-shares/share-manager'
 import {
   listWorkspaceFiles,
@@ -6,10 +7,13 @@ import {
 
 /**
  * Lists a workspace's files with each file's public share joined on — shared by
- * `GET /api/workspaces/[id]/files` and the Files/Home prefetches so a hydrated cache entry
- * and a client fetch cannot disagree.
+ * `GET /api/workspaces/[id]/files` and the Files/Home prefetches so both cache one shape.
  *
- * Callers are responsible for authorizing the viewer against `workspaceId` first.
+ * Parsing through the route contract's response schema strips the server-only fields
+ * `requestJson` strips on the client (`contentUpdatedAt`), so a prefetched entry is identical
+ * to a client fetch rather than carrying a field that vanishes on the next refetch.
+ *
+ * Callers authorize the viewer against `workspaceId` first.
  */
 export async function listWorkspaceFilesWithShares(
   workspaceId: string,
@@ -19,5 +23,7 @@ export async function listWorkspaceFilesWithShares(
     listWorkspaceFiles(workspaceId, { scope }),
     getWorkspaceShares('file', workspaceId),
   ])
-  return files.map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
+  const withShares = files.map((file) => ({ ...file, share: shares.get(file.id) ?? null }))
+  return listWorkspaceFilesContract.response.schema.parse({ success: true, files: withShares })
+    .files
 }

@@ -24,6 +24,4 @@ export const invitationKeys = {
 
 export const WORKSPACE_INVITATION_LIST_STALE_TIME = 30 * 1000
 export const INVITATION_DETAILS_STALE_TIME = 30 * 1000
-
-/** Shared with the server prefetch so a hydrated list and a client fetch never disagree. */
 export const VIEWER_INVITATIONS_STALE_TIME = 30 * 1000

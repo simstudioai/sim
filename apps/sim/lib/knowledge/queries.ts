@@ -4,12 +4,9 @@ import { getKnowledgeBases, type KnowledgeBaseScope } from '@/lib/knowledge/serv
 /**
  * Lists a viewer's knowledge bases in the wire shape the `/api/knowledge` contract declares.
  *
- * Shared by `GET /api/knowledge` and the Knowledge page's server prefetch so a hydrated
- * cache entry and a client fetch cannot disagree.
- *
- * Dates are serialized explicitly: `knowledgeBaseDataSchema` types every date as
- * `wireDateSchema` (`z.string()`), so caching raw `Date`s would violate the declared type
- * and silently become strings on the first refetch.
+ * Shared by `GET /api/knowledge` and the Knowledge page's server prefetch so both cache one
+ * shape. Dates are serialized because `knowledgeBaseDataSchema` types them `z.string()` —
+ * caching raw `Date`s would violate that type and flip to strings on the next refetch.
  */
 export async function listKnowledgeBasesForViewer(
   userId: string,

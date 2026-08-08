@@ -10,7 +10,7 @@ const {
   mockGetWorkspaceMemberProfiles,
   mockListFoldersForWorkspace,
   mockListPinnedItemsForViewer,
-  mockListTablesForWorkspace,
+  mockPrefetchInternalJson,
   mockListWorkspaceFileFolders,
   mockListWorkspaceFilesWithShares,
 } = vi.hoisted(() => ({
@@ -19,7 +19,7 @@ const {
   mockGetWorkspaceMemberProfiles: vi.fn(),
   mockListFoldersForWorkspace: vi.fn(),
   mockListPinnedItemsForViewer: vi.fn(),
-  mockListTablesForWorkspace: vi.fn(),
+  mockPrefetchInternalJson: vi.fn(),
   mockListWorkspaceFileFolders: vi.fn(),
   mockListWorkspaceFilesWithShares: vi.fn(),
 }))
@@ -38,7 +38,9 @@ vi.mock('@/lib/workspace-files/queries', () => ({
 vi.mock('@/lib/uploads/contexts/workspace', () => ({
   listWorkspaceFileFolders: mockListWorkspaceFileFolders,
 }))
-vi.mock('@/lib/table/queries', () => ({ listTablesForWorkspace: mockListTablesForWorkspace }))
+vi.mock('@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch', () => ({
+  prefetchInternalJson: mockPrefetchInternalJson,
+}))
 vi.mock('@/lib/knowledge/queries', () => ({
   listKnowledgeBasesForViewer: mockListKnowledgeBasesForViewer,
 }))
@@ -75,7 +77,7 @@ describe('workspace list prefetches', () => {
     mockListFoldersForWorkspace.mockResolvedValue([])
     mockListWorkspaceFilesWithShares.mockResolvedValue([])
     mockListWorkspaceFileFolders.mockResolvedValue([])
-    mockListTablesForWorkspace.mockResolvedValue([])
+    mockPrefetchInternalJson.mockResolvedValue({ data: { tables: [] } })
     mockListKnowledgeBasesForViewer.mockResolvedValue([])
   })
 
@@ -95,12 +97,14 @@ describe('workspace list prefetches', () => {
   describe('prefetchTables', () => {
     it('primes the exact key useTablesList reads', async () => {
       const tables = [{ id: 't-1' }]
-      mockListTablesForWorkspace.mockResolvedValue(tables)
+      mockPrefetchInternalJson.mockResolvedValue({ data: { tables } })
       const client = makeClient()
 
       await prefetchTables(client, WORKSPACE_ID, USER_ID)
 
-      expect(mockListTablesForWorkspace).toHaveBeenCalledWith(WORKSPACE_ID, 'active')
+      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
+        `/api/table?workspaceId=${WORKSPACE_ID}&scope=active`
+      )
       expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toEqual(tables)
     })
   })
@@ -177,7 +181,7 @@ describe('workspace list prefetches', () => {
 
         expect(client.getQueryCache().getAll()).toHaveLength(0)
         expect(mockListWorkspaceFilesWithShares).not.toHaveBeenCalled()
-        expect(mockListTablesForWorkspace).not.toHaveBeenCalled()
+        expect(mockPrefetchInternalJson).not.toHaveBeenCalled()
         expect(mockListKnowledgeBasesForViewer).not.toHaveBeenCalled()
         expect(mockListPinnedItemsForViewer).not.toHaveBeenCalled()
       })

@@ -11,10 +11,10 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import {
   createTable,
   getWorkspaceTableLimits,
+  listTables,
   type TableSchema,
   type TableScope,
 } from '@/lib/table'
-import { listTablesForWorkspace } from '@/lib/table/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { normalizeColumn } from '@/app/api/table/utils'
 
@@ -204,20 +204,46 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ error: 'Access denied' }, { status: 403 })
     }
 
-    const responseTables = await listTablesForWorkspace(
-      params.workspaceId,
-      params.scope as TableScope
-    )
+    const tables = await listTables(params.workspaceId, { scope: params.scope as TableScope })
 
-    logger.info(
-      `[${requestId}] Listed ${responseTables.length} tables in workspace ${params.workspaceId}`
-    )
+    logger.info(`[${requestId}] Listed ${tables.length} tables in workspace ${params.workspaceId}`)
+
+    const responseTables = tables.map((t) => {
+      const schemaData = t.schema as TableSchema
+      return {
+        id: t.id,
+        name: t.name,
+        description: t.description,
+        schema: {
+          columns: schemaData.columns.map(normalizeColumn),
+        },
+        rowCount: t.rowCount,
+        maxRows: t.maxRows,
+        locks: t.locks,
+        workspaceId: t.workspaceId,
+        folderId: t.folderId ?? null,
+        createdBy: t.createdBy,
+        createdAt: t.createdAt instanceof Date ? t.createdAt.toISOString() : String(t.createdAt),
+        updatedAt: t.updatedAt instanceof Date ? t.updatedAt.toISOString() : String(t.updatedAt),
+        archivedAt:
+          t.archivedAt instanceof Date
+            ? t.archivedAt.toISOString()
+            : t.archivedAt
+              ? String(t.archivedAt)
+              : null,
+        jobStatus: t.jobStatus ?? null,
+        jobId: t.jobId ?? null,
+        jobType: t.jobType ?? null,
+        jobError: t.jobError ?? null,
+        jobRowsProcessed: t.jobRowsProcessed ?? 0,
+      }
+    })
 
     return NextResponse.json({
       success: true,
       data: {
         tables: responseTables,
-        totalCount: responseTables.length,
+        totalCount: tables.length,
       },
     })
   } catch (error) {

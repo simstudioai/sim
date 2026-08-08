@@ -7,8 +7,7 @@ const logger = createLogger('PendingInvitations')
 /**
  * The invitee-facing pending-invitation list behind the workspace switcher's
  * Invitations section, assembled once for both the `GET /api/invitations` route
- * and the sidebar's server prefetch — so the prefetched cache entry and a client
- * fetch can never disagree about the shape stored under `invitationKeys.viewer()`.
+ * and the sidebar's server prefetch so both cache one shape.
  *
  * Rows deliberately exclude the token: acceptance here is session-bound (email
  * match), which is what makes it immune to the wrong-browser-account problem.

@@ -11,9 +11,7 @@ interface ViewInvitationsMenuItemProps {
 
 /**
  * "View invitations" entry in the workspace switcher — rendered only when the
- * signed-in account has pending invitations. Mounted inside the dropdown
- * content, but the list is hydrated by the sidebar's server prefetch, so the
- * entry is there on the frame the menu opens instead of popping in after it.
+ * signed-in account has pending invitations.
  */
 export function ViewInvitationsMenuItem({ onOpen }: ViewInvitationsMenuItemProps) {
   const { data: invitations } = usePendingInvitationsForViewer()

@@ -20,13 +20,8 @@ import {
  * `useWorkspaceFileFolders`) use (scope `active`), so the browser paints populated
  * on first render.
  *
- * Calls the data layer directly — the same functions the API routes use — matching
- * `prefetchWorkspaceSidebar`. A rejection here is swallowed by `prefetchQuery` and the
- * errored entry dropped by `shouldDehydrateQuery`, so one list failing must not take
- * its siblings down with it.
- *
- * Membership is verified once rather than per-list. Without access nothing is cached,
- * so the client fetch reaches the route and gets the real 403.
+ * Without workspace access nothing is cached, so the client fetch reaches the route and
+ * gets the real 403.
  */
 export async function prefetchFilesBrowser(
   queryClient: QueryClient,

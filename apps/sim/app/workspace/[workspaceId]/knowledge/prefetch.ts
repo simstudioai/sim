@@ -16,9 +16,8 @@ import { KNOWLEDGE_BASE_LIST_STALE_TIME, knowledgeKeys } from '@/hooks/queries/u
  * beside, so prefetching one without the other still flashes an ungrouped list — and a
  * `?folderId=` deep link renders an empty breadcrumb until the folders arrive.
  *
- * `listKnowledgeBasesForViewer` is viewer-scoped and returns the contract's wire shape,
- * and folders go through the same `mapFolder` the hook applies — so both hydrated
- * entries match a client fetch exactly.
+ * Folders are mapped with the same `mapFolder` the hook applies, so both hydrated entries
+ * match a client fetch exactly.
  */
 export async function prefetchKnowledgeBases(
   queryClient: QueryClient,

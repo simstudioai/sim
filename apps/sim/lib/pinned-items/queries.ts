@@ -26,11 +26,10 @@ function toPinnedItemApi(row: typeof pinnedItem.$inferSelect): PinnedItemApi | n
  * Lists a viewer's pinned items in a workspace, optionally filtered to one `resourceType`,
  * already narrowed to the wire shape and to resources that still exist.
  *
- * Shared by `GET /api/pinned-items` and the resource-list prefetch so a hydrated cache entry
- * and a client fetch cannot disagree — pinned ids are the list's primary sort key, so any
- * drift reorders the list on the first refetch.
+ * Shared by `GET /api/pinned-items` and the resource-list prefetch so both cache one shape —
+ * pinned ids are the list's primary sort key, so drift reorders the list on the next refetch.
  *
- * Callers are responsible for authorizing the viewer against `workspaceId` first.
+ * Callers authorize the viewer against `workspaceId` first.
  */
 export async function listPinnedItemsForViewer(
   userId: string,
