@@ -11,6 +11,8 @@ import {
   useState,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { ChatContent } from '@/components/chat/chat-content'
+import { PendingTagIndicator } from '@/components/chat/pending-tag-indicator'
 import { Read as ReadTool, WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import { isToolHiddenInUi } from '@/lib/copilot/tools/client/hidden-tools'
 import { resolveToolDisplay } from '@/lib/copilot/tools/client/store-utils'
@@ -25,7 +27,7 @@ import type { CredentialSubmissionPayload } from '@/app/workspace/[workspaceId]/
 import type { ContentBlock, OptionItem, ToolCallData } from '../../types'
 import { SUBAGENT_LABELS } from '../../types'
 import type { AgentGroupItem } from './components'
-import { AgentGroup, ChatContent, CircleStop, Options, PendingTagIndicator } from './components'
+import { AgentGroup, CircleStop, Options, SpecialTags } from './components'
 import { deriveMessagePhase, isToolDone, type MessagePhase } from './utils'
 
 const FILE_SUBAGENT_ID = 'file'
@@ -938,6 +940,7 @@ function MessageContentInner({
                   onPendingTagChange={
                     i === revealTailIndex ? handleTrailingPendingTagChange : undefined
                   }
+                  renderSpecialTags={SpecialTags}
                 />
               )
             case 'agent_group': {

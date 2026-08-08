@@ -7,8 +7,8 @@ import * as Y from 'yjs'
 import {
   applyFrontmatter,
   postProcessSerializedMarkdown,
-} from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
-import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+} from '@/components/resources/file-view/components/rich-markdown-editor/markdown-fidelity'
+import { serializeMarkdownBody } from '@/components/resources/file-view/components/rich-markdown-editor/markdown-parse'
 import {
   applyMarkdownToYDoc,
   markdownToYDoc,

@@ -19,12 +19,13 @@ import { generateId } from '@sim/utils/id'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
 import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
 import { useShallow } from 'zustand/react/shallow'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
+import { useSocket } from '@/components/socket-provider'
 import { useSession } from '@/lib/auth/auth-client'
 import type { OAuthConnectEventDetail } from '@/lib/copilot/tools/client/base-tool'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import type { OAuthProvider } from '@/lib/oauth'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import { useWorkspacePermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   CommandList,
@@ -77,7 +78,6 @@ import {
   reactFlowProOptions,
   reactFlowStyles,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/workflow-constants'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { getBlock } from '@/blocks'
 import { isAnnotationOnlyBlock } from '@/executor/constants'
 import { useCustomBlocks } from '@/hooks/queries/custom-blocks'

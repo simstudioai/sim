@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { safeCompare } from '@sim/security/compare'
 import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
@@ -130,6 +131,18 @@ export const PUT = withRouteHandler(
     const requestId = generateRequestId()
 
     try {
+      // Its own IP bucket, separate from the send path above, so failed verifies
+      // never throttle a legitimate resend.
+      const ip = getClientIp(request)
+      const ipRateLimit = await rateLimiter.checkRateLimitDirect(
+        `file-otp:verify:ip:${ip}`,
+        OTP_IP_RATE_LIMIT
+      )
+      if (!ipRateLimit.allowed) {
+        logger.warn(`[${requestId}] OTP verify IP rate limit exceeded from ${ip}`)
+        return rateLimited(ipRateLimit.retryAfterMs, OTP_IP_RATE_LIMIT.refillIntervalMs)
+      }
+
       const parsed = await parseRequest(verifyPublicFileOtpContract, request, context)
       if (!parsed.success) return parsed.response
       const { token } = parsed.data.params
@@ -164,7 +177,7 @@ export const PUT = withRouteHandler(
         )
       }
 
-      if (storedOTP !== otp) {
+      if (!safeCompare(storedOTP, otp)) {
         const result = await incrementOTPAttempts('file', resolved.share.id, email, storedValue)
         if (result === 'locked') {
           return NextResponse.json(

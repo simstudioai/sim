@@ -40,7 +40,7 @@ const logoShell = read('../(landing)/components/logo-shell/logo-shell.tsx')
 const pageHeaderBar = read('../../components/page-header-bar.ts')
 const settingsHeader = read('../../components/settings/settings-header.tsx')
 const resourceHeader = read(
-  '../workspace/[workspaceId]/components/resource/components/resource-header/resource-header.tsx'
+  '../../components/resource/components/resource-header/resource-header.tsx'
 )
 const mothershipView = read(
   '../workspace/[workspaceId]/home/components/mothership-view/mothership-view.tsx'

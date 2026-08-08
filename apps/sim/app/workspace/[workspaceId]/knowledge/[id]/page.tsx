@@ -1,6 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
+import { KnowledgeRoute } from '@/app/workspace/[workspaceId]/knowledge/[id]/knowledge-route'
 
 interface PageProps {
   params: Promise<{
@@ -21,7 +21,7 @@ export default async function KnowledgeBasePage({ params, searchParams }: PagePr
 
   return (
     <Suspense fallback={null}>
-      <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+      <KnowledgeRoute id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
     </Suspense>
   )
 }

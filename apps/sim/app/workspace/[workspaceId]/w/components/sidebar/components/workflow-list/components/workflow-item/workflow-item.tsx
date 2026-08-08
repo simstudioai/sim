@@ -5,13 +5,13 @@ import { chipVariants, cn } from '@sim/emcn'
 import { Lock, MoreHorizontal } from '@sim/emcn/icons'
 import clsx from 'clsx'
 import Link from 'next/link'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import { Avatars } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/avatars/avatars'
 import {
-  useContextMenu,
   useItemDrag,
   useItemRename,
   useSidebarListContext,

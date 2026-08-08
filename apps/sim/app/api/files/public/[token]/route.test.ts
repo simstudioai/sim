@@ -6,12 +6,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   mockResolveActiveShareByToken,
-  mockEnforceRateLimit,
+  mockEnforcePerIp,
   mockValidateDeploymentAuth,
   mockSetDeploymentAuthCookie,
 } = vi.hoisted(() => ({
   mockResolveActiveShareByToken: vi.fn(),
-  mockEnforceRateLimit: vi.fn(),
+  mockEnforcePerIp: vi.fn(),
   mockValidateDeploymentAuth: vi.fn(),
   mockSetDeploymentAuthCookie: vi.fn(),
 }))
@@ -21,7 +21,7 @@ vi.mock('@/lib/public-shares/share-manager', () => ({
 }))
 
 vi.mock('@/lib/public-shares/rate-limit', () => ({
-  enforcePublicFileRateLimit: mockEnforceRateLimit,
+  enforcePerIpRateLimit: mockEnforcePerIp,
 }))
 
 vi.mock('@/lib/core/security/deployment-auth', () => ({
@@ -66,17 +66,29 @@ const passwordShare = {
 describe('GET /api/files/public/[token]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockEnforceRateLimit.mockResolvedValue(null) // allow by default
+    mockEnforcePerIp.mockResolvedValue(null) // allow by default
     mockValidateDeploymentAuth.mockResolvedValue({ authorized: true }) // public by default
   })
 
   it('returns 429 when the per-IP rate limit is exceeded', async () => {
-    mockEnforceRateLimit.mockResolvedValueOnce(
+    mockEnforcePerIp.mockResolvedValueOnce(
       NextResponse.json({ error: 'Too many requests. Please try again later.' }, { status: 429 })
     )
     const res = await GET(request(), params())
     expect(res.status).toBe(429)
     expect(mockResolveActiveShareByToken).not.toHaveBeenCalled()
+  })
+
+  /**
+   * Metadata is one indexed lookup that spends nothing, so it deliberately
+   * carries no aggregate per-share ceiling — only the per-IP bucket, charged
+   * once. The bytes behind it (`/content`, `/inline`) do carry one.
+   */
+  it('charges only the metadata per-IP bucket, exactly once', async () => {
+    mockResolveActiveShareByToken.mockResolvedValueOnce(publicShare)
+    await GET(request(), params())
+    expect(mockEnforcePerIp).toHaveBeenCalledTimes(1)
+    expect(mockEnforcePerIp).toHaveBeenCalledWith(expect.anything(), 'metadata')
   })
 
   it('returns 404 for an unknown or inactive token', async () => {

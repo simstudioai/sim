@@ -1,0 +1,123 @@
+'use client'
+
+import {
+  ChipChevronDown,
+  chipContentIconClass,
+  chipContentLabelClass,
+  chipVariants,
+  cn,
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+  Plus,
+} from '@sim/emcn'
+import { Sparkles } from '@sim/emcn/icons'
+import { COLUMN_TYPE_OPTIONS } from '@/components/resources/table-view/components/column-config-sidebar'
+import type { ColumnDefinition } from '@/lib/table'
+
+const CELL_HEADER =
+  'border-[var(--border)] border-r border-b bg-[var(--bg)] px-2 py-[7px] text-left align-middle'
+
+interface NewColumnDropdownProps {
+  /** `'header'` renders the page-header trigger (subtle Button); `'inline-header'` renders
+   *  the in-table column-header `<th>` trigger. Same dropdown content either way. */
+  trigger: 'header' | 'inline-header'
+  disabled: boolean
+  onPickType: (type: ColumnDefinition['type']) => void
+  onPickWorkflow: () => void
+  onPickEnrichment: () => void
+  /**
+   * When true, the trigger stays visible and clickable but opens nothing — it
+   * calls {@link onBlocked} instead. Used when the table is schema-locked:
+   * hiding the control leaves the user guessing, so it stays and explains.
+   * Paired required so `blocked` can never be set without a handler.
+   */
+  blocked: boolean
+  onBlocked: () => void
+}
+
+/**
+ * "+ New column" dropdown — the single entry point for creating a column.
+ * Lists every column type plus "Workflow" and "Enrichments"; picking a type
+ * opens the right sidebar pre-seeded.
+ */
+export function NewColumnDropdown({
+  trigger,
+  disabled,
+  onPickType,
+  onPickWorkflow,
+  onPickEnrichment,
+  blocked,
+  onBlocked,
+}: NewColumnDropdownProps) {
+  const triggerButton =
+    trigger === 'header' ? (
+      /** Primary CTA of the table header — inverse chip, so icon/label/chevron ride `currentColor`. */
+      <button
+        type='button'
+        className={chipVariants({ variant: 'primary' })}
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className={cn(chipContentIconClass, 'text-current')} />
+        <span className={cn(chipContentLabelClass, 'text-current')}>New column</span>
+        <ChipChevronDown className='text-current' />
+      </button>
+    ) : (
+      <button
+        type='button'
+        className='flex h-[20px] cursor-pointer items-center gap-2 outline-none'
+        disabled={disabled}
+        onClick={blocked ? onBlocked : undefined}
+      >
+        <Plus className='size-[14px] shrink-0 text-[var(--text-icon)]' />
+        <span className='text-[var(--text-body)] text-small'>New column</span>
+      </button>
+    )
+
+  if (blocked) {
+    return trigger === 'inline-header' ? (
+      <th className={CELL_HEADER}>{triggerButton}</th>
+    ) : (
+      triggerButton
+    )
+  }
+
+  const menu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>{triggerButton}</DropdownMenuTrigger>
+      {/* Taller than the 240px shared default: the full type list is 9 items
+          (295px with its separator and padding), so the default cut the last
+          two off behind a scrollbar. Sized here rather than in the shared
+          component, which every other dropdown in the app relies on. */}
+      <DropdownMenuContent align='start' side='bottom' sideOffset={4} className='max-h-[320px]'>
+        <>
+          <DropdownMenuItem onSelect={onPickEnrichment}>
+            <Sparkles className='size-[14px] text-[var(--text-icon)]' />
+            Enrichments
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+        </>
+        {COLUMN_TYPE_OPTIONS.map((option) => {
+          const Icon = option.icon
+          const onSelect =
+            option.type === 'workflow'
+              ? onPickWorkflow
+              : () => onPickType(option.type as ColumnDefinition['type'])
+          return (
+            <DropdownMenuItem key={option.type} onSelect={onSelect}>
+              <Icon className='size-[14px] text-[var(--text-icon)]' />
+              {option.label}
+            </DropdownMenuItem>
+          )
+        })}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  // The in-table trigger lives inside a `<tr>` so it must be a `<th>`. The
+  // header trigger lives in the page header so it sits inline.
+  return trigger === 'inline-header' ? <th className={CELL_HEADER}>{menu}</th> : menu
+}

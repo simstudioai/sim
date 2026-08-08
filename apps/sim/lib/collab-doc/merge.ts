@@ -1,6 +1,7 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import * as Y from 'yjs'
-import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+// boundary-resource-internal: server-side markdown fidelity only; the barrel would pull the React file view into the realtime persist path
+import { splitFrontmatter } from '@/components/resources/file-view/components/rich-markdown-editor/markdown-fidelity'
 import { applyMarkdownToYDoc } from './converter'
 
 /**

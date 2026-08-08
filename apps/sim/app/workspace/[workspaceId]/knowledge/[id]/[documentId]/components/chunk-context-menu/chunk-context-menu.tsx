@@ -1,13 +1,8 @@
 'use client'
 
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@sim/emcn'
+import { DropdownMenuItem, DropdownMenuSeparator } from '@sim/emcn'
 import { Duplicate, Eye, Pencil, Plus, SquareArrowUpRight, Trash } from '@sim/emcn/icons'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 
 interface ChunkContextMenuProps {
   isOpen: boolean
@@ -67,86 +62,59 @@ export function ChunkContextMenu({
     return isChunkEnabled ? 'Disable' : 'Enable'
   }
 
+  /**
+   * Canonical resource-menu structure: navigation (Open in new tab) above a
+   * single separator, then the item actions in the shared order — Edit, Copy
+   * content, Enable/Disable, Delete.
+   */
   const hasNavigationSection = !isMultiSelect && !!onOpenInNewTab
-  const hasEditSection = !isMultiSelect && (!!onEdit || !!onCopyContent)
-  const hasStateSection = !!onToggleEnabled
-  const hasDestructiveSection = !!onDelete
+  const hasActionsSection =
+    (!isMultiSelect && (!!onEdit || !!onCopyContent)) || !!onToggleEnabled || !!onDelete
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {hasChunk ? (
-          <>
-            {hasNavigationSection && (
-              <DropdownMenuItem onSelect={onOpenInNewTab!}>
-                <SquareArrowUpRight />
-                Open in new tab
-              </DropdownMenuItem>
-            )}
-            {hasNavigationSection &&
-              (hasEditSection || hasStateSection || hasDestructiveSection) && (
-                <DropdownMenuSeparator />
-              )}
-
-            {!isMultiSelect && onEdit && (
-              <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
-                <Pencil />
-                {isConnectorDocument ? 'View' : 'Edit'}
-              </DropdownMenuItem>
-            )}
-            {!isMultiSelect && onCopyContent && (
-              <DropdownMenuItem onSelect={onCopyContent}>
-                <Duplicate />
-                Copy content
-              </DropdownMenuItem>
-            )}
-            {hasEditSection && (hasStateSection || hasDestructiveSection) && (
-              <DropdownMenuSeparator />
-            )}
-
-            {onToggleEnabled && (
-              <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
-                <Eye />
-                {getToggleLabel()}
-              </DropdownMenuItem>
-            )}
-
-            {hasStateSection && hasDestructiveSection && <DropdownMenuSeparator />}
-            {onDelete && (
-              <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
-                <Trash />
-                Delete
-              </DropdownMenuItem>
-            )}
-          </>
-        ) : (
-          onAddChunk && (
-            <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
-              <Plus />
-              Create chunk
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {hasChunk ? (
+        <>
+          {hasNavigationSection && (
+            <DropdownMenuItem onSelect={onOpenInNewTab!}>
+              <SquareArrowUpRight />
+              Open in new tab
             </DropdownMenuItem>
-          )
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          )}
+          {hasNavigationSection && hasActionsSection && <DropdownMenuSeparator />}
+          {!isMultiSelect && onEdit && (
+            <DropdownMenuItem disabled={disableEdit} onSelect={onEdit}>
+              <Pencil />
+              {isConnectorDocument ? 'View' : 'Edit'}
+            </DropdownMenuItem>
+          )}
+          {!isMultiSelect && onCopyContent && (
+            <DropdownMenuItem onSelect={onCopyContent}>
+              <Duplicate />
+              Copy content
+            </DropdownMenuItem>
+          )}
+          {onToggleEnabled && (
+            <DropdownMenuItem disabled={disableToggleEnabled} onSelect={onToggleEnabled}>
+              <Eye />
+              {getToggleLabel()}
+            </DropdownMenuItem>
+          )}
+          {onDelete && (
+            <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
+              <Trash />
+              Delete
+            </DropdownMenuItem>
+          )}
+        </>
+      ) : (
+        onAddChunk && (
+          <DropdownMenuItem disabled={disableAddChunk} onSelect={onAddChunk}>
+            <Plus />
+            Create chunk
+          </DropdownMenuItem>
+        )
+      )}
+    </AnchoredContextMenu>
   )
 }

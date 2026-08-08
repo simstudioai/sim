@@ -1,1 +1,1 @@
-export { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+export { ParallelTool } from '@/blocks/subflow-tools'

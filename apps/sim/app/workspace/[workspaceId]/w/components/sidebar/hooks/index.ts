@@ -1,6 +1,5 @@
 export { useAutoScroll } from './use-auto-scroll'
 export { useChatSelection } from './use-chat-selection'
-export { useContextMenu } from './use-context-menu'
 export { type DropIndicator, useDragDrop } from './use-drag-drop'
 export { useFlyoutInlineRename } from './use-flyout-inline-rename'
 export { useFolderExpand } from './use-folder-expand'

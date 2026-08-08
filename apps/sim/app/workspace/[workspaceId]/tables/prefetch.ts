@@ -1,6 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
-import type { TableDefinition } from '@/lib/table'
+import type { ListTablesResponse } from '@/lib/api/contracts/tables'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
@@ -24,7 +24,7 @@ export async function prefetchTables(queryClient: QueryClient, workspaceId: stri
     queryClient.prefetchQuery({
       queryKey: tableKeys.list(workspaceId, 'active'),
       queryFn: async () => {
-        const response = await prefetchInternalJson<{ data: { tables: TableDefinition[] } }>(
+        const response = await prefetchInternalJson<ListTablesResponse>(
           `/api/table?workspaceId=${workspaceId}&scope=active`
         )
         return response.data.tables

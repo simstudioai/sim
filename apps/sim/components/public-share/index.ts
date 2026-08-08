@@ -1,0 +1,5 @@
+export { PublicShareAuthShell } from '@/components/public-share/public-share-auth-shell'
+export { PublicShareEmailAuth } from '@/components/public-share/public-share-email-auth'
+export { PublicSharePasswordAuth } from '@/components/public-share/public-share-password-auth'
+export { PublicShareSSOAuth } from '@/components/public-share/public-share-sso-auth'
+export type { PublicShareGateProps, PublicShareKind } from '@/components/public-share/types'

@@ -1,7 +1,8 @@
 import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
 import { generateShortId } from '@sim/utils/id'
-import { formatDate, formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
+import { formatDate } from '@/components/resources/log-view'
+import { formatLatency } from '@/app/workspace/[workspaceId]/logs/utils'
 
 export interface LineChartPoint {
   timestamp: string

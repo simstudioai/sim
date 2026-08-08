@@ -13,6 +13,9 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
+import { workspaceSource } from '@/resources'
+
+const SOURCE = workspaceSource({ kind: 'file', workspaceId: 'ws-1', resourceId: 'file-1' })
 
 let fetchCount = 0
 
@@ -40,7 +43,7 @@ function renderContentHook(options?: {
   const root: Root = createRoot(container)
 
   function Probe() {
-    useWorkspaceFileContent('ws-1', 'file-1', 'workspace/ws-1/123-abc-doc.md', false, options)
+    useWorkspaceFileContent(SOURCE, 'file-1', 'workspace/ws-1/123-abc-doc.md', false, options)
     return null
   }
 

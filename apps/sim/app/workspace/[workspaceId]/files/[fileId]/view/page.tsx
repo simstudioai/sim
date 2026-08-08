@@ -1,9 +1,9 @@
 import type { Metadata } from 'next'
-import { FileViewer } from './file-viewer'
+import { FullscreenFileView } from '@/app/workspace/[workspaceId]/files/[fileId]/view/fullscreen-file-view'
 
 export const metadata: Metadata = {
   title: 'File',
   robots: { index: false },
 }
 
-export default FileViewer
+export default FullscreenFileView

@@ -197,6 +197,7 @@ export function sanitizeChatResources(
 /** Placeholder resource titles that a more specific title may overwrite during dedup. */
 export const GENERIC_RESOURCE_TITLES = new Set<string>([
   'Table',
+  'Interface',
   'File',
   'Workflow',
   'Knowledge Base',

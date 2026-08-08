@@ -30,6 +30,8 @@
     "check:api-validation": "bun run scripts/check-api-validation-contracts.ts --check",
     "check:cron-parity": "bun run scripts/check-cron-parity.ts",
     "check:api-validation:strict": "bun run scripts/check-api-validation-contracts.ts --check --enforce-boundary-baseline",
+    "check:resources": "bun run scripts/check-resource-views.ts --check",
+    "check:resources:strict": "bun run scripts/check-resource-views.ts --check --enforce-resource-baseline",
     "check:realtime-prune": "bun run scripts/check-realtime-prune-graph.ts",
     "check:tool-request-boundary": "bun run scripts/check-tool-request-boundary.ts",
     "check:tool-registry-boundary": "bun run scripts/check-tool-registry-boundary.ts",
