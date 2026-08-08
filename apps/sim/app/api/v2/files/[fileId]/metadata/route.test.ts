@@ -54,6 +54,17 @@ const auth = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
+const SHARE = {
+  id: 'share-1',
+  token: 'share-token',
+  url: 'https://example.com/f/share-token',
+  isActive: true,
+  resourceType: 'file',
+  resourceId: FILE_ID,
+  authType: 'public',
+  hasPassword: false,
+  allowedEmails: [],
+}
 
 function buildRecord() {
   return {
@@ -89,7 +100,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       remaining: 99,
       resetAt: new Date('2024-01-01T01:00:00Z'),
     })
-    mocks.readMetadata.mockResolvedValue({ file: buildRecord() })
+    mocks.readMetadata.mockResolvedValue({ file: buildRecord(), share: SHARE })
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'ada@example.com']]))
   })
 
@@ -128,6 +139,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
         uploadedByEmail: 'ada@example.com',
         uploadedAt: '2024-01-01T00:00:00.000Z',
         updatedAt: '2024-01-02T00:00:00.000Z',
+        share: SHARE,
       },
     })
     expect(mocks.readMetadata).toHaveBeenCalledWith({
@@ -135,5 +147,14 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
       input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
       request: expect.anything(),
     })
+  })
+
+  it('returns a null share when the file has no share configuration', async () => {
+    mocks.readMetadata.mockResolvedValueOnce({ file: buildRecord(), share: null })
+
+    const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).data.share).toBeNull()
   })
 })

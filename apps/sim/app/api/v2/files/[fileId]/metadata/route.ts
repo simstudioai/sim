@@ -20,5 +20,5 @@ export const GET = defineV2JsonRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: readWorkspaceFileMetadata,
-  present: async ({ file }) => ({ data: await toV2File(file) }),
+  present: async ({ file, share }) => ({ data: { ...(await toV2File(file)), share } }),
 })

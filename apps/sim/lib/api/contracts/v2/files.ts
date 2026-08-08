@@ -61,6 +61,24 @@ export const v2FileSchema = z.object({
 
 export type V2File = z.output<typeof v2FileSchema>
 
+/**
+ * Public share state. Reuses the internal {@link shareRecordSchema}, which is
+ * already public-safe — `hasPassword` is a boolean and neither the ciphertext
+ * nor the storage key is carried — with `url` tightened to a real URL.
+ */
+export const v2FileShareSchema = shareRecordSchema.extend({
+  url: z.string().url(),
+})
+
+export type V2FileShare = z.output<typeof v2FileShareSchema>
+
+/** File metadata enriched with its current public-share configuration. */
+export const v2FileMetadataSchema = v2FileSchema.extend({
+  share: v2FileShareSchema.nullable(),
+})
+
+export type V2FileMetadata = z.output<typeof v2FileMetadataSchema>
+
 export const v2FileUploadParamsSchema = z.object({ uploadId: z.string().min(1) })
 export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
 
@@ -259,17 +277,6 @@ export const v2DeleteFileFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
 })
 
-/**
- * Public share state. Reuses the internal {@link shareRecordSchema}, which is
- * already public-safe — `hasPassword` is a boolean and neither the ciphertext
- * nor the storage key is carried — with `url` tightened to a real URL.
- */
-export const v2FileShareSchema = shareRecordSchema.extend({
-  url: z.string().url(),
-})
-
-export type V2FileShare = z.output<typeof v2FileShareSchema>
-
 export const v2GetFileShareResultSchema = z.object({
   share: v2FileShareSchema.nullable(),
 })
@@ -403,7 +410,7 @@ export const v2GetFileContract = defineRouteContract({
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2FileSchema),
+    schema: v2DataResponse(v2FileMetadataSchema),
   },
 })
 
