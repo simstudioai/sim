@@ -9,6 +9,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
 import { columnTypeById } from '@/lib/table/column-types'
 import {
+  type ColumnMutationOptions,
   renameColumn,
   updateColumnConstraints,
   updateColumnCurrency,
@@ -21,6 +22,12 @@ import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type { ColumnType, SelectOption, TableDefinition, TableLockKind } from '@/lib/table/types'
 
 const logger = createLogger('TableColumnOrchestration')
+
+function workspaceMutationOptions(
+  expectedWorkspaceId: string | undefined
+): [] | [ColumnMutationOptions] {
+  return expectedWorkspaceId ? [{ expectedWorkspaceId }] : []
+}
 
 export interface PerformUpdateTableColumnParams {
   table: TableDefinition
@@ -37,6 +44,8 @@ export interface PerformUpdateTableColumnParams {
     currencyCode?: string
   }
   requestId?: string
+  expectedWorkspaceId?: string
+  recordAudit?: boolean
   /** Forwarded to the audit record for IP / user-agent capture. */
   request?: OrchestrationRequestContext
 }
@@ -174,7 +183,8 @@ export async function performUpdateTableColumn(
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
-        requestId
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
       )
     } else if (updates.currencyCode !== undefined) {
       // Re-denominating an existing currency column: schema-only, no cell
@@ -189,7 +199,8 @@ export async function performUpdateTableColumn(
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
-        requestId
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
       )
     } else if (options !== undefined || updates.multiple !== undefined) {
       updated = await updateColumnOptions(
@@ -202,7 +213,8 @@ export async function performUpdateTableColumn(
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...renameWithTypedWrite,
         },
-        requestId
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
       )
     }
 
@@ -217,7 +229,8 @@ export async function performUpdateTableColumn(
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
           ...(updates.name ? { newName: updates.name } : {}),
         },
-        requestId
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
       )
     }
 
@@ -229,7 +242,8 @@ export async function performUpdateTableColumn(
     if (updates.name && !updated) {
       updated = await renameColumn(
         { tableId, oldName: columnRef, newName: updates.name },
-        requestId
+        requestId,
+        ...workspaceMutationOptions(params.expectedWorkspaceId)
       )
     }
   } catch (error) {
@@ -252,17 +266,19 @@ export async function performUpdateTableColumn(
     return fail('No updates specified', 'validation')
   }
 
-  recordAudit({
-    workspaceId: table.workspaceId,
-    actorId: userId,
-    action: AuditAction.TABLE_UPDATED,
-    resourceType: AuditResourceType.TABLE,
-    resourceId: tableId,
-    resourceName: table.name,
-    description: `Updated column "${columnName}" in table "${table.name}"`,
-    metadata: { columnName, updates },
-    ...(request ? { request } : {}),
-  })
+  if (params.recordAudit !== false) {
+    recordAudit({
+      workspaceId: table.workspaceId,
+      actorId: userId,
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: tableId,
+      resourceName: table.name,
+      description: `Updated column "${columnName}" in table "${table.name}"`,
+      metadata: { columnName, updates },
+      ...(request ? { request } : {}),
+    })
+  }
 
   return { success: true, table: updated }
 }

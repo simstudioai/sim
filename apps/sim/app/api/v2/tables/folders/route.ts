@@ -4,119 +4,63 @@ import {
   v2ListTableFoldersContract,
   v2RelocateTableFolderContract,
 } from '@/lib/api/contracts/v2/tables'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2TableErrorPolicies } from '@/lib/table/api'
 import {
-  createFolderAtPath,
-  deleteFolderByPath,
-  relocateFolderByPath,
-} from '@/lib/folders/orchestration'
-import { listActiveFolderRows, loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import {
-  resolveFolderPathId,
-  toV2PathFolder,
-  v2FolderPathMutationError,
-} from '@/app/api/v2/lib/folders'
-import { v2CursorList, v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
+  createTableFolderUseCase,
+  deleteTableFolderUseCase,
+  listTableFoldersUseCase,
+  updateTableFolderUseCase,
+} from '@/lib/table/application/folders'
+import { tableOperations } from '@/lib/table/application/operations'
+import { toV2PathFolder } from '@/app/api/v2/lib/folders'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withPublicApiRouteHandler({
+export const GET = defineV2JsonRoute({
   contract: v2ListTableFoldersContract,
-  rateLimitEndpoint: 'tables',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, parentPath, search, sortBy, sortOrder } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table')
-    const parentId = parentPath === undefined ? undefined : resolveFolderPathId(index, parentPath)
-    if (parentPath !== undefined && parentId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
-    }
-    const rows = await listActiveFolderRows(workspaceId, 'table', {
-      parentId,
-      search,
-      sortBy,
-      sortOrder,
-    })
-    return v2CursorList(
-      rows.map((row) => toV2PathFolder(row, index, false)),
-      null,
-      { rateLimit }
-    )
-  },
+  operation: tableOperations.listFolders,
+  useCase: listTableFoldersUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ query }) => query,
+  present: ({ folders, index }) => ({
+    data: folders.map((folder) => toV2PathFolder(folder, index, false)),
+    nextCursor: null,
+  }),
 })
 
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateTableFolderContract,
-  rateLimitEndpoint: 'tables',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await createFolderAtPath({ resourceType: 'table', workspaceId, userId, path })
-    if (!result.success || !result.folder) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to create folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table')
-    return v2Data(
-      { folder: toV2PathFolder(result.folder, index, false) },
-      { rateLimit, status: 201 }
-    )
-  },
+  operation: tableOperations.createFolder,
+  useCase: createTableFolderUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ body }) => body,
+  present: ({ folder, index }) => ({ data: { folder: toV2PathFolder(folder, index, false) } }),
 })
 
-export const PATCH = withPublicApiRouteHandler({
+export const PATCH = defineV2JsonRoute({
   contract: v2RelocateTableFolderContract,
-  rateLimitEndpoint: 'tables',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, destinationPath } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await relocateFolderByPath({
-      resourceType: 'table',
-      workspaceId,
-      userId,
-      path,
-      destinationPath,
-    })
-    if (!result.success || !result.folder) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to move folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table')
-    return v2Data({ folder: toV2PathFolder(result.folder, index, false) }, { rateLimit })
-  },
+  operation: tableOperations.updateFolder,
+  useCase: updateTableFolderUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ body }) => body,
+  present: ({ folder, index }) => ({ data: { folder: toV2PathFolder(folder, index, false) } }),
 })
 
-export const DELETE = withPublicApiRouteHandler({
+export const DELETE = defineV2JsonRoute({
   contract: v2DeleteTableFolderContract,
-  rateLimitEndpoint: 'tables',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, recursive } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-    const result = await deleteFolderByPath({
-      resourceType: 'table',
-      workspaceId,
-      userId,
-      path,
-      recursive,
-    })
-    if (!result.success || !result.deletedItems) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to delete folder')
-    }
-    return v2Data(
-      {
-        path,
-        deleted: true as const,
-        deletedItems: {
-          folders: result.deletedItems.folders,
-          tables: result.deletedItems.tables ?? 0,
-        },
-      },
-      { rateLimit }
-    )
-  },
+  operation: tableOperations.deleteFolder,
+  useCase: deleteTableFolderUseCase,
+  auth: v2ApiKeyAuth,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2TableErrorPolicies.default,
+  mapInput: ({ query }) => query,
+  present: ({ path, deleted, deletedItems }) => ({ data: { path, deleted, deletedItems } }),
 })

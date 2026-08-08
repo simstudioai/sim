@@ -140,12 +140,18 @@ function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinit
 /** Every view on a table, oldest first, with stale column references pruned. */
 export async function listTableViews(
   tableId: string,
-  columns: ColumnDefinition[]
+  columns: ColumnDefinition[],
+  workspaceId?: string
 ): Promise<TableView[]> {
   const rows = await db
     .select()
     .from(tableViews)
-    .where(eq(tableViews.tableId, tableId))
+    .where(
+      and(
+        eq(tableViews.tableId, tableId),
+        workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+      )
+    )
     .orderBy(asc(tableViews.createdAt), asc(tableViews.id))
 
   return rows.map((row) => toTableView(row, columns))
@@ -155,12 +161,19 @@ export async function listTableViews(
 export async function getTableView(
   viewId: string,
   tableId: string,
-  columns: ColumnDefinition[]
+  columns: ColumnDefinition[],
+  workspaceId?: string
 ): Promise<TableView | null> {
   const [row] = await db
     .select()
     .from(tableViews)
-    .where(and(eq(tableViews.id, viewId), eq(tableViews.tableId, tableId)))
+    .where(
+      and(
+        eq(tableViews.id, viewId),
+        eq(tableViews.tableId, tableId),
+        workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+      )
+    )
     .limit(1)
 
   return row ? toTableView(row, columns) : null
@@ -205,6 +218,7 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
 export interface UpdateTableViewData {
   viewId: string
   tableId: string
+  workspaceId?: string
   name?: string
   /** Full replace — an explicit Save, where removing a filter must persist. */
   config?: TableViewConfig
@@ -232,17 +246,34 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   }
   if (data.isDefault !== undefined) patch.isDefault = data.isDefault
 
-  const row = await db.transaction(async (tx) => {
+  const outcome = await db.transaction(async (tx) => {
     // Confirm the target exists BEFORE demoting. The demotion has to run first —
     // the partial unique index rejects a second default — but on a PATCH naming a
     // missing view the target update matches nothing, so without this the demote
     // would still commit and silently clear the table's real default.
     const [existing] = await tx
-      .select({ id: tableViews.id })
+      .select()
       .from(tableViews)
-      .where(and(eq(tableViews.id, data.viewId), eq(tableViews.tableId, data.tableId)))
+      .where(
+        and(
+          eq(tableViews.id, data.viewId),
+          eq(tableViews.tableId, data.tableId),
+          data.workspaceId ? eq(tableViews.workspaceId, data.workspaceId) : undefined
+        )
+      )
       .limit(1)
     if (!existing) return null
+
+    const nextName = data.name === undefined ? existing.name : normalizeName(data.name)
+    const storedConfig = (existing.config ?? {}) as TableViewConfig
+    const nextConfig =
+      data.config ?? (data.configPatch ? { ...storedConfig, ...data.configPatch } : storedConfig)
+    const nextIsDefault = data.isDefault ?? existing.isDefault
+    const changed =
+      nextName !== existing.name ||
+      JSON.stringify(nextConfig) !== JSON.stringify(storedConfig) ||
+      nextIsDefault !== existing.isDefault
+    if (!changed) return { row: existing, changed: false as const }
 
     if (data.isDefault === true) {
       await tx
@@ -251,6 +282,7 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
         .where(
           and(
             eq(tableViews.tableId, data.tableId),
+            data.workspaceId ? eq(tableViews.workspaceId, data.workspaceId) : undefined,
             eq(tableViews.isDefault, true),
             ne(tableViews.id, data.viewId)
           )
@@ -260,26 +292,41 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
     const [updated] = await tx
       .update(tableViews)
       .set(patch)
-      .where(and(eq(tableViews.id, data.viewId), eq(tableViews.tableId, data.tableId)))
+      .where(
+        and(
+          eq(tableViews.id, data.viewId),
+          eq(tableViews.tableId, data.tableId),
+          data.workspaceId ? eq(tableViews.workspaceId, data.workspaceId) : undefined
+        )
+      )
       .returning()
 
-    return updated
+    return updated ? { row: updated, changed: true as const } : null
   })
 
   // `null`, not a validation error: an absent view is a missing resource, and the
   // route maps it to 404 the same way `deleteTableView`'s `false` does.
-  if (!row) return null
+  if (!outcome) return null
 
-  // Only signal a real update — a no-op PATCH on a missing view (row === null) changed nothing.
-  signalTableViewsChanged(data.tableId)
-  return toTableView(row, data.columns)
+  if (outcome.changed) signalTableViewsChanged(data.tableId)
+  return toTableView(outcome.row, data.columns)
 }
 
 /** Deleting the default simply leaves the table on "All". */
-export async function deleteTableView(viewId: string, tableId: string): Promise<boolean> {
+export async function deleteTableView(
+  viewId: string,
+  tableId: string,
+  workspaceId?: string
+): Promise<boolean> {
   const deleted = await db
     .delete(tableViews)
-    .where(and(eq(tableViews.id, viewId), eq(tableViews.tableId, tableId)))
+    .where(
+      and(
+        eq(tableViews.id, viewId),
+        eq(tableViews.tableId, tableId),
+        workspaceId ? eq(tableViews.workspaceId, workspaceId) : undefined
+      )
+    )
     .returning({ id: tableViews.id })
 
   if (deleted.length > 0) {

@@ -166,6 +166,24 @@ describe('table-view mutations signal collaborators', () => {
     expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
   })
 
+  it('updateTableView returns the canonical view without writing or signaling on a true no-op', async () => {
+    queueTableRows(tableViews, [viewRow])
+
+    const result = await updateTableView({
+      viewId: 'view-1',
+      tableId: 'table-1',
+      workspaceId: 'ws-1',
+      name: viewRow.name,
+      config: viewRow.config,
+      isDefault: viewRow.isDefault,
+      columns,
+    })
+
+    expect(result).toMatchObject({ id: 'view-1', name: 'My View', isDefault: false })
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mockSignalTableViewsChanged).not.toHaveBeenCalled()
+  })
+
   it('deleteTableView signals when a row was actually deleted', async () => {
     dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'view-1' }])
 

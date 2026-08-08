@@ -320,6 +320,55 @@ describe('upload sessions', () => {
     ).toThrow('Upload session not found')
   })
 
+  it('requires an exact immutable credential binding for table-import control', async () => {
+    const bound = uploadRow({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {
+        authBinding: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      },
+    })
+    queueTableRows(schemaMock.uploadSession, [bound])
+    queueTableRows(schemaMock.uploadSession, [bound])
+
+    await expect(
+      getOwnedUploadSession({
+        uploadId: bound.id,
+        uploadToken: 'upload-secret',
+        purpose: 'table_import',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      })
+    ).resolves.toMatchObject({ id: bound.id, purpose: 'table_import' })
+    await expect(
+      getOwnedUploadSession({
+        uploadId: bound.id,
+        uploadToken: 'upload-secret',
+        purpose: 'table_import',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('fails closed for legacy table-import sessions without a binding', () => {
+    const legacyImport = sessionRecord({
+      purpose: 'table_import',
+      storageContext: 'table-import',
+      metadata: {},
+    })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacyImport, {
+        kind: 'session',
+        userId: legacyImport.userId,
+        sessionId: 'current-session',
+      })
+    ).toThrow('Upload session not found')
+  })
+
   it('initiates multipart storage directly at the final key', async () => {
     const fileSize = UPLOAD_SESSION_PUT_MAX_BYTES + 1
     const row = uploadRow({

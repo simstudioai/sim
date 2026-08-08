@@ -40,9 +40,9 @@ vi.mock('@/lib/table/import-data', () => ({
   setTableSchemaForImport: vi.fn(),
 }))
 vi.mock('@/lib/table/jobs/service', () => ({
-  markJobFailed: mockMarkJobFailed,
-  markJobReady: mockMarkJobReady,
-  updateJobProgress: mockUpdateJobProgress,
+  markJobFailedInWorkspace: mockMarkJobFailed,
+  markJobReadyInWorkspace: mockMarkJobReady,
+  updateJobProgressInWorkspace: mockUpdateJobProgress,
 }))
 vi.mock('@/lib/table/rows/ordering', () => ({
   nextImportStartOrderKey: mockNextImportStartOrderKey,
@@ -114,6 +114,7 @@ describe('runTableImport source-file cleanup', () => {
 
     expect(mockMarkJobFailed).toHaveBeenCalledWith(
       'tbl_1',
+      'ws_1',
       'job_1',
       expect.stringMatching(/insert-locked/i)
     )

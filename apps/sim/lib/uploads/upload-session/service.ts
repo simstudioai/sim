@@ -135,7 +135,7 @@ interface CreateUploadSessionBaseParams {
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
     | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
-    | { purpose: 'table_import'; workspaceId: string }
+    | { purpose: 'table_import'; workspaceId: string; principal?: Principal }
     | {
         purpose: 'knowledge_document'
         workspaceId: string
@@ -167,6 +167,9 @@ export async function createUploadSession(
     if (!params.principal) {
       throw new Error(`${params.purpose} upload requires an authenticated principal`)
     }
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+  } else if (params.purpose === 'table_import' && params.principal) {
+    if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
@@ -406,6 +409,7 @@ export function assertUploadSessionAuthBinding(
   if (!isPrincipalBoundUploadPurpose(session.purpose)) return
   const candidate = session.metadata.authBinding
   if (candidate === undefined) {
+    if (session.purpose === 'table_import') throw uploadNotFound()
     assertLegacyUploadSessionOwner(session, principal)
     return
   }
@@ -1107,7 +1111,9 @@ function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
 }
 
 function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
-  return purpose === 'workspace_file' || purpose === 'knowledge_document'
+  return (
+    purpose === 'workspace_file' || purpose === 'knowledge_document' || purpose === 'table_import'
+  )
 }
 
 function resolveUploadStorage(

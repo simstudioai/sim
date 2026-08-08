@@ -330,6 +330,7 @@ describe('mutation paths — SET LOCAL timeouts', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    dbChainMockFns.execute.mockResolvedValue([{ count: 0 }])
   })
 
   it('insertRow sets the default 10s/3s/5s timeouts', async () => {
@@ -420,6 +421,20 @@ describe('mutation paths — SET LOCAL timeouts', () => {
 
     expect(findExecutedSqlContaining('pg_advisory_xact_lock')).toBe(true)
     expect(findExecutedSqlContaining('hashtextextended')).toBe(true)
+  })
+
+  it('replaceTableRows reports the authoritative bounded delete count', async () => {
+    dbChainMockFns.execute.mockResolvedValue([{ count: 7 }])
+
+    const result = await replaceTableRows(
+      { tableId: 'tbl-1', workspaceId: 'ws-1', rows: [] },
+      { ...TABLE, rowCount: 7 },
+      'req-1'
+    )
+
+    expect(result).toEqual({ deletedCount: 7, insertedCount: 0 })
+    expect(findExecutedSqlContaining('DELETE FROM')).toBe(true)
+    expect(findExecutedSqlContaining('SELECT count(*)::integer AS count FROM deleted')).toBe(true)
   })
 })
 
