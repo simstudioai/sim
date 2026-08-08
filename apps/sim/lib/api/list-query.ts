@@ -116,8 +116,13 @@ export function timestampKey<Row>(column: Column, read: (row: Row) => Date): Key
       if (typeof value !== 'string') return null
       const date = new Date(value)
       if (Number.isNaN(date.getTime())) return null
-      // Bound through the column so drizzle's own timestamp encoder serializes it.
-      return sql`date_trunc('milliseconds', ${sql.param(date, column)})`
+      /* Bound through the column so drizzle's own timestamp encoder serializes
+         it, then cast: an untyped parameter leaves `date_trunc(unknown,
+         unknown)` ambiguous across its timestamp, timestamptz and interval
+         overloads, and Postgres rejects the statement rather than guess. Every
+         column reaching here is `timestamp without time zone`, matching the
+         type `expr` yields on the other side of the comparison. */
+      return sql`date_trunc('milliseconds', ${sql.param(date, column)}::timestamp)`
     },
   }
 }
