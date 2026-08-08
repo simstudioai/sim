@@ -59,7 +59,7 @@ import type {
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAuthHeaders, buildInternalApiUrl } from '@/executor/utils/http'
+import { buildAuthHeaders, internalApiUrl } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
@@ -1212,12 +1212,11 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildInternalApiUrl('/api/mcp/tools/discover', {
-      serverId,
-      workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.userId ? { userId: ctx.userId } : {}),
-    })
+    const url = internalApiUrl`/api/mcp/tools/discover`
+    url.searchParams.set('serverId', serverId)
+    url.searchParams.set('workspaceId', ctx.workspaceId)
+    url.searchParams.set('workflowId', ctx.workflowId)
+    if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
     const maxAttempts = 2
     for (let attempt = 0; attempt < maxAttempts; attempt++) {

@@ -84,10 +84,10 @@ async function fetchWorkflowMetadata(
   workflowId: string
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, internalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders()
-    const url = buildInternalApiUrl(`/api/workflows/${encodeURIComponent(workflowId)}`)
+    const url = internalApiUrl`/api/workflows/${workflowId}`
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
