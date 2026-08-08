@@ -2,6 +2,9 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { ReactFlowProvider } from 'reactflow'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   getWorkflowTypeAccent,
   getWorkflowTypeRole,
@@ -9,10 +12,7 @@ import {
   WorkflowBlockView,
   WorkflowTypeIcon,
   WorkflowTypeTag,
-} from '@sim/workflow-renderer'
-import { createRoot, type Root } from 'react-dom/client'
-import { ReactFlowProvider } from 'reactflow'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+} from '../index'
 
 const mountedRoots = new Set<Root>()
 const mountedHosts = new Set<HTMLDivElement>()

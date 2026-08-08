@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
+import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -27,7 +27,6 @@ import type {
 } from '@/stores/workflows/workflow/types'
 import {
   clampParallelBatchSize,
-  filterAcyclicEdges,
   findAllDescendantNodes,
   generateLoopBlocks,
   generateParallelBlocks,

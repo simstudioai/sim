@@ -12,7 +12,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
-import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
+import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
 import type { Edge } from 'reactflow'
@@ -54,11 +54,7 @@ import type {
   Position,
   WorkflowState,
 } from '@/stores/workflows/workflow/types'
-import {
-  filterAcyclicEdges,
-  findAllDescendantNodes,
-  isBlockProtected,
-} from '@/stores/workflows/workflow/utils'
+import { findAllDescendantNodes, isBlockProtected } from '@/stores/workflows/workflow/utils'
 
 const logger = createLogger('CollaborativeWorkflow')
 

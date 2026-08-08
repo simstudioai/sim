@@ -1,12 +1,18 @@
 /**
  * @vitest-environment jsdom
  *
- * Mount smoke test for the border renderer. It lives in apps/sim because the
- * renderer package has no test runner. The coloured-port case exists because
+ * Mount smoke test for the border renderer. The coloured-port case exists because
  * a knob-paint bug once threw only when a card had a coloured knob — invisible
  * on an idle canvas, fatal on node creation.
  */
 import { act } from 'react'
+import {
+  normalizeWorkflowEdgeSourceHandle,
+  normalizeWorkflowEdgeTargetHandle,
+} from '@sim/workflow-types/workflow'
+import { createRoot, type Root } from 'react-dom/client'
+import { ReactFlowProvider } from 'reactflow'
+import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
 import {
   ERROR_SOURCE_HANDLE_POSITION,
   getCursorBranchSourceHandleId,
@@ -25,14 +31,7 @@ import {
   SubflowStartView,
   WorkflowBlockBorder,
   type WorkflowBorderPort,
-} from '@sim/workflow-renderer'
-import {
-  normalizeWorkflowEdgeSourceHandle,
-  normalizeWorkflowEdgeTargetHandle,
-} from '@sim/workflow-types/workflow'
-import { createRoot, type Root } from 'react-dom/client'
-import { ReactFlowProvider } from 'reactflow'
-import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+} from '../index'
 
 beforeAll(() => {
   window.matchMedia = ((query: string) => ({
@@ -899,7 +898,6 @@ describe('WorkflowBlockBorder mount', () => {
           nestingLevel={0}
           canEditWorkflow={false}
           onSelect={() => undefined}
-          renderContentEditor={renderTestContentEditor}
         />
       </ReactFlowProvider>
     )
@@ -945,7 +943,6 @@ describe('WorkflowBlockBorder mount', () => {
           nestingLevel={0}
           canEditWorkflow
           onSelect={() => undefined}
-          renderContentEditor={renderTestContentEditor}
           actionBar={<div data-workflow-action-bar-swell=''>Actions</div>}
         />
       </ReactFlowProvider>
@@ -986,7 +983,6 @@ describe('WorkflowBlockBorder mount', () => {
               nestingLevel={0}
               canEditWorkflow
               onSelect={() => undefined}
-              renderContentEditor={renderTestContentEditor}
               actionBar={<div data-workflow-action-bar-swell=''>Loop actions</div>}
             />
           </div>

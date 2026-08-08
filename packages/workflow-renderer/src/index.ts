@@ -1,3 +1,12 @@
+export {
+  BLOCK_Z_BASE,
+  CONNECTION_PICKER_Z,
+  CONTAINER_CHILD_Z_BASE,
+  EDGE_Z_BASE,
+  EDGE_Z_MAX,
+  getBlockZIndex,
+  getEdgeZIndex,
+} from './canvas-layers'
 export * from './dimensions'
 export { WorkflowEdgeView, type WorkflowEdgeViewProps } from './edge/workflow-edge-view'
 export { humanizeBlockName } from './lib/humanize-block-name'

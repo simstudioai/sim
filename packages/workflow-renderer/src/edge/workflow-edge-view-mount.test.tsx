@@ -2,10 +2,10 @@
  * @vitest-environment jsdom
  */
 import { act } from 'react'
-import { WorkflowEdgeView, type WorkflowEdgeViewProps } from '@sim/workflow-renderer'
 import { createRoot, type Root } from 'react-dom/client'
 import { Position } from 'reactflow'
 import { afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { WorkflowEdgeView, type WorkflowEdgeViewProps } from '../index'
 
 const mountedHosts = new Set<HTMLDivElement>()
 const mountedRoots = new Set<Root>()

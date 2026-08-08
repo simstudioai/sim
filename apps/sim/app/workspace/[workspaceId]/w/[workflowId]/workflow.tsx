@@ -20,7 +20,13 @@ import { generateId } from '@sim/utils/id'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
 import {
   BLOCK_DIMENSIONS,
+  BLOCK_Z_BASE,
+  CONNECTION_PICKER_Z,
+  CONTAINER_CHILD_Z_BASE,
   CONTAINER_DIMENSIONS,
+  EDGE_Z_MAX,
+  getBlockZIndex,
+  getEdgeZIndex,
   getNoteBlockHeight,
   normalizeCursorSourceHandleId,
 } from '@sim/workflow-renderer'
@@ -151,33 +157,6 @@ const CONNECTION_LINE_STYLE = {
   stroke: 'var(--connection-line-stroke)',
   strokeWidth: 2,
 }
-
-/**
- * The canvas z-scale, bottom to top. Every entry is a React Flow `zIndex` on a
- * node or an edge, and React Flow's viewport is the one stacking context they
- * all resolve in, so the numbers are directly comparable.
- *
- * - `0, 1, 2 …` — subflow containers, by nesting depth
- * - {@link EDGE_Z_BASE}`…`{@link EDGE_Z_MAX} — edges, and the in-flight drag line
- * - {@link BLOCK_Z_BASE} — cards (+1 last interacted, +10 selected)
- * - {@link CONTAINER_CHILD_Z_BASE} — cards inside a container (same +1 / +10 steps)
- * - `2000` — the connection block picker
- *
- * Containers and edges must occupy separate bands. A container paints an opaque
- * body, so an edge sharing its z loses the equal-z tiebreak to DOM order — React
- * Flow renders the nodes layer after the edges layer — and is drawn *behind* the
- * container. That is what hid every line crossing a top-level subflow, whether
- * in flight or persisted. Cards then sit above the edge band, so a line still
- * passes behind card chrome, knobs, and the action-bar swell.
- */
-const EDGE_Z_BASE = 10
-const EDGE_Z_MAX = 20
-const BLOCK_Z_BASE = 21
-const CONTAINER_CHILD_Z_BASE = 1000
-
-/** Places an edge in the edge band, ordered by its container's nesting depth. */
-const getEdgeZIndex = (containerZIndex: number | undefined) =>
-  Math.min(EDGE_Z_BASE + (containerZIndex === undefined ? 0 : containerZIndex + 1), EDGE_Z_MAX)
 
 /**
  * The in-flight drag line is an edge, so it belongs at the top of the edge band
@@ -2675,7 +2654,6 @@ const WorkflowContent = React.memo(
             dragHandle: '.workflow-drag-handle',
             draggable: !workflowReadOnly && !isBlockProtected(block.id, blocks),
             zIndex: depth,
-            className: block.data?.parentId ? 'nested-subflow-node' : undefined,
             data: {
               ...block.data,
               name: block.name,
@@ -4439,12 +4417,10 @@ const WorkflowContent = React.memo(
     const nodesForRender = useMemo(() => {
       const elevatedNodes = displayNodes.map((node) => {
         if (node.type === 'subflowNode') return node
-        const base = node.zIndex ?? BLOCK_Z_BASE
-        const target = node.selected
-          ? base + 10
-          : node.id === lastInteractedNodeId
-            ? base + 1
-            : base
+        const target = getBlockZIndex(node.zIndex ?? BLOCK_Z_BASE, {
+          isSelected: node.selected,
+          isLastInteracted: node.id === lastInteractedNodeId,
+        })
         if (target === node.zIndex) return node
         return { ...node, zIndex: target }
       })
@@ -4466,7 +4442,7 @@ const WorkflowContent = React.memo(
           },
           width: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.width,
           height: CONNECTION_BLOCK_SELECTOR_DIMENSIONS.height,
-          zIndex: 2000,
+          zIndex: CONNECTION_PICKER_Z,
           dragHandle: '.workflow-drag-handle',
           draggable: true,
           selectable: false,

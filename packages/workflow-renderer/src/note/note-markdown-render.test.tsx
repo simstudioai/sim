@@ -8,12 +8,12 @@
  * `src` and `alt`, so every image came back at its natural size the moment editing closed — the
  * image visibly changed size each time the editor opened and shut.
  *
- * Lives in apps/sim because the renderer package has no test runner (same as the border mount test).
+ * Lives with the view it covers; the package runs its own vitest.
  */
 import { act } from 'react'
-import { NoteBlockView, type NoteContentEditorProps } from '@sim/workflow-renderer'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeAll, describe, expect, it } from 'vitest'
+import { NoteBlockView, type NoteContentEditorProps } from '../index'
 
 const SRC = '/api/workspaces/ws-1/files/inline?fileId=f1'
 

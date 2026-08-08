@@ -5,6 +5,7 @@ import {
   SubBlockRowView,
   WorkflowBlockView,
 } from '@sim/workflow-renderer'
+import { wouldCreateCycle } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import {
   ArrowLeftRight,
@@ -109,7 +110,6 @@ import { usePanelEditorStore, usePanelStore } from '@/stores/panel'
 import { useVariablesStore } from '@/stores/variables/store'
 import { useSubBlockStore } from '@/stores/workflows/subblock/store'
 import { useWorkflowStore } from '@/stores/workflows/workflow/store'
-import { wouldCreateCycle } from '@/stores/workflows/workflow/utils'
 import { formatParameterLabel } from '@/tools/params'
 import { TRIGGER_REGISTRY } from '@/triggers/registry'
 

@@ -1,7 +1,5 @@
 import { perceivedBrightness } from '@sim/utils/color'
 
-export { perceivedBrightness }
-
 /**
  * True when `color` is light enough that a white foreground would wash out.
  * Non-color values (gradients, `currentColor`, unknown) are treated as not

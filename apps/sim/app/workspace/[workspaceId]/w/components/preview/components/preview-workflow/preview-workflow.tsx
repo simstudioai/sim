@@ -15,7 +15,14 @@ import 'reactflow/dist/style.css'
 
 import { cn } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import {
+  BLOCK_DIMENSIONS,
+  BLOCK_Z_BASE,
+  CONTAINER_CHILD_Z_BASE,
+  CONTAINER_DIMENSIONS,
+  EDGE_Z_BASE,
+  EDGE_Z_MAX,
+} from '@sim/workflow-renderer'
 import { normalizeWorkflowEdgeHandles } from '@sim/workflow-types/workflow'
 import { WorkflowEdge } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-edge/workflow-edge'
 import { estimateBlockDimensions } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils'
@@ -405,7 +412,6 @@ export function PreviewWorkflow({
           extent: block.data?.extent || undefined,
           draggable: false,
           zIndex: nestingDepth,
-          className: parentId ? 'nested-subflow-node' : undefined,
           data: {
             ...block.data,
             name: block.name,
@@ -448,7 +454,7 @@ export function PreviewWorkflow({
         parentId,
         extent: block.data?.extent || undefined,
         draggable: false,
-        zIndex: parentId ? 1000 : undefined,
+        zIndex: parentId ? CONTAINER_CHILD_Z_BASE : BLOCK_Z_BASE,
         data: {
           type: block.type,
           name: block.name,
@@ -550,7 +556,11 @@ export function PreviewWorkflow({
           ...(status ? { executionStatus: status } : {}),
           sourceHandle: edge.sourceHandle,
         },
-        zIndex: status === 'success' ? 10 : isErrorEdge ? 5 : 0,
+        /* Inside the shared edge band, so a line clears the opaque container it
+           crosses and still passes behind cards. Execution status orders edges
+           within the band: a successful path draws over an error one, which
+           draws over an unexecuted one. */
+        zIndex: status === 'success' ? EDGE_Z_MAX : isErrorEdge ? EDGE_Z_BASE + 2 : EDGE_Z_BASE,
       }
     })
   }, [

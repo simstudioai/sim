@@ -3,7 +3,6 @@
 import type { ReactNode } from 'react'
 import { createContext, use, useEffect, useMemo, useRef, useState } from 'react'
 import { cn } from '@sim/emcn'
-import { FROSTED_GLASS_SURFACE } from '@/lib/ui/glass-surface'
 
 /**
  * Frosted near-white surface for the scrolled bar - `--bg` at 92% + a strong 40px
@@ -11,7 +10,8 @@ import { FROSTED_GLASS_SURFACE } from '@/lib/ui/glass-surface'
  * dropdown sheet ({@link MobileNav}) wears the exact same glass as the bar and the
  * two can never drift.
  */
-export const NAVBAR_GLASS_SURFACE = FROSTED_GLASS_SURFACE
+export const NAVBAR_GLASS_SURFACE =
+  'bg-[color-mix(in_srgb,var(--bg)_92%,transparent)] backdrop-blur-2xl'
 
 interface NavbarFrostContextValue {
   /**
