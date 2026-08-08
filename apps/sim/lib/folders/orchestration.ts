@@ -69,6 +69,7 @@ export interface DeleteFolderParams {
   userId: string
   folderName?: string
   folderPath?: string
+  maxFolderRows?: number
 }
 
 export interface DeleteFolderResult {
@@ -103,6 +104,9 @@ export interface DeleteFolderByPathParams {
   userId: string
   path: string
   recursive: boolean
+  maxFolderRows?: number
+  effects?: boolean
+  throwInfrastructure?: boolean
 }
 
 export interface DeleteFolderByPathResult extends DeleteFolderResult {
@@ -163,7 +167,12 @@ function pathMutationError(error: unknown): FolderPathMutationResult {
 
 /** Creates exactly the leaf identified by `path`; every ancestor must already exist. */
 export async function createFolderAtPath(
-  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & { path: string }
+  params: Omit<CreateFolderParams, 'name' | 'parentId' | 'sortOrder' | 'id'> & {
+    path: string
+    effects?: boolean
+    throwInfrastructure?: boolean
+    maxFolderRows?: number
+  }
 ): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
@@ -171,7 +180,9 @@ export async function createFolderAtPath(
     const folder = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
-        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx, {
+          maxRows: params.maxFolderRows,
+        })
         if (index.idByPath.has(params.path)) throw new Error(DUPLICATE_NAME_ERROR)
 
         const parentPath = parentFolderPath(params.path)
@@ -211,20 +222,25 @@ export async function createFolderAtPath(
       { label: 'create-folder-at-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_CREATED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
-      metadata: { path: params.path, folderResourceType: params.resourceType },
-    })
-    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    if (params.effects !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_CREATED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Created ${folderResourceConfig(params.resourceType).label} folder "${params.path}"`,
+        metadata: { path: params.path, folderResourceType: params.resourceType },
+      })
+    if (params.effects !== false) {
+      await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    }
     return { success: true, folder, path: params.path }
   } catch (error) {
-    return pathMutationError(error)
+    const result = pathMutationError(error)
+    if (params.throwInfrastructure && result.errorCode === 'internal') throw error
+    return result
   }
 }
 
@@ -235,6 +251,9 @@ export async function relocateFolderByPath(params: {
   userId: string
   path: string
   destinationPath: string
+  effects?: boolean
+  throwInfrastructure?: boolean
+  maxFolderRows?: number
 }): Promise<FolderPathMutationResult> {
   try {
     requireNonRootFolderPath(params.path)
@@ -244,7 +263,9 @@ export async function relocateFolderByPath(params: {
     const folder = await withTransactionRetry(
       async (tx) => {
         await acquireFolderMutationLock(tx, params.workspaceId, params.resourceType)
-        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx, {
+          maxRows: params.maxFolderRows,
+        })
         const folderId = resolveRequiredFolderId(index, params.path)
         if (index.idByPath.has(params.destinationPath)) throw new Error(DUPLICATE_NAME_ERROR)
 
@@ -287,24 +308,29 @@ export async function relocateFolderByPath(params: {
       { label: 'relocate-folder-by-path' }
     )
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      action: AuditAction.FOLDER_MOVED,
-      resourceType: AuditResourceType.FOLDER,
-      resourceId: folder.id,
-      resourceName: folder.name,
-      description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
-      metadata: {
-        sourcePath: params.path,
-        destinationPath: params.destinationPath,
-        folderResourceType: params.resourceType,
-      },
-    })
-    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    if (params.effects !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        action: AuditAction.FOLDER_MOVED,
+        resourceType: AuditResourceType.FOLDER,
+        resourceId: folder.id,
+        resourceName: folder.name,
+        description: `Moved ${folderResourceConfig(params.resourceType).label} folder to "${params.destinationPath}"`,
+        metadata: {
+          sourcePath: params.path,
+          destinationPath: params.destinationPath,
+          folderResourceType: params.resourceType,
+        },
+      })
+    if (params.effects !== false) {
+      await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
+    }
     return { success: true, folder, path: params.destinationPath }
   } catch (error) {
-    return pathMutationError(error)
+    const result = pathMutationError(error)
+    if (params.throwInfrastructure && result.errorCode === 'internal') throw error
+    return result
   }
 }
 
@@ -318,7 +344,9 @@ export async function deleteFolderByPath(
       params.workspaceId,
       params.resourceType,
       async (tx) => {
-        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx)
+        const index = await loadActiveFolderPathIndex(params.workspaceId, params.resourceType, tx, {
+          maxRows: params.maxFolderRows,
+        })
         const folderId = resolveRequiredFolderId(index, params.path)
         if (
           folderResourceConfig(params.resourceType).supportsLocking &&
@@ -356,14 +384,19 @@ export async function deleteFolderByPath(
           userId: params.userId,
           folderName: row.name,
           folderPath: params.path,
+          maxFolderRows: params.maxFolderRows,
         }
       }
     )
 
-    const result = await deleteFolderWithoutTreeLock(resolved, null)
+    const result = await deleteFolderWithoutTreeLock(resolved, null, {
+      effects: params.effects !== false,
+    })
     return { ...result, path: result.success ? params.path : undefined }
   } catch (error) {
-    return pathMutationError(error)
+    const result = pathMutationError(error)
+    if (params.throwInfrastructure && result.errorCode === 'internal') throw error
+    return result
   }
 }
 
@@ -674,7 +707,8 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
 
 async function deleteFolderWithoutTreeLock(
   params: DeleteFolderParams,
-  deletedAt: Date | null
+  deletedAt: Date | null,
+  options: { effects: boolean } = { effects: true }
 ): Promise<DeleteFolderResult> {
   const { resourceType, folderId, workspaceId, userId, folderName, folderPath } = params
   const config = folderResourceConfig(resourceType)
@@ -683,13 +717,17 @@ async function deleteFolderWithoutTreeLock(
   // it is what distinguishes folders this cascade already stamped from folders archived
   // independently.
   const timestamp = deletedAt ?? new Date()
-  const folderIds = await collectCascadeSubtreeIds(
-    db,
-    workspaceId,
-    resourceType,
-    folderId,
-    timestamp
-  )
+  const folderIds =
+    params.maxFolderRows === undefined
+      ? await collectCascadeSubtreeIds(db, workspaceId, resourceType, folderId, timestamp)
+      : await collectCascadeSubtreeIds(
+          db,
+          workspaceId,
+          resourceType,
+          folderId,
+          timestamp,
+          params.maxFolderRows
+        )
 
   const rejection = await config.guardDelete?.({ workspaceId, folderIds })
   if (rejection) {
@@ -700,26 +738,27 @@ async function deleteFolderWithoutTreeLock(
 
   logger.info('Deleted folder and all contents', { folderId, resourceType, counts })
 
-  recordAudit({
-    workspaceId,
-    actorId: userId,
-    action: AuditAction.FOLDER_DELETED,
-    resourceType: AuditResourceType.FOLDER,
-    resourceId: folderId,
-    resourceName: folderName,
-    description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
-    metadata: {
-      folderResourceType: resourceType,
-      path: folderPath,
-      affected: {
-        [config.countKey]: counts.children,
-        subfolders: Math.max(counts.folders - 1, 0),
+  if (options.effects)
+    recordAudit({
+      workspaceId,
+      actorId: userId,
+      action: AuditAction.FOLDER_DELETED,
+      resourceType: AuditResourceType.FOLDER,
+      resourceId: folderId,
+      resourceName: folderName,
+      description: `Deleted ${config.label} folder "${folderPath ?? folderName ?? folderId}"`,
+      metadata: {
+        folderResourceType: resourceType,
+        path: folderPath,
+        affected: {
+          [config.countKey]: counts.children,
+          subfolders: Math.max(counts.folders - 1, 0),
+        },
       },
-    },
-  })
+    })
 
   // Live resource list (e.g. tables): a delete removes the folder and cascades to its contents.
-  await notifyFolderResourceChanged(resourceType, workspaceId)
+  if (options.effects) await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, deletedItems: toCascadeCounts(config, counts) }
 }
 

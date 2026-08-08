@@ -7,6 +7,10 @@ import {
   executeCopilotFileUseCase,
   resolveCopilotWorkspaceFileReference,
 } from '@/lib/copilot/application/execute-file-use-case'
+import {
+  executeCopilotKnowledgeUseCase,
+  resolveCopilotKnowledgePrincipal,
+} from '@/lib/copilot/application/execute-knowledge-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
@@ -22,13 +26,14 @@ import {
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createFolder, deleteFolder, updateFolder } from '@/lib/folders/orchestration'
 import {
-  deleteKnowledgeBase,
-  getKnowledgeBases,
-  updateKnowledgeBase,
-} from '@/lib/knowledge/service'
+  deleteKnowledgeBaseOperation,
+  listKnowledgeBases,
+  updateKnowledgeBaseOperation,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { performDeleteTable, performRenameTable } from '@/lib/table/orchestration'
 import { listTables } from '@/lib/table/service'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
@@ -42,7 +47,6 @@ import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/applicati
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
 import { updateWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
-import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
 const logger = createLogger('VfsMutateTools')
 
@@ -76,6 +80,13 @@ interface VfsMutateOutcome {
   kind: 'file' | 'file_folder' | 'workflow' | 'workflow_folder' | 'table' | 'knowledge_base'
   id?: string
   error?: string
+}
+
+class KnowledgeVfsInfrastructureError extends Error {
+  constructor(readonly infrastructureCause: unknown) {
+    super('Knowledge VFS infrastructure failure')
+    this.name = 'KnowledgeVfsInfrastructureError'
+  }
 }
 
 /** Top-level VFS segment of a raw (possibly encoded) path. */
@@ -239,6 +250,9 @@ async function executeVfsMutate(
     }
 
     const workspaceId = requireCopilotWorkspace(context)
+    if (topLevelSegment(sources[0]) === 'knowledgebases') {
+      resolveCopilotKnowledgePrincipal(context)
+    }
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
     assertMutationNotAborted(context)
 
@@ -274,6 +288,9 @@ async function executeVfsMutate(
         return await renameFlatResource(verb, category, sources, destination, context, workspaceId)
     }
   } catch (error) {
+    if (error instanceof KnowledgeVfsInfrastructureError) {
+      throw error.infrastructureCause
+    }
     return {
       success: false,
       error: context.abortSignal?.aborted
@@ -837,20 +854,43 @@ async function renameFlatResource(
   if (newName.toLowerCase() === 'connectors') {
     return { success: false, error: '"knowledgebases/connectors" is a reserved path.' }
   }
-  const kbs = await getKnowledgeBases(context.userId, workspaceId)
-  const match = kbs.find((kb) => normalizeVfsSegment(kb.name) === canonicalSource)
+  let knowledgeBases: Awaited<ReturnType<typeof listKnowledgeBases.execute>>['knowledgeBases']
+  try {
+    const result = await executeCopilotKnowledgeUseCase(context, listKnowledgeBases, {
+      workspaceId,
+    })
+    knowledgeBases = result.knowledgeBases
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
+      return { success: false, error: 'Write access required to rename knowledge bases' }
+    }
+    throw new KnowledgeVfsInfrastructureError(error)
+  }
+  const match = knowledgeBases
+    .map(({ knowledgeBase }) => knowledgeBase)
+    .find((kb) => normalizeVfsSegment(kb.name) === canonicalSource)
   if (!match) {
     return { success: false, error: `Knowledge base not found at ${sources[0]}` }
   }
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId)
-  if (!access.hasAccess) {
-    return {
-      success: false,
-      error: `Write access required to rename knowledge base "${match.name}"`,
-    }
-  }
   assertMutationNotAborted(context)
-  await updateKnowledgeBase(match.id, { name: newName }, generateRequestId())
+  try {
+    await executeCopilotKnowledgeUseCase(context, updateKnowledgeBaseOperation, {
+      knowledgeBaseId: match.id,
+      assertedWorkspaceId: workspaceId,
+      name: newName,
+      source: 'agent',
+    })
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
+      return {
+        success: false,
+        error: `Write access required to rename knowledge base "${match.name}"`,
+      }
+    }
+    throw new KnowledgeVfsInfrastructureError(error)
+  }
   logger.info('Renamed knowledge base via mv', { knowledgeBaseId: match.id, workspaceId })
   return buildResult(verb, [
     { from: sources[0], to: `knowledgebases/${normalizeVfsSegment(newName)}`, kind, id: match.id },
@@ -877,6 +917,9 @@ export async function executeVfsRm(
     }
 
     const workspaceId = requireCopilotWorkspace(context)
+    if (paths.some((path) => topLevelSegment(path) === 'knowledgebases')) {
+      resolveCopilotKnowledgePrincipal(context)
+    }
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
     assertMutationNotAborted(context)
 
@@ -897,6 +940,7 @@ export async function executeVfsRm(
           await removeOne(classified.category, path, context, workspaceId, getWorkflowIndex)
         )
       } catch (error) {
+        if (error instanceof KnowledgeVfsInfrastructureError) throw error
         outcomes.push({
           from: path,
           kind: defaultKindFor(path),
@@ -910,6 +954,9 @@ export async function executeVfsRm(
 
     return buildResult('rm', outcomes)
   } catch (error) {
+    if (error instanceof KnowledgeVfsInfrastructureError) {
+      throw error.infrastructureCause
+    }
     return {
       success: false,
       error: context.abortSignal?.aborted
@@ -1139,23 +1186,48 @@ async function removeKnowledgeBasePath(
       error: '"knowledgebases/connectors" is a reserved path, not a knowledge base.',
     }
   }
-  const match = (await getKnowledgeBases(context.userId, workspaceId)).find(
-    (kb) => normalizeVfsSegment(kb.name) === canonical
-  )
+  let knowledgeBases: Awaited<ReturnType<typeof listKnowledgeBases.execute>>['knowledgeBases']
+  try {
+    const result = await executeCopilotKnowledgeUseCase(context, listKnowledgeBases, {
+      workspaceId,
+    })
+    knowledgeBases = result.knowledgeBases
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
+      return {
+        from: path,
+        kind: 'knowledge_base',
+        error: 'Write access required to delete knowledge bases',
+      }
+    }
+    throw new KnowledgeVfsInfrastructureError(error)
+  }
+  const match = knowledgeBases
+    .map(({ knowledgeBase }) => knowledgeBase)
+    .find((kb) => normalizeVfsSegment(kb.name) === canonical)
   if (!match)
     return { from: path, kind: 'knowledge_base', error: `Knowledge base not found at ${path}` }
 
-  const access = await checkKnowledgeBaseWriteAccess(match.id, context.userId)
-  if (!access.hasAccess) {
-    return {
-      from: path,
-      kind: 'knowledge_base',
-      id: match.id,
-      error: `Write access required to delete knowledge base "${match.name}"`,
+  try {
+    await executeCopilotKnowledgeUseCase(context, deleteKnowledgeBaseOperation, {
+      knowledgeBaseId: match.id,
+      assertedWorkspaceId: workspaceId,
+      source: 'agent',
+    })
+  } catch (error) {
+    const classified = asOrchestrationError(error)
+    if (classified && classified.code !== 'internal') {
+      return {
+        from: path,
+        kind: 'knowledge_base',
+        id: match.id,
+        error: `Write access required to delete knowledge base "${match.name}"`,
+      }
     }
+    throw new KnowledgeVfsInfrastructureError(error)
   }
-
-  await deleteKnowledgeBase(match.id, generateRequestId())
+  PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: match.id })
   logger.info('Deleted knowledge base via rm', { knowledgeBaseId: match.id, workspaceId })
   return { from: path, kind: 'knowledge_base', id: match.id }
 }

@@ -1,8 +1,10 @@
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { executeCopilotKnowledgeUseCase } from '@/lib/copilot/application/execute-knowledge-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
-import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
+import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { getLogById } from '@/lib/logs/service'
 import { getTableById } from '@/lib/table/service'
 import {
@@ -77,10 +79,27 @@ async function resolveResource(
   }
   if (resourceType === 'knowledgebase') {
     if (!item.id) return { error: 'knowledgebase resources require `id`.' }
-    const kb = await getKnowledgeBaseById(item.id)
-    if (!kb) return { error: `No knowledge base with id "${item.id}".` }
-    if (context.workspaceId && kb.workspaceId !== context.workspaceId)
-      return { error: `Knowledge base not found in the current workspace.` }
+    if (!context.workspaceId) {
+      return { error: 'Opening a knowledge base requires workspace context.' }
+    }
+    let kb: Awaited<ReturnType<typeof readKnowledgeBase.execute>>['knowledgeBase']
+    try {
+      const result = await executeCopilotKnowledgeUseCase(context, readKnowledgeBase, {
+        knowledgeBaseId: item.id,
+        assertedWorkspaceId: context.workspaceId,
+      })
+      kb = result.knowledgeBase
+    } catch (error) {
+      const classified = asOrchestrationError(error)
+      if (
+        classified?.code === 'not_found' ||
+        classified?.code === 'forbidden' ||
+        classified?.code === 'unauthorized'
+      ) {
+        return { error: 'Knowledge base not found in the current workspace.' }
+      }
+      throw error
+    }
     resourceId = kb.id
     title = kb.name
   }

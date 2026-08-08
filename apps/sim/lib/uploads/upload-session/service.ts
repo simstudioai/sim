@@ -92,7 +92,7 @@ export interface UploadSessionRecord {
 }
 
 /**
- * The credential that was authorized to create a workspace-file upload.
+ * The credential that was authorized to create a protected upload session.
  *
  * This is deliberately kept in the existing JSON metadata column. It is
  * server-authored and immutable for the lifetime of the session; the upload
@@ -130,13 +130,18 @@ interface CreateUploadSessionBaseParams {
   fileSize: number
   metadata?: Record<string, unknown>
   localOrigin?: string
-  principal?: Principal
 }
 
 export type CreateUploadSessionParams = CreateUploadSessionBaseParams &
   (
-    | { purpose: 'workspace_file' | 'table_import'; workspaceId: string }
-    | { purpose: 'knowledge_document'; workspaceId: string; knowledgeBaseId: string }
+    | { purpose: 'workspace_file'; workspaceId: string; principal: Principal }
+    | { purpose: 'table_import'; workspaceId: string }
+    | {
+        purpose: 'knowledge_document'
+        workspaceId: string
+        knowledgeBaseId: string
+        principal: Principal
+      }
     | { purpose: 'profile_picture'; workspaceId?: null }
     | { purpose: 'workspace_logo' | 'mothership_attachment'; workspaceId: string }
     | {
@@ -157,10 +162,10 @@ export async function createUploadSession(
   const uploadToken = generateSecureToken(32)
   const workspaceId = params.purpose === 'profile_picture' ? null : params.workspaceId
   const metadata = { ...(params.metadata ?? {}) }
-  if (params.purpose === 'workspace_file') {
-    if (!workspaceId) throw new Error('Workspace-file upload is missing workspaceId')
+  if (params.purpose === 'workspace_file' || params.purpose === 'knowledge_document') {
+    if (!workspaceId) throw new Error(`${params.purpose} upload is missing workspaceId`)
     if (!params.principal) {
-      throw new Error('Workspace-file upload requires an authenticated principal')
+      throw new Error(`${params.purpose} upload requires an authenticated principal`)
     }
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
   }
@@ -315,7 +320,7 @@ export async function getOwnedUploadSession(params: {
   if (params.executionId !== undefined && session.executionId !== params.executionId) {
     throw uploadNotFound()
   }
-  if (params.principal && session.purpose === 'workspace_file') {
+  if (params.principal && isPrincipalBoundUploadPurpose(session.purpose)) {
     assertUploadSessionAuthBinding(session, params.principal)
   }
   return session
@@ -339,6 +344,24 @@ export async function getPrincipalUploadSession(params: {
     principal: params.principal,
   })
   return session
+}
+
+/** Loads a knowledge-document session using its immutable credential binding. */
+export async function getPrincipalKnowledgeDocumentUploadSession(params: {
+  uploadId: string
+  uploadToken: string
+  principal: Principal
+  workspaceId: string
+  knowledgeBaseId: string
+}): Promise<UploadSessionRecord> {
+  return getOwnedUploadSession({
+    uploadId: params.uploadId,
+    uploadToken: params.uploadToken,
+    workspaceId: params.workspaceId,
+    purpose: 'knowledge_document',
+    knowledgeBaseId: params.knowledgeBaseId,
+    principal: params.principal,
+  })
 }
 
 export function createUploadSessionAuthBinding(
@@ -380,7 +403,7 @@ export function assertUploadSessionAuthBinding(
   session: UploadSessionRecord,
   principal: Principal
 ): void {
-  if (session.purpose !== 'workspace_file') return
+  if (!isPrincipalBoundUploadPurpose(session.purpose)) return
   const candidate = session.metadata.authBinding
   if (candidate === undefined) {
     assertLegacyUploadSessionOwner(session, principal)
@@ -408,10 +431,10 @@ export function assertUploadSessionAuthBinding(
 
 /**
  * Preserves control access for the bounded set of sessions created before
- * immutable credential bindings shipped. New workspace-file sessions always
- * persist `authBinding`, and malformed bindings never enter this compatibility
- * path. The upload token and current workspace authorization are still checked
- * by the calling control-plane use case.
+ * immutable credential bindings shipped. New protected sessions always persist
+ * `authBinding`, and malformed bindings never enter this compatibility path.
+ * The upload token and current workspace authorization are still checked by the
+ * calling control-plane use case.
  */
 function assertLegacyUploadSessionOwner(session: UploadSessionRecord, principal: Principal): void {
   const matches =
@@ -1080,6 +1103,10 @@ function maximumFileSize(purpose: UploadSessionPurpose): number {
 }
 
 function requiresStorageQuota(purpose: UploadSessionPurpose): boolean {
+  return purpose === 'workspace_file' || purpose === 'knowledge_document'
+}
+
+function isPrincipalBoundUploadPurpose(purpose: UploadSessionPurpose): boolean {
   return purpose === 'workspace_file' || purpose === 'knowledge_document'
 }
 

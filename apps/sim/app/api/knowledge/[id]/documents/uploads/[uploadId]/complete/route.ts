@@ -1,20 +1,15 @@
 import { type NextRequest, NextResponse } from 'next/server'
 import { completeKnowledgeDocumentUploadContract } from '@/lib/api/contracts/knowledge/upload-sessions'
 import { parseRequest } from '@/lib/api/server'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { completeUploadSession } from '@/lib/uploads/upload-session/service'
-import { uploadSessionErrorResponse } from '@/app/api/files/uploads/utils'
+import { completeKnowledgeDocumentUpload } from '@/lib/knowledge/application/upload-sessions'
+import { captureServerEvent } from '@/lib/posthog/server'
 import {
-  requireKnowledgeDocumentUploadAccess,
+  knowledgeDocumentUploadErrorResponse,
   requireKnowledgeDocumentUploadActor,
-  resolveKnowledgeDocumentUploadAttribution,
 } from '@/app/api/knowledge/[id]/documents/uploads/utils'
-import {
-  finalizeKnowledgeDocumentUpload,
-  getOwnedKnowledgeDocumentUpload,
-  toV2KnowledgeDocumentUpload,
-} from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
+import { toV2KnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
 interface KnowledgeDocumentUploadRouteParams {
   params: Promise<{ id: string; uploadId: string }>
@@ -28,44 +23,46 @@ export const POST = withRouteHandler(
     if (!parsed.success) return parsed.response
     const { id: knowledgeBaseId, uploadId } = parsed.data.params
     const { workspaceId } = parsed.data.query
-    const access = await requireKnowledgeDocumentUploadAccess({
-      knowledgeBaseId,
-      workspaceId,
-      userId: actor.id,
-    })
-    if (access instanceof NextResponse) return access
-    const requestId = generateRequestId()
     try {
-      const upload = await getOwnedKnowledgeDocumentUpload({
-        knowledgeBaseId,
-        uploadId,
-        workspaceId,
-        userId: actor.id,
-        uploadToken: parsed.data.headers['upload-token'],
+      const completed = await completeKnowledgeDocumentUpload.execute({
+        principal: { kind: 'session', userId: actor.id, sessionId: actor.sessionId },
+        input: {
+          knowledgeBaseId,
+          assertedWorkspaceId: workspaceId,
+          uploadId,
+          uploadToken: parsed.data.headers['upload-token'],
+          source: 'ui',
+        },
+        request,
       })
-      const completed = await completeUploadSession({
-        session: upload,
-        finalize: (claimed) =>
-          finalizeKnowledgeDocumentUpload({
-            claimed,
-            knowledgeBaseId,
-            knowledgeBaseName: access.knowledgeBase.name,
-            workspaceId,
-            userId: actor.id,
-            resolveAttribution: () =>
-              resolveKnowledgeDocumentUploadAttribution({ workspaceId, userId: actor.id }),
-            source: 'ui',
-            requestId,
-            request,
-            actorName: actor.name,
-            actorEmail: actor.email,
-          }),
-      })
+      if (completed.value.created) {
+        captureServerEvent(
+          actor.id,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: completed.knowledgeBaseId,
+            workspace_id: completed.workspaceId,
+            document_count: 1,
+            upload_type: 'single',
+          },
+          {
+            groups: { workspace: completed.workspaceId },
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
+        PlatformEvents.knowledgeBaseDocumentsUploaded({
+          knowledgeBaseId: completed.knowledgeBaseId,
+          documentsCount: 1,
+          uploadType: 'single',
+          mimeType: completed.value.document.mimeType,
+          fileSize: completed.value.document.fileSize,
+        })
+      }
       return NextResponse.json({
-        data: toV2KnowledgeDocumentUpload(completed.session, completed.value),
+        data: toV2KnowledgeDocumentUpload(completed.session, completed.value.document),
       })
     } catch (error) {
-      const classified = uploadSessionErrorResponse(error)
+      const classified = knowledgeDocumentUploadErrorResponse(error)
       if (classified) return classified
       throw error
     }

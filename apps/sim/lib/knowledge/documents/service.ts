@@ -1838,7 +1838,8 @@ export async function createSingleDocument(
   requestId: string,
   uploadedBy: string | null = null,
   documentId = generateId(),
-  secretProvenance?: KnowledgeDocumentWriteSecretProvenance
+  secretProvenance?: KnowledgeDocumentWriteSecretProvenance,
+  options?: { expectedWorkspaceId?: string }
 ): Promise<{
   id: string
   knowledgeBaseId: string
@@ -1936,6 +1937,13 @@ export async function createSingleDocument(
       .limit(1)
 
     if (kb.length === 0) {
+      throw new OrchestrationError('not_found', 'Knowledge base not found')
+    }
+
+    if (
+      options?.expectedWorkspaceId !== undefined &&
+      kb[0].workspaceId !== options.expectedWorkspaceId
+    ) {
       throw new OrchestrationError('not_found', 'Knowledge base not found')
     }
 
@@ -2746,7 +2754,8 @@ async function excludeConnectorDocuments(
 
 async function deleteDocumentsByLifecyclePolicy(
   documentIds: string[],
-  requestId: string
+  requestId: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2759,14 +2768,26 @@ async function deleteDocumentsByLifecyclePolicy(
       connectorId: document.connectorId,
     })
     .from(document)
-    .where(inArray(document.id, ids))
+    .where(
+      expectedKnowledgeBaseId
+        ? and(
+            inArray(document.id, ids),
+            eq(document.knowledgeBaseId, expectedKnowledgeBaseId),
+            eq(document.userExcluded, false),
+            isNull(document.archivedAt),
+            isNull(document.deletedAt)
+          )
+        : inArray(document.id, ids)
+    )
 
   const connectorBackedIds = docs.filter((doc) => doc.connectorId !== null).map((doc) => doc.id)
   const hardDeleteIds = docs.filter((doc) => doc.connectorId === null).map((doc) => doc.id)
 
   const [excludedCount, hardDeletedCount] = await Promise.all([
-    excludeConnectorDocuments(connectorBackedIds, requestId),
-    hardDeleteDocuments(hardDeleteIds, requestId),
+    expectedKnowledgeBaseId
+      ? excludeConnectorKnowledgeDocuments(expectedKnowledgeBaseId, connectorBackedIds, requestId)
+      : excludeConnectorDocuments(connectorBackedIds, requestId),
+    hardDeleteDocuments(hardDeleteIds, requestId, undefined, expectedKnowledgeBaseId),
   ])
 
   return excludedCount + hardDeletedCount
@@ -2784,7 +2805,8 @@ export async function hardDeleteDocuments(
    * connector, keep documents") would otherwise still have them purged here
    * despite no longer belonging to the connector the caller reasoned about.
    */
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   if (ids.length === 0) {
@@ -2796,7 +2818,8 @@ export async function hardDeleteDocuments(
     deletedCount += await hardDeleteDocumentBatch(
       ids.slice(offset, offset + HARD_DELETE_DOCUMENT_BATCH_SIZE),
       requestId,
-      expectedConnectorId
+      expectedConnectorId,
+      expectedKnowledgeBaseId
     )
   }
   return deletedCount
@@ -2809,7 +2832,8 @@ export async function hardDeleteDocuments(
 async function hardDeleteDocumentBatch(
   documentIds: string[],
   requestId: string,
-  expectedConnectorId?: string
+  expectedConnectorId?: string,
+  expectedKnowledgeBaseId?: string
 ): Promise<number> {
   const ids = [...new Set(documentIds)]
   const documentsToDelete = await db
@@ -2826,9 +2850,14 @@ async function hardDeleteDocumentBatch(
     .from(document)
     .innerJoin(knowledgeBase, eq(document.knowledgeBaseId, knowledgeBase.id))
     .where(
-      expectedConnectorId
-        ? and(inArray(document.id, ids), eq(document.connectorId, expectedConnectorId))
-        : inArray(document.id, ids)
+      and(
+        inArray(document.id, ids),
+        expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
+        expectedKnowledgeBaseId ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId) : undefined,
+        expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
+        expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
+        expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+      )
     )
 
   if (documentsToDelete.length === 0) {
@@ -2910,16 +2939,26 @@ async function hardDeleteDocumentBatch(
      * embedding delete and the document delete are scoped to this re-verified
      * ID set rather than the stale `existingIds`.
      */
-    const stillTargetedIds = expectedConnectorId
-      ? (
-          await tx
-            .select({ id: document.id })
-            .from(document)
-            .where(
-              and(inArray(document.id, existingIds), eq(document.connectorId, expectedConnectorId))
-            )
-        ).map((d) => d.id)
-      : existingIds
+    const stillTargetedIds =
+      expectedConnectorId || expectedKnowledgeBaseId
+        ? (
+            await tx
+              .select({ id: document.id })
+              .from(document)
+              .where(
+                and(
+                  inArray(document.id, existingIds),
+                  expectedConnectorId ? eq(document.connectorId, expectedConnectorId) : undefined,
+                  expectedKnowledgeBaseId
+                    ? eq(document.knowledgeBaseId, expectedKnowledgeBaseId)
+                    : undefined,
+                  expectedKnowledgeBaseId ? eq(document.userExcluded, false) : undefined,
+                  expectedKnowledgeBaseId ? isNull(document.archivedAt) : undefined,
+                  expectedKnowledgeBaseId ? isNull(document.deletedAt) : undefined
+                )
+              )
+          ).map((d) => d.id)
+        : existingIds
 
     await tx.delete(embedding).where(inArray(embedding.documentId, stillTargetedIds))
     const deletedRows = await tx
@@ -2984,4 +3023,45 @@ export async function deleteDocument(
     success: true,
     message: 'Document deleted successfully',
   }
+}
+
+/** Deletes one currently visible document within its canonical knowledge base. */
+export async function deleteKnowledgeDocumentInKnowledgeBase(
+  knowledgeBaseId: string,
+  documentId: string,
+  requestId: string
+): Promise<void> {
+  const current = await getKnowledgeDocument(knowledgeBaseId, documentId)
+  if (!current) throw new OrchestrationError('not_found', 'Document not found')
+  const affected = await deleteDocumentsByLifecyclePolicy([documentId], requestId, knowledgeBaseId)
+  if (affected !== 1) throw new OrchestrationError('not_found', 'Document not found')
+}
+
+async function excludeConnectorKnowledgeDocuments(
+  knowledgeBaseId: string,
+  documentIds: string[],
+  requestId: string
+): Promise<number> {
+  if (documentIds.length === 0) return 0
+  const updated = await db
+    .update(document)
+    .set({ userExcluded: true, enabled: false })
+    .where(
+      and(
+        inArray(document.id, documentIds),
+        eq(document.knowledgeBaseId, knowledgeBaseId),
+        isNotNull(document.connectorId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .returning({ id: document.id })
+  if (updated.length > 0) {
+    logger.info(`[${requestId}] Excluded ${updated.length} connector-backed document(s)`, {
+      documentIds: updated.map((row) => row.id),
+      knowledgeBaseId,
+    })
+  }
+  return updated.length
 }

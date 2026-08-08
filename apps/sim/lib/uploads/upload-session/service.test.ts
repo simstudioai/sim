@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import type { Principal } from '@sim/auth/principal'
 import { sha256Hex } from '@sim/security/hash'
 import { dbChainMockFns, queueTableRows, resetDbChainMock, schemaMock } from '@sim/testing'
 import { eq, inArray, isNull } from 'drizzle-orm'
@@ -60,8 +61,11 @@ import {
   assertUploadSessionAuthBinding,
   cleanupExpiredUploadSessions,
   completeUploadSession,
+  createUploadPartUrls,
   createUploadSession,
+  createUploadSessionAuthBinding,
   getOwnedUploadSession,
+  getPrincipalKnowledgeDocumentUploadSession,
   UPLOAD_SESSION_PART_SIZE,
   UPLOAD_SESSION_PUT_MAX_BYTES,
   type UploadSessionRecord,
@@ -139,6 +143,103 @@ describe('upload sessions', () => {
     ).rejects.toMatchObject({ code: 'not_found' })
   })
 
+  it('binds new knowledge-document sessions to the exact creating credential', async () => {
+    const row = uploadRow({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      storageContext: 'knowledge-base',
+      finalKey: 'kb/guide.pdf',
+      fileName: 'guide.pdf',
+      contentType: 'application/pdf',
+    })
+    dbChainMockFns.returning.mockResolvedValueOnce([row])
+
+    await createUploadSession({
+      id: row.id,
+      workspaceId: WORKSPACE_ID,
+      knowledgeBaseId: 'kb-1',
+      userId: 'user-1',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      purpose: 'knowledge_document',
+      fileName: 'guide.pdf',
+      contentType: 'application/pdf',
+      fileSize: 4,
+      localOrigin: 'http://localhost:3000',
+    })
+
+    expect(dbChainMockFns.values.mock.calls[0][0].metadata.authBinding).toEqual({
+      version: 1,
+      workspaceId: WORKSPACE_ID,
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+    })
+  })
+
+  it('rejects a different API key on a bound knowledge-document control leg', async () => {
+    const row = uploadRow({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      storageContext: 'knowledge-base',
+      metadata: {
+        authBinding: {
+          version: 1,
+          workspaceId: WORKSPACE_ID,
+          principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        },
+      },
+    })
+    queueTableRows(schemaMock.uploadSession, [row])
+
+    await expect(
+      getPrincipalKnowledgeDocumentUploadSession({
+        uploadId: row.id,
+        uploadToken: 'upload-secret',
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+        workspaceId: WORKSPACE_ID,
+        knowledgeBaseId: 'kb-1',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it.each([
+    {
+      label: 'session',
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      mismatch: { kind: 'session', userId: 'user-1', sessionId: 'session-2' },
+    },
+    {
+      label: 'personal API key',
+      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+      mismatch: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-2' },
+    },
+    {
+      label: 'workspace API key',
+      principal: {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'workspace-key-1',
+      },
+      mismatch: {
+        kind: 'workspace_api_key',
+        workspaceId: WORKSPACE_ID,
+        keyId: 'workspace-key-2',
+      },
+    },
+  ] satisfies Array<{ label: string; principal: Principal; mismatch: Principal }>)(
+    'requires the exact bound $label credential for knowledge control',
+    ({ principal, mismatch }) => {
+      const session = sessionRecord({
+        purpose: 'knowledge_document',
+        knowledgeBaseId: 'kb-1',
+        metadata: { authBinding: createUploadSessionAuthBinding(principal, WORKSPACE_ID) },
+      })
+
+      expect(() => assertUploadSessionAuthBinding(session, principal)).not.toThrow()
+      expect(() => assertUploadSessionAuthBinding(session, mismatch)).toThrow(
+        'Upload session not found'
+      )
+    }
+  )
+
   it('preserves legacy unbound sessions under their prior ownership rules', () => {
     const legacy = sessionRecord({ metadata: {} })
 
@@ -180,8 +281,35 @@ describe('upload sessions', () => {
     ).toThrow('Upload session not found')
   })
 
+  it('preserves the explicit missing-binding compatibility path for old knowledge sessions', () => {
+    const legacy = sessionRecord({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      metadata: {},
+    })
+
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: legacy.userId,
+        keyId: 'replacement-key',
+      })
+    ).not.toThrow()
+    expect(() =>
+      assertUploadSessionAuthBinding(legacy, {
+        kind: 'personal_api_key',
+        userId: 'different-user',
+        keyId: 'replacement-key',
+      })
+    ).toThrow('Upload session not found')
+  })
+
   it('never treats a malformed credential binding as a legacy session', () => {
-    const malformed = sessionRecord({ metadata: { authBinding: { version: 1 } } })
+    const malformed = sessionRecord({
+      purpose: 'knowledge_document',
+      knowledgeBaseId: 'kb-1',
+      metadata: { authBinding: { version: 1 } },
+    })
 
     expect(() =>
       assertUploadSessionAuthBinding(malformed, {
@@ -214,6 +342,38 @@ describe('upload sessions', () => {
       expect.objectContaining({ key: FINAL_KEY, uploadId: 'upload-1' })
     )
     expect(mockCreatePutTransfer).not.toHaveBeenCalled()
+  })
+
+  it('preserves multipart request bounds before provider signing', async () => {
+    const multipart = sessionRecord({
+      method: 'multipart',
+      providerUploadId: 'provider-upload-1',
+      partSize: UPLOAD_SESSION_PART_SIZE,
+      partCount: 2,
+      fileSize: UPLOAD_SESSION_PART_SIZE + 1,
+    })
+
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: [1, 1],
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: Array.from({ length: 101 }, (_, index) => index + 1),
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+    await expect(
+      createUploadPartUrls({
+        session: multipart,
+        partNumbers: [3],
+        localOrigin: 'http://localhost:3000',
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
   })
 
   it('loads ownership from PostgreSQL and rejects a mismatched token', async () => {
