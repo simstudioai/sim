@@ -64,6 +64,22 @@ interface NotePointerStart {
 }
 
 /**
+ * Whether a drag carries files rather than one of the canvas's own payloads.
+ *
+ * The toolbar's block drags put `application/json` on the transfer and nothing
+ * else, so keying on `Files` is what keeps a note from claiming a drop the
+ * canvas is meant to place.
+ */
+function isFileDrag(transfer: DataTransfer | null): boolean {
+  return transfer ? Array.from(transfer.types).includes('Files') : false
+}
+
+/** The image files on a drop, in the order the browser reports them. */
+function imageFilesFrom(transfer: DataTransfer | null): File[] {
+  return transfer ? Array.from(transfer.files).filter((file) => file.type.startsWith('image/')) : []
+}
+
+/**
  * Compact markdown renderer for note blocks with tight spacing.
  *
  * Streamdown's `remarkPlugins` prop REPLACES its defaults rather than extending
@@ -326,15 +342,23 @@ export interface NoteBlockViewProps {
   onContentChange?: (content: string) => void
   /**
    * A count of writes the host has made to `content` from outside the editor —
-   * the canvas "Add image" action is the only one today. Each one ends any
-   * in-progress content editing, because the editor seeds its document once when
-   * editing opens: left running, its next keystroke would serialize that stale
-   * document straight over the host's write.
+   * the canvas "Add image" action and {@link onImageFilesDrop} today. Each one
+   * ends any in-progress content editing, because the editor seeds its document
+   * once when editing opens: left running, its next keystroke would serialize
+   * that stale document straight over the host's write.
    */
   externalContentWrites?: number
   /** Publishes the measured, clamped canvas height to the editor container. */
   onHeightChange?: (height: number) => void
   onExpandedChange?: (expanded: boolean) => void
+  /**
+   * Uploads image files dropped anywhere on the card and appends them to the
+   * note, for the drop the editor cannot take: the card is a read view until it
+   * is expanded and clicked into, so without this the natural gesture — drag an
+   * image from Finder onto the note — lands on the canvas and is swallowed.
+   * Omit to leave the card inert to file drops.
+   */
+  onImageFilesDrop?: (files: File[]) => void
   /**
    * Renders the markdown editor. Required rather than optional: an internal
    * fallback editor would be a second editing surface that production never
@@ -366,6 +390,7 @@ export function NoteBlockView({
   externalContentWrites = 0,
   onHeightChange,
   onExpandedChange,
+  onImageFilesDrop,
   renderContentEditor,
   actionBar,
 }: NoteBlockViewProps) {
@@ -386,6 +411,7 @@ export function NoteBlockView({
   const [draftContent, setDraftContent] = useState(content)
   const [compactHeight, setCompactHeight] = useState(() => estimateNoteBlockHeight(content))
   const [isHovered, setIsHovered] = useState(false)
+  const [isFileDropTarget, setIsFileDropTarget] = useState(false)
   const [canScrollUp, setCanScrollUp] = useState(false)
   const [canScrollDown, setCanScrollDown] = useState(false)
   const activeContent = editingField === 'content' ? draftContent : content
@@ -519,6 +545,52 @@ export function NoteBlockView({
     setDraftName(name ?? '')
     setEditingField(null)
   }
+
+  const acceptsImageDrop = Boolean(onImageFilesDrop) && canEdit
+
+  /**
+   * Claims a file drag for the card.
+   *
+   * A drop only fires where the `dragover` was cancelled, and the canvas cancels
+   * its own on the pane behind — so without this the file lands on the canvas,
+   * which has nothing to do with it, and the drag reads as rejected.
+   */
+  function handleFileDragOver(event: React.DragEvent<HTMLDivElement>) {
+    if (!acceptsImageDrop || !isFileDrag(event.dataTransfer)) return
+    event.preventDefault()
+    event.dataTransfer.dropEffect = 'copy'
+    setIsFileDropTarget(true)
+  }
+
+  function handleFileDragLeave(event: React.DragEvent<HTMLDivElement>) {
+    /* `dragleave` fires on every crossing into a child as well, and Chrome
+       reports no `relatedTarget` for it — so the pointer's own position is what
+       says whether the card was really left. Reading the node tree instead
+       flickers the highlight off and back on across every child boundary. */
+    const rect = event.currentTarget.getBoundingClientRect()
+    const isInsideCard =
+      event.clientX >= rect.left &&
+      event.clientX <= rect.right &&
+      event.clientY >= rect.top &&
+      event.clientY <= rect.bottom
+    if (isInsideCard) return
+    setIsFileDropTarget(false)
+  }
+
+  function handleFileDrop(event: React.DragEvent<HTMLDivElement>) {
+    setIsFileDropTarget(false)
+    if (!acceptsImageDrop) return
+    /* An open editor takes the drop first — it inserts at the point the user
+       aimed at and marks the event handled. Appending here as well would store
+       a second copy of the same image. */
+    if (event.defaultPrevented) return
+
+    const images = imageFilesFrom(event.dataTransfer)
+    if (images.length === 0) return
+    event.preventDefault()
+    onImageFilesDrop?.(images)
+  }
+
   const updateScrollFades = useCallback(() => {
     const scrollRegion = scrollRegionRef.current
     if (!scrollRegion) return
@@ -668,6 +740,9 @@ export function NoteBlockView({
           style={{ width: blockWidth, height: blockHeight }}
           onPointerDown={recordNotePointerStart}
           onClick={handleNoteClick}
+          onDragOver={handleFileDragOver}
+          onDragLeave={handleFileDragLeave}
+          onDrop={handleFileDrop}
           /* Only the card's own transition. React bubbles this, and the card
              holds several transitioning children (the expand button, both
              icons), so an unguarded handler forces a sync layout read on every
@@ -692,7 +767,10 @@ export function NoteBlockView({
             cursorSwellEnabled={false}
             hasRing={hasRing}
             ringStyles={ringStyles}
-            isSelected={hasVisualFocus}
+            /* A file held over the card lights its own silhouette rather than a
+               second, drop-only outline — the card already has one way of
+               saying "this is the thing you are acting on". */
+            isSelected={hasVisualFocus || isFileDropTarget}
             selectedSilhouetteColor={colorOption.selectedSilhouetteColor}
             silhouetteColorOverride={
               !hasVisualFocus && isHovered ? colorOption.hoverSilhouetteColor : undefined
@@ -851,6 +929,14 @@ export function NoteBlockView({
                    menu all portal to the document body, outside the canvas, so
                    only a move that stays inside the canvas ends editing. */
                 onBlur={(event) => {
+                  /* Leaving the browser is not a decision to stop editing, and
+                     treating it as one is what made "drag an image in from
+                     Finder" impossible: picking the file up blurred the window,
+                     which closed the editor before the drop could land. A window
+                     blur and a click on non-focusable chrome both arrive with a
+                     null `relatedTarget`; whether the document still holds focus
+                     is what separates them. */
+                  if (event.relatedTarget === null && !document.hasFocus()) return
                   const nextFocus = event.relatedTarget
                   if (nextFocus instanceof Element && !nextFocus.closest('.react-flow')) return
                   if (!event.currentTarget.contains(nextFocus)) setEditingField(null)

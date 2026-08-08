@@ -322,6 +322,7 @@ export const ApolloBlock: BlockConfig<ApolloResponse> = {
     {
       id: 'people',
       title: 'People (JSON Array)',
+      canvasNoun: 'a JSON array',
       type: 'code',
       placeholder: '[{"first_name": "John", "last_name": "Doe", "email": "john@example.com"}]',
       condition: { field: 'operation', value: 'people_bulk_enrich' },

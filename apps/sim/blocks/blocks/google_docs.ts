@@ -315,6 +315,7 @@ Return ONLY the text to insert - no explanations, no extra text.`,
     {
       id: 'searchText',
       title: 'Find',
+      canvasNoun: 'text to find',
       type: 'short-input',
       placeholder: 'Text to find',
       condition: { field: 'operation', value: 'replace_text' },

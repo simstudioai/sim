@@ -88,6 +88,17 @@ const SINGULAR_ENDING_IN_S = /([a-z](us|is)|ss|alias|canvas|atlas|lens|bus|gas|h
 /** A pluralised initialism — `URIs`, `IDs`, `SKUs` — which is plural. */
 const PLURAL_INITIALISM = /^[A-Z0-9]{2,}s$/
 
+/**
+ * Mass nouns, which name a substance rather than a thing you can count and so
+ * take no article on their own: `Run ⟨a code⟩` and `Append ⟨a content⟩` are not
+ * English in the way `Read ⟨a key⟩` is.
+ *
+ * Matched against the whole noun, never the head of a compound — an `invite
+ * code` and a `comment text` are countable things, and stripping their article
+ * would trade one wrong reading for another.
+ */
+const UNCOUNTABLE = new Set(['audio', 'code', 'content', 'media', 'text'])
+
 function isPlural(phrase: string): boolean {
   const last = phrase.trim().split(/\s+/).pop() ?? ''
   if (!/s$/.test(last)) return false
@@ -174,5 +185,6 @@ export function resolveFieldNoun(subBlock: Pick<SubBlockConfig, 'title' | 'canva
   const prose = toRunningProse(String(subBlock.title ?? '')).trim()
   if (!prose) return 'a value'
   if (isPlural(prose)) return prose
+  if (UNCOUNTABLE.has(prose.toLowerCase())) return prose
   return `${articleFor(prose)} ${prose}`
 }

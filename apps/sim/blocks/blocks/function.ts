@@ -29,7 +29,7 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   icon: CodeIcon,
   canvasPresentation: {
     defaultTitle: 'Function',
-    sentences: { default: [{ text: 'Run code', field: 'code', core: true }] },
+    sentences: { default: [{ text: 'Run', field: 'code', core: true }] },
   },
   subBlocks: [
     {

@@ -469,6 +469,7 @@ export const DiscordBlock: BlockConfig<DiscordResponse> = {
     {
       id: 'archived',
       title: 'Archived',
+      canvasNoun: 'archived or active',
       type: 'dropdown',
       options: [
         { label: 'Archive', id: 'true' },

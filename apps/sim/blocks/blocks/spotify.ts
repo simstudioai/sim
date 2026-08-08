@@ -908,6 +908,7 @@ export const SpotifyBlock: BlockConfig<ToolResponse> = {
     {
       id: 'shuffle_state',
       title: 'Shuffle',
+      canvasNoun: 'on or off',
       type: 'switch',
       defaultValue: false,
       condition: { field: 'operation', value: 'spotify_set_shuffle' },

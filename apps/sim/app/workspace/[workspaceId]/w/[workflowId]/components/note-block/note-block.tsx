@@ -158,11 +158,14 @@ export const NoteBlock = memo(function NoteBlock({
   }, [canEditNote, id])
 
   /**
-   * Uploads then appends, one image at a time so a multi-file pick lands in
-   * order. Each write goes to the store rather than to a mounted editor, so it
-   * counts as an external one: bumping `externalContentWrites` hands the
+   * Uploads then appends, one image at a time so a multi-file pick or drop lands
+   * in order. Each write goes to the store rather than to a mounted editor, so
+   * it counts as an external one: bumping `externalContentWrites` hands the
    * document back to `content` first, or an open editor's next keystroke would
    * serialize its own stale document over the appended image.
+   *
+   * Shared by both surfaces that reach the note from outside its editor: the
+   * context menu's "Add image" and a file dropped onto the card.
    */
   const insertImages = async (files: File[]) => {
     for (const file of files) {
@@ -266,6 +269,7 @@ export const NoteBlock = memo(function NoteBlock({
         externalContentWrites={externalContentWrites}
         onHeightChange={setBlockHeight}
         onExpandedChange={handleExpandedChange}
+        onImageFilesDrop={(files) => void insertImages(files)}
         renderContentEditor={renderNoteContentEditor}
         actionBar={
           <ActionBar

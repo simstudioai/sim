@@ -1597,6 +1597,7 @@ Return ONLY the JSON array - no explanations or markdown.`,
     {
       id: 'count',
       title: 'Count',
+      canvasNoun: 'how many',
       type: 'short-input',
       placeholder: 'Number of results (default: 10, max: 1000)',
       condition: {

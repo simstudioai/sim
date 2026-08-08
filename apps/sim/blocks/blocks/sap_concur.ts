@@ -1140,6 +1140,7 @@ export const SapConcurBlock: BlockConfig<SapConcurProxyResponse> = {
     {
       id: 'count',
       title: 'Count',
+      canvasNoun: 'how many',
       type: 'short-input',
       placeholder: '100',
       condition: { field: 'operation', value: 'sap_concur_list_users' },
