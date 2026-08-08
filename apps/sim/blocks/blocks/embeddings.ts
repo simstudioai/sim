@@ -209,7 +209,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
        * `<Block.output>` references.
        */
       tool: (params) => {
-        const provider = params.provider as EmbeddingBlockProvider
+        const provider = (params.provider as EmbeddingBlockProvider | undefined) ?? 'openai'
         const toolId = TOOL_ID_BY_PROVIDER[provider]
         if (!toolId) throw new Error(`Unsupported embedding provider: ${String(params.provider)}`)
         return toolId

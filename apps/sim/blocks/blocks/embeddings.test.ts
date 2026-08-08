@@ -146,6 +146,10 @@ describe('Embeddings block', () => {
       expect(EmbeddingsBlock.tools.config?.tool?.({ provider })).toBe(toolId)
     }
     expect(EmbeddingsBlock.tools.access).toHaveLength(Object.keys(TOOL_ID_BY_PROVIDER).length)
+    expect(EmbeddingsBlock.tools.config?.tool?.({})).toBe('embeddings_openai')
+    expect(() => EmbeddingsBlock.tools.config?.tool?.({ provider: 'unknown' })).toThrow(
+      'Unsupported embedding provider: unknown'
+    )
   })
 
   it('loads every OpenRouter embedding model and maps its dedicated key', async () => {
