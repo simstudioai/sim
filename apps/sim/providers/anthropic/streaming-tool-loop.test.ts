@@ -271,7 +271,6 @@ describe('createAnthropicStreamingToolLoopStream', () => {
       { params: { token: '{{TOKEN}}' } }
     )
     registerPreparedProviderToolInputProvenance(executionParams, {
-      parentRegistry: registry,
       registry: inputRegistry,
       inputPaths: [['params']],
     })

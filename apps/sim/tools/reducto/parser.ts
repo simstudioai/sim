@@ -1,9 +1,5 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
-import {
-  selectModelBoundFileInputPaths,
-  selectPreferredModelBoundFileInputPaths,
-} from '@/lib/uploads/utils/model-input'
 import type {
   ReductoParserInput,
   ReductoParserOutput,
@@ -57,17 +53,6 @@ export const reductoParserTool: ToolConfig<ReductoParserInput, ReductoParserOutp
   },
 
   request: {
-    modelInput: {
-      mode: 'private-provenance',
-      inputPaths: (params) =>
-        selectPreferredModelBoundFileInputPaths({
-          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
-          filePath: params.filePath,
-          fileInputPath: params.file && typeof params.file === 'object' ? ['file'] : ['fileUpload'],
-          filePathInputPath: ['filePath'],
-          prefer: 'path',
-        }),
-    },
     url: '/api/tools/reducto/parse',
     method: 'POST',
     headers: (params) => {
@@ -220,10 +205,6 @@ export const reductoParserV2Tool: ToolConfig<ReductoParserV2Input, ReductoParser
     apiKey: reductoParserTool.params.apiKey,
   },
   request: {
-    modelInput: {
-      mode: 'private-provenance',
-      inputPaths: (params) => selectModelBoundFileInputPaths(params.file, ['file']),
-    },
     url: '/api/tools/reducto/parse',
     method: 'POST',
     headers: (params) => ({

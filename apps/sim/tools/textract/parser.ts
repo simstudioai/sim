@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { selectPreferredModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type {
   TextractParserInput,
   TextractParserOutput,
@@ -120,19 +119,6 @@ export const textractParserTool: ToolConfig<TextractParserInput, TextractParserO
         return {
           queries: rebuildTextractQueries(selectedParams.queries, projectedSelection.queries),
         }
-      },
-      privateInputPaths: (params) => {
-        const processingMode = params.processingMode || 'sync'
-        if (processingMode === 'async') {
-          return typeof params.s3Uri === 'string' && params.s3Uri.trim() !== '' ? [['s3Uri']] : []
-        }
-        return selectPreferredModelBoundFileInputPaths({
-          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
-          filePath: params.filePath,
-          fileInputPath: params.file && typeof params.file === 'object' ? ['file'] : ['fileUpload'],
-          filePathInputPath: ['filePath'],
-          prefer: 'path',
-        })
       },
     },
     url: '/api/tools/textract/parse',

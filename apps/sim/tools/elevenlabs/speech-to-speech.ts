@@ -1,4 +1,7 @@
-import { selectElevenLabsAudioModelInputPaths } from '@/tools/elevenlabs/model-input'
+import {
+  applyProjectedElevenLabsAudioFileNameModelInput,
+  selectElevenLabsAudioFileNameModelInput,
+} from '@/tools/elevenlabs/model-input'
 import type {
   ElevenLabsAudioResponse,
   ElevenLabsSpeechToSpeechParams,
@@ -49,8 +52,9 @@ export const elevenLabsSpeechToSpeechTool: ToolConfig<
 
   request: {
     modelInput: {
-      mode: 'private-provenance',
-      inputPaths: selectElevenLabsAudioModelInputPaths,
+      mode: 'project',
+      select: selectElevenLabsAudioFileNameModelInput,
+      applyProjected: applyProjectedElevenLabsAudioFileNameModelInput,
     },
     url: '/api/tools/elevenlabs/audio',
     method: 'POST',

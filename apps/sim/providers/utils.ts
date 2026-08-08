@@ -1618,7 +1618,6 @@ export function prepareToolExecution(
       )
     }
     registerPreparedProviderToolInputProvenance(executionParams, {
-      parentRegistry: inputProvenance.registry,
       registry: inputRegistry,
       inputPaths,
     })

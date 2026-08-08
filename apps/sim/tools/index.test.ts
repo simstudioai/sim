@@ -2645,220 +2645,48 @@ describe('Automatic Internal Route Detection', () => {
     }
   })
 
-  it('rejects secret-derived opaque input before request formatting or network I/O', async () => {
-    const secret = 'quote" slash\\ newline\n123 true'
+  it('sends an explicitly resolved secret through an ordinary external integration input', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'OPAQUE_URL', plaintext: secret, encryptedValue: 'encrypted-opaque-secret' },
+      { name: 'EXTERNAL_INPUT', plaintext: 'true', encryptedValue: 'encrypted-external-input' },
     ])
-    registry.recordResolvedAtInputPath('OPAQUE_URL', secret, ['payload'])
-    registry.recordResolvedInputProjection(['payload'], secret, '{{OPAQUE_URL}}')
-    const url = vi.fn(() => 'https://api.example.com/opaque')
-    const headers = vi.fn(() => ({ 'Content-Type': 'application/json' }))
-    const body = vi.fn((params: { payload: unknown }) => ({ payload: params.payload }))
+    registry.recordResolvedAtInputPath('EXTERNAL_INPUT', 'true', ['payload'])
+    registry.recordResolvedInputProjection(['payload'], 'true', '{{EXTERNAL_INPUT}}')
     const mockTool = {
-      id: 'test_external_opaque_model_tool',
-      name: 'Test External Opaque Model Tool',
-      description: 'Rejects resolved secrets in opaque model input',
-      version: '1.0.0',
-      params: { payload: { type: 'json', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          inputPaths: () => [['payload']],
-        },
-        url,
-        method: 'POST' as const,
-        headers,
-        body,
-      },
-      transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
-    }
-    ;(tools as Record<string, unknown>).test_external_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_external_opaque_model_tool',
-        { payload: { url: `https://example.com/${secret}` } },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result).toMatchObject({
-        success: false,
-        error: 'Model input contains a resolved secret that cannot be safely projected',
-      })
-      expect(url).not.toHaveBeenCalled()
-      expect(headers).not.toHaveBeenCalled()
-      expect(body).not.toHaveBeenCalled()
-      expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
-    } finally {
-      Reflect.deleteProperty(tools, 'test_external_opaque_model_tool')
-    }
-  })
-
-  it('rejects opaque input with incomplete provenance before direct execution', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-    const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
-    const mockTool = {
-      id: 'test_direct_opaque_model_tool',
-      name: 'Test Direct Opaque Model Tool',
-      description: 'Rejects unavailable opaque provenance',
-      version: '1.0.0',
-      params: { payload: { type: 'json', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          inputPaths: () => [['payload']],
-        },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_direct_opaque_model_tool',
-        { payload: 'ordinary-input' },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result).toMatchObject({
-        success: false,
-        error: 'Model input provenance is unavailable',
-      })
-      expect(directExecution).not.toHaveBeenCalled()
-    } finally {
-      Reflect.deleteProperty(tools, 'test_direct_opaque_model_tool')
-    }
-  })
-
-  it('preserves legacy opaque execution when no provenance registry exists', async () => {
-    const inputPaths = vi.fn(() => [['payload']])
-    const directExecution = vi
-      .fn()
-      .mockResolvedValue({ success: true, output: { payload: 'legacy-value' } })
-    const mockTool = {
-      id: 'test_legacy_direct_opaque_model_tool',
-      name: 'Test Legacy Direct Opaque Model Tool',
-      description: 'Preserves legacy calls without provenance support',
+      id: 'test_external_integration_tool',
+      name: 'Test External Integration Tool',
+      description: 'Sends ordinary integration input unchanged',
       version: '1.0.0',
       params: { payload: { type: 'string', required: true } },
       request: {
-        opaqueModelInput: { mode: 'reject-resolved-secrets' as const, inputPaths },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_legacy_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool('test_legacy_direct_opaque_model_tool', {
-        payload: 'legacy-value',
-      })
-
-      expect(result.success).toBe(true)
-      expect(inputPaths).not.toHaveBeenCalled()
-      expect(directExecution).toHaveBeenCalledWith({ payload: 'legacy-value' }, undefined)
-    } finally {
-      Reflect.deleteProperty(tools, 'test_legacy_direct_opaque_model_tool')
-    }
-  })
-
-  it('skips an inactive opaque boundary even when unrelated provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-    const directExecution = vi.fn().mockResolvedValue({ success: true, output: {} })
-    const mockTool = {
-      id: 'test_inactive_direct_opaque_model_tool',
-      name: 'Test Inactive Direct Opaque Model Tool',
-      description: 'Skips inactive conditional opaque input',
-      version: '1.0.0',
-      params: { mode: { type: 'string', required: true } },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          inputPaths: () => [],
-        },
-        url: '',
-        method: 'POST' as const,
-        headers: () => ({}),
-      },
-      directExecution,
-    }
-    ;(tools as Record<string, unknown>).test_inactive_direct_opaque_model_tool = mockTool
-
-    try {
-      const result = await executeTool(
-        'test_inactive_direct_opaque_model_tool',
-        { mode: 'ordinary' },
-        { resolvedSecretTraceRegistry: registry }
-      )
-
-      expect(result.success).toBe(true)
-      expect(directExecution).toHaveBeenCalledTimes(1)
-    } finally {
-      Reflect.deleteProperty(tools, 'test_inactive_direct_opaque_model_tool')
-    }
-  })
-
-  it('preserves safe opaque bytes and sends no provenance metadata externally', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'LOW_ENTROPY', plaintext: 'true', encryptedValue: 'encrypted-low-entropy' },
-    ])
-    registry.recordResolvedAtInputPath('LOW_ENTROPY', 'true', ['ordinary'])
-    registry.recordResolvedInputProjection(['ordinary'], 'true', '{{LOW_ENTROPY}}')
-    const opaquePayload = 'quote" slash\\ newline\n123'
-    const mockTool = {
-      id: 'test_safe_external_opaque_model_tool',
-      name: 'Test Safe External Opaque Model Tool',
-      description: 'Preserves safe opaque model input',
-      version: '1.0.0',
-      params: {
-        payload: { type: 'string', required: true },
-        ordinary: { type: 'string', required: true },
-      },
-      request: {
-        opaqueModelInput: {
-          mode: 'reject-resolved-secrets' as const,
-          inputPaths: () => [['payload']],
-        },
-        url: 'https://api.example.com/safe-opaque',
+        url: 'https://api.example.com/integration',
         method: 'POST' as const,
         headers: () => ({ 'Content-Type': 'application/json' }),
-        body: (params: { payload: string; ordinary: string }) => ({
-          payload: params.payload,
-          ordinary: params.ordinary,
-        }),
+        body: (params: { payload: string }) => ({ payload: params.payload }),
       },
       transformResponse: vi.fn().mockResolvedValue({ success: true, output: {} }),
     }
-    ;(tools as Record<string, unknown>).test_safe_external_opaque_model_tool = mockTool
+    ;(tools as Record<string, unknown>).test_external_integration_tool = mockTool
 
     try {
       const result = await executeTool(
-        'test_safe_external_opaque_model_tool',
-        { payload: opaquePayload, ordinary: 'true' },
+        'test_external_integration_tool',
+        { payload: 'true' },
         { resolvedSecretTraceRegistry: registry }
       )
 
       expect(result.success).toBe(true)
       expect(mockSecureFetchWithPinnedIP).toHaveBeenCalledWith(
-        'https://api.example.com/safe-opaque',
+        'https://api.example.com/integration',
         '93.184.216.34',
         expect.objectContaining({
-          body: JSON.stringify({ payload: opaquePayload, ordinary: 'true' }),
+          body: JSON.stringify({ payload: 'true' }),
           headers: expect.not.objectContaining({
             'x-sim-private-model-input-provenance': expect.anything(),
           }),
         })
       )
     } finally {
-      Reflect.deleteProperty(tools, 'test_safe_external_opaque_model_tool')
+      Reflect.deleteProperty(tools, 'test_external_integration_tool')
     }
   })
 
