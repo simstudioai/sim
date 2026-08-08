@@ -42,11 +42,45 @@ const MENU_ROW_RADIUS_CLASS = 'rounded-lg'
 
 /**
  * Rows are a fixed height, so a label that wraps overflows its row and paints
- * over its neighbours instead of growing the row. Keep every row on one line:
- * a bare text label is clipped at the surface edge, and a label wrapped in a
- * `<span>` (the shape long or count-bearing labels should use) ellipsizes.
+ * over its neighbours instead of growing the row. Every row is therefore held
+ * to one line, and its label ellipsizes — see {@link withEllipsizedLabel}.
  */
 const MENU_ROW_SINGLE_LINE_CLASS = 'whitespace-nowrap [&>span]:min-w-0 [&>span]:truncate'
+
+/**
+ * Wraps a row's bare text children in a truncating box so a label wider than
+ * the menu ends in an ellipsis rather than being cut mid-word at the surface
+ * edge. Consumers that already wrap their label in a `<span>` are unaffected —
+ * the row's `[&>span]` rule truncates those in place.
+ *
+ * Adjacent text is coalesced into a single box: a row is a flex container, so
+ * wrapping `Insert row {n}` as two boxes would make them two flex items and
+ * open the row's `gap` between the words. `React.Children.toArray` keys the
+ * element children it returns, so the rebuilt array needs no keys of its own.
+ */
+function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
+  const rebuilt: React.ReactNode[] = []
+  let text: React.ReactNode[] = []
+  const flushText = () => {
+    if (text.length === 0) return
+    rebuilt.push(
+      <span key={`label-${rebuilt.length}`} className='min-w-0 truncate'>
+        {text}
+      </span>
+    )
+    text = []
+  }
+  for (const child of React.Children.toArray(children)) {
+    if (typeof child === 'string' || typeof child === 'number') {
+      text.push(child)
+      continue
+    }
+    flushText()
+    rebuilt.push(child)
+  }
+  flushText()
+  return rebuilt
+}
 
 /**
  * Surface corner, shared by the root menu and submenus — they previously
@@ -124,7 +158,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
       )}
       {...props}
     >
-      {children}
+      {withEllipsizedLabel(children)}
       <ChevronRight className='ml-auto size-[14px] shrink-0' />
     </DropdownMenuPrimitive.SubTrigger>
   )
@@ -193,7 +227,8 @@ const DropdownMenuItem = React.forwardRef<
      */
     action?: React.ReactNode
   }
->(({ className, inset, action, ...props }, ref) => {
+>(({ className, inset, action, asChild, children, ...props }, ref) => {
+  const content = asChild ? children : withEllipsizedLabel(children)
   if (action) {
     return (
       <div className='group/dropdownitem relative'>
@@ -205,8 +240,11 @@ const DropdownMenuItem = React.forwardRef<
             inset && 'pl-7',
             className
           )}
+          asChild={asChild}
           {...props}
-        />
+        >
+          {content}
+        </DropdownMenuPrimitive.Item>
         <div className='-translate-y-1/2 absolute top-1/2 right-1 flex items-center opacity-0 transition-opacity group-focus-within/dropdownitem:opacity-100 group-hover/dropdownitem:opacity-100'>
           {action}
         </div>
@@ -217,8 +255,11 @@ const DropdownMenuItem = React.forwardRef<
     <DropdownMenuPrimitive.Item
       ref={ref}
       className={cn(DROPDOWN_MENU_ITEM_BASE_CLASSES, inset && 'pl-7', className)}
+      asChild={asChild}
       {...props}
-    />
+    >
+      {content}
+    </DropdownMenuPrimitive.Item>
   )
 })
 DropdownMenuItem.displayName = DropdownMenuPrimitive.Item.displayName
@@ -260,7 +301,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -271,7 +312,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
         <Check className='size-[14px]' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {children}
+    {withEllipsizedLabel(children)}
   </DropdownMenuPrimitive.CheckboxItem>
 ))
 DropdownMenuCheckboxItem.displayName = DropdownMenuPrimitive.CheckboxItem.displayName
@@ -283,7 +324,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} whitespace-nowrap pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
@@ -293,7 +334,7 @@ const DropdownMenuRadioItem = React.forwardRef<
         <Circle className='size-[6px] fill-current' />
       </DropdownMenuPrimitive.ItemIndicator>
     </span>
-    {children}
+    {withEllipsizedLabel(children)}
   </DropdownMenuPrimitive.RadioItem>
 ))
 DropdownMenuRadioItem.displayName = DropdownMenuPrimitive.RadioItem.displayName

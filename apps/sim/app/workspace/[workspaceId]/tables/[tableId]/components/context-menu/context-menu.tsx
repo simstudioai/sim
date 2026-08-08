@@ -19,6 +19,13 @@ import {
 } from '@sim/emcn/icons'
 import type { ContextMenuState } from '../../types'
 
+/**
+ * Wider than the menu's 220px default. The row-scoped workflow labels name both
+ * the action and the selected row count ("Run empty or failed cells on 2 rows"),
+ * which does not fit the default width.
+ */
+const CONTENT_WIDTH_CLASS = 'max-w-[320px]'
+
 interface ContextMenuProps {
   contextMenu: ContextMenuState
   onClose: () => void
@@ -146,22 +153,18 @@ export function ContextMenu({
           aria-hidden
         />
       </DropdownMenuTrigger>
-      {/* Wider than the 220px menu default: the row-scoped workflow labels name
-          both the action and the selected row count ("Run empty or failed cells
-          on 2 rows"), which wrapped — and so overlapped the rows beneath — at
-          the default width. */}
       <DropdownMenuContent
         align='start'
         side='bottom'
         sideOffset={4}
-        className='max-w-[320px]'
+        className={CONTENT_WIDTH_CLASS}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >
         {onAddToChat && (
           <>
             <DropdownMenuItem onSelect={onAddToChat}>
               <Blimp />
-              <span>{addToChatLabel}</span>
+              {addToChatLabel}
             </DropdownMenuItem>
             <DropdownMenuSeparator />
           </>
@@ -184,19 +187,19 @@ export function ContextMenu({
         {hasWorkflowColumns && onRunWorkflows && (
           <DropdownMenuItem onSelect={onRunWorkflows}>
             <PlayOutline />
-            <span>{runLabel}</span>
+            {runLabel}
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onRefreshWorkflows && (
           <DropdownMenuItem onSelect={onRefreshWorkflows}>
             <RefreshCw />
-            <span>{refreshLabel}</span>
+            {refreshLabel}
           </DropdownMenuItem>
         )}
         {hasWorkflowColumns && onStopWorkflows && runningInSelectionCount > 0 && (
           <DropdownMenuItem onSelect={onStopWorkflows}>
             <Square className='size-[14px] text-[var(--text-icon)]' />
-            <span>{stopLabel}</span>
+            {stopLabel}
           </DropdownMenuItem>
         )}
         <DropdownMenuItem disabled={disableInsert} onSelect={onInsertAbove}>
@@ -217,7 +220,7 @@ export function ContextMenu({
         <DropdownMenuSeparator />
         <DropdownMenuItem disabled={disableDelete} onSelect={onDelete}>
           <Trash />
-          <span>{deleteLabel}</span>
+          {deleteLabel}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
