@@ -164,7 +164,7 @@ Insert structured JSON rows using bound values.
 | `database` | string | Yes | Database name |
 | `schema` | string | Yes | Schema name |
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
-| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest. |
+| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. For bulk loads, stage the files and use Load Data instead. |
 
 #### Output
 
@@ -210,7 +210,7 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 | `database` | string | Yes | Database name |
 | `schema` | string | Yes | Schema name |
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
-| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest. |
+| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. For bulk loads, stage the files and use Load Data instead. |
 | `matchColumns` | array | Yes | Columns used to match target rows. Match values must be non-null and unique across the submitted rows. |
 
 #### Output
@@ -257,7 +257,7 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 | `database` | string | Yes | Database name |
 | `schema` | string | Yes | Schema name |
 | `table` | string | Yes | Target Snowflake table name within the selected database and schema context |
-| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest. |
+| `rows` | json | Yes | Non-empty JSON array of row objects with matching keys. For bulk loads, stage the files and use Load Data instead. |
 | `matchColumns` | array | Yes | Columns used to match target rows. Match values must be non-null and unique across the submitted rows. |
 
 #### Output
