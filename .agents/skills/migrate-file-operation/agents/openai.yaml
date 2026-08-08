@@ -1,4 +1,0 @@
-interface:
-  display_name: "Migrate File Operation"
-  short_description: "Migrate one file operation across shared auth surfaces"
-  default_prompt: "Use $migrate-file-operation to migrate one file operation across internal, v2, and Copilot surfaces."
