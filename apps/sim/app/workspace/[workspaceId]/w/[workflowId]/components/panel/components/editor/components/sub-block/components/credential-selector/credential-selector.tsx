@@ -4,6 +4,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { Button, Combobox, type ComboboxOptionGroup } from '@sim/emcn'
 import { Key, SquareArrowUpRight } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
+import { ConnectOAuthModal } from '@/components/connect-oauth-modal'
 import { consumeOAuthReturnContext, writeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -13,7 +14,6 @@ import {
   parseProvider,
 } from '@/lib/oauth'
 import { getMissingRequiredScopes, getServiceConfigByServiceId } from '@/lib/oauth/utils'
-import { ConnectOAuthModal } from '@/app/workspace/[workspaceId]/components/connect-oauth-modal'
 import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,

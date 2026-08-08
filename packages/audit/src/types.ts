@@ -83,6 +83,8 @@ export const AuditAction = {
   FOLDER_DUPLICATED: 'folder.duplicated',
   FOLDER_RESTORED: 'folder.restored',
 
+  // Interfaces
+
   // Invitations
   INVITATION_ACCEPTED: 'invitation.accepted',
   INVITATION_REJECTED: 'invitation.rejected',

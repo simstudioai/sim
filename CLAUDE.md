@@ -4,7 +4,7 @@ You are a professional software engineer. All code must follow best practices: a
 
 ## Global Standards
 
-- **Linting / Audit**: `bun run check:api-validation` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, or ad-hoc client wire types — see "API Contracts" and "API Route Pattern" below
+- **Linting / Audit**: `bun run check:api-validation` and `bun run check:resources` must pass on PRs. Do not introduce route-local boundary Zod schemas, direct route Zod imports, ad-hoc client wire types, or wrappers over a canonical resource view — see "API Contracts", "API Route Pattern", and "Resource Views" below
 - **Logging**: Import `createLogger` from `@sim/logger`. Use `logger.info`, `logger.warn`, `logger.error` instead of `console.log`. Inside API routes wrapped with `withRouteHandler`, loggers automatically include the request ID — no manual `withMetadata({ requestId })` needed
 - **API Route Handlers**: All API route handlers (`GET`, `POST`, `PUT`, `DELETE`, `PATCH`) must be wrapped with `withRouteHandler` from `@/lib/core/utils/with-route-handler`. This provides request ID tracking, automatic error logging for 4xx/5xx responses, and unhandled error catching. See "API Route Pattern" section below
 - **Comments**: Use TSDoc for documentation. No `====` separators. No non-TSDoc comments
@@ -42,6 +42,7 @@ apps/
 │   ├── hooks/              # Shared hooks (queries/, selectors/)
 │   ├── lib/                # App-wide utilities
 │   ├── providers/          # LLM provider integrations
+│   ├── resources/          # Resource axes (source/grants/host) — pure TS, server-importable
 │   ├── stores/             # Zustand stores
 │   ├── tools/              # Tool definitions
 │   └── triggers/           # Trigger definitions
@@ -413,6 +414,20 @@ Principles when building or migrating shared UI:
 - Plain `cn()` for a single error/state toggle; CVA only for genuinely multiple variants.
 - Align consumers to the canonical defaults — normal weight, `--text-body` text, `--text-icon` icons.
 - Verify referenced CSS vars exist — an undefined var silently falls back to `currentColor` (black-bug).
+
+## Resource Views
+
+A **resource** is a thing a workspace holds that can also be shared — a file, a table, a knowledge base, a log. A resource with a canonical view has exactly ONE, in `apps/sim/components/resources/<unit>/`, mounted by every consumer: the workspace route page, the mothership panel, the public share page.
+
+Views are mounted against exactly **three axes**, defined in `apps/sim/resources/**` (pure TypeScript — no React, no `'use client'`, because a Server Component builds a share source during SSR):
+
+- `source` — where the data comes from and by what address: `WorkspaceSource<K> | ShareSource<K>`, discriminated on `via`. Replaces `workspaceId`, `token`, `contentSource`, `isPublic`. `ShareSource` declares `workspaceId?: never`, so a share token can no longer be laundered through a workspace-shaped slot.
+- `grants` — what this viewer may do: `{ write, run, manage }`, plus `settled` (whether those three are final, or still resolving — a denied member and a loading one are otherwise indistinguishable). Replaces `canEdit`, `canRun`, `canAdmin`, `disableEdit/Insert/Delete`.
+- `host` — who owns the URL, the router, the document frame: `'page' | 'panel' | 'public'`. Replaces `embedded`. `hostOwnsUrl(host)` is the one place the "embedded views do not write nuqs keys" rule lives.
+
+There is no fourth axis; agent streaming is one optional prop on `FileView`. Consumers CONSTRUCT the axes and MOUNT the view — never wrap it in a passthrough, never reach past its barrel, never reimplement its UI because it lacks a seam (add the seam), never import `@/app/workspace/[workspaceId]/**` from an anonymous surface (`app/f/**`, `app/(interfaces)/**`), and never read `useRouter`/`useParams`/`useQueryState`/`useUserPermissionsContext` inside a unit. All four kinds have a canonical view, and a view reads and writes (gated on `grants.write`) rather than deferring mutations to a shell. A kind without one would simply be absent from the view list in the check's `CANONICAL_UNITS` — no flag, shim, or placeholder. Every unit has the same layout (`<unit>.tsx` · `index.ts` · `components/<child>/` · `hooks/` · `utils/` · `types.ts`), so moving between them costs nothing.
+
+Enforced by `bun run check:resources` (strict: `check:resources:strict`), which ratchets counters for wrappers, imports past a barrel, cross-tree imports, unsanctioned props, token-as-`workspaceId`, and context leaks. Escape hatches — reason mandatory, on the line directly above: `// boundary-resource-wrapper:`, `// boundary-resource-internal:`, `// boundary-resource-tree:`, `// boundary-resource-prop:`. Full rules in `.claude/rules/sim-resource-views.md`.
 
 ## Testing
 

@@ -76,7 +76,7 @@ vi.mock('@/lib/api/contracts/tables', () => ({
   uploadCsvContract: {},
 }))
 
-vi.mock('@/app/workspace/providers/socket-provider', () => ({
+vi.mock('@/components/socket-provider/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))
 

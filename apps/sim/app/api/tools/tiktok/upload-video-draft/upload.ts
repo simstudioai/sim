@@ -138,8 +138,9 @@ async function countStoredFileBytes(options: StoredFileOptions): Promise<number>
 }
 
 /**
- * Resolves the authoritative object size. Cloud storage uses provider metadata; local storage
- * and providers without HEAD support are counted with a bounded, zero-accumulation pass.
+ * Resolves the authoritative object size. Cloud storage uses provider metadata and local
+ * storage stats the file; a provider that reports no size at all falls back to a bounded,
+ * zero-accumulation counting pass.
  */
 export async function getStoredVideoSize(options: StoredFileOptions): Promise<number> {
   throwIfAborted(options.signal)

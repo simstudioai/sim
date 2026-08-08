@@ -4,7 +4,7 @@
 import { FILE_DOC_SEED } from '@sim/realtime-protocol/file-doc'
 import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
-import { serializeMarkdownBody } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
+import { serializeMarkdownBody } from '@/components/resources/file-view/components/rich-markdown-editor/markdown-parse'
 import { markdownToYDoc, yDocToMarkdown } from './converter'
 import { buildFileDocMergeUpdate } from './merge'
 

@@ -275,7 +275,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/files/components/share-modal/share-modal.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/%5BworkspaceId%5D/components/share-modal/share-modal.tsx',
             label: 'Sim codebase: file share modal (password/email/SSO modes)',
             asOf: '2026-07-08',
           },
@@ -308,7 +308,7 @@ export const simProfile: CompetitorProfile = {
         confidence: 'verified',
         sources: [
           {
-            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/rich-markdown-editor.tsx',
+            url: 'https://github.com/simstudioai/sim/blob/main/apps/sim/components/resources/file-view/components/rich-markdown-editor/rich-markdown-editor.tsx',
             label: 'Sim codebase: rich markdown editor',
             asOf: '2026-07-02',
           },

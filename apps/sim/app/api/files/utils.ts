@@ -1,6 +1,15 @@
+import { Readable } from 'node:stream'
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
+import type { ByteRange } from '@/lib/uploads/utils/byte-range'
+import {
+  byteRangeLength,
+  contentRangeHeader,
+  isMediaContentType,
+  parseByteRange,
+  unsatisfiableContentRangeHeader,
+} from '@/lib/uploads/utils/byte-range'
+import { resolveEffectiveMimeType, sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('FilesUtils')
 
@@ -35,69 +44,51 @@ export class InvalidRequestError extends Error {
   }
 }
 
-export const contentTypeMap: Record<string, string> = {
-  txt: 'text/plain',
-  csv: 'text/csv',
-  json: 'application/json',
-  xml: 'application/xml',
-  md: 'text/markdown',
-  html: 'text/html',
-  css: 'text/css',
-  js: 'application/javascript',
-  ts: 'application/typescript',
-  pdf: 'application/pdf',
+/**
+ * The pseudo-extensions no real filename ends in, so no MIME table knows them.
+ *
+ * Everything else resolves through {@link resolveEffectiveMimeType}. This map
+ * used to carry 41 entries, 38 of which duplicated `EXTENSION_TO_MIME`
+ * byte-for-byte — and that duplication was the bug: a container present in one
+ * table and missing from the other (`.mkv`, `.flac`, `.aac`, `.opus`, `.avi`)
+ * resolved to `application/octet-stream`, which silently disabled byte-range
+ * serving and left it unseekable. Two tables cannot be kept in agreement by
+ * hand, so there is now one.
+ */
+/**
+ * Cache policy for bytes a viewer must be re-authorized for on every request:
+ * private, and revalidated rather than served from the browser's back-forward
+ * cache after access is revoked.
+ *
+ * One export because it is the caching policy for every authenticated and every
+ * shared byte, and it was previously written out in four places across three
+ * files — kept in agreement only by eye.
+ */
+export const REVALIDATE_CACHE_CONTROL = 'private, no-cache, must-revalidate'
+
+const GOOGLE_PSEUDO_MIME: Record<string, string> = {
   googleDoc: 'application/vnd.google-apps.document',
-  doc: 'application/msword',
-  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-  xls: 'application/vnd.ms-excel',
-  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
   googleSheet: 'application/vnd.google-apps.spreadsheet',
-  ppt: 'application/vnd.ms-powerpoint',
-  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
-  png: 'image/png',
-  jpg: 'image/jpeg',
-  jpeg: 'image/jpeg',
-  gif: 'image/gif',
-  svg: 'image/svg+xml',
-  webp: 'image/webp',
-  avif: 'image/avif',
-  bmp: 'image/bmp',
-  ico: 'image/x-icon',
-  mp3: 'audio/mpeg',
-  m4a: 'audio/mp4',
-  wav: 'audio/wav',
-  ogg: 'audio/ogg',
-  flac: 'audio/flac',
-  aac: 'audio/aac',
-  opus: 'audio/opus',
-  mp4: 'video/mp4',
-  mov: 'video/quicktime',
-  avi: 'video/x-msvideo',
-  mkv: 'video/x-matroska',
-  webm: 'video/webm',
-  zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
 
-export const binaryExtensions = [
-  'doc',
-  'docx',
-  'xls',
-  'xlsx',
-  'ppt',
-  'pptx',
-  'zip',
-  'png',
-  'jpg',
-  'jpeg',
-  'gif',
-  'webp',
-  'pdf',
-]
-
+/**
+ * Content type for a stored file, by extension.
+ *
+ * {@link GOOGLE_PSEUDO_MIME} is consulted first for the three Workspace
+ * pseudo-extensions no MIME table knows; everything else goes to
+ * {@link resolveEffectiveMimeType}.
+ *
+ * That resolver rather than the raw extension table because what a response
+ * declares IS presentation, and it is the only one that knows a dual container.
+ * `.webm` holds either audio or video; the extension table answers `audio/webm`
+ * so the speech-to-text route does not send it down an ffmpeg path it does not
+ * need, while the viewer routes it to a `<video>`. Declaring `audio/webm` on the
+ * wire would leave one user-facing surface disagreeing with the rest.
+ */
 export function getContentType(filename: string): string {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
-  return contentTypeMap[extension] || 'application/octet-stream'
+  return GOOGLE_PSEUDO_MIME[extension] || resolveEffectiveMimeType(undefined, filename)
 }
 
 export function extractFilename(path: string): string {
@@ -183,7 +174,30 @@ const SAFE_INLINE_TYPES = new Set([
   'application/json',
 ])
 
-const FORCE_ATTACHMENT_EXTENSIONS = new Set(['html', 'htm', 'js', 'css', 'xml'])
+/**
+ * Served as an opaque download regardless of what their bytes look like.
+ *
+ * `html`/`htm`/`js`/`css`/`xml` because rendering them inline is an execution
+ * vector. The config-file group is here for a different reason: resolving an
+ * extension through the canonical MIME table (rather than defaulting everything
+ * unknown to `application/octet-stream`) is what makes byte-range serving work,
+ * but it also promoted these five from "unknown bytes" to `text/plain`, which is
+ * on the inline allowlist. A shared `.env` that used to download would otherwise
+ * start rendering in the tab. Nothing about the media work needs that, so the
+ * previous behaviour is kept explicitly.
+ */
+const FORCE_ATTACHMENT_EXTENSIONS = new Set([
+  'html',
+  'htm',
+  'js',
+  'css',
+  'xml',
+  'cfg',
+  'conf',
+  'env',
+  'ini',
+  'log',
+])
 
 function getSecureFileHeaders(filename: string, originalContentType: string) {
   const extension = filename.split('.').pop()?.toLowerCase() || ''
@@ -201,7 +215,10 @@ function getSecureFileHeaders(filename: string, originalContentType: string) {
     safeContentType = 'text/plain'
   }
 
-  const disposition = SAFE_INLINE_TYPES.has(safeContentType) ? 'inline' : 'attachment'
+  const disposition =
+    SAFE_INLINE_TYPES.has(safeContentType) || isMediaContentType(safeContentType)
+      ? 'inline'
+      : 'attachment'
 
   return {
     contentType: safeContentType,
@@ -270,6 +287,83 @@ export function createFileResponse(file: FileResponse): NextResponse {
   }
 
   return new NextResponse(file.buffer as BodyInit, { status: 200, headers })
+}
+
+export interface ByteServeOptions {
+  /**
+   * Opens the bytes for a slice, or the whole object when no range is given.
+   *
+   * A function rather than a storage key so the same response builder serves
+   * cloud objects (`downloadFileStream`) and local dev files (`createReadStream`)
+   * — the two resolve a path differently, and forcing one shape on both is how
+   * local storage ends up quietly without range support.
+   */
+  openStream: (range?: ByteRange) => Promise<Readable> | Readable
+  /** Authoritative object size, from the storage layer — never a client-supplied number. */
+  size: number
+  contentType: string
+  filename: string
+  cacheControl?: string
+  /** The request's raw `Range` header, if any. */
+  rangeHeader: string | null
+}
+
+/**
+ * Serves an object by streaming it, honouring a single HTTP `Range`.
+ *
+ * This is what makes a `<video>`/`<audio>` element usable: the browser fetches
+ * the slice it needs and seeks with a short request, instead of the whole file
+ * being downloaded (and, before this existed, held in the JS heap as a blob just
+ * so the scrubber worked). Nothing is buffered server-side either.
+ *
+ * `Accept-Ranges: bytes` is always advertised, including on a full response —
+ * browsers disable seeking without it.
+ *
+ * Offsets come from {@link parseByteRange}, which clamps every interval to
+ * `size`, so a crafted header can neither read past the object nor reveal
+ * anything about one the caller was not granted.
+ */
+export async function createByteRangeResponse(options: ByteServeOptions): Promise<NextResponse> {
+  const { contentType, disposition } = getSecureFileHeaders(options.filename, options.contentType)
+  const range = parseByteRange(options.rangeHeader, options.size)
+
+  const headers: Record<string, string> = {
+    'Content-Type': contentType,
+    'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(options.filename)}`,
+    // Same default as createFileResponse, and for the same reason: a byte-served object
+    // reaches here only after access verification, so an unspecified policy must never
+    // let a shared cache/CDN store it and re-serve it cross-user. Public assets pass an
+    // explicit `cacheControl`.
+    'Cache-Control': options.cacheControl || 'private, no-cache',
+    'X-Content-Type-Options': 'nosniff',
+    'Accept-Ranges': 'bytes',
+  }
+
+  if (range === 'unsatisfiable') {
+    return new NextResponse(null, {
+      status: 416,
+      headers: { ...headers, 'Content-Range': unsatisfiableContentRangeHeader(options.size) },
+    })
+  }
+
+  const stream = await options.openStream(range ?? undefined)
+  const body = Readable.toWeb(stream) as ReadableStream
+
+  if (!range) {
+    return new NextResponse(body, {
+      status: 200,
+      headers: { ...headers, 'Content-Length': String(options.size) },
+    })
+  }
+
+  return new NextResponse(body, {
+    status: 206,
+    headers: {
+      ...headers,
+      'Content-Range': contentRangeHeader(range, options.size),
+      'Content-Length': String(byteRangeLength(range)),
+    },
+  })
 }
 
 export function createErrorResponse(error: Error, status = 500): NextResponse {

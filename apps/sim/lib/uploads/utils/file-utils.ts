@@ -134,14 +134,6 @@ export function isVideoFileType(mimeType: string): boolean {
 }
 
 /**
- * Check if a MIME type is an audio or video type
- */
-export function isMediaFileType(mimeType: string): boolean {
-  const contentType = getContentType(mimeType)
-  return contentType === 'audio' || contentType === 'video'
-}
-
-/**
  * Convert a file buffer to base64
  */
 export function bufferToBase64(buffer: Buffer): string {
@@ -390,8 +382,7 @@ const GENERIC_MIME_TYPE = 'application/octet-stream'
  *
  * Deliberately not folded into {@link EXTENSION_TO_MIME}: the speech-to-text and ElevenLabs
  * routes read that table directly to label an upload, and a `video/*` label there sends a
- * `.webm` down an ffmpeg extraction path it does not need. Callers that know which element
- * they are rendering retag from here — see {@link resolveMediaMimeType}.
+ * `.webm` down an ffmpeg extraction path it does not need.
  */
 const DUAL_CONTAINER_MIME: Record<string, string> = { webm: 'video/webm' }
 
@@ -432,32 +423,6 @@ export function resolveEffectiveMimeType(
   return DUAL_CONTAINER_MIME[extension] ?? getMimeTypeFromExtension(extension)
 }
 
-const MEDIA_FALLBACK_MIME = { audio: 'audio/mpeg', video: 'video/mp4' } as const
-
-/**
- * The MIME type to hand an `<audio>`/`<video>` element, given which of the two the caller
- * is rendering.
- *
- * Beyond {@link resolveEffectiveMimeType} this settles an ambiguity a filename alone cannot:
- * `.webm` and `.ogg` are both audio and video containers, so a resolved `audio/webm` would
- * make a `<video>` element drop the picture. The caller has already chosen the element, so
- * the container subtype is kept and retagged to that kind — the choice belongs here, where
- * the kind is known, and not in the extension table, which several non-viewer callers share.
- *
- * A type naming no media format falls back to the kind's default: passed through, it would
- * leave the element unable to determine the format, rendering nothing.
- */
-export function resolveMediaMimeType(
-  declaredType: string | null | undefined,
-  filename: string,
-  kind: 'audio' | 'video'
-): string {
-  const resolved = resolveEffectiveMimeType(declaredType, filename)
-  const [type, subtype] = resolved.split('/')
-  if (type === kind) return resolved
-  if (type === 'audio' || type === 'video') return `${kind}/${subtype}`
-  return MEDIA_FALLBACK_MIME[kind]
-}
 
 /**
  * Resolve a reliable MIME type from a file, falling back to the extension map

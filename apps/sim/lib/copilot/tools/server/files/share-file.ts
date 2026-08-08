@@ -11,7 +11,7 @@ import {
 import {
   getShareForResource,
   ShareValidationError,
-  upsertFileShare,
+  upsertResourceShare,
 } from '@/lib/public-shares/share-manager'
 import {
   getWorkspaceFile,
@@ -96,7 +96,7 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     // master on/off and the per-auth-type allow-list); disabling is always
     // allowed so users can still un-share after the policy is turned on.
     if (isActive) {
-      // Validate the auth type that will ACTUALLY be persisted. upsertFileShare
+      // Validate the auth type that will ACTUALLY be persisted. upsertResourceShare
       // falls back to the existing share's authType when none is passed, so a bare
       // re-enable must be checked against that stored mode — not 'public' — or a
       // now-disallowed password/email/sso share could be silently reactivated.
@@ -115,9 +115,10 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
 
     let share
     try {
-      share = await upsertFileShare({
+      share = await upsertResourceShare({
+        resourceType: 'file',
+        resourceId: fileId,
         workspaceId,
-        fileId,
         userId: context.userId,
         isActive,
         authType,

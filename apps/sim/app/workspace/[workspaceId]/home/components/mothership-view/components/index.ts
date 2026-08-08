@@ -1,5 +1,5 @@
 export { AddResourceDropdown, useAvailableResources } from './add-resource-dropdown'
-export { ResourceActions, ResourceContent } from './resource-content'
+export { ResourceContent, ResourceTabActions } from './resource-content'
 export type { ResourceTypeConfig } from './resource-registry'
 export {
   getResourceConfig,

@@ -18,7 +18,8 @@ export const revalidate = 0
  * GET /api/logs/triggers
  *
  * Returns unique trigger types from workflow execution logs
- * Only includes integration triggers (excludes core types: api, manual, webhook, chat, schedule)
+ * Only includes integration triggers (excludes core types: api, manual, webhook, chat, schedule,
+ * form)
  */
 export const GET = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()

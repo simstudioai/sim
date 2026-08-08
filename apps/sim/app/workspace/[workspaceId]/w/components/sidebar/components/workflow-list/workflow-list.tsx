@@ -3,13 +3,13 @@
 import { memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import clsx from 'clsx'
 import { useShallow } from 'zustand/react/shallow'
+import { useContextMenu } from '@/components/anchored-context-menu'
 import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
 import { EmptyAreaContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/empty-area-context-menu'
 import { FolderItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/folder-item/folder-item'
 import { WorkflowItem } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/workflow-item/workflow-item'
 import {
   SidebarListContext,
-  useContextMenu,
   useDragDrop,
   useFolderSelection,
   useSidebarListContextValue,

@@ -1,1 +1,1 @@
-export { ResourceActions, ResourceContent } from './resource-content'
+export { ResourceContent, ResourceTabActions } from './resource-content'

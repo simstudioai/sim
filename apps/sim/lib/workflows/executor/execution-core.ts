@@ -64,6 +64,18 @@ const logger = createLogger('ExecutionCore')
 const EnvVarsSchema = z.record(z.string(), z.string())
 
 /**
+ * Maps an execution trigger type to the start-block kind understood by
+ * `TriggerUtils.findStartBlock` ('chat' | 'manual' | 'api' | 'external').
+ * Unlisted trigger types resolve as 'manual'.
+ */
+const EXECUTION_KIND_BY_TRIGGER: Partial<Record<string, 'api' | 'chat' | 'external'>> = {
+  api: 'api',
+  chat: 'chat',
+  webhook: 'external',
+  schedule: 'external',
+}
+
+/**
  * Surfaces the underlying driver error from a wrapped error chain.
  *
  * Drizzle wraps the original `postgres`/Node driver error as `error.cause`,
@@ -583,12 +595,7 @@ async function executeWorkflowCoreImpl(
         resumeTerminalNoop,
       })
     } else if (!triggerBlockId) {
-      const executionKind =
-        triggerType === 'api' || triggerType === 'chat'
-          ? (triggerType as 'api' | 'chat')
-          : triggerType === 'webhook' || triggerType === 'schedule'
-            ? 'external'
-            : 'manual'
+      const executionKind = EXECUTION_KIND_BY_TRIGGER[triggerType] ?? 'manual'
 
       const startBlock = TriggerUtils.findStartBlock(mergedStates, executionKind, false)
 

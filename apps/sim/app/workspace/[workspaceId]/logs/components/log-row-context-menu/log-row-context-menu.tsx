@@ -2,11 +2,8 @@
 
 import { memo } from 'react'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
-  DropdownMenuTrigger,
   Duplicate,
   Eye,
   Link,
@@ -15,8 +12,9 @@ import {
   SquareArrowUpRight,
   X,
 } from '@sim/emcn'
+import { AnchoredContextMenu } from '@/components/anchored-context-menu'
 import type { WorkflowLogSummary } from '@/lib/api/contracts/logs'
-import { resolveLogWorkflowId } from '@/app/workspace/[workspaceId]/logs/utils'
+import { resolveLogWorkflowId } from '@/resources'
 
 interface LogRowContextMenuProps {
   isOpen: boolean
@@ -81,78 +79,57 @@ export const LogRowContextMenu = memo(function LogRowContextMenu({
   const isRetryable = log?.status === 'failed' && hasWorkflow && log?.trigger !== 'mothership'
 
   return (
-    <DropdownMenu open={isOpen} onOpenChange={(open) => !open && onClose()} modal={false}>
-      <DropdownMenuTrigger asChild>
-        <div
-          style={{
-            position: 'fixed',
-            left: `${position.x}px`,
-            top: `${position.y}px`,
-            width: '1px',
-            height: '1px',
-            pointerEvents: 'none',
-          }}
-          tabIndex={-1}
-          aria-hidden
-        />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align='start'
-        side='bottom'
-        sideOffset={4}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        {isRetryable && (
-          <>
-            <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
-              <Redo />
-              {isRetryPending ? 'Retrying...' : 'Retry'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        {showCancelAction && (
-          <>
-            <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
-              <X />
-              {isStopping ? 'Stopping…' : 'Cancel Run'}
-            </DropdownMenuItem>
-            <DropdownMenuSeparator />
-          </>
-        )}
-        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
-          <Duplicate />
-          Copy Run ID
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
-          <Link />
-          Copy Link
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-        <DropdownMenuItem disabled={!hasOpenableWorkflow} onSelect={onOpenWorkflow}>
-          <SquareArrowUpRight />
-          Open Workflow
-        </DropdownMenuItem>
-        <DropdownMenuItem disabled={!hasExecutionId} onSelect={onOpenPreview}>
-          <Eye />
-          Open Snapshot
-        </DropdownMenuItem>
-
-        <DropdownMenuSeparator />
-        {!isFilteredByThisWorkflow && (
-          <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
-            <ListFilter />
-            Filter by Workflow
+    <AnchoredContextMenu isOpen={isOpen} position={position} onClose={onClose}>
+      {isRetryable && (
+        <>
+          <DropdownMenuItem onSelect={onRetryExecution} disabled={isRetryPending}>
+            <Redo />
+            {isRetryPending ? 'Retrying...' : 'Retry'}
           </DropdownMenuItem>
-        )}
-        {hasActiveFilters && (
-          <DropdownMenuItem onSelect={onClearAllFilters}>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      {showCancelAction && (
+        <>
+          <DropdownMenuItem onSelect={onCancelExecution} disabled={isStopping}>
             <X />
-            Clear Filters
+            {isStopping ? 'Stopping…' : 'Cancel Run'}
           </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+          <DropdownMenuSeparator />
+        </>
+      )}
+      <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyExecutionId}>
+        <Duplicate />
+        Copy Run ID
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!hasExecutionId} onSelect={onCopyLink}>
+        <Link />
+        Copy Link
+      </DropdownMenuItem>
+
+      <DropdownMenuSeparator />
+      <DropdownMenuItem disabled={!hasOpenableWorkflow} onSelect={onOpenWorkflow}>
+        <SquareArrowUpRight />
+        Open Workflow
+      </DropdownMenuItem>
+      <DropdownMenuItem disabled={!hasExecutionId} onSelect={onOpenPreview}>
+        <Eye />
+        Open Snapshot
+      </DropdownMenuItem>
+
+      <DropdownMenuSeparator />
+      {!isFilteredByThisWorkflow && (
+        <DropdownMenuItem disabled={!hasWorkflow} onSelect={onToggleWorkflowFilter}>
+          <ListFilter />
+          Filter by Workflow
+        </DropdownMenuItem>
+      )}
+      {hasActiveFilters && (
+        <DropdownMenuItem onSelect={onClearAllFilters}>
+          <X />
+          Clear Filters
+        </DropdownMenuItem>
+      )}
+    </AnchoredContextMenu>
   )
 })

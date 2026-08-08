@@ -16,6 +16,7 @@ import {
   Tooltip,
 } from '@sim/emcn'
 import { Folder, Plus } from '@sim/emcn/icons'
+import { formatDate } from '@/components/resources/log-view'
 import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BROWSER_SESSION_RESOURCE_ID,
@@ -36,7 +37,6 @@ import type {
   MothershipResource,
   MothershipResourceType,
 } from '@/app/workspace/[workspaceId]/home/types'
-import { formatDate } from '@/app/workspace/[workspaceId]/logs/utils'
 import { listIntegrations } from '@/blocks/integration-matcher'
 import { useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
