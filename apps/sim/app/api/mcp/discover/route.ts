@@ -36,7 +36,14 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     }
 
     const accessibleRows = await listAccessibleWorkspaceRowsForUser(userId)
-    const accessibleWorkspaceIds = accessibleRows.map((row) => row.workspace.id)
+
+    /**
+     * `/api/mcp/serve/[serverId]` rejects personal keys on workspaces that
+     * disable them, so listing those servers would advertise unusable endpoints.
+     */
+    const accessibleWorkspaceIds = accessibleRows
+      .filter((row) => auth.apiKeyType !== 'personal' || row.workspace.allowPersonalApiKeys)
+      .map((row) => row.workspace.id)
 
     const workspaceIds =
       auth.apiKeyType === 'workspace' && auth.workspaceId

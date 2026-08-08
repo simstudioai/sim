@@ -194,6 +194,7 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { storeLargeValue } from '@/lib/execution/payloads/store'
 import { POST } from './route'
 
@@ -1791,7 +1792,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'API key is not authorized for this workspace',
+      error: WORKSPACE_KEY_SCOPE_DENIED,
     })
     expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
@@ -1812,7 +1813,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'Personal API keys are not allowed for this workspace',
+      error: PERSONAL_KEY_DENIED,
     })
     expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()

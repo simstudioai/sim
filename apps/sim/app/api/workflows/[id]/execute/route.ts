@@ -13,6 +13,7 @@ import {
   WORKFLOW_EXECUTION_ID_HEADER,
   WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER,
 } from '@/lib/api/contracts/workflows'
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth, hasExternalApiCredentials } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import {
@@ -1106,10 +1107,7 @@ async function handleExecutePost(
     }
     if (auth.authType === AuthType.API_KEY) {
       if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowWorkspaceId) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
       }
 
       if (auth.apiKeyType === 'personal') {
@@ -1117,10 +1115,7 @@ async function handleExecutePost(
           ? await getWorkspaceBillingSettings(workflowWorkspaceId)
           : null
         if (!workspaceSettings?.allowPersonalApiKeys) {
-          return NextResponse.json(
-            { error: 'Personal API keys are not allowed for this workspace' },
-            { status: 403 }
-          )
+          return NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 })
         }
       }
     }
