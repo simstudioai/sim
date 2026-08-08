@@ -3158,6 +3158,7 @@ describe('Automatic Internal Route Detection', () => {
         resourceId: { type: 'string', required: true },
       },
       request: {
+        internalRoute: true,
         url: (params: any) => `/api/resources/${params.resourceId}`,
         method: 'GET',
         headers: () => ({ 'Content-Type': 'application/json' }),
@@ -3196,6 +3197,8 @@ describe('Automatic Internal Route Detection', () => {
     expect(result.success).toBe(true)
     expect(result.output.result).toBe('Dynamic internal route success')
     expect(mockTool.transformResponse).toHaveBeenCalled()
+    expect(global.fetch).toHaveBeenCalled()
+    expect(mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
 
     Object.assign(tools, originalTools)
   })
