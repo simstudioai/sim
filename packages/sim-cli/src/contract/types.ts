@@ -18,6 +18,8 @@ import type { V2OperationName } from '../generated/v2-api.js'
  *   "list". Also friendlier aliases (`conflictTarget` → `--on`).
  * - `pathFlags` — when a parent path segment is command context rather than the
  *   resource being acted on (`documents get <documentId> --kb <id>`).
+ * - `profileWorkspacePath` — when `[workspaceId]` is the active profile target,
+ *   not a resource argument (`workspaces get`).
  * - `columns` — which of a response's fields belong in a table. Editorial.
  * - `confirm` — which operations are destructive enough to demand `--yes`.
  *
@@ -119,6 +121,8 @@ export interface CommandSpec {
   aliases?: readonly string[]
   /** Route path parameters exposed as required named options instead of positionals. */
   pathFlags?: Record<string, PathFlagSpec>
+  /** Fill a `[workspaceId]` route segment from the active profile instead of an argument. */
+  profileWorkspacePath?: boolean
   /** Request fields exposed as required positional arguments, in order. */
   positionals?: readonly string[]
   /** Restrict this command to these request fields; profile fields remain implicit. */

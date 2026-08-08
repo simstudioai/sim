@@ -407,6 +407,7 @@ export const CLI_CONTRACT: CliContract = {
     ],
   },
   getWorkspace: {
+    profileWorkspacePath: true,
     fields: [
       { header: 'id' },
       { header: 'name' },

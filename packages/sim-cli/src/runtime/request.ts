@@ -22,6 +22,11 @@ export interface FieldSpec {
  */
 export const PROFILE_INJECTED_FIELD = 'workspaceId'
 
+/** Whether this path segment comes from the active profile's workspace. */
+export function isProfileWorkspacePath(commandSpec: CommandSpec, param: string): boolean {
+  return commandSpec.profileWorkspacePath === true && param === PROFILE_INJECTED_FIELD
+}
+
 /** Kinds the CLI can only accept as a JSON string. */
 const JSON_KINDS = new Set(['object', 'array', 'unknown'])
 
@@ -265,9 +270,20 @@ export function buildRequest(
   let positionalIndex = 0
   for (const param of spec.pathParams) {
     const pathFlag = commandSpec.pathFlags?.[param]
+    const profileWorkspacePath = isProfileWorkspacePath(commandSpec, param)
     const flagName = pathFlagNameFor(commandSpec, param)
-    const value = pathFlag ? flags[camel(flagName)] : positional[positionalIndex++]
-    if (value === undefined) {
+    const value = profileWorkspacePath
+      ? workspaceId
+      : pathFlag
+        ? flags[camel(flagName)]
+        : positional[positionalIndex++]
+    if (value === undefined || value === null) {
+      if (profileWorkspacePath) {
+        throw new SimApiError(
+          'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>',
+          0
+        )
+      }
       throw new SimApiError(pathFlag ? `--${flagName} is required` : `Missing <${param}>`, 0)
     }
     if (typeof value !== 'string' || value.length === 0) {

@@ -66,6 +66,12 @@ describe('buildRequest', () => {
     expect(buildRequest('getTable', ['a/b?c'], {}, WORKSPACE).path).toBe('/api/v2/tables/a%2Fb%3Fc')
   })
 
+  it('fills a configured workspace path segment from the profile', () => {
+    expect(buildRequest('getWorkspace', [], {}, WORKSPACE).path).toBe(
+      `/api/v2/workspaces/${WORKSPACE}`
+    )
+  })
+
   it('combines a named parent scope with a positional resource id in route order', () => {
     expect(buildRequest('getKnowledgeDocument', ['doc_1'], { kb: 'kb_1' }, WORKSPACE)).toEqual({
       path: '/api/v2/knowledge/kb_1/documents/doc_1',
@@ -77,6 +83,12 @@ describe('buildRequest', () => {
   describe('failures, all before any network call', () => {
     it('rejects a missing path arg', () => {
       expect(() => buildRequest('getTable', [], {}, WORKSPACE)).toThrow('Missing <tableId>')
+    })
+
+    it('rejects a profile-backed workspace path when no workspace is configured', () => {
+      expect(() => buildRequest('getWorkspace', [], {}, null)).toThrow(
+        'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+      )
     })
 
     it('rejects a missing required flag', () => {

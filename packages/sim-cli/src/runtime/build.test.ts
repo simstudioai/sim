@@ -435,10 +435,19 @@ describe('commands parsed through commander', () => {
   })
 
   it('exposes workspace metadata and email-attributed members', async () => {
-    const [workspacePath] = await run(['workspace', 'get', 'ws_target'], {
-      data: { id: 'ws_target' },
+    const getHelp = commandAt('workspaces', 'get').helpInformation()
+    expect(getHelp).not.toContain('<workspaceId>')
+
+    const [workspacePath] = await run(['workspace', 'get'], {
+      data: { id: 'ws_local' },
     })
-    expect(workspacePath).toBe('/api/v2/workspaces/ws_target')
+    expect(workspacePath).toBe('/api/v2/workspaces/ws_local')
+
+    profileState.workspaceId = null
+    await expect(run(['workspace', 'get'])).rejects.toThrow(
+      'No workspace set. Pass --workspace, or run: sim configure --set-workspace <id>'
+    )
+    profileState.workspaceId = 'ws_local'
 
     const [membersPath, membersOptions] = await run(['workspace', 'members', 'ws_target'])
     expect(membersPath).toBe('/api/v2/workspaces/ws_target/members')

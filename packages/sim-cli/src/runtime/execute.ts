@@ -5,7 +5,12 @@ import type { V2OperationName } from '../generated/v2-api.js'
 import { SimApiError, type V2Page } from '../http/client.js'
 import { camel } from './derive.js'
 import { DEFAULT_LIMIT } from './options.js'
-import { buildRequest, flagNameFor, PROFILE_INJECTED_FIELD } from './request.js'
+import {
+  buildRequest,
+  flagNameFor,
+  isProfileWorkspacePath,
+  PROFILE_INJECTED_FIELD,
+} from './request.js'
 import { renderPage, renderResult } from './result.js'
 import type { OperationSpec } from './types.js'
 
@@ -32,7 +37,7 @@ export async function executeOperation(
     ...(invocation[invocation.length - 2] as Record<string, unknown>),
   }
   const pathPositionalCount = operationSpec.pathParams.filter(
-    (param) => !commandSpec.pathFlags?.[param]
+    (param) => !commandSpec.pathFlags?.[param] && !isProfileWorkspacePath(commandSpec, param)
   ).length
   const positional = invocation.slice(0, pathPositionalCount) as string[]
   const requestFlags: Record<string, unknown> = { ...flags }

@@ -5,7 +5,7 @@ import { V2_OPERATIONS, type V2OperationName } from '../generated/v2-api.js'
 import { deriveCommandPath } from './derive.js'
 import { executeOperation } from './execute.js'
 import { addOperationOptions } from './options.js'
-import { flagNameFor, PROFILE_INJECTED_FIELD } from './request.js'
+import { flagNameFor, isProfileWorkspacePath, PROFILE_INJECTED_FIELD } from './request.js'
 import type { OperationSpec } from './types.js'
 
 const GROUP_ALIASES: Readonly<Record<string, string>> = {
@@ -76,8 +76,17 @@ function configureOperation(
     }
   }
 
+  if (spec.profileWorkspacePath) {
+    if (!operationSpec.pathParams.includes(PROFILE_INJECTED_FIELD)) {
+      throw new Error(`${operation}.profileWorkspacePath requires a workspaceId path parameter`)
+    }
+    if (spec.pathFlags?.[PROFILE_INJECTED_FIELD]) {
+      throw new Error(`${operation}.workspaceId cannot be both profile-injected and a path flag`)
+    }
+  }
+
   for (const param of operationSpec.pathParams) {
-    if (spec.pathFlags?.[param]) continue
+    if (spec.pathFlags?.[param] || isProfileWorkspacePath(spec, param)) continue
     command.argument(`<${param}>`)
   }
 
@@ -203,7 +212,9 @@ export function buildGeneratedCommands(): Command[] {
       const [groupName, ...rest] = segments
       const group = groupFor(groups, groupName)
       if (rest.length > 0) throw new Error(`${operation} groupDefault must name a command group`)
-      const pathPositionals = operationSpec.pathParams.filter((param) => !spec.pathFlags?.[param])
+      const pathPositionals = operationSpec.pathParams.filter(
+        (param) => !spec.pathFlags?.[param] && !isProfileWorkspacePath(spec, param)
+      )
       if (pathPositionals.length > 0 || spec.positionals?.length) {
         throw new Error(`${operation} groupDefault cannot require positional arguments`)
       }
