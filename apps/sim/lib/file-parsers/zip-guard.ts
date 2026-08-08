@@ -1,5 +1,10 @@
 import { inflateRawSync } from 'zlib'
 import { createLogger } from '@sim/logger'
+import {
+  MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
+  MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
+  ZipBombError,
+} from '@/lib/file-parsers/ooxml-limits'
 
 const logger = createLogger('ZipBombGuard')
 
@@ -50,8 +55,6 @@ export interface OoxmlSizeLimits {
 }
 
 const ONE_HUNDRED_MEBIBYTES = 100 * 1024 * 1024
-const ONE_HUNDRED_FIFTY_MEBIBYTES = 150 * 1024 * 1024
-const SIXTY_FOUR_MEBIBYTES = 64 * 1024 * 1024
 
 /**
  * The downstream parsers (mammoth, SheetJS, officeparser) build a full in-memory
@@ -60,20 +63,15 @@ const SIXTY_FOUR_MEBIBYTES = 64 * 1024 * 1024
  * parses a second time for HTML. The old 1 GiB ceiling let a ~3.5 MB archive
  * expand past what the process could hold and OOM it. The total and per-entry
  * caps here keep a single parse's peak within a modest container's budget while
- * still admitting all but pathologically large documents.
+ * still admitting all but pathologically large documents. The size ceilings are
+ * shared with the browser preview guard via {@link ./ooxml-limits}; the ratio
+ * heuristic is server-only.
  */
 export const DEFAULT_OOXML_SIZE_LIMITS: OoxmlSizeLimits = {
-  maxTotalUncompressedBytes: ONE_HUNDRED_FIFTY_MEBIBYTES,
-  maxEntryUncompressedBytes: SIXTY_FOUR_MEBIBYTES,
+  maxTotalUncompressedBytes: MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
+  maxEntryUncompressedBytes: MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
   maxCompressionRatio: 150,
   ratioCheckFloorBytes: ONE_HUNDRED_MEBIBYTES,
-}
-
-export class ZipBombError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ZipBombError'
-  }
 }
 
 /**
