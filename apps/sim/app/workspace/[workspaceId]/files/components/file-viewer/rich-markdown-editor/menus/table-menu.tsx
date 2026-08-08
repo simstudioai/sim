@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useState } from 'react'
 import {
   ArrowDown,
   ArrowLeft,
@@ -9,22 +9,16 @@ import {
   Table as TableIcon,
   Trash,
 } from '@sim/emcn/icons'
-import { posToDOMRect } from '@tiptap/core'
 import { PluginKey } from '@tiptap/pm/state'
 import type { Editor } from '@tiptap/react'
 import { useEditorState } from '@tiptap/react'
 import { BubbleMenu } from '@tiptap/react/menus'
 import { ToolbarButton, ToolbarDivider } from './toolbar-button'
-
-/** Pins the toolbar to the viewport instead of tracking the (often wide) table as it scrolls horizontally. */
-const FLOATING_OPTIONS = { strategy: 'fixed' } as const
-
-/** Renders into the body so a transformed/clipping ancestor can't reparent the fixed toolbar and shift it. */
-const APPEND_TO_BODY = () => document.body
+import { useBubbleMenuFloating } from './use-bubble-menu-floating'
 
 interface TableBubbleMenuProps {
   editor: Editor
-  /** The editor's scrollable viewport, used to keep the toolbar on-screen for a table taller than it. */
+  /** The editor's scrollable viewport, so the toolbar repositions with the cell as the pane scrolls. */
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
 }
 
@@ -44,29 +38,15 @@ export function TableBubbleMenu({ editor, scrollContainerRef }: TableBubbleMenuP
     }),
   })
 
-  // Recomputed on every call (not cached by selection key) — the same table cell can land at a
-  // different screen position purely from scrolling with no selection change, and Floating UI's
-  // `autoUpdate` re-invokes this on scroll/resize expecting a fresh rect each time.
-  const resolveAnchor = useCallback(() => {
-    const { view, state } = editor
-    if (!view.dom.isConnected) return null
-    const { from, to } = state.selection
-    const selection = posToDOMRect(view, from, to)
-    const viewport = scrollContainerRef.current?.getBoundingClientRect()
-    const rect =
-      viewport && selection.top < viewport.top
-        ? new DOMRect(selection.left, viewport.top, selection.width, 0)
-        : selection
-    return { getBoundingClientRect: () => rect, getClientRects: () => [rect] }
-  }, [editor, scrollContainerRef])
+  const { resolveAnchor, options, appendTo } = useBubbleMenuFloating(editor, scrollContainerRef)
 
   return (
     <BubbleMenu
       editor={editor}
       pluginKey={menuKey}
       getReferencedVirtualElement={resolveAnchor}
-      options={FLOATING_OPTIONS}
-      appendTo={APPEND_TO_BODY}
+      options={options}
+      appendTo={appendTo}
       role='toolbar'
       aria-label='Table editing'
       updateDelay={0}
