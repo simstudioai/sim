@@ -90,7 +90,7 @@ import { env, isTruthy } from '@/lib/core/config/env'
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className='space-y-4'>
-      <h2 className='border-[var(--border)] border-b pb-2 font-medium text-[var(--text-primary)] text-lg'>
+      <h2 className='border-[var(--border)] border-b pb-2 text-[var(--text-primary)] text-lg'>
         {title}
       </h2>
       <div className='space-y-4'>{children}</div>
@@ -188,9 +188,7 @@ export default function PlaygroundPage() {
           </div>
           <div className='mx-auto max-w-4xl space-y-12'>
             <div>
-              <h1 className='font-semibold text-2xl text-[var(--text-primary)]'>
-                EMCN Component Playground
-              </h1>
+              <h1 className='text-2xl text-[var(--text-primary)]'>EMCN Component Playground</h1>
               <p className='mt-2 text-[var(--text-secondary)]'>
                 All emcn UI components and their variants
               </p>

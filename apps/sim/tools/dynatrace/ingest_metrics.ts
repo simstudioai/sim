@@ -74,13 +74,42 @@ export const ingestMetricsTool: ToolConfig<
     },
     ingestError: {
       type: 'json',
-      description: 'Details of the invalid lines, with the line number and reason for each',
+      description: 'Details of the invalid lines',
       nullable: true,
+      properties: {
+        code: { type: 'number', description: 'Error code' },
+        message: { type: 'string', description: 'Error message' },
+        invalidLines: {
+          type: 'array',
+          description: 'The rejected lines',
+          items: {
+            type: 'object',
+            properties: {
+              line: { type: 'number', description: 'Line number in the payload' },
+              error: { type: 'string', description: 'Why the line was rejected' },
+            },
+          },
+        },
+      },
     },
     warnings: {
       type: 'json',
       description: 'Warnings raised during ingestion, such as changed metric keys',
       nullable: true,
+      properties: {
+        message: { type: 'string', description: 'Warning message' },
+        changedMetricKeys: {
+          type: 'array',
+          description: 'Lines whose metric key Dynatrace rewrote',
+          items: {
+            type: 'object',
+            properties: {
+              line: { type: 'number', description: 'Line number in the payload' },
+              warning: { type: 'string', description: 'What was changed' },
+            },
+          },
+        },
+      },
     },
   },
 }

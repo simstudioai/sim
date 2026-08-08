@@ -506,7 +506,6 @@ export async function fetchBabysitCheckState(
 async function fetchCheckDiagnostic(
   params: PullRequestCoordinates,
   check: BabysitCheck,
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<{ key: string; text: string }> {
   let text = [check.title, check.summary, check.detailsUrl].filter(Boolean).join('\n')
@@ -533,10 +532,7 @@ async function fetchCheckDiagnostic(
   }
   return {
     key: check.key,
-    text: scrubPiSecrets(
-      truncate(text || 'No diagnostic text was reported.', MAX_CHECK_DIAGNOSTIC_BYTES),
-      secrets
-    ),
+    text: truncate(text || 'No diagnostic text was reported.', MAX_CHECK_DIAGNOSTIC_BYTES),
   }
 }
 
@@ -552,14 +548,13 @@ async function fetchCheckDiagnostic(
 export async function fetchBabysitCheckDiagnostics(
   params: PullRequestCoordinates,
   failing: readonly BabysitCheck[],
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<Map<string, string>> {
   const diagnostics = new Map<string, string>()
   for (let start = 0; start < failing.length; start += CHECK_DIAGNOSTIC_CONCURRENCY) {
     const batch = failing.slice(start, start + CHECK_DIAGNOSTIC_CONCURRENCY)
     const settled = await Promise.all(
-      batch.map((check) => fetchCheckDiagnostic(params, check, secrets, signal))
+      batch.map((check) => fetchCheckDiagnostic(params, check, signal))
     )
     for (const { key, text } of settled) {
       diagnostics.set(key, text)
@@ -683,7 +678,6 @@ export async function replyAndResolveBabysitThreads(
 export async function requestBabysitReview(
   params: PullRequestCoordinates,
   mentions: readonly string[],
-  secrets: readonly string[],
   signal?: AbortSignal
 ): Promise<BabysitReviewRequestResult> {
   const requestedAt = new Date().toISOString()
@@ -697,7 +691,7 @@ export async function requestBabysitReview(
           owner: params.owner,
           repo: params.repo,
           issue_number: params.pullNumber,
-          body: scrubPiSecrets(mention, secrets),
+          body: mention,
           apiKey: params.githubToken,
         },
         { signal }

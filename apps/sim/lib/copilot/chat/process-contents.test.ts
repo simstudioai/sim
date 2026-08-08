@@ -2,7 +2,8 @@
  * @vitest-environment node
  */
 
-import { dbChainMockFns, workflowAuthzMockFns } from '@sim/testing'
+import { createLogger } from '@sim/logger'
+import { dbChainMockFns, loggerMock, workflowAuthzMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -52,6 +53,10 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+const mockProcessContentsLogger = vi.mocked(loggerMock.createLogger).mock.results[
+  vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'ProcessContents')
+].value
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
@@ -120,6 +125,35 @@ describe('processContextsServer - skill contexts', () => {
     ])
   })
 
+  it('uses the skill ID only for lookup and omits it from model context', async () => {
+    const skillId = 'private-skill-id'
+    getSkillById.mockResolvedValue({
+      id: skillId,
+      name: 'Resolved Skill',
+      description: 'desc',
+      content: '# Resolved Skill\n\nDo the thing.',
+    })
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(getSkillById).toHaveBeenCalledWith({ skillId, workspaceId: 'ws-1' })
+    expect(result).toEqual([
+      {
+        type: 'skill',
+        tag: '@Skill',
+        content: '# Resolved Skill\n\nDo the thing.',
+        path: 'agent/skills/Resolved%20Skill.json',
+      },
+    ])
+    expect(JSON.stringify(result)).not.toContain(skillId)
+    expect(JSON.stringify(result)).not.toContain('SKILL_ID')
+  })
+
   it('drops a skill that does not resolve (unknown or cross-workspace)', async () => {
     getSkillById.mockResolvedValue(null)
 
@@ -143,6 +177,28 @@ describe('processContextsServer - skill contexts', () => {
 
     expect(getSkillById).not.toHaveBeenCalled()
     expect(result).toEqual([])
+  })
+
+  it('does not log a private skill selector when lookup throws', async () => {
+    const skillId = 'private-skill-id __var_API_KEY __sim_code_0_binding_0'
+    getSkillById.mockRejectedValue(new Error(`Lookup failed for ${skillId}`))
+
+    const result = await processContextsServer(
+      [{ kind: 'skill', skillId, label: 'Skill 1' } as ChatContext],
+      'user-1',
+      'hello',
+      'ws-1'
+    )
+
+    expect(result).toEqual([])
+    expect(mockProcessContentsLogger.error).toHaveBeenCalledWith(
+      'Error processing skill context (db)',
+      { workspaceId: 'ws-1', hasSkillId: true }
+    )
+    const logged = JSON.stringify(mockProcessContentsLogger.error.mock.calls)
+    expect(logged).not.toContain('private-skill-id')
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
   })
 })
 

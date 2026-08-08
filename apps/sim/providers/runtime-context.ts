@@ -58,7 +58,7 @@ export async function executeProviderTool(
   }
   const preparedInputProvenance = getPreparedProviderToolInputProvenance(params)
   const toolCallRegistry = registry
-    ? preparedInputProvenance?.parentRegistry === registry
+    ? preparedInputProvenance
       ? preparedInputProvenance.registry.forkForInputPaths(preparedInputProvenance.inputPaths, {
           propagated: true,
         })

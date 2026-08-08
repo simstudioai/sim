@@ -85,7 +85,7 @@ export function PublicFileView({
             </>
           )}
           <div className='flex min-w-0 flex-col'>
-            <span className='truncate font-medium text-[14px] text-[var(--text-body)]'>{name}</span>
+            <span className='truncate text-[14px] text-[var(--text-body)]'>{name}</span>
             {provenance ? (
               <span className='truncate text-[12px] text-[var(--text-muted)]'>{provenance}</span>
             ) : null}

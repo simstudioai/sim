@@ -47,11 +47,6 @@ function selectBlockBoundaryPaths(
         if (path[0]) requiredProjectionRoots.add(path[0])
       }
     }
-    const opaqueInputPaths = tool.request.opaqueModelInput?.inputPaths(params) ?? []
-    paths.push(...opaqueInputPaths)
-    for (const path of opaqueInputPaths) {
-      if (path[0]) requiredProjectionRoots.add(path[0])
-    }
     for (const selection of tool.request.secretProvenance?.request?.(params) ?? []) {
       paths.push(...selection.inputPaths)
       for (const path of selection.inputPaths) {

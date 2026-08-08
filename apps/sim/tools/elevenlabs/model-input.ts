@@ -1,11 +1,23 @@
-import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
-import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
+import {
+  applyProjectedModelVisibleFileNames,
+  selectModelVisibleFileNames,
+} from '@/lib/uploads/utils/model-input'
 
-/** Selects exact resolver paths for audio content consumed by ElevenLabs transforms. */
-export function selectElevenLabsAudioModelInputPaths(params: {
+/** Selects the filename serialized into ElevenLabs' multipart model request. */
+export function selectElevenLabsAudioFileNameModelInput(params: {
   audioFile?: unknown
-}): readonly ResolvedSecretInputPath[] {
-  return selectModelBoundFileInputPaths(params.audioFile, ['audioFile'], {
-    includeName: true,
-  })
+}): Record<string, unknown> {
+  if (!params.audioFile) return {}
+  return { audioFile: selectModelVisibleFileNames(params.audioFile) }
+}
+
+/** Restores the audio file with only its projected filename changed. */
+export function applyProjectedElevenLabsAudioFileNameModelInput(
+  original: { audioFile?: unknown },
+  projected: Record<string, unknown>
+): Record<string, unknown> {
+  if (!Object.hasOwn(projected, 'audioFile')) return {}
+  return {
+    audioFile: applyProjectedModelVisibleFileNames(original.audioFile, projected.audioFile),
+  }
 }

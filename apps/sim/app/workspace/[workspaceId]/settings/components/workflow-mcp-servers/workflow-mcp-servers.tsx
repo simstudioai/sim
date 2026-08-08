@@ -570,7 +570,7 @@ function ServerDetailView({
                 ) : (
                   <div>
                     <div className='mb-[6.5px] flex items-center justify-between'>
-                      <span className='block pl-0.5 font-medium text-[var(--text-primary)] text-sm'>
+                      <span className='block pl-0.5 text-[var(--text-primary)] text-sm'>
                         Configuration
                       </span>
                       <Button
@@ -690,7 +690,7 @@ function ServerDetailView({
                       >
                         <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                           <div className='flex min-w-0 flex-1 items-center gap-2'>
-                            <span className='block truncate font-medium text-[var(--text-tertiary)] text-base'>
+                            <span className='block truncate text-[var(--text-tertiary)] text-base'>
                               {name}
                             </span>
                             <Badge variant='type' size='sm'>

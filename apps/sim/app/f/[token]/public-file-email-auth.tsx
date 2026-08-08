@@ -173,8 +173,7 @@ export function PublicFileEmailAuth({ token }: PublicFileEmailAuthProps) {
             Didn't receive a code?{' '}
             {countdown > 0 ? (
               <span>
-                Resend in{' '}
-                <span className='font-medium text-[var(--text-primary)]'>{countdown}s</span>
+                Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
               </span>
             ) : (
               <button

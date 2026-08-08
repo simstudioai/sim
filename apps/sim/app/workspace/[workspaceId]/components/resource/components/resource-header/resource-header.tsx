@@ -307,9 +307,8 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
   )
   /**
    * Interactive crumbs use a plain `<button>` with bare-chip geometry — NEVER
-   * the Button component, whose buttonVariants inject font-medium /
-   * rounded-[5px] / justify-center and break chip parity with the static/title
-   * crumbs.
+   * the Button component, whose buttonVariants inject rounded-[5px] /
+   * justify-center and break chip parity with the static/title crumbs.
    */
   const triggerClassName = cn(chipVariants(), 'group min-w-0 max-w-full justify-start')
 

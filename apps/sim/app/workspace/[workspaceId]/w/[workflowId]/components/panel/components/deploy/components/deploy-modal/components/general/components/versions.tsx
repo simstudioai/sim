@@ -19,8 +19,8 @@ import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
 import { VersionDescriptionModal } from './version-description-modal'
 
-const HEADER_TEXT_CLASS = 'font-medium text-[var(--text-tertiary)] text-caption'
-const ROW_TEXT_CLASS = 'font-medium text-[var(--text-primary)] text-caption'
+const HEADER_TEXT_CLASS = 'text-[var(--text-tertiary)] text-caption'
+const ROW_TEXT_CLASS = 'text-[var(--text-primary)] text-caption'
 const COLUMN_BASE_CLASS = 'flex-shrink-0'
 
 const COLUMN_WIDTHS = {
@@ -282,7 +282,7 @@ export function Versions({
                       onClick={(e) => e.stopPropagation()}
                       onBlur={() => handleSaveRename(v.version)}
                       className={cn(
-                        'h-auto w-full border-0 bg-transparent p-0 font-medium text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
+                        'h-auto w-full border-0 bg-transparent p-0 text-[var(--text-primary)] text-caption leading-5 shadow-none outline-none focus:outline-none focus-visible:ring-0'
                       )}
                       maxLength={100}
                       disabled={renameMutation.isPending}
