@@ -170,8 +170,8 @@ describe('Snowflake SQL API transport', () => {
       'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
       Accept: 'application/json',
       'Content-Type': 'application/json',
+      'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     })
-    expect(snowflakeHeaders).not.toHaveProperty('User-Agent')
   })
 
   it('keeps statement timeout in the Snowflake body, not the HTTP transport', () => {

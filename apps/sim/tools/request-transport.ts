@@ -245,9 +245,7 @@ export function prepareToolRequest(
       )
     )
   }
-  if (!request.headers.has('User-Agent')) {
-    request.headers.set('User-Agent', 'Sim/1.0 (+https://sim.ai)')
-  }
+  if (!request.headers.has('User-Agent')) request.headers.set('User-Agent', 'Sim')
 
   return request
 }

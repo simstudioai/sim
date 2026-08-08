@@ -146,6 +146,7 @@ export function getSnowflakeHeaders(params: SnowflakeBaseParams): Record<string,
     Authorization: `Bearer ${apiKey}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
+    'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
   }
 }
