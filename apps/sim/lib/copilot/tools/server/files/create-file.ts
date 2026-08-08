@@ -1,8 +1,6 @@
 import { createLogger } from '@sim/logger'
-import {
-  createCopilotFilePrincipal,
-  messageForCopilotFileError,
-} from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -56,34 +54,27 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
     assertServerToolNotAborted(context)
-    const principal = createCopilotFilePrincipal(context, workspaceId)
     const mode = outputFile?.mode ?? 'create'
     try {
       const result =
         mode === 'overwrite'
-          ? await updateWorkspaceFileContentByPath.execute({
-              principal,
-              input: {
-                workspaceId,
-                path: outputPath,
-                mode,
-                content: '',
-                encoding: 'utf-8',
-                contentType,
-                syncLiveDoc: false,
-              },
+          ? await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, {
+              workspaceId,
+              path: outputPath,
+              mode,
+              content: '',
+              encoding: 'utf-8',
+              contentType,
+              syncLiveDoc: false,
             })
-          : await createWorkspaceFileByPath.execute({
-              principal,
-              input: {
-                workspaceId,
-                path: outputPath,
-                mode,
-                content: '',
-                encoding: 'utf-8',
-                contentType,
-                exactName: true,
-              },
+          : await executeCopilotFileUseCase(context, createWorkspaceFileByPath, {
+              workspaceId,
+              path: outputPath,
+              mode,
+              content: '',
+              encoding: 'utf-8',
+              contentType,
+              exactName: true,
             })
 
       logger.info('File created via create_file', {

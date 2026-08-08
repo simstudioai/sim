@@ -4,13 +4,13 @@ import { assertFolderMutable, assertWorkflowMutable } from '@sim/platform-authz/
 import { toError } from '@sim/utils/errors'
 import { eq } from 'drizzle-orm'
 import {
-  createCopilotFilePrincipal,
-  messageForCopilotFileError,
-} from '@/lib/copilot/auth/file-delegation'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkflowAccess, ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import {
-  copilotFilePrincipal,
   ensureCopilotFileFolderPath,
   requireCopilotWorkspace,
 } from '@/lib/copilot/tools/server/files/file-folder-application'
@@ -41,7 +41,6 @@ import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { updateWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import { checkKnowledgeBaseWriteAccess } from '@/app/api/knowledge/utils'
 
@@ -357,9 +356,7 @@ async function resolveFileAtExactPath(
   context: ExecutionContext
 ): Promise<WorkspaceFileRecord | null> {
   try {
-    return await resolveWorkspaceFileReference({
-      principal: copilotFilePrincipal(context, workspaceId),
-      operation: fileOperations.move,
+    return await resolveCopilotWorkspaceFileReference(context, fileOperations.move, {
       workspaceId,
       reference: `files/${encodeVfsPathSegments(segments)}`,
     })
@@ -427,14 +424,16 @@ async function mutateWorkspaceFiles(
       const targetFolderId = await dest.ensureFolderId()
       if (targetFolderId === ref.file.folderId) {
         try {
-          const result = await renameWorkspaceFile.execute({
-            principal: createCopilotFilePrincipal(context, workspaceId, ref.file.id),
-            input: {
+          const result = await executeCopilotFileUseCase(
+            context,
+            renameWorkspaceFile,
+            {
               fileId: ref.file.id,
               assertedWorkspaceId: workspaceId,
               name: targetName,
             },
-          })
+            { fileId: ref.file.id }
+          )
           outcomes.push({
             from: ref.source,
             to: `files/${encodeVfsPathSegments([...dest.folderSegments, result.file.name])}`,
@@ -451,21 +450,24 @@ async function mutateWorkspaceFiles(
         continue
       }
       try {
-        const principal = copilotFilePrincipal(context, workspaceId, ref.file.id)
-        await moveWorkspaceFileItemsOperation.execute({
-          principal,
-          input: { workspaceId, fileIds: [ref.file.id], targetFolderId },
-        })
+        await executeCopilotFileUseCase(
+          context,
+          moveWorkspaceFileItemsOperation,
+          { workspaceId, fileIds: [ref.file.id], targetFolderId },
+          { fileId: ref.file.id }
+        )
         let finalName = ref.file.name
         if (targetName !== ref.file.name) {
-          const renamed = await renameWorkspaceFile.execute({
-            principal,
-            input: {
+          const renamed = await executeCopilotFileUseCase(
+            context,
+            renameWorkspaceFile,
+            {
               fileId: ref.file.id,
               assertedWorkspaceId: workspaceId,
               name: targetName,
             },
-          })
+            { fileId: ref.file.id }
+          )
           finalName = renamed.file.name
         }
         outcomes.push({
@@ -495,14 +497,11 @@ async function mutateWorkspaceFiles(
       continue
     }
     try {
-      const result = await updateWorkspaceFileFolderOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: {
-          workspaceId,
-          folderId: ref.folderId,
-          name: dest.dirMode ? undefined : dest.leafName,
-          parentId: targetFolderId,
-        },
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
+        workspaceId,
+        folderId: ref.folderId,
+        name: dest.dirMode ? undefined : dest.leafName,
+        parentId: targetFolderId,
       })
       outcomes.push({
         from: ref.source,
@@ -966,9 +965,7 @@ async function removeWorkspaceFilePath(
 ): Promise<VfsMutateOutcome> {
   let file: WorkspaceFileRecord | undefined
   try {
-    file = await resolveWorkspaceFileReference({
-      principal: copilotFilePrincipal(context, workspaceId),
-      operation: fileOperations.delete,
+    file = await resolveCopilotWorkspaceFileReference(context, fileOperations.delete, {
       workspaceId,
       reference: path,
     })
@@ -977,10 +974,12 @@ async function removeWorkspaceFilePath(
     if (classified?.code !== 'not_found') throw error
   }
   if (file) {
-    await deleteWorkspaceFileOperation.execute({
-      principal: copilotFilePrincipal(context, workspaceId, file.id),
-      input: { fileId: file.id, assertedWorkspaceId: workspaceId },
-    })
+    await executeCopilotFileUseCase(
+      context,
+      deleteWorkspaceFileOperation,
+      { fileId: file.id, assertedWorkspaceId: workspaceId },
+      { fileId: file.id }
+    )
     logger.info('Deleted workspace file via rm', { fileId: file.id, workspaceId })
     return { from: path, kind: 'file', id: file.id }
   }
@@ -993,9 +992,9 @@ async function removeWorkspaceFilePath(
   if (!folderId) return { from: path, kind: 'file', error: `Not found: ${path}` }
 
   try {
-    const result = await archiveWorkspaceFileItemsOperation.execute({
-      principal: copilotFilePrincipal(context, workspaceId),
-      input: { workspaceId, folderIds: [folderId] },
+    const result = await executeCopilotFileUseCase(context, archiveWorkspaceFileItemsOperation, {
+      workspaceId,
+      folderIds: [folderId],
     })
     logger.info('Deleted file folder via rm', { folderId, workspaceId })
     return { from: path, kind: 'file_folder', id: folderId }

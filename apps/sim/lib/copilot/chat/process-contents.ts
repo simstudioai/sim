@@ -6,6 +6,7 @@ import {
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
+import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -39,7 +40,6 @@ import type { ColumnDefinition } from '@/lib/table/types'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
@@ -887,11 +887,9 @@ async function resolveFileResource(
   userId: string,
   chatId?: string
 ): Promise<AgentContext | null> {
-  const principal = createWorkspaceFileDelegatedPrincipal({
-    serviceId: 'copilot',
-    subjectUserId: userId,
+  const principal = createCopilotChatFilePrincipal({
+    userId,
     workspaceId,
-    delegationId: `copilot-chat:${chatId ?? workspaceId}`,
     chatId,
   })
   const { file: record } = await readWorkspaceFileMetadata.execute({
@@ -938,11 +936,9 @@ async function resolveFileSelectionResource(
   chatId?: string
 ): Promise<AgentContext | null> {
   if (!userId) throw new Error('File selection context requires a user ID')
-  const principal = createWorkspaceFileDelegatedPrincipal({
-    serviceId: 'copilot',
-    subjectUserId: userId,
+  const principal = createCopilotChatFilePrincipal({
+    userId,
     workspaceId,
-    delegationId: `copilot-chat:${chatId ?? workspaceId}`,
     chatId,
   })
   const { file: record } = await readWorkspaceFileMetadata.execute({

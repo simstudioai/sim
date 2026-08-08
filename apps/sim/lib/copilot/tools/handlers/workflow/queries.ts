@@ -1,6 +1,6 @@
 import { toError } from '@sim/utils/errors'
 import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
 import { mcpService } from '@/lib/mcp/service'
@@ -192,9 +192,9 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const { files } = await listAllWorkspaceFiles.execute({
-        principal: createCopilotFilePrincipal(context, workspaceId),
-        input: { workspaceId, scope: 'active' },
+      const { files } = await executeCopilotFileUseCase(context, listAllWorkspaceFiles, {
+        workspaceId,
+        scope: 'active',
       })
       const fileResults = files.map((file) => ({
         id: String(file.id || ''),

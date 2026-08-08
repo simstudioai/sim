@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
 import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
@@ -6,7 +10,6 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import {
-  copilotFilePrincipal,
   ensureCopilotFileFolderPath,
   requireCopilotWorkspace,
 } from '@/lib/copilot/tools/server/files/file-folder-application'
@@ -19,7 +22,6 @@ import {
 } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { moveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/move-workspace-file-items'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
   createWorkspaceFileFolderOperation,
   listWorkspaceFileFoldersOperation,
@@ -147,12 +149,9 @@ async function resolveFileIdsFromPaths(
 }> {
   const fileIds: string[] = []
   const failed: string[] = []
-  const principal = copilotFilePrincipal(context, workspaceId)
   for (const path of paths) {
     try {
-      const file = await resolveWorkspaceFileReference({
-        principal,
-        operation: fileOperations.move,
+      const file = await resolveCopilotWorkspaceFileReference(context, fileOperations.move, {
         workspaceId,
         reference: path,
       })
@@ -196,9 +195,8 @@ export const listFileFoldersServerTool: BaseServerTool<ListFileFoldersArgs, File
       const workspaceId = await resolveWorkspaceId(params, context)
       if (typeof workspaceId !== 'string') return workspaceId
 
-      const result = await listWorkspaceFileFoldersOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: { workspaceId },
+      const result = await executeCopilotFileUseCase(context, listWorkspaceFileFoldersOperation, {
+        workspaceId,
       })
       const folders = result.folders
       return {
@@ -251,9 +249,10 @@ export const createFileFolderServerTool: BaseServerTool<CreateFileFolderArgs, Fi
       }
 
       assertServerToolNotAborted(context)
-      const result = await createWorkspaceFileFolderOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: { workspaceId, name, parentId },
+      const result = await executeCopilotFileUseCase(context, createWorkspaceFileFolderOperation, {
+        workspaceId,
+        name,
+        parentId,
       })
       const { folder } = result
 
@@ -304,9 +303,10 @@ export const renameFileFolderServerTool: BaseServerTool<RenameFileFolderArgs, Fi
       if (!existing) return { success: false, message: 'Folder not found' }
 
       assertServerToolNotAborted(context)
-      const result = await updateWorkspaceFileFolderOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: { workspaceId, folderId, name },
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
+        workspaceId,
+        folderId,
+        name,
       })
       const { folder } = result
 
@@ -360,9 +360,10 @@ export const moveFileFolderServerTool: BaseServerTool<MoveFileFolderArgs, FileFo
         null
 
       assertServerToolNotAborted(context)
-      const result = await updateWorkspaceFileFolderOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: { workspaceId, folderId, parentId },
+      const result = await executeCopilotFileUseCase(context, updateWorkspaceFileFolderOperation, {
+        workspaceId,
+        folderId,
+        parentId,
       })
       const { folder } = result
 
@@ -423,9 +424,10 @@ export const moveFileServerTool: BaseServerTool<MoveFileArgs, FileFolderResult> 
         null
 
       assertServerToolNotAborted(context)
-      const result = await moveWorkspaceFileItemsOperation.execute({
-        principal: copilotFilePrincipal(context, workspaceId),
-        input: { workspaceId, fileIds, targetFolderId: folderId },
+      const result = await executeCopilotFileUseCase(context, moveWorkspaceFileItemsOperation, {
+        workspaceId,
+        fileIds,
+        targetFolderId: folderId,
       })
 
       logger.info('Files moved via move_file', {

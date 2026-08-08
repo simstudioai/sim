@@ -11,6 +11,7 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
+import { createCopilotWorkspaceContextFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import type { VfsSnapshotV1, VfsSnapshotV1Workflow } from '@/lib/copilot/generated/vfs-snapshot-v1'
 import {
   filterSecretNamesByMountPolicy,
@@ -26,7 +27,6 @@ import { listWorkspaceSandboxes } from '@/lib/execution/remote-sandbox/workspace
 import { listCustomBlockSummariesForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
 import { listSkillsForUser } from '@/lib/workflows/skills/operations'
-import { createWorkspaceFileDelegatedPrincipal } from '@/lib/workspace-files/application/delegated-principal'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import {
   assertActiveWorkspaceAccess,
@@ -412,11 +412,9 @@ async function buildWorkspaceMdData(
 
       listAllWorkspaceFiles
         .execute({
-          principal: createWorkspaceFileDelegatedPrincipal({
-            serviceId: 'copilot',
-            subjectUserId: userId,
+          principal: createCopilotWorkspaceContextFilePrincipal({
+            userId,
             workspaceId,
-            delegationId: `copilot-workspace-context:${options?.chatId ?? options?.executionId ?? workspaceId}`,
             chatId: options?.chatId,
             executionId: options?.executionId,
           }),

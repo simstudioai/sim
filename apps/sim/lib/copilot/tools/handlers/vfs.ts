@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import { TOOL_RESULT_MAX_INLINE_CHARS } from '@/lib/copilot/constants'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
@@ -33,7 +33,7 @@ async function getGatedVFS(context: ExecutionContext) {
   const vis = await getBlockVisibilityForCopilot(context.userId, workspaceId)
   const filePrincipal =
     context.copilotToolExecution && context.toolCallId
-      ? createCopilotFilePrincipal(context, workspaceId)
+      ? resolveCopilotFilePrincipal(context)
       : undefined
   return withBlockVisibility(vis, () =>
     getOrMaterializeVFS(workspaceId, context.userId, {

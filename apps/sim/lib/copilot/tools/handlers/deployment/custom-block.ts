@@ -3,7 +3,10 @@ import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
 import { isOrganizationOnEnterprisePlan } from '@/lib/billing'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { canonicalizeVfsPath } from '@/lib/copilot/vfs/path-utils'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
@@ -19,7 +22,6 @@ import {
 } from '@/lib/workflows/custom-blocks/operations'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 import { ensureWorkflowAccess } from '../access'
 import type { DeployCustomBlockParams } from '../param-types'
@@ -53,10 +55,7 @@ async function resolveIconUrl(
   }
 
   const canonical = canonicalizeVfsPath(value)
-  const principal = createCopilotFilePrincipal(context, workspaceId)
-  const record = await resolveWorkspaceFileReference({
-    principal,
-    operation: fileOperations.readContent,
+  const record = await resolveCopilotWorkspaceFileReference(context, fileOperations.readContent, {
     workspaceId,
     reference: canonical,
   }).catch(() => {
@@ -71,10 +70,12 @@ async function resolveIconUrl(
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
 
-  const { content: buffer } = await readWorkspaceFileContent.execute({
-    principal,
-    input: { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
-  })
+  const { content: buffer } = await executeCopilotFileUseCase(
+    context,
+    readWorkspaceFileContent,
+    { fileId: record.id, assertedWorkspaceId: workspaceId, maxBytes: MAX_ICON_BYTES },
+    { fileId: record.id }
+  )
   const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const uploaded = await uploadFile({
     file: buffer,

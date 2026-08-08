@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { FunctionExecute, UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotOutputFileOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -14,7 +13,7 @@ import {
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { decodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 
 const logger = createLogger('CopilotToolResultFiles')
 
@@ -272,7 +271,6 @@ export async function maybeWriteOutputToFile(
     },
     async (span) => {
       try {
-        const principal = createCopilotFilePrincipal(context, context.workspaceId!)
         const writtenFiles = []
         for (const outputFile of outputFiles) {
           const fileName = normalizeOutputWorkspaceFileName(
@@ -287,9 +285,8 @@ export async function maybeWriteOutputToFile(
             throw new Error('Request aborted before tool mutation could be applied')
           }
 
-          const written = await writeWorkspaceFileByPath({
+          const written = await writeCopilotWorkspaceFileByPath(context, {
             workspaceId: context.workspaceId!,
-            principal,
             target: {
               path: outputFile.path,
               mode: outputFile.mode ?? 'create',

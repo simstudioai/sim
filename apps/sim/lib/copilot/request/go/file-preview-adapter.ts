@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import { MothershipStreamV1EventType } from '@/lib/copilot/generated/mothership-stream-v1'
 import {
   createFilePreviewSession,
@@ -78,9 +78,9 @@ async function resolvePreviewTarget(args: {
     throw new Error('Workspace file preview requires a trusted Copilot execution context')
   }
 
-  const { files } = await listAllWorkspaceFiles.execute({
-    principal: createCopilotFilePrincipal(args.context, args.workspaceId),
-    input: { workspaceId: args.workspaceId, scope: 'active' },
+  const { files } = await executeCopilotFileUseCase(args.context, listAllWorkspaceFiles, {
+    workspaceId: args.workspaceId,
+    scope: 'active',
   })
   const file = findWorkspaceFileRecord(files, args.target.path)
   if (!file) {

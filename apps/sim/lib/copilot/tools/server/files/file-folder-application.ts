@@ -1,5 +1,5 @@
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { CopilotFileDelegationContext } from '@/lib/copilot/auth/file-delegation'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 
@@ -18,15 +18,6 @@ export function requireCopilotWorkspace(
   return context.workspaceId
 }
 
-export function copilotFilePrincipal(
-  context: CopilotFileDelegationContext | undefined,
-  workspaceId: string,
-  fileId?: string
-) {
-  if (!context) throw new Error('Copilot execution context is required')
-  return createCopilotFilePrincipal(context, workspaceId, fileId)
-}
-
 /** Creates missing parent folders through the shared folder application operation. */
 export async function ensureCopilotFileFolderPath(
   context: CopilotFileDelegationContext,
@@ -43,10 +34,12 @@ export async function ensureCopilotFileFolderPath(
       parentId = existing
       continue
     }
-    const result = await createWorkspaceFileFolderOperation.execute({
-      principal: copilotFilePrincipal(context, workspaceId),
-      input: { workspaceId, name, parentId },
-    })
+    const result: Awaited<ReturnType<typeof createWorkspaceFileFolderOperation.execute>> =
+      await executeCopilotFileUseCase(context, createWorkspaceFileFolderOperation, {
+        workspaceId,
+        name,
+        parentId,
+      })
     parentId = result.folder.id
   }
   return parentId

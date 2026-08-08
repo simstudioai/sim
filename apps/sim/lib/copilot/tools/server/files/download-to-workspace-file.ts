@@ -1,10 +1,8 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { z } from 'zod'
-import {
-  createCopilotFilePrincipal,
-  messageForCopilotFileError,
-} from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import { DownloadToWorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -193,7 +191,6 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
 
       assertServerToolNotAborted(context)
-      const principal = createCopilotFilePrincipal(context, workspaceId)
       const mode = outputFile?.mode ?? 'create'
       const writeInput = {
         workspaceId,
@@ -205,8 +202,8 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
       }
       const written =
         mode === 'overwrite'
-          ? await updateWorkspaceFileContentByPath.execute({ principal, input: writeInput })
-          : await createWorkspaceFileByPath.execute({ principal, input: writeInput })
+          ? await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, writeInput)
+          : await executeCopilotFileUseCase(context, createWorkspaceFileByPath, writeInput)
 
       logger.info('Downloaded remote file to workspace', {
         sourceUrl: params.url,

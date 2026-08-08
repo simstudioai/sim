@@ -1,9 +1,10 @@
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import {
-  createCopilotFilePrincipal,
-  messageForCopilotFileError,
-} from '@/lib/copilot/auth/file-delegation'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import { ShareFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -13,7 +14,6 @@ import {
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
   updateWorkspaceFileShare,
   WorkspaceFileShareNoopError,
@@ -67,21 +67,20 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
     const targetRef = path || legacyFileId
     if (!targetRef) return { success: false, message: 'path is required' }
 
-    const principal = createCopilotFilePrincipal(context, workspaceId)
     let existingFile
     try {
       existingFile = path
-        ? await resolveWorkspaceFileReference({
-            principal,
-            operation: fileOperations.updateShare,
+        ? await resolveCopilotWorkspaceFileReference(context, fileOperations.updateShare, {
             workspaceId,
             reference: path,
           })
         : (
-            await readWorkspaceFileMetadata.execute({
-              principal,
-              input: { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
-            })
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileMetadata,
+              { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
+              { fileId: legacyFileId }
+            )
           ).file
     } catch (error) {
       const classified = asOrchestrationError(error)
@@ -92,12 +91,12 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
       return { success: false, message: `File not found: ${targetRef}` }
     }
     assertServerToolNotAborted(context)
-    const principalWithFile = createCopilotFilePrincipal(context, workspaceId, existingFile.id)
     const isActive = action !== 'unshare'
     try {
-      const result = await updateWorkspaceFileShare.execute({
-        principal: principalWithFile,
-        input: {
+      const result = await executeCopilotFileUseCase(
+        context,
+        updateWorkspaceFileShare,
+        {
           fileId: existingFile.id,
           assertedWorkspaceId: workspaceId,
           isActive,
@@ -106,7 +105,8 @@ export const shareFileServerTool: BaseServerTool<ShareFileArgs, ShareFileResult>
           allowedEmails,
           noOpIfInactive: !isActive,
         },
-      })
+        { fileId: existingFile.id }
+      )
       const share = result.share
       logger.info(`${isActive ? 'Enabled' : 'Disabled'} share for file via share_file`, {
         fileId: existingFile.id,

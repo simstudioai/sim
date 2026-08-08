@@ -1,4 +1,4 @@
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { type MothershipResource, MothershipResourceType } from '@/lib/copilot/resources/types'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
@@ -30,17 +30,19 @@ async function resolveResource(
     const fileRef = item.path || item.id || ''
     let record: WorkspaceFileRecord | null
     if (item.path) {
-      const { files } = await listAllWorkspaceFiles.execute({
-        principal: createCopilotFilePrincipal(context, context.workspaceId),
-        input: { workspaceId: context.workspaceId, scope: 'active' },
+      const { files } = await executeCopilotFileUseCase(context, listAllWorkspaceFiles, {
+        workspaceId: context.workspaceId,
+        scope: 'active',
       })
       record = findWorkspaceFileRecord(files, item.path)
     } else if (item.id) {
       record = (
-        await readWorkspaceFileMetadata.execute({
-          principal: createCopilotFilePrincipal(context, context.workspaceId, item.id),
-          input: { fileId: item.id, assertedWorkspaceId: context.workspaceId },
-        })
+        await executeCopilotFileUseCase(
+          context,
+          readWorkspaceFileMetadata,
+          { fileId: item.id, assertedWorkspaceId: context.workspaceId },
+          { fileId: item.id }
+        )
       ).file
     } else {
       record = null

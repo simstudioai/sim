@@ -2,7 +2,7 @@ import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -125,7 +125,7 @@ const MAX_INLINE_FILE_BYTES = 50 * 1024 * 1024
 async function resolveWorkspaceFileRecordOrThrow(
   fileReference: string,
   workspaceId: string,
-  principal: ReturnType<typeof createCopilotFilePrincipal>
+  principal: ReturnType<typeof resolveCopilotFilePrincipal>
 ) {
   let record
   try {
@@ -1272,7 +1272,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const filePrincipal = createCopilotFilePrincipal(context, workspaceId)
+          const filePrincipal = resolveCopilotFilePrincipal(context)
           const record = await resolveWorkspaceFileRecordOrThrow(
             fileReference,
             workspaceId,
@@ -1474,7 +1474,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table is archived: ${tableId}` }
           }
 
-          const filePrincipal = createCopilotFilePrincipal(context, workspaceId)
+          const filePrincipal = resolveCopilotFilePrincipal(context)
           const record = await resolveWorkspaceFileRecordOrThrow(
             fileReference,
             workspaceId,

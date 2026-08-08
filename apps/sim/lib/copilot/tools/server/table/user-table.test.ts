@@ -80,7 +80,7 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => (
   },
 }))
 vi.mock('@/lib/copilot/auth/file-delegation', () => ({
-  createCopilotFilePrincipal: vi.fn(() => ({
+  resolveCopilotFilePrincipal: vi.fn(() => ({
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: 'user-1',

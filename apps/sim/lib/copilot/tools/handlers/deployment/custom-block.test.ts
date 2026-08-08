@@ -55,7 +55,10 @@ vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', ()
   resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
-  readWorkspaceFileContent: { execute: readWorkspaceFileContentMock },
+  readWorkspaceFileContent: {
+    operation: { id: 'files.read_content' },
+    execute: readWorkspaceFileContentMock,
+  },
 }))
 
 vi.mock('@/lib/uploads/core/storage-service', () => ({

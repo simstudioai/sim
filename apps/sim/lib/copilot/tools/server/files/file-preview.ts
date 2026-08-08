@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
@@ -152,14 +152,16 @@ export async function loadWorkspaceFileTextForPreview(
   fileId: string
 ): Promise<WorkspaceFilePreviewBase | undefined> {
   try {
-    const { content: buffer } = await readWorkspaceFileContent.execute({
-      principal: createCopilotFilePrincipal(context, workspaceId, fileId),
-      input: {
+    const { content: buffer } = await executeCopilotFileUseCase(
+      context,
+      readWorkspaceFileContent,
+      {
         fileId,
         assertedWorkspaceId: workspaceId,
         maxBytes: MAX_PREVIEW_SOURCE_BYTES,
       },
-    })
+      { fileId }
+    )
     return {
       text: buffer.toString('utf-8'),
     }

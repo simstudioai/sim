@@ -3,8 +3,12 @@ import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { truncate } from '@sim/utils/string'
 import {
-  createCopilotFilePrincipal,
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import {
   messageForCopilotFileError,
+  resolveCopilotFilePrincipal,
 } from '@/lib/copilot/auth/file-delegation'
 import { WorkspaceFile } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -25,7 +29,6 @@ import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
@@ -287,7 +290,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    const principal = createCopilotFilePrincipal(context, workspaceId)
+    const principal = resolveCopilotFilePrincipal(context)
 
     const resolveExistingTarget = async (
       target: WorkspaceFileTarget | undefined,
@@ -299,19 +302,23 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       let fileRecord: WorkspaceFileRecord
       let vfsPath: string | undefined
       if (target.kind === 'path') {
-        fileRecord = await resolveWorkspaceFileReference({
-          principal,
-          operation: fileOperations.updateContent,
-          workspaceId,
-          reference: target.path,
-        })
+        fileRecord = await resolveCopilotWorkspaceFileReference(
+          context,
+          fileOperations.updateContent,
+          {
+            workspaceId,
+            reference: target.path,
+          }
+        )
         vfsPath = target.path
       } else {
         fileRecord = (
-          await readWorkspaceFileMetadata.execute({
-            principal,
-            input: { fileId: target.fileId, assertedWorkspaceId: workspaceId },
-          })
+          await executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileMetadata,
+            { fileId: target.fileId, assertedWorkspaceId: workspaceId },
+            { fileId: target.fileId }
+          )
         ).file
       }
       if (!fileRecord) {
@@ -356,12 +363,14 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           const folderId = await ensureCopilotFileFolderPath(context, workspaceId, folderSegments)
           let existingFile: WorkspaceFileRecord | undefined
           try {
-            existingFile = await resolveWorkspaceFileReference({
-              principal,
-              operation: fileOperations.create,
-              workspaceId,
-              reference: target.fileName,
-            })
+            existingFile = await resolveCopilotWorkspaceFileReference(
+              context,
+              fileOperations.create,
+              {
+                workspaceId,
+                reference: target.fileName,
+              }
+            )
           } catch (error) {
             const classified = asOrchestrationError(error)
             if (classified?.code !== 'not_found') throw error
@@ -388,17 +397,14 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           assertServerToolNotAborted(context)
           let result: Awaited<ReturnType<typeof createWorkspaceFile.execute>>
           try {
-            result = await createWorkspaceFile.execute({
-              principal,
-              input: {
-                workspaceId,
-                name: fileName,
-                contentType,
-                content,
-                encoding: 'utf-8',
-                folderId,
-                exactName: false,
-              },
+            result = await executeCopilotFileUseCase(context, createWorkspaceFile, {
+              workspaceId,
+              name: fileName,
+              contentType,
+              content,
+              encoding: 'utf-8',
+              folderId,
+              exactName: false,
             })
           } catch (error) {
             return {
@@ -439,13 +445,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (error || !existingFile) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = (
-            await readWorkspaceFileContent.execute({
-              principal: createCopilotFilePrincipal(context, workspaceId, existingFile.id),
-              input: {
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileContent,
+              {
                 fileId: existingFile.id,
                 assertedWorkspaceId: workspaceId,
               },
-            })
+              { fileId: existingFile.id }
+            )
           ).content
           await storeFileIntent(workspaceId, existingFile.id, {
             operation: 'append',
@@ -514,10 +522,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (fileNameValidationError) return { success: false, message: fileNameValidationError }
 
           const fileRecord = (
-            await readWorkspaceFileMetadata.execute({
-              principal,
-              input: { fileId: target.fileId, assertedWorkspaceId: workspaceId },
-            })
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileMetadata,
+              { fileId: target.fileId, assertedWorkspaceId: workspaceId },
+              { fileId: target.fileId }
+            )
           ).file
           if (!fileRecord) {
             return { success: false, message: `File with ID "${target.fileId}" not found` }
@@ -526,14 +536,16 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           const oldName = fileRecord.name
           assertServerToolNotAborted(context)
           try {
-            await renameWorkspaceFile.execute({
-              principal: createCopilotFilePrincipal(context, workspaceId, target.fileId),
-              input: {
+            await executeCopilotFileUseCase(
+              context,
+              renameWorkspaceFile,
+              {
                 fileId: target.fileId,
                 assertedWorkspaceId: workspaceId,
                 name: normalized.newName,
               },
-            })
+              { fileId: target.fileId }
+            )
           } catch (error) {
             return {
               success: false,
@@ -565,10 +577,12 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           }
 
           const fileRecord = (
-            await readWorkspaceFileMetadata.execute({
-              principal,
-              input: { fileId: target.fileId, assertedWorkspaceId: workspaceId },
-            })
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileMetadata,
+              { fileId: target.fileId, assertedWorkspaceId: workspaceId },
+              { fileId: target.fileId }
+            )
           ).file
           if (!fileRecord) {
             return { success: false, message: `File with ID "${target.fileId}" not found` }
@@ -576,13 +590,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
 
           assertServerToolNotAborted(context)
           try {
-            await deleteWorkspaceFileOperation.execute({
-              principal: createCopilotFilePrincipal(context, workspaceId, target.fileId),
-              input: {
+            await executeCopilotFileUseCase(
+              context,
+              deleteWorkspaceFileOperation,
+              {
                 fileId: target.fileId,
                 assertedWorkspaceId: workspaceId,
               },
-            })
+              { fileId: target.fileId }
+            )
           } catch (error) {
             return {
               success: false,
@@ -613,13 +629,15 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
           if (error || !fileRecord) return { success: false, message: error || 'File not found' }
 
           const currentBuffer = (
-            await readWorkspaceFileContent.execute({
-              principal: createCopilotFilePrincipal(context, workspaceId, fileRecord.id),
-              input: {
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileContent,
+              {
                 fileId: fileRecord.id,
                 assertedWorkspaceId: workspaceId,
               },
-            })
+              { fileId: fileRecord.id }
+            )
           ).content
           const existingContent = currentBuffer.toString('utf-8')
 

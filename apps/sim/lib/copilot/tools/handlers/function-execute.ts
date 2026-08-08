@@ -2,7 +2,7 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { omit } from '@sim/utils/object'
 import { hasWorkspaceSandboxAccess } from '@/lib/billing/core/subscription'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { applySecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import type { ToolExecutionContext, ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
 import {
@@ -676,7 +676,7 @@ export async function executeFunctionExecute(
           secretActorUserId ?? context.userId,
           mountedRegistry,
           inputFiles.length > 0 || inputDirectories.length > 0
-            ? createCopilotFilePrincipal(context, context.workspaceId)
+            ? resolveCopilotFilePrincipal(context)
             : undefined
         )
         if (resolved.length > 0) {

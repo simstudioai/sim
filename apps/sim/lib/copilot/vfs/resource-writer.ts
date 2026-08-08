@@ -1,4 +1,8 @@
 import type { Principal } from '@sim/auth/principal'
+import {
+  type CopilotFileDelegationContext,
+  resolveCopilotFilePrincipal,
+} from '@/lib/copilot/auth/file-delegation'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
 import { findWorkspaceFileFolderIdByPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
@@ -177,4 +181,19 @@ export async function writeWorkspaceFileByPath(args: {
     vfsPath: created.vfsPath,
     mode: 'create',
   }
+}
+
+type CopilotWorkspaceFileWriteArgs = Omit<
+  Parameters<typeof writeWorkspaceFileByPath>[0],
+  'principal'
+>
+
+export function writeCopilotWorkspaceFileByPath(
+  context: CopilotFileDelegationContext | undefined,
+  args: CopilotWorkspaceFileWriteArgs
+) {
+  return writeWorkspaceFileByPath({
+    ...args,
+    principal: resolveCopilotFilePrincipal(context),
+  })
 }

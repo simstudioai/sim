@@ -17,7 +17,7 @@ import {
   maybeNotifyStorageLimitForBillingContext,
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
 import { findMothershipUploadRowByChatAndName } from '@/lib/copilot/tools/handlers/upload-file-reader'
@@ -553,7 +553,7 @@ export async function executeMaterializeFile(
     return { success: false, error: 'No workspace context available for materialize_file' }
   }
 
-  const principal = createCopilotFilePrincipal(context, context.workspaceId)
+  const principal = resolveCopilotFilePrincipal(context)
 
   const operation = (params.operation as string | undefined) || 'save'
   // save (promote upload → workspace file), import (JSON → workflow), and extract

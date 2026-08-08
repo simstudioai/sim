@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
 import {
-  createCopilotFilePrincipal,
   messageForCopilotFileError,
+  resolveCopilotFilePrincipal,
 } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
@@ -223,7 +224,7 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       // Compile once via the right engine (or isolated-vm fallback) and resolve
       // the source MIME to store. Shared with the create path.
-      const principal = createCopilotFilePrincipal(context, workspaceId, intent.fileId)
+      const principal = resolveCopilotFilePrincipal(context, intent.fileId)
       const compiled = await compileDocForWrite({
         source: finalContent,
         fileName: fileRecord.name,
@@ -242,9 +243,10 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
       // CRDT merge (gated to markdown, best-effort) — the shared chokepoint every external write path
       // goes through — so a copilot edit shows up live instead of the file changing under the reader.
-      await updateWorkspaceFileContent.execute({
-        principal,
-        input: {
+      await executeCopilotFileUseCase(
+        context,
+        updateWorkspaceFileContent,
+        {
           fileId: intent.fileId,
           assertedWorkspaceId: workspaceId,
           content: finalContent,
@@ -252,7 +254,8 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
           contentType: compiled.sourceMime,
           provenanceMode: operation === 'update' ? 'replace_empty' : 'preserve',
         },
-      })
+        { fileId: intent.fileId }
+      )
 
       const verb =
         operation === 'append' ? 'appended to' : operation === 'update' ? 'updated' : 'patched'

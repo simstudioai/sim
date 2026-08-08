@@ -12,7 +12,7 @@ import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
 } from '@/lib/billing/core/billing-attribution'
-import { createCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
+import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
@@ -397,7 +397,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
-          const filePrincipal = createCopilotFilePrincipal(context, kbWorkspaceId)
+          const filePrincipal = resolveCopilotFilePrincipal(context)
 
           for (const fileRef of fileRefs) {
             let fileRecord

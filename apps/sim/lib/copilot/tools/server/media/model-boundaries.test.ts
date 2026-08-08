@@ -28,7 +28,7 @@ vi.mock('@google/genai', () => ({
 }))
 vi.mock('@/lib/core/config/api-keys', () => ({ getRotatingApiKey: vi.fn(() => 'api-key') }))
 vi.mock('@/lib/copilot/vfs/resource-writer', () => ({
-  writeWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
+  writeCopilotWorkspaceFileByPath: mockWriteWorkspaceFileByPath,
 }))
 vi.mock('@/lib/media/falai-audio', () => ({ generateFalAudio: mockGenerateFalAudio }))
 vi.mock('@/lib/media/falai-video', () => ({ generateFalVideo: mockGenerateFalVideo }))

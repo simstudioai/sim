@@ -60,7 +60,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => 
 }))
 
 vi.mock('@/lib/copilot/tools/server/files/file-folder-application', () => ({
-  copilotFilePrincipal: vi.fn((context, workspaceId, fileId) => ({
+  resolveCopilotFilePrincipal: vi.fn((context, workspaceId, fileId) => ({
     kind: 'delegated',
     serviceId: 'copilot',
     subjectUserId: context.userId,
@@ -85,7 +85,13 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
 vi.mock('@/lib/workspace-files/application/operations', () => ({
   fileOperations: {
     move: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
+    rename: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
     delete: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    updateFolder: {
+      id: 'files.folders.update',
+      minimumRole: 'write',
+      workspaceApiKey: 'allow',
+    },
   },
 }))
 

@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import {
-  createCopilotFilePrincipal,
-  messageForCopilotFileError,
-} from '@/lib/copilot/auth/file-delegation'
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -12,7 +13,6 @@ import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { renameWorkspaceFile } from '@/lib/workspace-files/application/rename-workspace-file'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import { validateFlatWorkspaceFileName } from './workspace-file'
 
 const logger = createLogger('RenameFileServerTool')
@@ -59,21 +59,20 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
     const nameError = validateFlatWorkspaceFileName(newName)
     if (nameError) return { success: false, message: nameError }
 
-    const principal = createCopilotFilePrincipal(context, workspaceId)
     let existingFile
     try {
       existingFile = path
-        ? await resolveWorkspaceFileReference({
-            principal,
-            operation: fileOperations.rename,
+        ? await resolveCopilotWorkspaceFileReference(context, fileOperations.rename, {
             workspaceId,
             reference: path,
           })
         : (
-            await readWorkspaceFileMetadata.execute({
-              principal,
-              input: { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
-            })
+            await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileMetadata,
+              { fileId: legacyFileId, assertedWorkspaceId: workspaceId },
+              { fileId: legacyFileId }
+            )
           ).file
     } catch (error) {
       const classified = asOrchestrationError(error)
@@ -87,10 +86,12 @@ export const renameFileServerTool: BaseServerTool<RenameFileArgs, RenameFileResu
 
     assertServerToolNotAborted(context)
     try {
-      await renameWorkspaceFile.execute({
-        principal: createCopilotFilePrincipal(context, workspaceId, fileId),
-        input: { fileId, assertedWorkspaceId: workspaceId, name: newName },
-      })
+      await executeCopilotFileUseCase(
+        context,
+        renameWorkspaceFile,
+        { fileId, assertedWorkspaceId: workspaceId, name: newName },
+        { fileId }
+      )
     } catch (error) {
       return { success: false, message: messageForCopilotFileError(error, 'Failed to rename file') }
     }
