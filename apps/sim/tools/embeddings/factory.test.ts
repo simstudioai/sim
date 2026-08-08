@@ -79,16 +79,12 @@ describe('embeddings tools model-input projection', () => {
     }
   })
 
-  it('allows the OpenRouter key to come from self-hosted environment configuration', () => {
-    expect(embeddingsOpenRouterTool.params.apiKey.required).toBe(false)
-    expect(embeddingsOpenRouterTool.hosting).toMatchObject({
-      envKeyPrefix: 'OPENROUTER_API_KEY',
-      apiKeyParam: 'apiKey',
-    })
-    expect(embeddingsOpenRouterTool.hosting).not.toHaveProperty('byokProviderId')
+  it('requires an explicit OpenRouter key without hosted-key injection', () => {
+    expect(embeddingsOpenRouterTool.params.apiKey.required).toBe(true)
+    expect(embeddingsOpenRouterTool.hosting).toBeUndefined()
     expect(embeddingsOpenRouterTool.request.body({ input: 'hello' } as never)).toMatchObject({
       provider: 'openrouter',
-      model: 'text-embedding-3-small',
+      model: 'openrouter/openai/text-embedding-3-small',
     })
   })
 })

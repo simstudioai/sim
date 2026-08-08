@@ -1,13 +1,29 @@
 /**
  * @vitest-environment node
  */
-import { describe, expect, it } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockFetchQuery } = vi.hoisted(() => ({
+  mockFetchQuery: vi.fn(),
+}))
+
+vi.mock('@/app/_shell/providers/get-query-client', () => ({
+  getQueryClient: () => ({ fetchQuery: mockFetchQuery }),
+}))
+
 import { DEFAULT_MODEL_BY_PROVIDER, EMBEDDING_MODELS } from '@/lib/embeddings/catalog'
+import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import {
   EMBEDDING_BLOCK_PROVIDERS,
   EmbeddingsBlock,
   TOOL_ID_BY_PROVIDER,
 } from '@/blocks/blocks/embeddings'
+
+const OPENROUTER_MODELS = [
+  'openrouter/openai/text-embedding-3-small',
+  'openrouter/qwen/qwen3-embedding-8b',
+  'openrouter/google/gemini-embedding-001',
+]
 
 /**
  * The block derives its model, task-type, and dimension options from the
@@ -21,7 +37,8 @@ function subBlocksById(id: string) {
 }
 
 function optionIds(options: unknown): string[] {
-  return Array.isArray(options) ? options.map((option) => (option as { id: string }).id) : []
+  const resolved = typeof options === 'function' ? options() : options
+  return Array.isArray(resolved) ? resolved.map((option) => (option as { id: string }).id) : []
 }
 
 /** The provider a `{ field: 'provider', value: X }` condition selects. */
@@ -38,23 +55,29 @@ function conditionModel(subBlock: { condition?: unknown }): string | undefined {
 }
 
 describe('Embeddings block', () => {
-  it('offers exactly the catalog models for each provider', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockFetchQuery.mockResolvedValue({ models: OPENROUTER_MODELS })
+  })
+
+  it('offers static catalog models for direct providers', () => {
     const modelSubBlocks = subBlocksById('model')
     const offered = new Map<string, string[]>()
 
     for (const subBlock of modelSubBlocks) {
       const provider = conditionProvider(subBlock)
       expect(provider).toBeDefined()
+      if (provider === 'openrouter') continue
       offered.set(provider as string, optionIds(subBlock.options))
     }
 
     const expected = new Map<string, string[]>()
     for (const provider of EMBEDDING_BLOCK_PROVIDERS) {
-      const catalogProvider = provider === 'openrouter' ? 'openai' : provider
+      if (provider === 'openrouter') continue
       expected.set(
         provider,
         Object.entries(EMBEDDING_MODELS).flatMap(([modelId, info]) =>
-          info.provider === catalogProvider ? [modelId] : []
+          info.provider === provider ? [modelId] : []
         )
       )
     }
@@ -75,8 +98,7 @@ describe('Embeddings block', () => {
   it('shows a task-type dropdown for exactly the models that support one', () => {
     const withTaskTypes = Object.entries(EMBEDDING_MODELS).flatMap(([id, info]) => {
       if (!info.supportedTaskTypes) return []
-      const providers = info.provider === 'openai' ? ['openai', 'openrouter'] : [info.provider]
-      return providers.map((provider) => `${provider}:${id}`)
+      return [`${info.provider}:${id}`]
     })
 
     const subBlocks = subBlocksById('taskType')
@@ -97,8 +119,7 @@ describe('Embeddings block', () => {
   it('shows a dimensions dropdown for exactly the models that support reduction', () => {
     const withDimensions = Object.entries(EMBEDDING_MODELS).flatMap(([id, info]) => {
       if (!info.supportedDimensions) return []
-      const providers = info.provider === 'openai' ? ['openai', 'openrouter'] : [info.provider]
-      return providers.map((provider) => `${provider}:${id}`)
+      return [`${info.provider}:${id}`]
     })
 
     const subBlocks = subBlocksById('dimensions')
@@ -127,20 +148,19 @@ describe('Embeddings block', () => {
     expect(EmbeddingsBlock.tools.access).toHaveLength(Object.keys(TOOL_ID_BY_PROVIDER).length)
   })
 
-  it('offers OpenAI embedding models through OpenRouter and maps its dedicated key', () => {
+  it('loads every OpenRouter embedding model and maps its dedicated key', async () => {
     const openRouterModels = subBlocksById('model').find(
       (subBlock) => conditionProvider(subBlock) === 'openrouter'
     )
-    expect(optionIds(openRouterModels?.options)).toEqual([
-      'text-embedding-3-small',
-      'text-embedding-3-large',
-      'text-embedding-ada-002',
-    ])
+    expect(openRouterModels?.type).toBe('combobox')
+    expect(openRouterModels?.options).toEqual([])
+    expect(optionIds(await openRouterModels?.fetchOptions?.('block-1'))).toEqual(OPENROUTER_MODELS)
+    expect(mockFetchQuery).toHaveBeenCalledOnce()
 
     expect(
       EmbeddingsBlock.tools.config?.params?.({
         provider: 'openrouter',
-        model: 'text-embedding-3-large',
+        model: 'openrouter/qwen/qwen3-embedding-8b',
         input: 'hello',
         apiKey: 'stale-openai-key',
         openRouterApiKey: 'or-test',
@@ -149,9 +169,24 @@ describe('Embeddings block', () => {
     ).toEqual({
       apiKey: 'or-test',
       input: 'hello',
-      model: 'text-embedding-3-large',
-      dimensions: 1024,
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      taskType: undefined,
+      dimensions: undefined,
     })
+  })
+
+  it('requires the OpenRouter key on hosted and self-hosted deployments', () => {
+    const keySubBlock = subBlocksById('openRouterApiKey')[0]
+    expect(keySubBlock.required).toBe(true)
+    expect(keySubBlock.hideWhenHosted).toBeUndefined()
+    expect(keySubBlock.placeholder).not.toContain('OPENROUTER_API_KEY')
+    expect(() =>
+      EmbeddingsBlock.tools.config?.params?.({
+        provider: 'openrouter',
+        model: DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+        input: 'hello',
+      })
+    ).toThrow('OpenRouter API key is required')
   })
 
   it('only forwards capabilities the selected model declares', () => {

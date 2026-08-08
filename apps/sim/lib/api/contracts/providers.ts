@@ -59,6 +59,16 @@ export const openRouterUpstreamResponseSchema = z.object({
     .default([]),
 })
 
+export const openRouterEmbeddingModelsUpstreamResponseSchema = z.object({
+  data: z.array(
+    z
+      .object({
+        id: z.string().min(1, 'OpenRouter embedding model id cannot be empty'),
+      })
+      .passthrough()
+  ),
+})
+
 export const vllmUpstreamResponseSchema = z.object({
   data: z
     .array(
@@ -248,6 +258,15 @@ export const getVllmProviderModelsContract = defineRouteContract({
 export const getOpenRouterProviderModelsContract = defineRouteContract({
   method: 'GET',
   path: '/api/providers/openrouter/models',
+  response: {
+    mode: 'json',
+    schema: providerModelsResponseSchema,
+  },
+})
+
+export const getOpenRouterEmbeddingModelsContract = defineRouteContract({
+  method: 'GET',
+  path: '/api/providers/openrouter/embeddings/models',
   response: {
     mode: 'json',
     schema: providerModelsResponseSchema,

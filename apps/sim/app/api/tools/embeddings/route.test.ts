@@ -1,24 +1,20 @@
 /**
  * @vitest-environment node
  */
-import {
-  createMockRequest,
-  hybridAuthMockFns,
-  resetEnvFlagsMock,
-  resetEnvMock,
-  setEnv,
-  setEnvFlags,
-} from '@sim/testing'
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEmbed } = vi.hoisted(() => ({
+const { mockEmbed, mockEmbedOpenRouter } = vi.hoisted(() => ({
   mockEmbed: vi.fn(),
+  mockEmbedOpenRouter: vi.fn(),
 }))
 
 vi.mock('@/lib/embeddings', async () => {
   const catalog = await import('@/lib/embeddings/catalog')
   return {
     embed: mockEmbed,
+    embedOpenRouter: mockEmbedOpenRouter,
+    DEFAULT_OPENROUTER_EMBEDDING_MODEL: 'openrouter/openai/text-embedding-3-small',
     findEmbeddingModelInfo: catalog.findEmbeddingModelInfo,
     getModelsForProvider: catalog.getModelsForProvider,
     resolveDimensions: catalog.resolveDimensions,
@@ -41,8 +37,6 @@ function post(body: Record<string, unknown>) {
 describe('POST /api/tools/embeddings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    setEnvFlags({ isHosted: false })
-    setEnv({ OPENROUTER_API_KEY: undefined })
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -56,11 +50,15 @@ describe('POST /api/tools/embeddings', () => {
       pricingId: 'text-embedding-3-small',
       dimensions: 1536,
     })
-  })
-
-  afterEach(() => {
-    resetEnvFlagsMock()
-    resetEnvMock()
+    mockEmbedOpenRouter.mockResolvedValue({
+      embeddings: [[0.1, 0.2]],
+      totalTokens: 3,
+      billableTokens: 0,
+      isBYOK: true,
+      modelName: 'openrouter/qwen/qwen3-embedding-8b',
+      pricingId: 'openrouter/qwen/qwen3-embedding-8b',
+      dimensions: 2,
+    })
   })
 
   it('rejects an unauthenticated caller', async () => {
@@ -134,66 +132,47 @@ describe('POST /api/tools/embeddings', () => {
   it('routes OpenRouter through its transport with an explicit key', async () => {
     const response = await post({
       provider: 'openrouter',
-      model: 'text-embedding-3-large',
+      model: 'openrouter/qwen/qwen3-embedding-8b',
       input: 'hello world',
       apiKey: 'or-test',
-      dimensions: 1024,
     })
 
     expect(response.status).toBe(200)
-    expect(mockEmbed).toHaveBeenCalledWith(
+    expect(mockEmbedOpenRouter).toHaveBeenCalledWith(
       ['hello world'],
       expect.objectContaining({
         apiKey: 'or-test',
-        model: 'text-embedding-3-large',
-        transport: 'openrouter',
-        dimensions: 1024,
+        model: 'openrouter/qwen/qwen3-embedding-8b',
       })
     )
+    expect(mockEmbed).not.toHaveBeenCalled()
     expect((await response.json()).provider).toBe('openrouter')
   })
 
-  it('uses OPENROUTER_API_KEY on self-hosted deployments when the block key is omitted', async () => {
-    setEnv({ OPENROUTER_API_KEY: 'or-environment' })
-
+  it('rejects OpenRouter without an explicit key', async () => {
     const response = await post({
       provider: 'openrouter',
-      model: 'text-embedding-3-small',
-      input: 'hello world',
-    })
-
-    expect(response.status).toBe(200)
-    expect(mockEmbed).toHaveBeenCalledWith(
-      ['hello world'],
-      expect.objectContaining({ apiKey: 'or-environment', transport: 'openrouter' })
-    )
-  })
-
-  it('rejects OpenRouter without a block or self-hosted environment key', async () => {
-    const response = await post({
-      provider: 'openrouter',
-      model: 'text-embedding-3-small',
+      model: 'openrouter/openai/text-embedding-3-small',
       input: 'hello world',
     })
 
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('API key is required for openrouter')
+    expect((await response.json()).error).toContain('apiKey')
     expect(mockEmbed).not.toHaveBeenCalled()
+    expect(mockEmbedOpenRouter).not.toHaveBeenCalled()
   })
 
-  it('does not read OPENROUTER_API_KEY directly on hosted deployments', async () => {
-    setEnvFlags({ isHosted: true })
-    setEnv({ OPENROUTER_API_KEY: 'hosted-platform-key' })
-
+  it('rejects an invalid OpenRouter model id', async () => {
     const response = await post({
       provider: 'openrouter',
-      model: 'text-embedding-3-small',
+      model: 'openrouter/not-qualified',
       input: 'hello world',
+      apiKey: 'or-test',
     })
 
     expect(response.status).toBe(400)
-    expect((await response.json()).error).toContain('API key is required for openrouter')
-    expect(mockEmbed).not.toHaveBeenCalled()
+    expect((await response.json()).error).toContain('Invalid OpenRouter embedding model')
+    expect(mockEmbedOpenRouter).not.toHaveBeenCalled()
   })
 
   it('keeps API keys required for non-OpenRouter providers', async () => {

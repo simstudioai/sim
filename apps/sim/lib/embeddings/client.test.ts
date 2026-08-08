@@ -7,6 +7,7 @@ import {
   EmbeddingAPIError,
   embed,
   embedKnowledgeForDeployment,
+  embedOpenRouter,
   isTransientEmbeddingError,
 } from '@/lib/embeddings/client'
 
@@ -430,6 +431,70 @@ describe('embed', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(projectInputs).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('embedOpenRouter', () => {
+  it('uses a dynamic model and reports the returned native dimensions', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        openAIBody(
+          [
+            [1, 2, 3],
+            [4, 5, 6],
+          ],
+          7
+        )
+      )
+    )
+
+    const result = await embedOpenRouter(['alpha', 'beta'], {
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-test',
+      projectInputs: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      input: ['alpha', 'beta'],
+      model: 'qwen/qwen3-embedding-8b',
+    })
+    expect(result).toMatchObject({
+      embeddings: [
+        [1, 2, 3],
+        [4, 5, 6],
+      ],
+      dimensions: 3,
+      totalTokens: 7,
+      billableTokens: 0,
+      isBYOK: true,
+      modelName: 'openrouter/qwen/qwen3-embedding-8b',
+    })
+  })
+
+  it('fails when OpenRouter returns the wrong number of vectors', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await expect(
+      embedOpenRouter(['alpha', 'beta'], {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        projectInputs: null,
+      })
+    ).rejects.toThrow('returned 1 embeddings for 2 inputs')
+  })
+
+  it('fails when OpenRouter returns inconsistent vector dimensions', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2], [3]])))
+
+    await expect(
+      embedOpenRouter(['alpha', 'beta'], {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        projectInputs: null,
+      })
+    ).rejects.toThrow('inconsistent dimensions')
   })
 })
 

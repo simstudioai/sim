@@ -71,7 +71,7 @@ export const embeddingsToolBodySchema = z.discriminatedUnion('provider', [
   z.object({
     ...embeddingToolCommonShape,
     provider: z.literal('openrouter'),
-    apiKey: z.string().min(1, 'apiKey cannot be empty').optional(),
+    apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
   }),
 ])
 

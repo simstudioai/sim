@@ -1,10 +1,11 @@
+import { toOpenRouterWireEmbeddingModelId } from '@/lib/embeddings/openrouter-models'
 import {
   OPENAI_MAX_ITEMS_PER_REQUEST,
   type OpenAIEmbeddingResponse,
 } from '@/lib/embeddings/providers/openai'
 import type { EmbeddingAdapterFactory } from '@/lib/embeddings/types'
 
-/** OpenRouter exposes OpenAI embedding models under provider-qualified model ids. */
+/** OpenRouter exposes embedding models under provider-qualified model ids. */
 export const createOpenRouterAdapter: EmbeddingAdapterFactory = ({ modelName, apiKey }) => ({
   maxItemsPerRequest: OPENAI_MAX_ITEMS_PER_REQUEST,
   buildRequest: ({ inputs, dimensions }) => ({
@@ -15,7 +16,7 @@ export const createOpenRouterAdapter: EmbeddingAdapterFactory = ({ modelName, ap
     },
     body: {
       input: inputs,
-      model: `openai/${modelName}`,
+      model: toOpenRouterWireEmbeddingModelId(modelName),
       encoding_format: 'float',
       ...(dimensions !== undefined && { dimensions }),
     },

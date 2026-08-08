@@ -9,5 +9,11 @@ export {
   findEmbeddingModelInfo,
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
-export { embed, embedKnowledge } from '@/lib/embeddings/client'
-export type { EmbeddingTaskType, EmbedOptions, EmbedResult } from '@/lib/embeddings/types'
+export { embed, embedKnowledge, embedOpenRouter } from '@/lib/embeddings/client'
+export { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
+export type {
+  EmbeddingTaskType,
+  EmbedOptions,
+  EmbedResult,
+  OpenRouterEmbedOptions,
+} from '@/lib/embeddings/types'

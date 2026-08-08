@@ -18,12 +18,14 @@ import {
   resolveDimensions,
 } from '@/lib/embeddings/catalog'
 import { resolveProviderKey } from '@/lib/embeddings/keys'
+import { DEFAULT_OPENROUTER_EMBEDDING_MODEL } from '@/lib/embeddings/openrouter-models'
 import { getAdapterFactory } from '@/lib/embeddings/providers'
 import type {
   EmbeddingProviderAdapter,
   EmbeddingTaskType,
   EmbedOptions,
   EmbedResult,
+  OpenRouterEmbedOptions,
 } from '@/lib/embeddings/types'
 import { isRetryableError, retryWithExponentialBackoff } from '@/lib/knowledge/documents/utils'
 import { batchByTokenLimit, estimateTokenCount, truncateToTokenLimit } from '@/lib/tokenization'
@@ -356,6 +358,88 @@ export async function embed(texts: string[], options: EmbedOptions): Promise<Emb
   const provider = await resolveProvider(model, options)
   const boundedInputs = prepareEmbeddingInputs(texts, model, provider.info, options.projectInputs)
   return embedWithProvider(boundedInputs, model, taskType, options.dimensions, provider)
+}
+
+/** Generates embeddings for any model returned by OpenRouter's embedding catalog. */
+export async function embedOpenRouter(
+  texts: string[],
+  options: OpenRouterEmbedOptions
+): Promise<EmbedResult> {
+  if (texts.length === 0) throw new Error('At least one embedding input is required')
+  if (!options.apiKey) throw new Error('OpenRouter API key is required')
+
+  const model = options.model ?? DEFAULT_OPENROUTER_EMBEDDING_MODEL
+  const inputs = options.projectInputs ? options.projectInputs(texts) : texts
+  const adapter = getAdapterFactory('openrouter')({
+    modelName: model,
+    apiKey: options.apiKey,
+    nativeDimensions: options.dimensions ?? 0,
+  })
+  const result = await retryWithExponentialBackoff(
+    async () => {
+      const providerRequest = adapter.buildRequest({
+        inputs,
+        taskType: 'document',
+        dimensions: options.dimensions,
+      })
+      const controller = new AbortController()
+      const timeout = setTimeout(() => controller.abort(), EMBEDDING_REQUEST_TIMEOUT_MS)
+      const response = await fetch(providerRequest.apiUrl, {
+        method: 'POST',
+        headers: providerRequest.headers,
+        body: JSON.stringify(providerRequest.body),
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout))
+
+      if (!response.ok) {
+        const errorText = await response.text()
+        throw new EmbeddingAPIError(
+          `Embedding API failed: ${response.status} ${response.statusText} - ${errorText}`,
+          response.status
+        )
+      }
+
+      const json = await response.json()
+      return {
+        embeddings: providerRequest.parse(json),
+        totalTokens:
+          providerRequest.parseTokens?.(json) ??
+          inputs.reduce((sum, text) => sum + estimateTokenCount(text, 'openai').count, 0),
+      }
+    },
+    {
+      maxRetries: 3,
+      initialDelayMs: 1000,
+      maxDelayMs: 10000,
+      retryCondition: isTransientEmbeddingError,
+    }
+  )
+
+  if (result.embeddings.length !== inputs.length) {
+    throw new Error(
+      `OpenRouter returned ${result.embeddings.length} embeddings for ${inputs.length} inputs`
+    )
+  }
+  const dimensions = result.embeddings[0]?.length
+  if (!dimensions) throw new Error('OpenRouter returned an empty embedding vector')
+  if (result.embeddings.some((embedding) => embedding.length !== dimensions)) {
+    throw new Error('OpenRouter returned embedding vectors with inconsistent dimensions')
+  }
+  if (options.dimensions !== undefined && dimensions !== options.dimensions) {
+    throw new Error(
+      `OpenRouter returned ${dimensions} dimensions instead of the requested ${options.dimensions}`
+    )
+  }
+
+  return {
+    embeddings: result.embeddings,
+    totalTokens: result.totalTokens,
+    billableTokens: 0,
+    isBYOK: true,
+    modelName: model,
+    pricingId: model,
+    dimensions,
+  }
 }
 
 type KnowledgeEmbedOptions = Omit<EmbedOptions, 'apiKey' | 'transport'>

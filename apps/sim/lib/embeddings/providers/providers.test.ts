@@ -97,6 +97,17 @@ describe('OpenRouter adapter', () => {
     ])
     expect(request.parseTokens?.(response)).toBe(9)
   })
+
+  it('passes a dynamic OpenRouter model id through without rewriting its provider', () => {
+    const dynamicAdapter = createOpenRouterAdapter({
+      modelName: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-test',
+      nativeDimensions: 0,
+    })
+    const request = dynamicAdapter.buildRequest({ inputs: INPUTS, taskType: 'document' })
+
+    expect(request.body).toMatchObject({ model: 'qwen/qwen3-embedding-8b' })
+  })
 })
 
 describe('Gemini adapter', () => {

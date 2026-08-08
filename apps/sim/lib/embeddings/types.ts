@@ -119,3 +119,11 @@ export interface EmbedResult {
   /** Dimensionality of the returned vectors. */
   dimensions: number
 }
+
+export interface OpenRouterEmbedOptions {
+  apiKey: string
+  model?: string
+  /** Forwarded when a caller explicitly requests a provider-supported reduction. */
+  dimensions?: number
+  projectInputs: ((values: readonly string[]) => string[]) | null
+}

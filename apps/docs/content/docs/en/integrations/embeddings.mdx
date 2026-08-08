@@ -57,7 +57,7 @@ Generate embeddings from text using OpenAI's embedding models
 
 ### OpenRouter Embeddings
 
-Generate embeddings from OpenAI embedding models through OpenRouter
+Generate embeddings through OpenRouter
 
 #### Input
 
@@ -67,7 +67,7 @@ Generate embeddings from OpenAI embedding models through OpenRouter
 | `model` | string | No | Embedding model to use |
 | `taskType` | string | No | What the embedding is for, when the model supports task conditioning: document, query, similarity, classification, or clustering |
 | `dimensions` | number | No | Output dimensions, when the model supports truncation. Defaults to native. |
-| `apiKey` | string | No | OpenRouter API key; optional on self-hosted deployments with OPENROUTER_API_KEY configured |
+| `apiKey` | string | Yes | API key for the selected embedding provider |
 
 #### Output
 

@@ -11,17 +11,26 @@ import {
   EMBEDDING_MODELS,
   getModelsForProvider,
 } from '@/lib/embeddings/catalog'
-import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
+import {
+  DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+  normalizeOpenRouterEmbeddingModelId,
+} from '@/lib/embeddings/openrouter-models'
+import type { EmbeddingTaskType } from '@/lib/embeddings/types'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { providerModelsQueryOptions } from '@/hooks/queries/providers'
 import type { EmbeddingsResponse } from '@/tools/embeddings/types'
 
 export const EMBEDDING_BLOCK_PROVIDERS = [...EMBEDDING_CATALOG_PROVIDERS, 'openrouter'] as const
 
 type EmbeddingBlockProvider = (typeof EMBEDDING_BLOCK_PROVIDERS)[number]
 
-function getCatalogProvider(provider: EmbeddingBlockProvider): EmbeddingCatalogProvider {
-  return provider === 'openrouter' ? 'openai' : provider
+async function fetchOpenRouterEmbeddingModelOptions() {
+  const { models } = await getQueryClient().fetchQuery(
+    providerModelsQueryOptions('openrouter-embeddings')
+  )
+  return models.map((model) => ({ label: model, id: model }))
 }
 
 const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
@@ -53,20 +62,30 @@ const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
  * catalog model cannot leave this block stale. Every variant shares one
  * sub-block id, so each is scoped by a `condition` naming the provider.
  */
-const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_BLOCK_PROVIDERS.map((provider) => {
-  const catalogProvider = getCatalogProvider(provider)
+const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => {
   return {
     id: 'model',
     title: 'Model',
     type: 'dropdown',
-    options: getModelsForProvider(catalogProvider).map((id) => ({
+    options: getModelsForProvider(provider).map((id) => ({
       label: EMBEDDING_MODELS[id].label,
       id,
     })),
-    value: () => DEFAULT_MODEL_BY_PROVIDER[catalogProvider],
+    value: () => DEFAULT_MODEL_BY_PROVIDER[provider],
     condition: { field: 'provider', value: provider },
     dependsOn: ['provider'],
   }
+})
+
+MODEL_SUB_BLOCKS.push({
+  id: 'model',
+  title: 'Model',
+  type: 'combobox',
+  options: [],
+  fetchOptions: fetchOpenRouterEmbeddingModelOptions,
+  value: () => DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+  condition: { field: 'provider', value: 'openrouter' },
+  dependsOn: ['provider'],
 })
 
 /**
@@ -76,9 +95,7 @@ const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_BLOCK_PROVIDERS.map((provid
  */
 const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS).flatMap(
   ([model, info]) => {
-    const providers: EmbeddingBlockProvider[] =
-      info.provider === 'openai' ? ['openai', 'openrouter'] : [info.provider]
-    return providers.flatMap((provider) => {
+    return [info.provider].flatMap((provider) => {
       const scope = { field: 'provider', value: provider, and: { field: 'model', value: model } }
       const subBlocks: SubBlockConfig[] = []
 
@@ -151,9 +168,9 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
     ...MODEL_SUB_BLOCKS,
     ...CAPABILITY_SUB_BLOCKS,
     /**
-     * One field for every provider. Sim stocks a hosted key for all four
-     * (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `COHERE_API_KEY`, `MISTRAL_API_KEY`),
-     * so none of them needs the user to supply one on hosted Sim.
+     * Sim stocks a hosted key for each catalog provider, so none of those
+     * fields needs the user to supply one on hosted Sim. OpenRouter is always
+     * explicit BYOK for this block.
      */
     {
       id: 'apiKey',
@@ -170,12 +187,11 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       id: 'openRouterApiKey',
       title: 'OpenRouter API Key',
       type: 'short-input',
-      placeholder: 'Optional when OPENROUTER_API_KEY is configured',
+      placeholder: 'Enter your OpenRouter API key',
       password: true,
-      required: false,
+      required: true,
       condition: { field: 'provider', value: 'openrouter' },
       connectionDroppable: false,
-      hideWhenHosted: true,
     },
   ],
   tools: {
@@ -194,7 +210,9 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
        */
       tool: (params) => {
         const provider = params.provider as EmbeddingBlockProvider
-        return TOOL_ID_BY_PROVIDER[provider] ?? TOOL_ID_BY_PROVIDER.openai
+        const toolId = TOOL_ID_BY_PROVIDER[provider]
+        if (!toolId) throw new Error(`Unsupported embedding provider: ${String(params.provider)}`)
+        return toolId
       },
       /**
        * Every per-provider dropdown shares one subblock id (`model`,
@@ -210,10 +228,29 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
        */
       params: (params) => {
         const provider = (params.provider as EmbeddingBlockProvider) || 'openai'
-        const catalogProvider = getCatalogProvider(provider)
         if (!params.input) {
           throw new Error('Input text is required')
         }
+
+        if (provider === 'openrouter') {
+          if (typeof params.openRouterApiKey !== 'string' || !params.openRouterApiKey.trim()) {
+            throw new Error('OpenRouter API key is required')
+          }
+          const model = normalizeOpenRouterEmbeddingModelId(
+            typeof params.model === 'string' && params.model
+              ? params.model
+              : DEFAULT_OPENROUTER_EMBEDDING_MODEL
+          )
+          return {
+            apiKey: params.openRouterApiKey,
+            input: params.input,
+            model,
+            taskType: undefined,
+            dimensions: undefined,
+          }
+        }
+
+        const catalogProvider = provider
 
         /** A model saved under a previous provider must not survive the switch. */
         const savedModel = params.model as string | undefined
@@ -240,7 +277,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
             : undefined
 
         return {
-          apiKey: provider === 'openrouter' ? params.openRouterApiKey : params.apiKey,
+          apiKey: params.apiKey,
           input: params.input,
           model,
           taskType,
@@ -258,7 +295,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
     apiKey: { type: 'string', description: 'Provider API key' },
     openRouterApiKey: {
       type: 'string',
-      description: 'OpenRouter API key; optional when configured on the self-hosted deployment',
+      description: 'OpenRouter API key',
     },
   },
   outputs: {

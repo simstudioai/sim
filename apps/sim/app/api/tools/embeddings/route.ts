@@ -8,15 +8,16 @@ import {
 } from '@/lib/api/contracts/tools/embeddings'
 import { getValidationErrorMessage, parseRequest, validationErrorResponse } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
-import { env } from '@/lib/core/config/env'
-import { isHosted } from '@/lib/core/config/env-flags'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   embed,
+  embedOpenRouter,
   findEmbeddingModelInfo,
   resolveDimensions,
 } from '@/lib/embeddings'
+import { normalizeOpenRouterEmbeddingModelId } from '@/lib/embeddings/openrouter-models'
 
 const logger = createLogger('EmbeddingsToolAPI')
 
@@ -65,16 +66,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const { provider, apiKey, model, input, taskType, dimensions } = parsed.data.body
-  const catalogProvider = provider === 'openrouter' ? 'openai' : provider
-  const resolvedApiKey =
-    apiKey || (provider === 'openrouter' && !isHosted ? env.OPENROUTER_API_KEY : undefined)
-  if (!resolvedApiKey) {
-    return NextResponse.json(
-      { success: false, error: `API key is required for ${provider} embeddings` },
-      { status: 400 }
-    )
-  }
-
   const texts = normalizeInput(input)
 
   /**
@@ -120,54 +111,78 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  const resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[catalogProvider]
-  const info = findEmbeddingModelInfo(resolvedModel)
-  if (!info) {
-    return NextResponse.json(
-      { success: false, error: `Unsupported embedding model: ${resolvedModel}` },
-      { status: 400 }
-    )
-  }
-  if (info.provider !== catalogProvider) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Model ${resolvedModel} belongs to ${info.provider}, not ${provider}`,
-      },
-      { status: 400 }
-    )
+  let resolvedModel: string
+  if (provider === 'openrouter') {
+    try {
+      resolvedModel = normalizeOpenRouterEmbeddingModelId(
+        model || DEFAULT_OPENROUTER_EMBEDDING_MODEL
+      )
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid OpenRouter embedding model') },
+        { status: 400 }
+      )
+    }
+  } else {
+    resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
   }
 
-  /**
-   * Resolved here as well as inside `embed()` so an unsupported `dimensions`
-   * is reported as the client error it is. The block's dropdown constrains the
-   * field, but a reference expression can put any value on the wire.
-   */
-  try {
-    resolveDimensions(info, dimensions)
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: getErrorMessage(error, 'Invalid dimensions') },
-      { status: 400 }
-    )
+  if (provider !== 'openrouter') {
+    const info = findEmbeddingModelInfo(resolvedModel)
+    if (!info) {
+      return NextResponse.json(
+        { success: false, error: `Unsupported embedding model: ${resolvedModel}` },
+        { status: 400 }
+      )
+    }
+    if (info.provider !== provider) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Model ${resolvedModel} belongs to ${info.provider}, not ${provider}`,
+        },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Resolved here as well as inside `embed()` so an unsupported `dimensions`
+     * is reported as the client error it is. The block's dropdown constrains the
+     * field, but a reference expression can put any value on the wire.
+     */
+    try {
+      resolveDimensions(info, dimensions)
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid dimensions') },
+        { status: 400 }
+      )
+    }
   }
 
   logger.info(`Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
 
   try {
-    const result = await embed(texts, {
-      model: resolvedModel,
-      transport: provider === 'openrouter' ? 'openrouter' : undefined,
-      taskType,
-      dimensions,
-      apiKey: resolvedApiKey,
-      /**
-       * Callers reach this route through a tool whose `request.modelInput`
-       * already projected `input` at the HTTP hop, so projecting again here
-       * would run the substitution over already-projected content.
-       */
-      projectInputs: null,
-    })
+    const result =
+      provider === 'openrouter'
+        ? await embedOpenRouter(texts, {
+            model: resolvedModel,
+            dimensions,
+            apiKey,
+            projectInputs: null,
+          })
+        : await embed(texts, {
+            model: resolvedModel,
+            taskType,
+            dimensions,
+            apiKey,
+            /**
+             * Callers reach this route through a tool whose `request.modelInput`
+             * already projected `input` at the HTTP hop, so projecting again here
+             * would run the substitution over already-projected content.
+             */
+            projectInputs: null,
+          })
 
     return NextResponse.json({
       success: true,
