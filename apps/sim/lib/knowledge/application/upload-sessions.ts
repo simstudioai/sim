@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import { createLogger } from '@sim/logger'
 import type { V2KnowledgeDocumentUploadMetadata } from '@/lib/api/contracts/v2/knowledge'
 import { v2KnowledgeDocumentUploadMetadataSchema } from '@/lib/api/contracts/v2/knowledge'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
@@ -39,7 +38,14 @@ import {
 } from '@/lib/uploads/upload-session/service'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
-const logger = createLogger('KnowledgeUploadApplication')
+const PROCESSING_DISPATCH_FAILURE_MESSAGE = 'Knowledge document processing dispatch failed'
+
+class KnowledgeDocumentProcessingDispatchError extends Error {
+  constructor(cause: unknown) {
+    super(PROCESSING_DISPATCH_FAILURE_MESSAGE, { cause })
+    this.name = 'KnowledgeDocumentProcessingDispatchError'
+  }
+}
 
 export class KnowledgeDocumentUnsupportedMediaTypeError extends Error {
   constructor(message: string) {
@@ -253,6 +259,22 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           )
         }
         if (bound.status === 'bound') {
+          if (
+            claimed.error === PROCESSING_DISPATCH_FAILURE_MESSAGE &&
+            bound.document.processingStatus === 'pending'
+          ) {
+            const billingAttribution = await resolveKnowledgeBillingAttribution(
+              principal,
+              freshContext
+            )
+            await dispatchKnowledgeDocumentProcessing(
+              bound.document,
+              freshContext.knowledgeBaseId,
+              processingOptions,
+              requestId,
+              billingAttribution
+            )
+          }
           return {
             value: {
               document: bound.document,
@@ -315,26 +337,13 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
           throw error
         }
 
-        const processingDocument: DocumentData = {
-          documentId: created.id,
-          filename: created.filename,
-          fileUrl: created.fileUrl,
-          fileSize: created.fileSize,
-          mimeType: created.mimeType,
-        }
-        processDocumentsWithQueue(
-          [processingDocument],
+        await dispatchKnowledgeDocumentProcessing(
+          created,
           registrationContext.knowledgeBaseId,
-          processingOptions ?? {},
+          processingOptions,
           requestId,
           billingAttribution
-        ).catch((error: unknown) => {
-          logger.error('Knowledge document processing pipeline failed', {
-            knowledgeBaseId: registrationContext.knowledgeBaseId,
-            documentId: created.id,
-            error,
-          })
-        })
+        )
         return {
           value: {
             document: created,
@@ -371,6 +380,33 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
     }
   },
 })
+
+async function dispatchKnowledgeDocumentProcessing(
+  document: CreatedKnowledgeDocument,
+  knowledgeBaseId: string,
+  processingOptions: V2KnowledgeDocumentUploadMetadata['processingOptions'],
+  requestId: string,
+  billingAttribution: Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>
+): Promise<void> {
+  const processingDocument: DocumentData = {
+    documentId: document.id,
+    filename: document.filename,
+    fileUrl: document.fileUrl,
+    fileSize: document.fileSize,
+    mimeType: document.mimeType,
+  }
+  try {
+    await processDocumentsWithQueue(
+      [processingDocument],
+      knowledgeBaseId,
+      processingOptions ?? {},
+      requestId,
+      billingAttribution
+    )
+  } catch (error) {
+    throw new KnowledgeDocumentProcessingDispatchError(error)
+  }
+}
 
 async function loadBoundKnowledgeDocumentUpload(
   principal: Principal,

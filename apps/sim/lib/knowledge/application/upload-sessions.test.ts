@@ -390,7 +390,83 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(result.value.created).toBe(false)
     expect(mocks.resolveBilling).not.toHaveBeenCalled()
     expect(mocks.createDocument).not.toHaveBeenCalled()
+    expect(mocks.processQueue).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('fails completion when document processing cannot be dispatched', async () => {
+    const failure = new Error('queue unavailable')
+    mocks.processQueue.mockRejectedValue(failure)
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<unknown>
+      }) => params.finalize(params.session)
+    )
+
+    await expect(
+      completeKnowledgeDocumentUpload.execute({
+        principal: PRINCIPAL,
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          uploadId: 'upload-1',
+          uploadToken: 'token',
+          source: 'api',
+        },
+        request: REQUEST,
+      })
+    ).rejects.toMatchObject({
+      name: 'KnowledgeDocumentProcessingDispatchError',
+      message: 'Knowledge document processing dispatch failed',
+      cause: failure,
+    })
+    expect(mocks.createDocument).toHaveBeenCalledTimes(1)
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('retries a failed processing dispatch before completing a bound registration', async () => {
+    const recoveringSession = {
+      ...SESSION,
+      status: 'finalizing' as const,
+      completedFileId: null,
+      error: 'Knowledge document processing dispatch failed',
+    }
+    mocks.getUpload.mockResolvedValue(recoveringSession)
+    mocks.findBound.mockResolvedValue({
+      status: 'bound',
+      document: { ...DOCUMENT, processingStatus: 'pending' },
+    })
+    mocks.completeUpload.mockImplementation(
+      async (params: {
+        session: UploadSessionRecord
+        finalize: (session: UploadSessionRecord) => Promise<{
+          value: { document: typeof DOCUMENT; created: boolean; knowledgeBaseName: string | null }
+        }>
+      }) => ({
+        session: { ...params.session, status: 'completed' as const },
+        value: (await params.finalize(params.session)).value,
+        alreadyCompleted: true,
+      })
+    )
+
+    const result = await completeKnowledgeDocumentUpload.execute({
+      principal: PRINCIPAL,
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        uploadId: 'upload-1',
+        uploadToken: 'token',
+        source: 'api',
+      },
+      request: REQUEST,
+    })
+
+    expect(result.value.created).toBe(true)
+    expect(mocks.resolveBilling).toHaveBeenCalledTimes(1)
+    expect(mocks.processQueue).toHaveBeenCalledTimes(1)
+    expect(mocks.createDocument).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
   })
 
   it('converges a finalization retry after durable bind without duplicate document or audit', async () => {
@@ -454,6 +530,7 @@ describe('knowledge-document upload application lifecycle', () => {
     expect(recovered.value.created).toBe(true)
     expect(retry.value.created).toBe(false)
     expect(mocks.createDocument).not.toHaveBeenCalled()
+    expect(mocks.processQueue).not.toHaveBeenCalled()
     expect(mocks.recordAudit).toHaveBeenCalledTimes(1)
   })
 
