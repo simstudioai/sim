@@ -62,9 +62,14 @@ async function readPageWithinBudget(
   const parts: string[] = []
   let remaining = budget
   let completed = false
+  let dropped = false
 
   try {
-    while (remaining > 0 && Date.now() <= deadline) {
+    /**
+     * Loops until content is actually dropped rather than until the budget hits
+     * zero: text that ends exactly on the budget is complete, not truncated.
+     */
+    while (!dropped && Date.now() <= deadline) {
       const { value, done } = await reader.read()
       if (done) {
         completed = true
@@ -78,6 +83,7 @@ async function readPageWithinBudget(
         if (piece.length > remaining) {
           parts.push(piece.slice(0, remaining))
           remaining = 0
+          dropped = true
           break
         }
 
