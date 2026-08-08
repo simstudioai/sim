@@ -67,6 +67,7 @@ dmg:
   background: build/dmg-background.png
   iconSize: 96
   iconTextSize: 13
+  # Keep both icon centers inside the compact 660x420 Finder canvas.
   contents:
     - x: 165
       y: 210
