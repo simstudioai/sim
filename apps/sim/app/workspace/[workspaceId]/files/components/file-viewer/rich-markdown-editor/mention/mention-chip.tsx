@@ -3,7 +3,7 @@ import { cn } from '@sim/emcn'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
 import { useParams, useRouter } from 'next/navigation'
-import { getBareIconStyle, type StyleableIcon } from '@/blocks/icon-color'
+import { getBareIconStyle, type StyleableIcon } from '@/blocks/brand-icon-style'
 import { mentionIcon } from './mention-icon'
 import { MarkdownMention, type MentionAttrs } from './mention-node'
 import { simLinkPath } from './sim-link'
@@ -38,7 +38,7 @@ export function MentionChipView({ node, editor }: ReactNodeViewProps) {
   const { kind, id, label } = node.attrs as MentionAttrs
   const Icon = mentionIcon(kind, id, label) as StyleableIcon | undefined
   const iconStyle = Icon ? getBareIconStyle(Icon) : undefined
-  const navigable = editor.storage.mention?.navigable === true
+  const navigable = editor.storage.mentionMenu?.navigable === true
   const workspaceId = typeof params.workspaceId === 'string' ? params.workspaceId : undefined
   const path = navigable && workspaceId ? simLinkPath(workspaceId, kind, id) : null
 

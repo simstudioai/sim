@@ -1,5 +1,11 @@
 import { CodeIcon } from '@/components/icons'
+import { isSandboxesEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage, getLanguageDisplayName } from '@/lib/execution/languages'
+import {
+  fetchWorkspaceSandboxOption,
+  fetchWorkspaceSandboxOptions,
+  fetchWorkspaceSecretNameOptions,
+} from '@/lib/workflows/subblocks/options'
 import type { BlockConfig } from '@/blocks/types'
 import type { CodeExecutionOutput } from '@/tools/function/types'
 
@@ -8,11 +14,13 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
   name: 'Function',
   description: 'Run custom logic',
   longDescription:
-    'This is a core workflow block. Execute custom JavaScript or Python code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports or Python uses E2B sandbox.',
+    'This is a core workflow block. Execute custom JavaScript, Python, or Shell code within your workflow. JavaScript without imports runs locally for fast execution, while code with imports, Python, and Shell run in a remote sandbox.',
   bestPractices: `
   - JavaScript code without external imports runs in a local VM for fastest execution.
-  - JavaScript code with import/require statements requires E2B and runs in a secure sandbox.
-  - Python code always requires E2B and runs in a secure sandbox.
+  - JavaScript code with import/require statements runs in a remote sandbox.
+  - Python code always runs in a remote sandbox.
+  - Shell code runs CLI commands in a remote sandbox.
+  - To import third-party packages or add curated CLI tools, create a sandbox in Settings > Sandboxes and select it under the block's advanced options. Without one, only the default image's packages and commands are available.
   - Can reference workflow variables using <blockName.output> syntax as usual within code. Avoid XML/HTML tags.
   `,
   docsLink: 'https://docs.sim.ai/workflows/blocks/function',
@@ -23,13 +31,15 @@ export const FunctionBlock: BlockConfig<CodeExecutionOutput> = {
     {
       id: 'language',
       type: 'dropdown',
-      options: [
+      options: () => [
         { label: getLanguageDisplayName(CodeLanguage.JavaScript), id: CodeLanguage.JavaScript },
         { label: getLanguageDisplayName(CodeLanguage.Python), id: CodeLanguage.Python },
+        ...(isSandboxesEnabled
+          ? [{ label: getLanguageDisplayName(CodeLanguage.Shell), id: CodeLanguage.Shell }]
+          : []),
       ],
       placeholder: 'Select language',
       value: () => CodeLanguage.JavaScript,
-      showWhenEnvSet: 'NEXT_PUBLIC_E2B_ENABLED',
     },
     {
       id: 'code',
@@ -47,10 +57,10 @@ The code should be executable within an 'async function(params, environmentVaria
 Current code context: {context}
 
 IMPORTANT FORMATTING RULES:
-1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. Do NOT wrap it in quotes (e.g., use 'apiKey = {{SERVICE_API_KEY}}' not 'apiKey = "{{SERVICE_API_KEY}}"'). Our system replaces these placeholders before execution.
+1. Reference Environment Variables: Use the exact syntax {{VARIABLE_NAME}}. In JavaScript and Python, prefer the unquoted form when the placeholder is the complete expression (for example, 'const apiKey = {{SERVICE_API_KEY}};'). Quoted and embedded string forms such as '"Bearer {{SERVICE_API_KEY}}"', template literals, and JavaScript regex literals are also supported. In Shell, prefer '"{{SERVICE_API_KEY}}"' when the secret should be one scalar argument; use a bare placeholder only when Bash word-splitting or pattern semantics are intentional. Sim binds the resolved value separately from the source at execution time, preserving its exact string contents.
 2. Reference Input Parameters/Workflow Variables: Use the exact syntax <variable_name>. Do NOT wrap it in quotes (e.g., use 'userId = <userId>;' not 'userId = "<userId>";'). This includes parameters defined in the block's schema and outputs from previous blocks.
 3. Function Body ONLY: Do NOT include the function signature (e.g., 'async function myFunction() {' or the surrounding '}').
-4. Imports: Do NOT include import/require statements unless they are standard Node.js built-in modules (e.g., 'crypto', 'fs'). External libraries are not supported in this context.
+4. Imports: Standard Node.js built-in modules (e.g., 'crypto', 'fs') are always available. Third-party packages are available ONLY when the block has a sandbox selected — the sandbox's package list is appended below when one is. Never import a package that is not on that list.
 5. Output: Ensure the code returns a value if the function is expected to produce output. Use 'return'.
 6. Clarity: Write clean, readable code.
 7. No Explanations: Do NOT include markdown formatting, comments explaining the rules, or any text other than the raw JavaScript code for the function body.
@@ -89,17 +99,81 @@ try {
         generationType: 'javascript-function-body',
       },
     },
+    {
+      id: 'sandboxId',
+      title: 'Sandbox',
+      type: 'combobox',
+      mode: 'advanced',
+      searchable: true,
+      // Empty means the default image — the picker must never auto-select for us.
+      emptyIsValid: true,
+      clearOnMissingOption: true,
+      createAction: 'sandbox',
+      // Refetched whenever `language` changes, so the list is always scoped to
+      // sandboxes this block can actually run in.
+      dependsOn: ['language'],
+      showWhenEnvSet: 'NEXT_PUBLIC_SANDBOXES_ENABLED',
+      placeholder: 'Default image',
+      description:
+        'Sim sandbox dependencies, system packages, and managed CLIs available to this block. Shell can use Sim sandboxes from either language. Manage them in Settings > Sandboxes. Leaving this empty runs on the default image.',
+      options: [],
+      fetchOptions: (blockId) => fetchWorkspaceSandboxOptions(blockId),
+      fetchOptionById: (blockId, optionId) => fetchWorkspaceSandboxOption(blockId, optionId),
+    },
+    {
+      id: 'secretScope',
+      title: 'Secret access',
+      type: 'dropdown',
+      // Only meaningful when an agent calls this block as a tool.
+      context: 'tool-input',
+      paramVisibility: 'user-only',
+      options: [
+        { label: 'All secrets', id: 'all' },
+        { label: 'Selected secrets', id: 'selected' },
+      ],
+      value: () => 'all',
+      description:
+        'Code can read any workspace secret, including ones added later. Narrow this to advertise a specific set to the model.',
+    },
+    {
+      id: 'mountedSecrets',
+      title: 'Secrets',
+      type: 'dropdown',
+      context: 'tool-input',
+      paramVisibility: 'user-only',
+      multiSelect: true,
+      searchable: true,
+      /**
+       * Secret names are case-sensitive because code references the exact `{{NAME}}`,
+       * so the picker must preserve the displayed casing.
+       */
+      preserveLabelCase: true,
+      options: [],
+      condition: { field: 'secretScope', value: 'selected' },
+      placeholder: 'Select secrets this tool can read',
+      fetchOptions: () => fetchWorkspaceSecretNameOptions(),
+    },
   ],
   tools: {
     access: ['function_execute'],
   },
   inputs: {
-    code: { type: 'string', description: 'JavaScript or Python code to execute' },
-    language: { type: 'string', description: 'Language (javascript or python)' },
+    code: { type: 'string', description: 'JavaScript, Python, or Shell code to execute' },
+    language: { type: 'string', description: 'Language (javascript, python, or shell)' },
     timeout: { type: 'number', description: 'Execution timeout' },
+    sandboxId: {
+      type: 'string',
+      description:
+        'Sim sandbox providing dependencies, system packages, and managed CLIs. Selecting or clearing it requires an active Max or Enterprise plan.',
+    },
+    secretScope: { type: 'string', description: 'Secret access mode: all or selected' },
+    mountedSecrets: {
+      type: 'json',
+      description: 'Workspace secret names this block may read when secretScope is selected',
+    },
   },
   outputs: {
-    result: { type: 'json', description: 'Return value from the executed JavaScript function' },
+    result: { type: 'json', description: 'Structured result emitted by the executed code' },
     stdout: {
       type: 'string',
       description: 'Console log output and debug messages from function execution',

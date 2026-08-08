@@ -2,7 +2,8 @@
  * Type definitions for user-defined tables.
  */
 
-import type { COLUMN_TYPES } from '@/lib/table/constants'
+import type { COLUMN_TYPES, FILTER_OPS } from '@/lib/table/constants'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type ColumnValue = string | number | boolean | null | Date
 export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
@@ -14,6 +15,12 @@ export type JsonValue = ColumnValue | JsonValue[] | { [key: string]: JsonValue }
  * storage key with `getColumnId` from `./column-keys`.
  */
 export type RowData = Record<string, JsonValue>
+
+/** Exact encrypted provenance for each touched storage column in one row write. */
+export interface TableRowSecretProvenanceWrite {
+  complete: boolean
+  columns: Record<string, ResolvedSecretTraceProvenanceV1>
+}
 
 export type SortDirection = 'asc' | 'desc'
 
@@ -27,8 +34,8 @@ export type Sort = Record<string, SortDirection>
  * without persisting a view.
  */
 export interface TableViewDraft {
-  filter?: Filter | null
-  sort?: Sort | null
+  filter?: TablePredicate | null
+  order?: SortSpec | null
   hiddenColumns?: string[]
 }
 
@@ -73,7 +80,16 @@ export interface ColumnDefinition {
   options?: SelectOption[]
   /** When true, a `select` column accepts several options per cell (string[]). */
   multiple?: boolean
+  /**
+   * ISO 4217 code for a `currency` column, e.g. `USD`. Display metadata only —
+   * cells store a plain number, so changing this reformats without touching a
+   * single row. Absent means {@link DEFAULT_CURRENCY_CODE}.
+   */
+  currencyCode?: string
 }
+
+/** The column `type` discriminator, named so callers don't index into the interface. */
+export type ColumnType = ColumnDefinition['type']
 
 /** One group output → one plain column. */
 export interface WorkflowGroupOutput {
@@ -295,8 +311,8 @@ export interface TableMetadata {
  * user resizes, reorders, pins, or hides columns.
  */
 export interface TableViewConfig extends TableMetadata {
-  filter?: Filter | null
-  sort?: Sort | null
+  filter?: TablePredicate | null
+  sort?: SortSpec | null
 }
 
 /** Async background-job lifecycle state for a table. NULL/undefined = idle (no job). */
@@ -512,6 +528,41 @@ export interface Filter {
   [key: string]: ColumnValue | ConditionOperators | Filter[] | undefined
 }
 
+/**
+ * v2 filter operators (bare, no `$`). Equality and `in`/`nin` are case-sensitive
+ * (JSONB containment, GIN-indexed); the text ops `contains`/`ncontains`/
+ * `startsWith`/`endsWith` are ILIKE (case-insensitive). `isEmpty`/`isNotEmpty`
+ * match null OR empty string;
+ * `isNull`/`isNotNull` are strict null checks. The four `is*` ops are valueless.
+ * This is the canonical operator set the shared `fieldPredicate` leaf
+ * understands; the legacy `$`-operators normalize onto it.
+ */
+export type FilterOp = (typeof FILTER_OPS)[number]
+
+/** A single v2 leaf predicate: `field op value`. `value` is omitted for `isEmpty`/`isNotEmpty`. */
+export interface Predicate {
+  field: string
+  op: FilterOp
+  value?: JsonValue
+}
+
+/**
+ * v2 nestable filter tree. A group is either `{ all: [...] }` (AND) or
+ * `{ any: [...] }` (OR); members are leaves or nested groups. Replaces the
+ * MongoDB-style `Filter` on the v2 surface — same engine, legible grammar.
+ *
+ * @example
+ * { all: [{ field: 'slack_user_id', op: 'in', value: ['U1','U2'] }, { field: 'wins', op: 'gte', value: 10 }] }
+ * { any: [{ field: 'status', op: 'eq', value: 'active' }, { field: 'status', op: 'eq', value: 'pending' }] }
+ */
+export type PredicateNode = Predicate | TablePredicate
+export type TablePredicate = { all: PredicateNode[] } | { any: PredicateNode[] }
+/** Accepted v2 filter input: either one bare condition or an explicit logical group. */
+export type TablePredicateInput = PredicateNode
+
+/** v2 sort specification: an ordered list of `{ field, direction }`. */
+export type SortSpec = Array<{ field: string; direction: SortDirection }>
+
 export interface ValidationResult {
   valid: boolean
   errors: string[]
@@ -543,11 +594,21 @@ export interface SortRule {
 
 export interface QueryOptions {
   filter?: Filter
+  /**
+   * v2 nestable predicate. When set it takes precedence over `filter` — the two
+   * compile through the same `fieldPredicate` leaf, so callers pick one grammar.
+   */
+  predicate?: TablePredicate
   sort?: Sort
+  /** Page row cap. Omitted = return the ENTIRE matching result, failing fast if
+   *  it exceeds the response byte budget (`MAX_QUERY_RESULT_BYTES`). A bounded
+   *  page may byte-cut early with `nextCursor` set. Never an unbounded fetch —
+   *  the drain stops at the budget either way. */
   limit?: number
   offset?: number
   /** Keyset cursor for the default `(order_key, id)` order — see {@link TableRowsCursor}.
-   *  Mutually exclusive with `sort` and `offset`; takes precedence over `offset` when set. */
+   *  Mutually exclusive with `sort`. May be combined with `offset` (a compound
+   *  cursor seeks the anchor, then offsets past unkeyed rows consumed after it). */
   after?: TableRowsCursor
   /**
    * When true (default), runs a `COUNT(*)` and returns `totalCount` as a number.
@@ -569,6 +630,13 @@ export interface QueryResult {
   totalCount: number | null
   limit: number
   offset: number
+  /**
+   * Opaque cursor for the next page — non-null whenever more matching rows
+   * exist beyond this page, whether the page was cut by `limit` or by the
+   * response byte budget. Callers echo it back as `cursor` and never construct
+   * keyset/offset state themselves. See `rows/cursor.ts`.
+   */
+  nextCursor: string | null
 }
 
 export interface BulkOperationResult {
@@ -610,6 +678,8 @@ export interface InsertRowData {
   afterRowId?: string
   /** Insert directly before this row (fractional ordering). Takes precedence over `position`. */
   beforeRowId?: string
+  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BatchInsertData {
@@ -622,6 +692,8 @@ export interface BatchInsertData {
    * Length must equal `rows.length`.
    */
   orderKeys?: string[]
+  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
 
 export interface UpsertRowData {
@@ -631,6 +703,8 @@ export interface UpsertRowData {
   userId?: string
   /** Which unique column to match on. Required when multiple unique columns exist. */
   conflictTarget?: string
+  /** Encrypted provenance for the values in `data`; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface UpsertResult {
@@ -673,6 +747,8 @@ export interface UpdateRowData {
    * account. Omitted only for internal `executionsPatch`-only writes.
    */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BulkUpdateData {
@@ -681,6 +757,8 @@ export interface BulkUpdateData {
   limit?: number
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in this partial patch; omitted by legacy callers. */
+  secretProvenance?: TableRowSecretProvenanceWrite
 }
 
 export interface BatchUpdateByIdData {
@@ -693,6 +771,8 @@ export interface BatchUpdateByIdData {
   workspaceId: string
   /** The member who performed this write — billed/gated for triggered enrichment. */
   actorUserId?: string | null
+  /** Encrypted provenance for the values in all partial patches; omitted by legacy callers. */
+  secretProvenanceByRowId?: Record<string, TableRowSecretProvenanceWrite>
 }
 
 export interface BulkDeleteData {
@@ -718,6 +798,8 @@ export interface ReplaceRowsData {
   rows: RowData[]
   workspaceId: string
   userId?: string
+  /** Encrypted provenance for the values in `rows`; omitted by legacy callers. */
+  secretProvenance?: Array<TableRowSecretProvenanceWrite | undefined>
 }
 
 export interface ReplaceRowsResult {
@@ -734,16 +816,27 @@ export interface RenameColumnData {
 export interface UpdateColumnTypeData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   newType: (typeof COLUMN_TYPES)[number]
   /** Options to set when changing to a `select` type. */
   options?: SelectOption[]
   /** Whether the `select` column accepts multiple options per cell. */
   multiple?: boolean
+  /** Currency to set when changing to the `currency` type. */
+  currencyCode?: string
   /**
-   * The `required` value the same request is about to set, when it changes type
-   * and constraints together. Those are separate transactions, so the
-   * conversion has to validate against the constraint the column will END UP
-   * with — otherwise it commits and the constraint write then fails.
+   * The `unique` value the same request is about to set. Validated inside the
+   * retype against the post-conversion values, because the conversion is what
+   * can create the duplicates.
+   */
+  unique?: boolean
+  /**
+   * The `required` value the same request is about to set. Applied by this
+   * write, in the same transaction as the change it accompanies.
    */
   required?: boolean
 }
@@ -751,21 +844,50 @@ export interface UpdateColumnTypeData {
 export interface UpdateColumnOptionsData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
+  /** Constraints to apply in the SAME transaction as this write. */
+  unique?: boolean
   options: SelectOption[]
   /** Toggle single/multi selection alongside the options update. */
   multiple?: boolean
   /**
-   * The `required` value the same request is about to set. The constraint write
-   * is a separate transaction, so the options update has to validate against
-   * the constraint the column will END UP with — otherwise it clears cells and
-   * the constraint write then fails, leaving the removal committed.
+   * The `required` value the same request is about to set. Applied by this
+   * write, in the same transaction as the options change.
    */
   required?: boolean
+}
+
+/**
+ * Payload for `updateColumnCurrency`. Unlike an options update this rewrites no
+ * cells — a currency cell stores a plain number, and `currencyCode` only
+ * changes how it is rendered.
+ */
+export interface UpdateColumnCurrencyData {
+  tableId: string
+  columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
+  /** Constraints to apply in the SAME transaction as this write. */
+  unique?: boolean
+  required?: boolean
+  currencyCode: string
 }
 
 export interface UpdateColumnConstraintsData {
   tableId: string
   columnName: string
+  /**
+   * A rename to apply in the SAME transaction as this write. Folding it in is
+   * what stops a combined request from committing one half and then failing.
+   */
+  newName?: string
   required?: boolean
   unique?: boolean
 }

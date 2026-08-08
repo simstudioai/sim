@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { ChipConfirmModal, toast } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, Plus, TriangleAlert } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { AlertTriangle, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
+import type { SettingsAction } from '@/components/settings/settings-header'
 import type { ForkLineageChildApi, ForkLineageNodeApi } from '@/lib/api/contracts/workspace-fork'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components'
@@ -24,9 +25,7 @@ import {
   type RowAction,
   RowActionsMenu,
 } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
-import type { SettingsAction } from '@/app/workspace/[workspaceId]/settings/components/settings-header/settings-header'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
@@ -47,6 +46,7 @@ import {
 } from '@/ee/workspace-forking/hooks/workspace-fork'
 import { useWorkspaceCreationPolicy, useWorkspacesQuery } from '@/hooks/queries/workspace'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { buildWebhookTriggerUrl } from '@/triggers/webhook-url'
 
 /** Explains a disabled lineage action whose target workspace the viewer cannot open. */
 const NO_ACCESS_TOOLTIP = "You don't have access to this workspace"
@@ -153,7 +153,7 @@ function ForkSyncDetailView({
         },
       ]
 
-  const targetWorkspaceName = direction === 'push' ? otherWorkspaceName : 'this workspace'
+  const targetWorkspaceName = controller.targetWorkspaceName
 
   return (
     <>
@@ -221,6 +221,36 @@ function ForkSyncDetailView({
             {controller.archivedWorkflowNames.length > ARCHIVED_PREVIEW_LIMIT ? (
               <div className='text-[var(--text-muted)] text-small'>
                 and {controller.archivedWorkflowNames.length - ARCHIVED_PREVIEW_LIMIT} more
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+        {/* A dead trigger URL is only discoverable after the fact, when the external caller goes
+            quiet - so it belongs in the confirm, next to the other irreversible consequences. */}
+        {controller.triggerUrlChanges.length > 0 ? (
+          <div className='flex flex-col gap-1 px-2'>
+            <p className='break-words text-[var(--text-primary)] text-sm'>
+              {controller.triggerUrlChanges.length === 1 ? 'A webhook URL' : 'Webhook URLs'} in{' '}
+              <span className='font-medium'>{targetWorkspaceName}</span> will stop being served —
+              anything calling {controller.triggerUrlChanges.length === 1 ? 'it' : 'them'} breaks
+              until you re-register:
+            </p>
+            {controller.triggerUrlChanges.slice(0, ARCHIVED_PREVIEW_LIMIT).map((change) => (
+              // Naming the URL, not just its workflow: several URLs in one workflow would render
+              // as identical lines, and this confirm is the last point before they stop serving.
+              <div
+                key={`${change.workflowName}:${change.path}`}
+                className='min-w-0 text-[var(--text-muted)] text-small'
+              >
+                {change.workflowName}
+                <span className='block truncate font-mono text-caption'>
+                  {buildWebhookTriggerUrl(change.path)}
+                </span>
+              </div>
+            ))}
+            {controller.triggerUrlChanges.length > ARCHIVED_PREVIEW_LIMIT ? (
+              <div className='text-[var(--text-muted)] text-small'>
+                and {controller.triggerUrlChanges.length - ARCHIVED_PREVIEW_LIMIT} more
               </div>
             ) : null}
           </div>
@@ -550,7 +580,7 @@ export function Forks() {
         }}
       >
         <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
           <span>
             This cannot be undone — the saved mappings and sync history for this pair are deleted,
             and forking again creates a brand-new workspace.
@@ -576,7 +606,7 @@ export function Forks() {
         }}
       >
         <div className='flex items-start gap-1.5 px-2 text-[var(--text-secondary)] text-caption'>
-          <AlertTriangle className='mt-[1px] size-[14px] shrink-0' />
+          <TriangleAlert className='mt-[1px] size-[14px] shrink-0' />
           <span>
             Resources copied into this workspace during syncs may remain afterward — rollback
             restores workflows to their prior versions but does not remove copied resources.

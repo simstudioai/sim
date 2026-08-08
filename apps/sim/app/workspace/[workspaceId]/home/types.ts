@@ -1,4 +1,5 @@
 import type { ChatContext } from '@/stores/panel'
+import type { BrowserTextSelection, TerminalTextSelection } from '@/stores/panel/types'
 
 const EDIT_CONTENT_TOOL_ID = 'edit_content'
 const RUN_SUBAGENT_ID = 'run'
@@ -6,6 +7,7 @@ const RUN_SUBAGENT_ID = 'run'
 export type {
   MothershipResource,
   MothershipResourceType,
+  WorkspaceResourceRef,
 } from '@/lib/copilot/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */
@@ -148,6 +150,22 @@ export interface ChatMessageContext {
   blockType?: string
   skillId?: string
   serverId?: string
+  /** Selected passage for a `file_selection` context. */
+  text?: string
+  /** Source file name for a `file_selection` context. */
+  fileName?: string
+  /** 1-based inclusive line range for a `file_selection` context. */
+  startLine?: number
+  endLine?: number
+  /** Source table name for a `table_selection` context. */
+  tableName?: string
+  /** Selected row ids for a `table_selection` context. */
+  rowIds?: string[]
+  /** Selected column ids for a `table_selection` cell range. */
+  columnIds?: string[]
+  tabId?: string
+  terminalId?: string
+  selection?: BrowserTextSelection | TerminalTextSelection
 }
 
 export interface ChatMessage {
@@ -174,7 +192,6 @@ export const SUBAGENT_LABELS: Record<string, string> = {
   superagent: 'Superagent',
   run: 'Run Agent',
   agent: 'Tools Agent',
-  scheduled_task: 'Scheduled Task Agent',
   // `job` retained as a backward-compat alias so historical transcripts still render a label.
   job: 'Job Agent',
   file: 'File Agent',

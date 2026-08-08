@@ -18,13 +18,19 @@ import {
   enterpriseProvisionPayloadSchema,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import {
+  parseWorkflowExecutionTimeoutSeconds,
+  resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
+} from '@/lib/billing/execution-timeout-defaults'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { acquireOrganizationMutationLock } from '@/lib/billing/organizations/membership'
 import { requireStripeClient } from '@/lib/billing/stripe-client'
+import { TERMINAL_SUBSCRIPTION_STATUSES } from '@/lib/billing/subscriptions/utils'
 import { withEnterpriseReconciliationLease } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
+import { env } from '@/lib/core/config/env'
 import { enqueueOutboxEvent, type OutboxHandler } from '@/lib/core/outbox/service'
 
-const TERMINAL_SUBSCRIPTION_STATUSES = new Set(['canceled', 'incomplete_expired'])
+const TERMINAL_STATUSES = new Set<string>(TERMINAL_SUBSCRIPTION_STATUSES)
 
 function metadataRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -33,7 +39,7 @@ function metadataRecord(value: unknown): Record<string, unknown> {
 }
 
 function isNonterminalSubscriptionStatus(status: string | null | undefined): boolean {
-  return !status || !TERMINAL_SUBSCRIPTION_STATUSES.has(status)
+  return !status || !TERMINAL_STATUSES.has(status)
 }
 
 function subscriptionOrganizationId(metadata: unknown): string | null {
@@ -238,6 +244,7 @@ export interface IssueEnterpriseProvisioningInput {
   usageLimitCredits?: number
   seats: number
   concurrencyLimit?: number
+  workflowExecutionTimeoutSeconds?: number
   pausePaymentCollection?: boolean
   requestedByEmail: string
   requestedByUserId: string | null
@@ -252,6 +259,7 @@ export interface EnterpriseProvisioningView {
   usageLimitCredits: number
   seats: number
   concurrencyLimit: number
+  workflowExecutionTimeoutSeconds: number
   pausePaymentCollection: boolean
   stripeSubscriptionId: string | null
   error: string | null
@@ -283,15 +291,16 @@ export function buildEnterpriseProvisioningRequestKey(
   const usageLimitCredits =
     input.usageLimitCredits ?? dollarsToCredits(input.monthlyInvoiceAmountUsd)
   const requestTerms: Array<string | number> = [
-    'enterprise-v3',
+    'enterprise-v4',
     input.ownerUserId,
     organizationId,
     Math.round(input.monthlyInvoiceAmountUsd * 100),
     usageLimitCredits,
     input.seats,
+    `concurrency=${input.concurrencyLimit ?? 'default'}`,
+    `workflow-timeout=${input.workflowExecutionTimeoutSeconds ?? 'default'}`,
+    `collection=${input.pausePaymentCollection ? 'paused' : 'active'}`,
   ]
-  if (input.concurrencyLimit !== undefined) requestTerms.push(input.concurrencyLimit)
-  if (input.pausePaymentCollection) requestTerms.push('draft-collection')
   return requestTerms.join(':')
 }
 
@@ -310,6 +319,11 @@ function toEnterpriseProvisioningView(
     usageLimitCredits: request.usageLimitCredits,
     seats: request.seats,
     concurrencyLimit: getBillingConcurrencyLimit('enterprise', request.concurrencyLimit),
+    workflowExecutionTimeoutSeconds:
+      request.workflowExecutionTimeoutSeconds ??
+      resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds(
+        env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE
+      ),
     pausePaymentCollection: request.pausePaymentCollection,
     stripeSubscriptionId:
       payload.applicationResult?.subscriptionId ?? payload.stripeProgress.subscriptionId ?? null,
@@ -427,6 +441,13 @@ export async function issueEnterpriseProvisioning(
     parseBillingConcurrencyLimit(input.concurrencyLimit) !== input.concurrencyLimit
   ) {
     throw new EnterpriseProvisioningError('Concurrency limit is invalid')
+  }
+  if (
+    input.workflowExecutionTimeoutSeconds !== undefined &&
+    parseWorkflowExecutionTimeoutSeconds(input.workflowExecutionTimeoutSeconds) !==
+      input.workflowExecutionTimeoutSeconds
+  ) {
+    throw new EnterpriseProvisioningError('Workflow execution timeout is invalid')
   }
   const result = await db.transaction(async (tx) => {
     const [owner] = await tx
@@ -551,6 +572,9 @@ export async function issueEnterpriseProvisioning(
       usageLimitCredits: input.usageLimitCredits ?? defaultUsageLimitCredits,
       seats: input.seats,
       ...(input.concurrencyLimit !== undefined ? { concurrencyLimit: input.concurrencyLimit } : {}),
+      ...(input.workflowExecutionTimeoutSeconds !== undefined
+        ? { workflowExecutionTimeoutSeconds: input.workflowExecutionTimeoutSeconds }
+        : {}),
       pausePaymentCollection: input.pausePaymentCollection ?? false,
     }
     const payload: EnterpriseProvisionPayload = {
@@ -580,6 +604,7 @@ export async function issueEnterpriseProvisioning(
         usageLimitCredits: view.usageLimitCredits,
         seats: view.seats,
         concurrencyLimit: view.concurrencyLimit,
+        workflowExecutionTimeoutSeconds: view.workflowExecutionTimeoutSeconds,
         pausePaymentCollection: view.pausePaymentCollection,
         status: view.status,
       },
@@ -826,6 +851,9 @@ export const provisionEnterpriseInStripe: OutboxHandler<unknown> = async (rawPay
     seats: request.seats.toString(),
     ...(request.concurrencyLimit !== undefined
       ? { concurrencyLimit: request.concurrencyLimit.toString() }
+      : {}),
+    ...(request.workflowExecutionTimeoutSeconds !== undefined
+      ? { workflowExecutionTimeoutSeconds: request.workflowExecutionTimeoutSeconds.toString() }
       : {}),
   }
 

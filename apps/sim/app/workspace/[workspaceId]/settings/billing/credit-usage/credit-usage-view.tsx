@@ -18,8 +18,8 @@ import { useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
 import type { UsageLogEntry, UsageLogPeriod } from '@/lib/api/contracts/user'
 import { formatApportionedCreditCost, formatCreditsLabel } from '@/lib/billing/credits/conversion'
+import { formatDateShort } from '@/lib/core/utils/date-display'
 import { USAGE_LOG_SOURCE_LABELS } from '@/app/api/users/me/usage-logs/source-labels'
-import { formatDateShort } from '@/app/workspace/[workspaceId]/logs/utils'
 import {
   creditUsageParsers,
   creditUsageUrlKeys,
@@ -151,7 +151,7 @@ export function CreditUsageView({ backHref = '/account/settings/billing' }: Cred
   return (
     <SettingsPanel
       back={{
-        text: 'Billing',
+        text: 'Subscription',
         icon: ArrowLeft,
         onSelect: () => router.push(backHref),
       }}

@@ -12,19 +12,7 @@ import {
 } from '@sim/db/schema'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import {
-  and,
-  count,
-  countDistinct,
-  desc,
-  eq,
-  ilike,
-  inArray,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, count, countDistinct, desc, eq, ilike, inArray, isNull, or, sql } from 'drizzle-orm'
 import {
   getOrganizationUsageLimitFallbackDollars,
   getTeamOrganizationEconomics,
@@ -42,6 +30,10 @@ import {
   type EnterpriseProvisioningView,
   getLatestEnterpriseProvisionings,
 } from '@/lib/billing/enterprise-provisioning'
+import {
+  parseWorkflowExecutionTimeoutSeconds,
+  resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds,
+} from '@/lib/billing/execution-timeout-defaults'
 import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import { setOrgMemberUsageLimit } from '@/lib/billing/organizations/member-limits'
 import {
@@ -60,10 +52,12 @@ import {
   isOrgScopedSubscription,
 } from '@/lib/billing/subscriptions/utils'
 import { toDecimal } from '@/lib/billing/utils/decimal'
+import { env } from '@/lib/core/config/env'
 import { executeTransactionallyIdempotent } from '@/lib/core/idempotency/transaction'
 import { enqueueOutboxEvent } from '@/lib/core/outbox/service'
 import type { DbOrTx } from '@/lib/db/types'
 import { moveWorkspaceToOrganization } from '@/lib/workspaces/admin-move'
+import { ownedAttachableWorkspacesWhere } from '@/lib/workspaces/organization-workspaces'
 
 interface PaginationInput {
   search: string
@@ -194,6 +188,13 @@ function buildDashboardOrganizationSummary({
           parseBillingConcurrencyLimit(metadata.concurrencyLimit)
         )
       : null
+  const workflowExecutionTimeoutSeconds =
+    latestSubscription?.plan === 'enterprise'
+      ? (parseWorkflowExecutionTimeoutSeconds(metadata.workflowExecutionTimeoutSeconds) ??
+        resolveEnterpriseWorkflowExecutionTimeoutFallbackSeconds(
+          env.EXECUTION_TIMEOUT_ASYNC_ENTERPRISE
+        ))
+      : null
 
   return {
     id: org.id,
@@ -207,6 +208,7 @@ function buildDashboardOrganizationSummary({
     externalCollaboratorCount,
     seats,
     concurrencyLimit,
+    workflowExecutionTimeoutSeconds,
     planAllowanceDollars,
     usageLimitDollars,
     effectiveUsageLimitDollars,
@@ -231,6 +233,10 @@ export function toDashboardConfigurationUpdate(
   const usageLimitCredits = metadataNumber(metadata, 'usageLimitCredits')
   const seats = metadataNumber(metadata, 'seats')
   const concurrencyLimit = metadataNumber(metadata, 'concurrencyLimit')
+  const workflowExecutionTimeoutSeconds = metadataNumber(
+    metadata,
+    'workflowExecutionTimeoutSeconds'
+  )
 
   return {
     id: update.id,
@@ -239,6 +245,8 @@ export function toDashboardConfigurationUpdate(
       usageLimitCredits === null ? null : creditsToDollars(usageLimitCredits),
     requestedSeats: seats === null ? null : Math.round(seats),
     requestedConcurrencyLimit: concurrencyLimit === null ? null : Math.round(concurrencyLimit),
+    requestedWorkflowExecutionTimeoutSeconds:
+      workflowExecutionTimeoutSeconds === null ? null : Math.round(workflowExecutionTimeoutSeconds),
     error: update.error,
   }
 }
@@ -317,7 +325,7 @@ async function getDashboardOrganizationSummary(organizationId: string) {
           member,
           and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
         )
-        .where(and(isNull(member.id), isNull(workspace.archivedAt))),
+        .where(isNull(member.id)),
       getLatestSubscription(organizationId),
       getLatestEnterpriseProvisionings([organizationId]),
     ])
@@ -398,13 +406,7 @@ export async function listDashboardOrganizations({ search, limit, offset }: Pagi
           eq(member.organizationId, workspace.organizationId)
         )
       )
-      .where(
-        and(
-          inArray(workspace.organizationId, organizationIds),
-          isNull(member.id),
-          isNull(workspace.archivedAt)
-        )
-      )
+      .where(and(inArray(workspace.organizationId, organizationIds), isNull(member.id)))
       .groupBy(workspace.organizationId),
     db
       .selectDistinctOn([subscription.referenceId])
@@ -496,7 +498,7 @@ export async function getDashboardOrganization(organizationId: string) {
           member,
           and(eq(member.userId, permissions.userId), eq(member.organizationId, organizationId))
         )
-        .where(and(isNull(member.id), isNull(workspace.archivedAt)))
+        .where(isNull(member.id))
         .groupBy(user.id, user.name, user.email)
         .orderBy(user.name),
       db
@@ -593,6 +595,7 @@ export async function updateDashboardOrganizationLimits(
   values: {
     usageLimitDollars?: number
     concurrencyLimit?: number | null
+    workflowExecutionTimeoutSeconds?: number | null
   },
   actor: AdminMutationActor
 ) {
@@ -620,6 +623,12 @@ export async function updateDashboardOrganizationLimits(
     if (values.concurrencyLimit !== undefined && subscriptionRow?.plan !== 'enterprise') {
       throw new Error('Concurrency is editable only for Enterprise organizations')
     }
+    if (
+      values.workflowExecutionTimeoutSeconds !== undefined &&
+      subscriptionRow?.plan !== 'enterprise'
+    ) {
+      throw new Error('Workflow execution timeout is editable only for Enterprise organizations')
+    }
 
     if (subscriptionRow?.plan === 'enterprise') {
       if (!hasPaidSubscriptionStatus(subscriptionRow.status)) {
@@ -641,6 +650,9 @@ export async function updateDashboardOrganizationLimits(
             usageLimitCredits: configuredUsageLimit,
             ...(values.concurrencyLimit !== undefined
               ? { concurrencyLimit: values.concurrencyLimit }
+              : {}),
+            ...(values.workflowExecutionTimeoutSeconds !== undefined
+              ? { workflowExecutionTimeoutSeconds: values.workflowExecutionTimeoutSeconds }
               : {}),
           }
         },
@@ -937,15 +949,9 @@ export async function getDashboardMemberTransferPreflight(
       .where(eq(user.id, userId))
       .limit(1),
     db
-      .select({ id: workspace.id, name: workspace.name })
+      .select({ id: workspace.id, name: workspace.name, archivedAt: workspace.archivedAt })
       .from(workspace)
-      .where(
-        and(
-          eq(workspace.ownerId, userId),
-          isNull(workspace.archivedAt),
-          ne(workspace.workspaceMode, 'organization')
-        )
-      )
+      .where(ownedAttachableWorkspacesWhere({ userId, includeArchived: true }))
       .orderBy(workspace.name, workspace.id),
   ])
   if (!destination) throw new Error('Destination organization not found')
@@ -969,7 +975,11 @@ export async function getDashboardMemberTransferPreflight(
       target.organizationId && target.organizationName
         ? { id: target.organizationId, name: target.organizationName, role: target.role }
         : null,
-    personalWorkspaces,
+    personalWorkspaces: personalWorkspaces.map((row) => ({
+      id: row.id,
+      name: row.name,
+      archived: row.archivedAt !== null,
+    })),
     credentialDependencies,
     canAdd: reason === null,
     reason,
@@ -993,10 +1003,8 @@ export async function addDashboardOrganizationMember(
       .from(workspace)
       .where(
         and(
-          inArray(workspace.id, selectedWorkspaceIds),
-          eq(workspace.ownerId, values.userId),
-          isNull(workspace.archivedAt),
-          ne(workspace.workspaceMode, 'organization')
+          ownedAttachableWorkspacesWhere({ userId: values.userId, includeArchived: true }),
+          inArray(workspace.id, selectedWorkspaceIds)
         )
       )
     if (selectable.length !== selectedWorkspaceIds.length) {
@@ -1098,6 +1106,7 @@ export async function addDashboardOrganizationMember(
         workspaceId,
         destinationOrganizationId: organizationId,
         adminEmail: actor.email ?? 'admin-api',
+        expectedOwnerId: values.userId,
       })
       workspaceMoves.push({ workspaceId, success: true })
     } catch (error) {

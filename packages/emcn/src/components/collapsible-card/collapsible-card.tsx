@@ -45,9 +45,7 @@ export function CollapsibleCard({
         onKeyDown={(event) => handleKeyboardActivation(event, onToggleCollapse)}
       >
         <div className='flex min-w-0 flex-1 items-center gap-2'>
-          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
-            {title}
-          </span>
+          <span className='block truncate text-[var(--text-tertiary)] text-sm'>{title}</span>
           {badge}
         </div>
       </div>

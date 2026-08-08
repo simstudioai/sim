@@ -35,7 +35,7 @@ Integrates LaTeX into the workflow. Compiles LaTeX source into a PDF file with p
 
 ## Actions
 
-### `latex_compile`
+### LaTeX Compile
 
 Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.ytotech.com). Supports pdflatex, xelatex, lualatex, platex, uplatex, and context, plus supporting resources such as images, included .tex files, and bibliographies.
 
@@ -57,7 +57,7 @@ Compile a LaTeX document into a PDF via the public LaTeX-on-HTTP service (latex.
 | `fileName` | string | Name of the compiled PDF file |
 | `compiler` | string | LaTeX compiler used for the build |
 
-### `latex_search_packages`
+### LaTeX Search Packages
 
 Search the TeX Live packages available to the LaTeX compiler by name or description, e.g. to check which packages can be used in a document.
 
@@ -79,7 +79,7 @@ Search the TeX Live packages available to the LaTeX compiler by name or descript
 |   ↳ `ctanUrl` | string | CTAN page for the package |
 | `totalMatches` | number | Total number of packages matching the query, before truncation |
 
-### `latex_get_package`
+### LaTeX Get Package
 
 Get details about a specific TeX Live package available to the LaTeX compiler, including whether it is installed, its description, license, and related packages.
 
@@ -105,7 +105,7 @@ Get details about a specific TeX Live package available to the LaTeX compiler, i
 |   ↳ `homepage` | string | Package homepage URL |
 |   ↳ `ctanUrl` | string | CTAN page for the package |
 
-### `latex_list_fonts`
+### LaTeX List Fonts
 
 List the system fonts available to the LaTeX compiler, optionally filtered by name, e.g. to pick a font for xelatex or lualatex documents using fontspec.
 

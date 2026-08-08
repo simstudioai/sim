@@ -2,6 +2,49 @@ import { describe, expect, it } from 'vitest'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 describe('workflowExecutorTool', () => {
+  describe('request.secretProvenance', () => {
+    const selectProvenance = workflowExecutorTool.request.secretProvenance?.request
+
+    it('owns its fail-closed response provenance policy in the tool config', () => {
+      expect(workflowExecutorTool.request.secretProvenance?.response).toEqual({
+        incomplete: 'reject',
+      })
+    })
+
+    it.each([
+      {
+        name: 'object input',
+        inputMapping: { token: 'secret-value' },
+        expected: { token: 'secret-value' },
+      },
+      {
+        name: 'JSON input',
+        inputMapping: '{"token":"secret-value"}',
+        expected: { token: 'secret-value' },
+      },
+      {
+        name: 'invalid JSON input',
+        inputMapping: 'not valid JSON',
+        expected: {},
+      },
+      {
+        name: 'missing input',
+        inputMapping: undefined,
+        expected: {},
+      },
+    ])(
+      'selects the inputMapping root and preserves $name body normalization',
+      ({ inputMapping, expected }) => {
+        const params = { workflowId: 'test-workflow-id', inputMapping }
+
+        expect(selectProvenance?.(params)).toEqual([
+          { key: 'input', inputPaths: [['inputMapping']] },
+        ])
+        expect(workflowExecutorTool.request.body?.(params)).toMatchObject({ input: expected })
+      }
+    )
+  })
+
   describe('request.body', () => {
     const buildBody = workflowExecutorTool.request.body!
 

@@ -1,3 +1,4 @@
+import { generateId } from '@sim/utils/id'
 import { randomFloat } from '@sim/utils/random'
 import { isUuid, sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -19,6 +20,21 @@ export function generateExecutionFileKey(context: ExecutionContext, fileName: st
   const { workspaceId, workflowId, executionId } = context
   const safeFileName = sanitizeFileName(fileName)
   return `execution/${workspaceId}/${workflowId}/${executionId}/${safeFileName}`
+}
+
+/**
+ * Generates a unique execution-scoped key for browser attachments. Browser
+ * uploads are create-only, and a single execution may contain multiple files
+ * with the same display name. Internal execution artifacts intentionally keep
+ * using {@link generateExecutionFileKey}'s deterministic replacement semantics.
+ */
+export function generateExecutionAttachmentKey(
+  context: ExecutionContext,
+  fileName: string
+): string {
+  const { workspaceId, workflowId, executionId } = context
+  const safeFileName = sanitizeFileName(fileName)
+  return `execution/${workspaceId}/${workflowId}/${executionId}/${generateId()}-${safeFileName}`
 }
 
 /**

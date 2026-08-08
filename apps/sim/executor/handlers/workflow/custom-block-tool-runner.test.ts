@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createLogger } from '@sim/logger'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecute } = vi.hoisted(() => ({ mockExecute: vi.fn() }))
@@ -18,6 +19,12 @@ import {
   buildCustomBlockExecutionContext,
   runCustomBlockTool,
 } from '@/executor/handlers/workflow/custom-block-tool-runner'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const mockRunnerLogger =
+  vi.mocked(createLogger).mock.results[
+    vi.mocked(createLogger).mock.calls.findIndex(([name]) => name === 'CustomBlockToolRunner')
+  ].value
 
 describe('buildCustomBlockExecutionContext', () => {
   it('carries consumer identity, inherits the call chain, and is fully scaffolded', () => {
@@ -88,7 +95,34 @@ describe('runCustomBlockTool', () => {
     expect(res.error).toContain('not deployed')
   })
 
-  it('rolls up already-incurred child cost when the run fails', async () => {
+  it('does not log a secret-bearing child workflow error with or without provenance', async () => {
+    const secret = 'custom-block-child-secret-value'
+    const message = `${secret} __var_API_KEY __sim_code_0_binding_0`
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('API_KEY', secret)
+    mockExecute.mockRejectedValue(new Error(message))
+
+    const projected = await runCustomBlockTool(
+      { blockType: 'custom_block_abc', _context: {} },
+      { resolvedSecretTraceRegistry: registry }
+    )
+    const structural = await runCustomBlockTool({ blockType: 'custom_block_abc', _context: {} })
+
+    expect(projected.error).toBe(message)
+    expect(structural.error).toBe(message)
+    const logged = JSON.stringify(mockRunnerLogger.info.mock.calls)
+    expect(logged).not.toContain(secret)
+    expect(logged).not.toContain('__var_')
+    expect(logged).not.toContain('__sim_')
+    expect(mockRunnerLogger.info).toHaveBeenLastCalledWith(
+      'Custom block tool execution failed',
+      expect.objectContaining({ errorName: 'Error', redacted: true })
+    )
+  })
+
+  it('reports no cost on failure — the child session billed its own run', async () => {
     const err: any = new Error('child blew up')
     err.name = 'ChildWorkflowError'
     err.childTraceSpans = [{ id: 's1', name: 'child', type: 'agent', cost: { total: 0.25 } }]
@@ -98,13 +132,63 @@ describe('runCustomBlockTool', () => {
     const res = await runCustomBlockTool({ blockType: 'custom_block_abc', _context: {} })
 
     expect(res.success).toBe(false)
-    // Partial spend must not be recorded as zero-cost.
-    expect((res.output as any).cost.total).toBeGreaterThan(0)
+    expect(res.output).toEqual({})
   })
 
   it('rejects a missing block type without invoking the handler', async () => {
     const res = await runCustomBlockTool({ _context: {} })
     expect(res.success).toBe(false)
     expect(mockExecute).not.toHaveBeenCalled()
+  })
+})
+
+describe('buildCustomBlockExecutionContext invoker identity', () => {
+  it("adopts the invoking run's ids so correlation names a real execution", () => {
+    const ctx = buildCustomBlockExecutionContext({
+      workspaceId: 'ws-1',
+      executionId: 'agent-execution-id',
+      requestId: 'agent-request-id',
+    })
+
+    expect(ctx.executionId).toBe('agent-execution-id')
+    expect(ctx.metadata.executionId).toBe('agent-execution-id')
+    expect(ctx.metadata.requestId).toBe('agent-request-id')
+  })
+
+  it('falls back to generated ids when the caller supplies none', () => {
+    const ctx = buildCustomBlockExecutionContext({ workspaceId: 'ws-1' })
+
+    expect(ctx.executionId).toBeTruthy()
+    expect(ctx.metadata.requestId).toBeTruthy()
+    expect(ctx.executionId).not.toBe(ctx.metadata.requestId)
+  })
+})
+
+describe('buildCustomBlockExecutionContext cancellation', () => {
+  it("adopts the agent tool loop's abort signal so the bridge has something to watch", () => {
+    const controller = new AbortController()
+    const ctx = buildCustomBlockExecutionContext(
+      { workspaceId: 'ws-1' },
+      { abortSignal: controller.signal }
+    )
+
+    expect(ctx.abortSignal).toBe(controller.signal)
+  })
+
+  it('leaves the signal undefined when the caller has none', () => {
+    expect(buildCustomBlockExecutionContext({ workspaceId: 'ws-1' }).abortSignal).toBeUndefined()
+  })
+})
+
+describe('buildCustomBlockExecutionContext secret provenance', () => {
+  it('carries the server-only parent registry without putting it in model parameters', () => {
+    const registry = new ResolvedSecretTraceRegistry()
+
+    const ctx = buildCustomBlockExecutionContext(
+      { workspaceId: 'ws-1' },
+      { resolvedSecretTraceRegistry: registry }
+    )
+
+    expect(ctx.resolvedSecretTraceRegistry).toBe(registry)
   })
 })

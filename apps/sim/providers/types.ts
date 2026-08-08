@@ -129,6 +129,13 @@ export interface ProviderToolConfig {
     required: string[]
   }
   usageControl?: ToolUsageControl
+  /**
+   * Params the model may never supply, because the tool declares them
+   * `user-only` or `hidden`. Stripped from the model's arguments before they
+   * merge with the user's — omitting them from {@link ProviderToolConfig.parameters}
+   * alone does not stop a model from emitting one anyway.
+   */
+  modelBlockedParams?: string[]
   /** Block-level params transformer — converts SubBlock values to tool-ready params */
   paramsTransform?: (params: Record<string, any>) => Record<string, any>
 }
@@ -207,6 +214,13 @@ export interface ProviderRequest {
   isDeployedContext?: boolean
   callChain?: string[]
   /**
+   * The invoking run's execution id. Propagated into the `_context` of every
+   * tool the LLM invokes so a tool that starts its own child execution (a
+   * custom block) can correlate that child back to a REAL invoking run rather
+   * than a freshly-minted id, and can honour its cancellation.
+   */
+  executionId?: string
+  /**
    * Immutable actor/payer decision captured before execution. Propagated into
    * the `_context` of every tool the LLM invokes so internal routes that
    * require the billing attribution header (e.g. knowledge search) receive it.
@@ -227,8 +241,17 @@ export class ProviderError extends Error {
     duration: number
   }
 
-  constructor(message: string, timing: { startTime: string; endTime: string; duration: number }) {
-    super(message)
+  /**
+   * `options.cause` should carry the error being wrapped. `name` is deliberately
+   * overwritten with `'ProviderError'`, so without a cause every classification the
+   * original carried — notably a transport `TimeoutError` — is lost to callers.
+   */
+  constructor(
+    message: string,
+    timing: { startTime: string; endTime: string; duration: number },
+    options?: ErrorOptions
+  ) {
+    super(message, options)
     this.name = 'ProviderError'
     this.timing = timing
   }

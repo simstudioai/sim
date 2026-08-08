@@ -11,13 +11,13 @@
  */
 import { statSync } from 'node:fs'
 import { homedir } from 'node:os'
+import type { TerminalShortcutCommand } from '@sim/desktop-bridge'
 import { createLogger } from '@sim/logger'
 import {
   DEFAULT_RUN_WAIT_MS,
   isTerminalControlKey,
   MAX_INPUT_KEYS,
   MAX_RUN_WAIT_MS,
-  MAX_TERMINALS,
   MAX_TOOL_OUTPUT_CHARS,
   type TerminalCommandEvent,
   type TerminalControlKey,
@@ -34,12 +34,14 @@ import {
 import { sleep } from '@sim/utils/helpers'
 import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, WebContents } from 'electron'
+import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
 import { elide, TerminalSession } from '@/main/terminal/session'
 import {
   activePane,
   awaitRun,
   capturePane,
   closeRunWindow,
+  isRunComplete,
   isTmuxUnavailable,
   killPane,
   listPanes,
@@ -49,6 +51,7 @@ import {
   startRun,
   TMUX_KEY_NAMES,
   type TmuxAttachment,
+  type TmuxRunHandle,
 } from '@/main/terminal/tmux'
 
 const logger = createLogger('DesktopTerminal')
@@ -72,6 +75,9 @@ const INPUT_SCREEN_LINES = 60
  * it, slow enough that the lookup is nowhere near a hot path.
  */
 const CWD_POLL_MS = 1_000
+
+/** Cmd-Shift-T history; independent of how many terminals may be open. */
+const MAX_RECENTLY_CLOSED_TERMINALS = 10
 
 /** Pause between keys sent to a tmux pane, matching the pty keystroke gap. */
 const TMUX_KEY_GAP_MS = 150
@@ -146,7 +152,6 @@ export interface TerminalServiceOptions {
    * to the home directory.
    */
   loadCwd?(): string | undefined
-  saveCwd?(cwd: string): void
 }
 
 export class TerminalService {
@@ -176,6 +181,14 @@ export class TerminalService {
   private readonly handoffs = new Map<string, boolean>()
   /** Recently resolved tmux attachments, by terminal id, to avoid re-spawning. */
   private readonly tmuxCache = new Map<string, { at: number; attachment: TmuxAttachment | null }>()
+  /**
+   * Run handles for commands that outlived their wait window, keyed by
+   * terminal. `startRun` makes a temp directory per run and only its handle can
+   * remove it, so a handle dropped on the still-running path leaks that
+   * directory for the life of the process while `tee` keeps appending to it.
+   * Held here so the terminal's own lifecycle can reclaim them.
+   */
+  private readonly pendingRuns = new Map<string, TmuxRunHandle[]>()
 
   constructor(private readonly options: TerminalServiceOptions = {}) {}
 
@@ -246,14 +259,16 @@ export class TerminalService {
     return this.sessions.get(terminalId)?.takeReplaySnapshot() ?? ''
   }
 
+  /** Clears retained output without disturbing the shell process itself. */
+  clearScrollback(terminalId: string): boolean {
+    const session = this.sessions.get(terminalId)
+    if (!session) return false
+    session.clearScrollback()
+    return true
+  }
+
   /** Opens an additional terminal and makes it active. */
   openTerminal(cwd?: string): TerminalTabsState {
-    if (this.sessions.size >= MAX_TERMINALS) {
-      throw new TerminalError(
-        'TOO_MANY_TERMINALS',
-        `Up to ${MAX_TERMINALS} terminals can be open at once. Close one first.`
-      )
-    }
     const active = this.activeId ? this.sessions.get(this.activeId) : null
     const size = active ? { cols: active.cols, rows: active.rows } : { cols: 80, rows: 24 }
     // A new terminal opens where the current one is: the user is almost always
@@ -295,6 +310,37 @@ export class TerminalService {
   }
 
   /**
+   * Removes the temp directories of tracked runs that have since finished.
+   *
+   * Called when a new run starts on the same terminal, which is the one moment
+   * the service is already doing run bookkeeping — a dedicated reaper timer
+   * would be a subsystem to own for something this cheap. A run still going is
+   * left alone: its `tee` is still appending to that directory.
+   */
+  private reapFinishedRuns(terminalId: string): void {
+    const pending = this.pendingRuns.get(terminalId)
+    if (!pending) return
+    const stillRunning: TmuxRunHandle[] = []
+    for (const handle of pending) {
+      if (isRunComplete(handle)) handle.dispose()
+      else stillRunning.push(handle)
+    }
+    if (stillRunning.length === 0) this.pendingRuns.delete(terminalId)
+    else this.pendingRuns.set(terminalId, stillRunning)
+  }
+
+  /**
+   * Releases every tracked run for a terminal, finished or not. The terminal is
+   * going away, so nothing will ever read these files again.
+   */
+  private releasePendingRuns(terminalId: string): void {
+    const pending = this.pendingRuns.get(terminalId)
+    if (!pending) return
+    for (const handle of pending) handle.dispose()
+    this.pendingRuns.delete(terminalId)
+  }
+
+  /**
    * Drops a terminal and decides what replaces it. Closing and exiting share
    * this so the two cannot drift into different answers for "what happens to
    * the last one".
@@ -310,6 +356,7 @@ export class TerminalService {
     session.dispose()
     this.sessions.delete(terminalId)
     this.tmuxCache.delete(terminalId)
+    this.releasePendingRuns(terminalId)
 
     if (this.sessions.size === 0) {
       this.spawn(this.resolveCwd(closedCwd), cols, rows)
@@ -325,26 +372,42 @@ export class TerminalService {
   }
 
   /**
-   * Reopens the most recently closed terminal, in the directory it was in.
+   * Claims one application-menu shortcut while this terminal owns focus.
    *
-   * A shell cannot be restored the way a browser tab can — its processes are
-   * gone and its scrollback with them — so this reopens where it was working,
-   * which is the part that is expensive for the user to retype.
+   * Main-owned tab operations happen here. Canvas operations are emitted back
+   * to the renderer that made the focus claim, so the same xterm action serves
+   * native accelerators and the terminal's own menu. Reopening creates a fresh
+   * shell in the last closed terminal's directory; a dead process itself cannot
+   * be restored.
    */
-  reopenClosedTerminal(ownerWindow: BrowserWindow | null): boolean {
+  handleFocusedShortcut(
+    shortcut: FocusedResourceShortcut,
+    ownerWindow: BrowserWindow | null,
+    emitRendererCommand: (command: TerminalShortcutCommand, terminalId: string) => void
+  ): boolean {
     if (!this.ownsInteraction(ownerWindow)) return false
-    // Peeked, not shifted: at the cap there is nothing to reopen into, and
-    // consuming the entry here would drop that directory on the floor.
-    if (this.recentlyClosedCwds.length === 0 || this.sessions.size >= MAX_TERMINALS) return false
-    const cwd = this.recentlyClosedCwds.shift()
-    this.openTerminal(cwd || undefined)
-    return true
-  }
 
-  /** Closes the active terminal, but only while the panel owns interaction focus. */
-  closeFocusedTerminal(ownerWindow: BrowserWindow | null): boolean {
-    if (!this.ownsInteraction(ownerWindow) || !this.activeId) return false
-    this.closeTerminal(this.activeId)
+    switch (shortcut) {
+      case 'new-tab':
+        this.openTerminal()
+        return true
+      case 'reopen-closed-tab': {
+        const cwd = this.recentlyClosedCwds.shift()
+        if (cwd !== undefined) this.openTerminal(cwd || undefined)
+        return true
+      }
+      case 'close-tab':
+        if (this.activeId) this.closeTerminal(this.activeId)
+        return true
+      case 'reload-or-clear':
+        if (this.activeId) {
+          this.clearScrollback(this.activeId)
+          emitRendererCommand('clear', this.activeId)
+        }
+        return true
+    }
+
+    if (this.activeId) emitRendererCommand(shortcut, this.activeId)
     return true
   }
 
@@ -416,8 +479,8 @@ export class TerminalService {
 
   private rememberClosed(cwd: string | null): void {
     this.recentlyClosedCwds.unshift(cwd ?? '')
-    if (this.recentlyClosedCwds.length > MAX_TERMINALS) {
-      this.recentlyClosedCwds.length = MAX_TERMINALS
+    if (this.recentlyClosedCwds.length > MAX_RECENTLY_CLOSED_TERMINALS) {
+      this.recentlyClosedCwds.length = MAX_RECENTLY_CLOSED_TERMINALS
     }
   }
 
@@ -444,12 +507,6 @@ export class TerminalService {
   dispose(): void {
     this.disposing = true
     this.stopCwdWatch()
-    // Persisted here rather than left to the onState callback, which resolves
-    // the active session out of the very map this teardown empties. Losing it
-    // reopens the next launch in whichever directory last reported a change
-    // instead of the one the user was working in.
-    const activeCwd = this.activeId ? this.sessions.get(this.activeId)?.currentCwd : null
-    if (activeCwd) this.options.saveCwd?.(activeCwd)
     // Remove each session before disposing it: dispose() emits state, which
     // reads back through getTabs(), and a session still in the map there is
     // published to the renderer as a live tab after its shell is gone.
@@ -459,6 +516,10 @@ export class TerminalService {
     }
     this.sessions.clear()
     this.tmuxCache.clear()
+    for (const handles of this.pendingRuns.values()) {
+      for (const handle of handles) handle.dispose()
+    }
+    this.pendingRuns.clear()
     this.activeId = null
     // A stale claim here is what let Cmd-W close a shell that no longer exists.
     this.setPanelFocused(false)
@@ -784,6 +845,7 @@ export class TerminalService {
     if (!command) throw new TerminalError('INVALID_REQUEST', 'run needs a `command`.')
 
     const started = Date.now()
+    this.reapFinishedRuns(terminal.terminalId)
     const handle = await startRun(session, command, terminal.currentCwd, terminal.env)
     if ('error' in handle) throw new TerminalError('SPAWN_FAILED', handle.error)
 
@@ -792,6 +854,12 @@ export class TerminalService {
     if (outcome.done) {
       await closeRunWindow(handle, terminal.env)
       handle.dispose()
+    } else {
+      // Still going, and nothing polls the status file again — `read` captures
+      // the pane instead.
+      const pending = this.pendingRuns.get(terminal.terminalId)
+      if (pending) pending.push(handle)
+      else this.pendingRuns.set(terminal.terminalId, [handle])
     }
 
     const { text, truncated } = elideOutput(outcome.output)
@@ -847,8 +915,6 @@ export class TerminalService {
         callbacks: {
           onData: (id, data) => this.sink?.data(id, data),
           onState: () => {
-            const active = this.activeId ? this.sessions.get(this.activeId) : null
-            if (active?.currentCwd) this.options.saveCwd?.(active.currentCwd)
             this.emitTabs()
           },
           onCommand: (event) => this.sink?.command(event),

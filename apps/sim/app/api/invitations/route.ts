@@ -1,9 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { NextResponse } from 'next/server'
-import type { InvitationDetails } from '@/lib/api/contracts/invitations'
+import type { MyInvitation } from '@/lib/api/contracts/invitations'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { listPendingInvitationsForEmail } from '@/lib/invitations/core'
+import { getInvitationJoinPreview, listPendingInvitationsForEmail } from '@/lib/invitations/core'
 
 const logger = createLogger('MyInvitationsAPI')
 
@@ -22,9 +22,35 @@ export const GET = withRouteHandler(async () => {
   try {
     const invitations = await listPendingInvitationsForEmail(session.user.email)
 
+    /**
+     * Each row carries what accepting it will actually do, so the in-app list
+     * can disclose the workspace migration and echo `disclosedWorkspaceIds` on
+     * accept — the same consent contract the emailed `/invite` page honours.
+     * Disclosure-only, so a preview failure degrades to `null` (the client
+     * shows a generic notice) rather than hiding the invitation.
+     *
+     * Sequential on purpose: each preview issues several queries, and this
+     * endpoint is hit whenever the workspace switcher opens. Fanning them out
+     * with `Promise.all` would hold one pooled connection per pending
+     * invitation for the length of the slowest one. The list is a handful of
+     * rows, so the added latency is not worth the pool pressure.
+     */
+    const previews: Array<Awaited<ReturnType<typeof getInvitationJoinPreview>> | null> = []
+    for (const inv of invitations) {
+      try {
+        previews.push(await getInvitationJoinPreview(session.user.id, inv))
+      } catch (previewError) {
+        logger.warn('Failed to compute join preview for pending invitation', {
+          invitationId: inv.id,
+          error: previewError,
+        })
+        previews.push(null)
+      }
+    }
+
     return NextResponse.json({
       invitations: invitations.map(
-        (inv) =>
+        (inv, index) =>
           ({
             id: inv.id,
             kind: inv.kind,
@@ -43,7 +69,8 @@ export const GET = withRouteHandler(async () => {
               workspaceName: grant.workspaceName,
               permission: grant.permission,
             })),
-          }) satisfies InvitationDetails
+            joinPreview: previews[index],
+          }) satisfies MyInvitation
       ),
     })
   } catch (error) {

@@ -2,14 +2,20 @@
 import { getErrorMessage } from '@sim/utils/errors'
 import { runDoctor } from './doctor.ts'
 import { SetupError } from './errors.ts'
+import { runFeatureSetup, setupFeatureUsage } from './feature-setup.ts'
 import { isLifecycleCommand, runLifecycle } from './lifecycle.ts'
+import { runSetupStatus } from './setup-status.ts'
 import { exitWith, restoreTerminal } from './terminal.ts'
 import { theme } from './theme.ts'
 import { runWizard, type WizardMode } from './wizard.ts'
 
 const USAGE = `Usage:
   bun run setup                                run the setup wizard
+  bun run setup status                         show configured capabilities and integrations
+  bun run setup <feature>                      configure ${setupFeatureUsage()}
   bun run sim setup [--quick] [--mode compose|dev|k8s]
+  bun run sim setup status                     show configured capabilities and integrations
+  bun run sim setup <feature>                  configure one feature
   bun run sim doctor [--fix] [--json]          check your setup
   bun run sim start | stop | restart           bring your install up / down / cycle
   bun run sim status                           what's installed and healthy
@@ -56,6 +62,16 @@ async function main(): Promise<void> {
 
   if (command === 'setup') {
     const setupArgs = args.slice(1)
+    const feature = setupArgs[0]?.startsWith('-') ? undefined : setupArgs[0]
+    if (feature === 'status') {
+      process.exitCode = await runSetupStatus()
+      return
+    }
+    if (feature) {
+      const featureIndex = setupArgs.indexOf(feature)
+      await runFeatureSetup(feature, setupArgs.slice(featureIndex + 1))
+      return
+    }
     const modeIdx = setupArgs.indexOf('--mode')
     await runWizard({
       quick: setupArgs.includes('--quick'),

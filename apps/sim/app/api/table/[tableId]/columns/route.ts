@@ -15,10 +15,14 @@ import {
   deleteColumn,
   renameColumn,
   updateColumnConstraints,
+  updateColumnCurrency,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table'
-import { columnMatchesRef } from '@/lib/table/column-keys'
+import { columnMatchesRef, getColumnId } from '@/lib/table/column-keys'
+import { columnTypeById } from '@/lib/table/column-types'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
+import { signalTableSchemaChanged } from '@/lib/table/events'
 import {
   accessError,
   checkAccess,
@@ -59,6 +63,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Colum
     }
 
     const updatedTable = await addTableColumn(tableId, validated.column, requestId)
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -120,13 +125,6 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const { updates } = validated
     let updatedTable = null
 
-    if (updates.name) {
-      updatedTable = await renameColumn(
-        { tableId, oldName: validated.columnName, newName: updates.name },
-        requestId
-      )
-    }
-
     // A payload that repeats the current type must not go through
     // `updateColumnType` — it early-returns on an unchanged type and would drop
     // any `options` alongside it. Only a real type change routes there; an
@@ -134,29 +132,121 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     const currentColumn = table.schema.columns.find((c) =>
       columnMatchesRef(c, validated.columnName)
     )
+    // Address every write below by the stable id, not the name: a rename folded
+    // into one of them must not break the next one's lookup.
+    const columnRef = currentColumn ? getColumnId(currentColumn) : validated.columnName
+    // The constraints write below is a separate, unconditional step, so it is
+    // the last one whenever it runs — that is the write the rename rides on.
     const typeChanging = updates.type !== undefined && updates.type !== currentColumn?.type
+    if (!currentColumn) {
+      return NextResponse.json(
+        { error: `Column "${validated.columnName}" not found` },
+        { status: 404 }
+      )
+    }
 
-    // Every write below is its own locked transaction, so any of them paired
-    // with a constraint write that is going to fail commits and then errors.
+    // A retype applies and validates the constraints itself, so the separate
+    // constraint write only runs when the type is unchanged. The rename rides
+    // whichever write actually runs last.
+    const typedWriteRuns =
+      typeChanging ||
+      updates.currencyCode !== undefined ||
+      updates.options !== undefined ||
+      updates.multiple !== undefined
+    const constraintsWriteRuns =
+      !typedWriteRuns && (updates.required !== undefined || updates.unique !== undefined)
+    const renameWithTypedWrite =
+      updates.name && !constraintsWriteRuns ? { newName: updates.name } : {}
+
+    // Every write below is its own locked transaction, so one that is going to
+    // fail leaves the earlier ones committed. These guards reject the knowable
+    // cases up front, before any write at all.
     // Gate on the type the column ENDS UP with, not on whether the type is
     // changing: an options-only update on an existing select column carries the
     // same hazard as a conversion does.
     const resultingType = updates.type ?? currentColumn?.type
-    if (updates.unique === true && resultingType === 'select') {
-      return NextResponse.json({ error: 'Cannot set a select column as unique' }, { status: 400 })
+    if (updates.currencyCode !== undefined) {
+      if (resultingType !== 'currency') {
+        return NextResponse.json(
+          {
+            error: `Cannot set currency on column "${validated.columnName}" of type "${resultingType}"`,
+          },
+          { status: 400 }
+        )
+      }
+      if (!isSupportedCurrencyCode(updates.currencyCode)) {
+        return NextResponse.json(
+          {
+            error: `Invalid currency code "${updates.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+          },
+          { status: 400 }
+        )
+      }
+    }
+    // The rename runs last (see below), so a name already taken would fail after
+    // the typed write committed. This is the only rename failure a caller can
+    // cause; catching it here leaves just the concurrent-collision race, which
+    // no pre-flight check can close.
+    if (
+      updates.name &&
+      table.schema.columns.some(
+        (c) =>
+          c.name.toLowerCase() === updates.name?.toLowerCase() &&
+          !columnMatchesRef(c, validated.columnName)
+      )
+    ) {
+      return NextResponse.json(
+        { error: `Column "${updates.name}" already exists` },
+        { status: 400 }
+      )
+    }
+    if (
+      currentColumn?.workflowGroupId &&
+      (updates.required !== undefined || updates.unique !== undefined)
+    ) {
+      return NextResponse.json(
+        {
+          error: `Cannot change constraints on workflow-output column "${currentColumn.name}". Constraints aren't applicable to columns whose values come from workflow execution.`,
+        },
+        { status: 400 }
+      )
+    }
+    if (updates.unique === true && !columnTypeById(resultingType).supportsUnique) {
+      return NextResponse.json(
+        { error: `Cannot set a ${resultingType} column as unique` },
+        { status: 400 }
+      )
     }
 
     if (typeChanging) {
       updatedTable = await updateColumnType(
         {
           tableId,
-          columnName: updates.name ?? validated.columnName,
+          columnName: columnRef,
           newType: updates.type as NonNullable<typeof updates.type>,
           ...(updates.options !== undefined ? { options: updates.options } : {}),
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
+          ...(updates.currencyCode !== undefined ? { currencyCode: updates.currencyCode } : {}),
           // Forwarded so the conversion validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...renameWithTypedWrite,
+        },
+        requestId
+      )
+    } else if (updates.currencyCode !== undefined) {
+      // Re-denominating an existing currency column: schema-only, no cell
+      // rewrite. Reached only when the type is unchanged — a conversion INTO
+      // currency carries the code through `updateColumnType` above.
+      updatedTable = await updateColumnCurrency(
+        {
+          tableId,
+          columnName: columnRef,
+          currencyCode: updates.currencyCode,
+          ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...renameWithTypedWrite,
         },
         requestId
       )
@@ -164,25 +254,42 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       updatedTable = await updateColumnOptions(
         {
           tableId,
-          columnName: updates.name ?? validated.columnName,
+          columnName: columnRef,
           options: updates.options ?? currentColumn?.options ?? [],
           ...(updates.multiple !== undefined ? { multiple: updates.multiple } : {}),
           // Forwarded so the removal guard validates against the constraint this
           // same request is about to set, not the column's current one.
           ...(updates.required !== undefined ? { required: updates.required } : {}),
+          ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...renameWithTypedWrite,
         },
         requestId
       )
     }
 
-    if (updates.required !== undefined || updates.unique !== undefined) {
+    // Skipped whenever a typed write ran: that write already applied and
+    // validated these, in one transaction with the change they accompany.
+    if (constraintsWriteRuns) {
       updatedTable = await updateColumnConstraints(
         {
           tableId,
-          columnName: updates.name ?? validated.columnName,
+          columnName: columnRef,
           ...(updates.required !== undefined ? { required: updates.required } : {}),
           ...(updates.unique !== undefined ? { unique: updates.unique } : {}),
+          ...(updates.name ? { newName: updates.name } : {}),
         },
+        requestId
+      )
+    }
+
+    // A rename rides along with the LAST write above, inside that write's
+    // transaction — a rename is metadata-only (rows key on the stable column
+    // id), so nothing forces it to be its own write, and folding it in is what
+    // stops a combined request from committing one half and then failing. Only
+    // a rename with nothing to ride on runs standalone.
+    if (updates.name && !updatedTable) {
+      updatedTable = await renameColumn(
+        { tableId, oldName: columnRef, newName: updates.name },
         requestId
       )
     }
@@ -190,6 +297,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
     if (!updatedTable) {
       return NextResponse.json({ error: 'No updates specified' }, { status: 400 })
     }
+    signalTableSchemaChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -217,7 +325,9 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       msg.includes('exceeds maximum') ||
       msg.includes('incompatible') ||
       msg.includes('duplicate') ||
-      msg.includes('option')
+      msg.includes('option') ||
+      msg.includes('currency') ||
+      msg.includes('is already type')
     ) {
       return NextResponse.json({ error: msg }, { status: 400 })
     }
@@ -257,6 +367,7 @@ export const DELETE = withRouteHandler(
         { tableId, columnName: validated.columnName },
         requestId
       )
+      signalTableSchemaChanged(tableId)
 
       return NextResponse.json({
         success: true,

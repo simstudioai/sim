@@ -2,6 +2,11 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import type { BlockConfig } from '@/blocks/types'
 import { hostedKeyEnabledWhen } from '@/tools/hosting'
 import type { ToolConfig } from '@/tools/types'
@@ -9,9 +14,12 @@ import {
   serializeApiKeyIntegrations,
   serializeBlockSchema,
   serializeCredentials,
+  serializeDeployments,
   serializeFileMeta,
   serializeIntegrationSchema,
   serializeKBMeta,
+  serializeSandbox,
+  serializeSandboxCatalog,
   serializeTableMeta,
   serializeTableViews,
   serializeWorkflowMeta,
@@ -46,6 +54,19 @@ function hostedTool(id: string, conditional = false): ToolConfig {
 }
 
 describe('VFS metadata serializers', () => {
+  it('serializes an undeployed API explicitly instead of as an empty object', () => {
+    const deployment = JSON.parse(
+      serializeDeployments({
+        workflowId: 'workflow-1',
+        isDeployed: false,
+        mcp: [],
+        versions: [],
+      })
+    )
+
+    expect(deployment).toEqual({ api: { isDeployed: false } })
+  })
+
   it('includes the authoritative file update timestamp', () => {
     const metadata = JSON.parse(
       serializeFileMeta({
@@ -108,6 +129,105 @@ describe('VFS metadata serializers', () => {
 
     expect(metadata).not.toHaveProperty('description')
     expect(JSON.stringify(metadata)).not.toContain('PRIVATE WORKFLOW DESCRIPTION')
+  })
+
+  it('serializes the complete Sim sandbox discovery resource', () => {
+    const serialized = JSON.parse(
+      serializeSandbox(
+        {
+          id: 'sandbox-1',
+          name: 'Data Tools',
+          language: 'python',
+          dependencies: ['pandas'],
+          systemPackages: ['graphviz'],
+          cliTools: ['kubectl@1.36.3-r1'],
+          buildStatus: 'ready',
+          errorCode: null,
+          errorMessage: null,
+          errorDetail: null,
+          builtAt: '2026-08-04T12:00:00.000Z',
+          createdAt: '2026-08-04T11:00:00.000Z',
+          updatedAt: '2026-08-04T12:00:00.000Z',
+        },
+        'prebuilt'
+      )
+    )
+
+    expect(serialized).toMatchObject({
+      id: 'sandbox-1',
+      strategy: 'prebuilt',
+      buildStatus: 'ready',
+      dependencies: ['pandas'],
+      systemPackages: ['graphviz'],
+      cliTools: ['kubectl@1.36.3-r1'],
+    })
+  })
+
+  it('generates the sandbox capability reference from the authoritative CLI registry', () => {
+    const reference = serializeSandboxCatalog('prebuilt')
+
+    expect(reference).toContain('Active dependency strategy: `prebuilt`')
+    expect(reference).toContain(`accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids`)
+    for (const id of SANDBOX_SELECTABLE_CLI_TOOL_IDS) {
+      const tool = SANDBOX_CLI_TOOLS[id]
+      expect(reference).toContain(`\`${id}\``)
+      expect(reference).toContain(tool.label)
+      expect(reference).toContain(tool.description)
+    }
+  })
+})
+
+describe('entitlement-projected block schemas', () => {
+  it('keeps a gated input readable while marking it unavailable for mutation', () => {
+    const block = {
+      type: 'function',
+      name: 'Function',
+      description: 'Run code',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'code', title: 'Code', type: 'long-input' },
+        { id: 'sandboxId', title: 'Sandbox', type: 'combobox' },
+      ],
+      tools: { access: [] },
+      inputs: {
+        code: { type: 'string' },
+        sandboxId: { type: 'string' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(
+      serializeBlockSchema(block, {
+        restrictedInputs: new Map([
+          [
+            'sandboxId',
+            {
+              requiredEntitlement: 'sim-sandboxes',
+              reason: 'Requires an active Max or Enterprise plan.',
+            },
+          ],
+        ]),
+      })
+    )
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual([
+      'code',
+      'sandboxId',
+    ])
+    expect(schema.subBlocks[1]).toMatchObject({
+      readOnly: true,
+      requiredEntitlement: 'sim-sandboxes',
+      restrictionReason: 'Requires an active Max or Enterprise plan.',
+    })
+    expect(schema.inputs).toHaveProperty('code')
+    expect(schema.inputs.sandboxId).toMatchObject({
+      type: 'string',
+      readOnly: true,
+      requiredEntitlement: 'sim-sandboxes',
+      restrictionReason: 'Requires an active Max or Enterprise plan.',
+    })
   })
 })
 
@@ -218,6 +338,44 @@ describe('hosted-key VFS metadata', () => {
     expect(schema.inputs.apiKey).toBeDefined()
     expect(schema.toolAuth.search.mode).toBe('hosted_or_byok')
   })
+
+  it('omits server-only lifecycle inputs from block schemas', () => {
+    const block = {
+      type: 'mothership',
+      name: 'Sim Chat',
+      description: 'Talk to Sim',
+      category: 'blocks',
+      bgColor: '#000000',
+      icon: () => null,
+      subBlocks: [
+        { id: 'prompt', title: 'Prompt', type: 'long-input' },
+        {
+          id: 'secretScope',
+          title: 'Secret access',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+        {
+          id: 'mountedSecrets',
+          title: 'Secrets',
+          type: 'dropdown',
+          hideFromCopilot: true,
+        },
+      ],
+      tools: { access: [] },
+      inputs: {
+        prompt: { type: 'string' },
+        secretScope: { type: 'string' },
+        mountedSecrets: { type: 'json' },
+      },
+      outputs: {},
+    } as unknown as BlockConfig
+
+    const schema = JSON.parse(serializeBlockSchema(block))
+
+    expect(schema.subBlocks.map((subBlock: { id: string }) => subBlock.id)).toEqual(['prompt'])
+    expect(schema.inputs).toEqual({ prompt: { type: 'string' } })
+  })
 })
 
 describe('serializeKBMeta', () => {
@@ -317,6 +475,17 @@ describe('serializeIntegrationSchema — service-account auth', () => {
     expect(schema.auth.serviceAccount).toBeUndefined()
   })
 
+  it('keeps service-account auth while suppressing an unavailable OAuth connection', () => {
+    const schema = JSON.parse(
+      serializeIntegrationSchema(oauthTool('notion_read', 'notion'), {
+        oauthAvailable: false,
+      })
+    )
+
+    expect(schema.auth.serviceAccount).toEqual({ connectNoun: 'integration secret' })
+    expect(schema.oauth).toBeUndefined()
+  })
+
   // The preview-gate behavior (slack custom bot ↔ slack_v2) is covered in
   // service-account-gate.test.ts, which mocks getBlock — the block registry is
   // globally stubbed here, so slack_v2's real `preview: true` isn't observable
@@ -362,7 +531,7 @@ describe('serializeCredentials — type distinguishes reconnect flow', () => {
 })
 
 describe('serializeTableViews', () => {
-  it('translates stored column ids to names for filter, sort, and hiddenColumns', () => {
+  it('translates stored column ids to names for filter, order, and hiddenColumns', () => {
     const schema = {
       columns: [
         { id: 'col_status', name: 'Status', type: 'string' },
@@ -376,8 +545,8 @@ describe('serializeTableViews', () => {
             id: 'view_1',
             name: 'Open items',
             config: {
-              filter: { $or: [{ col_status: { $eq: 'open' } }] },
-              sort: { col_owner: 'asc' },
+              filter: { any: [{ field: 'col_status', op: 'eq', value: 'open' }] },
+              sort: [{ field: 'col_owner', direction: 'asc' }],
               hiddenColumns: ['col_owner'],
             },
           },
@@ -389,8 +558,8 @@ describe('serializeTableViews', () => {
       {
         id: 'view_1',
         name: 'Open items',
-        filter: { $or: [{ Status: { $eq: 'open' } }] },
-        sort: { Owner: 'asc' },
+        filter: { any: [{ field: 'Status', op: 'eq', value: 'open' }] },
+        order: [{ field: 'Owner', direction: 'asc' }],
         hiddenColumns: ['Owner'],
       },
     ])
@@ -400,11 +569,17 @@ describe('serializeTableViews', () => {
     const schema = { columns: [{ id: 'col_a', name: 'A', type: 'string' }] } as never
     const out = JSON.parse(
       serializeTableViews(
-        [{ id: 'v', name: 'V', config: { filter: { col_gone: { $eq: 1 } } } }],
+        [
+          {
+            id: 'v',
+            name: 'V',
+            config: { filter: { all: [{ field: 'col_gone', op: 'eq', value: 1 }] } },
+          },
+        ],
         schema
       )
     )
-    expect(out[0].filter).toEqual({ col_gone: { $eq: 1 } })
-    expect(out[0].sort).toBeNull()
+    expect(out[0].filter).toEqual({ all: [{ field: 'col_gone', op: 'eq', value: 1 }] })
+    expect(out[0].order).toBeNull()
   })
 })

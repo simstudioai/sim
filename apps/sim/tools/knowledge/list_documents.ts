@@ -51,6 +51,7 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
       return `/api/knowledge/${params.knowledgeBaseId}/documents${qs ? `?${qs}` : ''}`
     },
     method: 'GET',
+    secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({
       'Content-Type': 'application/json',
     }),

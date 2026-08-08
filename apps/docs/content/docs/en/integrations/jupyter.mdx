@@ -31,7 +31,7 @@ Integrate a self-hosted Jupyter server into the workflow. Browse, read, create, 
 
 ## Actions
 
-### `jupyter_list_contents`
+### Jupyter List Contents
 
 List files, notebooks, and subdirectories at a path on a Jupyter server
 
@@ -59,7 +59,7 @@ List files, notebooks, and subdirectories at a path on a Jupyter server
 |   ↳ `format` | string | json, text, or base64 |
 | `path` | string | The listed directory path |
 
-### `jupyter_get_content`
+### Jupyter Get Content
 
 Read a file or notebook from a Jupyter server
 
@@ -81,7 +81,7 @@ Read a file or notebook from a Jupyter server
 | `text` | string | Text content, for text files and notebooks \(JSON-stringified\) |
 | `file` | file | Binary content stored as a file, for base64-format content |
 
-### `jupyter_create_file`
+### Jupyter Create File
 
 Create a file, notebook, or directory on a Jupyter server
 
@@ -105,7 +105,7 @@ Create a file, notebook, or directory on a Jupyter server
 | `createdAt` | string | Creation timestamp |
 | `lastModified` | string | Last modified timestamp |
 
-### `jupyter_upload_file`
+### Jupyter Upload File
 
 Upload a file to a Jupyter server
 
@@ -129,7 +129,7 @@ Upload a file to a Jupyter server
 | `size` | number | File size in bytes |
 | `lastModified` | string | Last modified timestamp |
 
-### `jupyter_rename_content`
+### Jupyter Rename Content
 
 Rename or move a file, notebook, or directory on a Jupyter server
 
@@ -150,7 +150,7 @@ Rename or move a file, notebook, or directory on a Jupyter server
 | `path` | string | New entry path |
 | `lastModified` | string | Last modified timestamp |
 
-### `jupyter_delete_content`
+### Jupyter Delete Content
 
 Delete a file, notebook, or directory on a Jupyter server
 
@@ -169,7 +169,7 @@ Delete a file, notebook, or directory on a Jupyter server
 | `success` | boolean | Whether the entry was deleted |
 | `path` | string | Deleted entry path |
 
-### `jupyter_copy_content`
+### Jupyter Copy Content
 
 Duplicate a file or notebook into a directory on a Jupyter server
 
@@ -190,7 +190,7 @@ Duplicate a file or notebook into a directory on a Jupyter server
 | `path` | string | Path of the copied entry |
 | `createdAt` | string | Creation timestamp |
 
-### `jupyter_list_kernels`
+### Jupyter List Kernels
 
 List running kernels on a Jupyter server
 
@@ -212,7 +212,7 @@ List running kernels on a Jupyter server
 |   ↳ `executionState` | string | Kernel execution state |
 |   ↳ `connections` | number | Active connection count |
 
-### `jupyter_start_kernel`
+### Jupyter Start Kernel
 
 Start a new kernel on a Jupyter server
 
@@ -234,7 +234,7 @@ Start a new kernel on a Jupyter server
 | `executionState` | string | Kernel execution state |
 | `connections` | number | Active connection count |
 
-### `jupyter_stop_kernel`
+### Jupyter Stop Kernel
 
 Shut down a running kernel on a Jupyter server
 
@@ -253,7 +253,7 @@ Shut down a running kernel on a Jupyter server
 | `success` | boolean | Whether the kernel was shut down |
 | `kernelId` | string | Shut down kernel ID |
 
-### `jupyter_restart_kernel`
+### Jupyter Restart Kernel
 
 Restart a running kernel on a Jupyter server
 
@@ -275,7 +275,7 @@ Restart a running kernel on a Jupyter server
 | `executionState` | string | Kernel execution state |
 | `connections` | number | Active connection count |
 
-### `jupyter_interrupt_kernel`
+### Jupyter Interrupt Kernel
 
 Interrupt a running kernel on a Jupyter server
 
@@ -294,7 +294,7 @@ Interrupt a running kernel on a Jupyter server
 | `success` | boolean | Whether the interrupt was sent |
 | `kernelId` | string | Interrupted kernel ID |
 
-### `jupyter_list_kernelspecs`
+### Jupyter List Kernel Specs
 
 List available kernel specs (languages/runtimes) on a Jupyter server
 
@@ -317,7 +317,7 @@ List available kernel specs (languages/runtimes) on a Jupyter server
 |   ↳ `argv` | array | Launch command arguments |
 |   ↳ `interruptMode` | string | Interrupt mode |
 
-### `jupyter_list_sessions`
+### Jupyter List Sessions
 
 List active sessions (notebook-to-kernel bindings) on a Jupyter server
 
@@ -344,7 +344,7 @@ List active sessions (notebook-to-kernel bindings) on a Jupyter server
 |     ↳ `executionState` | string | Kernel execution state |
 |     ↳ `connections` | number | Active connection count |
 
-### `jupyter_create_session`
+### Jupyter Create Session
 
 Create a session that binds a notebook path to a (new or existing) kernel
 
@@ -374,7 +374,7 @@ Create a session that binds a notebook path to a (new or existing) kernel
 |   ↳ `executionState` | string | Kernel execution state |
 |   ↳ `connections` | number | Active connection count |
 
-### `jupyter_delete_session`
+### Jupyter Delete Session
 
 Delete a session on a Jupyter server (does not shut down its kernel)
 

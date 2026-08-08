@@ -3,6 +3,7 @@ import { AgentIcon } from '@/components/icons'
 import type { BlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import {
+  getModelCapabilityCondition,
   getModelOptions,
   getProviderCredentialSubBlocks,
   normalizeFileInput,
@@ -20,6 +21,7 @@ import {
   getReasoningEffortValuesForModel,
   getThinkingLevelsForModel,
   getVerbosityValuesForModel,
+  isAutoModel,
   supportsTemperature,
 } from '@/providers/models'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
@@ -158,8 +160,8 @@ Return ONLY the JSON array.`,
     {
       id: 'reasoningEffort',
       title: 'Reasoning Effort',
-      type: 'dropdown',
-      placeholder: 'Select reasoning effort...',
+      type: 'combobox',
+      placeholder: 'Type or select reasoning effort...',
       options: [
         { label: 'auto', id: 'auto' },
         { label: 'low', id: 'low' },
@@ -206,16 +208,13 @@ Return ONLY the JSON array.`,
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_REASONING_EFFORT,
-      },
+      condition: getModelCapabilityCondition(MODELS_WITH_REASONING_EFFORT),
     },
     {
       id: 'verbosity',
       title: 'Verbosity',
-      type: 'dropdown',
-      placeholder: 'Select verbosity...',
+      type: 'combobox',
+      placeholder: 'Type or select verbosity...',
       options: [
         { label: 'auto', id: 'auto' },
         { label: 'low', id: 'low' },
@@ -262,16 +261,13 @@ Return ONLY the JSON array.`,
         return [autoOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_VERBOSITY,
-      },
+      condition: getModelCapabilityCondition(MODELS_WITH_VERBOSITY),
     },
     {
       id: 'thinkingLevel',
       title: 'Thinking Level',
-      type: 'dropdown',
-      placeholder: 'Select thinking level...',
+      type: 'combobox',
+      placeholder: 'Type or select thinking level...',
       options: [
         { label: 'none', id: 'none' },
         { label: 'minimal', id: 'minimal' },
@@ -305,10 +301,7 @@ Return ONLY the JSON array.`,
         return [noneOption, ...validOptions.map((opt) => ({ label: opt, id: opt }))]
       },
       mode: 'advanced',
-      condition: {
-        field: 'model',
-        value: MODELS_WITH_THINKING,
-      },
+      condition: getModelCapabilityCondition(MODELS_WITH_THINKING),
     },
     {
       id: 'promptCaching',
@@ -522,7 +515,13 @@ Return ONLY the JSON array.`,
         if (!model) {
           throw new Error('No model selected')
         }
-        const tool = getBaseModelProviders()[model]
+        // sim-auto resolves to a concrete pool model at execution time, where
+        // the agent handler derives the provider from the resolved model and
+        // never reads this serialized value. Serialization still needs the
+        // same provider-id shape every other model stores, so look up the
+        // runtime fallback model's provider.
+        const lookupModel = isAutoModel(model) ? 'claude-sonnet-5' : model
+        const tool = getBaseModelProviders()[lookupModel]
         if (!tool) {
           throw new Error(`Invalid model selected: ${model}`)
         }

@@ -4,6 +4,7 @@ import { Streamdown } from 'streamdown'
 import 'streamdown/styles.css'
 import { cn, handleKeyboardActivation } from '@sim/emcn'
 import { getEmbedInfo } from '@sim/utils/media-embed'
+import { OverflowSpan } from '../lib/overflow-span'
 
 const EMBED_SCALE = 0.78
 const EMBED_INVERSE_SCALE = `${(1 / EMBED_SCALE) * 100}%`
@@ -137,7 +138,7 @@ const NOTE_COMPONENTS = {
     <em className='break-words text-[var(--text-tertiary)]'>{children}</em>
   ),
   blockquote: ({ children }: { children?: ReactNode }) => (
-    <blockquote className='my-4 break-words border-[var(--divider)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
+    <blockquote className='my-4 break-words border-[var(--border)] border-l-2 pl-4 text-[var(--text-primary)] italic [&>p:first-child]:mt-0 [&>p:last-child]:mb-0 [&>p]:my-2'>
       {children}
     </blockquote>
   ),
@@ -215,17 +216,15 @@ export function NoteBlockView({
       >
         {actionBar}
 
-        <div className='flex items-center justify-between border-[var(--divider)] border-b p-2'>
+        <div className='flex items-center justify-between border-[var(--border)] border-b p-2'>
           <div className='flex min-w-0 flex-1 items-center'>
-            <span
+            <OverflowSpan
+              value={name ?? ''}
               className={cn(
                 'truncate font-medium text-md',
                 !isEnabled && 'text-[var(--text-muted)]'
               )}
-              title={name}
-            >
-              {name}
-            </span>
+            />
           </div>
         </div>
 

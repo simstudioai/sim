@@ -18,6 +18,7 @@ import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   createWorkspaceEnvCredentials,
   deleteWorkspaceEnvCredentials,
+  getPersonalEnvKeyRawAccess,
   getWorkspaceEnvKeyAdminAccess,
 } from '@/lib/credentials/environment'
 import {
@@ -74,6 +75,32 @@ async function maskWorkspaceEnvForViewer({
   return masked
 }
 
+async function maskPersonalEnvForViewer({
+  personalDecrypted,
+  personalOwners,
+  workspaceId,
+  userId,
+}: {
+  personalDecrypted: Record<string, string>
+  personalOwners: Record<string, string>
+  workspaceId: string
+  userId: string
+}): Promise<Record<string, string>> {
+  const personalKeys = Object.keys(personalDecrypted)
+  const { ownedKeys, adminKeys } = await getPersonalEnvKeyRawAccess({
+    workspaceId,
+    personalOwners,
+    userId,
+  })
+
+  return Object.fromEntries(
+    personalKeys.map((key) => [
+      key,
+      ownedKeys.has(key) || adminKeys.has(key) ? personalDecrypted[key] : '',
+    ])
+  )
+}
+
 export const GET = withRouteHandler(
   async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
     const requestId = generateRequestId()
@@ -98,10 +125,8 @@ export const GET = withRouteHandler(
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
       }
 
-      const { workspaceDecrypted, personalDecrypted, conflicts } = await getPersonalAndWorkspaceEnv(
-        userId,
-        workspaceId
-      )
+      const { workspaceDecrypted, personalDecrypted, personalOwners, conflicts } =
+        await getPersonalAndWorkspaceEnv(userId, workspaceId)
 
       const workspace = await maskWorkspaceEnvForViewer({
         workspaceDecrypted,
@@ -109,12 +134,18 @@ export const GET = withRouteHandler(
         userId,
         permission,
       })
+      const personal = await maskPersonalEnvForViewer({
+        personalDecrypted,
+        personalOwners,
+        workspaceId,
+        userId,
+      })
 
       return NextResponse.json(
         {
           data: {
             workspace,
-            personal: personalDecrypted,
+            personal,
             conflicts,
           },
         },

@@ -1,10 +1,41 @@
-import { usageLog, workflow } from '@sim/db/schema'
-import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { usageLog, workflow, workflowExecutionLogs } from '@sim/db/schema'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
+import { SECRET_PROJECTION_VERSION } from '@/lib/logs/execution/trace-store'
+import type { WorkflowExecutionLog } from '@/lib/logs/types'
+import { emitExecutionCompletedEvent } from '@/lib/workspace-events/emitter'
+import type { SerializableExecutionState } from '@/executor/execution/types'
 
 afterAll(resetDbChainMock)
+
+/** Flat logger whose withMetadata() children share one spy set, so log level is assertable. */
+const { mockLogger, statsLogErrorMock } = vi.hoisted(() => {
+  const mockLogger: Record<string, ReturnType<typeof vi.fn>> = {
+    info: vi.fn(),
+    warn: vi.fn(),
+    error: vi.fn(),
+    debug: vi.fn(),
+    trace: vi.fn(),
+    fatal: vi.fn(),
+  }
+  mockLogger.child = vi.fn(() => mockLogger)
+  mockLogger.withMetadata = vi.fn(() => mockLogger)
+  return { mockLogger, statsLogErrorMock: mockLogger.error }
+})
+
+vi.mock('@sim/logger', () => ({
+  createLogger: vi.fn(() => mockLogger),
+  logger: mockLogger,
+  runWithRequestContext: vi.fn(<T>(_ctx: unknown, fn: () => T): T => fn()),
+  getRequestContext: vi.fn(() => undefined),
+}))
 
 // Mock billing modules
 vi.mock('@/lib/billing/core/subscription', () => ({
@@ -85,6 +116,13 @@ vi.mock('@/lib/workspace-events/emitter', () => ({
   emitExecutionCompletedEvent: vi.fn(() => Promise.resolve()),
 }))
 
+vi.mock('@/lib/logs/execution/progress-markers', () => ({
+  clearProgressMarkers: vi.fn(() => Promise.resolve()),
+  getProgressMarkers: vi.fn(() => Promise.resolve(null)),
+  pickLatestCompletedMarker: vi.fn((current, persisted) => current ?? persisted),
+  pickLatestStartedMarker: vi.fn((current, persisted) => current ?? persisted),
+}))
+
 // Mock snapshot service
 vi.mock('@/lib/logs/execution/snapshot/service', () => ({
   snapshotService: {
@@ -139,6 +177,115 @@ describe('ExecutionLogger', () => {
 
     test('should have getWorkflowExecution method', () => {
       expect(typeof logger.getWorkflowExecution).toBe('function')
+    })
+
+    test('marks new execution rows as contract-aware before any provenance is available', async () => {
+      dbChainMockFns.limit.mockResolvedValueOnce([])
+      dbChainMockFns.returning.mockResolvedValueOnce([
+        {
+          id: 'log-1',
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          stateSnapshotId: 'snapshot-123',
+          level: 'info',
+          trigger: 'api',
+          startedAt: new Date('2026-08-04T00:00:00.000Z'),
+          endedAt: null,
+          totalDurationMs: null,
+          executionData: {},
+          createdAt: new Date('2026-08-04T00:00:00.000Z'),
+        },
+      ])
+
+      await logger.startWorkflowExecution({
+        workflowId: 'workflow-123',
+        workspaceId: 'workspace-123',
+        executionId: 'execution-123',
+        trigger: {
+          type: 'api',
+          source: 'api',
+          timestamp: '2026-08-04T00:00:00.000Z',
+        },
+        environment: {
+          variables: {},
+          workflowId: 'workflow-123',
+          executionId: 'execution-123',
+          userId: 'user-123',
+          workspaceId: 'workspace-123',
+        },
+        workflowState: { blocks: {}, edges: [], loops: {}, parallels: {} },
+      })
+
+      expect(dbChainMockFns.values).toHaveBeenCalledWith(
+        expect.objectContaining({
+          executionData: expect.objectContaining({
+            secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          }),
+        })
+      )
+    })
+
+    test('preserves a cancellation that wins the completion update race', async () => {
+      const startedAt = new Date('2026-08-03T12:00:00.000Z')
+      const createdAt = new Date('2026-08-03T12:00:00.000Z')
+      const runningLog = {
+        id: 'log-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        executionId: 'execution-1',
+        stateSnapshotId: 'snapshot-1',
+        level: 'info',
+        status: 'running',
+        trigger: 'api',
+        startedAt,
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: {},
+        createdAt,
+      }
+      const cancelledLog = {
+        ...runningLog,
+        status: 'cancelled',
+        endedAt: new Date('2026-08-03T12:00:01.000Z'),
+        totalDurationMs: 1000,
+        executionData: { finalOutput: { cancelled: true } },
+      }
+      queueTableRows(workflowExecutionLogs, [runningLog])
+      queueTableRows(workflowExecutionLogs, [cancelledLog])
+      dbChainMockFns.returning.mockResolvedValueOnce([])
+      vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: unknown, payload: unknown) => payload
+      )
+      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+
+      const result = await logger.completeWorkflowExecution({
+        executionId: 'execution-1',
+        endedAt: '2026-08-03T12:00:02.000Z',
+        totalDurationMs: 2000,
+        costSummary: {
+          totalCost: 0,
+          totalInputCost: 0,
+          totalOutputCost: 0,
+          totalTokens: 0,
+          totalPromptTokens: 0,
+          totalCompletionTokens: 0,
+          baseExecutionCharge: 0,
+          models: {},
+        },
+        finalOutput: { completed: true },
+        traceSpans: [],
+      })
+
+      const completionGuard = dbChainMockFns.where.mock.calls
+        .flatMap(([condition]) => flattenMockConditions(condition))
+        .find(
+          (condition) =>
+            Array.isArray(condition.strings) &&
+            String(Array.from(condition.strings as string[])).includes("!= 'cancelled'")
+        )
+      expect(completionGuard).toBeDefined()
+      expect(result.executionData).toEqual(cancelledLog.executionData)
+      expect(emitExecutionCompletedEvent).not.toHaveBeenCalled()
     })
 
     test('preserves correlation and diagnostics when execution completes', () => {
@@ -205,6 +352,7 @@ describe('ExecutionLogger', () => {
       })
       expect(completedData.correlation).toEqual(completedData.trigger?.data?.correlation)
       expect(completedData.finalOutput).toEqual({ ok: true })
+      expect(completedData.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(completedData.lastStartedBlock?.blockId).toBe('block-start')
       expect(completedData.lastCompletedBlock?.blockId).toBe('block-end')
       expect(completedData.finalizationPath).toBe('completed')
@@ -240,6 +388,56 @@ describe('ExecutionLogger', () => {
       })
 
       expect(completedData.billingAttribution).toEqual(billingAttribution)
+    })
+
+    test('preserves server-only lifecycle metadata after execution-state PII masking', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        preservePrivateExecutionStateMetadata(
+          redactedState: SerializableExecutionState | undefined,
+          originalState: SerializableExecutionState | undefined
+        ): SerializableExecutionState | undefined
+      }
+      const provenance = {
+        version: 1 as const,
+        complete: true,
+        entries: [{ name: 'API_SECRET', encryptedValue: 'enc:original-ciphertext' }],
+      }
+      const trustedLargeValueAccess = {
+        executionIds: ['execution-1'],
+        largeValueKeys: ['execution/workspace-1/workflow-1/execution-1/value.json'],
+        fileKeys: ['workspace-1/file-1'],
+      }
+      const originalState: SerializableExecutionState = {
+        blockStates: {},
+        executedBlocks: [],
+        blockLogs: [],
+        decisions: { router: {}, condition: {} },
+        completedLoops: [],
+        activeExecutionPath: [],
+        resolvedSecretTraceProvenance: provenance,
+        trustedLargeValueAccess,
+      }
+      const redactedState: SerializableExecutionState = {
+        ...originalState,
+        resolvedSecretTraceProvenance: {
+          ...provenance,
+          entries: [{ name: 'API_SECRET', encryptedValue: '[MASKED]' }],
+        },
+        trustedLargeValueAccess: {
+          executionIds: [],
+          largeValueKeys: [],
+          fileKeys: [],
+        },
+      }
+
+      const preserved = loggerInstance.preservePrivateExecutionStateMetadata(
+        redactedState,
+        originalState
+      )
+
+      expect(preserved?.resolvedSecretTraceProvenance).toBe(provenance)
+      expect(preserved?.trustedLargeValueAccess).toBe(trustedLargeValueAccess)
+      expect(preserved?.blockStates).toEqual(redactedState.blockStates)
     })
 
     test('summarizes oversized execution data before storage', () => {
@@ -317,6 +515,7 @@ describe('ExecutionLogger', () => {
 
       expect(storedBytes).toBeLessThanOrEqual(3 * 1024 * 1024)
       expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
       expect(compacted.executionState).toBeUndefined()
       expect(compacted.executionStateSummary).toEqual({
         executedBlockCount: 1,
@@ -325,12 +524,109 @@ describe('ExecutionLogger', () => {
         activeExecutionPathLength: 0,
         pendingQueueLength: 0,
       })
-      expect(compacted.traceSpans?.[0]?.children?.[0]?.input).toEqual({
-        _truncated: true,
-        reason: 'execution_data_size_limit',
-        originalBytes: expect.any(Number),
-        summary: 'object with 2 keys',
+      expect(compacted.traceSpans?.[0]?.children?.[0]).not.toHaveProperty('input')
+    })
+
+    test('retains the trusted Copilot binding in metadata-only compaction', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage(
+          executionData: WorkflowExecutionLog['executionData'],
+          executionId: string
+        ): WorkflowExecutionLog['executionData']
+      }
+      const correlation = {
+        executionId: 'execution-metadata-only',
+        requestId: 'request-1',
+        source: 'workflow' as const,
+        workflowId: 'workflow-1',
+        copilotToolCallId: 'tool-call-1',
+      }
+
+      const compacted = loggerInstance.compactExecutionDataForStorage(
+        {
+          environment: {
+            variables: { OVERSIZED: 'x'.repeat(3.5 * 1024 * 1024) },
+            workflowId: 'workflow-1',
+            executionId: 'execution-metadata-only',
+            userId: 'user-1',
+            workspaceId: 'workspace-1',
+          },
+          correlation,
+          secretProjectionVersion: SECRET_PROJECTION_VERSION,
+          hasTraceSpans: false,
+          traceSpanCount: 0,
+        },
+        'execution-metadata-only'
+      )
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.secretProjectionVersion).toBe(SECRET_PROJECTION_VERSION)
+      expect(compacted.correlation).toEqual(correlation)
+      expect(compacted).not.toHaveProperty('environment')
+    })
+
+    test('retains tool-call structure when aggregate trace content exceeds the compaction cap', () => {
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage(
+          executionData: WorkflowExecutionLog['executionData'],
+          executionId: string
+        ): WorkflowExecutionLog['executionData']
+      }
+      const oversizedContent = 'x'.repeat(9_000)
+      const modelToolCalls = Array.from({ length: 200 }, (_, index) => ({
+        id: `model-call-${index}-${'m'.repeat(40)}`,
+        name: 'lookup',
+        arguments: oversizedContent,
+      }))
+      const toolCalls = Array.from({ length: 200 }, (_, index) => ({
+        id: `legacy-call-${index}-${'l'.repeat(40)}`,
+        name: 'legacy_lookup',
+        duration: 1,
+        startTime: '2025-01-01T00:00:00.000Z',
+        endTime: '2025-01-01T00:00:00.001Z',
+        status: 'success' as const,
+        input: oversizedContent,
+        output: oversizedContent,
+        error: oversizedContent,
+      }))
+
+      const compacted = loggerInstance.compactExecutionDataForStorage(
+        {
+          traceSpans: [
+            {
+              id: 'span-1',
+              name: 'Agent',
+              type: 'agent',
+              duration: 1,
+              startTime: '2025-01-01T00:00:00.000Z',
+              endTime: '2025-01-01T00:00:00.001Z',
+              status: 'success',
+              modelToolCalls,
+              toolCalls,
+            },
+          ],
+          finalOutput: { data: 'y'.repeat(1_100_000) },
+        },
+        'execution-tool-structure'
+      )
+
+      expect(compacted.executionDataTruncated).toBe(true)
+      expect(compacted.traceSpans?.[0]?.modelToolCalls).toHaveLength(modelToolCalls.length)
+      expect(compacted.traceSpans?.[0]?.modelToolCalls?.[0]).toEqual({
+        id: modelToolCalls[0].id,
+        name: 'lookup',
       })
+      expect(compacted.traceSpans?.[0]?.toolCalls).toHaveLength(toolCalls.length)
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).toEqual(
+        expect.objectContaining({
+          id: toolCalls[0].id,
+          name: 'legacy_lookup',
+          status: 'success',
+        })
+      )
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('input')
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('output')
+      expect(compacted.traceSpans?.[0]?.toolCalls?.[0]).not.toHaveProperty('error')
     })
   })
 
@@ -739,6 +1035,36 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).not.toHaveBeenCalled()
   })
 
+  const unbilledErrorCalls = () =>
+    mockLogger.error.mock.calls.filter((call) =>
+      String(call[0]).includes('Failed to record execution usage to usage_log ledger')
+    )
+
+  test('a structurally zero-cost run without billing context logs no unbilled-charge error', async () => {
+    mockDb([])
+
+    const recorded = await logger.recordExecutionUsage(
+      'workflow-1',
+      costSummary({ baseExecutionCharge: 0 }),
+      'api',
+      'exec-1',
+      'user-1'
+    )
+
+    expect(recorded).toBe(0)
+    expect(recordUsage).not.toHaveBeenCalled()
+    expect(unbilledErrorCalls()).toHaveLength(0)
+  })
+
+  test('a genuine ledger write failure still logs the unbilled-charge error', async () => {
+    vi.mocked(recordUsage).mockRejectedValueOnce(new Error('ledger insert failed'))
+
+    const recorded = await run(costSummary(), [])
+
+    expect(recorded).toBe(0)
+    expect(unbilledErrorCalls()).toHaveLength(1)
+  })
+
   test('retry with everything already billed records nothing (idempotent)', async () => {
     await run(
       costSummary({
@@ -903,5 +1229,33 @@ describe('recordExecutionUsage boundary-delta reconciliation', () => {
     expect(recordUsage).toHaveBeenCalledTimes(1)
     // The ledger INSERT participates in the locked transaction.
     expect(vi.mocked(recordUsage).mock.calls[0][0]).toHaveProperty('tx')
+  })
+
+  test('reports the driver cause and SQLSTATE when the ledger write fails', async () => {
+    const driver = Object.assign(new Error('cannot execute INSERT in a read-only transaction'), {
+      code: '25006',
+    })
+    vi.mocked(recordUsage).mockRejectedValueOnce(
+      new Error('Failed query: insert into "usage_log"\nparams: user-1', { cause: driver })
+    )
+
+    await run(
+      costSummary({
+        models: {
+          'gpt-4o': { input: 0, output: 0, total: 1, tokens: { input: 0, output: 0, total: 0 } },
+        },
+      }),
+      []
+    )
+
+    expect(statsLogErrorMock).toHaveBeenCalledWith(
+      'Failed to record execution usage to usage_log ledger; charge may be unbilled',
+      expect.objectContaining({
+        cause: expect.objectContaining({
+          code: '25006',
+          message: 'cannot execute INSERT in a read-only transaction',
+        }),
+      })
+    )
   })
 })

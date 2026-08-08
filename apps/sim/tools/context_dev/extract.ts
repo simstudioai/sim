@@ -88,6 +88,14 @@ export const contextDevExtractTool: ToolConfig<ContextDevExtractParams, ContextD
     },
 
     request: {
+      modelInput: {
+        mode: 'project',
+        select: (params) => ({ schema: params.schema, instructions: params.instructions }),
+      },
+      opaqueModelInput: {
+        mode: 'reject-resolved-secrets',
+        inputPaths: () => [['url']],
+      },
       method: 'POST',
       url: () => `${CONTEXT_DEV_BASE_URL}/web/extract`,
       headers: (params) => contextDevJsonHeaders(params.apiKey),

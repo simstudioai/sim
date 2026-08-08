@@ -33,7 +33,7 @@ You can build a whole workflow without dragging a single block. Describe the sys
     },
     {
       title: 'Deploy from the conversation',
-      body: "One more message and the workflow is live behind an endpoint, from blank canvas to working system without leaving the chat.",
+      body: "One more message and the workflow is live behind an endpoint, from blank canvas to working system without leaving Chat.",
     },
   ]}
 />
@@ -58,9 +58,9 @@ You can build a whole workflow without dragging a single block. Describe the sys
 
 ## From description to blocks
 
-The chat turns your description into real structure: a parallel container drafting candidate posts, generation blocks for the image, the deck, and the voiceover, an evaluator scoring the results, and a table keeping every score. Nothing about the result is special, it's a normal workflow you could have built by hand, which means you can open it, read it, and change it.
+Sim turns your description into real structure: a parallel container drafting candidate posts, generation blocks for the image, the deck, and the voiceover, an evaluator scoring the results, and a table keeping every score. Nothing about the result is special, it's a normal workflow you could have built by hand, which means you can open it, read it, and change it.
 
-Here is the shape of the workflow the chat builds in the video, candidates drafted in parallel, an evaluator scoring them, and the scores kept in a table:
+Here is the shape of the workflow Sim builds in the video, candidates drafted in parallel, an evaluator scoring them, and the scores kept in a table:
 
 <WorkflowPreview workflow={AV_CONTENT_AGENT_WORKFLOW} />
 
@@ -77,13 +77,13 @@ The run record shows every step with its timing and output: the draft, the image
 Deploying is one more message in the conversation. The workflow deploys behind a live endpoint, ready for whatever you send it, and it remains a workflow in your workspace: inspectable, schedulable, and callable from everything else you build.
 
 <FAQ items={[
-  { question: "Can I really build a workflow without touching the canvas?", answer: "Yes. Describe the system you want and the chat lays out the blocks, wires the connections, and fills the parameters. The result is a normal Sim workflow you can open and edit by hand afterwards." },
+  { question: "Can I really build a workflow without touching the canvas?", answer: "Yes. Describe the system you want and Sim lays out the blocks, wires the connections, and fills the parameters. The result is a normal Sim workflow you can open and edit by hand afterwards." },
   { question: "How do I know the generated workflow works?", answer: "Sim runs it immediately and shows you the run record: every step, its timing, and its output. In the video, a failing image step is caught and fixed automatically before you ever test it." },
-  { question: "Can I edit a chat-built workflow manually?", answer: "Yes. Nothing about it is special: it is blocks and connections on the canvas, so you can adjust a prompt, swap a model, or add steps like on any workflow you built yourself." },
-  { question: "How does deployment from chat work?", answer: "One message deploys the workflow behind a live API endpoint. It stays a workspace workflow, so it is inspectable, schedulable, and callable from other workflows." },
+  { question: "Can I edit a workflow Sim built manually?", answer: "Yes. Nothing about it is special: it is blocks and connections on the canvas, so you can adjust a prompt, swap a model, or add steps like on any workflow you built yourself." },
+  { question: "How does deployment from Chat work?", answer: "One message deploys the workflow behind a live API endpoint. It stays a workspace workflow, so it is inspectable, schedulable, and callable from other workflows." },
 ]} />
 
 ## Related documentation
 
-- [Building workflows from chat](/mothership/workflows)
+- [Building workflows from Chat](/chat/workflows)
 - [Deployment](/workflows/deployment)

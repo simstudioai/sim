@@ -39,34 +39,20 @@
 'use client'
 
 import * as React from 'react'
-import { X } from 'lucide-react'
-import { Loader } from '../../icons'
+import { Eye, EyeOff, Loader, X } from '../../icons'
 import { cn } from '../../lib/cn'
 import { Button } from '../button/button'
 import { Chip, type ChipProps } from '../chip/chip'
 import { chipContentIconClass, chipContentLabelClass } from '../chip/chip-chrome'
 import { ChipCopyInput } from '../chip-copy-input/chip-copy-input'
 import { ChipDropdown, type ChipDropdownOption } from '../chip-dropdown/chip-dropdown'
+import { ChipEmailsInput, type ChipEmailsInputProps } from '../chip-emails-input/chip-emails-input'
 import { ChipInput } from '../chip-input/chip-input'
 import { ChipSwitch } from '../chip-switch/chip-switch'
 import { ChipTextarea } from '../chip-textarea/chip-textarea'
 import { Label } from '../label/label'
-import { Modal, ModalContent } from '../modal/modal'
-import { TagInput, type TagItem } from '../tag-input/tag-input'
+import { Modal, ModalContent, useModalDismissDisabled } from '../modal/modal'
 import { Tooltip } from '../tooltip/tooltip'
-
-/**
- * Generic RFC 5322 email syntax gate for the `type='emails'` field. This is
- * deliberately format-only — app-specific policy (disposable domains, MX/DNS,
- * membership rules) is the consumer's concern and flows through the field's
- * `validate` prop, keeping that logic in the app rather than the design system.
- */
-const EMAIL_SYNTAX_REGEX =
-  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
-
-function isValidEmailSyntax(email: string): boolean {
-  return EMAIL_SYNTAX_REGEX.test(email) && email.length <= 254
-}
 
 /**
  * The modal's hairline divider — used by the header and footer edges, and
@@ -122,6 +108,14 @@ export interface ChipModalProps {
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full'
   /** Optional className forwarded to the outer panel ring. */
   className?: string
+  /**
+   * Refuses every exit while an action is in flight — Escape, outside-click,
+   * the header close button, and the footer Cancel. Stating it once here is the
+   * point: disabling only the buttons leaves Escape and outside-click open,
+   * which reads as handled without being handled.
+   * @default false
+   */
+  dismissDisabled?: boolean
   children?: React.ReactNode
 }
 
@@ -138,13 +132,20 @@ function ChipModal({
   srTitle = 'Dialog',
   size = 'md',
   className,
+  dismissDisabled = false,
   children,
 }: ChipModalProps) {
   const submitRef = React.useRef<ChipModalSubmit | null>(null)
   return (
     <ChipModalSubmitContext.Provider value={submitRef}>
       <Modal open={open} onOpenChange={onOpenChange}>
-        <ModalContent bare showClose={false} srTitle={srTitle} size={size}>
+        <ModalContent
+          bare
+          showClose={false}
+          srTitle={srTitle}
+          size={size}
+          dismissDisabled={dismissDisabled}
+        >
           <div
             className={cn(
               'flex min-h-0 w-full flex-col rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
@@ -168,6 +169,12 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
   icon?: React.ComponentType<{ className?: string }> | null
   /** Invoked when the trailing close button is activated. Always rendered. */
   onClose: () => void
+  /**
+   * Disables the trailing close button. Combines with
+   * {@link ChipModalProps.dismissDisabled}, which also blocks Escape and
+   * outside-click — prefer that for an in-flight operation.
+   */
+  closeDisabled?: boolean
   /** Accessible label for the close button. */
   closeAriaLabel?: string
 }
@@ -178,28 +185,40 @@ export interface ChipModalHeaderProps extends React.HTMLAttributes<HTMLDivElemen
  */
 const ChipModalHeader = React.forwardRef<HTMLDivElement, ChipModalHeaderProps>(
   (
-    { className, children, icon: Icon = null, onClose, closeAriaLabel = 'Close', ...props },
+    {
+      className,
+      children,
+      icon: Icon = null,
+      onClose,
+      closeDisabled,
+      closeAriaLabel = 'Close',
+      ...props
+    },
     ref
-  ) => (
-    <div ref={ref} className={cn('flex flex-col', className)} {...props}>
-      <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
-        <div className='flex min-w-0 items-center gap-2'>
-          {Icon ? <Icon className={chipContentIconClass} /> : null}
-          <span className={chipContentLabelClass}>{children}</span>
+  ) => {
+    const dismissDisabled = useModalDismissDisabled()
+    return (
+      <div ref={ref} className={cn('flex flex-col', className)} {...props}>
+        <div className='flex min-w-0 items-center justify-between gap-2 px-4 pt-3'>
+          <div className='flex min-w-0 items-center gap-2'>
+            {Icon ? <Icon className={chipContentIconClass} /> : null}
+            <span className={chipContentLabelClass}>{children}</span>
+          </div>
+          <Button
+            type='button'
+            variant='ghost'
+            onClick={onClose}
+            disabled={closeDisabled || dismissDisabled}
+            className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
+          >
+            <X className='size-[14px] text-[var(--text-icon)]' />
+            <span className='sr-only'>{closeAriaLabel}</span>
+          </Button>
         </div>
-        <Button
-          type='button'
-          variant='ghost'
-          onClick={onClose}
-          className='relative size-[14px] flex-shrink-0 p-0 before:absolute before:inset-[-14px] before:content-[""]'
-        >
-          <X className='size-[14px] text-[var(--text-icon)]' />
-          <span className='sr-only'>{closeAriaLabel}</span>
-        </Button>
+        <ChipModalSeparator className='mt-3' />
       </div>
-      <ChipModalSeparator className='mt-3' />
-    </div>
-  )
+    )
+  }
 )
 
 ChipModalHeader.displayName = 'ChipModalHeader'
@@ -423,7 +442,13 @@ interface ChipModalInputFieldProps extends ChipModalFieldBaseProps, ChipModalSin
   placeholder?: string
   maxLength?: number
   autoComplete?: string
-  /** Native input type override. Defaults to `'text'`. */
+  /**
+   * Native input type override. Defaults to `'text'`.
+   *
+   * `'password'` renders the field's canonical secret treatment — masked while
+   * unfocused, revealed while focused, plus an eye toggle — rather than a plain
+   * native password input. See {@link ChipModalPasswordControl}.
+   */
   inputType?: 'text' | 'password' | 'url' | 'tel' | 'search' | 'number'
   /**
    * Renders the value in the monospace stack (`font-mono`). Use for
@@ -524,34 +549,47 @@ interface ChipModalFileFieldProps extends ChipModalFieldBaseProps {
   loading?: boolean
 }
 
-export interface ChipModalEmailsFieldProps extends ChipModalFieldBaseProps {
+/**
+ * The emails field is a thin row wrapper over {@link ChipEmailsInput} — the
+ * control's own props (`value`, `onChange`, `validate`, `allowDomains`,
+ * `placeholder`, …) pass straight through, so they are declared in one place.
+ * `variant` is not forwarded: the field always uses the tall `block` chip
+ * surface so it stacks as a peer with `textarea` fields.
+ */
+export interface ChipModalEmailsFieldProps
+  extends ChipModalFieldBaseProps,
+    Omit<ChipEmailsInputProps, 'variant' | 'id'> {
   type: 'emails'
-  /** Current list of valid email addresses. */
-  value: string[]
-  /** Called with the next list when valid items are added or removed. */
-  onChange: (next: string[]) => void
-  /**
-   * Optional domain-level validator. Runs AFTER the field's internal format
-   * check passes. Return an error message to reject the email (added as an
-   * invalid chip whose reason shows in a tooltip on hover); return `null`
-   * to accept.
-   */
-  validate?: (email: string) => string | null
   /**
    * External error (e.g. server-side submit failure), rendered in the inline
    * banner below the field. Per-email rejection reasons are shown on the
    * invalid chips themselves, not here.
    */
   error?: React.ReactNode
-  /** Auto-focus the input when the field mounts. */
-  autoFocus?: boolean
-  /** Placeholder shown when no chips exist. Defaults to `'Enter emails'`. */
-  placeholder?: string
+}
+
+/**
+ * ARIA the field derives from its own state and renders elsewhere in the row —
+ * the `hint`/`error` paragraph ids, plus `required`/`invalid` flags.
+ */
+export interface ChipModalFieldAria {
+  'aria-required'?: boolean
+  'aria-invalid'?: boolean
+  'aria-describedby'?: string
 }
 
 interface ChipModalCustomFieldProps extends ChipModalFieldBaseProps {
   type: 'custom'
-  children: React.ReactNode
+  /**
+   * Arbitrary JSX, or a function receiving the field's {@link ChipModalFieldAria}.
+   *
+   * The owned control types wire this ARIA themselves, but a custom field can
+   * hold anything — a bare input, or a wrapper several levels above one — so
+   * the field cannot know which element should carry it. Use the function form
+   * whenever the child renders a focusable control, or its `hint`/`error` text
+   * is rendered but never announced.
+   */
+  children: React.ReactNode | ((aria: ChipModalFieldAria) => React.ReactNode)
 }
 
 export type ChipModalFieldProps =
@@ -591,10 +629,7 @@ function ChipModalField(props: ChipModalFieldProps) {
 
   return (
     <div className={cn('flex flex-col gap-[9px]', flush ? 'px-0' : 'px-2', className)}>
-      <Label
-        htmlFor={associatesLabel ? id : undefined}
-        className='pl-0.5 font-normal text-[var(--text-muted)]'
-      >
+      <Label htmlFor={associatesLabel ? id : undefined} className='pl-0.5 text-[var(--text-muted)]'>
         {title}
         {required && (
           <span aria-hidden className='ml-0.5 text-[var(--text-error)]'>
@@ -639,31 +674,33 @@ function renderChipModalControl(
   switch (props.type) {
     case 'input':
     case 'email': {
-      const onSubmit = props.onSubmit
+      const onKeyDown = (event: React.KeyboardEvent<HTMLInputElement>) =>
+        handleSingleLineEnter(event, props, submitRef)
+
+      if (props.type === 'input' && props.inputType === 'password') {
+        return (
+          <ChipModalPasswordControl
+            id={id}
+            value={props.value}
+            onChange={props.onChange}
+            onKeyDown={onKeyDown}
+            placeholder={props.placeholder}
+            maxLength={props.maxLength}
+            autoComplete={props.autoComplete}
+            disabled={props.disabled}
+            mono={props.mono}
+            aria={aria}
+          />
+        )
+      }
+
       return (
         <ChipInput
           id={id}
           type={props.type === 'email' ? 'email' : (props.inputType ?? 'text')}
           value={props.value}
           onChange={(event) => props.onChange(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
-            if (onSubmit) {
-              event.preventDefault()
-              event.stopPropagation()
-              onSubmit()
-              return
-            }
-            if (props.submitOnEnter === false) return
-            const submit = submitRef?.current
-            if (submit && !submit.disabled) {
-              event.preventDefault()
-              // Stop bubbling so a parent Enter handler (e.g. a modal body that
-              // also submits) can't fire the same primary action a second time.
-              event.stopPropagation()
-              submit.trigger()
-            }
-          }}
+          onKeyDown={onKeyDown}
           placeholder={props.placeholder}
           maxLength={props.type === 'input' ? props.maxLength : undefined}
           autoComplete={props.autoComplete}
@@ -718,123 +755,156 @@ function renderChipModalControl(
     case 'emails':
       return <ChipModalEmailsControl {...props} id={id} errorId={errorId} />
     case 'custom':
-      return props.children
+      return typeof props.children === 'function' ? props.children(aria) : props.children
   }
 }
 
 /**
- * Derives the post-first-chip placeholder from the initial placeholder so
- * consumers don't have to spell both. Tries an `'Enter <noun>s'` →
- * `'Add <noun>'` singularize; falls back to a generic `'Add another'`.
+ * Enter handling shared by every single-line control: an explicit `onSubmit`
+ * wins, otherwise Enter fires the {@link ChipModalFooter} primary action unless
+ * the field opted out via `submitOnEnter={false}`.
  */
-function derivePlaceholderWithTags(placeholder: string): string {
-  const match = placeholder.match(/^Enter\s+(.+?)s?$/i)
-  if (match) return `Add ${match[1]}`
-  return 'Add another'
+function handleSingleLineEnter(
+  event: React.KeyboardEvent<HTMLInputElement>,
+  props: ChipModalSingleLineEnterProps,
+  submitRef: React.MutableRefObject<ChipModalSubmit | null> | null
+) {
+  if (event.key !== 'Enter' || event.nativeEvent.isComposing) return
+  if (props.onSubmit) {
+    event.preventDefault()
+    event.stopPropagation()
+    props.onSubmit()
+    return
+  }
+  if (props.submitOnEnter === false) return
+  const submit = submitRef?.current
+  if (submit && !submit.disabled) {
+    event.preventDefault()
+    // Stop bubbling so a parent Enter handler (e.g. a modal body that also
+    // submits) can't fire the same primary action a second time.
+    event.stopPropagation()
+    submit.trigger()
+  }
 }
 
 /**
- * Internal renderer for {@link ChipModalField} `type='emails'`. Owns the
- * chip lifecycle (valid + invalid items, dedupe, per-chip error tooltips)
- * and lifts only the valid email list up to the consumer via `onChange`.
- * Each rejected entry carries its rejection reason on the chip itself,
- * surfaced as a tooltip; the inline banner is reserved for the consumer's
- * `error` (e.g. server-side submit failures).
+ * Internal renderer for {@link ChipModalField} `type='input'` with
+ * `inputType='password'` — the canonical secret treatment, matching the secrets
+ * and SSO client-secret fields: the value is masked while the field is
+ * unfocused, revealed while it is focused, and an eye toggle pins the reveal so
+ * a typed secret can be proof-read without staying on screen.
+ *
+ * The native input stays `type='text'` and opens `readOnly`, dropping the
+ * attribute on focus. Masking therefore comes from `-webkit-text-security`
+ * (which is what makes the reveal instant), and the read-only-until-focus dance
+ * is what stops a password manager autofilling the operator's own credentials
+ * into a field that sets some other account's password.
+ */
+interface ChipModalPasswordControlProps {
+  id: string
+  value: string
+  onChange: (value: string) => void
+  onKeyDown: (event: React.KeyboardEvent<HTMLInputElement>) => void
+  placeholder?: string
+  maxLength?: number
+  autoComplete?: string
+  disabled?: boolean
+  mono?: boolean
+  /** ARIA the owning {@link ChipModalField} derives from its own state. */
+  aria: ChipModalFieldAria
+}
+
+function ChipModalPasswordControl({
+  id,
+  value,
+  onChange,
+  onKeyDown,
+  placeholder,
+  maxLength,
+  autoComplete,
+  disabled,
+  mono,
+  aria,
+}: ChipModalPasswordControlProps) {
+  const [revealed, setRevealed] = React.useState(false)
+
+  return (
+    <ChipInput
+      id={id}
+      type='text'
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+      onKeyDown={onKeyDown}
+      placeholder={placeholder}
+      maxLength={maxLength}
+      autoComplete={autoComplete}
+      autoCapitalize='none'
+      autoCorrect='off'
+      spellCheck={false}
+      disabled={disabled}
+      readOnly
+      onFocus={(event) => {
+        event.currentTarget.removeAttribute('readOnly')
+        setRevealed(true)
+      }}
+      onBlurCapture={() => setRevealed(false)}
+      inputClassName={cn(!revealed && '[-webkit-text-security:disc]', mono && 'font-mono')}
+      endAdornment={
+        // Only offer the reveal once there is something to reveal.
+        value ? (
+          <Button
+            type='button'
+            variant='ghost'
+            disabled={disabled}
+            // Keep focus on the input: letting the button take it would fire the
+            // blur re-mask first, so the click would toggle back from `false`
+            // and "Hide" would leave a focused password on screen.
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => setRevealed((current) => !current)}
+            className='size-6 flex-shrink-0 p-0 text-[var(--text-muted)] hover:text-[var(--text-primary)]'
+            aria-label={revealed ? 'Hide password' : 'Show password'}
+          >
+            {revealed ? <EyeOff className='size-[14px]' /> : <Eye className='size-[14px]' />}
+          </Button>
+        ) : undefined
+      }
+      {...aria}
+    />
+  )
+}
+
+/**
+ * Internal renderer for {@link ChipModalField} `type='emails'`. Delegates the
+ * chip lifecycle to {@link ChipEmailsInput} and adds only the field-level
+ * error banner — per-entry rejection reasons are shown on the chips
+ * themselves, so this banner is reserved for the consumer's `error` (e.g. a
+ * server-side submit failure).
  */
 function ChipModalEmailsControl({
   value,
   onChange,
   validate,
-  error,
+  allowDomains,
+  placeholder,
+  placeholderWithTags,
   autoFocus,
-  placeholder = 'Enter emails',
   disabled,
-  id,
+  error,
   errorId,
+  id,
 }: ChipModalEmailsFieldProps & { id: string; errorId: string }) {
-  const [items, setItems] = React.useState<TagItem[]>([])
-
-  /**
-   * Synchronous mirror of `items`. Pasting multiple values calls `handleAdd`
-   * once per value within a single event, before React re-renders — reading
-   * the `items` state there would make every call see the same stale array
-   * and each add overwrite the previous one (only the last pasted email
-   * survives). All reads and writes go through the ref so consecutive adds
-   * compose; `commitItems` keeps state and ref in lockstep.
-   */
-  const itemsRef = React.useRef<TagItem[]>(items)
-
-  const commitItems = React.useCallback((next: TagItem[]) => {
-    itemsRef.current = next
-    setItems(next)
-  }, [])
-
-  /**
-   * Reconcile internal `items` with the consumer's `value` when the latter
-   * changes externally (programmatic clear, partial-failure reseed, etc.).
-   * When our own `onChange` is the source of the update, the valid items in
-   * `items` already match `value` and this is a no-op.
-   */
-  React.useEffect(() => {
-    const prevValid = itemsRef.current.filter((item) => item.isValid).map((item) => item.value)
-    if (prevValid.length === value.length && prevValid.every((v, idx) => v === value[idx])) {
-      return
-    }
-    itemsRef.current = value.map((v) => ({ value: v, isValid: true }))
-    setItems(itemsRef.current)
-  }, [value])
-
-  const handleAdd = React.useCallback(
-    (raw: string): boolean => {
-      const email = raw.trim().toLowerCase()
-      if (!email) return false
-      const current = itemsRef.current
-      if (current.some((item) => item.value === email)) return false
-
-      if (!isValidEmailSyntax(email)) {
-        commitItems([...current, { value: email, isValid: false, error: 'Invalid email format' }])
-        return false
-      }
-
-      const reason = validate?.(email)
-      if (reason) {
-        commitItems([...current, { value: email, isValid: false, error: reason }])
-        return false
-      }
-
-      const next = [...current, { value: email, isValid: true }]
-      commitItems(next)
-      onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      return true
-    },
-    [validate, onChange, commitItems]
-  )
-
-  const handleRemove = React.useCallback(
-    (_removed: string, index: number) => {
-      const current = itemsRef.current
-      const wasValid = current[index]?.isValid ?? false
-      const next = current.filter((_, i) => i !== index)
-      commitItems(next)
-      if (wasValid) {
-        onChange(next.filter((item) => item.isValid).map((item) => item.value))
-      }
-    },
-    [onChange, commitItems]
-  )
-
   return (
     <>
-      <TagInput
-        variant='block'
-        items={items}
-        onAdd={handleAdd}
-        onRemove={handleRemove}
-        placeholder={placeholder}
-        placeholderWithTags={derivePlaceholderWithTags(placeholder)}
-        disabled={disabled}
-        autoFocus={autoFocus}
+      <ChipEmailsInput
         id={id}
+        value={value}
+        onChange={onChange}
+        validate={validate}
+        allowDomains={allowDomains}
+        placeholder={placeholder}
+        placeholderWithTags={placeholderWithTags}
+        autoFocus={autoFocus}
+        disabled={disabled}
       />
       {error && (
         <p id={errorId} role='alert' className={CHIP_MODAL_FIELD_ERROR_CLASS}>
@@ -968,10 +1038,10 @@ export interface ChipModalFooterAction {
  * Escape hatch for the left-docked footer cluster: renders the given node in
  * place of a declarative action Chip. Reserve it for chip-chrome controls
  * (`ChipDatePicker`, `ChipTimePicker`, `ChipDropdown`, ...) so the footer
- * stays visually canonical — pass `flush` to the control so it sits on the
- * cluster's `gap-2` rhythm like the footer's own Chips. The primary action
- * stays declarative by design; only `secondaryActions` accepts custom
- * controls.
+ * stays visually canonical — the cluster's `gap-2` alone sets the rhythm, as
+ * it does for the footer's own Chips, so the control must carry no outer
+ * margin. The primary action stays declarative by design; only
+ * `secondaryActions` accepts custom controls.
  */
 export interface ChipModalFooterCustomAction {
   /** Chip-chrome control rendered verbatim in the slot. */
@@ -995,6 +1065,10 @@ export interface ChipModalFooterProps {
    * Disables the Cancel button. Set this while a primary/secondary action is
    * in flight (e.g. an async delete or save) so the user cannot dismiss the
    * modal and assume the operation was aborted while the mutation keeps running.
+   *
+   * This covers the Cancel button only. For an in-flight operation reach for
+   * {@link ChipModalProps.dismissDisabled} instead, which also blocks Escape,
+   * outside-click and the header's X.
    * @default false
    */
   cancelDisabled?: boolean
@@ -1070,7 +1144,7 @@ function ChipModalFooterShell({
 function renderFooterSlotAction(action: ChipModalFooterSlotAction): React.ReactNode {
   if ('custom' in action) return action.custom
   return (
-    <Chip variant={action.variant} flush onClick={action.onClick} disabled={action.disabled}>
+    <Chip variant={action.variant} onClick={action.onClick} disabled={action.disabled}>
       {action.label}
     </Chip>
   )
@@ -1096,6 +1170,7 @@ function ChipModalFooter({
   primaryAdjacentAction,
   secondaryActions,
 }: ChipModalFooterProps) {
+  const dismissDisabled = useModalDismissDisabled()
   const showsDisabledTooltip = Boolean(primaryAction.disabled && primaryAction.disabledTooltip)
 
   /**
@@ -1129,7 +1204,6 @@ function ChipModalFooter({
   const primaryChip = (
     <Chip
       variant={primaryAction.variant ?? 'primary'}
-      flush
       onClick={primaryAction.onClick}
       disabled={primaryAction.disabled}
       className={cn(showsDisabledTooltip && 'pointer-events-none')}
@@ -1151,7 +1225,7 @@ function ChipModalFooter({
       }
     >
       {hideCancel ? null : (
-        <Chip flush onClick={onCancel} disabled={cancelDisabled}>
+        <Chip onClick={onCancel} disabled={cancelDisabled || dismissDisabled}>
           Cancel
         </Chip>
       )}
@@ -1375,6 +1449,7 @@ function ChipConfirmModal({
       onOpenChange={onOpenChange}
       size={size}
       srTitle={srTitle ?? (typeof title === 'string' ? title : 'Confirm')}
+      dismissDisabled={confirm.pending}
     >
       <ChipModalHeader icon={icon} onClose={dismiss}>
         {title}
@@ -1388,12 +1463,11 @@ function ChipConfirmModal({
         {children}
       </ChipModalBody>
       <ChipModalFooterShell>
-        <Chip flush onClick={dismiss} disabled={confirm.pending}>
+        <Chip onClick={dismiss} disabled={confirm.pending}>
           {dismissLabel}
         </Chip>
         <Chip
           variant={confirm.variant ?? 'destructive'}
-          flush
           onClick={confirm.onClick}
           disabled={confirm.disabled || confirm.pending}
         >

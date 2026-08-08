@@ -1,0 +1,1046 @@
+import { db } from '@sim/db'
+import { sandboxImage } from '@sim/db/schema'
+import { createLogger } from '@sim/logger'
+import { getErrorMessage, toError } from '@sim/utils/errors'
+import { sleep } from '@sim/utils/helpers'
+import { generateId } from '@sim/utils/id'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { and, eq, inArray, lt, notInArray, or, type SQL, sql } from 'drizzle-orm'
+import { isTriggerDevEnabled } from '@/lib/core/config/env-flags'
+import {
+  recordSandboxCliBuildFailure,
+  recordSandboxImageCleanupFailure,
+} from '@/lib/core/execution-limits/metrics'
+import { runDetached } from '@/lib/core/utils/background'
+import {
+  buildTimeoutError,
+  providerBuildError,
+  type SandboxBuildError,
+} from '@/lib/execution/remote-sandbox/build-errors'
+import { FUNCTION_SANDBOX_MATERIALIZER_REVISION } from '@/lib/execution/remote-sandbox/function-resources'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
+import { invalidateSandboxResolution } from '@/lib/execution/remote-sandbox/resolve'
+import type { SandboxSpec } from '@/lib/execution/remote-sandbox/sandbox-spec'
+import {
+  SANDBOX_BASE_RELEASE_REFRESH_CODE,
+  type SandboxImageBuild,
+  type SandboxImageBuilder,
+  type SandboxImageMaterialization,
+  type SandboxImageStatus,
+  type SandboxProviderId,
+} from '@/lib/execution/remote-sandbox/types'
+
+const logger = createLogger('SandboxImageRegistry')
+
+/** Ceiling on how long one build may run before it is called failed. */
+export const BUILD_POLL_CAP_MS = 15 * 60 * 1000
+
+/** Lets already-resolved old refs drain beyond the 30-second resolution cache. */
+export const SUPERSEDED_IMAGE_DELETE_GRACE_MS = 60_000
+
+/** A `building` row older than this is assumed abandoned and may be re-claimed. */
+const STALE_BUILD_MS = BUILD_POLL_CAP_MS * 2
+
+const POLL_BASE_MS = 3_000
+const POLL_MAX_MS = 20_000
+
+/** Task IDs kept live together so either web-first or worker-first rollouts drain safely. */
+export function sandboxImageBuildTaskIds(rendererRevision: number): {
+  current: string
+  previous?: string
+  legacy: string
+} {
+  return {
+    current: `sandbox-image-build-v${rendererRevision}`,
+    ...(rendererRevision > 1 ? { previous: `sandbox-image-build-v${rendererRevision - 1}` } : {}),
+    legacy: 'sandbox-image-build',
+  }
+}
+
+const SANDBOX_IMAGE_TASK_IDS = sandboxImageBuildTaskIds(FUNCTION_SANDBOX_MATERIALIZER_REVISION)
+export const SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.current
+export const PREVIOUS_SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.previous
+export const LEGACY_SANDBOX_IMAGE_BUILD_TASK_ID = SANDBOX_IMAGE_TASK_IDS.legacy
+
+export interface SandboxImageBuildPayload {
+  provider: SandboxProviderId
+  specHash: string
+  /** Captured at enqueue so a worker never re-derives release identity from a rolling deploy. */
+  materialization?: SandboxImageMaterialization
+}
+
+function recordToolingBuildFailure(spec: SandboxSpec, provider: SandboxProviderId): void {
+  if ((spec.cliTools?.length ?? 0) > 0 || (spec.systemPackages?.length ?? 0) > 0) {
+    recordSandboxCliBuildFailure({ provider })
+  }
+}
+
+/**
+ * Collapses concurrent saves of the same spec into one build. Content-addressed,
+ * so two workspaces declaring identical dependencies share the key as well as
+ * the resulting image.
+ */
+export function sandboxBuildIdempotencyKey(
+  provider: string,
+  specHash: string,
+  attemptAt: Date
+): string {
+  return `sandbox-image-${provider}-${specHash}-${attemptAt.getTime()}`
+}
+
+/**
+ * How long a failed build is left alone when the caller is an automatic repair
+ * rather than a person. Long enough that a per-minute schedule cannot turn a
+ * permanently broken package list into a per-minute build, short enough that a
+ * transient registry outage recovers within the hour.
+ */
+export const FAILED_BUILD_RETRY_COOLDOWN_MS = 10 * 60 * 1000
+
+export interface EnsureSandboxImageOptions {
+  /**
+   * Ignore a `failed` row younger than this instead of re-claiming it.
+   *
+   * Omitted means retry immediately, which is right for a save: a person editing
+   * a package list is explicitly asking for another attempt. Automatic callers
+   * pass {@link FAILED_BUILD_RETRY_COOLDOWN_MS} — they fire once per execution,
+   * and a build that fails in seconds would otherwise be re-enqueued by every
+   * run of a scheduled workflow forever.
+   */
+  minFailureAgeMs?: number
+  /**
+   * Reclaim only the exact provider ref whose create just returned not-found.
+   *
+   * Only the release path sets this, and only once it has deleted an image out
+   * from under a hash something re-adopted. That row looks healthy while its
+   * `imageRef` points at nothing, and resolution cannot tell: it repairs a row
+   * that is missing or `failed`, never one claiming to be ready, so without this
+   * the sandbox stays broken until someone re-saves it by hand.
+   *
+   * An in-flight build is still left alone. It either recreates the template it
+   * was already building or fails into the normal repair path, and resetting it
+   * would only add a duplicate build.
+   */
+  missingImageRef?: string
+}
+
+/**
+ * Which settled row a save may re-claim: any of them when the image is known to be
+ * gone, otherwise a failed one — immediately for a person, after the cooldown for
+ * an automatic caller.
+ */
+function settledRebuildBranch(options: EnsureSandboxImageOptions): SQL | undefined {
+  if (options.missingImageRef) {
+    return notInArray(sandboxImage.status, ['pending', 'building'])
+  }
+  if (options.minFailureAgeMs) {
+    return and(
+      eq(sandboxImage.status, 'failed'),
+      lt(sandboxImage.updatedAt, new Date(Date.now() - options.minFailureAgeMs))
+    )
+  }
+  return eq(sandboxImage.status, 'failed')
+}
+
+/** A known-good old child whose newer Function base build is retryable. */
+function retainedRefreshRebuildBranch(
+  options: EnsureSandboxImageOptions,
+  desiredGeneration: number
+): SQL {
+  const failed = options.minFailureAgeMs
+    ? and(
+        eq(sandboxImage.status, 'failed'),
+        lt(sandboxImage.updatedAt, new Date(Date.now() - options.minFailureAgeMs))
+      )
+    : eq(sandboxImage.status, 'failed')
+  return or(
+    and(
+      eq(sandboxImage.status, 'ready'),
+      sql`coalesce(${sandboxImage.materializationGeneration}, 0) < ${desiredGeneration}`
+    ),
+    and(
+      eq(sandboxImage.errorCode, SANDBOX_BASE_RELEASE_REFRESH_CODE),
+      or(
+        failed,
+        and(
+          inArray(sandboxImage.status, ['pending', 'building']),
+          lt(sandboxImage.updatedAt, new Date(Date.now() - STALE_BUILD_MS))
+        )
+      )
+    )
+  )!
+}
+
+/** A registry row that claims readiness without an artifact must be rebuilt. */
+function missingReadyMaterializationBranch(): SQL {
+  return and(eq(sandboxImage.status, 'ready'), sql`${sandboxImage.imageRef} is null`)!
+}
+
+/**
+ * Ensures a build exists for `spec`, enqueueing one only when the registry has
+ * no row or the last attempt failed. A `ready` or in-flight row is left alone,
+ * which is what makes an unchanged save cost nothing.
+ *
+ * No-ops under a `runtime` provider: it installs per execution and never touches
+ * this registry.
+ */
+export async function ensureSandboxImage(
+  spec: SandboxSpec,
+  specHash: string,
+  options: EnsureSandboxImageOptions = {}
+): Promise<void> {
+  const provider = resolveProvider()
+  if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) return
+  // Nothing declared means nothing to build. This also avoids invoking a
+  // language installer with an empty requirement set.
+  if (
+    spec.dependencies.length === 0 &&
+    (spec.cliTools?.length ?? 0) === 0 &&
+    (spec.systemPackages?.length ?? 0) === 0
+  ) {
+    return
+  }
+  const materialization = provider.images.materialization(specHash)
+
+  // Refreshes are claimed separately from ordinary retries so the row records
+  // that its retained ref was previously ready. Resolution may keep using only
+  // that known-good ref while the release-specific replacement builds; a failed
+  // or partial legacy ref never receives this marker.
+  if (!options.missingImageRef) {
+    const refreshed = await db
+      .update(sandboxImage)
+      .set({
+        status: 'pending',
+        materializationGeneration: materialization.generation,
+        errorCode: SANDBOX_BASE_RELEASE_REFRESH_CODE,
+        errorMessage: null,
+        errorDetail: null,
+        updatedAt: new Date(),
+      })
+      .where(
+        and(
+          eq(sandboxImage.provider, provider.id),
+          eq(sandboxImage.specHash, specHash),
+          sql`${sandboxImage.imageRef} is not null`,
+          sql`${sandboxImage.imageRef} not like ${`${materialization.imageRefPrefix}%`}`,
+          sql`coalesce(${sandboxImage.materializationGeneration}, 0) <= ${materialization.generation}`,
+          retainedRefreshRebuildBranch(options, materialization.generation)
+        )
+      )
+      .returning({ updatedAt: sandboxImage.updatedAt })
+    if (refreshed.length > 0) {
+      await enqueueSandboxImageBuild(
+        { provider: provider.id, specHash, materialization },
+        refreshed[0].updatedAt
+      )
+      return
+    }
+  }
+
+  const rebuildBranch = or(
+    missingReadyMaterializationBranch(),
+    settledRebuildBranch(options),
+    and(
+      inArray(sandboxImage.status, ['pending', 'building']),
+      lt(sandboxImage.updatedAt, new Date(Date.now() - STALE_BUILD_MS))
+    )
+  )
+  const guardedRebuildBranch = and(
+    sql`coalesce(${sandboxImage.materializationGeneration}, 0) <= ${materialization.generation}`,
+    ...(options.missingImageRef ? [eq(sandboxImage.imageRef, options.missingImageRef)] : []),
+    rebuildBranch
+  )
+
+  const inserted = await db
+    .insert(sandboxImage)
+    .values({
+      id: generateId(),
+      provider: provider.id,
+      specHash,
+      spec,
+      status: 'pending',
+      materializationGeneration: materialization.generation,
+    })
+    .onConflictDoUpdate({
+      target: [sandboxImage.provider, sandboxImage.specHash],
+      set: {
+        status: 'pending',
+        materializationGeneration: materialization.generation,
+        errorCode: null,
+        errorMessage: null,
+        errorDetail: null,
+        ...(options.missingImageRef
+          ? { imageRef: null, buildId: null, providerImageId: null }
+          : {}),
+        updatedAt: new Date(),
+      },
+      // A failed build is retryable, immediately for a person and after a cooldown
+      // for an automatic caller. `pending` and `building` become re-claimable once
+      // stale: an enqueue that threw (provider outage), a detached run that died
+      // with the process, or a worker killed mid-build would otherwise strand the
+      // row forever, and no later save could revive it because the content address
+      // never changes.
+      setWhere: guardedRebuildBranch,
+    })
+    .returning({
+      id: sandboxImage.id,
+      status: sandboxImage.status,
+      updatedAt: sandboxImage.updatedAt,
+    })
+
+  // No row returned means the conflict target matched but `setWhere` rejected the
+  // update — an existing `ready`, `pending`, or `building` row. Nothing to do.
+  if (inserted.length === 0) return
+
+  await enqueueSandboxImageBuild(
+    { provider: provider.id, specHash, materialization },
+    inserted[0].updatedAt
+  )
+}
+
+async function enqueueSandboxImageBuild(
+  payload: SandboxImageBuildPayload,
+  attemptAt: Date
+): Promise<void> {
+  if (!isTriggerDevEnabled) {
+    runDetached('sandbox-image-build', () => runSandboxImageBuild(payload))
+    return
+  }
+  // Dynamically imported so Trigger.dev stays out of the web bundle's static graph.
+  const [{ sandboxImageBuildTask }, { tasks }, { resolveTriggerRegion }] = await Promise.all([
+    import('@/background/sandbox-image-build'),
+    import('@trigger.dev/sdk'),
+    import('@/lib/core/async-jobs/region'),
+  ])
+  await tasks.trigger<typeof sandboxImageBuildTask>(SANDBOX_IMAGE_BUILD_TASK_ID, payload, {
+    // Keyed by the claim, not by the spec alone. Concurrent saves are already
+    // collapsed by the conditional update above — only one caller gets a row back,
+    // so only one reaches here. A spec-only key would instead suppress the *next*
+    // legitimate attempt: Trigger.dev returns the finished run rather than starting
+    // one, leaving the row `pending` with no worker and unclaimable until it goes
+    // stale. That is half an hour of a save-to-retry doing nothing.
+    idempotencyKey: sandboxBuildIdempotencyKey(payload.provider, payload.specHash, attemptAt),
+    // Still short, so even a duplicate delivery of one attempt cannot linger.
+    idempotencyKeyTTL: '5m',
+    tags: [`sandboxSpec:${payload.specHash}`],
+    region: await resolveTriggerRegion(),
+  })
+}
+
+/**
+ * Advances an old-web payload to the renderer owned by this worker deployment.
+ * The exact pending generation guard prevents a bridge task from downgrading or
+ * taking over a row that a newer web replica already advanced.
+ */
+async function supersedeOlderRendererPayload(
+  images: SandboxImageBuilder,
+  payload: SandboxImageBuildPayload
+): Promise<void> {
+  const requested = payload.materialization
+  if (!requested) return
+
+  const current = images.materialization(payload.specHash)
+  if (current.generation <= requested.generation) {
+    logger.warn('Refused to supersede sandbox image payload without a newer generation', {
+      specHash: payload.specHash,
+      requestedGeneration: requested.generation,
+      workerGeneration: current.generation,
+    })
+    return
+  }
+
+  const advanced = await db
+    .update(sandboxImage)
+    .set({ materializationGeneration: current.generation, updatedAt: new Date() })
+    .where(
+      and(
+        eq(sandboxImage.provider, payload.provider),
+        eq(sandboxImage.specHash, payload.specHash),
+        eq(sandboxImage.status, 'pending'),
+        eq(sandboxImage.materializationGeneration, requested.generation)
+      )
+    )
+    .returning({ updatedAt: sandboxImage.updatedAt })
+  if (advanced.length === 0) return
+
+  // This branch is already running inside either the revisioned or rollout-bridge
+  // Trigger task. Starting the promoted attempt inline keeps ownership with that
+  // durable task even when worker processes intentionally omit TRIGGER_DEV_ENABLED.
+  await runSandboxImageBuild({
+    provider: payload.provider,
+    specHash: payload.specHash,
+    materialization: current,
+  })
+}
+
+async function writeFailure(
+  payload: SandboxImageBuildPayload,
+  error: SandboxBuildError,
+  claimedAt: Date,
+  preserveFallback: boolean,
+  detail?: string
+): Promise<void> {
+  await db
+    .update(sandboxImage)
+    .set({
+      status: 'failed',
+      errorCode: preserveFallback ? SANDBOX_BASE_RELEASE_REFRESH_CODE : error.code,
+      errorMessage: error.message,
+      errorDetail: detail ?? null,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(sandboxImage.provider, payload.provider),
+        eq(sandboxImage.specHash, payload.specHash),
+        eq(sandboxImage.status, 'building'),
+        eq(sandboxImage.updatedAt, claimedAt),
+        eq(sandboxImage.materializationGeneration, payload.materialization?.generation ?? 0)
+      )
+    )
+  invalidateSandboxResolution()
+}
+
+function asImageBuild(value: {
+  imageRef: string | null
+  buildId: string | null
+  providerImageId: string | null
+}): SandboxImageBuild | undefined {
+  if (!value.imageRef) return undefined
+  return {
+    imageRef: value.imageRef,
+    buildId: value.buildId ?? '',
+    providerImageId: value.providerImageId ?? undefined,
+  }
+}
+
+/**
+ * Removes the release-specific child template replaced by a successful build.
+ * E2B sandboxes restore from a template snapshot at creation; deleting the
+ * template does not issue the separate sandbox-kill operation, so already-running
+ * executions keep their own live sandbox.
+ */
+async function deleteSupersededImage(
+  images: SandboxImageBuilder,
+  superseded: SandboxImageBuild | undefined,
+  replacement: SandboxImageBuild,
+  payload: SandboxImageBuildPayload,
+  graceMs: number
+): Promise<void> {
+  if (!superseded || superseded.imageRef === replacement.imageRef) return
+
+  if (
+    superseded.providerImageId &&
+    replacement.providerImageId &&
+    superseded.providerImageId === replacement.providerImageId
+  ) {
+    logger.info('Retained superseded sandbox build because it shares the active template family', {
+      supersededBuildId: superseded.buildId,
+      replacementBuildId: replacement.buildId,
+    })
+    return
+  }
+
+  if (graceMs > 0) await sleep(graceMs)
+
+  try {
+    const [committed] = await db
+      .select({
+        status: sandboxImage.status,
+        imageRef: sandboxImage.imageRef,
+        providerImageId: sandboxImage.providerImageId,
+      })
+      .from(sandboxImage)
+      .where(
+        and(
+          eq(sandboxImage.provider, payload.provider),
+          eq(sandboxImage.specHash, payload.specHash)
+        )
+      )
+      .limit(1)
+    if (
+      !committed ||
+      committed.status !== 'ready' ||
+      committed.imageRef !== replacement.imageRef ||
+      committed.providerImageId !== (replacement.providerImageId ?? null)
+    ) {
+      logger.warn('Retained superseded sandbox image because its replacement changed', {
+        imageRef: superseded.imageRef,
+        replacementImageRef: replacement.imageRef,
+      })
+      return
+    }
+  } catch (error) {
+    logger.warn('Retained superseded sandbox image because registry state was unavailable', {
+      imageRef: superseded.imageRef,
+      error: getErrorMessage(error),
+    })
+    return
+  }
+
+  try {
+    await images.deleteImage(superseded)
+    logger.info('Deleted superseded sandbox image after replacement became ready', {
+      imageRef: superseded.imageRef,
+      replacementImageRef: replacement.imageRef,
+    })
+  } catch (error) {
+    recordSandboxImageCleanupFailure({ provider: payload.provider, reason: 'superseded' })
+    logger.warn('Failed to delete superseded sandbox image', {
+      imageRef: superseded.imageRef,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+async function deleteUncommittedImage(
+  images: SandboxImageBuilder,
+  build: SandboxImageBuild,
+  payload: SandboxImageBuildPayload
+): Promise<void> {
+  let committed: { status: string; providerImageId: string | null } | undefined
+  try {
+    const committedRows = await db
+      .select({
+        status: sandboxImage.status,
+        providerImageId: sandboxImage.providerImageId,
+      })
+      .from(sandboxImage)
+      .where(
+        and(
+          eq(sandboxImage.provider, payload.provider),
+          eq(sandboxImage.specHash, payload.specHash)
+        )
+      )
+      .limit(1)
+    committed = committedRows[0]
+  } catch (error) {
+    logger.warn('Retained uncommitted sandbox build because registry state was unavailable', {
+      imageRef: build.imageRef,
+      providerImageId: build.providerImageId,
+      error: getErrorMessage(error),
+    })
+    return
+  }
+
+  if (
+    !committed ||
+    committed.status !== 'ready' ||
+    !build.providerImageId ||
+    !committed.providerImageId ||
+    build.providerImageId === committed.providerImageId
+  ) {
+    logger.warn('Retained uncommitted sandbox build because family-scoped deletion was unsafe', {
+      imageRef: build.imageRef,
+      providerImageId: build.providerImageId,
+    })
+    return
+  }
+
+  try {
+    await images.deleteImage(build)
+  } catch (error) {
+    recordSandboxImageCleanupFailure({ provider: payload.provider, reason: 'lost_claim' })
+    logger.warn('Failed to delete an uncommitted sandbox image build', {
+      imageRef: build.imageRef,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/** Best-effort cleanup for a provider build that reached a terminal failure. */
+async function deleteFailedCandidateImage(
+  images: SandboxImageBuilder,
+  candidate: SandboxImageBuild,
+  retainedFallback: SandboxImageBuild | undefined,
+  provider: SandboxProviderId
+): Promise<void> {
+  if (
+    retainedFallback &&
+    (candidate.imageRef === retainedFallback.imageRef ||
+      !candidate.providerImageId ||
+      !retainedFallback.providerImageId ||
+      candidate.providerImageId === retainedFallback.providerImageId)
+  ) {
+    logger.warn('Retained failed sandbox image candidate because family deletion was unsafe', {
+      candidateImageRef: candidate.imageRef,
+      retainedImageRef: retainedFallback.imageRef,
+    })
+    return
+  }
+
+  try {
+    await images.deleteImage(candidate)
+  } catch (error) {
+    recordSandboxImageCleanupFailure({ provider, reason: 'failed_candidate' })
+    logger.warn('Failed to delete a terminal sandbox image candidate', {
+      imageRef: candidate.imageRef,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+/**
+ * Drives one build to a terminal state: claim the row, start the provider build,
+ * poll with backoff to {@link BUILD_POLL_CAP_MS}, then write `ready` or `failed`.
+ *
+ * The claim is conditional on the row still being `pending`, so a re-delivered
+ * task (Trigger.dev at-least-once, or a detached retry) is a no-op rather than a
+ * second concurrent build.
+ */
+export async function runSandboxImageBuild(
+  payload: SandboxImageBuildPayload,
+  options: { supersededDeleteGraceMs?: number } = {}
+): Promise<void> {
+  const provider = resolveProvider()
+  if (provider.id !== payload.provider || !provider.images) {
+    logger.warn('Skipping sandbox image build for a provider this deployment does not serve', {
+      requested: payload.provider,
+      active: provider.id,
+    })
+    return
+  }
+
+  if (
+    payload.materialization &&
+    payload.materialization.rendererRevision !== provider.images.rendererRevision
+  ) {
+    if (payload.materialization.rendererRevision < provider.images.rendererRevision) {
+      await supersedeOlderRendererPayload(provider.images, payload)
+    } else {
+      logger.warn('Refused sandbox image build for a newer renderer revision', {
+        specHash: payload.specHash,
+        requestedRevision: payload.materialization.rendererRevision,
+        workerRevision: provider.images.rendererRevision,
+      })
+    }
+    return
+  }
+
+  const materialization =
+    payload.materialization ?? provider.images.materialization(payload.specHash)
+  const claimedAt = new Date()
+  const claimed = await db
+    .update(sandboxImage)
+    .set({
+      status: 'building',
+      materializationGeneration: materialization.generation,
+      updatedAt: claimedAt,
+    })
+    .where(
+      and(
+        eq(sandboxImage.provider, payload.provider),
+        eq(sandboxImage.specHash, payload.specHash),
+        eq(sandboxImage.status, 'pending'),
+        payload.materialization
+          ? eq(sandboxImage.materializationGeneration, materialization.generation)
+          : sql`coalesce(${sandboxImage.materializationGeneration}, 0) = 0`
+      )
+    )
+    .returning({
+      spec: sandboxImage.spec,
+      imageRef: sandboxImage.imageRef,
+      buildId: sandboxImage.buildId,
+      providerImageId: sandboxImage.providerImageId,
+      errorCode: sandboxImage.errorCode,
+    })
+
+  if (claimed.length === 0) {
+    logger.info('Sandbox image build already claimed, skipping', { specHash: payload.specHash })
+    return
+  }
+  const spec = claimed[0].spec as SandboxSpec
+  const superseded = asImageBuild(claimed[0])
+  const preserveFallback =
+    claimed[0].errorCode === SANDBOX_BASE_RELEASE_REFRESH_CODE && Boolean(superseded)
+  const claimedPayload = { ...payload, materialization }
+
+  let build: SandboxImageBuild
+  try {
+    build = await provider.images.startBuild(spec, payload.specHash, materialization)
+  } catch (error) {
+    logger.error('Failed to start sandbox image build', toError(error))
+    recordToolingBuildFailure(spec, provider.id)
+    await writeFailure(
+      claimedPayload,
+      providerBuildError(getErrorMessage(error)),
+      claimedAt,
+      preserveFallback
+    )
+    return
+  }
+
+  const deadline = Date.now() + BUILD_POLL_CAP_MS
+  for (let attempt = 1; Date.now() < deadline; attempt++) {
+    await sleep(backoffWithJitter(attempt, null, { baseMs: POLL_BASE_MS, maxMs: POLL_MAX_MS }))
+    let status: Awaited<ReturnType<typeof provider.images.getBuildStatus>>
+    try {
+      status = await provider.images.getBuildStatus(build, spec)
+    } catch (error) {
+      // A transient poll failure is not a build failure — keep polling until the
+      // cap, and let the timeout be the thing that gives up.
+      logger.warn('Sandbox image build poll failed', { specHash: payload.specHash, error })
+      continue
+    }
+
+    if (status.status === 'ready') {
+      const committed = await db
+        .update(sandboxImage)
+        .set({
+          status: 'ready',
+          imageRef: build.imageRef,
+          buildId: build.buildId,
+          providerImageId: build.providerImageId ?? null,
+          errorCode: null,
+          errorMessage: null,
+          errorDetail: null,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(sandboxImage.provider, payload.provider),
+            eq(sandboxImage.specHash, payload.specHash),
+            eq(sandboxImage.status, 'building'),
+            eq(sandboxImage.updatedAt, claimedAt),
+            eq(sandboxImage.materializationGeneration, materialization.generation)
+          )
+        )
+        .returning({ id: sandboxImage.id })
+      if (committed.length === 0) {
+        logger.warn('Sandbox image build became ready after its registry claim was lost', {
+          specHash: payload.specHash,
+          imageRef: build.imageRef,
+        })
+        await deleteUncommittedImage(provider.images, build, claimedPayload)
+        return
+      }
+      invalidateSandboxResolution()
+      logger.info('Sandbox image build ready', {
+        specHash: payload.specHash,
+        imageRef: build.imageRef,
+      })
+      await deleteSupersededImage(
+        provider.images,
+        superseded,
+        build,
+        claimedPayload,
+        options.supersededDeleteGraceMs ?? SUPERSEDED_IMAGE_DELETE_GRACE_MS
+      )
+      return
+    }
+
+    if (status.status === 'failed') {
+      recordToolingBuildFailure(spec, provider.id)
+      // Keep the exact build claim in `building` until provider cleanup finishes.
+      // Publishing retryable `failed` first lets a retry start the same deterministic
+      // E2B family while this worker is deleting it.
+      await deleteFailedCandidateImage(provider.images, build, superseded, provider.id)
+      await writeFailure(
+        claimedPayload,
+        status.error ?? providerBuildError(),
+        claimedAt,
+        preserveFallback,
+        status.logs ?? undefined
+      )
+      logger.warn('Sandbox image build failed', {
+        specHash: payload.specHash,
+        code: status.error?.code,
+      })
+      return
+    }
+  }
+
+  recordToolingBuildFailure(spec, provider.id)
+  await deleteFailedCandidateImage(provider.images, build, superseded, provider.id)
+  await writeFailure(
+    claimedPayload,
+    buildTimeoutError(BUILD_POLL_CAP_MS / 60_000),
+    claimedAt,
+    preserveFallback
+  )
+  logger.warn('Sandbox image build timed out', { specHash: payload.specHash })
+}
+
+/**
+ * Deletes the provider image behind a spec hash once no sandbox references it.
+ *
+ * Called when a sandbox is deleted, and when an edit re-points one at a new
+ * content address — both leave the previous build unreferenced. Without it the
+ * image sits in provider storage until the retention sweep, which is up to
+ * `SANDBOX_IMAGE_RETENTION_DAYS` of paying to store something nothing can select.
+ *
+ * Builds are keyed by content, not by workspace, so two workspaces declaring the
+ * same package list share one image and deleting on the strength of one
+ * workspace's action would break the other. The reference check is therefore part
+ * of the same statement that removes the row: reading references first and
+ * deleting second left a window — wide, because a provider delete is a network
+ * call — in which another workspace could adopt the hash, inherit a `ready` row,
+ * and have its next run fail against a template already on its way out. Winning
+ * the conditional delete is what proves nothing referenced the hash.
+ *
+ * Claiming the row before the provider call means a provider that then refuses
+ * would strand a template nothing points at, so the row is put back and the
+ * retention sweep inherits the retry. An in-flight build is left alone rather
+ * than raced; the sweep collects it once it settles.
+ *
+ * Best-effort by contract: failures are logged and swallowed, because this runs
+ * after the mutation it follows has already committed and must never turn a
+ * successful delete into an error.
+ */
+export async function releaseSandboxImage(specHash: string): Promise<void> {
+  const provider = resolveProvider()
+  if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) return
+
+  try {
+    const outcome = await claimAndDeleteImage(provider.id, provider.images, specHash)
+    if (outcome === 'released') {
+      invalidateSandboxResolution()
+      logger.info('Released unreferenced sandbox image', { specHash })
+    }
+  } catch (error) {
+    logger.warn('Failed to release sandbox image; the retention sweep will retry', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
+type ImageClaimOutcome = 'released' | 'skipped' | 'failed'
+
+/**
+ * Rebuilds a hash that was adopted while its image was being deleted.
+ *
+ * Claiming removes the row, so between that and the provider call finishing a
+ * workspace can declare the same package list, get a fresh row, and start a build
+ * under the same content-derived `imageRef` — which the in-flight delete then
+ * removes. The window is inherent: the registry row and the provider template are
+ * two systems with no shared transaction, so it can be made small but not zero.
+ *
+ * What is avoidable is the adopter being left broken. Its row is new and
+ * healthy-looking, so nothing else would notice — and a row that reached `ready`
+ * before the delete landed is worse than slow, it is permanent: resolution repairs
+ * a row that is missing or `failed`, never one claiming to be ready, so its
+ * `imageRef` would point at nothing until someone re-saved the sandbox by hand.
+ * The exact missing ref is what lets this reclaim that row without clobbering a
+ * replacement that committed after the provider delete began. A build still in flight is
+ * left alone, since it either recreates the template or fails into the normal
+ * repair path.
+ */
+async function rebuildIfReadopted(
+  providerId: string,
+  specHash: string,
+  spec: SandboxSpec,
+  missingImageRef: string
+): Promise<void> {
+  try {
+    const [readopted] = await db
+      .select({ id: sandboxImage.id })
+      .from(sandboxImage)
+      .where(and(eq(sandboxImage.provider, providerId), eq(sandboxImage.specHash, specHash)))
+      .limit(1)
+    if (!readopted) return
+
+    logger.warn('Sandbox image was re-adopted mid-delete; rebuilding it now', { specHash })
+    await ensureSandboxImage(spec, specHash, { missingImageRef })
+  } catch (error) {
+    // The template is gone and the rebuild did not take, so the adopter's row now
+    // claims a `ready` image that does not exist — the one state resolution cannot
+    // repair, because it only rebuilds a row that is missing or `failed`. Dropping
+    // the row converts that into the missing case, which the next execution fixes
+    // on its own. Swallowing instead would leave the sandbox broken until someone
+    // re-saved it by hand.
+    logger.warn('Failed to rebuild a re-adopted sandbox image; dropping the dead row', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+    try {
+      await db
+        .delete(sandboxImage)
+        .where(
+          and(
+            eq(sandboxImage.provider, providerId),
+            eq(sandboxImage.specHash, specHash),
+            eq(sandboxImage.imageRef, missingImageRef)
+          )
+        )
+    } catch (cleanupError) {
+      logger.error('Could not drop a sandbox image row pointing at a deleted template', {
+        specHash,
+        error: getErrorMessage(cleanupError),
+      })
+    }
+  }
+}
+
+/**
+ * Takes ownership of a spec hash's registry row and deletes the image behind it.
+ *
+ * Both callers that remove an image go through here, because the ordering is the
+ * whole contract and having written it twice is what let the two paths drift:
+ *
+ * 1. The unreferenced check is part of the `DELETE`, not a query before it.
+ *    Winning the delete is the proof nothing referenced the hash. Reading first
+ *    and deleting second leaves a window — spanning a provider network call —
+ *    where another workspace declares the same package list, inherits the `ready`
+ *    row without rebuilding, and loses the template underneath it.
+ * 2. The provider delete runs only after the claim, so two sweeps or a sweep and
+ *    a release cannot both issue it.
+ * 3. A provider that refuses gets the row put back, since claiming first would
+ *    otherwise strand a template nothing points at and no later pass would find
+ *    it. Restoring is what keeps the retry on the sweep.
+ *
+ * `extraConditions` lets the sweep add its retention cutoff to the same claim
+ * rather than trusting the candidate query it ran earlier.
+ */
+async function claimAndDeleteImage(
+  providerId: string,
+  images: SandboxImageBuilder,
+  specHash: string,
+  extraConditions: SQL[] = []
+): Promise<ImageClaimOutcome> {
+  const [claimed] = await db
+    .delete(sandboxImage)
+    .where(
+      and(
+        eq(sandboxImage.provider, providerId),
+        eq(sandboxImage.specHash, specHash),
+        notInArray(sandboxImage.status, ['pending', 'building']),
+        sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${specHash})`,
+        ...extraConditions
+      )
+    )
+    .returning({
+      id: sandboxImage.id,
+      spec: sandboxImage.spec,
+      status: sandboxImage.status,
+      imageRef: sandboxImage.imageRef,
+      buildId: sandboxImage.buildId,
+      providerImageId: sandboxImage.providerImageId,
+      materializationGeneration: sandboxImage.materializationGeneration,
+      errorCode: sandboxImage.errorCode,
+      errorMessage: sandboxImage.errorMessage,
+      errorDetail: sandboxImage.errorDetail,
+      lastUsedAt: sandboxImage.lastUsedAt,
+      createdAt: sandboxImage.createdAt,
+      updatedAt: sandboxImage.updatedAt,
+    })
+  if (!claimed) return 'skipped'
+  if (!claimed.imageRef) return 'released'
+
+  try {
+    await images.deleteImage({
+      imageRef: claimed.imageRef,
+      buildId: claimed.buildId ?? '',
+      providerImageId: claimed.providerImageId ?? undefined,
+    })
+  } catch (error) {
+    await db
+      .insert(sandboxImage)
+      .values({
+        id: claimed.id,
+        provider: providerId,
+        specHash,
+        spec: claimed.spec,
+        status: claimed.status as SandboxImageStatus,
+        imageRef: claimed.imageRef,
+        buildId: claimed.buildId,
+        providerImageId: claimed.providerImageId,
+        materializationGeneration: claimed.materializationGeneration,
+        errorCode: claimed.errorCode,
+        errorMessage: claimed.errorMessage,
+        errorDetail: claimed.errorDetail,
+        lastUsedAt: claimed.lastUsedAt,
+        createdAt: claimed.createdAt,
+        updatedAt: claimed.updatedAt,
+      })
+      .onConflictDoNothing()
+    logger.warn('Provider refused a sandbox image delete; restored the row for retry', {
+      specHash,
+      error: getErrorMessage(error),
+    })
+    return 'failed'
+  }
+
+  // Deliberately past the catch above. The template is gone for good by now, so a
+  // failure here must not restore the row: that path puts back a `ready` row whose
+  // imageRef points at nothing, which is the one state resolution cannot repair.
+  await rebuildIfReadopted(providerId, specHash, claimed.spec as SandboxSpec, claimed.imageRef)
+  return 'released'
+}
+
+/** Most rows one sweep will touch. The next run picks up whatever is left. */
+const CLEANUP_BATCH_LIMIT = 200
+
+/** Provider deletes issued at once. Bounded so a sweep cannot stampede the API. */
+const CLEANUP_CONCURRENCY = 8
+
+/**
+ * Removes build rows that no `workspace_sandbox` still references and that have
+ * gone unused past the retention window.
+ *
+ * The query below only nominates candidates. Every row is re-checked and claimed
+ * atomically by {@link claimAndDeleteImage} before its image is touched, because
+ * this sweep reads up to {@link CLEANUP_BATCH_LIMIT} rows and then works through
+ * them a chunk of network calls at a time — leaving minutes in which a workspace
+ * could declare one of those package lists, inherit the `ready` row, and lose the
+ * template underneath it. A candidate that stops qualifying in that window simply
+ * fails its claim and is skipped.
+ *
+ * A provider delete that fails restores the row, so the next sweep retries rather
+ * than orphaning a remote template nothing points at any more.
+ *
+ * Progress is committed per chunk. A sweep that is killed part-way — by a route
+ * timeout or a redeploy — therefore keeps what it already deleted, instead of
+ * re-issuing every provider delete next run and never draining the backlog.
+ */
+export async function cleanupSandboxImages(retentionDays: number): Promise<{
+  deleted: number
+  failed: number
+}> {
+  const provider = resolveProvider()
+  if (provider.dependencyStrategy !== 'prebuilt' || !provider.images) {
+    return { deleted: 0, failed: 0 }
+  }
+  const images = provider.images
+
+  const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000)
+  const beyondRetention = sql`coalesce(${sandboxImage.lastUsedAt}, ${sandboxImage.createdAt}) < ${sql.param(cutoff, sandboxImage.lastUsedAt)}`
+  const stale = await db
+    .select({
+      id: sandboxImage.id,
+      specHash: sandboxImage.specHash,
+      imageRef: sandboxImage.imageRef,
+      buildId: sandboxImage.buildId,
+      providerImageId: sandboxImage.providerImageId,
+    })
+    .from(sandboxImage)
+    .where(
+      and(
+        eq(sandboxImage.provider, provider.id),
+        beyondRetention,
+        sql`not exists (select 1 from workspace_sandbox ws where ws.spec_hash = ${sandboxImage.specHash})`
+      )
+    )
+    .limit(CLEANUP_BATCH_LIMIT)
+
+  if (stale.length === CLEANUP_BATCH_LIMIT) {
+    logger.info('Sandbox image sweep hit its batch limit; the rest waits for the next run', {
+      limit: CLEANUP_BATCH_LIMIT,
+    })
+  }
+
+  let deleted = 0
+  let failed = 0
+
+  for (let offset = 0; offset < stale.length; offset += CLEANUP_CONCURRENCY) {
+    const chunk = stale.slice(offset, offset + CLEANUP_CONCURRENCY)
+    const outcomes = await Promise.all(
+      chunk.map((row) => claimAndDeleteImage(provider.id, images, row.specHash, [beyondRetention]))
+    )
+
+    deleted += outcomes.filter((outcome) => outcome === 'released').length
+    failed += outcomes.filter((outcome) => outcome === 'failed').length
+  }
+
+  if (deleted > 0) invalidateSandboxResolution()
+  return { deleted, failed }
+}

@@ -1,16 +1,16 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { Plus } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { useSession } from '@/lib/auth/auth-client'
 import { getSubscriptionAccessState } from '@/lib/billing/client/utils'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { generateSlug, isAdminOrOwner, type Member } from '@/lib/workspaces/organization'
+import { InviteModal } from '@/app/workspace/[workspaceId]/components/invite-modal'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import {
   NoOrganizationView,
-  OrganizationInviteModal,
   OrganizationMemberLists,
   RemoveMemberDialog,
   TeamSeatsOverview,
@@ -19,6 +19,7 @@ import {
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
 import {
   useCreateOrganization,
+  useMemberRemovalImpact,
   useOrganization,
   useOrganizationBilling,
   useOrganizationRoster,
@@ -77,6 +78,23 @@ export function TeamManagement({
   const [orgName, setOrgName] = useState('')
   const [orgSlug, setOrgSlug] = useState('')
 
+  /**
+   * `isFetching` (not `isLoading`) gates the confirm button: a background
+   * refetch of cached data must also hold removal so the admin never
+   * confirms against a stale credential-impact list.
+   */
+  const {
+    data: removalImpactCredentials,
+    isFetching: isRemovalImpactFetching,
+    isError: isRemovalImpactError,
+  } = useMemberRemovalImpact(organizationId, removeMemberDialog.memberId, {
+    enabled: removeMemberDialog.open,
+  })
+
+  const disclosedBreakingCredentials = [
+    ...new Set(removalImpactCredentials?.map((credential) => credential.displayName) ?? []),
+  ]
+
   const totalSeats = organizationBillingData?.data?.totalSeats ?? 0
   const usedSeats = organizationBillingData?.data?.members?.length ?? 0
   const reservedSeats = organizationBillingData?.data?.usedSeats ?? 0
@@ -98,32 +116,6 @@ export function TeamManagement({
         referenceId: orgBilling.organizationId,
       }
     : null
-
-  const externalEmails = useMemo(() => {
-    const emails: string[] = []
-    for (const member of roster?.members ?? []) {
-      if (member.role === 'external') emails.push(member.email)
-    }
-    return emails
-  }, [roster])
-
-  /**
-   * Pending invitations for emails that already belong to a member are
-   * excluded: members can always be re-invited to additional workspaces (the
-   * server dedupes per workspace), so only non-member pending emails are
-   * blocked in the invite modal.
-   */
-  const pendingEmails = useMemo(() => {
-    const memberEmailSet = new Set<string>()
-    for (const member of roster?.members ?? []) {
-      if (member.role !== 'external') memberEmailSet.add(member.email.toLowerCase())
-    }
-    const emails: string[] = []
-    for (const invitation of roster?.pendingInvitations ?? []) {
-      if (!memberEmailSet.has(invitation.email.toLowerCase())) emails.push(invitation.email)
-    }
-    return emails
-  }, [roster])
 
   useEffect(() => {
     if ((hasTeamPlan || hasEnterprisePlan) && session?.user?.name && !orgName) {
@@ -353,13 +345,11 @@ export function TeamManagement({
       </SettingsPanel>
 
       {adminOrOwner && (
-        <OrganizationInviteModal
+        <InviteModal
           open={inviteModalOpen}
           onOpenChange={setInviteModalOpen}
           organizationId={displayOrganization.id}
-          workspaces={roster?.workspaces ?? []}
-          externalEmails={externalEmails}
-          pendingEmails={pendingEmails}
+          canInvite={adminOrOwner}
         />
       )}
 
@@ -383,6 +373,9 @@ export function TeamManagement({
         memberName={removeMemberDialog.memberName}
         isSelfRemoval={removeMemberDialog.isSelfRemoval}
         isExternalRemoval={removeMemberDialog.isExternalRemoval}
+        breakingCredentials={disclosedBreakingCredentials}
+        credentialImpactPending={isRemovalImpactFetching}
+        credentialImpactFailed={isRemovalImpactError}
         isSubmitting={removeMemberMutation.isPending}
         error={removeMemberMutation.error}
         onOpenChange={(open: boolean) => {

@@ -1,3 +1,7 @@
+import {
+  normalizeWorkflowExecutorInput,
+  WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
+} from '@/lib/workflows/executor/input-secret-provenance'
 import type { ToolConfig } from '@/tools/types'
 import type { WorkflowExecutorParams, WorkflowExecutorResponse } from '@/tools/workflow/types'
 
@@ -33,16 +37,17 @@ export const workflowExecutorTool: ToolConfig<
     url: (params: WorkflowExecutorParams) => `/api/workflows/${params.workflowId}/execute`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
+    secretProvenance: {
+      request: (params) => [
+        {
+          key: WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
+          inputPaths: [['inputMapping']],
+        },
+      ],
+      response: { incomplete: 'reject' },
+    },
     body: (params: WorkflowExecutorParams) => {
-      let inputData = params.inputMapping || {}
-      if (typeof inputData === 'string') {
-        try {
-          inputData = JSON.parse(inputData)
-        } catch {
-          inputData = {}
-        }
-      }
-      // Use draft state for manual runs (not deployed), deployed state for deployed runs
+      const inputData = normalizeWorkflowExecutorInput(params.inputMapping)
       const isDeployedContext = params._context?.isDeployedContext
       const parentWorkspaceId = params._context?.workspaceId
       return {

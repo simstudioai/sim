@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { selectPreferredModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type {
   TextractAnalyzeExpenseOutput,
   TextractAnalyzeExpenseV2Input,
@@ -114,6 +115,22 @@ export const textractAnalyzeExpenseTool: ToolConfig<
   },
 
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) => {
+        const processingMode = params.processingMode || 'sync'
+        if (processingMode === 'async') {
+          return typeof params.s3Uri === 'string' && params.s3Uri.trim() !== '' ? [['s3Uri']] : []
+        }
+        return selectPreferredModelBoundFileInputPaths({
+          file: params.file,
+          filePath: params.filePath,
+          fileInputPath: ['file'],
+          filePathInputPath: ['filePath'],
+          prefer: 'file',
+        })
+      },
+    },
     url: '/api/tools/textract/analyze-expense',
     method: 'POST',
     headers: () => ({

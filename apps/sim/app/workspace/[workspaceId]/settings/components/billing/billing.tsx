@@ -47,6 +47,7 @@ import { CreditUsageSection } from '@/app/workspace/[workspaceId]/settings/compo
 import { UsageLimitField } from '@/app/workspace/[workspaceId]/settings/components/billing/components/usage-limit-field/usage-limit-field'
 import { getSubscriptionPermissions } from '@/app/workspace/[workspaceId]/settings/components/billing/subscription-permissions'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import { RESOURCE_ROW_ARROW_CLASSES } from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   useBillingUsageNotifications,
@@ -102,9 +103,15 @@ interface BillingProps {
   scope: 'account' | 'organization'
   organizationId?: string
   creditUsageHref?: string
+  governingWorkspaceName?: string
 }
 
-export function Billing({ scope, organizationId, creditUsageHref }: BillingProps) {
+export function Billing({
+  scope,
+  organizationId,
+  creditUsageHref,
+  governingWorkspaceName,
+}: BillingProps) {
   const router = useRouter()
   const isOrganizationScope = scope === 'organization'
 
@@ -447,9 +454,16 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
   const explorePlansLabel = isOrganizationScope
     ? 'Explore organization plans'
     : 'Explore personal plans'
+  const subscriptionOwner = isOrganizationScope
+    ? `${organizationBilling?.organizationName ?? 'The organization'}’s subscription`
+    : 'Your personal subscription'
+  const settingsDescription =
+    governingWorkspaceName && subscription.isPaid
+      ? `${subscriptionOwner} governs ${governingWorkspaceName}.`
+      : undefined
 
   return (
-    <SettingsPanel>
+    <SettingsPanel description={settingsDescription}>
       <div className='flex items-center justify-between gap-3'>
         <div className='flex items-center gap-2.5'>
           <div className='size-9 flex-shrink-0'>
@@ -467,14 +481,13 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             <ChipLink
               href={upgradeHref}
               variant='border-shadow'
-              flush
               onMouseEnter={prefetchUpgrade}
               onFocus={prefetchUpgrade}
             >
               {explorePlansLabel}
             </ChipLink>
           ) : (
-            <Chip variant='border-shadow' flush disabled>
+            <Chip variant='border-shadow' disabled>
               {explorePlansLabel}
             </Chip>
           ))}
@@ -566,7 +579,6 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
             <div className='flex items-center justify-between'>
               <span className='text-[var(--text-body)] text-small'>Payment method</span>
               <Chip
-                flush
                 disabled={!canManageBilling || openBillingPortal.isPending}
                 onClick={handleOpenBillingPortal}
               >
@@ -582,7 +594,6 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 {isCancelledAtPeriodEnd ? (
                   <Chip
                     variant='primary'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleRestoreSubscription}
                   >
@@ -591,7 +602,6 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                 ) : (
                   <Chip
                     variant='destructive'
-                    flush
                     disabled={!canManageBilling}
                     onClick={handleCancelSubscription}
                   >
@@ -624,7 +634,7 @@ export function Billing({ scope, organizationId, creditUsageHref }: BillingProps
                   <span className='min-w-0 flex-1 truncate text-[var(--text-muted)] text-caption'>
                     {invoice.description ?? ''}
                   </span>
-                  <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
+                  <ArrowRight className={RESOURCE_ROW_ARROW_CLASSES} />
                 </>
               )
 

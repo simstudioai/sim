@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
+import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId, generateShortId } from '@sim/utils/id'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
@@ -38,26 +38,37 @@ import {
   buildIdByName,
   buildNameById,
   columnMatchesRef,
-  filterIdsToNames,
-  filterNamesToIds,
+  predicateIdsToNames,
   rowDataNameToId,
-  sortIdsToNames,
-  sortNamesToIds,
+  sortSpecIdsToNames,
+  sortSpecNamesToIds,
 } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   addTableColumn,
   deleteColumn,
   deleteColumns,
   renameColumn,
   updateColumnConstraints,
+  updateColumnCurrency,
   updateColumnOptions,
   updateColumnType,
 } from '@/lib/table/columns/service'
+import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { markTableDeleteFailed, runTableDelete } from '@/lib/table/delete-runner'
+import { signalTableRowsChanged, signalTableSchemaChanged } from '@/lib/table/events'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunning, releaseJobClaim } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowUpdate, patchColumnIds } from '@/lib/table/mutation-locks'
+import { predicateToFilter } from '@/lib/table/query-builder/converters'
+import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
+import { validatePredicate, validateSortSpec } from '@/lib/table/query-builder/validate'
+import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import {
   batchInsertRows,
   batchUpdateRows,
@@ -71,16 +82,18 @@ import {
   updateRow,
   updateRowsByFilter,
 } from '@/lib/table/rows/service'
-import { resolveFilterSelectValues } from '@/lib/table/select-values'
+import { predicateToStorage } from '@/lib/table/select-values'
 import { createTable, deleteTable, getTableById, renameTable } from '@/lib/table/service'
 import type {
   ColumnDefinition,
   Filter,
   RowData,
   SelectOption,
-  Sort,
+  SortSpec,
   TableDefinition,
   TableDeleteJobPayload,
+  TablePredicate,
+  TablePredicateInput,
   TableSchema,
   TableUpdateJobPayload,
   TableViewConfig,
@@ -103,6 +116,7 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   type FlattenedBlockOutput,
   flattenWorkflowOutputs,
@@ -140,6 +154,18 @@ async function resolveWorkspaceFileRecordOrThrow(fileReference: string, workspac
       `File not found: "${fileReference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
     )
   }
+
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+    fileId: record.id,
+    key: record.key,
+    context: 'workspace',
+  })
+  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+    throw new Error(
+      `Cannot import "${fileReference}": the file cannot be verified as free of resolved secrets.`
+    )
+  }
+
   return record
 }
 
@@ -389,7 +415,13 @@ async function batchInsertAll(
     const batch = rows.slice(i, i + MAX_BATCH_SIZE)
     const requestId = generateId().slice(0, 8)
     const result = await batchInsertRows(
-      { tableId, rows: batch, workspaceId, userId },
+      {
+        tableId,
+        rows: batch,
+        workspaceId,
+        userId,
+        secretProvenance: batch.map(createExactEmptyTableRowSecretProvenance),
+      },
       // Pass the running total so each batch's capacity check sees cumulative rows,
       // not the same pre-loop snapshot (which would let a multi-batch insert overshoot).
       { ...table, rowCount: table.rowCount + inserted },
@@ -398,6 +430,28 @@ async function batchInsertAll(
     inserted += result.length
   }
   return inserted
+}
+
+async function importRowsForModel(
+  rows: Array<{ id: string; data: RowData; updatedAt: Date | string }>,
+  context: ServerToolContext
+): Promise<void> {
+  const registry = context.resolvedSecretTraceRegistry
+  if (!registry) return
+  if (!context.workspaceId) {
+    registry.markIncomplete()
+    return
+  }
+
+  const provenance = await loadTableRowSecretProvenance(rows, {
+    userId: context.userId,
+    workspaceId: context.workspaceId,
+  })
+  await registry.importCrossingProvenance(
+    provenance,
+    rows.map((row) => row.data),
+    { trusted: true }
+  )
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
@@ -567,17 +621,20 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // The LLM authors row data by column name; storage keys by id.
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = rowDataNameToId(args.data, idByName)
           const row = await insertRow(
             {
               tableId: args.tableId,
-              data: rowDataNameToId(args.data, idByName),
+              data: rowData,
               workspaceId,
               userId: context.userId,
               position: args.position as number | undefined,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
             },
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -611,16 +668,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = args.rows.map((row: RowData) => rowDataNameToId(row, idByName))
           const rows = await batchInsertRows(
             {
               tableId: args.tableId,
-              rows: args.rows.map((r: RowData) => rowDataNameToId(r, idByName)),
+              rows: rowData,
               workspaceId,
               userId: context.userId,
+              secretProvenance: rowData.map(createExactEmptyTableRowSecretProvenance),
             },
             table,
             requestId
           )
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -654,6 +714,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           if (!row) {
             return { success: false, message: `Row not found: ${args.rowId}` }
           }
+          await importRowsForModel([row], context)
 
           const toNamedRow = namedRowMapper(rowTable.schema.columns)
           return {
@@ -688,51 +749,89 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const toNamedRow = namedRowMapper(table.schema.columns)
+          // Typed predicate/sort objects, validated against the schema (column
+          // NAMES) then translated to storage ids.
+          let predicate: TablePredicate | undefined
+          if (args.filter) {
+            const filter = args.filter as TablePredicateInput
+            validatePredicate(filter, table.schema.columns)
+            const normalizedFilter = normalizeTablePredicate(filter)
+            predicate = predicateToStorage(normalizedFilter, table.schema)
+          }
+          let orderSpec = args.order as SortSpec | undefined
+          if (orderSpec?.length) {
+            validateSortSpec(orderSpec, table.schema.columns)
+            orderSpec = sortSpecNamesToIds(orderSpec, idByName)
+          }
+          let sort = orderSpec?.length
+            ? Object.fromEntries(orderSpec.map((s) => [s.field, s.direction]))
+            : undefined
 
-          // A saved view supplies the filter/sort when the model passes `viewId`.
-          // Its stored config is already column-id keyed (select values included),
-          // so it skips the name→id and select-label translation the wire args go
-          // through. An explicit filter or sort wins over the view's, so the model
-          // can narrow a view without redefining it.
-          let viewFilter: Filter | undefined
-          let viewSort: Sort | undefined
+          // A saved view supplies predicate/sort when the model passes `viewId`.
+          // Its stored config is already in storage form — column-id keyed with
+          // select values as option ids — so it skips the validate/normalize/
+          // translate path the wire args go through. An explicit filter or order
+          // wins over the view's, so the model can narrow a view without
+          // redefining it.
           if (args.viewId) {
             const views = await listTableViews(args.tableId, table.schema.columns ?? [])
             const view = views.find((v) => v.id === args.viewId)
             if (!view) {
               return { success: false, message: `View not found: ${args.viewId}` }
             }
-            viewFilter = view.config.filter ?? undefined
-            viewSort = view.config.sort ?? undefined
+            if (!predicate && view.config.filter) predicate = view.config.filter
+            if (!sort && view.config.sort?.length) {
+              sort = Object.fromEntries(view.config.sort.map((s) => [s.field, s.direction]))
+            }
           }
 
-          // The model may request any number; we serve at most MAX_QUERY_LIMIT per page so a single
-          // tool result can't drain a whole table. `totalCount` in the response signals truncation,
-          // and the model pages with `offset`.
+          // Opaque cursor pagination (keyset seek on the default order; the token
+          // hides an internal offset only for custom-sorted views, which a keyset
+          // physically can't page). A keyset cursor is bound to the default order,
+          // so it can't be combined with a fresh sort.
+          const cursor = args.cursor ? decodeCursor(args.cursor) : undefined
+          if (cursor) {
+            try {
+              // Keyset cursors bind to the default order; offset cursors to the
+              // exact sort they were minted under.
+              assertCursorSortBinding(cursor, sort)
+            } catch (bindError) {
+              return { success: false, message: getErrorMessage(bindError, 'Invalid cursor') }
+            }
+          }
+
+          // No limit returns the ENTIRE matching result, failing fast once the
+          // 5MB byte budget is exceeded (caught below → structured tool error
+          // the model can react to by adding a filter or a limit). An explicit
+          // limit pages; byte-cut pages set nextCursor and the message says to
+          // continue with the opaque cursor.
+          const toNamedRow = namedRowMapper(table.schema.columns)
           const result = await queryRows(
             table,
             {
-              filter: args.filter
-                ? resolveFilterSelectValues(
-                    filterNamesToIds(args.filter, idByName),
-                    table.schema.columns
-                  )
-                : viewFilter,
-              sort: args.sort ? sortNamesToIds(args.sort, idByName) : viewSort,
-              limit:
-                args.limit !== undefined
-                  ? Math.min(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
-                  : undefined,
-              offset: args.offset,
+              predicate,
+              sort,
+              limit: args.limit,
+              after: cursor?.after,
+              offset: cursor?.offset,
+              // Only the first page (no inbound cursor) pays for the COUNT(*).
+              includeTotal: !args.cursor,
               withExecutions: false,
             },
             requestId
           )
+          await importRowsForModel(result.rows, context)
 
+          // nextCursor covers both cut kinds (explicit limit or the 5MB byte
+          // budget) — either way the truthful signal is "more rows exist". The
+          // token is opaque; the agent echoes it back as `cursor` to continue.
+          const countSuffix = result.totalCount != null ? ` of ${result.totalCount}` : ''
+          const message = result.nextCursor
+            ? `Returned ${result.rows.length}${countSuffix} rows (more available — pass cursor=${result.nextCursor} to continue)`
+            : `Returned ${result.rows.length}${countSuffix} rows`
           return {
             success: true,
-            message: `Returned ${result.rows.length} of ${result.totalCount} rows`,
+            message,
             data: {
               ...result,
               rows: result.rows.map((r) => ({
@@ -766,13 +865,15 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
           const toNamedRow = namedRowMapper(table.schema.columns)
+          const rowData = rowDataNameToId(args.data, idByName)
           const updatedRow = await updateRow(
             {
               tableId: args.tableId,
               rowId: args.rowId,
-              data: rowDataNameToId(args.data, idByName),
+              data: rowData,
               workspaceId,
               actorUserId: context.userId,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
             },
             table,
             requestId
@@ -782,6 +883,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             // doesn't, so the guard never trips here. Defensive narrowing.
             return { success: false, message: 'Row update was skipped' }
           }
+          await importRowsForModel([updatedRow], context)
+          signalTableRowsChanged(args.tableId)
           // Auto-dispatch for user edits is handled inside `updateRow`
           // (mode: 'new' for newly-cleared groups + cancel+rerun for in-flight
           // downstream groups). Firing a second mode: 'incomplete' dispatch
@@ -821,6 +924,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: `Table ${args.tableId} not found` }
           }
           await deleteRow(deleteRowTable, args.rowId, requestId)
+          signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -853,10 +957,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
           const idData = rowDataNameToId(args.data, idByName)
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows in one request; a larger operation
@@ -921,9 +1028,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               data: idData,
               limit: args.limit,
               actorUserId: context.userId,
+              secretProvenance: createExactEmptyTableRowSecretProvenance(idData),
             },
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -954,10 +1063,13 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           const requestId = generateId().slice(0, 8)
           const idByName = buildIdByName(table.schema)
-          const idFilter = resolveFilterSelectValues(
-            filterNamesToIds(args.filter, idByName),
-            table.schema.columns
-          )
+          // Agent authors a predicate object; validate → translate → Filter for
+          // the bulk engine (same fieldPredicate leaf → identical SQL). Select
+          // operands arrive as option NAMES and must resolve to stored ids.
+          const filter = args.filter as TablePredicateInput
+          validatePredicate(filter, table.schema.columns)
+          const normalizedFilter = normalizeTablePredicate(filter)
+          const idFilter = predicateToFilter(predicateToStorage(normalizedFilter, table.schema))
 
           // Inline handles up to MAX_BULK_OPERATION_SIZE rows; a larger delete (an explicit limit
           // above the cap, or unbounded "delete everything matching") hands off to the background
@@ -1029,6 +1141,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           } finally {
             await releaseJobClaim(table.id, inlineDeleteId).catch(() => {})
           }
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1099,19 +1212,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const idByName = buildIdByName(table.schema)
+          const idUpdates = (updates as Array<{ rowId: string; data: RowData }>).map((update) => ({
+            rowId: update.rowId,
+            data: rowDataNameToId(update.data, idByName),
+          }))
           const result = await batchUpdateRows(
             {
               tableId: args.tableId,
-              updates: (updates as Array<{ rowId: string; data: RowData }>).map((u) => ({
-                rowId: u.rowId,
-                data: rowDataNameToId(u.data, idByName),
-              })),
+              updates: idUpdates,
               workspaceId,
               actorUserId: context.userId,
+              secretProvenanceByRowId: Object.fromEntries(
+                idUpdates.map((update) => [
+                  update.rowId,
+                  createExactEmptyTableRowSecretProvenance(update.data),
+                ])
+              ),
             },
             table,
             requestId
           )
+          if (result.affectedCount > 0) signalTableRowsChanged(args.tableId)
 
           return {
             success: true,
@@ -1151,6 +1272,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, rowIds, workspaceId },
             requestId
           )
+          if (result.deletedCount > 0) signalTableRowsChanged(args.tableId)
 
           recordAudit({
             workspaceId,
@@ -1455,10 +1577,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             if (mode === 'replace') {
               const requestId = generateId().slice(0, 8)
               const result = await replaceTableRows(
-                { tableId: table.id, rows: coerced, workspaceId, userId: context.userId },
+                {
+                  tableId: table.id,
+                  rows: coerced,
+                  workspaceId,
+                  userId: context.userId,
+                  secretProvenance: coerced.map(createExactEmptyTableRowSecretProvenance),
+                },
                 table,
                 requestId
               )
+              signalTableRowsChanged(table.id)
 
               logger.info('Rows replaced from file', {
                 tableId: table.id,
@@ -1487,6 +1616,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
 
             const inserted = await batchInsertAll(table.id, coerced, table, workspaceId, context)
+            if (inserted > 0) signalTableRowsChanged(table.id)
 
             logger.info('Rows imported from file', {
               tableId: table.id,
@@ -1530,6 +1660,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 position?: number
                 options?: unknown
                 multiple?: boolean
+                currencyCode?: string
               }
             | undefined
           if (!col?.name || !col?.type) {
@@ -1544,12 +1675,19 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
+          if (col.currencyCode !== undefined && !isSupportedCurrencyCode(col.currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${col.currencyCode}". Use an ISO 4217 code, e.g. USD`,
+            }
+          }
           // Agent authors select options by name; generate their stable ids here.
           const columnToAdd =
             col.type === 'select'
               ? { ...col, options: normalizeSelectOptionsInput(col.options) }
               : { ...col, options: undefined }
           const updated = await addTableColumn(args.tableId, columnToAdd, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -1579,6 +1717,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, oldName: colName, newName: newColName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Renamed column "${colName}" to "${newColName}"`,
@@ -1610,6 +1749,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               { tableId: args.tableId, columnName: names[0] },
               requestId
             )
+            signalTableSchemaChanged(args.tableId)
             return {
               success: true,
               message: `Deleted column "${names[0]}"`,
@@ -1621,6 +1761,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, columnNames: names },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted ${names.length} columns: ${names.join(', ')}`,
@@ -1643,15 +1784,24 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const uniqFlag = (args as Record<string, unknown>).unique as boolean | undefined
           const rawOptions = (args as Record<string, unknown>).options
           const multiple = (args as Record<string, unknown>).multiple as boolean | undefined
+          const currencyCode = (args as Record<string, unknown>).currencyCode as string | undefined
           if (
             newType === undefined &&
             uniqFlag === undefined &&
             rawOptions === undefined &&
-            multiple === undefined
+            multiple === undefined &&
+            currencyCode === undefined
           ) {
             return {
               success: false,
-              message: 'At least one of newType, unique, options, or multiple must be provided',
+              message:
+                'At least one of newType, unique, options, multiple, or currencyCode must be provided',
+            }
+          }
+          if (currencyCode !== undefined && !isSupportedCurrencyCode(currencyCode)) {
+            return {
+              success: false,
+              message: `Invalid currency code "${currencyCode}". Use an ISO 4217 code, e.g. USD`,
             }
           }
           const tableForUpdate = await getTableById(args.tableId)
@@ -1683,10 +1833,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           // update on an existing select column carries the same hazard as a
           // conversion. Same guard the HTTP column routes apply.
           const resultingType = newType ?? currentColumn?.type
-          if (uniqFlag === true && resultingType === 'select') {
+          if (uniqFlag === true && !columnTypeById(resultingType).supportsUnique) {
             return {
               success: false,
-              message: `Cannot set column "${colName}" as unique: select columns cannot be unique.`,
+              message: `Cannot set column "${colName}" as unique: ${resultingType} columns cannot be unique.`,
             }
           }
           if (typeChanging) {
@@ -1698,6 +1848,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 newType: newType as (typeof COLUMN_TYPES)[number],
                 options,
                 multiple,
+                ...(currencyCode !== undefined ? { currencyCode } : {}),
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
+              requestId
+            )
+          } else if (currencyCode !== undefined) {
+            // Re-denominating an existing currency column: schema-only, no cell
+            // rewrite. Mirrors the HTTP columns routes.
+            if (currentColumn?.type !== 'currency') {
+              return {
+                success: false,
+                message: `Column "${colName}" is not a currency column. Pass newType: "currency" with currencyCode to convert it.`,
+              }
+            }
+            assertNotAborted()
+            result = await updateColumnCurrency(
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                currencyCode,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
               },
               requestId
             )
@@ -1715,17 +1886,27 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
             assertNotAborted()
             result = await updateColumnOptions(
-              { tableId: args.tableId, columnName: colName, options: nextOptions, multiple },
+              {
+                tableId: args.tableId,
+                columnName: colName,
+                options: nextOptions,
+                multiple,
+                ...(uniqFlag !== undefined ? { unique: uniqFlag } : {}),
+              },
               requestId
             )
           }
-          if (uniqFlag !== undefined) {
+          // Skipped when a typed write ran: that write already applied and
+          // validated the constraint, in one transaction with the change it
+          // accompanies. Mirrors the HTTP columns routes.
+          if (uniqFlag !== undefined && result === undefined) {
             assertNotAborted()
             result = await updateColumnConstraints(
               { tableId: args.tableId, columnName: colName, unique: uniqFlag },
               requestId
             )
           }
+          if (result) signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated column "${colName}"`,
@@ -1755,6 +1936,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const renamed = await renameTable(args.tableId, newName, requestId, context.userId)
+          signalTableSchemaChanged(args.tableId)
 
           return {
             success: true,
@@ -1878,6 +2060,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added workflow group "${name ?? groupId}" with ${outputs.length} output column(s)`,
@@ -1950,6 +2133,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Updated workflow group ${groupId}`,
@@ -1971,6 +2155,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const requestId = generateId().slice(0, 8)
           assertNotAborted()
           const updated = await deleteWorkflowGroup({ tableId: args.tableId, groupId }, requestId)
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
@@ -2008,6 +2193,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added output to workflow group ${groupId}`,
@@ -2036,6 +2222,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, groupId, columnName },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
@@ -2168,7 +2355,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const rendersViewChrome =
             operation !== 'show_view' ||
             'filter' in args ||
-            'sort' in args ||
+            'order' in args ||
             'hiddenColumns' in args
           if (rendersViewChrome) {
             const host = await getWorkspaceHostContextForViewer(workspaceId, context.userId)
@@ -2192,15 +2379,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const configFromArgs = (): TableViewConfig => {
             const config: TableViewConfig = {}
             if ('filter' in args) {
-              config.filter = args.filter
-                ? resolveFilterSelectValues(
-                    filterNamesToIds(args.filter, viewIdByName),
-                    viewColumns
-                  )
-                : null
+              if (args.filter) {
+                const input = args.filter as TablePredicateInput
+                validatePredicate(input, viewColumns)
+                config.filter = predicateToStorage(normalizeTablePredicate(input), viewTable.schema)
+              } else {
+                config.filter = null
+              }
             }
-            if ('sort' in args) {
-              config.sort = args.sort ? sortNamesToIds(args.sort, viewIdByName) : null
+            // `order` matches query_rows' arg name; stored as a v2 SortSpec.
+            if ('order' in args) {
+              const orderSpec = args.order as SortSpec | undefined
+              if (orderSpec?.length) {
+                validateSortSpec(orderSpec, viewColumns)
+                config.sort = sortSpecNamesToIds(orderSpec, viewIdByName)
+              } else {
+                config.sort = null
+              }
             }
             if ('hiddenColumns' in args && Array.isArray(args.hiddenColumns)) {
               const unknown = (args.hiddenColumns as string[]).filter(
@@ -2218,8 +2413,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           const toWireView = (view: TableView) => ({
             id: view.id,
             name: view.name,
-            filter: view.config.filter ? filterIdsToNames(view.config.filter, viewNameById) : null,
-            sort: view.config.sort ? sortIdsToNames(view.config.sort, viewNameById) : null,
+            filter: view.config.filter
+              ? predicateIdsToNames(view.config.filter, viewNameById)
+              : null,
+            order: view.config.sort ? sortSpecIdsToNames(view.config.sort, viewNameById) : null,
             hiddenColumns: (view.config.hiddenColumns ?? []).map(
               (id) => viewNameById.get(id) ?? id
             ),
@@ -2234,8 +2431,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               // "Save as view" affordance takes over if the user keeps it.
               const config = configFromArgs()
               const draft = {
-                filter: config.filter ? filterIdsToNames(config.filter, viewNameById) : null,
-                sort: config.sort ? sortIdsToNames(config.sort, viewNameById) : null,
+                filter: config.filter ? predicateIdsToNames(config.filter, viewNameById) : null,
+                order: config.sort ? sortSpecIdsToNames(config.sort, viewNameById) : null,
                 hiddenColumns: (config.hiddenColumns ?? []).map((id) => viewNameById.get(id) ?? id),
               }
               return {
@@ -2281,7 +2478,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               return {
                 success: false,
                 message:
-                  'update_view needs at least one of viewName, filter, sort, hiddenColumns (pass null to clear filter or sort)',
+                  'update_view needs at least one of viewName, filter, order, hiddenColumns (pass null to clear filter or order)',
               }
             }
             const updated = await updateTableView({
@@ -2406,6 +2603,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             { tableId: args.tableId, group, outputColumns, autoRun, actorUserId: context.userId },
             requestId
           )
+          signalTableSchemaChanged(args.tableId)
           return {
             success: true,
             message: `Added enrichment "${name}" with ${outputs.length} output column(s)${

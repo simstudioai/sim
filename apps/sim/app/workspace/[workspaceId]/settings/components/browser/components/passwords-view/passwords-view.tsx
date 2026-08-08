@@ -7,23 +7,17 @@ import type {
   BrowserImportError,
   BrowserImportProfile,
 } from '@sim/desktop-bridge'
-import { ArrowLeft, ArrowRight, ChipConfirmModal, Key, Plus, toast } from '@sim/emcn'
+import { ArrowLeft, ChipConfirmModal, Key, Plus, toast } from '@sim/emcn'
 import { getDesktopBridge } from '@/lib/desktop'
 import { ImportModal } from '@/app/workspace/[workspaceId]/settings/components/browser/components/import-modal/import-modal'
 import { PasswordDetail } from '@/app/workspace/[workspaceId]/settings/components/browser/components/password-detail/password-detail'
-import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state/settings-empty-state'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
+import {
+  RESOURCE_LIST_GRID,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
 import { useSettingsSearch } from '@/app/workspace/[workspaceId]/settings/components/use-settings-search'
-
-/** The integrations page's responsive card grid and row chrome. */
-const CARD_GRID = '-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'
-const CARD_CLASSES =
-  'flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-const CARD_TILE_CLASSES =
-  'flex size-full items-center justify-center overflow-hidden rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'
-const CARD_TITLE_CLASSES = 'truncate text-[14px] text-[var(--text-body)]'
-const CARD_SUBTITLE_CLASSES = 'truncate text-[12px] text-[var(--text-muted)]'
-const CARD_ARROW_CLASSES = 'size-4 flex-shrink-0 text-[var(--text-icon)]'
 
 const IMPORT_ERROR_MESSAGES: Record<BrowserImportError, string> = {
   'unsupported-platform': 'Importing from another browser is only supported on macOS.',
@@ -58,6 +52,7 @@ function summarize({ cookies, passwords }: BrowserChromeImportResult): string | 
 
 interface PasswordsViewProps {
   credentials: BrowserCredentialMetadata[]
+  initialImportOpen?: boolean
   onChange: (credentials: BrowserCredentialMetadata[]) => void
   onBack: () => void
   /** Lets the Browser page refresh its own counts after an import. */
@@ -69,18 +64,23 @@ interface PasswordsViewProps {
  * login, each opening its own detail page. Nothing secret is shown here — the
  * password only exists on the detail page, and only after Touch ID.
  */
-export function PasswordsView({ credentials, onChange, onBack, onImported }: PasswordsViewProps) {
+export function PasswordsView({
+  credentials,
+  initialImportOpen = false,
+  onChange,
+  onBack,
+  onImported,
+}: PasswordsViewProps) {
   const [searchTerm, setSearchTerm] = useSettingsSearch()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [confirmingDeleteAll, setConfirmingDeleteAll] = useState(false)
   const [deleteAllPending, setDeleteAllPending] = useState(false)
   const [profiles, setProfiles] = useState<BrowserImportProfile[]>([])
-  const [importOpen, setImportOpen] = useState(false)
+  const [importOpen, setImportOpen] = useState(initialImportOpen)
   const [importPending, setImportPending] = useState(false)
 
   useEffect(() => {
-    // Absent on shells without the importer and on platforms where one cannot
-    // run, so the action simply does not render there.
+    // Absent on platforms where the local importer cannot run.
     const listProfiles = getDesktopBridge()?.browserImport?.listChromeProfiles
     if (!listProfiles) return
     void listProfiles()
@@ -123,7 +123,7 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
 
   const forgetAll = useCallback(async () => {
     const bridge = getDesktopBridge()?.browserCredentials
-    if (!bridge?.forgetAll) return
+    if (!bridge) return
     setDeleteAllPending(true)
     try {
       onChange(await bridge.forgetAll())
@@ -156,7 +156,6 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
     )
   }
 
-  const canForgetAll = typeof getDesktopBridge()?.browserCredentials?.forgetAll === 'function'
   const canImport = profiles.length > 0
 
   return (
@@ -167,7 +166,7 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
         description='Saved logins for the built-in browser, encrypted on this device.'
         search={{ value: searchTerm, onChange: setSearchTerm, placeholder: 'Search passwords...' }}
         actions={[
-          ...(canForgetAll && credentials.length > 0
+          ...(credentials.length > 0
             ? [
                 {
                   text: 'Delete all',
@@ -196,39 +195,28 @@ export function PasswordsView({ credentials, onChange, onBack, onImported }: Pas
           </SettingsEmptyState>
         ) : (
           <>
-            <div className={CARD_GRID}>
+            <div className={RESOURCE_LIST_GRID}>
               {filtered.map((credential) => (
-                <button
+                <SettingsResourceRow
                   key={credential.id}
-                  type='button'
-                  className={CARD_CLASSES}
+                  icon={
+                    credential.icon ? (
+                      // A `data:` URL copied from the source browser at
+                      // import time — never a network request, which would
+                      // disclose which sites the user has passwords for.
+                      // Fills the tile like any other brand logo.
+                      <img src={credential.icon} alt='' className='object-contain' />
+                    ) : (
+                      <Key />
+                    )
+                  }
+                  iconFill
+                  title={siteLabel(credential.origin)}
+                  description={credential.username || 'No username'}
                   onClick={() => setSelectedId(credential.id)}
-                >
-                  <div className='size-9 flex-shrink-0'>
-                    <div className={CARD_TILE_CLASSES}>
-                      {credential.icon ? (
-                        // A `data:` URL copied from the source browser at
-                        // import time — never a network request, which would
-                        // disclose which sites the user has passwords for.
-                        // Fills the tile like any other brand logo.
-                        <img
-                          src={credential.icon}
-                          alt=''
-                          className='size-full rounded-xl object-contain'
-                        />
-                      ) : (
-                        <Key className='size-5 text-[var(--text-icon)]' />
-                      )}
-                    </div>
-                  </div>
-                  <div className='flex min-w-0 flex-1 flex-col'>
-                    <span className={CARD_TITLE_CLASSES}>{siteLabel(credential.origin)}</span>
-                    <span className={CARD_SUBTITLE_CLASSES}>
-                      {credential.username || 'No username'}
-                    </span>
-                  </div>
-                  <ArrowRight className={CARD_ARROW_CLASSES} />
-                </button>
+                  clickLabel={`Open ${siteLabel(credential.origin)}`}
+                  navigable
+                />
               ))}
             </div>
 

@@ -1,6 +1,7 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import type { WorkflowStateContractInput } from '@/lib/api/contracts/workflows'
 import { readSSEEvents } from '@/lib/core/utils/sse'
 import type {
   BlockChildWorkflowStartedData,
@@ -26,7 +27,8 @@ const logger = createLogger('useExecutionStream')
 export class ExecutionStreamHttpError extends Error {
   constructor(
     message: string,
-    public readonly httpStatus: number
+    public readonly httpStatus: number,
+    public readonly code?: string
   ) {
     super(message)
     this.name = 'ExecutionStreamHttpError'
@@ -196,12 +198,7 @@ export interface ExecuteStreamOptions {
   triggerType?: string
   useDraftState?: boolean
   isClientSession?: boolean
-  workflowStateOverride?: {
-    blocks: Record<string, any>
-    edges: any[]
-    loops?: Record<string, any>
-    parallels?: Record<string, any>
-  }
+  workflowStateOverride?: WorkflowStateContractInput
   stopAfterBlockId?: string
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
@@ -210,8 +207,12 @@ export interface ExecuteStreamOptions {
 export interface ExecuteFromBlockOptions {
   workflowId: string
   startBlockId: string
-  sourceSnapshot: SerializableExecutionState
+  sourceSnapshot?: SerializableExecutionState
+  sourceExecutionId?: string
   input?: any
+  useDraftState?: boolean
+  isClientSession?: boolean
+  workflowStateOverride?: WorkflowStateContractInput
   onExecutionId?: (executionId: string) => void
   callbacks?: ExecutionStreamCallbacks
 }
@@ -348,7 +349,11 @@ export function useExecutionStream() {
       workflowId,
       startBlockId,
       sourceSnapshot,
+      sourceExecutionId,
       input,
+      useDraftState,
+      isClientSession,
+      workflowStateOverride,
       onExecutionId,
       callbacks = {},
     } = options
@@ -370,7 +375,14 @@ export function useExecutionStream() {
         body: JSON.stringify({
           stream: true,
           input,
-          runFromBlock: { startBlockId, sourceSnapshot },
+          useDraftState,
+          isClientSession,
+          workflowStateOverride,
+          runFromBlock: {
+            startBlockId,
+            ...(sourceExecutionId ? { executionId: sourceExecutionId } : {}),
+            ...(sourceSnapshot ? { sourceSnapshot } : {}),
+          },
         }),
         signal: abortController.signal,
       })

@@ -1,8 +1,12 @@
 import { z } from 'zod'
 import { scheduleContextSchema } from '@/lib/api/contracts/schedules'
+import {
+  mountedSecretNamesSchema,
+  secretMountScopeSchema,
+} from '@/lib/api/contracts/secret-mount-policy'
 import { domainObjectSchema } from '@/lib/api/contracts/tables'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import type { Filter, Sort } from '@/lib/table/types'
+import type { TablePredicate } from '@/lib/table/types'
 
 const dateStringSchema = z.string().refine((value) => !Number.isNaN(Date.parse(value)), {
   message: 'Expected a valid date string',
@@ -114,13 +118,15 @@ export const mothershipExecuteBodySchema = z.object({
   fileAttachments: z.array(mothershipExecuteFileAttachmentSchema).optional(),
   /**
    * `@`-mentioned resources / `/`-invoked skills to resolve into the agent run,
-   * mirroring the interactive chat path. Used by scheduled tasks, whose
-   * captured contexts must reach the run without a live client.
+   * mirroring the interactive chat path. Headless executions use this to pass
+   * captured contexts into the run without a live client.
    */
   contexts: z.array(scheduleContextSchema).optional(),
   mcpTools: z.array(mothershipExecuteMcpToolSchema).optional(),
   workflowId: z.string().optional(),
   executionId: z.string().optional(),
+  secretScope: secretMountScopeSchema.optional(),
+  mountedSecrets: mountedSecretNamesSchema.optional(),
   userMetadata: z
     .object({
       name: z.string().optional(),
@@ -195,8 +201,12 @@ export type AdminMothershipQuery = z.output<typeof adminMothershipQuerySchema>
 
 /** Applied-but-unsaved table state a table resource tab carries (name-keyed). */
 const resourceViewDraftSchema = z.object({
-  filter: domainObjectSchema<Filter>().nullable().optional(),
-  sort: domainObjectSchema<Sort>().nullable().optional(),
+  filter: domainObjectSchema<TablePredicate>().nullable().optional(),
+  order: z
+    .array(z.object({ field: z.string().max(200), direction: z.enum(['asc', 'desc']) }))
+    .max(50)
+    .nullable()
+    .optional(),
   hiddenColumns: z.array(z.string().max(200)).max(200).optional(),
 })
 

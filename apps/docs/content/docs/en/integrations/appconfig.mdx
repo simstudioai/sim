@@ -36,7 +36,7 @@ Integrate AWS AppConfig into workflows. Manage applications, environments, and c
 
 ## Actions
 
-### `appconfig_get_configuration`
+### AppConfig Get Configuration
 
 Retrieve the latest deployed configuration for an AppConfig application, environment, and profile
 
@@ -59,7 +59,7 @@ Retrieve the latest deployed configuration for an AppConfig application, environ
 | `contentType` | string | Content type of the configuration |
 | `versionLabel` | string | Label of the retrieved configuration version |
 
-### `appconfig_list_applications`
+### AppConfig List Applications
 
 List applications in AWS AppConfig
 
@@ -84,7 +84,7 @@ List applications in AWS AppConfig
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of applications returned |
 
-### `appconfig_create_application`
+### AppConfig Create Application
 
 Create an application in AWS AppConfig
 
@@ -107,7 +107,7 @@ Create an application in AWS AppConfig
 | `name` | string | Name of the created application |
 | `description` | string | Description of the created application |
 
-### `appconfig_get_application`
+### AppConfig Get Application
 
 Get details about a single AWS AppConfig application
 
@@ -128,7 +128,7 @@ Get details about a single AWS AppConfig application
 | `name` | string | Application name |
 | `description` | string | Application description |
 
-### `appconfig_update_application`
+### AppConfig Update Application
 
 Update the name or description of an AWS AppConfig application
 
@@ -152,7 +152,7 @@ Update the name or description of an AWS AppConfig application
 | `name` | string | Name of the updated application |
 | `description` | string | Description of the updated application |
 
-### `appconfig_delete_application`
+### AppConfig Delete Application
 
 Delete an AWS AppConfig application
 
@@ -172,7 +172,7 @@ Delete an AWS AppConfig application
 | `message` | string | Operation status message |
 | `id` | string | ID of the deleted application |
 
-### `appconfig_list_environments`
+### AppConfig List Environments
 
 List environments for an AWS AppConfig application
 
@@ -200,7 +200,7 @@ List environments for an AWS AppConfig application
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of environments returned |
 
-### `appconfig_create_environment`
+### AppConfig Create Environment
 
 Create an environment for an AWS AppConfig application
 
@@ -225,7 +225,7 @@ Create an environment for an AWS AppConfig application
 | `name` | string | Name of the created environment |
 | `state` | string | State of the created environment |
 
-### `appconfig_get_environment`
+### AppConfig Get Environment
 
 Get details about a single AWS AppConfig environment
 
@@ -252,7 +252,7 @@ Get details about a single AWS AppConfig environment
 |   ↳ `alarmArn` | string | CloudWatch alarm ARN |
 |   ↳ `alarmRoleArn` | string | IAM role ARN for the alarm |
 
-### `appconfig_update_environment`
+### AppConfig Update Environment
 
 Update the name or description of an AWS AppConfig environment
 
@@ -278,7 +278,7 @@ Update the name or description of an AWS AppConfig environment
 | `name` | string | Name of the updated environment |
 | `state` | string | State of the updated environment |
 
-### `appconfig_delete_environment`
+### AppConfig Delete Environment
 
 Delete an AWS AppConfig environment
 
@@ -300,7 +300,7 @@ Delete an AWS AppConfig environment
 | `applicationId` | string | Owning application ID |
 | `id` | string | ID of the deleted environment |
 
-### `appconfig_list_configuration_profiles`
+### AppConfig List Configuration Profiles
 
 List configuration profiles for an AWS AppConfig application
 
@@ -329,7 +329,7 @@ List configuration profiles for an AWS AppConfig application
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of configuration profiles returned |
 
-### `appconfig_create_configuration_profile`
+### AppConfig Create Configuration Profile
 
 Create a configuration profile in an AWS AppConfig application
 
@@ -358,7 +358,7 @@ Create a configuration profile in an AWS AppConfig application
 | `locationUri` | string | Location URI of the config |
 | `type` | string | Profile type |
 
-### `appconfig_get_configuration_profile`
+### AppConfig Get Configuration Profile
 
 Get details about a single AWS AppConfig configuration profile
 
@@ -386,7 +386,7 @@ Get details about a single AWS AppConfig configuration profile
 | `validators` | array | Validators configured on the profile |
 |   ↳ `type` | string | Validator type \(JSON_SCHEMA or LAMBDA\) |
 
-### `appconfig_update_configuration_profile`
+### AppConfig Update Configuration Profile
 
 Update the name, description, or retrieval role of an AppConfig configuration profile
 
@@ -414,7 +414,7 @@ Update the name, description, or retrieval role of an AppConfig configuration pr
 | `description` | string | Description of the profile |
 | `type` | string | Profile type |
 
-### `appconfig_delete_configuration_profile`
+### AppConfig Delete Configuration Profile
 
 Delete an AWS AppConfig configuration profile
 
@@ -436,7 +436,7 @@ Delete an AWS AppConfig configuration profile
 | `applicationId` | string | Owning application ID |
 | `id` | string | ID of the deleted configuration profile |
 
-### `appconfig_create_hosted_configuration_version`
+### AppConfig Create Hosted Configuration Version
 
 Create a new hosted configuration version for an AppConfig configuration profile
 
@@ -466,7 +466,7 @@ Create a new hosted configuration version for an AppConfig configuration profile
 | `contentType` | string | Content type of the configuration |
 | `versionLabel` | string | Label of the configuration version |
 
-### `appconfig_get_hosted_configuration_version`
+### AppConfig Get Hosted Configuration Version
 
 Retrieve a specific hosted configuration version from an AppConfig profile
 
@@ -493,7 +493,7 @@ Retrieve a specific hosted configuration version from an AppConfig profile
 | `contentType` | string | Content type of the configuration |
 | `versionLabel` | string | Label of the configuration version |
 
-### `appconfig_list_hosted_configuration_versions`
+### AppConfig List Hosted Configuration Versions
 
 List hosted configuration versions for an AWS AppConfig configuration profile
 
@@ -523,7 +523,7 @@ List hosted configuration versions for an AWS AppConfig configuration profile
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of versions returned |
 
-### `appconfig_delete_hosted_configuration_version`
+### AppConfig Delete Hosted Configuration Version
 
 Delete a specific hosted configuration version from an AppConfig profile
 
@@ -547,7 +547,7 @@ Delete a specific hosted configuration version from an AppConfig profile
 | `configurationProfileId` | string | Owning configuration profile ID |
 | `versionNumber` | number | Version number that was deleted |
 
-### `appconfig_list_deployment_strategies`
+### AppConfig List Deployment Strategies
 
 List deployment strategies available in AWS AppConfig
 
@@ -577,7 +577,7 @@ List deployment strategies available in AWS AppConfig
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of deployment strategies returned |
 
-### `appconfig_start_deployment`
+### AppConfig Start Deployment
 
 Start deploying a configuration version to an AWS AppConfig environment
 
@@ -604,7 +604,7 @@ Start deploying a configuration version to an AWS AppConfig environment
 | `state` | string | Current deployment state |
 | `percentageComplete` | number | Percentage of the deployment that has completed |
 
-### `appconfig_get_deployment`
+### AppConfig Get Deployment
 
 Get details about a specific AWS AppConfig deployment
 
@@ -636,7 +636,7 @@ Get details about a specific AWS AppConfig deployment
 | `startedAt` | string | When the deployment started |
 | `completedAt` | string | When the deployment completed |
 
-### `appconfig_list_deployments`
+### AppConfig List Deployments
 
 List deployments for an AWS AppConfig environment
 
@@ -668,7 +668,7 @@ List deployments for an AWS AppConfig environment
 | `nextToken` | string | Pagination token for the next page |
 | `count` | number | Number of deployments returned |
 
-### `appconfig_stop_deployment`
+### AppConfig Stop Deployment
 
 Stop an in-progress AWS AppConfig deployment
 

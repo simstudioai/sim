@@ -95,6 +95,7 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
     key,
     context: SNAPSHOT_STORAGE_CONTEXT,
     contentType: SNAPSHOT_CONTENT_TYPE,
+    completionPolicy: 'reuse-existing',
   })
 
   try {
@@ -103,7 +104,9 @@ async function materialize(table: TableDefinition, key: string): Promise<number>
     bytes += Buffer.byteLength(header)
     await handle.write(header)
 
-    let after: { orderKey: string; id: string } | null = null
+    // `order_key` is nullable (rows predating the backfill), and the page query
+    // seeks NULLs explicitly — so the cursor has to carry a null too.
+    let after: { orderKey: string | null; id: string } | null = null
     while (true) {
       const page = await selectExportRowPage(table, after, SNAPSHOT_BATCH_SIZE)
       if (page.length === 0) break

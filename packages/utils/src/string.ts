@@ -47,6 +47,32 @@ export function normalizeEmail(email: string): string {
 }
 
 /**
+ * RFC 5322-shaped syntax gate for a full address. Format only — domain
+ * reputation, MX/DNS, and membership policy are the caller's concern.
+ */
+const EMAIL_SYNTAX_REGEX =
+  /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+
+/**
+ * Bare `@domain` pattern, for allowlists that grant access to a whole domain.
+ * Single-label domains (`@intranet`) are allowed — self-hosted deployments use
+ * them — but a lone `@` and malformed labels are not.
+ */
+const EMAIL_DOMAIN_SYNTAX_REGEX =
+  /^@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/
+
+/**
+ * Format-only email syntax check, capped at the RFC 5321 length limit.
+ *
+ * @param allowDomains - also accept a bare `@domain` entry, for allowlists that
+ * grant access to an entire domain rather than a single address.
+ */
+export function isValidEmailSyntax(email: string, allowDomains = false): boolean {
+  if (email.length > 254) return false
+  return EMAIL_SYNTAX_REGEX.test(email) || (allowDomains && EMAIL_DOMAIN_SYNTAX_REGEX.test(email))
+}
+
+/**
  * Matches UTF-16 code units that Postgres JSONB rejects: unpaired surrogate
  * halves (e.g. produced by `slice()` cutting an astral character like 𝐀 in
  * half) and the NUL character, which jsonb cannot store at all.
@@ -96,4 +122,22 @@ export function sanitizeValueForJsonb<T>(value: T): T {
     return (changed ? result : value) as T
   }
   return value
+}
+
+/**
+ * Formats a list of names as quoted values with an overflow tail, listing at
+ * most `maxListed` names.
+ *
+ * @example
+ * formatQuotedNameList(['A', 'B'], 3)            // '"A", "B"'
+ * formatQuotedNameList(['A', 'B', 'C', 'D'], 3)  // '"A", "B", "C" and 1 more'
+ * formatQuotedNameList([], 3)                    // ''
+ */
+export function formatQuotedNameList(names: string[], maxListed: number): string {
+  const listed = names
+    .slice(0, maxListed)
+    .map((name) => `"${name}"`)
+    .join(', ')
+  const overflow = names.length - maxListed
+  return overflow > 0 ? `${listed} and ${overflow} more` : listed
 }

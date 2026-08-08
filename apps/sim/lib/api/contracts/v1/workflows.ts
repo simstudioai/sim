@@ -102,7 +102,9 @@ const v1DeploymentStateSchema = z.object({
  * accepted, while `isDeployed` reflects whether a version is actually live.
  * `latestDeploymentAttempt` carries the lifecycle status
  * (preparing/activating/active/failed/superseded) so API consumers can poll
- * to a terminal state instead of guessing from `isDeployed` alone.
+ * to a terminal state instead of guessing from `isDeployed` alone. Its
+ * `isCurrent` field is false when the operation is historical and no longer
+ * describes the active deployment.
  */
 const v1DeploymentLifecycleSchema = v1DeploymentStateSchema.extend({
   activeDeployment: activeDeploymentSummarySchema.nullable(),

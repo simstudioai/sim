@@ -20,12 +20,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: 1.3.14
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 22
+          node-version: 24
 
       # Cache keys are scoped by event name, and fork PRs get their own
       # namespace on top: untrusted fork runs must never share a cache with
@@ -117,47 +117,11 @@ jobs:
       - name: Lint code
         run: bun run lint:check
 
-      - name: Enforce monorepo boundaries
-        run: bun run check:boundaries
-
-      - name: API contract boundary audit
-        run: bun run check:api-validation:strict
-
-      - name: Desktop bridge contract audit
-        run: bun run check:desktop-bridge
-
-      # Complements the bridge audit above, which compares against a snapshot
-      # this same PR is allowed to regenerate. This one derives every fact from
-      # the source both sides execute, so it has no such blind spot.
-      - name: Desktop IPC contract audit
-        run: bun run check:desktop-ipc
-
-      - name: Shared utils enforcement audit
-        run: bun run check:utils
-
-      - name: Zustand v5 selector audit
-        run: bun run check:zustand-v5
-
-      - name: React Query pattern audit
-        run: bun run check:react-query
-
-      - name: Client boundary import audit
-        run: bun run check:client-boundary
-
-      - name: Bare-icon theme-safety audit
-        run: bun run check:bare-icons
-
-      - name: Icon SVG path validity audit
-        run: bun run check:icon-paths
-
-      - name: Verify realtime prune graph
-        run: bun run check:realtime-prune
-
-      - name: Verify skill projections are in sync
-        run: bun run skills:check
-
-      - name: Verify agent stream capability docs are in sync
-        run: bun run agent-stream-docs:check
+      # Every zero-argument `check:*` script, run concurrently. The list is derived in
+      # scripts/run-audits.ts, which also writes the per-audit timing table to the job
+      # summary and annotates failures. Audits needing a base ref stay separate below.
+      - name: Repo audits
+        run: bun run check:audits
 
       - name: Migration safety (zero-downtime) audit
         run: |
@@ -169,15 +133,23 @@ jobs:
           fi
           bun run check:migrations "$BASE_REF"
 
-      - name: Type-check realtime server
-        run: bunx turbo run type-check --filter=@sim/realtime
+      # Every workspace, not just realtime. packages/emcn, packages/utils,
+      # apps/desktop and apps/docs had no type check in CI at all; apps/sim's
+      # source was covered only as a side effect of `next build` in the separate
+      # Build App job. Note this does NOT cover apps/sim's tests — its tsconfig
+      # excludes *.test.ts(x), and including them today surfaces ~2.2k errors,
+      # so that is its own cleanup rather than a gate to switch on here.
+      - name: Type-check all workspaces
+        run: bunx turbo run type-check
 
       # cloud-review-tools.test.ts runs the real helper on the runner, which shells
       # out to rg. Blacksmith's image ships it, GitHub's doesn't.
       - name: Install ripgrep
         run: command -v rg || (sudo apt-get update && sudo apt-get install -y ripgrep)
 
-      - name: Run tests with coverage
+      # Runs the setup CLI's Bun tests plus each workspace's Vitest suite,
+      # without `--coverage`. See the Codecov note below.
+      - name: Run tests
         env:
           NODE_OPTIONS: '--no-warnings --max-old-space-size=8192'
           NEXT_PUBLIC_APP_URL: 'https://www.sim.ai'
@@ -198,13 +170,6 @@ jobs:
             exit 1
           fi
           echo "✅ Schema and migrations are in sync"
-
-      - name: Upload coverage to Codecov
-        uses: codecov/codecov-action@0fb7174895f61a3b6b78fc075e0cd60383518dac # v5
-        with:
-          directory: ./apps/sim/coverage
-          fail_ci_if_error: false
-          verbose: true
 
   # Next.js production build, in parallel with lint + tests. Sticky disks are
   # cloned from the last committed snapshot per job and committed last-writer-
@@ -235,12 +200,12 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
         with:
-          bun-version: 1.3.13
+          bun-version: 1.3.14
 
       - name: Setup Node
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6
         with:
-          node-version: 22
+          node-version: 24
 
       - name: Mount Bun cache
         uses: ./.github/actions/cache-mount
@@ -263,17 +228,12 @@ jobs:
           key: ${{ github.repository }}-turbo-cache-build-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
           path: ./.turbo
 
-      # Turbopack's persistent build cache (NEXT_TURBOPACK_BUILD_CACHE below)
-      # writes ~5 GB into .next/cache — a sticky disk mounts it in ~1s where an
-      # actions/cache round-trip would eat the warm-build win. Same event/fork
-      # namespacing as the other mounts; the GitHub fallback inside cache-mount
-      # still uses actions/cache with a run_id-suffixed key.
-      - name: Mount Next.js build cache
-        uses: ./.github/actions/cache-mount
-        with:
-          provider: ${{ vars.CI_PROVIDER }}
-          key: ${{ github.repository }}-nextjs-cache-${{ github.event_name }}${{ github.event.pull_request.head.repo.fork && '-fork' || '' }}
-          path: ./apps/sim/.next/cache
+      # No `.next/cache` mount: the Turbopack persistent build cache is off. A
+      # controlled A/B on one branch (PR #6078) with a byte-identical module graph
+      # measured compile at 113s with the cache off, 162s cold with it on, and
+      # 360s warm — the cache made the same build 3.2x slower, and it grew
+      # 5.1 GB -> 12 GB across two runs of an unchanged tree, so a disk degrades
+      # the more it is used. Mounting a disk nothing reads would only cost storage.
 
       # Running out of RAM kills the whole VM and surfaces only as "the runner
       # has received a shutdown signal" — no mention of memory, ~12 min in. Warn
@@ -304,7 +264,4 @@ jobs:
           AWS_REGION: 'us-west-2'
           ENCRYPTION_KEY: '7cf672e460e430c1fba707575c2b0e2ad5a99dddf9b7b7e3b5646e630861db1c' # dummy key for CI only
           TURBO_CACHE_DIR: .turbo
-          # Opt into Turbopack's persistent build cache (beta) for this CI
-          # check build only — measured 105s cold vs 22s warm locally.
-          NEXT_TURBOPACK_BUILD_CACHE: '1'
         run: bunx turbo run build --filter=sim

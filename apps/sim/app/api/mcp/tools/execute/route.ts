@@ -9,10 +9,16 @@ import {
   requireBillingAttributionHeader,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
-import { getExecutionTimeout } from '@/lib/core/execution-limits'
+import { capExecutionTimeoutMs, getExecutionTimeout } from '@/lib/core/execution-limits'
 import type { SubscriptionPlan } from '@/lib/core/rate-limiter/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
+import { parseRemainingExecutionDeadlineMs } from '@/lib/execution/execution-deadline-header'
+import {
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+  requestsPrivateToolMetadata,
+  serializePrivateToolMetadataResponseEnvelope,
+} from '@/lib/execution/private-tool-metadata'
 import {
   mcpBodyReadErrorResponse,
   readMcpJsonBodyWithLimit,
@@ -26,11 +32,15 @@ import {
   type McpToolCall,
   type McpToolResult,
 } from '@/lib/mcp/types'
-import { categorizeError, createMcpErrorResponse, createMcpSuccessResponse } from '@/lib/mcp/utils'
+import { categorizeError } from '@/lib/mcp/utils'
 import {
   assertPermissionsAllowed,
   McpToolsNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
+import {
+  ResolvedSecretTraceProvenanceAccumulator,
+  type ResolvedSecretTraceProvenanceV1,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpToolExecutionAPI')
 
@@ -55,6 +65,23 @@ function hasType(prop: unknown): prop is SchemaProperty {
   return typeof prop === 'object' && prop !== null && 'type' in prop
 }
 
+function createToolExecutionResponse(
+  body: Record<string, unknown>,
+  status: number,
+  provenance: ResolvedSecretTraceProvenanceAccumulator | undefined
+): NextResponse {
+  if (!provenance) {
+    return NextResponse.json(body, { status })
+  }
+
+  const envelope = serializePrivateToolMetadataResponseEnvelope(
+    body,
+    RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+    provenance.exportProvenance()
+  )
+  return NextResponse.json(envelope.body, { status, headers: envelope.headers })
+}
+
 /**
  * POST - Execute a tool on an MCP server
  */
@@ -62,239 +89,276 @@ export const POST = withRouteHandler(
   withMcpAuth('read')(
     async (request: NextRequest, { userId, workspaceId, requestId, authType }) => {
       let serverId: string | undefined
-      try {
-        const rawBody = await readMcpJsonBodyWithLimit(request)
-        const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
-
-        if (!parsedBody.success) {
-          return createMcpErrorResponse(parsedBody.error, 'Invalid request format', 400)
-        }
-
-        const body = parsedBody.data
-
-        logger.info(`[${requestId}] MCP tool execution request received`, {
-          hasAuthHeader: !!request.headers.get('authorization'),
-          bodyKeys: Object.keys(body),
-          serverId: body.serverId,
-          toolName: body.toolName,
-          hasWorkflowId: !!body.workflowId,
-          workflowId: body.workflowId,
-          userId: userId,
-        })
-
-        const { toolName, arguments: rawArgs } = body
-        serverId = body.serverId
-        const args = rawArgs || {}
-
-        try {
-          await assertPermissionsAllowed({
-            userId,
-            workspaceId,
-            toolKind: 'mcp',
-          })
-        } catch (err) {
-          if (err instanceof McpToolsNotAllowedError) {
-            return createMcpErrorResponse(err, err.message, 403)
+      const includePrivateProvenance =
+        authType === AuthType.INTERNAL_JWT &&
+        requestsPrivateToolMetadata(request.headers, RESOLVED_SECRET_PROVENANCE_METADATA_V1)
+      const resolvedSecretTraceProvenance = includePrivateProvenance
+        ? new ResolvedSecretTraceProvenanceAccumulator({ userId, workspaceId })
+        : undefined
+      const recordProvenance = resolvedSecretTraceProvenance
+        ? (provenance: ResolvedSecretTraceProvenanceV1): void => {
+            resolvedSecretTraceProvenance.record(provenance)
           }
-          throw err
-        }
-
-        logger.info(
-          `[${requestId}] Executing tool ${toolName} on server ${serverId} for user ${userId} in workspace ${workspaceId}`
+        : undefined
+      const errorResponse = (message: string, status: number): NextResponse =>
+        createToolExecutionResponse(
+          { success: false, error: message },
+          status,
+          resolvedSecretTraceProvenance
         )
+      const successResponse = <T>(data: T, status = 200): NextResponse =>
+        createToolExecutionResponse({ success: true, data }, status, resolvedSecretTraceProvenance)
 
-        let tool: McpTool | null = null
+      return (async (): Promise<NextResponse> => {
         try {
-          const tools = await mcpService.discoverServerTools(userId, serverId, workspaceId)
-          tool = tools.find((t) => t.name === toolName) ?? null
+          const rawBody = await readMcpJsonBodyWithLimit(request)
+          const parsedBody = mcpToolExecutionBodySchema.safeParse(rawBody)
 
-          if (!tool) {
-            logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
-              availableTools: tools.map((t) => t.name),
-            })
-            return createMcpErrorResponse(
-              new Error('Tool not found'),
-              'Tool not found on the specified server',
-              404
-            )
+          if (!parsedBody.success) {
+            return errorResponse('Invalid request format', 400)
           }
 
-          if (tool.inputSchema?.properties) {
-            for (const [paramName, paramSchema] of Object.entries(tool.inputSchema.properties)) {
-              const schema = hasType(paramSchema) ? paramSchema : null
-              if (!schema) continue
-              const value = args[paramName]
+          const body = parsedBody.data
 
-              if (value === undefined || value === null) {
-                continue
-              }
+          logger.info(`[${requestId}] MCP tool execution request received`, {
+            hasAuthHeader: !!request.headers.get('authorization'),
+            bodyKeys: Object.keys(body),
+            serverId: body.serverId,
+            toolName: body.toolName,
+            hasWorkflowId: !!body.workflowId,
+            workflowId: body.workflowId,
+            userId: userId,
+          })
 
-              if (
-                (schema.type === 'number' || schema.type === 'integer') &&
-                typeof value === 'string'
-              ) {
-                const numValue =
-                  schema.type === 'integer' ? Number.parseInt(value) : Number.parseFloat(value)
-                if (!Number.isNaN(numValue)) {
-                  args[paramName] = numValue
+          const { toolName, arguments: rawArgs } = body
+          serverId = body.serverId
+          const args = rawArgs || {}
+
+          try {
+            await assertPermissionsAllowed({
+              userId,
+              workspaceId,
+              toolKind: 'mcp',
+            })
+          } catch (err) {
+            if (err instanceof McpToolsNotAllowedError) {
+              return errorResponse(err.message, 403)
+            }
+            throw err
+          }
+
+          logger.info(
+            `[${requestId}] Executing tool ${toolName} on server ${serverId} for user ${userId} in workspace ${workspaceId}`
+          )
+
+          let tool: McpTool | null = null
+          try {
+            const tools = await mcpService.discoverServerTools(
+              userId,
+              serverId,
+              workspaceId,
+              false,
+              recordProvenance
+            )
+            tool = tools.find((t) => t.name === toolName) ?? null
+
+            if (!tool) {
+              logger.warn(`[${requestId}] Tool ${toolName} not found on server ${serverId}`, {
+                availableTools: tools.map((t) => t.name),
+              })
+              return errorResponse('Tool not found on the specified server', 404)
+            }
+
+            if (tool.inputSchema?.properties) {
+              for (const [paramName, paramSchema] of Object.entries(tool.inputSchema.properties)) {
+                const schema = hasType(paramSchema) ? paramSchema : null
+                if (!schema) continue
+                const value = args[paramName]
+
+                if (value === undefined || value === null) {
+                  continue
                 }
-              } else if (schema.type === 'boolean' && typeof value === 'string') {
-                if (value.toLowerCase() === 'true') {
-                  args[paramName] = true
-                } else if (value.toLowerCase() === 'false') {
-                  args[paramName] = false
-                }
-              } else if (schema.type === 'array' && typeof value === 'string') {
-                const stringValue = value.trim()
-                if (stringValue) {
-                  try {
-                    const parsed = JSON.parse(stringValue)
-                    if (Array.isArray(parsed)) {
-                      args[paramName] = parsed
-                    } else {
-                      args[paramName] = [parsed]
-                    }
-                  } catch {
-                    if (stringValue.includes(',')) {
-                      args[paramName] = stringValue
-                        .split(',')
-                        .map((item) => item.trim())
-                        .filter((item) => item)
-                    } else {
-                      args[paramName] = [stringValue]
-                    }
+
+                if (
+                  (schema.type === 'number' || schema.type === 'integer') &&
+                  typeof value === 'string'
+                ) {
+                  const numValue =
+                    schema.type === 'integer' ? Number.parseInt(value) : Number.parseFloat(value)
+                  if (!Number.isNaN(numValue)) {
+                    args[paramName] = numValue
                   }
-                } else {
-                  args[paramName] = []
+                } else if (schema.type === 'boolean' && typeof value === 'string') {
+                  if (value.toLowerCase() === 'true') {
+                    args[paramName] = true
+                  } else if (value.toLowerCase() === 'false') {
+                    args[paramName] = false
+                  }
+                } else if (schema.type === 'array' && typeof value === 'string') {
+                  const stringValue = value.trim()
+                  if (stringValue) {
+                    try {
+                      const parsed = JSON.parse(stringValue)
+                      if (Array.isArray(parsed)) {
+                        args[paramName] = parsed
+                      } else {
+                        args[paramName] = [parsed]
+                      }
+                    } catch {
+                      if (stringValue.includes(',')) {
+                        args[paramName] = stringValue
+                          .split(',')
+                          .map((item) => item.trim())
+                          .filter((item) => item)
+                      } else {
+                        args[paramName] = [stringValue]
+                      }
+                    }
+                  } else {
+                    args[paramName] = []
+                  }
                 }
               }
             }
-          }
-        } catch (error) {
-          logger.warn(
-            `[${requestId}] Failed to discover tools for validation, proceeding without schema`,
-            error
-          )
-        }
-
-        if (tool) {
-          const validationError = validateToolArguments(tool, args)
-          if (validationError) {
-            logger.warn(`[${requestId}] Tool validation failed: ${validationError}`)
-            return createMcpErrorResponse(
-              new Error(`Invalid arguments for tool ${toolName}: ${validationError}`),
-              'Invalid tool arguments',
-              400
+          } catch (error) {
+            logger.warn(
+              `[${requestId}] Failed to discover tools for validation, proceeding without schema`,
+              error
             )
           }
-        }
 
-        const toolCall: McpToolCall = {
-          name: toolName,
-          arguments: args,
-        }
+          if (tool) {
+            const validationError = validateToolArguments(tool, args)
+            if (validationError) {
+              logger.warn(`[${requestId}] Tool validation failed: ${validationError}`)
+              return errorResponse('Invalid tool arguments', 400)
+            }
+          }
 
-        const billingAttribution =
-          authType === AuthType.INTERNAL_JWT
-            ? requireBillingAttributionHeader(request.headers, {
-                actorUserId: userId,
-                workspaceId,
-              })
-            : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
-        const executionTimeout = getExecutionTimeout(
-          billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
-          'sync'
-        )
+          const toolCall: McpToolCall = {
+            name: toolName,
+            arguments: args,
+          }
 
-        const simViaHeader = request.headers.get(SIM_VIA_HEADER)
-        const extraHeaders: Record<string, string> = {}
-        if (simViaHeader) {
-          extraHeaders[SIM_VIA_HEADER] = simViaHeader
-        }
-
-        let timeoutHandle: ReturnType<typeof setTimeout> | undefined
-        const executePromise = mcpService.executeTool(
-          userId,
-          serverId,
-          toolCall,
-          workspaceId,
-          extraHeaders
-        )
-        // A zero timeout means "no timeout" (billing-disabled deployments).
-        const result = await (executionTimeout > 0
-          ? Promise.race([
-              executePromise,
-              new Promise<never>((_, reject) => {
-                timeoutHandle = setTimeout(
-                  () => reject(new Error('Tool execution timeout')),
-                  executionTimeout
+          const billingAttribution =
+            authType === AuthType.INTERNAL_JWT
+              ? requireBillingAttributionHeader(request.headers, {
+                  actorUserId: userId,
+                  workspaceId,
+                })
+              : await resolveBillingAttribution({ actorUserId: userId, workspaceId })
+          const remainingWorkflowDeadlineMs =
+            authType === AuthType.INTERNAL_JWT
+              ? parseRemainingExecutionDeadlineMs(request.headers)
+              : undefined
+          const executionTimeout =
+            remainingWorkflowDeadlineMs === undefined
+              ? getExecutionTimeout(
+                  billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
+                  'sync'
                 )
-              }),
-            ])
-          : executePromise
-        ).finally(() => {
-          if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
-        })
+              : capExecutionTimeoutMs(
+                  getExecutionTimeout(
+                    billingAttribution.payerSubscription?.plan as SubscriptionPlan | undefined,
+                    'async',
+                    billingAttribution.payerSubscription?.enterpriseWorkflowExecutionTimeoutSeconds
+                  ),
+                  remainingWorkflowDeadlineMs
+                )
 
-        const transformedResult = transformToolResult(result)
+          const simViaHeader = request.headers.get(SIM_VIA_HEADER)
+          const extraHeaders: Record<string, string> = {}
+          if (simViaHeader) {
+            extraHeaders[SIM_VIA_HEADER] = simViaHeader
+          }
 
-        if (result.isError) {
-          logger.warn(`[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`)
-          return createMcpErrorResponse(
-            transformedResult,
-            transformedResult.error || 'Tool execution failed',
-            400
-          )
-        }
-        logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
-
-        try {
-          const { PlatformEvents } = await import('@/lib/core/telemetry')
-          PlatformEvents.mcpToolExecuted({
+          let timeoutHandle: ReturnType<typeof setTimeout> | undefined
+          const executePromise = mcpService.executeTool(
+            userId,
             serverId,
-            toolName,
-            status: 'success',
+            toolCall,
             workspaceId,
+            extraHeaders,
+            recordProvenance
+          )
+          // A zero timeout means "no timeout" (billing-disabled deployments).
+          const result = await (executionTimeout > 0
+            ? Promise.race([
+                executePromise,
+                new Promise<never>((_, reject) => {
+                  timeoutHandle = setTimeout(
+                    () => reject(new Error('Tool execution timeout')),
+                    executionTimeout
+                  )
+                }),
+              ])
+            : executePromise
+          ).finally(() => {
+            if (timeoutHandle !== undefined) clearTimeout(timeoutHandle)
           })
+
+          const transformedResult = transformToolResult(result)
+
+          if (result.isError) {
+            logger.warn(
+              `[${requestId}] Tool execution returned error for ${toolName} on ${serverId}`
+            )
+            return errorResponse(transformedResult.error || 'Tool execution failed', 400)
+          }
+          logger.info(`[${requestId}] Successfully executed tool ${toolName} on server ${serverId}`)
+
+          try {
+            const { PlatformEvents } = await import('@/lib/core/telemetry')
+            PlatformEvents.mcpToolExecuted({
+              serverId,
+              toolName,
+              status: 'success',
+              workspaceId,
+            })
+          } catch (error) {
+            logger.warn('Failed to record MCP tool execution telemetry', {
+              error: getErrorMessage(error),
+              serverId,
+              toolName,
+              workspaceId,
+            })
+          }
+
+          return successResponse(transformedResult)
         } catch (error) {
-          logger.warn('Failed to record MCP tool execution telemetry', {
-            error: getErrorMessage(error),
-            serverId,
-            toolName,
-            workspaceId,
-          })
-        }
-
-        return createMcpSuccessResponse(transformedResult)
-      } catch (error) {
-        const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
-        if (bodyErrorResponse) return bodyErrorResponse
-        if (
-          error instanceof McpOauthAuthorizationRequiredError ||
-          error instanceof McpOauthRedirectRequired ||
-          error instanceof UnauthorizedError
-        ) {
-          const errorServerId =
-            error instanceof McpOauthAuthorizationRequiredError ? error.serverId : serverId
-          logger.warn(`[${requestId}] OAuth re-authorization required for MCP tool execution`, {
-            serverId: errorServerId,
-          })
-          return NextResponse.json(
-            {
-              success: false,
-              error: 'OAuth re-authorization required',
-              code: 'reauth_required',
+          if (getErrorMessage(error) === 'Tool execution timeout') {
+            resolvedSecretTraceProvenance?.markIncomplete()
+          }
+          const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
+          if (bodyErrorResponse) return bodyErrorResponse
+          if (
+            error instanceof McpOauthAuthorizationRequiredError ||
+            error instanceof McpOauthRedirectRequired ||
+            error instanceof UnauthorizedError
+          ) {
+            const errorServerId =
+              error instanceof McpOauthAuthorizationRequiredError ? error.serverId : serverId
+            logger.warn(`[${requestId}] OAuth re-authorization required for MCP tool execution`, {
               serverId: errorServerId,
-            },
-            { status: 401 }
-          )
+            })
+            return createToolExecutionResponse(
+              {
+                success: false,
+                error: 'OAuth re-authorization required',
+                code: 'reauth_required',
+                serverId: errorServerId,
+              },
+              401,
+              resolvedSecretTraceProvenance
+            )
+          }
+
+          logger.error(`[${requestId}] Error executing MCP tool:`, error)
+
+          const { message, status } = categorizeError(error)
+          return errorResponse(message, status)
         }
-
-        logger.error(`[${requestId}] Error executing MCP tool:`, error)
-
-        const { message, status } = categorizeError(error)
-        return createMcpErrorResponse(new Error(message), message, status)
-      }
+      })()
     }
   )
 )

@@ -1,7 +1,17 @@
 import { z } from 'zod'
-import { customPatternSchema, unknownRecordSchema } from '@/lib/api/contracts/primitives'
+import {
+  customPatternSchema,
+  privateSecretProvenanceBundleSchema,
+  resolvedSecretTraceProvenanceSchema,
+  stringRecordSchema,
+  unknownRecordSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { DEFAULT_CODE_LANGUAGE } from '@/lib/execution/languages'
+import {
+  PRIVATE_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+} from '@/lib/execution/private-tool-metadata'
 export const guardrailsValidateContract = defineRouteContract({
   method: 'POST',
   path: '/api/guardrails/validate',
@@ -27,6 +37,7 @@ export const guardrailsValidateContract = defineRouteContract({
     piiMode: z.string().optional(),
     piiLanguage: z.string().optional(),
     piiCustomPatterns: z.array(customPatternSchema).max(20).optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   }),
   response: {
     mode: 'json',
@@ -175,9 +186,9 @@ export const functionExecuteContract = defineRouteContract({
       })
       .strict()
       .optional(),
-    envVars: z.record(z.string(), z.string()).optional().default({}),
+    envVars: stringRecordSchema.optional().default({}),
     blockData: unknownRecordSchema.optional().default({}),
-    blockNameMapping: z.record(z.string(), z.string()).optional().default({}),
+    blockNameMapping: stringRecordSchema.optional().default({}),
     blockOutputSchemas: z.record(z.string(), unknownRecordSchema).optional().default({}),
     workflowVariables: unknownRecordSchema.optional().default({}),
     contextVariables: unknownRecordSchema.optional().default({}),
@@ -190,6 +201,13 @@ export const functionExecuteContract = defineRouteContract({
     workspaceId: z.string().optional(),
     userId: z.string().optional(),
     isCustomTool: z.boolean().optional().default(false),
+    /** Workspace sandbox whose dependency set this execution runs against. */
+    sandboxId: z.string().optional(),
+    /** `all` (default) or `selected`; see mountedSecrets. */
+    secretScope: z.enum(['all', 'selected']).optional(),
+    /** Secret names this execution may read when secretScope is `selected`. */
+    mountedSecrets: z.array(z.string()).optional(),
+    [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
     _sandboxFiles: z
       .array(
         z.union([

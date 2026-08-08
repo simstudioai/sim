@@ -29,6 +29,11 @@ const Forks = dynamic(() => import('@/ee/workspace-forking/components/forks').th
 const Secrets = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/secrets/secrets').then((m) => m.Secrets)
 )
+const Sandboxes = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/sandboxes/sandboxes').then(
+    (m) => m.Sandboxes
+  )
+)
 const CustomTools = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/custom-tools/custom-tools').then(
     (m) => m.CustomTools
@@ -49,6 +54,11 @@ const RecentlyDeleted = dynamic(() =>
   import(
     '@/app/workspace/[workspaceId]/settings/components/recently-deleted/recently-deleted'
   ).then((m) => m.RecentlyDeleted)
+)
+const SelfHost = dynamic(() =>
+  import('@/app/workspace/[workspaceId]/settings/components/self-host/self-host').then(
+    (m) => m.SelfHost
+  )
 )
 const Billing = dynamic(() =>
   import('@/app/workspace/[workspaceId]/settings/components/billing/billing').then((m) => m.Billing)
@@ -163,6 +173,7 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <Billing
           scope={organizationId ? 'organization' : 'account'}
           organizationId={organizationId ?? undefined}
+          governingWorkspaceName={hostContext.workspace.name}
           creditUsageHref={`/workspace/${hostContext.workspace.id}/settings/billing/credit-usage`}
         />
       )}
@@ -187,12 +198,14 @@ export function SettingsPage({ section }: SettingsPageProps) {
         <WhitelabelingSettings organizationId={organizationId} />
       )}
       {effectiveSection === 'byok' && <BYOK />}
+      {effectiveSection === 'sandboxes' && <Sandboxes />}
       {effectiveSection === 'mcp' && <MCP />}
       {effectiveSection === 'forks' && <Forks />}
       {effectiveSection === 'custom-tools' && <CustomTools />}
       {effectiveSection === 'workflow-mcp-servers' && <WorkflowMcpServers />}
       {effectiveSection === 'inbox' && <Inbox />}
       {effectiveSection === 'recently-deleted' && <RecentlyDeleted />}
+      {effectiveSection === 'self-host' && <SelfHost />}
       {effectiveSection === 'admin' && <Admin />}
       {effectiveSection === 'mothership' && <Mothership />}
     </SettingsSectionProvider>

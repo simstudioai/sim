@@ -28,7 +28,6 @@ export const GENERAL_SETTINGS_STALE_TIME = 60 * 60 * 1000
  */
 export interface GeneralSettings {
   autoConnect: boolean
-  showTrainingControls: boolean
   superUserModeEnabled: boolean
   mothershipEnvironment: MothershipEnvironment
   theme: 'light' | 'dark' | 'system'
@@ -50,7 +49,6 @@ export interface GeneralSettings {
 export function mapGeneralSettingsResponse(data: UserSettingsApi): GeneralSettings {
   return {
     autoConnect: data.autoConnect,
-    showTrainingControls: data.showTrainingControls,
     superUserModeEnabled: data.superUserModeEnabled,
     mothershipEnvironment: data.mothershipEnvironment,
     theme: data.theme,
@@ -112,11 +110,6 @@ export function prefetchGeneralSettings(queryClient: QueryClient) {
 export function useAutoConnect(): boolean {
   const { data } = useGeneralSettings()
   return data?.autoConnect ?? true
-}
-
-export function useShowTrainingControls(): boolean {
-  const { data } = useGeneralSettings()
-  return data?.showTrainingControls ?? false
 }
 
 export function useSnapToGridSize(): number {

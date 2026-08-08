@@ -68,7 +68,6 @@ async function resolveIconUrl(
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
-
   const buffer = await fetchWorkspaceFileBuffer(record)
   const safeFileName = record.name.replace(/[^a-zA-Z0-9.-]/g, '_')
   const uploaded = await uploadFile({
@@ -258,6 +257,17 @@ export async function executeDeployCustomBlock(
           'Workflow must be deployed before publishing as a custom block. Use deploy_api first.',
       }
     }
+    // Curation is required on publish: every consumer-visible field must be one
+    // the publisher chose, since there is no whole-`result` fallback.
+    const exposedOutputs = params.exposedOutputs
+    if (!exposedOutputs || exposedOutputs.length === 0) {
+      return {
+        success: false,
+        error:
+          'exposedOutputs is required: select at least one workflow output to expose to consumers',
+      }
+    }
+
     const block = await publishCustomBlock({
       organizationId,
       workspaceId,
@@ -267,7 +277,7 @@ export async function executeDeployCustomBlock(
       description: description ?? '',
       iconUrl,
       inputs: params.inputs,
-      exposedOutputs: params.exposedOutputs,
+      exposedOutputs,
     })
     recordAudit({
       workspaceId,

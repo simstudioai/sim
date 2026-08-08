@@ -123,7 +123,9 @@ export function CreateWorkflowMcpServerModal({
               <ButtonGroupItem value='public'>Public</ButtonGroupItem>
             </ButtonGroup>
             {formData.isPublic && (
-              <span className='text-[var(--text-muted)] text-xs'>No authentication required</span>
+              <span className='text-[var(--text-muted)] text-caption'>
+                No authentication required
+              </span>
             )}
           </div>
         </ChipModalField>

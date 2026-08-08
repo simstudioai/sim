@@ -1,18 +1,40 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { env } from '@/lib/core/config/env'
-import type { CodeLanguage } from '@/lib/execution/languages'
-import { daytonaProvider } from '@/lib/execution/remote-sandbox/daytona'
-import { e2bProvider } from '@/lib/execution/remote-sandbox/e2b'
+import { generateShortId } from '@sim/utils/id'
+import {
+  createTimeoutAbortController,
+  getRemainingExecutionMs,
+  isTimeoutAbortReason,
+} from '@/lib/core/execution-limits'
+import { recordSandboxTeardownFailure } from '@/lib/core/execution-limits/metrics'
+import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
+import { SANDBOX_SYSTEM_PATH } from '@/lib/execution/remote-sandbox/cli-tools.server'
+import {
+  isSandboxOutputFileError,
+  isSandboxOutputLimitError,
+  MAX_SANDBOX_OUTPUT_BYTES,
+  MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+  SandboxOutputLimitError,
+} from '@/lib/execution/remote-sandbox/output-limits'
+import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { resolveProvider } from '@/lib/execution/remote-sandbox/provider'
+import {
+  provisionRuntimeDependencies,
+  type ResolvedSandbox,
+  RUNTIME_INSTALL_TIMEOUT_MS,
+  repairMissingSandboxImage,
+  resolveWorkspaceSandbox,
+} from '@/lib/execution/remote-sandbox/resolve'
 import type {
+  CreateSandboxOptions,
+  SandboxCodeResult,
   SandboxCommandResult,
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
   SandboxHandle,
   SandboxKind,
-  SandboxProvider,
-  SandboxProviderId,
+  SandboxPrivateInput,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
@@ -20,56 +42,162 @@ export type {
   SandboxExecutionRequest,
   SandboxExecutionResult,
   SandboxFile,
+  SandboxPrivateInput,
   SandboxShellExecutionRequest,
 } from '@/lib/execution/remote-sandbox/types'
 
 const logger = createLogger('RemoteSandbox')
 
-/**
- * The known sandbox providers. Keyed by {@link SandboxProviderId}, so adding an
- * adapter is one entry here plus one member on the id union — the type makes an
- * unhandled provider a compile error, not a runtime surprise.
- */
-const PROVIDERS: Record<SandboxProviderId, SandboxProvider> = {
-  e2b: e2bProvider,
-  daytona: daytonaProvider,
-}
-
-const DEFAULT_PROVIDER: SandboxProviderId = 'e2b'
-
-/**
- * Resolves which provider serves this execution from the `SANDBOX_PROVIDER` env
- * var (defaulting to {@link DEFAULT_PROVIDER}).
- *
- * Selection is deliberately resolved ONCE, before the sandbox is created, and is
- * never revisited mid-execution: user code has side effects (HTTP calls, S3
- * writes, DB mutations), so retrying a partially-executed run on another provider
- * could duplicate them. Changing providers is a config change — set
- * `SANDBOX_PROVIDER` and redeploy; in-flight executions are unaffected.
- */
-function resolveProvider(): SandboxProvider {
-  // Normalize casing identically to env-flags' availability gate — otherwise a
-  // value like `Daytona` would pass the gate (which lowercases) but miss this
-  // lowercase-keyed map and throw at create time.
-  const configured = env.SANDBOX_PROVIDER?.toLowerCase()
-  if (!configured) return PROVIDERS[DEFAULT_PROVIDER]
-  const provider = PROVIDERS[configured as SandboxProviderId]
-  if (!provider) {
-    throw new Error(
-      `Unknown SANDBOX_PROVIDER "${env.SANDBOX_PROVIDER}" (expected one of: ${Object.keys(PROVIDERS).join(', ')})`
-    )
-  }
-  return provider
-}
-
 async function createSandbox(
   kind: SandboxKind,
-  options?: { language?: CodeLanguage }
+  options?: CreateSandboxOptions
 ): Promise<SandboxHandle> {
   const provider = resolveProvider()
   const sandbox = await provider.create(kind, options)
   logger.info('Created sandbox', { provider: provider.id, kind, sandboxId: sandbox.sandboxId })
   return sandbox
+}
+
+/**
+ * Creates a sandbox, turning "that image is gone" into a rebuild rather than a
+ * failure the author has to resolve by hand.
+ *
+ * Create is the only step that observes whether the provider image really exists,
+ * which is why the repair hangs off it: the registry row and the remote template
+ * are two systems with no shared transaction, so keeping them in step is always
+ * best-effort, while checking at the point of use is not. Any other failure is
+ * rethrown untouched.
+ */
+async function createSelectedSandbox(
+  kind: SandboxKind,
+  options: CreateSandboxOptions,
+  selected: ResolvedSandbox | null,
+  signal: AbortSignal
+): Promise<SandboxHandle> {
+  try {
+    return await createSandbox(kind, options)
+  } catch (error) {
+    throwIfAborted(signal)
+    if (!selected) throw error
+    const rebuilding = await repairMissingSandboxImage(selected, error)
+    if (!rebuilding) throw error
+    throw new Error(rebuilding)
+  }
+}
+
+function throwIfAborted(signal?: AbortSignal): void {
+  if (!signal?.aborted) return
+  throw signal.reason instanceof Error ? signal.reason : new Error('Execution cancelled')
+}
+
+function abortReason(signal: AbortSignal): Error {
+  return signal.reason instanceof Error
+    ? signal.reason
+    : new DOMException('Execution cancelled', 'AbortError')
+}
+
+/** Returns the time left on the sandbox's one wall-clock budget. */
+function remainingSandboxBudgetMs(signal: AbortSignal): number {
+  throwIfAborted(signal)
+  const remainingMs = getRemainingExecutionMs(signal)
+  if (remainingMs === undefined || remainingMs <= 0) {
+    throw new DOMException('timeout', 'AbortError')
+  }
+  return Math.max(1, remainingMs)
+}
+
+/**
+ * Rejects promptly when a sandbox budget expires even if the provider operation
+ * currently in flight does not accept an AbortSignal. The operation remains
+ * observed, and the lifecycle's abort binding tears down any sandbox it creates.
+ */
+function raceSandboxAbort<T>(operation: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(abortReason(signal))
+
+  return new Promise<T>((resolve, reject) => {
+    const onAbort = () => {
+      signal.removeEventListener('abort', onAbort)
+      reject(abortReason(signal))
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
+    operation.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (error) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(error)
+      }
+    )
+  })
+}
+
+async function withSandboxExecutionBudget<T>(
+  timeoutMs: number,
+  parentSignal: AbortSignal | undefined,
+  execute: (signal: AbortSignal) => Promise<T>
+): Promise<T> {
+  if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
+    throw new DOMException('timeout', 'AbortError')
+  }
+
+  const controller = createTimeoutAbortController(timeoutMs, parentSignal)
+  try {
+    throwIfAborted(controller.signal)
+    return await raceSandboxAbort(execute(controller.signal), controller.signal)
+  } finally {
+    controller.cleanup()
+  }
+}
+
+function throwIfSandboxTimedOut(result: { timedOut?: boolean }): void {
+  if (result.timedOut) throw new DOMException('timeout', 'AbortError')
+}
+
+function bindSandboxAbort(sandbox: SandboxHandle, signal?: AbortSignal) {
+  let killed = false
+  let killPromise: Promise<void> | null = null
+  const provider = resolveProvider().id
+  const kill = (reason: 'cleanup' | 'cancellation' | 'timeout'): Promise<void> => {
+    if (killed) return Promise.resolve()
+    if (!killPromise) {
+      killPromise = sandbox
+        .kill()
+        .then(() => {
+          killed = true
+        })
+        .catch((error) => {
+          recordSandboxTeardownFailure({ provider, reason })
+          logger.warn('Failed to tear down sandbox', {
+            provider,
+            sandboxId: sandbox.sandboxId,
+            reason,
+            error: getErrorMessage(error),
+          })
+          throw error
+        })
+        .finally(() => {
+          if (!killed) killPromise = null
+        })
+    }
+    return killPromise
+  }
+  const onAbort = () => {
+    void kill(isTimeoutAbortReason(signal?.reason) ? 'timeout' : 'cancellation').catch(() => {})
+  }
+  signal?.addEventListener('abort', onAbort, { once: true })
+  if (signal?.aborted) onAbort()
+  return {
+    cleanup: async () => {
+      try {
+        await kill('cleanup')
+      } catch {
+        await kill('cleanup').catch(() => {})
+      }
+    },
+    detach: () => signal?.removeEventListener('abort', onAbort),
+  }
 }
 
 /**
@@ -82,7 +210,7 @@ async function createSandbox(
 async function writeSandboxInputs(
   sandbox: SandboxHandle,
   files: SandboxFile[] | undefined,
-  opts: { rootUser?: boolean }
+  opts: { rootUser?: boolean; signal: AbortSignal }
 ): Promise<void> {
   if (!files?.length) return
   const fetchedByUrl: string[] = []
@@ -96,15 +224,20 @@ async function writeSandboxInputs(
           'set -e; [ -n "$DIR" ] && mkdir -p "$DIR"; curl -fsS --retry 3 --retry-connrefused --max-time 300 "$URL" -o "$DST"',
           {
             envs: { URL: file.url, DST: file.path, DIR: dir },
-            timeoutMs: 300_000,
+            timeoutMs: Math.min(300_000, remainingSandboxBudgetMs(opts.signal)),
+            maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+            signal: opts.signal,
             rootUser: opts.rootUser,
           }
         )
       } catch (error) {
+        throwIfAborted(opts.signal)
         throw new Error(
           `Failed to fetch mounted file into sandbox at ${file.path}: ${getErrorMessage(error)}`
         )
       }
+      throwIfAborted(opts.signal)
+      throwIfSandboxTimedOut(result)
       // Providers differ on whether a non-zero exit throws, so the exit code is
       // checked explicitly — a silently-missing mount is exactly what this guard
       // exists to prevent.
@@ -121,9 +254,11 @@ async function writeSandboxInputs(
         file.path,
         buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength)
       )
+      remainingSandboxBudgetMs(opts.signal)
       writtenInline.push(file.path)
     } else {
       await sandbox.writeFile(file.path, file.content)
+      remainingSandboxBudgetMs(opts.signal)
       writtenInline.push(file.path)
     }
   }
@@ -136,6 +271,50 @@ async function writeSandboxInputs(
     fetchedByUrl,
     writtenInline,
   })
+}
+
+const PRIVATE_INPUT_ENVIRONMENT_VARIABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/**
+ * Writes internal runtime payloads to generated paths after user-controlled
+ * mounts have been materialized. The returned environment contains paths only.
+ */
+async function writeSandboxPrivateInputs(
+  sandbox: SandboxHandle,
+  inputs: SandboxPrivateInput[] | undefined,
+  signal: AbortSignal
+): Promise<Record<string, string>> {
+  if (!inputs?.length) return {}
+  throwIfAborted(signal)
+
+  const seenEnvironmentVariables = new Set<string>()
+  for (const input of inputs) {
+    if (!PRIVATE_INPUT_ENVIRONMENT_VARIABLE_PATTERN.test(input.environmentVariable)) {
+      throw new Error('Invalid private sandbox input environment variable')
+    }
+    if (seenEnvironmentVariables.has(input.environmentVariable)) {
+      throw new Error('Duplicate private sandbox input environment variable')
+    }
+    seenEnvironmentVariables.add(input.environmentVariable)
+  }
+
+  const pathPrefix = `/tmp/.sim-private-input-${generateShortId(16)}`
+  const environment: Record<string, string> = Object.create(null)
+  for (let index = 0; index < inputs.length; index += 1) {
+    throwIfAborted(signal)
+    const input = inputs[index]
+    const path = `${pathPrefix}-${index}`
+    try {
+      await sandbox.writeFile(path, input.content)
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
+    throwIfAborted(signal)
+    remainingSandboxBudgetMs(signal)
+    environment[input.environmentVariable] = path
+  }
+  return environment
 }
 
 /**
@@ -213,25 +392,38 @@ function shouldReadSandboxPathAsBase64(outputSandboxPath: string): boolean {
 async function readSandboxOutputFile(
   sandbox: SandboxHandle,
   outputSandboxPath: string,
-  options?: { rootUser?: boolean }
-): Promise<string | undefined> {
+  maxBytes: number,
+  options?: { signal?: AbortSignal }
+): Promise<{ content: string; byteLength: number } | undefined> {
   try {
-    if (shouldReadSandboxPathAsBase64(outputSandboxPath)) {
-      const b64Result = await sandbox.runCommand(`base64 -w0 "${outputSandboxPath}"`, {
-        timeoutMs: 120_000,
-        rootUser: options?.rootUser,
-      })
-      // Daytona merges streams into stdout, so fall back to it for the real error.
-      if (b64Result.exitCode !== 0) {
-        throw new Error(b64Result.stderr || b64Result.stdout || 'base64 failed')
-      }
-      return b64Result.stdout
-    }
-    return await sandbox.readFile(outputSandboxPath)
+    return await sandbox.readFileWithLimit(outputSandboxPath, {
+      maxBytes,
+      encoding: shouldReadSandboxPathAsBase64(outputSandboxPath) ? 'base64' : 'utf8',
+      signal: options?.signal,
+    })
   } catch (error) {
+    if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) throw error
     logger.warn('Failed to read requested sandbox output file', {
-      outputSandboxPath,
-      error: getErrorMessage(error),
+      sandboxId: sandbox.sandboxId,
+    })
+    return undefined
+  }
+}
+
+async function inspectSandboxOutputFileSize(
+  sandbox: SandboxHandle,
+  outputSandboxPath: string
+): Promise<number | undefined> {
+  try {
+    const size = await sandbox.getFileSize(outputSandboxPath)
+    if (!Number.isSafeInteger(size) || size < 0) {
+      throw new Error('Sandbox returned an invalid output file size')
+    }
+    return size
+  } catch (error) {
+    if (isSandboxOutputLimitError(error) || isSandboxOutputFileError(error)) throw error
+    logger.warn('Failed to inspect requested sandbox output file', {
+      sandboxId: sandbox.sandboxId,
     })
     return undefined
   }
@@ -241,23 +433,55 @@ function requestedOutputSandboxPaths(req: {
   outputSandboxPath?: string
   outputSandboxPaths?: string[]
 }): string[] {
-  const paths = [...(req.outputSandboxPaths ?? [])]
-  if (req.outputSandboxPath && !paths.includes(req.outputSandboxPath)) {
-    paths.push(req.outputSandboxPath)
-  }
-  return paths
+  return [
+    ...new Set([
+      ...(req.outputSandboxPaths ?? []),
+      ...(req.outputSandboxPath ? [req.outputSandboxPath] : []),
+    ]),
+  ]
 }
 
 async function collectExportedFiles(
   sandbox: SandboxHandle,
   req: { outputSandboxPath?: string; outputSandboxPaths?: string[] },
-  options?: { rootUser?: boolean }
+  options: { signal: AbortSignal }
 ): Promise<{ exportedFiles?: Record<string, string>; exportedFileContent?: string }> {
-  const exportedFiles: Record<string, string> = {}
+  const readablePaths: string[] = []
+  let totalOutputBytes = 0
   for (const outputSandboxPath of requestedOutputSandboxPaths(req)) {
-    const content = await readSandboxOutputFile(sandbox, outputSandboxPath, options)
-    if (content !== undefined) {
-      exportedFiles[outputSandboxPath] = content
+    const size = await inspectSandboxOutputFileSize(sandbox, outputSandboxPath)
+    remainingSandboxBudgetMs(options.signal)
+    if (size === undefined) continue
+    totalOutputBytes += size
+    if (totalOutputBytes > MAX_SANDBOX_OUTPUT_BYTES) {
+      throw new SandboxOutputLimitError(totalOutputBytes)
+    }
+    readablePaths.push(outputSandboxPath)
+  }
+
+  const exportedFiles: Record<string, string> = {}
+  let readOutputBytes = 0
+  for (const outputSandboxPath of readablePaths) {
+    try {
+      const file = await readSandboxOutputFile(
+        sandbox,
+        outputSandboxPath,
+        MAX_SANDBOX_OUTPUT_BYTES - readOutputBytes,
+        options
+      )
+      if (file !== undefined) {
+        remainingSandboxBudgetMs(options.signal)
+        readOutputBytes += file.byteLength
+        exportedFiles[outputSandboxPath] = file.content
+      }
+    } catch (error) {
+      if (isSandboxOutputLimitError(error)) {
+        throw new SandboxOutputLimitError(
+          readOutputBytes + error.attemptedBytes,
+          MAX_SANDBOX_OUTPUT_BYTES
+        )
+      }
+      throw error
     }
   }
   return {
@@ -266,23 +490,118 @@ async function collectExportedFiles(
   }
 }
 
-export async function executeInSandbox(
+/**
+ * Floor on what is left for the user's code after a runtime install. Below this
+ * the run is not worth attempting — but reporting "your code timed out" would
+ * still be the wrong story, so the install's own budget is capped to leave it.
+ */
+const MIN_CODE_BUDGET_MS = 15_000
+
+/**
+ * How long a runtime dependency install may take before it must yield to the
+ * code it is installing for. Capped by {@link RUNTIME_INSTALL_TIMEOUT_MS} and by
+ * whatever the caller's budget leaves after reserving {@link MIN_CODE_BUDGET_MS}.
+ */
+function installBudgetMs(timeoutMs: number): number {
+  return Math.max(0, Math.min(RUNTIME_INSTALL_TIMEOUT_MS, timeoutMs - MIN_CODE_BUDGET_MS))
+}
+
+/**
+ * Installs a runtime sandbox's dependencies out of the caller's budget and
+ * uses the shared wall-clock budget, so creation and every later phase consume
+ * the same deadline rather than receiving independent timeout allowances.
+ */
+async function provisionWithinBudget(
+  sandbox: SandboxHandle,
+  selected: ResolvedSandbox | null,
+  signal: AbortSignal
+): Promise<void> {
+  if (!selected) return
+  try {
+    await provisionRuntimeDependencies(sandbox, selected, {
+      timeoutMs: installBudgetMs(remainingSandboxBudgetMs(signal)),
+      signal,
+    })
+  } catch (error) {
+    throwIfAborted(signal)
+    throw error
+  }
+  throwIfAborted(signal)
+}
+
+async function executeInSandboxWithinBudget(
   req: SandboxExecutionRequest
 ): Promise<SandboxExecutionResult> {
-  const { code, language, timeoutMs } = req
+  const { code, language } = req
+  const signal = req.signal as AbortSignal
+  const kind = req.sandboxKind ?? 'code'
+  throwIfAborted(signal)
 
-  const sandbox = await createSandbox(req.sandboxKind ?? 'code', { language })
+  // Resolved before the sandbox is created so a selection that cannot be honored
+  // fails without spending a provider create.
+  const selected = await resolveWorkspaceSandbox({
+    kind,
+    language,
+    workspaceId: req.workspaceId,
+    sandboxId: req.sandboxId,
+  })
+  throwIfAborted(signal)
+
+  const sandbox = await createSelectedSandbox(
+    kind,
+    {
+      language,
+      imageRef: selected?.imageRef,
+      lifetimeMs: remainingSandboxBudgetMs(signal),
+    },
+    selected,
+    signal
+  )
   const sandboxId = sandbox.sandboxId
+  const abortBinding = bindSandboxAbort(sandbox, signal)
 
   try {
-    // Inside the try so a failed mount still kills the sandbox via the finally below.
-    await writeSandboxInputs(sandbox, req.sandboxFiles, {})
+    throwIfAborted(signal)
+    // Inside the try so a failed install or mount still kills the sandbox via the
+    // finally below. Dependencies land before the inputs so user code and its
+    // mounts always see a complete environment.
+    //
+    await provisionWithinBudget(sandbox, selected, signal)
+    await writeSandboxInputs(sandbox, req.sandboxFiles, { signal })
+    const privateInputEnvironment = await writeSandboxPrivateInputs(
+      sandbox,
+      req.privateInputs,
+      signal
+    )
+    const executionEnvironment = {
+      ...selected?.envs,
+      ...privateInputEnvironment,
+    }
+    const hasExecutionEnvironment =
+      selected?.envs !== undefined || Object.keys(privateInputEnvironment).length > 0
 
-    const execution = await sandbox.runCode(code, { timeoutMs })
+    let execution: SandboxCodeResult
+    try {
+      execution = await sandbox.runCode(code, {
+        timeoutMs: remainingSandboxBudgetMs(signal),
+        javascriptPreload: buildJavaScriptRuntimeBindingsSource(req.runtimeBindings ?? []),
+        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+        signal,
+        ...(hasExecutionEnvironment ? { envs: executionEnvironment } : {}),
+      })
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
+    throwIfAborted(signal)
+    throwIfSandboxTimedOut(execution)
 
     if (execution.error) {
       const errorMessage = `${execution.error.name}: ${execution.error.value}`
-      logger.error('Sandbox execution error', { sandboxId, error: execution.error, errorMessage })
+      logger.error('Sandbox execution failed', {
+        sandboxId,
+        hasTraceback: Boolean(execution.error.traceback),
+      })
       return {
         result: null,
         stdout: execution.error.traceback || errorMessage,
@@ -317,7 +636,10 @@ export async function executeInSandbox(
       }
     }
 
-    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req)
+    const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
+      signal,
+    })
+    throwIfAborted(signal)
 
     return {
       result: extraction.result,
@@ -327,32 +649,79 @@ export async function executeInSandbox(
       exportedFiles,
     }
   } finally {
-    try {
-      await sandbox.kill()
-    } catch {}
+    abortBinding.detach()
+    await abortBinding.cleanup()
   }
 }
 
-export async function executeShellInSandbox(
+export function executeInSandbox(req: SandboxExecutionRequest): Promise<SandboxExecutionResult> {
+  return withSandboxExecutionBudget(req.timeoutMs, req.signal, (signal) =>
+    executeInSandboxWithinBudget({ ...req, signal })
+  )
+}
+
+async function executeShellInSandboxWithinBudget(
   req: SandboxShellExecutionRequest
 ): Promise<SandboxExecutionResult> {
-  const { code, envs, timeoutMs } = req
+  const { code, envs } = req
+  const signal = req.signal as AbortSignal
+  const kind = req.sandboxKind ?? 'shell'
+  throwIfAborted(signal)
 
-  const sandbox = await createSandbox(req.sandboxKind ?? 'shell')
+  // No language is passed: a shell execution runs commands rather than a language
+  // runtime, so whichever language the sandbox carries is the one it installs.
+  const selected = await resolveWorkspaceSandbox({
+    kind,
+    workspaceId: req.workspaceId,
+    sandboxId: req.sandboxId,
+  })
+  throwIfAborted(signal)
+
+  const sandbox = await createSelectedSandbox(
+    kind,
+    { imageRef: selected?.imageRef, lifetimeMs: remainingSandboxBudgetMs(signal) },
+    selected,
+    signal
+  )
   const sandboxId = sandbox.sandboxId
+  const abortBinding = bindSandboxAbort(sandbox, signal)
 
   try {
-    // Inside the try so a failed mount still kills the sandbox via the finally below.
-    await writeSandboxInputs(sandbox, req.sandboxFiles, { rootUser: true })
-
-    const result = await sandbox.runCommand(code, {
-      envs: {
-        ...envs,
-        PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin',
-      },
-      timeoutMs,
+    throwIfAborted(signal)
+    // Inside the try so a failed install or mount still kills the sandbox via the
+    // finally below. The install shares the caller's budget rather than adding to
+    // it — see the note in `executeInSandbox`.
+    await provisionWithinBudget(sandbox, selected, signal)
+    await writeSandboxInputs(sandbox, req.sandboxFiles, {
       rootUser: true,
+      signal,
     })
+    const privateInputEnvironment = await writeSandboxPrivateInputs(
+      sandbox,
+      req.privateInputs,
+      signal
+    )
+
+    let result: SandboxCommandResult
+    try {
+      result = await sandbox.runCommand(code, {
+        envs: {
+          ...selected?.envs,
+          ...envs,
+          PATH: selected?.envs?.PATH ?? SANDBOX_SYSTEM_PATH,
+          ...privateInputEnvironment,
+        },
+        timeoutMs: remainingSandboxBudgetMs(signal),
+        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+        signal,
+        rootUser: true,
+      })
+    } catch (error) {
+      throwIfAborted(signal)
+      throw error
+    }
+    throwIfAborted(signal)
+    throwIfSandboxTimedOut(result)
 
     const stdout = [result.stdout, result.stderr].filter(Boolean).join('\n')
 
@@ -364,7 +733,6 @@ export async function executeShellInSandbox(
       logger.error('Sandbox shell execution error', {
         sandboxId,
         exitCode: result.exitCode,
-        stderr: result.stderr?.slice(0, 500),
       })
       return { result: null, stdout, error: errorMessage, sandboxId }
     }
@@ -376,8 +744,9 @@ export async function executeShellInSandbox(
     const parsed = extraction.parseFailed ? extraction.rawPayload : extraction.result
 
     const { exportedFiles, exportedFileContent } = await collectExportedFiles(sandbox, req, {
-      rootUser: true,
+      signal,
     })
+    throwIfAborted(signal)
 
     return {
       result: parsed,
@@ -387,10 +756,17 @@ export async function executeShellInSandbox(
       exportedFiles,
     }
   } finally {
-    try {
-      await sandbox.kill()
-    } catch {}
+    abortBinding.detach()
+    await abortBinding.cleanup()
   }
+}
+
+export function executeShellInSandbox(
+  req: SandboxShellExecutionRequest
+): Promise<SandboxExecutionResult> {
+  return withSandboxExecutionBudget(req.timeoutMs, req.signal, (signal) =>
+    executeShellInSandboxWithinBudget({ ...req, signal })
+  )
 }
 
 /** Result of one command run inside a Pi sandbox. */
@@ -426,16 +802,30 @@ export interface PiSandboxRunner {
  * repo persists across the clone -> agent -> push commands), streams command
  * output, and always kills the sandbox afterward. Per-command envs are isolated,
  * so secrets handed to one command never leak into the next.
+ *
+ * `options.lifetimeMs` is the run's own budget from `resolvePiRunLifetimeMs`,
+ * which a caller holding the execution signal can narrow below the provider
+ * ceiling. Omitting it keeps that ceiling — correct for a caller with no
+ * deadline to honor, and never longer than before.
+ *
+ * Options precede the callback so that adding one did not re-indent every
+ * caller's sandbox body, which would have buried the change in whitespace.
  */
-export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<T>): Promise<T> {
-  const sandbox = await createSandbox('pi')
-  logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId })
+export async function withPiSandbox<T>(
+  options: { lifetimeMs?: number },
+  fn: (runner: PiSandboxRunner) => Promise<T>
+): Promise<T> {
+  const lifetimeMs =
+    options.lifetimeMs !== undefined ? options.lifetimeMs : resolvePiSandboxLifetimeMs()
+  const sandbox = await createSandbox('pi', { lifetimeMs })
+  logger.info('Started Pi sandbox', { sandboxId: sandbox.sandboxId, lifetimeMs })
 
   const runner: PiSandboxRunner = {
     run: (command, options) =>
       sandbox.runCommand(command, {
         envs: options.envs,
         timeoutMs: options.timeoutMs,
+        maxOutputBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
         rootUser: true,
         onStdout: options.onStdout,
         onStderr: options.onStderr,
@@ -449,6 +839,8 @@ export async function withPiSandbox<T>(fn: (runner: PiSandboxRunner) => Promise<
   } finally {
     try {
       await sandbox.kill()
-    } catch {}
+    } catch {
+      await sandbox.kill().catch(() => {})
+    }
   }
 }

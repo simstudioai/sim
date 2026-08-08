@@ -32,7 +32,7 @@ Integrate Square into the workflow. Take and refund payments, manage customers, 
 
 ## Actions
 
-### `square_create_payment`
+### Square Create Payment
 
 Take a payment using a payment source such as a card nonce or a card on file
 
@@ -96,7 +96,7 @@ Take a payment using a payment source such as a card nonce or a card on file
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
-### `square_get_payment`
+### Square Get Payment
 
 Retrieve details for a single payment by its ID
 
@@ -151,7 +151,7 @@ Retrieve details for a single payment by its ID
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
-### `square_list_payments`
+### Square List Payments
 
 List payments taken by the account, optionally filtered by location and time range
 
@@ -209,7 +209,7 @@ List payments taken by the account, optionally filtered by location and time ran
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_cancel_payment`
+### Square Cancel Payment
 
 Cancel (void) an authorized payment that has not been captured
 
@@ -264,7 +264,7 @@ Cancel (void) an authorized payment that has not been captured
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
-### `square_complete_payment`
+### Square Complete Payment
 
 Capture (complete) a payment that was authorized with delayed capture
 
@@ -320,7 +320,7 @@ Capture (complete) a payment that was authorized with delayed capture
 |   ↳ `status` | string | Current payment status |
 |   ↳ `order_id` | string | Associated order ID |
 
-### `square_refund_payment`
+### Square Refund Payment
 
 Refund all or part of a completed payment
 
@@ -357,7 +357,7 @@ Refund all or part of a completed payment
 |   ↳ `status` | string | Current refund status |
 |   ↳ `payment_id` | string | Refunded payment ID |
 
-### `square_get_refund`
+### Square Get Refund
 
 Retrieve a single payment refund by its ID
 
@@ -390,7 +390,7 @@ Retrieve a single payment refund by its ID
 |   ↳ `status` | string | Current refund status |
 |   ↳ `payment_id` | string | Refunded payment ID |
 
-### `square_list_refunds`
+### Square List Refunds
 
 List payment refunds, optionally filtered by location, status, and time range
 
@@ -427,7 +427,7 @@ List payment refunds, optionally filtered by location, status, and time range
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_create_customer`
+### Square Create Customer
 
 Create a new customer profile in the Square customer directory
 
@@ -487,7 +487,7 @@ Create a new customer profile in the Square customer directory
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
-### `square_get_customer`
+### Square Get Customer
 
 Retrieve a single customer profile by its ID
 
@@ -537,7 +537,7 @@ Retrieve a single customer profile by its ID
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
-### `square_list_customers`
+### Square List Customers
 
 List customer profiles in the Square customer directory
 
@@ -588,7 +588,7 @@ List customer profiles in the Square customer directory
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_search_customers`
+### Square Search Customers
 
 Search customer profiles using filters such as email, phone, or creation date
 
@@ -638,7 +638,7 @@ Search customer profiles using filters such as email, phone, or creation date
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_update_customer`
+### Square Update Customer
 
 Update fields on an existing customer profile
 
@@ -698,7 +698,7 @@ Update fields on an existing customer profile
 |   ↳ `given_name` | string | Customer first name |
 |   ↳ `family_name` | string | Customer last name |
 
-### `square_delete_customer`
+### Square Delete Customer
 
 Delete a customer profile from the Square customer directory
 
@@ -716,7 +716,7 @@ Delete a customer profile from the Square customer directory
 | `deleted` | boolean | Whether the customer was deleted |
 | `id` | string | ID of the deleted customer |
 
-### `square_list_locations`
+### Square List Locations
 
 List all locations associated with the Square account
 
@@ -760,7 +760,7 @@ List all locations associated with the Square account
 | `metadata` | json | List metadata |
 |   ↳ `count` | number | Number of locations returned |
 
-### `square_get_location`
+### Square Get Location
 
 Retrieve a single location by its ID
 
@@ -806,7 +806,7 @@ Retrieve a single location by its ID
 |   ↳ `id` | string | Square location ID |
 |   ↳ `name` | string | Location name |
 
-### `square_create_order`
+### Square Create Order
 
 Create an order with line items, taxes, discounts, and fulfillments
 
@@ -857,7 +857,7 @@ Create an order with line items, taxes, discounts, and fulfillments
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
-### `square_get_order`
+### Square Get Order
 
 Retrieve a single order by its ID
 
@@ -907,7 +907,7 @@ Retrieve a single order by its ID
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
-### `square_search_orders`
+### Square Search Orders
 
 Search orders across one or more locations using filters and sorting
 
@@ -959,7 +959,7 @@ Search orders across one or more locations using filters and sorting
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_pay_order`
+### Square Pay Order
 
 Pay for an order using one or more already-approved payments
 
@@ -1012,7 +1012,7 @@ Pay for an order using one or more already-approved payments
 |   ↳ `state` | string | Current order state |
 |   ↳ `location_id` | string | Order location ID |
 
-### `square_create_invoice`
+### Square Create Invoice
 
 Create a draft invoice for an existing order and customer
 
@@ -1053,7 +1053,7 @@ Create a draft invoice for an existing order and customer
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
-### `square_get_invoice`
+### Square Get Invoice
 
 Retrieve a single invoice by its ID
 
@@ -1093,7 +1093,7 @@ Retrieve a single invoice by its ID
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
-### `square_list_invoices`
+### Square List Invoices
 
 List invoices for a specific location
 
@@ -1134,7 +1134,7 @@ List invoices for a specific location
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_search_invoices`
+### Square Search Invoices
 
 Search invoices across one or more locations
 
@@ -1175,7 +1175,7 @@ Search invoices across one or more locations
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_publish_invoice`
+### Square Publish Invoice
 
 Publish a draft invoice so it is sent to the customer and becomes payable
 
@@ -1217,7 +1217,7 @@ Publish a draft invoice so it is sent to the customer and becomes payable
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
-### `square_cancel_invoice`
+### Square Cancel Invoice
 
 Cancel a published invoice that is unpaid or partially paid
 
@@ -1258,7 +1258,7 @@ Cancel a published invoice that is unpaid or partially paid
 |   ↳ `status` | string | Current invoice status |
 |   ↳ `version` | number | Invoice version |
 
-### `square_delete_invoice`
+### Square Delete Invoice
 
 Delete a draft invoice
 
@@ -1277,7 +1277,7 @@ Delete a draft invoice
 | `deleted` | boolean | Whether the invoice was deleted |
 | `id` | string | ID of the deleted invoice |
 
-### `square_upsert_catalog_object`
+### Square Upsert Catalog Object
 
 Create or update a catalog object such as an item, variation, or category
 
@@ -1309,7 +1309,7 @@ Create or update a catalog object such as an item, variation, or category
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
-### `square_get_catalog_object`
+### Square Get Catalog Object
 
 Retrieve a single catalog object by its ID
 
@@ -1341,7 +1341,7 @@ Retrieve a single catalog object by its ID
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
-### `square_list_catalog`
+### Square List Catalog
 
 List catalog objects, optionally filtered by type
 
@@ -1372,7 +1372,7 @@ List catalog objects, optionally filtered by type
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_search_catalog_objects`
+### Square Search Catalog Objects
 
 Search catalog objects by type and query filters
 
@@ -1405,7 +1405,7 @@ Search catalog objects by type and query filters
 |   ↳ `count` | number | Number of items returned in this page |
 |   ↳ `cursor` | string | Pagination cursor to fetch the next page, if more results exist |
 
-### `square_create_catalog_image`
+### Square Create Catalog Image
 
 Upload an image and attach it to the catalog, optionally to a specific item
 
@@ -1440,7 +1440,7 @@ Upload an image and attach it to the catalog, optionally to a specific item
 |   ↳ `type` | string | Catalog object type |
 |   ↳ `version` | number | Catalog object version |
 
-### `square_delete_catalog_object`
+### Square Delete Catalog Object
 
 Delete a catalog object and its children (e.g. an item and its variations)
 
@@ -1459,7 +1459,7 @@ Delete a catalog object and its children (e.g. an item and its variations)
 | `deleted_object_ids` | array | IDs of all catalog objects deleted \(including children\) |
 | `deleted_at` | string | Timestamp when the deletion occurred \(RFC 3339\) |
 
-### `square_batch_retrieve_inventory_counts`
+### Square Batch Retrieve Inventory Counts
 
 Retrieve current inventory counts for catalog items across locations
 

@@ -1,4 +1,6 @@
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { mergeToolParameters } from '@/tools/merge-params'
+import * as toolMetadata from '@/tools/metadata'
 import {
   createExecutionToolSchema,
   createLLMToolSchema,
@@ -8,14 +10,13 @@ import {
   getSubBlocksForToolInput,
   getToolParametersConfig,
   isPasswordParameter,
-  mergeToolParameters,
   type ToolParameterConfig,
   type ToolSchema,
+  ToolSchemaEnrichmentError,
   type ValidationResult,
   validateToolParameters,
 } from '@/tools/params'
 import type { HttpMethod, ParameterVisibility } from '@/tools/types'
-import * as toolsUtils from '@/tools/utils'
 
 const mockToolConfig = {
   id: 'test_tool',
@@ -58,11 +59,13 @@ const mockToolConfig = {
 
 /**
  * Spy on the real module namespace instead of vi.mock: under `isolate: false`
- * `@/tools/params` may already be cached bound to the real `@/tools/utils`
+ * `@/tools/params` may already be cached bound to the real `@/tools/metadata`
  * module, so patching the shared namespace is the only wiring that always
  * applies.
  */
-const getToolSpy = vi.spyOn(toolsUtils, 'getTool').mockImplementation(((toolId: string) => {
+const getToolSpy = vi.spyOn(toolMetadata, 'getToolMetadata').mockImplementation(((
+  toolId: string
+) => {
   if (toolId === 'test_tool') {
     return mockToolConfig
   }
@@ -76,7 +79,7 @@ const getToolSpy = vi.spyOn(toolsUtils, 'getTool').mockImplementation(((toolId: 
     }
   }
   return null
-}) as unknown as typeof toolsUtils.getTool)
+}) as unknown as typeof toolMetadata.getToolMetadata)
 
 afterAll(() => {
   getToolSpy.mockRestore()
@@ -127,6 +130,27 @@ describe('Tool Parameters Utils', () => {
       expect(schema.properties).not.toHaveProperty('timeout') // user-only, never shown to LLM
       expect(schema.required).not.toContain('apiKey') // user-only, never required for LLM
       expect(schema.required).toContain('message') // user-or-llm + required: true
+    })
+
+    it('wraps tool enrichment failures so execution boundaries can fail fast', async () => {
+      const cause = new Error('table metadata unavailable')
+      const toolConfig = {
+        ...mockToolConfig,
+        toolEnrichment: {
+          dependsOn: 'tableId',
+          enrichTool: vi.fn().mockRejectedValue(cause),
+        },
+      }
+
+      const error = await createLLMToolSchema(toolConfig, { tableId: 'tbl_123' }).catch(
+        (caught) => caught
+      )
+
+      expect(error).toBeInstanceOf(ToolSchemaEnrichmentError)
+      expect(error).toMatchObject({
+        message: 'Failed to enrich schema for tool "test_tool"',
+        cause,
+      })
     })
   })
 

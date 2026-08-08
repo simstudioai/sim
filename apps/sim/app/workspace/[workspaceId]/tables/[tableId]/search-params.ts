@@ -1,11 +1,11 @@
 import { createParser, parseAsString, parseAsStringLiteral } from 'nuqs/server'
-import type { Filter } from '@/lib/table/types'
+import type { TablePredicate } from '@/lib/table/types'
 import { SORT_DIRECTIONS } from '@/lib/url-state'
 
 /** Ad-hoc state a draft carries: the two slices `sort`/`dir` don't already hold.
  *  Column-ID keyed, like stored view configs — stable across renames. */
 export interface TableDraft {
-  filter?: Filter | null
+  filter?: TablePredicate | null
   hiddenColumns?: string[]
 }
 

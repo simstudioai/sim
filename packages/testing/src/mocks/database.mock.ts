@@ -3,13 +3,35 @@ import { vi } from 'vitest'
 /**
  * Creates mock SQL template literal function.
  * Mimics drizzle-orm's sql tagged template.
+ *
+ * The `Date` guards below are a best-effort backstop, not the gate: tests that
+ * override the `drizzle-orm` mock bypass them entirely. `bun run check:sql-date-binding`
+ * is the repo-wide authority. `drizzle()` overwrites postgres-js's temporal
+ * serializers (OIDs 1082/1083/1114/1184/1182/1185/1115/1231) with an identity
+ * function because drizzle maps timestamps itself through the column's
+ * `mapToDriverValue`. Outside column context that mapping never runs, so the Date
+ * reaches the wire encoder unserialized. The pools' `prepare` / `fetch_types`
+ * options are irrelevant to this failure.
  */
 export function createMockSql() {
-  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => ({
-    strings,
-    values,
-    toSQL: () => ({ sql: strings.join('?'), params: values }),
-  })
+  const sqlFn = (strings: TemplateStringsArray, ...values: any[]) => {
+    if (values.some((value) => value instanceof Date)) {
+      throw new Error(
+        'sql`…${date}` interpolates a Date without an encoder, so drizzle never runs ' +
+          'the column mapping and postgres-js receives an unserialized Date ' +
+          '(ERR_INVALID_ARG_TYPE). Bind through the matching column: ' +
+          'sql.param(date, table.timestampColumn).'
+      )
+    }
+    const fragment = {
+      strings,
+      values,
+      toSQL: () => ({ sql: strings.join('?'), params: values }),
+      /** Mirrors drizzle's `sql``…`.as(alias)` for aliased select expressions. */
+      as: (alias: string) => ({ ...fragment, alias }),
+    }
+    return fragment
+  }
 
   sqlFn.raw = (rawSql: string) => ({
     rawSql,
@@ -41,9 +63,9 @@ export function createMockSql() {
     }
     if (encoder === undefined && value instanceof Date) {
       throw new Error(
-        'sql.param(date) without an encoder reaches postgres-js as a Date object, ' +
-          'which its unsafe path cannot serialize (ERR_INVALID_ARG_TYPE). Bind ' +
-          'through the matching column: sql.param(date, table.timestampColumn).'
+        'sql.param(date) without an encoder skips the column mapping and reaches ' +
+          'postgres-js as an unserialized Date (ERR_INVALID_ARG_TYPE). Bind through ' +
+          'the matching column: sql.param(date, table.timestampColumn).'
       )
     }
     return { value, toSQL: () => ({ sql: '?', params: [value] }) }
@@ -420,4 +442,34 @@ export const drizzleOrmMock = {
   /** Mirrors drizzle's getTableColumns for schema-mock tables (column-name maps). */
   getTableColumns: vi.fn((table: Record<string, unknown>) => ({ ...table })),
   ...createMockSqlOperators(),
+}
+
+/**
+ * Condition nodes produced by `createMockSqlOperators` — `{ type: 'eq', left, right }`,
+ * `{ type: 'isNull', column }`, and so on.
+ */
+export type MockCondition = Record<string, unknown>
+
+/**
+ * Flattens the nested `and(...)` trees `createMockSqlOperators` builds into a flat node list.
+ *
+ * Tests assert on WHERE clauses to pin filters the row-queue mocks cannot enforce — a mock
+ * returns whatever was queued regardless of the predicate, so "the query filters on X" is only
+ * testable by inspecting the condition tree. `and()` nests arbitrarily, hence the flatten.
+ */
+export function flattenMockConditions(condition: unknown): MockCondition[] {
+  if (!condition || typeof condition !== 'object') return []
+  const node = condition as MockCondition
+  if (node.type === 'and' && Array.isArray(node.conditions)) {
+    return node.conditions.flatMap(flattenMockConditions)
+  }
+  return [node]
+}
+
+/** True when any node in `condition` satisfies `predicate`. */
+export function hasMockCondition(
+  condition: unknown,
+  predicate: (node: MockCondition) => boolean
+): boolean {
+  return flattenMockConditions(condition).some(predicate)
 }

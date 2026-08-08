@@ -10,8 +10,8 @@ import {
   getCanonicalValues,
   isCanonicalPair,
   isNonEmptyValue,
-  isSubBlockFeatureEnabled,
   isSubBlockHidden,
+  isToolInputOnlySubBlock,
   resolveCanonicalMode,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -20,7 +20,7 @@ import type { SubBlockConfig } from '@/blocks/types'
 import type { SerializedBlock, SerializedWorkflow } from '@/serializer/types'
 import type { BlockState, Loop, Parallel } from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
-import { getTool } from '@/tools/utils'
+import { getToolParams } from '@/tools/metadata'
 
 const logger = createLogger('Serializer')
 
@@ -51,10 +51,19 @@ function shouldSerializeSubBlock(
   canonicalIndex: ReturnType<typeof buildCanonicalIndex>,
   canonicalModeOverrides?: CanonicalModeOverrides
 ): boolean {
-  if (!isSubBlockFeatureEnabled(subBlockConfig)) return false
+  // Only meaningful when the block is invoked as an agent tool, where the
+  // value lives on the tool entry rather than the block. Serializing it here
+  // would let a non-UI writer (copilot, YAML import) set an invisible secret
+  // scope that the executor's env inlining does not honor.
+  if (isToolInputOnlySubBlock(subBlockConfig)) return false
   if (isSubBlockHidden(subBlockConfig)) return false
 
-  if (subBlockConfig.mode === 'trigger') {
+  // `trigger-advanced` is a trigger-mode field too - the advanced twin of a
+  // `trigger` selector - so it must be excluded from tool-mode serialization for
+  // the same reason. Without this it stays a live, validated tool param: a
+  // trigger's `required` manual field then blocks running an unrelated operation
+  // that does not even render it, and the error names a hidden field.
+  if (subBlockConfig.mode === 'trigger' || subBlockConfig.mode === 'trigger-advanced') {
     if (!isTriggerContext && !isTriggerCategory) return false
   } else if (isTriggerContext && !isTriggerCategory) {
     return false
@@ -316,6 +325,16 @@ export class Serializer {
         color: blockConfig.bgColor,
       },
       enabled: block.enabled,
+    }
+
+    const privateInputIds = new Set<string>()
+    for (const subBlock of blockConfig.subBlocks) {
+      if (!subBlock.hideFromCopilot) continue
+      privateInputIds.add(subBlock.id)
+      if (subBlock.canonicalParamId) privateInputIds.add(subBlock.canonicalParamId)
+    }
+    if (privateInputIds.size > 0) {
+      serialized.privateInputIds = [...privateInputIds]
     }
 
     if (block.data?.canonicalModes) {
@@ -631,13 +650,13 @@ export function collectBlockFieldIssues(
   // Get the tool configuration to check parameter visibility
   const toolAccess = blockConfig.tools?.access
   const currentToolId = toolAccess?.length > 0 ? selectToolId(blockConfig, params) : null
-  const currentTool = currentToolId ? getTool(currentToolId) : null
+  const currentToolParams = currentToolId ? getToolParams(currentToolId) : undefined
 
   // Validate tool parameters (for blocks with tools).
   // Lookup contract: a tool param's value lives under its own paramId in `params`.
   // Block subBlocks align via either `id === paramId` or `canonicalParamId === paramId`.
-  if (currentTool) {
-    Object.entries(currentTool.params || {}).forEach(([paramId, paramConfig]: [string, any]) => {
+  if (currentToolParams) {
+    Object.entries(currentToolParams).forEach(([paramId, paramConfig]: [string, any]) => {
       if (paramConfig.required && paramConfig.visibility === 'user-only') {
         const matchingConfigs =
           blockConfig.subBlocks?.filter(
@@ -693,7 +712,7 @@ export function collectBlockFieldIssues(
   }
 
   // Validate required subBlocks not covered by tool params (e.g., blocks with empty tools.access)
-  const validatedByTool = new Set(currentTool ? Object.keys(currentTool.params || {}) : [])
+  const validatedByTool = new Set(currentToolParams ? Object.keys(currentToolParams) : [])
 
   blockConfig.subBlocks?.forEach((subBlockConfig: SubBlockConfig) => {
     if (validatedByTool.has(subBlockConfig.id)) {

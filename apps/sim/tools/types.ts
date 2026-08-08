@@ -1,6 +1,8 @@
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
+import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
   | 'openai'
@@ -93,6 +95,13 @@ export interface ToolResponse {
   success: boolean // Whether the tool execution was successful
   output: Record<string, any> // The structured output from the tool
   error?: string // Error message if success is false
+  /**
+   * HTTP status owned by SIM itself (e.g. hosted-key rate limiting or
+   * exhaustion), carried so it survives the throw → `ToolResponse` flattening
+   * and can reach the API caller. Deliberately NOT the upstream provider's
+   * status — a provider's 404 must never become the workflow API's status.
+   */
+  statusCode?: number
   resources?: MothershipResource[] // Resources to auto-open/show in UI
   largeValueKeys?: string[]
   fileKeys?: string[]
@@ -169,7 +178,70 @@ export interface ToolConfig<P = any, R = any> {
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined
+    /** Defines the exact request fields that may become model-visible. */
+    modelInput?:
+      | {
+          /**
+           * Projects selected top-level params to canonical placeholders before formatting the
+           * request. The selector must return a plain partial params record.
+           */
+          mode: 'project'
+          select: (params: P) => Record<string, unknown>
+          /**
+           * Rebuilds selected top-level params when only nested leaves are model-visible. The
+           * first argument is a structured clone containing the original selected params. The
+           * returned patch must contain exactly the selected keys, and selecting from the patched
+           * params must reproduce the projected selection exactly.
+           */
+          applyProjected?: (
+            selectedParams: Partial<P>,
+            projectedSelection: Record<string, unknown>
+          ) => Record<string, unknown>
+          /**
+           * Selects opaque model-bound values that must not be rewritten, such as file bytes or
+           * signed URLs. Provenance is delivered privately to an authenticated internal route,
+           * which owns the final allow/reject decision.
+           */
+          privateInputPaths?: (params: P) => readonly ResolvedSecretInputPath[]
+        }
+      | {
+          /**
+           * Sends encrypted provenance out-of-band to an authenticated internal route that owns
+           * the corresponding projection boundary.
+           */
+          mode: 'private-provenance'
+          inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
+        }
+    /**
+     * Selects model-bound values whose byte representation cannot be rewritten safely. The
+     * executor rejects the call before request formatting when committed provenance is incomplete
+     * or shows that the exact selection contains a resolved secret. Safe values are left unchanged.
+     */
+    opaqueModelInput?: {
+      mode: 'reject-resolved-secrets'
+      inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
+    }
+    /**
+     * Transports encrypted secret provenance across an authenticated internal
+     * tool boundary without rewriting the selected value.
+     */
+    secretProvenance?: {
+      /** Selects the exact value whose provenance is persisted by the route. */
+      request?: (params: P) => PrivateSecretProvenanceSelection[]
+      /** Imports provenance returned for the route's functional response. */
+      response?: {
+        /** Whether a valid incomplete report fails this call or taints later model egress. */
+        incomplete: 'reject' | 'propagate'
+      }
+    }
     retry?: ToolRetryConfig
+    /**
+     * Drop the `Authorization` header when following a redirect. Set this on any
+     * tool whose endpoint redirects to a different origin carrying its own
+     * signed URL — GitHub's Actions log and artifact downloads are the canonical
+     * case — so the API credential is never sent to the storage host.
+     */
+    stripAuthOnRedirect?: boolean
   }
 
   // Post-processing (optional) - allows additional processing after the initial request
@@ -268,7 +340,8 @@ interface ToolEnrichmentConfig {
       properties: Record<string, unknown>
       required: string[]
     },
-    originalDescription: string
+    originalDescription: string,
+    context: WorkflowToolExecutionContext
   ) => Promise<{
     description: string
     parameters: {

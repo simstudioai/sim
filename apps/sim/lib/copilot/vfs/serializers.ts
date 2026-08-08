@@ -1,20 +1,30 @@
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
+import type { Sandbox } from '@/lib/api/contracts/sandboxes'
 import { getCopilotToolDescription } from '@/lib/copilot/tools/descriptions'
 import { isHosted } from '@/lib/core/config/env-flags'
 import {
   getServiceAccountConnectNoun,
   getServiceAccountGatingBlockType,
 } from '@/lib/credentials/service-account-provider-ids'
+import {
+  MAX_SANDBOX_CLI_TOOLS,
+  SANDBOX_CLI_TOOLS,
+  SANDBOX_SELECTABLE_CLI_TOOL_IDS,
+} from '@/lib/execution/remote-sandbox/cli-tools'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { getServiceAccountProviderForProviderId } from '@/lib/oauth/utils'
-import { buildNameById, filterIdsToNames, sortIdsToNames } from '@/lib/table/column-keys'
+import { buildNameById, predicateIdsToNames, sortSpecIdsToNames } from '@/lib/table/column-keys'
 import type { TableSchema, TableViewConfig } from '@/lib/table/types'
 import { isSubBlockHidden } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
 import { isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import { isHiddenUnder } from '@/blocks/visibility/context'
-import { DYNAMIC_MODEL_PROVIDERS, PROVIDER_DEFINITIONS } from '@/providers/models'
+import {
+  DYNAMIC_MODEL_PROVIDERS,
+  PROVIDER_DEFINITIONS,
+  SIM_AUTO_MODEL_ID,
+} from '@/providers/models'
 import type { ToolConfig, ToolHostingCondition } from '@/tools/types'
 
 /** The service-account alternative to OAuth for a service, when it offers one. */
@@ -51,11 +61,13 @@ export type VfsToolAuth =
  * per-tool `auth.serviceAccount` field and the `oauth-integrations.json`
  * roll-up, so the two never disagree. Returns `undefined` when the service has
  * no service-account flow, or its flow is gated by a preview block (a custom
- * Slack bot needs slack_v2) — GA-only discovery, so the agent never proactively
- * offers a preview flow, matching the per-viewer gate the renderer applies.
+ * Slack bot needs slack_v2) that is not the visible owner being serialized.
+ * This keeps the default projection GA-only while allowing a revealed preview
+ * block's own schema to describe the credential flow it enables.
  */
 export function describeServiceAccountForOAuthProvider(
-  oauthProvider: string
+  oauthProvider: string,
+  ownerBlockType?: string
 ): VfsServiceAccountAuth | undefined {
   const serviceAccountProviderId = getServiceAccountProviderForProviderId(oauthProvider)
   if (!serviceAccountProviderId) return undefined
@@ -67,7 +79,9 @@ export function describeServiceAccountForOAuthProvider(
     // static preview check — so once the block GAs and drops `preview`, it is
     // no longer hidden and discovery includes it again, matching the renderer.
     // Hand-rolling `?.preview ?? true` would keep it omitted forever after GA.
-    if (!gatingBlock || isHiddenUnder(null, gatingBlock)) return undefined
+    if (!gatingBlock || (ownerBlockType !== gatingBlockType && isHiddenUnder(null, gatingBlock))) {
+      return undefined
+    }
   }
   return { connectNoun: getServiceAccountConnectNoun(serviceAccountProviderId) }
 }
@@ -75,15 +89,33 @@ export function describeServiceAccountForOAuthProvider(
 export interface ComponentSerializationOptions {
   hosted?: boolean
   toolConfigs?: ReadonlyMap<string, ToolConfig>
+  ownerBlockType?: string
+  /** Product-gated inputs removed from both subBlocks and the input schema. */
+  hiddenInputIds?: ReadonlySet<string>
+  /** Product-gated inputs that remain discoverable but cannot be mutated by this viewer. */
+  restrictedInputs?: ReadonlyMap<
+    string,
+    {
+      requiredEntitlement: string
+      reason: string
+    }
+  >
 }
 
 /**
  * Project runtime tool authentication into a stable, machine-readable VFS contract.
  * ToolConfig.hosting remains the source of truth for every hosted-key integration.
  */
-export function serializeToolAuth(tool: ToolConfig, hosted = isHosted): VfsToolAuth | undefined {
+export function serializeToolAuth(
+  tool: ToolConfig,
+  hosted = isHosted,
+  ownerBlockType?: string
+): VfsToolAuth | undefined {
   if (tool.oauth) {
-    const serviceAccount = describeServiceAccountForOAuthProvider(tool.oauth.provider)
+    const serviceAccount = describeServiceAccountForOAuthProvider(
+      tool.oauth.provider,
+      ownerBlockType
+    )
     return {
       type: 'oauth',
       required: tool.oauth.required,
@@ -491,8 +523,8 @@ export function serializeTableViews(
     views.map((view) => ({
       id: view.id,
       name: view.name,
-      filter: view.config.filter ? filterIdsToNames(view.config.filter, nameById) : null,
-      sort: view.config.sort ? sortIdsToNames(view.config.sort, nameById) : null,
+      filter: view.config.filter ? predicateIdsToNames(view.config.filter, nameById) : null,
+      order: view.config.sort ? sortSpecIdsToNames(view.config.sort, nameById) : null,
       hiddenColumns: (view.config.hiddenColumns ?? []).map((id) => nameById.get(id) ?? id),
     })),
     null,
@@ -524,6 +556,17 @@ function getStaticModelOptionsForVFS(): StaticModelOption[] {
   const dynamicProviders = new Set<string>(DYNAMIC_MODEL_PROVIDERS)
 
   const models: StaticModelOption[] = []
+
+  // Hosted-only automatic model. Deliberately not `recommended` and given no
+  // prompt guidance (limited-visibility release): the build agent can write it
+  // when a user explicitly asks for the auto model, but is never steered to it.
+  if (isHosted) {
+    models.push({
+      id: SIM_AUTO_MODEL_ID,
+      provider: 'sim',
+      hosted: true,
+    })
+  }
 
   for (const [providerId, def] of Object.entries(PROVIDER_DEFINITIONS)) {
     if (dynamicProviders.has(providerId)) continue
@@ -582,19 +625,36 @@ export function serializeBlockSchema(
   // treat `hidden` as hidden for them so those never reach the agent's schema.
   const customBlock = isCustomBlockType(block.type)
   const hosted = options?.hosted ?? isHosted
+  const explicitlyHidden = options?.hiddenInputIds ?? new Set<string>()
   const visibleSubBlocks = block.subBlocks.filter(
-    (sb) => !isSubBlockHidden(sb, { hosted }) && !(customBlock && sb.hidden)
+    (sb) =>
+      !explicitlyHidden.has(sb.id) &&
+      !sb.hideFromCopilot &&
+      !isSubBlockHidden(sb, { hosted }) &&
+      !(customBlock && sb.hidden)
   )
   const visibleIds = new Set(visibleSubBlocks.map((sb) => sb.id))
   const hiddenIds = new Set(
     block.subBlocks
-      .filter((sb) => isSubBlockHidden(sb, { hosted }) || (customBlock && sb.hidden))
+      .filter(
+        (sb) =>
+          explicitlyHidden.has(sb.id) ||
+          sb.hideFromCopilot ||
+          isSubBlockHidden(sb, { hosted }) ||
+          (customBlock && sb.hidden)
+      )
       .map((sb) => sb.id)
       .filter((id) => !visibleIds.has(id))
   )
 
   const subBlocks = visibleSubBlocks.map((sb) => {
     const serialized = serializeSubBlock(sb)
+    const restriction = options?.restrictedInputs?.get(sb.id)
+    if (restriction) {
+      serialized.readOnly = true
+      serialized.requiredEntitlement = restriction.requiredEntitlement
+      serialized.restrictionReason = restriction.reason
+    }
 
     if (sb.id === 'model' && sb.type === 'combobox' && typeof sb.options === 'function') {
       serialized.options = getStaticModelOptionsForVFS()
@@ -608,14 +668,32 @@ export function serializeBlockSchema(
   for (const toolId of block.tools.access) {
     const tool = options?.toolConfigs?.get(toolId)
     if (!tool) continue
-    const auth = serializeToolAuth(tool, hosted)
+    const auth = serializeToolAuth(tool, hosted, block.type)
     if (auth) toolAuth[toolId] = auth
   }
 
-  const inputs =
+  const visibleInputs =
     block.inputs && hiddenIds.size > 0
       ? Object.fromEntries(Object.entries(block.inputs).filter(([key]) => !hiddenIds.has(key)))
       : block.inputs
+  const inputs = visibleInputs
+    ? Object.fromEntries(
+        Object.entries(visibleInputs).map(([key, input]) => {
+          const restriction = options?.restrictedInputs?.get(key)
+          return restriction
+            ? [
+                key,
+                {
+                  ...input,
+                  readOnly: true,
+                  requiredEntitlement: restriction.requiredEntitlement,
+                  restrictionReason: restriction.reason,
+                },
+              ]
+            : [key, input]
+        })
+      )
+    : visibleInputs
 
   return JSON.stringify(
     {
@@ -719,7 +797,6 @@ interface ApiKeyIntegrationTool {
   config: ToolConfig
   service: string
   operation: string
-  preview?: boolean
 }
 
 /**
@@ -727,7 +804,7 @@ interface ApiKeyIntegrationTool {
  * ToolConfig.hosting is the only provider registry used to build this index.
  */
 export function serializeApiKeyIntegrations(
-  tools: ApiKeyIntegrationTool[],
+  tools: readonly ApiKeyIntegrationTool[],
   hosted = isHosted
 ): string {
   const services = new Map<
@@ -740,8 +817,8 @@ export function serializeApiKeyIntegrations(
     }
   >()
 
-  for (const { config: tool, service, operation, preview } of tools) {
-    if (preview || !tool.hosting?.apiKeyParam) continue
+  for (const { config: tool, service, operation } of tools) {
+    if (!tool.hosting?.apiKeyParam) continue
 
     const metadata = services.get(service) ?? {
       params: [],
@@ -829,14 +906,14 @@ export function serializeDeployments(data: DeploymentData): string {
     result.needsRedeployment = data.needsRedeployment
   }
 
-  if (data.isDeployed) {
-    result.api = {
-      isDeployed: true,
-      deployedAt: data.deployedAt?.toISOString(),
-      apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
-      ...(data.api ? { version: data.api.version } : {}),
-    }
-  }
+  result.api = data.isDeployed
+    ? {
+        isDeployed: true,
+        deployedAt: data.deployedAt?.toISOString(),
+        apiEndpoint: `/api/workflows/${data.workflowId}/execute`,
+        ...(data.api ? { version: data.api.version } : {}),
+      }
+    : { isDeployed: false }
 
   if (data.chat) {
     result.chat = {
@@ -962,15 +1039,74 @@ export function serializeSkill(s: {
   )
 }
 
+/** Serialize a Sim sandbox for VFS agent/sandboxes/{name}.json. */
+export function serializeSandbox(sandbox: Sandbox, strategy: 'prebuilt' | 'runtime'): string {
+  return JSON.stringify(
+    {
+      id: sandbox.id,
+      name: sandbox.name,
+      language: sandbox.language,
+      dependencies: sandbox.dependencies,
+      systemPackages: sandbox.systemPackages,
+      cliTools: sandbox.cliTools,
+      strategy,
+      buildStatus: sandbox.buildStatus,
+      errorCode: sandbox.errorCode,
+      errorMessage: sandbox.errorMessage,
+      errorDetail: sandbox.errorDetail,
+      builtAt: sandbox.builtAt,
+      createdAt: sandbox.createdAt,
+      updatedAt: sandbox.updatedAt,
+    },
+    null,
+    2
+  )
+}
+
+/**
+ * Generate the authoritative Sim-sandbox capability reference exposed in VFS.
+ * The managed-CLI rows come directly from the same client-safe registry used by
+ * validation and the settings UI, so adding or upgrading a CLI updates agent
+ * discovery without a second hand-maintained list.
+ */
+export function serializeSandboxCatalog(strategy: 'prebuilt' | 'runtime'): string {
+  const rows = SANDBOX_SELECTABLE_CLI_TOOL_IDS.map((id) => {
+    const tool = SANDBOX_CLI_TOOLS[id]
+    const aliases = tool.searchTerms?.join(', ') || '(none)'
+    return `| \`${tool.id}\` | ${tool.label} | ${tool.category} | ${tool.description} | ${aliases} |`
+  })
+
+  return [
+    '# Sim Sandbox Capabilities',
+    '',
+    'This file is generated from the active Sim sandbox registry. Treat it as the authoritative catalog; do not guess or reuse managed CLI ids from memory.',
+    '',
+    `- Active dependency strategy: \`${strategy}\``,
+    '- Dependency languages: `javascript` installs npm packages; `python` installs PyPI packages. Shell execution may select either language.',
+    '- `systemPackages` accepts Debian package coordinates in `package[:architecture][=version]` form.',
+    `- \`cliTools\` accepts at most ${MAX_SANDBOX_CLI_TOOLS} exact pinned ids from the catalog below.`,
+    '- A Sim sandbox may combine language dependencies, Debian system packages, and managed CLIs.',
+    '',
+    '## Managed CLI catalog',
+    '',
+    '| Exact id | Name | Category | What it provides | Search terms / executables |',
+    '|----------|------|----------|------------------|----------------------------|',
+    ...rows,
+    '',
+  ].join('\n')
+}
+
 /**
  * Serialize an integration/tool schema for VFS components/integrations/{service}/{operation}.json
  */
 export function serializeIntegrationSchema(
   tool: ToolConfig,
-  options?: Pick<ComponentSerializationOptions, 'hosted'>
+  options?: Pick<ComponentSerializationOptions, 'hosted' | 'ownerBlockType'> & {
+    oauthAvailable?: boolean
+  }
 ): string {
   const hosted = options?.hosted ?? isHosted
-  const auth = serializeToolAuth(tool, hosted)
+  const auth = serializeToolAuth(tool, hosted, options?.ownerBlockType)
   const hostedApiKeyParam =
     auth?.type === 'api_key' && auth.mode === 'hosted_or_byok' ? auth.param : null
 
@@ -984,9 +1120,10 @@ export function serializeIntegrationSchema(
       description: getCopilotToolDescription(tool, { isHosted: hosted }),
       version: tool.version,
       auth,
-      oauth: tool.oauth
-        ? { required: tool.oauth.required, provider: tool.oauth.provider }
-        : undefined,
+      oauth:
+        tool.oauth && options?.oauthAvailable !== false
+          ? { required: tool.oauth.required, provider: tool.oauth.provider }
+          : undefined,
       params: tool.params
         ? {
             ...Object.fromEntries(
@@ -1108,101 +1245,4 @@ export function serializeTriggerOverview(
 
   lines.push('')
   return lines.join('\n')
-}
-
-/**
- * Serialize job metadata for VFS jobs/{id}/meta.json
- */
-export function serializeJobMeta(job: {
-  id: string
-  title: string | null
-  prompt: string
-  cronExpression: string | null
-  timezone: string | null
-  status: string
-  lifecycle: string
-  successCondition: string | null
-  maxRuns: number | null
-  runCount: number
-  nextRunAt: Date | null
-  lastRanAt: Date | null
-  sourceTaskName: string | null
-  sourceChatId: string | null
-  createdAt: Date
-}): string {
-  return JSON.stringify(
-    {
-      id: job.id,
-      title: job.title || undefined,
-      prompt: job.prompt,
-      cronExpression: job.cronExpression || undefined,
-      timezone: job.timezone || 'UTC',
-      status: job.status,
-      lifecycle: job.lifecycle,
-      successCondition: job.successCondition || undefined,
-      maxRuns: job.maxRuns ?? undefined,
-      runCount: job.runCount,
-      nextRunAt: job.nextRunAt?.toISOString(),
-      lastRanAt: job.lastRanAt?.toISOString(),
-      sourceTaskName: job.sourceTaskName || undefined,
-      sourceChatId: job.sourceChatId || undefined,
-      createdAt: job.createdAt.toISOString(),
-    },
-    null,
-    2
-  )
-}
-
-export function serializeTaskSession(task: {
-  id: string
-  title: string
-  messageCount: number
-  createdAt: Date
-  updatedAt: Date
-}): string {
-  return [
-    `# ${task.title}`,
-    '',
-    `- **Chat ID:** ${task.id}`,
-    `- **Created:** ${task.createdAt.toISOString()}`,
-    `- **Updated:** ${task.updatedAt.toISOString()}`,
-    `- **Messages:** ${task.messageCount}`,
-    '',
-  ].join('\n')
-}
-
-export function serializeTaskChat(rawMessages: unknown[]): string {
-  const filtered: { role: string; content: string }[] = []
-
-  for (const msg of rawMessages) {
-    if (!msg || typeof msg !== 'object') continue
-    const m = msg as Record<string, unknown>
-    const role = m.role as string | undefined
-    if (role !== 'user' && role !== 'assistant') continue
-
-    let content = ''
-    if (role === 'assistant' && Array.isArray(m.contentBlocks)) {
-      const textParts: string[] = []
-      for (const block of m.contentBlocks) {
-        if (
-          block &&
-          typeof block === 'object' &&
-          (block as any).type === 'text' &&
-          (block as any).content
-        ) {
-          textParts.push((block as any).content)
-        }
-      }
-      content = textParts.join('')
-    }
-
-    if (!content && typeof m.content === 'string') {
-      content = m.content
-    }
-
-    if (!content) continue
-    filtered.push({ role, content })
-  }
-
-  return JSON.stringify(filtered, null, 2)
 }

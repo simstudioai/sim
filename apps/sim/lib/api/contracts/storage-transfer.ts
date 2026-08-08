@@ -62,6 +62,14 @@ export const abortMultipartResponseSchema = z.object({
   success: z.literal(true),
 })
 
+export const verifyPresignedUploadBodySchema = z.object({
+  uploadToken: z.string().min(1, 'Upload token is required'),
+})
+
+export const verifyPresignedUploadResponseSchema = z.object({
+  uploaded: z.boolean(),
+})
+
 export const multipartUploadResponseSchema = z.union([
   initiateMultipartResponseSchema,
   getMultipartPartUrlsResponseSchema,
@@ -338,8 +346,35 @@ export const validUploadTypes = [
 
 export const uploadTypeSchema = z.enum(validUploadTypes)
 
+/**
+ * Storage contexts a client may mint a single presigned upload URL for. Each one
+ * has a per-context authorization predicate in `/api/files/presigned`; a context
+ * that cannot be authorized must not be listed here. `chat` is deliberately
+ * absent — it has no owning entity to authorize against and no client that mints
+ * one (chat assets go through the server-proxied `/api/files/upload`).
+ */
+export const presignedUploadTypes = [
+  'knowledge-base',
+  'copilot',
+  'profile-pictures',
+  'mothership',
+  'workspace-logos',
+  'execution',
+] as const
+
+export const presignedUploadTypeSchema = z.enum(presignedUploadTypes)
+
+/**
+ * Storage contexts `/api/files/presigned/batch` serves. Batching exists only for
+ * knowledge-base ingest; no other context has a batch client, and the batch
+ * endpoint carries no authorization predicate for one.
+ */
+export const batchPresignedUploadTypes = ['knowledge-base'] as const
+
+export const batchPresignedUploadTypeSchema = z.enum(batchPresignedUploadTypes)
+
 export const presignedUploadQuerySchema = z.object({
-  type: uploadTypeSchema,
+  type: presignedUploadTypeSchema,
 })
 
 export const presignedUrlBodySchema = z
@@ -466,6 +501,8 @@ export const fileServeParamsSchema = z.object({
 
 export const fileServeQuerySchema = z.object({
   raw: z.string().nullish(),
+  /** `1` => rendering, not downloading — a HEIC may be substituted with a JPEG derivative. */
+  preview: z.string().nullish(),
   /** Content version (the file record's `updatedAt`). Present => the URL is content-immutable and may be cached indefinitely by the browser. */
   v: z.string().nullish(),
 })
@@ -721,6 +758,13 @@ export const abortMultipartUploadContract = defineRouteContract({
   path: '/api/files/multipart',
   body: tokenBoundMultipartBodySchema,
   response: { mode: 'json', schema: abortMultipartResponseSchema },
+})
+
+export const verifyPresignedUploadContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/files/presigned/verify',
+  body: verifyPresignedUploadBodySchema,
+  response: { mode: 'json', schema: verifyPresignedUploadResponseSchema },
 })
 
 export const fileServeContract = defineRouteContract({

@@ -28,9 +28,11 @@ import {
   rowDataNameToId,
   sortNamesToIds,
 } from '@/lib/table/column-keys'
+import { TableQueryValidationError } from '@/lib/table/errors'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { queryRows } from '@/lib/table/rows/service'
 import { resolveFilterSelectValues } from '@/lib/table/select-values'
-import { TableQueryValidationError } from '@/lib/table/sql'
 import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
 import {
   checkRateLimit,
@@ -85,10 +87,12 @@ async function handleBatchInsert(
         rows,
         workspaceId: validated.workspaceId,
         userId: actorUserId,
+        secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
       },
       table,
       requestId
     )
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,
@@ -190,6 +194,10 @@ export const GET = withRouteHandler(async (request: NextRequest, context: TableR
         totalCount: result.totalCount,
         limit: result.limit,
         offset: result.offset,
+        // Non-null when more rows exist; a page may return fewer than `limit`
+        // rows (byte budget) with more remaining, so page fullness is not a
+        // termination signal — external pagers should stop on null.
+        nextCursor: result.nextCursor,
       },
     })
   } catch (error) {
@@ -274,10 +282,12 @@ export const POST = withRouteHandler(
           data: rowData,
           workspaceId: validated.workspaceId,
           userId: actorUserId,
+          secretProvenance: createExactEmptyTableRowSecretProvenance(rowData),
         },
         table,
         requestId
       )
+      signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,
@@ -360,9 +370,11 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: TableR
         data: patchData,
         limit: validated.limit,
         actorUserId,
+        secretProvenance: createExactEmptyTableRowSecretProvenance(patchData),
       },
       requestId
     )
+    if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
     if (result.affectedCount === 0) {
       return NextResponse.json({
@@ -435,6 +447,7 @@ export const DELETE = withRouteHandler(
           { tableId, rowIds: validated.rowIds, workspaceId: validated.workspaceId },
           requestId
         )
+        if (result.deletedCount > 0) signalTableRowsChanged(tableId)
 
         return NextResponse.json({
           success: true,
@@ -463,6 +476,7 @@ export const DELETE = withRouteHandler(
         },
         requestId
       )
+      if (result.affectedCount > 0) signalTableRowsChanged(tableId)
 
       return NextResponse.json({
         success: true,

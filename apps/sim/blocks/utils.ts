@@ -1,4 +1,5 @@
 import { toError } from '@sim/utils/errors'
+import { SimAutoIcon } from '@/components/icons'
 import {
   isAzureConfigured,
   isCohereConfigured,
@@ -6,6 +7,7 @@ import {
   isOllamaConfigured,
 } from '@/lib/core/config/env-flags'
 import { getScopesForService } from '@/lib/oauth/utils'
+import { containsReference } from '@/lib/workflows/sanitization/references'
 import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import type { BlockOutput, OutputFieldDefinition, SubBlockConfig } from '@/blocks/types'
 import {
@@ -14,7 +16,9 @@ import {
   getModelSunsetStatus,
   getProviderIcon,
   getProviderModels,
+  isAutoModel,
   orderModelIdsByReleaseDate,
+  SIM_AUTO_MODEL_ID,
 } from '@/providers/models'
 import { isPiSupportedModel } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
@@ -75,12 +79,21 @@ export function getModelOptions() {
     ])
   )
 
-  return allModels
+  const options = allModels
     .filter((model) => getModelSunsetStatus(model) !== 'deprecated')
     .map((model) => {
       const icon = getProviderIcon(model)
       return { label: model, id: model, ...(icon && { icon }) }
     })
+
+  // Hosted-only automatic model. Deliberately LAST in the list (limited
+  // visibility for the initial release): available to anyone who scrolls or
+  // searches for it, but never the first thing the dropdown offers.
+  if (isHosted) {
+    options.push({ label: 'Auto', id: SIM_AUTO_MODEL_ID, icon: SimAutoIcon })
+  }
+
+  return options
 }
 
 /**
@@ -183,6 +196,11 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   const normalizedModel = model.trim().toLowerCase()
   if (!normalizedModel) return false
 
+  // On hosted Sim the auto pseudo-model resolves server-side to a hosted pool
+  // model. On self-hosted it exists only via imported workflows and always
+  // falls back to the default Anthropic model, so the key field must show.
+  if (isAutoModel(normalizedModel)) return !isHosted
+
   if (isHosted) {
     const hostedModels = getHostedModels()
     if (hostedModels.some((m) => m.toLowerCase() === normalizedModel)) return false
@@ -216,6 +234,23 @@ function shouldRequireApiKeyForModel(model: string): boolean {
   }
 
   return true
+}
+
+/**
+ * Visibility condition for a model-tuning field that only some models accept, such as
+ * reasoning effort or verbosity. Gates on the capability list, but keeps the field visible
+ * when `model` itself holds a variable or block reference — the concrete model id is only
+ * known at execution time then, so matching a reference against a static list would hide
+ * the field for every workflow that binds its model dynamically.
+ */
+export function getModelCapabilityCondition(capableModels: string[]) {
+  return (values?: Record<string, unknown>) => {
+    const model = typeof values?.model === 'string' ? values.model : ''
+    if (containsReference(model)) {
+      return buildModelVisibilityCondition(model, true)
+    }
+    return { field: 'model', value: capableModels }
+  }
 }
 
 /**

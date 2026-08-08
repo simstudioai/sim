@@ -103,6 +103,14 @@ export const crawlTool: ToolConfig<TavilyCrawlParams, CrawlResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ instructions: params.instructions }),
+    },
+    opaqueModelInput: {
+      mode: 'reject-resolved-secrets',
+      inputPaths: (params) => (params.instructions ? [['url']] : []),
+    },
     url: 'https://api.tavily.com/crawl',
     method: 'POST',
     headers: (params) => ({

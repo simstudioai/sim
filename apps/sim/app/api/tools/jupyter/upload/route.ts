@@ -5,6 +5,7 @@ import { jupyterUploadContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import {
+  MAX_JSON_API_RESPONSE_BYTES,
   secureFetchWithPinnedIP,
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
@@ -118,6 +119,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }),
       allowHttp: true,
       maxRedirects: 0,
+      maxResponseBytes: MAX_JSON_API_RESPONSE_BYTES,
     })
 
     if (!response.ok) {

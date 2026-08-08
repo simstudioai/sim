@@ -9,6 +9,7 @@ const {
   mockUpdateColumnType,
   mockUpdateColumnOptions,
   mockResolveWorkspaceFileReference,
+  mockGetBoundWorkspaceFileSecretProvenance,
   mockDownloadWorkspaceFile,
   mockGetTableById,
   mockBatchInsertRows,
@@ -30,6 +31,7 @@ const {
   mockUpdateColumnType: vi.fn(),
   mockUpdateColumnOptions: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
+  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockDownloadWorkspaceFile: vi.fn(),
   mockGetTableById: vi.fn(),
   mockBatchInsertRows: vi.fn(),
@@ -98,6 +100,10 @@ vi.mock('@sim/utils/id', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
   fetchWorkspaceFileBuffer: mockDownloadWorkspaceFile,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 
 vi.mock('@/enrichments/registry', () => ({
@@ -171,6 +177,7 @@ import {
   normalizeSelectOptionsInput,
   userTableServerTool,
 } from '@/lib/copilot/tools/server/table/user-table'
+import { encodeCursor } from '@/lib/table/rows/cursor'
 
 function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
   return {
@@ -259,11 +266,13 @@ describe('userTableServerTool.import_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-1',
       name: 'people.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/people.csv',
       size: 100,
     })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetTableById.mockResolvedValue(buildTable())
     mockMarkTableJobRunning.mockResolvedValue(true)
@@ -311,6 +320,25 @@ describe('userTableServerTool.import_file', () => {
     expect(result.data?.insertedCount).toBe(2)
     expect(mockReplaceTableRows).toHaveBeenCalledTimes(1)
     expect(mockBatchInsertRows).not.toHaveBeenCalled()
+    const call = mockReplaceTableRows.mock.calls[0][0] as {
+      secretProvenance: Array<{ complete: boolean; columns: Record<string, unknown> }>
+    }
+    expect(call.secretProvenance).toEqual([
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+      {
+        complete: true,
+        columns: {
+          name: { version: 1, complete: true, entries: [] },
+          age: { version: 1, complete: true, entries: [] },
+        },
+      },
+    ])
   })
 
   it('uses the caller-provided mapping', async () => {
@@ -420,6 +448,7 @@ describe('userTableServerTool.import_file', () => {
 
   it('dispatches a background import for large CSV files', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -447,6 +476,24 @@ describe('userTableServerTool.import_file', () => {
       mode: 'replace',
       deleteSourceFile: false,
     })
+  })
+
+  it('rejects a workspace file with resolved-secret provenance before importing rows', async () => {
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
+      status: 'exact',
+      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+    })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'import_file', args: { tableId: 'tbl_1', fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/cannot be verified as free of resolved secrets/i)
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
   })
 
   it('points a chat-upload path at materialize_file instead of globbing files/', async () => {
@@ -505,11 +552,13 @@ describe('userTableServerTool.create_from_file', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'file-1',
       name: 'people.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/people.csv',
       size: 100,
     })
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
     mockDownloadWorkspaceFile.mockResolvedValue(Buffer.from('name,age\nAlice,30\nBob,40'))
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxRowsPerTable: 1000, maxTables: 3 })
     mockCreateTable.mockResolvedValue(buildTable({ id: 'tbl_new', name: 'people' }))
@@ -566,6 +615,7 @@ describe('userTableServerTool.create_from_file', () => {
 
   it('creates a placeholder table and dispatches a background import for large CSV files', async () => {
     mockResolveWorkspaceFileReference.mockResolvedValueOnce({
+      id: 'file-1',
       name: 'big.csv',
       type: 'text/csv',
       key: 'workspace/workspace-1/big.csv',
@@ -596,6 +646,20 @@ describe('userTableServerTool.create_from_file', () => {
       fileKey: 'workspace/workspace-1/big.csv',
       deleteSourceFile: false,
     })
+  })
+
+  it('rejects unknown workspace-file provenance before creating a table', async () => {
+    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({ status: 'unknown' })
+
+    const result = await userTableServerTool.execute(
+      { operation: 'create_from_file', args: { fileId: 'file-1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/cannot be verified as free of resolved secrets/i)
+    expect(mockDownloadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockCreateTable).not.toHaveBeenCalled()
   })
 })
 
@@ -813,7 +877,7 @@ describe('userTableServerTool.query_rows', () => {
     })
   })
 
-  it('clamps an over-large query limit to MAX_QUERY_LIMIT instead of rejecting', async () => {
+  it('passes an explicit limit through unchanged (no row cap)', async () => {
     const result = await userTableServerTool.execute(
       { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 100000 } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
@@ -821,20 +885,90 @@ describe('userTableServerTool.query_rows', () => {
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
-    expect(options.limit).toBe(1000)
+    expect(options.limit).toBe(100000)
   })
 
-  it('queries without execution metadata and passes limit/offset through', async () => {
+  it('omits the limit so queryRows returns every matching row', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, offset: 10 } },
+      { operation: 'query_rows', args: { tableId: 'tbl_1' } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
+    expect(options.limit).toBeUndefined()
+  })
+
+  it('normalizes a root condition before querying', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'r1' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockQueryRows.mock.calls[0][1].predicate).toEqual({
+      all: [{ field: 'name', op: 'eq', value: 'r1' }],
+    })
+  })
+
+  it('decodes an opaque cursor into after/offset and skips the count', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2, cursor } },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
     expect(result.success).toBe(true)
     const options = mockQueryRows.mock.calls[0][1] as Record<string, unknown>
     expect(options.withExecutions).toBe(false)
-    expect(options.offset).toBe(10)
-    expect(result.data?.nextCursor).toBeUndefined()
+    expect(options.after).toEqual({ orderKey: 'a9', id: 'row_9' })
+    // A cursor page never re-counts.
+    expect(options.includeTotal).toBe(false)
+  })
+
+  it('surfaces the opaque nextCursor (not an offset) in the "more available" message', async () => {
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [queryRow(1), queryRow(2)],
+      rowCount: 2,
+      totalCount: 10,
+      limit: 2,
+      offset: 0,
+      nextCursor: 'CURSOR_TOKEN_ABC',
+    })
+    const result = await userTableServerTool.execute(
+      { operation: 'query_rows', args: { tableId: 'tbl_1', limit: 2 } },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.message).toContain('more available')
+    expect(result.message).toContain('cursor=CURSOR_TOKEN_ABC')
+    expect(result.message).not.toContain('offset=')
+  })
+
+  it('rejects a keyset cursor combined with a custom sort', async () => {
+    const cursor = encodeCursor({
+      lastRow: { id: 'row_9', orderKey: 'a9' },
+      keysetValid: true,
+      nextOffset: 20,
+    })
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'query_rows',
+        args: { tableId: 'tbl_1', cursor, order: [{ field: 'name', direction: 'desc' }] },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.message).toMatch(/not valid for a sorted query/i)
+    expect(mockQueryRows).not.toHaveBeenCalled()
   })
 })
 
@@ -865,7 +999,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -886,7 +1024,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
 
   it('deletes inline when the unbounded match count is within the cap', async () => {
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -898,13 +1039,30 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     expect(mockReleaseJobClaim).toHaveBeenCalled()
   })
 
+  it('normalizes a root condition before deleting', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { field: 'name', op: 'eq', value: 'x' } },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockDeleteRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
+  })
+
   it('rejects an inline delete while another job holds the table slot', async () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
 
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -924,7 +1082,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     })
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
     await flushDetached()
@@ -959,7 +1120,10 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     mockMarkTableJobRunning.mockResolvedValueOnce(false)
 
     const result = await userTableServerTool.execute(
-      { operation: 'delete_rows_by_filter', args: { tableId: 'tbl_1', filter: { name: 'x' } } },
+      {
+        operation: 'delete_rows_by_filter',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] } },
+      },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
 
@@ -973,7 +1137,11 @@ describe('userTableServerTool.delete_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'delete_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1004,7 +1172,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 5000 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 5000,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1024,7 +1197,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1032,6 +1209,23 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     expect(result.data?.affectedCount).toBe(5)
     expect(mockUpdateRowsByFilter).toHaveBeenCalledTimes(1)
     expect(mockMarkTableJobRunning).not.toHaveBeenCalled()
+  })
+
+  it('normalizes a root condition before updating', async () => {
+    const result = await userTableServerTool.execute(
+      {
+        operation: 'update_rows_by_filter',
+        args: {
+          tableId: 'tbl_1',
+          filter: { field: 'name', op: 'eq', value: 'x' },
+          data: { age: 1 },
+        },
+      },
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+
+    expect(result.success).toBe(true)
+    expect(mockUpdateRowsByFilter.mock.calls[0][1].filter).toEqual({ $and: [{ name: 'x' }] })
   })
 
   it('dispatches a background update when the unbounded match count exceeds the cap', async () => {
@@ -1045,7 +1239,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1081,7 +1279,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { email: 'x' }, data: { email: 'y' } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'email', op: 'eq', value: 'x' }] },
+          data: { email: 'y' },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1103,7 +1305,11 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 } },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1117,7 +1323,12 @@ describe('userTableServerTool.update_rows_by_filter', () => {
     const result = await userTableServerTool.execute(
       {
         operation: 'update_rows_by_filter',
-        args: { tableId: 'tbl_1', filter: { name: 'x' }, data: { age: 1 }, limit: 100 },
+        args: {
+          tableId: 'tbl_1',
+          filter: { all: [{ field: 'name', op: 'eq', value: 'x' }] },
+          data: { age: 1 },
+          limit: 100,
+        },
       },
       { userId: 'user-1', workspaceId: 'workspace-1' }
     )
@@ -1219,12 +1430,15 @@ describe('view operations', () => {
     mockIsFeatureEnabled.mockResolvedValue(true)
   })
 
-  it('query_rows applies the view filter and sort, explicit args override', async () => {
+  it('query_rows applies the view predicate and order, explicit args override', async () => {
     mockListTableViews.mockResolvedValue([
       {
         id: 'view_1',
         name: 'Open items',
-        config: { filter: { col_status: { $eq: 'open' } }, sort: { col_owner: 'asc' } },
+        config: {
+          filter: { all: [{ field: 'col_status', op: 'eq', value: 'open' }] },
+          sort: [{ field: 'col_owner', direction: 'asc' }],
+        },
       },
     ])
     mockQueryRows.mockResolvedValue({ rows: [], totalCount: 0 })
@@ -1234,20 +1448,24 @@ describe('view operations', () => {
       ctx
     )
     expect(mockQueryRows.mock.calls[0][1]).toMatchObject({
-      filter: { col_status: { $eq: 'open' } },
+      predicate: { all: [{ field: 'col_status', op: 'eq', value: 'open' }] },
       sort: { col_owner: 'asc' },
     })
 
     await userTableServerTool.execute(
       {
         operation: 'query_rows',
-        args: { tableId: 'tbl_1', viewId: 'view_1', sort: { Owner: 'desc' } },
+        args: {
+          tableId: 'tbl_1',
+          viewId: 'view_1',
+          order: [{ field: 'Owner', direction: 'desc' }],
+        },
       },
       ctx
     )
-    // Explicit sort wins; the view still supplies the filter.
+    // Explicit order wins; the view still supplies the predicate.
     expect(mockQueryRows.mock.calls[1][1]).toMatchObject({
-      filter: { col_status: { $eq: 'open' } },
+      predicate: { all: [{ field: 'col_status', op: 'eq', value: 'open' }] },
       sort: { col_owner: 'desc' },
     })
   })
@@ -1275,7 +1493,7 @@ describe('view operations', () => {
         args: {
           tableId: 'tbl_1',
           viewName: 'Mine',
-          filter: { Owner: { $eq: 'me' } },
+          filter: { all: [{ field: 'Owner', op: 'eq', value: 'me' }] },
           hiddenColumns: ['Status'],
         },
       },
@@ -1285,12 +1503,12 @@ describe('view operations', () => {
     expect(result.success).toBe(true)
     // Stored id-keyed…
     expect(mockCreateTableView.mock.calls[0][0].config).toEqual({
-      filter: { col_owner: { $eq: 'me' } },
+      filter: { all: [{ field: 'col_owner', op: 'eq', value: 'me' }] },
       hiddenColumns: ['col_status'],
     })
     // …returned name-keyed.
     expect(result.data?.view).toMatchObject({
-      filter: { Owner: { $eq: 'me' } },
+      filter: { all: [{ field: 'Owner', op: 'eq', value: 'me' }] },
       hiddenColumns: ['Status'],
     })
   })
@@ -1312,7 +1530,7 @@ describe('view operations', () => {
     mockUpdateTableView.mockResolvedValueOnce({
       id: 'view_1',
       name: 'Open items',
-      config: { sort: { col_owner: 'asc' } },
+      config: { sort: [{ field: 'col_owner', direction: 'asc' }] },
     })
 
     const result = await userTableServerTool.execute(
@@ -1322,7 +1540,7 @@ describe('view operations', () => {
 
     expect(result.success).toBe(true)
     const call = mockUpdateTableView.mock.calls[0][0]
-    // Merge patch with an explicit null — sort/hiddenColumns untouched.
+    // Merge patch with an explicit null — order/hiddenColumns untouched.
     expect(call.configPatch).toEqual({ filter: null })
     expect(call.config).toBeUndefined()
   })
@@ -1352,7 +1570,7 @@ describe('view operations', () => {
         operation: 'show_view',
         args: {
           tableId: 'tbl_1',
-          filter: { Owner: { $eq: 'me' } },
+          filter: { all: [{ field: 'Owner', op: 'eq', value: 'me' }] },
           hiddenColumns: ['Status'],
         },
       },
@@ -1363,7 +1581,11 @@ describe('view operations', () => {
     expect(result.data).toMatchObject({
       tableId: 'tbl_1',
       title: 'People',
-      draft: { filter: { Owner: { $eq: 'me' } }, sort: null, hiddenColumns: ['Status'] },
+      draft: {
+        filter: { all: [{ field: 'Owner', op: 'eq', value: 'me' }] },
+        order: null,
+        hiddenColumns: ['Status'],
+      },
     })
     expect(mockCreateTableView).not.toHaveBeenCalled()
     expect(mockUpdateTableView).not.toHaveBeenCalled()
@@ -1375,7 +1597,7 @@ describe('view operations', () => {
       ctx
     )
     expect(result.success).toBe(true)
-    expect(result.data?.draft).toEqual({ filter: null, sort: null, hiddenColumns: [] })
+    expect(result.data?.draft).toEqual({ filter: null, order: null, hiddenColumns: [] })
   })
 
   it('show_view rejects an unknown hidden column', async () => {
@@ -1399,7 +1621,10 @@ describe('view operations', () => {
   it('show_view with a filter is flag-gated like the mutations', async () => {
     mockIsFeatureEnabled.mockResolvedValueOnce(false)
     const result = await userTableServerTool.execute(
-      { operation: 'show_view', args: { tableId: 'tbl_1', filter: { Owner: { $eq: 'me' } } } },
+      {
+        operation: 'show_view',
+        args: { tableId: 'tbl_1', filter: { all: [{ field: 'Owner', op: 'eq', value: 'me' }] } },
+      },
       ctx
     )
     expect(result.success).toBe(false)

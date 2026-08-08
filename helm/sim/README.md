@@ -219,6 +219,24 @@ Before installing in production, confirm each of the following:
 * **Secrets management** — provide secrets via External Secrets Operator (ESO) or pre-created Kubernetes Secrets. Never commit secrets to `values.yaml`.
 * **TLS / Ingress** — set the `cert-manager.io/cluster-issuer` annotation on the ingress and tune `proxy-body-size` / `proxy-read-timeout` for your workload. See commented examples in `values.yaml`.
 * **Network policy egress** — review `networkPolicy.egressExceptCidrs`. Defaults block cloud metadata endpoints (`169.254.169.254/32`, `169.254.170.2/32`); add your cluster's API server CIDR for stronger isolation. Custom egress rules go in `networkPolicy.egress` (a list).
+
+  **Every datastore you run outside the chart needs its own egress rule.** The default policy allows HTTPS (443) plus the bundled Postgres and Redis by pod selector — nothing else on a non-443 port. So a managed Postgres, a managed Redis, or any `REDIS_URL` you supply through a Secret is reachable only if you add a rule for it. This bites hardest when the URL comes from a Secret, because the chart cannot see the host and cannot generate the rule for you:
+
+  ```yaml
+  networkPolicy:
+    enabled: true
+    egress:
+      - to:
+          - ipBlock:
+              cidr: 10.0.0.0/16   # your VPC / managed-service subnet
+        ports:
+          - protocol: TCP
+            port: 6379           # managed Redis
+          - protocol: TCP
+            port: 5432           # managed Postgres
+  ```
+
+  If you would rather not maintain CIDR lists, `networkPolicy.allowExternalEgress: true` drops the port restriction entirely while still blocking the cloud metadata endpoints. It defaults to `false` — this chart is deliberately stricter than the common chart default of unrestricted egress.
 * **Network policy ingress** — `networkPolicy.ingressFrom` defaults to `[{}]` (an empty peer selector), which allows ingress traffic from **any pod in the cluster**, not just your ingress controller. This is a deliberate simple default, not a locked-down one. On a shared or multi-tenant cluster, scope it down, e.g. to the ingress-nginx namespace:
   ```yaml
   networkPolicy:
@@ -466,6 +484,18 @@ kubectl --namespace sim logs deploy/sim-app -c migrations
 ```
 
 ---
+
+## Upgrading to 1.5.0
+
+Two changes alter behavior on an existing release. Neither requires action, but read both.
+
+* **Free-tier plan limits are no longer preset.** `app.envDefaults` previously shipped `RATE_LIMIT_FREE_SYNC`, `RATE_LIMIT_FREE_ASYNC`, `EXECUTION_TIMEOUT_FREE`, `EXECUTION_TIMEOUT_ASYNC_FREE`, `FREE_TABLES_LIMIT: 3`, and `FREE_TABLE_ROWS_LIMIT: 1000`. With billing disabled the application treats these as **opt-in** — unset means unlimited — so presetting them imposed hosted-plan caps on self-hosted deployments and diverged from Docker Compose, which presets nothing. They are now commented out. **On upgrade, these limits stop being enforced.** To keep them, set the keys explicitly under `app.env`. An explicitly set value has always taken precedence and is unaffected.
+
+* **Redis is now bundled** (`redis.enabled: true`), matching the Docker Compose stack. Redis backs pub/sub and the Socket.IO adapter, and multi-replica deployments silently drop cross-pod events without it.
+
+  **An existing `REDIS_URL` always wins, wherever it comes from — no action needed on upgrade.** The bundled URL ships as a ConfigMap listed *before* the app Secret in `envFrom`. Kubernetes resolves duplicate keys by letting the last source win, so a `REDIS_URL` in your chart-managed Secret, a pre-created `existingSecret`, or one synced by External Secrets overrides the bundled value — the chart never has to read it. The bundled Redis simply fills the gap when nothing else provides a URL.
+
+  Set `app.env.REDIS_URL` to skip the bundled Deployment entirely (no unused pod), or `redis.enabled: false` to opt out.
 
 ## Upgrading to 1.2.0
 

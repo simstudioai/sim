@@ -60,6 +60,21 @@ export const contentTypeMap: Record<string, string> = {
   gif: 'image/gif',
   svg: 'image/svg+xml',
   webp: 'image/webp',
+  avif: 'image/avif',
+  bmp: 'image/bmp',
+  ico: 'image/x-icon',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+  wav: 'audio/wav',
+  ogg: 'audio/ogg',
+  flac: 'audio/flac',
+  aac: 'audio/aac',
+  opus: 'audio/opus',
+  mp4: 'video/mp4',
+  mov: 'video/quicktime',
+  avi: 'video/x-msvideo',
+  mkv: 'video/x-matroska',
+  webm: 'video/webm',
   zip: 'application/zip',
   googleFolder: 'application/vnd.google-apps.folder',
 }
@@ -159,6 +174,9 @@ const SAFE_INLINE_TYPES = new Set([
   'image/gif',
   'image/svg+xml',
   'image/webp',
+  'image/avif',
+  'image/bmp',
+  'image/x-icon',
   'application/pdf',
   'text/plain',
   'text/csv',
@@ -211,7 +229,10 @@ export function createFileResponse(file: FileResponse): NextResponse {
   const headers: Record<string, string> = {
     'Content-Type': contentType,
     'Content-Disposition': `${disposition}; ${encodeFilenameForHeader(file.filename)}`,
-    'Cache-Control': file.cacheControl || 'public, max-age=31536000',
+    // Default to PRIVATE: this response is served only after access verification, so it must never be
+    // stored by a shared cache/CDN and re-served cross-user. Genuinely public assets (avatars, OG images,
+    // workspace logos) pass an explicit `cacheControl` (see PUBLIC_ASSET_CACHE_CONTROL in the serve route).
+    'Cache-Control': file.cacheControl || 'private, no-cache',
     'X-Content-Type-Options': 'nosniff',
   }
 

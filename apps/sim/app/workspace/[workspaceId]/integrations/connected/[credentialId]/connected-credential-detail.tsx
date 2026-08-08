@@ -8,6 +8,7 @@ import {
   ChipInput,
   ChipLink,
   ChipTextarea,
+  cn,
   Send,
   toast,
 } from '@sim/emcn'
@@ -15,9 +16,9 @@ import { ArrowLeft } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useRouter } from 'next/navigation'
+import { SaveDiscardChips } from '@/components/settings/save-discard-actions'
 import { writeOAuthReturnContext } from '@/lib/credentials/client-state'
-import { INTEGRATIONS, resolveOAuthServiceForIntegration } from '@/lib/integrations'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { resolveCredentialDisplay } from '@/lib/integrations'
 import {
   AddPeopleModal,
   CredentialDetailHeading,
@@ -28,10 +29,15 @@ import {
   useCredentialDetailForm,
 } from '@/app/workspace/[workspaceId]/components/credential-detail'
 import {
+  RESOURCE_TILE_BASE,
+  RESOURCE_TILE_PLAIN,
+} from '@/app/workspace/[workspaceId]/components/resource-tile'
+import {
   ConnectServiceAccountModal,
   type ServiceAccountProviderId,
 } from '@/app/workspace/[workspaceId]/integrations/components/connect-service-account-modal'
 import { IntegrationTile } from '@/app/workspace/[workspaceId]/integrations/components/integrations-showcase'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import {
   useCreateCredentialDraft,
   useDeleteWorkspaceCredential,
@@ -97,27 +103,12 @@ export function ConnectedCredentialDetail({
     [oauthServiceNameByProviderId]
   )
 
-  const serviceConfig = useMemo(() => {
-    if (!credential?.providerId) return null
-    return getServiceConfigByProviderId(credential.providerId)
-  }, [credential])
-
-  /**
-   * Resolve the integration block type from the credential's OAuth service so
-   * the header tile can render with the same brand background used by the rows
-   * on the integrations list page. Several integrations can share one service
-   * (e.g. Jira and Jira Service Management); the one named after the service
-   * is preferred since it is the service's canonical integration.
-   */
-  const integrationBlockType = useMemo(() => {
-    if (!serviceConfig) return ''
-    const candidates = INTEGRATIONS.filter(
-      (i) => resolveOAuthServiceForIntegration(i)?.providerId === serviceConfig.providerId
-    )
-    const serviceName = serviceConfig.name.toLowerCase()
-    const canonical = candidates.find((i) => i.name.toLowerCase() === serviceName)
-    return (canonical ?? candidates[0])?.type ?? ''
-  }, [serviceConfig])
+  const display = useMemo(
+    () => (credential ? resolveCredentialDisplay(credential) : null),
+    [credential]
+  )
+  const serviceConfig = display?.service ?? null
+  const integrationBlockType = display?.blockType ?? ''
 
   const handleReconnectOAuth = async () => {
     if (!credential || credential.type !== 'oauth' || !credential.providerId || !workspaceId) return
@@ -206,7 +197,7 @@ export function ConnectedCredentialDetail({
                 : handleReconnectOAuth
             }
             disabled={connectOAuthService.isPending}
-            leftIcon={serviceConfig?.icon}
+            leftIcon={display?.icon ?? undefined}
           >
             Reconnect
           </Chip>
@@ -220,16 +211,19 @@ export function ConnectedCredentialDetail({
         >
           Disconnect
         </Chip>
-        <Chip onClick={form.save} disabled={!form.isDirty || form.isSaving}>
-          {form.isSaving ? 'Saving...' : 'Save'}
-        </Chip>
+        <SaveDiscardChips
+          dirty={form.isDirty}
+          saving={form.isSaving}
+          onSave={form.save}
+          onDiscard={form.discard}
+        />
       </>
     ) : null
 
   if (credentialsLoading && !credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Loading…</p>
+        <SettingsEmptyState variant='inline'>Loading…</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
@@ -237,34 +231,31 @@ export function ConnectedCredentialDetail({
   if (!credential) {
     return (
       <CredentialDetailLayout back={back} actions={actions}>
-        <p className='py-12 text-center text-[var(--text-muted)] text-sm'>Credential not found.</p>
+        <SettingsEmptyState variant='inline'>Credential not found.</SettingsEmptyState>
       </CredentialDetailLayout>
     )
   }
 
-  const serviceLabel =
-    serviceConfig?.name || resolveProviderLabel(credential.providerId) || 'Unknown service'
+  const headingTitle =
+    display?.detailTitle || resolveProviderLabel(credential.providerId) || 'Unknown service'
 
   return (
     <>
       <CredentialDetailLayout back={back} actions={actions}>
         <CredentialDetailHeading
           leading={
-            serviceConfig ? (
-              <IntegrationTile
-                blockType={integrationBlockType}
-                icon={serviceConfig.icon as ComponentType<{ className?: string }>}
-              />
+            display?.icon ? (
+              <IntegrationTile blockType={integrationBlockType} icon={display.icon} />
             ) : (
-              <div className='flex size-9 flex-shrink-0 items-center justify-center rounded-xl border border-[var(--border-1)] bg-[var(--bg)]'>
+              <div className={cn(RESOURCE_TILE_BASE, RESOURCE_TILE_PLAIN)}>
                 <span className='font-medium text-[var(--text-tertiary)] text-small'>
                   {resolveProviderLabel(credential.providerId).slice(0, 1) || '?'}
                 </span>
               </div>
             )
           }
-          title={serviceLabel}
-          subtitle={serviceConfig?.description || 'Connected service'}
+          title={headingTitle}
+          subtitle={display?.detailSubtitle ?? 'Connected service'}
         />
 
         <DetailSection title='Credential ID'>
@@ -335,8 +326,8 @@ export function ConnectedCredentialDetail({
           onOpenChange={setReconnectOpen}
           workspaceId={workspaceId}
           serviceAccountProviderId={credential.providerId as ServiceAccountProviderId}
-          serviceName={serviceConfig?.name || credential.displayName}
-          serviceIcon={serviceConfig?.icon as ComponentType<{ className?: string }>}
+          serviceName={display?.familyName || serviceConfig?.name || credential.displayName}
+          serviceIcon={display?.icon as ComponentType<{ className?: string }>}
           credentialId={credential.id}
           credentialDisplayName={credential.displayName}
           credentialDescription={credential.description ?? undefined}

@@ -15,6 +15,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
+import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -33,6 +34,7 @@ import {
   getConfiguredEmbeddingModel,
   recordSearchEmbeddingUsage,
 } from '@/lib/knowledge/embeddings'
+import { importKnowledgeSearchResultSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import {
   createKnowledgeBase,
   deleteKnowledgeBase,
@@ -50,7 +52,8 @@ import {
 } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { resolveWorkspaceFileReference } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { getQueryStrategy, handleVectorOnlySearch } from '@/app/api/knowledge/search/utils'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { executeKnowledgeSearch } from '@/app/api/knowledge/search/utils'
 import {
   checkDocumentWriteAccess,
   checkKnowledgeBaseAccess,
@@ -221,7 +224,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          if (!args.query) {
+          if (!args.query?.trim()) {
             return {
               success: false,
               message: 'Query text is required for query operation',
@@ -260,32 +263,45 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
+          const modelQuery = args.query
           const { embedding: queryEmbedding, isBYOK: queryEmbeddingIsBYOK } =
-            await generateSearchEmbedding(args.query, kb.embeddingModel, kb.workspaceId)
+            await generateSearchEmbedding(modelQuery, kb.embeddingModel, kb.workspaceId)
           const queryVector = JSON.stringify(queryEmbedding)
 
-          const strategy = getQueryStrategy(1, topK)
-
-          const results = await handleVectorOnlySearch({
+          const results = await executeKnowledgeSearch({
             knowledgeBaseIds: [args.knowledgeBaseId],
             topK,
+            searchMode: 'vector',
+            query: modelQuery,
             queryVector,
-            distanceThreshold: strategy.distanceThreshold,
           })
 
           await recordSearchEmbeddingUsage({
             userId: context.userId,
             workspaceId: kb.workspaceId,
             embeddingModel: kb.embeddingModel,
-            query: args.query,
+            query: modelQuery,
             isBYOK: queryEmbeddingIsBYOK,
             sourceReference: `copilot-kb-search:${args.knowledgeBaseId}`,
             billingAttribution,
           })
 
+          const resultRegistry = context.resolvedSecretTraceRegistry
+          if (!resultRegistry) {
+            throw new Error('Knowledge result secret provenance is unavailable')
+          }
+          const resultProvenance = await importKnowledgeSearchResultSecretProvenance({
+            registry: resultRegistry,
+            results,
+          })
+          if (!resultProvenance.imported) {
+            resultRegistry.markIncomplete()
+            throw new Error('Knowledge result secret provenance is unavailable')
+          }
+
           logger.info('Knowledge base queried via copilot', {
             knowledgeBaseId: args.knowledgeBaseId,
-            query: args.query.substring(0, 100),
+            queryLength: args.query.length,
             resultCount: results.length,
             userId: context.userId,
           })
@@ -350,12 +366,33 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
           const kbWorkspaceId: string = targetKb.workspaceId
           const billingAttribution = requireKnowledgeBillingAttribution(context, kbWorkspaceId)
+
+          // Gate the payer before accepting indexing work, same as the upload routes.
+          const usage = await checkAttributedUsageLimits(billingAttribution)
+          if (usage.isExceeded) {
+            return {
+              success: false,
+              message:
+                usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.',
+            }
+          }
+
           const added: Array<{ documentId: string; filename: string }> = []
           const failedFiles: string[] = []
 
           for (const fileRef of fileRefs) {
             const fileRecord = await resolveWorkspaceFileReference(kbWorkspaceId, fileRef)
             if (!fileRecord) {
+              failedFiles.push(fileRef)
+              continue
+            }
+
+            const fileProvenance = await getBoundWorkspaceFileSecretProvenance(kbWorkspaceId, {
+              fileId: fileRecord.id,
+              key: fileRecord.key,
+              context: 'workspace',
+            })
+            if (fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0) {
               failedFiles.push(fileRef)
               continue
             }
@@ -1100,7 +1137,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       const errorMessage = getErrorMessage(error, 'Unknown error occurred')
       logger.error('Error in knowledge_base tool', {
         operation,
-        error: errorMessage,
+        error: projectToolErrorMessageForCopilot(errorMessage, context.resolvedSecretTraceRegistry),
         userId: context.userId,
       })
 

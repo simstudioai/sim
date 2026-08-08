@@ -11,6 +11,10 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 export type WorkspaceFileWriteMode = 'create' | 'overwrite'
 
@@ -164,6 +168,14 @@ export async function writeWorkspaceFileByPath(args: {
   target: WorkspaceFileWriteTarget
   buffer: Buffer
   inferredMimeType: string
+  /**
+   * Forwarded to {@link updateWorkspaceFileContent} on an overwrite. Defaults to `true` (stream a
+   * markdown overwrite into any open collaborative editor). Pass `false` for a write whose content is
+   * only a placeholder — e.g. `create_file`'s empty shell, whose real content lands via a later write.
+   */
+  syncLiveDoc?: boolean
+  /** Private provenance for the exact bytes being written. */
+  secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<WorkspaceFileWriteResult> {
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
@@ -177,7 +189,14 @@ export async function writeWorkspaceFileByPath(args: {
       existing.id,
       args.userId,
       args.buffer,
-      contentType || existing.type
+      contentType || existing.type,
+      {
+        syncLiveDoc: args.syncLiveDoc,
+        secretProvenancePolicy: {
+          mode: 'replace',
+          provenance: args.secretProvenance ?? { status: 'exact', entries: [] },
+        },
+      }
     )
 
     return {
@@ -200,7 +219,10 @@ export async function writeWorkspaceFileByPath(args: {
     args.buffer,
     createTarget.fileName,
     contentType,
-    { folderId: createTarget.folderId }
+    {
+      folderId: createTarget.folderId,
+      secretProvenance: args.secretProvenance ?? EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE,
+    }
   )
 
   return {

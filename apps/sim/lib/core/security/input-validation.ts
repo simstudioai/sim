@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import { isLoopbackIp, isPrivateIp, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import * as ipaddr from 'ipaddr.js'
 import { isHosted } from '@/lib/core/config/env-flags'
+import { getBaseUrl } from '@/lib/core/utils/urls'
 
 const logger = createLogger('InputValidation')
 
@@ -856,6 +857,7 @@ export function validateAirtableId(
  * - ISO partitions: us-iso-east-1, us-iso-west-1, us-isob-east-1
  * - Mexico: mx-central-1
  * - EU Sovereign Cloud: eu-isoe-west-1
+ * - European Sovereign Cloud: eusc-de-east-1
  *
  * @param value - The AWS region to validate
  * @param paramName - Name of the parameter for error messages
@@ -881,7 +883,7 @@ export function validateAwsRegion(
   }
 
   const awsRegionPattern =
-    /^(eu-isoe|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
+    /^(eu-isoe|eusc-[a-z]{2}|us-isob|us-iso|us-gov|af|ap|ca|cn|eu|il|me|mx|sa|us)-(central|north|northeast|northwest|south|southeast|southwest|east|west)-\d{1,2}$/
 
   if (!awsRegionPattern.test(value)) {
     logger.warn('Invalid AWS region format', {
@@ -891,6 +893,84 @@ export function validateAwsRegion(
     return {
       isValid: false,
       error: `${paramName} must be a valid AWS region (e.g., us-east-1, eu-west-2, us-gov-west-1)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Google Cloud location (region) identifier.
+ *
+ * Google SDKs interpolate this value directly into the API hostname
+ * (`https://{location}-aiplatform.googleapis.com/`), so an unvalidated value
+ * containing `/`, `:`, `@`, or whitespace can terminate the authority component
+ * and relocate the request — along with any attached credential — to an
+ * attacker-controlled host.
+ *
+ * Accepts `global` plus the documented `{geography}-{direction}{index}` region
+ * form (e.g. us-central1, europe-west4, northamerica-northeast1, me-central2).
+ *
+ * @param value - The location to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudLocation(
+  value: string | null | undefined,
+  paramName = 'location'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const googleLocationPattern =
+    /^(global|(africa|asia|australia|europe|me|northamerica|southamerica|us)-(central|east|north|northeast|northwest|south|southeast|southwest|west)\d{1,2})$/
+
+  if (!googleLocationPattern.test(value)) {
+    logger.warn('Invalid Google Cloud location format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud location (e.g., us-central1, europe-west4, global)`,
+    }
+  }
+
+  return { isValid: true, sanitized: value }
+}
+
+/**
+ * Validates a Google Cloud project identifier.
+ *
+ * Accepts either a project ID (6-30 chars, starts with a lowercase letter,
+ * lowercase letters/digits/hyphens, no trailing hyphen) or a numeric project
+ * number. This value is interpolated into the API URL path, so anything that
+ * could introduce path or authority separators is rejected.
+ *
+ * @param value - The project to validate
+ * @param paramName - Name of the parameter for error messages
+ * @returns ValidationResult
+ */
+export function validateGoogleCloudProject(
+  value: string | null | undefined,
+  paramName = 'project'
+): ValidationResult {
+  if (value === null || value === undefined || value === '') {
+    return { isValid: false, error: `${paramName} is required` }
+  }
+
+  const projectIdPattern = /^[a-z][a-z0-9-]{4,28}[a-z0-9]$/
+  const projectNumberPattern = /^\d{1,20}$/
+
+  if (!projectIdPattern.test(value) && !projectNumberPattern.test(value)) {
+    logger.warn('Invalid Google Cloud project format', {
+      paramName,
+      value: value.substring(0, 50),
+    })
+    return {
+      isValid: false,
+      error: `${paramName} must be a valid Google Cloud project ID or project number`,
     }
   }
 
@@ -1156,6 +1236,31 @@ export function validatePaginationCursor(
 const CALLBACK_URL_SERVER_BASE = 'https://callback-url-validator.invalid'
 
 /**
+ * Origin a callback URL is resolved and compared against.
+ *
+ * The browser uses its own origin. Server-side there is no `window`, so it uses
+ * the deployment's configured origin — which is what the browser will compare
+ * against once it hydrates. Using a sentinel here instead made the server reject
+ * every absolute URL, including the same-origin ones this function documents as
+ * valid, so a component deriving a callback URL during render produced one
+ * destination in the SSR markup and a different one after hydration.
+ *
+ * Falls back to the sentinel when the app URL is unset or unparseable, which
+ * keeps the server fail-closed: every absolute URL is rejected, as before.
+ */
+function getCallbackValidationOrigin(): string {
+  if (typeof window !== 'undefined') {
+    return window.location.origin
+  }
+
+  try {
+    return new URL(getBaseUrl()).origin
+  } catch {
+    return CALLBACK_URL_SERVER_BASE
+  }
+}
+
+/**
  * Validates a callback URL to prevent open redirect attacks.
  *
  * Accepts:
@@ -1184,7 +1289,7 @@ export function validateCallbackUrl(url: string): boolean {
   try {
     if (typeof url !== 'string' || url.length === 0) return false
 
-    const base = typeof window === 'undefined' ? CALLBACK_URL_SERVER_BASE : window.location.origin
+    const base = getCallbackValidationOrigin()
     const parsed = new URL(url, base)
     return parsed.origin === base
   } catch (error) {

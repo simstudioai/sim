@@ -17,6 +17,9 @@ import {
   useVerifyOrganizationDomain,
 } from '@/ee/sso/hooks/domains'
 
+/** Ties the "Add a domain" label to its input, so clicking the label focuses it. */
+const ADD_DOMAIN_FIELD_ID = 'sso-add-domain'
+
 interface VerifiedDomainsSectionProps {
   organizationId: string
 }
@@ -46,16 +49,16 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
         icon={<Link />}
         title={domain.domain}
         description={isVerified ? 'Ownership verified' : 'Awaiting DNS verification'}
+        badge={
+          <ChipTag variant={isVerified ? 'mono' : 'gray'}>
+            {isVerified ? 'Verified' : 'Pending'}
+          </ChipTag>
+        }
         trailing={
-          <div className='flex items-center gap-2'>
-            <ChipTag variant={isVerified ? 'mono' : 'gray'}>
-              {isVerified ? 'Verified' : 'Pending'}
-            </ChipTag>
-            <RowActionsMenu
-              label={`${domain.domain} actions`}
-              actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
-            />
-          </div>
+          <RowActionsMenu
+            label={`${domain.domain} actions`}
+            actions={[{ label: 'Remove', onSelect: () => onRemove(domain), destructive: true }]}
+          />
         }
       />
 
@@ -65,16 +68,19 @@ function DomainRow({ organizationId, domain, onRemove }: DomainRowProps) {
           <SettingRow
             label='Host / name'
             description='Some DNS providers append your zone automatically. If yours does, enter this host with the trailing zone removed.'
+            htmlFor={`${domain.id}-challenge-host`}
           >
             <ChipCopyInput
+              id={`${domain.id}-challenge-host`}
               value={domain.challengeHost}
               copyLabel='Copy host'
               inputClassName='font-mono'
             />
           </SettingRow>
 
-          <SettingRow label='Value'>
+          <SettingRow label='Value' htmlFor={`${domain.id}-challenge-value`}>
             <ChipCopyInput
+              id={`${domain.id}-challenge-value`}
               value={domain.txtRecordValue}
               copyLabel='Copy value'
               inputClassName='font-mono'
@@ -129,6 +135,8 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
   }
 
   const domains = data?.domains ?? []
+  /** Single source of truth for both the Add chip and the Enter shortcut. */
+  const canAddDomain = !addDomain.isPending && newDomain.trim().length > 0
 
   return (
     <>
@@ -137,19 +145,24 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
           <SettingRow
             label='Add a domain'
             description='Verify a domain your organization owns before configuring SSO for it. Verifying proves you control the domain, so no one else can point it at their identity provider.'
+            htmlFor={ADD_DOMAIN_FIELD_ID}
           >
             <div className='flex items-center gap-2'>
               <ChipInput
+                id={ADD_DOMAIN_FIELD_ID}
                 value={newDomain}
                 onChange={(event) => setNewDomain(event.target.value)}
+                onKeyDown={(event) => {
+                  // This section renders inside the SSO provider <form>, so a bare
+                  // Enter would submit that form instead of adding the domain.
+                  if (event.key !== 'Enter') return
+                  event.preventDefault()
+                  if (canAddDomain) void handleAdd()
+                }}
                 placeholder='acme.com'
                 className='min-w-0 flex-1'
               />
-              <Chip
-                variant='primary'
-                onClick={handleAdd}
-                disabled={addDomain.isPending || !newDomain.trim()}
-              >
+              <Chip variant='primary' onClick={handleAdd} disabled={!canAddDomain}>
                 {addDomain.isPending ? 'Adding...' : 'Add domain'}
               </Chip>
             </div>
@@ -181,7 +194,7 @@ export function VerifiedDomainsSection({ organizationId }: VerifiedDomainsSectio
         text={[
           'Remove ',
           { text: pendingRemoval?.domain ?? '', bold: true },
-          "? You'll need to verify it again before you can configure SSO for it. Existing SSO sign-in is not affected.",
+          '? This immediately disables SSO sign-in for anyone on that domain, because the proof is what grants your identity provider its authority. Verifying the domain again restores it.',
         ]}
         confirm={{
           label: 'Remove',

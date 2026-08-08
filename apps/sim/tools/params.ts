@@ -1,11 +1,11 @@
 import { createLogger } from '@sim/logger'
-import { isRecordLike } from '@sim/utils/object'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
   type CanonicalModeOverrides,
   evaluateSubBlockCondition,
   isCanonicalPair,
+  isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isTriggerModeSubBlock,
   resolveCanonicalMode,
@@ -17,25 +17,19 @@ import type {
   SubBlockConfig as BlockSubBlockConfig,
   GenerationType,
 } from '@/blocks/types'
+import { isNonEmpty } from '@/tools/merge-params'
+import { getToolMetadata, type ToolMetadata } from '@/tools/metadata'
 import { safeAssign } from '@/tools/safe-assign'
-import { isEmptyTagValue } from '@/tools/shared/tags'
 import type {
   OAuthConfig,
   ParameterVisibility,
   ToolConfig,
   ToolParameterItemSchema,
+  WorkflowToolExecutionContext,
 } from '@/tools/types'
-import { getTool } from '@/tools/utils'
 
 const logger = createLogger('ToolsParams')
 type ToolParamDefinition = ToolConfig['params'][string]
-
-/**
- * Checks if a value is non-empty (not undefined, null, or empty string)
- */
-export function isNonEmpty(value: unknown): boolean {
-  return value !== undefined && value !== null && value !== ''
-}
 
 // ============================================================================
 // Tag/Value Parsing Utilities
@@ -152,6 +146,21 @@ export interface UserToolSchemaOptions {
 export interface LLMToolSchemaResult {
   schema: ToolSchema
   enrichedDescription?: string
+  /**
+   * Params the model is never allowed to supply, because the tool declares them
+   * `user-only` or `hidden`. Omitting them from {@link schema} is not enough on
+   * its own — nothing stops a model from emitting an undeclared key, and the
+   * merge downstream seeds from the model's args — so the names travel with the
+   * schema for `prepareToolExecution` to strip.
+   */
+  modelBlockedParams?: string[]
+}
+
+export class ToolSchemaEnrichmentError extends Error {
+  constructor(toolId: string, cause: unknown) {
+    super(`Failed to enrich schema for tool "${toolId}"`, { cause })
+    this.name = 'ToolSchemaEnrichmentError'
+  }
 }
 
 export interface ValidationResult {
@@ -172,7 +181,7 @@ export interface ToolParameterConfig {
 }
 
 export interface ToolWithParameters {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   allParameters: ToolParameterConfig[]
   userInputParameters: ToolParameterConfig[] // Parameters shown to user
   requiredParameters: ToolParameterConfig[] // Must be filled by user or LLM
@@ -300,7 +309,7 @@ export function getToolParametersConfig(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): ToolWithParameters | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
@@ -629,13 +638,21 @@ export function createUserToolSchema(
 
 export async function createLLMToolSchema(
   toolConfig: ToolConfig,
-  userProvidedParams: Record<string, unknown>
+  userProvidedParams: Record<string, unknown>,
+  enrichmentContext: WorkflowToolExecutionContext = {}
 ): Promise<LLMToolSchemaResult> {
   const schema: ToolSchema = {
     type: 'object',
     properties: {},
     required: [],
   }
+
+  // Derived from the declarations rather than from which branch below skipped a
+  // param: the loop's `continue`s also skip params the user simply filled in,
+  // and those are not off-limits to the model.
+  const modelBlockedParams = Object.entries(toolConfig.params)
+    .filter(([, param]) => param.visibility === 'user-only' || param.visibility === 'hidden')
+    .map(([paramId]) => paramId)
 
   for (const [paramId, param] of Object.entries(toolConfig.params)) {
     const enrichmentConfig = toolConfig.schemaEnrichment?.[paramId]
@@ -696,21 +713,28 @@ export async function createLLMToolSchema(
   if (toolConfig.toolEnrichment) {
     const dependencyValue = userProvidedParams[toolConfig.toolEnrichment.dependsOn] as string
     if (dependencyValue) {
-      const enriched = await toolConfig.toolEnrichment.enrichTool(
-        dependencyValue,
-        schema,
-        toolConfig.description
-      )
+      let enriched
+      try {
+        enriched = await toolConfig.toolEnrichment.enrichTool(
+          dependencyValue,
+          schema,
+          toolConfig.description,
+          enrichmentContext
+        )
+      } catch (error) {
+        throw new ToolSchemaEnrichmentError(toolConfig.id, error)
+      }
       if (enriched) {
         return {
           schema: enriched.parameters as ToolSchema,
           enrichedDescription: enriched.description,
+          modelBlockedParams,
         }
       }
     }
   }
 
-  return { schema }
+  return { schema, modelBlockedParams }
 }
 
 /**
@@ -810,111 +834,16 @@ export function createExecutionToolSchema(toolConfig: ToolConfig): ToolSchema {
   return schema
 }
 
-/**
- * Deep merges inputMapping objects, where LLM values fill in empty/missing user values.
- * User-provided non-empty values take precedence.
- */
-export function deepMergeInputMapping(
-  llmInputMapping: Record<string, unknown> | undefined,
-  userInputMapping: Record<string, unknown> | string | undefined
-): Record<string, unknown> {
-  // Parse user inputMapping if it's a JSON string
-  let parsedUserMapping: Record<string, unknown> = {}
-  if (typeof userInputMapping === 'string') {
-    try {
-      const parsed = JSON.parse(userInputMapping)
-      if (isRecordLike(parsed)) {
-        parsedUserMapping = parsed
-      }
-    } catch {
-      // Invalid JSON, treat as empty
-    }
-  } else if (
-    typeof userInputMapping === 'object' &&
-    userInputMapping !== null &&
-    !Array.isArray(userInputMapping)
-  ) {
-    parsedUserMapping = userInputMapping
-  }
-
-  // If no LLM mapping, return user mapping (or empty)
-  if (!llmInputMapping || typeof llmInputMapping !== 'object') {
-    return parsedUserMapping
-  }
-
-  // Deep merge: LLM values as base, user non-empty values override
-  // If user provides empty object {}, LLM values fill all fields (intentional)
-  const merged: Record<string, unknown> = { ...llmInputMapping }
-
-  for (const [key, userValue] of Object.entries(parsedUserMapping)) {
-    // Only override LLM value if user provided a non-empty value
-    if (isNonEmpty(userValue)) {
-      merged[key] = userValue
-    }
-  }
-
-  return merged
+interface FilterableToolSchema {
+  properties?: Record<string, unknown>
+  required?: string[]
 }
 
-/**
- * Merges user-provided parameters with LLM-generated parameters.
- * User-provided parameters take precedence, but empty strings are skipped
- * so that LLM-generated values are used when user clears a field.
- *
- * Special handling for inputMapping: deep merges so LLM can fill in
- * fields that user left empty in the UI.
- */
-export function mergeToolParameters(
-  userProvidedParams: Record<string, unknown>,
-  llmGeneratedParams: Record<string, unknown>
-): Record<string, unknown> {
-  // Filter out empty and effectively-empty values from user-provided params
-  // so that cleared fields don't override LLM values
-  const filteredUserParams: Record<string, unknown> = {}
-  for (const [key, value] of Object.entries(userProvidedParams)) {
-    if (isNonEmpty(value)) {
-      // Skip tag-based params if they're effectively empty (only default/unfilled entries)
-      if ((key === 'documentTags' || key === 'tagFilters') && isEmptyTagValue(value)) {
-        continue
-      }
-      filteredUserParams[key] = value
-    }
-  }
-
-  // Start with LLM params as base
-  const result: Record<string, unknown> = { ...llmGeneratedParams }
-
-  // Apply user params, with special handling for inputMapping
-  for (const [key, userValue] of Object.entries(filteredUserParams)) {
-    if (key === 'inputMapping') {
-      // Deep merge inputMapping so LLM values fill in empty user fields
-      const llmInputMapping = llmGeneratedParams.inputMapping as Record<string, unknown> | undefined
-      const mergedInputMapping = deepMergeInputMapping(
-        llmInputMapping,
-        userValue as Record<string, unknown> | string | undefined
-      )
-      result.inputMapping = mergedInputMapping
-    } else {
-      // Normal override for other params
-      result[key] = userValue
-    }
-  }
-
-  // If LLM provided inputMapping but user didn't, ensure it's included
-  if (llmGeneratedParams.inputMapping && !filteredUserParams.inputMapping) {
-    result.inputMapping = llmGeneratedParams.inputMapping
-  }
-
-  return result
-}
-
-/**
- * Filters out user-provided parameters from tool schema for LLM
- */
-export function filterSchemaForLLM(
-  originalSchema: ToolSchema,
+/** Filters user-provided parameters from any object-shaped tool schema sent to an LLM. */
+export function filterSchemaForLLM<T extends FilterableToolSchema>(
+  originalSchema: T,
   userProvidedParams: Record<string, unknown>
-): ToolSchema {
+): T {
   if (!originalSchema || !originalSchema.properties) {
     return originalSchema
   }
@@ -933,11 +862,10 @@ export function filterSchemaForLLM(
     }
   })
 
-  return {
-    ...originalSchema,
+  return Object.assign({}, originalSchema, {
     properties: filteredProperties,
     required: filteredRequired,
-  }
+  })
 }
 
 /**
@@ -1060,7 +988,7 @@ const EXCLUDED_SUBBLOCK_TYPES = new Set([
 ])
 
 export interface SubBlocksForToolInput {
-  toolConfig: ToolConfig
+  toolConfig: ToolMetadata
   subBlocks: BlockSubBlockConfig[]
   oauthConfig?: OAuthConfig
 }
@@ -1081,7 +1009,7 @@ export function getSubBlocksForToolInput(
   blockConfigOverride?: Pick<ToolInputBlockConfig, 'subBlocks'>
 ): SubBlocksForToolInput | null {
   try {
-    const toolConfig = getTool(toolId)
+    const toolConfig = getToolMetadata(toolId)
     if (!toolConfig) {
       logger.warn(`Tool not found: ${toolId}`)
       return null
@@ -1141,6 +1069,11 @@ export function getSubBlocksForToolInput(
 
       // Hide tool API key fields when running on hosted Sim or when env var is set
       if (isSubBlockHidden(sb)) continue
+
+      // A field the deployment has switched off is not offerable here either —
+      // the canvas already hides it, and offering it in tool-input lets an author
+      // pick a value the executor will refuse (e.g. Python with no sandbox provider).
+      if (!isSubBlockFeatureEnabled(sb)) continue
 
       // Determine the effective param ID (canonical or subblock id)
       const effectiveParamId = sb.canonicalParamId || sb.id

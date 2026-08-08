@@ -4,6 +4,10 @@
  */
 import { z } from 'zod'
 import { MAX_BILLING_CONCURRENCY_LIMIT } from '@/lib/billing/concurrency-defaults'
+import {
+  MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+  parseWorkflowExecutionTimeoutSeconds,
+} from '@/lib/billing/execution-timeout-defaults'
 
 export const enterpriseSubscriptionMetadataSchema = z.object({
   plan: z
@@ -24,6 +28,10 @@ export const enterpriseSubscriptionMetadataSchema = z.object({
     .positive()
     .max(MAX_BILLING_CONCURRENCY_LIMIT)
     .optional(),
+  workflowExecutionTimeoutSeconds: z.preprocess(
+    (value) => parseWorkflowExecutionTimeoutSeconds(value) ?? undefined,
+    z.number().int().positive().max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS).optional()
+  ),
 })
 
 export type EnterpriseSubscriptionMetadata = z.infer<typeof enterpriseSubscriptionMetadataSchema>

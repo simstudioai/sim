@@ -17,7 +17,7 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 
 ## Steps
 
-1. Read the emcn public barrel at `apps/sim/components/emcn/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `apps/sim/components/emcn/icons/index.ts`
+1. Read the emcn public barrel at `packages/emcn/src/index.ts` (re-exports components, Calendar, Table*, and icons) to know what's available; for the full icon set read `packages/emcn/src/icons/index.ts`
 2. Read `apps/sim/app/_styles/globals.css` for CSS variable tokens
 3. Analyze the specified scope against every rule below
 4. If fix=true, apply the fixes. If fix=false, propose the fixes without applying.
@@ -27,7 +27,7 @@ This codebase uses **emcn**, a custom component library built on Radix UI primit
 ## Imports
 
 - Import from `@/components/emcn` barrel, never subpaths
-- Icons from `@/components/emcn/icons` or `lucide-react`
+- Icons from `@sim/emcn/icons`
 - Use `cn` from `@/lib/core/utils/cn` for conditional classes
 
 ## Design Tokens
@@ -44,7 +44,7 @@ Use CSS variable pattern (`text-[var(--text-primary)]`), never Tailwind semantic
 
 ## Buttons
 
-Intent-to-variant mapping (read the actual `buttonVariants` in `apps/sim/components/emcn/components/button/button.tsx` for the full variant set — it exposes more than listed here):
+Intent-to-variant mapping (read the actual `buttonVariants` in `packages/emcn/src/components/button/button.tsx` for the full variant set — it exposes more than listed here):
 
 | Action | Variant |
 |--------|---------|

@@ -2,8 +2,8 @@
 
 import { memo } from 'react'
 import { Badge, cn } from '@sim/emcn'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { HANDLE_POSITIONS } from '@sim/workflow-renderer'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { Handle, type NodeProps, Position } from 'reactflow'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 
@@ -42,7 +42,7 @@ function WorkflowPreviewSubflowInner({ data }: NodeProps<WorkflowPreviewSubflowD
   } = data
 
   const isLoop = kind === 'loop'
-  const BlockIcon = isLoop ? RepeatIcon : SplitIcon
+  const BlockIcon = isLoop ? Repeat : Split
   const blockIconBg = isLoop ? '#2FB3FF' : '#FEE12B'
   const blockName = name || (isLoop ? 'Loop' : 'Parallel')
 

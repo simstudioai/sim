@@ -52,7 +52,7 @@ export function ChatHeader({ chatConfig, starCount }: ChatHeaderProps) {
             href='https://github.com/simstudioai/sim'
             target='_blank'
             rel='noopener noreferrer'
-            className='flex items-center gap-2 text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]'
+            className='flex items-center gap-2 text-[var(--text-muted)] transition-colors hover-hover:text-[var(--text-primary)]'
             aria-label={`GitHub repository - ${starCount} stars`}
           >
             <GithubIcon className='size-[16px]' aria-hidden='true' />

@@ -43,7 +43,7 @@ function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
-      <span className='truncate font-[450] text-[13px] text-[var(--text-body)]'>{label}</span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </div>
   )
 }
@@ -52,7 +52,7 @@ function IconRow({ icon: Icon, label, active = false }: IconRowProps) {
 function TextRow({ label }: { label: string }) {
   return (
     <div className='mx-0.5 flex h-[28px] items-center rounded-[8px] px-2'>
-      <span className='truncate font-[450] text-[13px] text-[var(--text-body)]'>{label}</span>
+      <span className='truncate text-[13px] text-[var(--text-body)]'>{label}</span>
     </div>
   )
 }
@@ -110,7 +110,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
     <div className='flex h-full w-[249px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
       {/* Workspace header, matching the real product's WorkspaceHeader chip
           (borderless `chipVariants()` geometry: h-[30px] rounded-lg px-2 with
-          mx-0.5, 16px logo, text-sm name, 6x10 chevron) and therefore the
+          mx-0.5, 16px logo, text-sm name, 14px chevron) and therefore the
           homepage's baked sidebar pixels - logo + name + chevron as a bare
           row, panel toggle right-aligned outside it. */}
       <div className='flex flex-shrink-0 items-center justify-between px-2'>
@@ -126,7 +126,7 @@ export const EnterpriseSidebar = memo(function EnterpriseSidebar({
             className='size-[16px] flex-shrink-0 rounded-sm'
           />
           <span className='min-w-0 truncate text-[var(--text-body)] text-sm'>{workspaceName}</span>
-          <ChevronDown className='h-[6px] w-[10px] flex-shrink-0 text-[var(--text-icon)]' />
+          <ChevronDown className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
         </div>
         <PanelLeft className='mr-1.5 size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
       </div>

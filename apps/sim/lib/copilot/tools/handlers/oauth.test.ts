@@ -3,9 +3,16 @@
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnsureWorkspaceAccess, mockGetCredentialActorContext } = vi.hoisted(() => ({
+const {
+  mockEnsureWorkspaceAccess,
+  mockGetCredentialActorContext,
+  mockIsOAuthServiceDeploymentAvailable,
+  mockGetUserPermissionConfig,
+} = vi.hoisted(() => ({
   mockEnsureWorkspaceAccess: vi.fn(),
   mockGetCredentialActorContext: vi.fn(),
+  mockIsOAuthServiceDeploymentAvailable: vi.fn(() => true),
+  mockGetUserPermissionConfig: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/tools/handlers/access', () => ({
@@ -16,12 +23,30 @@ vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
 }))
 
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isOAuthServiceDeploymentAvailable: mockIsOAuthServiceDeploymentAvailable,
+}))
+
+vi.mock('@/lib/core/config/env-flags', () => ({
+  getAllowedIntegrationsFromEnv: vi.fn(() => null),
+}))
+
+vi.mock('@/ee/access-control/utils/permission-check', () => ({
+  getUserPermissionConfig: mockGetUserPermissionConfig,
+}))
+
 vi.mock('@/lib/oauth/utils', () => ({
   getAllOAuthServices: vi.fn(() => [
-    { providerId: 'google-email', name: 'Gmail' },
-    { providerId: 'slack', name: 'Slack' },
-    { providerId: 'trello', name: 'Trello' },
-    { providerId: 'shopify', name: 'Shopify' },
+    { serviceId: 'gmail', providerId: 'google-email', name: 'Gmail', authType: 'oauth' },
+    { serviceId: 'slack', providerId: 'slack', name: 'Slack', authType: 'oauth' },
+    { serviceId: 'trello', providerId: 'trello', name: 'Trello', authType: 'oauth' },
+    { serviceId: 'shopify', providerId: 'shopify', name: 'Shopify', authType: 'oauth' },
+    {
+      serviceId: 'claude-platform',
+      providerId: 'claude-platform',
+      name: 'Claude Platform',
+      authType: 'service_account',
+    },
   ]),
 }))
 
@@ -69,6 +94,8 @@ describe('executeOAuthGetAuthLink', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_APP_URL = BASE_URL
     mockEnsureWorkspaceAccess.mockResolvedValue(WORKSPACE_ACCESS)
+    mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   describe('connect (no credentialId)', () => {
@@ -81,6 +108,31 @@ describe('executeOAuthGetAuthLink', () => {
       expect(url.searchParams.get('providerId')).toBe('google-email')
       expect(url.searchParams.get('credentialId')).toBeNull()
       expect(mockGetCredentialActorContext).not.toHaveBeenCalled()
+    })
+
+    it('rejects a provider whose OAuth client is not configured', async () => {
+      mockIsOAuthServiceDeploymentAvailable.mockReturnValue(false)
+
+      const result = await executeOAuthGetAuthLink({ providerName: 'google-email' }, context)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('not configured for this deployment')
+    })
+
+    it('rejects a provider disallowed for the workspace member', async () => {
+      mockGetUserPermissionConfig.mockResolvedValue({ allowedIntegrations: ['slack'] })
+
+      const result = await executeOAuthGetAuthLink({ providerName: 'google-email' }, context)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('not allowed for this workspace member')
+    })
+
+    it('does not treat service-account-only metadata as OAuth', async () => {
+      const result = await executeOAuthGetAuthLink({ providerName: 'Claude Platform' }, context)
+
+      expect(result.success).toBe(false)
+      expect(result.error).toContain('not found')
     })
   })
 
@@ -213,6 +265,8 @@ describe('executeOAuthGetAuthLink service account rejection', () => {
     vi.clearAllMocks()
     process.env.NEXT_PUBLIC_APP_URL = BASE_URL
     mockEnsureWorkspaceAccess.mockResolvedValue(WORKSPACE_ACCESS)
+    mockIsOAuthServiceDeploymentAvailable.mockReturnValue(true)
+    mockGetUserPermissionConfig.mockResolvedValue(null)
   })
 
   /**

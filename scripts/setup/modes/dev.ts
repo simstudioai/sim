@@ -1,27 +1,27 @@
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
 import { truncate } from '@sim/utils/string'
+import { EMAIL_SETUP, JOBS_SETUP, STORAGE_SETUP } from '../capability-config.ts'
+import { promptCapabilitySetup, stageCapabilitySetupTransition } from '../capability-setup.ts'
 import { resolveDatabase } from '../db.ts'
 import type { Detection } from '../detect.ts'
-import { ROOT, readEnvFile, writeEnvValues } from '../env-files.ts'
+import { ROOT, readEnvFile, reconcileEnvValues, writeEnvValues } from '../env-files.ts'
 import { SetupError } from '../errors.ts'
 import { pgProbe } from '../probes.ts'
 import * as p from '../prompter.ts'
 import { ensureRedis, resolveRedis } from '../redis.ts'
 import {
+  chatFlagValues,
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
-  promptEmail,
   promptLlmKeys,
   promptSecurity,
   promptSignInProviders,
-  promptStorage,
   promptUnlocks,
 } from '../steps.ts'
 import { glyph, theme } from '../theme.ts'
-
-const APP_URL = 'http://localhost:3000'
+import { APP_URL } from '../urls.ts'
 
 /**
  * A migrate failure on a never-migrated database means setup failed — abort.
@@ -70,27 +70,6 @@ async function promptRedis(detection: Detection, existing?: string): Promise<str
   return resolveRedis(detection, existing)
 }
 
-async function promptTrigger(): Promise<Record<string, string> | null> {
-  const wants = await p.confirm({
-    message: 'Enable Trigger.dev for background jobs? (off = jobs run via the DB queue)',
-    initialValue: false,
-  })
-  if (!wants) return null
-  const secretKey = await p.password({
-    message: 'TRIGGER_SECRET_KEY',
-    validate: (v) => (v ? undefined : 'required'),
-  })
-  const projectId = await p.text({
-    message: 'TRIGGER_PROJECT_ID',
-    validate: (v) => (v ? undefined : 'required'),
-  })
-  return {
-    TRIGGER_DEV_ENABLED: 'true',
-    TRIGGER_SECRET_KEY: secretKey,
-    TRIGGER_PROJECT_ID: projectId,
-  }
-}
-
 export async function runDevMode(
   detection: Detection,
   quick: boolean
@@ -118,12 +97,14 @@ export async function runDevMode(
 
   const simAfter = readEnvFile('sim')
   const values: Record<string, string> = {}
+  const remove = new Set<string>()
   // Before the key is minted: a half-set override mints against one environment
   // and validates against the other, and warning afterwards is too late — the
   // bad key is already stored, and the next run offers to keep it.
   Object.assign(values, mothershipOverride())
   const copilotKey = await promptCopilotKey(simAfter.vars.get('COPILOT_API_KEY'))
   if (copilotKey) values.COPILOT_API_KEY = copilotKey
+  Object.assign(values, chatFlagValues(copilotKey))
   Object.assign(values, await promptLlmKeys(detection, !quick))
 
   // Redis is set up in every mode, quick included. Storage falls back to
@@ -140,12 +121,15 @@ export async function runDevMode(
   }
 
   if (!quick) {
-    const trigger = await promptTrigger()
-    if (trigger) Object.assign(values, trigger)
-    const storage = await promptStorage(simAfter.vars, false)
-    if (storage) Object.assign(values, storage)
-    Object.assign(values, await promptSignInProviders(simAfter.vars, APP_URL))
-    Object.assign(values, await promptEmail(simAfter.vars))
+    const stagedVars = new Map(simAfter.vars)
+    for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
+    for (const setup of [JOBS_SETUP, STORAGE_SETUP, EMAIL_SETUP] as const) {
+      const transition = await promptCapabilitySetup(setup, stagedVars, {
+        containerized: false,
+      })
+      stageCapabilitySetupTransition(stagedVars, values, remove, transition)
+    }
+    Object.assign(values, await promptSignInProviders(stagedVars, APP_URL))
     const security = await promptSecurity(simAfter.vars)
     Object.assign(values, security.sim)
     if (Object.keys(security.mirrorToRealtime).length > 0) {
@@ -153,7 +137,10 @@ export async function runDevMode(
     }
     Object.assign(values, await promptUnlocks(simAfter.vars))
   }
-  if (Object.keys(values).length > 0) writeEnvValues('sim', values)
+  for (const key of Object.keys(values)) remove.delete(key)
+  if (remove.size > 0 || Object.keys(values).length > 0) {
+    reconcileEnvValues('sim', [...remove], values)
+  }
 
   let script = 'dev:full'
   if (detection.specs.hostMemGb < 16) {
@@ -161,17 +148,17 @@ export async function runDevMode(
       message: `Low RAM detected (${detection.specs.hostMemGb}GB) — which dev server?`,
       options: [
         {
-          value: 'dev:full:minimal-registry',
-          label: 'Minimal block registry (recommended)',
-          hint: 'much lower memory — loads fewer integration blocks in dev',
+          value: 'dev:full:capped',
+          label: 'Capped heap (recommended)',
+          hint: 'caps Node at 4GB — every integration still available',
         },
         {
           value: 'dev:full',
-          label: 'Full registry',
-          hint: 'every block available — can use 4-5GB+ on its own',
+          label: 'Uncapped',
+          hint: 'lets the dev server take what it needs (~4GB typical)',
         },
       ],
-      initialValue: 'dev:full:minimal-registry',
+      initialValue: 'dev:full:capped',
     })
   }
   return {

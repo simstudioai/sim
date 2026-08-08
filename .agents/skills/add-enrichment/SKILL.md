@@ -63,7 +63,7 @@ Why it matters: the cascade runner only bills (and only reads `output.cost.total
 Create `apps/sim/enrichments/{name}/{name}.ts` and a barrel `index.ts`. Mirror the existing entries (`work-email`, `phone-number`, `company-domain`, `company-info`).
 
 ```typescript
-import { SomeIcon } from 'lucide-react'
+import { SomeIcon } from '@sim/emcn/icons'
 import { filterUndefined } from '@sim/utils/object'
 import { normalizeDomain, splitName, str, toolProvider } from '@/enrichments/providers'
 import type { EnrichmentConfig } from '@/enrichments/types'
@@ -109,7 +109,7 @@ export { myEnrichment } from './my-enrichment'
 ```
 
 Rules:
-- Keep the file **client-safe**: import only `lucide-react`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
+- Keep the file **client-safe**: import only `@sim/emcn/icons`, `@sim/utils/*`, `@/enrichments/providers`, and the types. **Never import `@/tools`** here — the runner does the tool call.
 - `buildParams` returns `null` when inputs are insufficient (provider skipped). `mapOutput` returns `null`/empty for a miss (falls through). Use `filterUndefined` when assembling optional tool params; coerce numbers explicitly (don't pass `''` to number outputs).
 - Output `id`s are the keys `mapOutput` returns; output `name`s are the default column names (the user can rename them in the config).
 
@@ -128,7 +128,7 @@ export const ENRICHMENT_REGISTRY: EnrichmentRegistry = {
 
 ## Step 5: Verify
 
-1. `bunx tsc --noEmit` (from `apps/sim`, `NODE_OPTIONS=--max-old-space-size=8192`) and `bunx biome check` on the changed files.
+1. `bun run type-check` (from `apps/sim`) and `bunx biome check` on the changed files.
 2. In a table → **+ New column → Enrichments** → pick the new enrichment, map its inputs to columns, name the output column(s), Save. Confirm it appears in the catalog with its icon/description.
 3. With hosted keys (or a workspace BYOK key) configured for each provider's service, run a row and confirm the cell fills; the dev-server log shows `Enrichment hit { provider }`. A row whose providers all miss completes blank; a row where every provider errored shows an error cell.
 

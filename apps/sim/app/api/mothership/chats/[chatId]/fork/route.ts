@@ -29,7 +29,7 @@ import {
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
 import { removeChatResources } from '@/lib/copilot/resources/persistence'
-import type { MothershipResource } from '@/lib/copilot/resources/types'
+import { type MothershipResource, sanitizeChatResources } from '@/lib/copilot/resources/types'
 import { getMothershipBaseURL, getMothershipSourceEnvHeaders } from '@/lib/copilot/server/agent-url'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -115,9 +115,9 @@ export const POST = withRouteHandler(
       // file resources whose chat-owned file is NOT copied (uploads born
       // after the cut) are dropped in the rewrite below; everything else is
       // copied.
-      const parentResources = Array.isArray(parent.resources)
-        ? (parent.resources as MothershipResource[])
-        : []
+      const parentResources = sanitizeChatResources(
+        Array.isArray(parent.resources) ? (parent.resources as MothershipResource[]) : []
+      )
 
       // The source chat's chat-owned file ids (no cut) — the "is this
       // resource a ghost?" test set for the rewrite.

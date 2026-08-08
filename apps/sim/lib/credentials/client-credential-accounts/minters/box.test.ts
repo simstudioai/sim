@@ -67,6 +67,7 @@ describe('mintBoxServiceAccountToken', () => {
       .mockResolvedValueOnce(jsonResponse(200, { access_token: 'box-access', expires_in: 3600 }))
       .mockResolvedValueOnce(
         jsonResponse(200, {
+          id: '33445566',
           name: 'Sim Automation',
           login: 'AutomationUser_123_abc@boxdevedition.com',
         })
@@ -79,14 +80,13 @@ describe('mintBoxServiceAccountToken', () => {
       expiresInSeconds: 3600,
       identity: {
         displayName: 'Sim Automation',
-        auditMetadata: {
-          boxEnterpriseId: '1234567',
-          boxServiceAccountLogin: 'AutomationUser_123_abc@boxdevedition.com',
+        principal: {
+          kind: 'user',
+          id: '33445566',
+          label: 'AutomationUser_123_abc@boxdevedition.com',
         },
-        storedMetadata: {
-          enterpriseId: '1234567',
-          serviceAccountLogin: 'AutomationUser_123_abc@boxdevedition.com',
-        },
+        auditMetadata: { boxEnterpriseId: '1234567' },
+        storedMetadata: { enterpriseId: '1234567' },
       },
     })
     expect(mockFetch).toHaveBeenCalledTimes(2)
@@ -94,7 +94,7 @@ describe('mintBoxServiceAccountToken', () => {
     expectIdentityCall()
   })
 
-  it('still succeeds with a fallback identity when users/me fails', async () => {
+  it('marks the principal as lookup_failed when users/me fails', async () => {
     mockFetch
       .mockResolvedValueOnce(jsonResponse(200, { access_token: 'box-access', expires_in: 2400 }))
       .mockResolvedValueOnce(jsonResponse(500, { message: 'boom' }))
@@ -105,8 +105,26 @@ describe('mintBoxServiceAccountToken', () => {
     expect(result.expiresInSeconds).toBe(2400)
     expect(result.identity).toEqual({
       displayName: 'Box enterprise 1234567',
+      principal: { kind: 'lookup_failed', reason: 'HTTP 500' },
       auditMetadata: { boxEnterpriseId: '1234567' },
+      storedMetadata: { enterpriseId: '1234567' },
     })
+  })
+
+  it('marks the principal as lookup_failed when users/me omits the user id', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'box-access', expires_in: 3600 }))
+      .mockResolvedValueOnce(jsonResponse(200, { name: 'Sim Automation' }))
+
+    const result = await mintBoxServiceAccountToken(FIELDS)
+
+    expect(result.identity?.principal).toEqual({
+      kind: 'lookup_failed',
+      reason: 'response missing user id',
+    })
+    // Only the principal degrades — a name that did come back still beats the
+    // Enterprise-ID fallback, so the credential does not lose its label.
+    expect(result.identity?.displayName).toBe('Sim Automation')
   })
 
   it('still succeeds when the identity request itself throws', async () => {
@@ -118,6 +136,10 @@ describe('mintBoxServiceAccountToken', () => {
 
     expect(result.accessToken).toBe('box-access')
     expect(result.identity?.displayName).toBe('Box enterprise 1234567')
+    expect(result.identity?.principal).toEqual({
+      kind: 'lookup_failed',
+      reason: 'provider_unavailable (HTTP 502)',
+    })
   })
 
   it('throws invalid_credentials on 400 invalid_client', async () => {

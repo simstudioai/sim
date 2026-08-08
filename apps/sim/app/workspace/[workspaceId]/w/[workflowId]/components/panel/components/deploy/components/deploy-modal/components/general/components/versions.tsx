@@ -12,8 +12,8 @@ import {
   Skeleton,
   Tooltip,
 } from '@sim/emcn'
+import { FileText, MoreVertical, Pencil, RefreshCw, SendToBack } from '@sim/emcn/icons'
 import { formatDateTime } from '@sim/utils/formatting'
-import { FileText, MoreVertical, Pencil, RotateCcw, SendToBack } from 'lucide-react'
 import type { WorkflowDeploymentVersionResponse } from '@/lib/workflows/persistence/utils'
 import { formatVersionLabel } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/components/general/format-version-label'
 import { useUpdateDeploymentVersion } from '@/hooks/queries/deployments'
@@ -374,7 +374,7 @@ export function Versions({
                     </PopoverItem>
                     {!v.isActive && (
                       <PopoverItem onClick={() => handlePromote(v.version)}>
-                        <RotateCcw className='size-3' />
+                        <RefreshCw className='size-3' />
                         <span>Promote to live</span>
                       </PopoverItem>
                     )}

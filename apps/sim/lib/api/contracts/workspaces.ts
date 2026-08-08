@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { nonEmptyIdSchema } from '@/lib/api/contracts/primitives'
+import { nonEmptyIdSchema, requiredFieldSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
 
 export const workspaceScopeSchema = z.enum(['active', 'archived', 'all'])
@@ -38,6 +38,11 @@ export const workspaceCreationPolicySchema = z.object({
   maxWorkspaces: z.number().nullable(),
   currentWorkspaceCount: z.number(),
   reason: z.string().nullable(),
+  /**
+   * Machine-readable discriminant for blocked states whose correct user-facing
+   * copy the workspace mode alone cannot determine.
+   */
+  blockedReasonCode: z.literal('organization-subscription-inactive').optional(),
 })
 
 export type WorkspaceCreationPolicy = z.output<typeof workspaceCreationPolicySchema>
@@ -89,6 +94,7 @@ export const workspaceUserSchema = z.object({
   isExternal: z.boolean(),
   joinedAt: z.string(),
   roleSource: z.enum(['owner', 'explicit', 'org-admin']),
+  isBilledAccount: z.boolean(),
 })
 
 export type WorkspaceUser = z.output<typeof workspaceUserSchema>
@@ -109,13 +115,42 @@ export const workspacePermissionsResponseSchema = z.object({
 
 export type WorkspacePermissions = z.output<typeof workspacePermissionsResponseSchema>
 
+/**
+ * Role changes for users who are **already** workspace members. The route
+ * rejects any `userId` without an existing workspace permission row — adding a
+ * collaborator goes through the invitation flow, which owns the plan, seat, and
+ * consent gates this endpoint has no way to apply.
+ */
 export const updateWorkspacePermissionsBodySchema = z.object({
-  updates: z.array(
-    z.object({
-      userId: z.string(),
-      permissions: workspacePermissionSchema,
-    })
-  ),
+  updates: z
+    .array(
+      z.object({
+        userId: requiredFieldSchema('User ID is required').max(128, 'User ID is too long'),
+        permissions: workspacePermissionSchema,
+      })
+    )
+    .min(1, 'updates must contain at least one permission change')
+    .max(100, 'Cannot update more than 100 permissions at once')
+    /**
+     * One entry per user. Repeating a userId made the batch self-contradictory:
+     * the route's guards inspect the first matching entry while the write loop
+     * applied every entry in order, so a second entry could carry a role the
+     * guards had already vetted the first one against.
+     */
+    .superRefine((updates, ctx) => {
+      const seen = new Set<string>()
+      for (const [index, update] of updates.entries()) {
+        if (seen.has(update.userId)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: [index, 'userId'],
+            message: 'Each user may appear only once in updates',
+          })
+          return
+        }
+        seen.add(update.userId)
+      }
+    }),
 })
 
 export const workspaceMemberSchema = z.object({
@@ -312,11 +347,15 @@ export const updateWorkspacePermissionsContract = defineRouteContract({
   path: '/api/workspaces/[id]/permissions',
   params: workspaceParamsSchema,
   body: updateWorkspacePermissionsBodySchema,
+  /**
+   * Acknowledgement only. The roster this used to echo was discarded by every
+   * caller — the members list is owned by the GET above and refetched on
+   * settle — so building it cost three queries per role change and made a
+   * post-commit read failure able to report an applied change as a 500.
+   */
   response: {
     mode: 'json',
-    schema: workspacePermissionsResponseSchema.extend({
-      message: z.string(),
-    }),
+    schema: z.object({ message: z.string() }),
   },
 })
 

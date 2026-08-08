@@ -143,7 +143,7 @@ export function VideoPlaceholder({
 
       {/* Top-right status pill — only until a video is wired up */}
       {!hasVideo && (
-        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-2)] px-4 py-2 font-medium text-[12px] text-[var(--text-secondary)] uppercase tracking-[0.14em] md:top-8 md:right-8 dark:bg-[var(--surface-1)]'>
+        <span className='absolute top-6 right-6 z-10 inline-flex items-center gap-2 rounded-full border border-[var(--border-1)] bg-[var(--surface-2)] px-4 py-2 font-medium text-[var(--text-secondary)] text-caption uppercase tracking-[0.14em] md:top-8 md:right-8 dark:bg-[var(--surface-1)]'>
           <span className='size-1.5 rounded-full bg-[var(--brand-accent)]' />
           {label}
         </span>

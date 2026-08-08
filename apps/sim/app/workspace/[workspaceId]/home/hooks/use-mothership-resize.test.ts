@@ -30,7 +30,7 @@ function geometry(overrides: Partial<DragGeometry> = {}): DragGeometry {
 
 describe('maxPanelWidth', () => {
   it('yields to the chat column when its min-width is the tighter ceiling', () => {
-    // 1512 * 0.65 = 982.8, but the chat's 320px floor only leaves 934.
+    // 1512 * 0.8 = 1209.6, but the chat's 240px floor only leaves 1014.
     expect(maxPanelWidth(VIEWPORT, CONTAINER)).toBe(CONTAINER - MOTHERSHIP_WIDTH.CHAT_MIN)
   })
 
@@ -40,7 +40,7 @@ describe('maxPanelWidth', () => {
 
   it('never returns less than the panel minimum', () => {
     // Minimum window size with the sidebar expanded cannot satisfy both.
-    expect(maxPanelWidth(800, 543)).toBe(MOTHERSHIP_WIDTH.MIN)
+    expect(maxPanelWidth(800, 500)).toBe(MOTHERSHIP_WIDTH.MIN)
   })
 })
 

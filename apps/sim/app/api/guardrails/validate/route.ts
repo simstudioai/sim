@@ -10,12 +10,13 @@ import {
   checkAttributedUsageLimits,
   requireBillingAttributionHeader,
   resolveBillingAttribution,
-  serializeBillingAttributionHeader,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import type { CustomPiiPattern } from '@/lib/guardrails/pii-entities'
 import { validateHallucination } from '@/lib/guardrails/validate_hallucination'
 import { validateJson } from '@/lib/guardrails/validate_json'
@@ -26,6 +27,8 @@ import {
   ModelNotAllowedError,
   ProviderNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { isAbortError } from '@/providers/streaming-tool-loop-shared'
 import { getProviderFromModel } from '@/providers/utils'
 
 const logger = createLogger('GuardrailsValidateAPI')
@@ -134,6 +137,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     let resolvedWorkspaceId: string | undefined
     let billingAttribution: BillingAttributionSnapshot | undefined
+    let resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined
 
     if (validationType === 'hallucination' && model) {
       if (!workflowId || typeof workflowId !== 'string') {
@@ -168,6 +172,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
 
       resolvedWorkspaceId = authorization.workflow.workspaceId
+      resolvedSecretTraceRegistry = (
+        await prepareCopilotEnvironmentContext(auth.userId, resolvedWorkspaceId)
+      ).resolvedSecretTraceRegistry
       try {
         billingAttribution =
           auth.authType === AuthType.INTERNAL_JWT
@@ -245,19 +252,37 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     const inputStr = convertInputToString(input)
 
+    if (validationType === 'hallucination' && resolvedSecretTraceRegistry) {
+      const provenanceInspection = inspectModelInputProvenanceRequest(request.headers, body)
+      if (provenanceInspection.status === 'invalid') {
+        return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+      }
+      if (provenanceInspection.status === 'verified' && auth.authType !== AuthType.INTERNAL_JWT) {
+        return NextResponse.json({ error: 'Invalid model input provenance' }, { status: 400 })
+      }
+      const provenanceReady =
+        provenanceInspection.status === 'verified'
+          ? (
+              await resolvedSecretTraceRegistry.importProvenanceForValueAtInputPath(
+                provenanceInspection.value,
+                inputStr,
+                ['input'],
+                { trusted: true }
+              )
+            ).success
+          : true
+      if (!provenanceReady || !resolvedSecretTraceRegistry.isComplete()) {
+        return NextResponse.json(
+          { error: 'Model input provenance is unavailable' },
+          { status: 400 }
+        )
+      }
+    }
+
     logger.info(`[${requestId}] Executing validation locally`, {
       validationType,
       inputType: typeof input,
     })
-    const authHeaders = {
-      cookie: request.headers.get('cookie') || undefined,
-      authorization: request.headers.get('authorization') || undefined,
-      billingAttribution:
-        auth.authType === AuthType.INTERNAL_JWT && billingAttribution
-          ? serializeBillingAttributionHeader(billingAttribution)
-          : undefined,
-    }
-
     const validationResult = await executeValidation(
       validationType,
       inputStr,
@@ -283,8 +308,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       piiMode,
       piiLanguage,
       piiCustomPatterns,
-      authHeaders,
-      requestId
+      auth.userId,
+      billingAttribution,
+      requestId,
+      resolvedSecretTraceRegistry,
+      request.signal
     )
 
     /**
@@ -339,6 +367,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       },
     })
   } catch (error: any) {
+    /**
+     * A cancelled run must not be reshaped into a verdict. `passed: false` here reads
+     * to a consumer as the guardrail rejecting the content, so an abandoned run would
+     * block content that was never actually judged. 499 matches the convention the
+     * workflow execute route already uses for a client-cancelled request.
+     */
+    if (isAbortError(error)) {
+      logger.info(`[${requestId}] Guardrails validation cancelled by client`)
+      return NextResponse.json(
+        { success: false, error: 'Client cancelled request' },
+        { status: 499 }
+      )
+    }
     logger.error(`[${requestId}] Guardrails validation failed`, { error })
     return NextResponse.json({
       success: true,
@@ -396,8 +437,11 @@ async function executeValidation(
   piiMode: string | undefined,
   piiLanguage: string | undefined,
   piiCustomPatterns: CustomPiiPattern[] | undefined,
-  authHeaders: { cookie?: string; authorization?: string; billingAttribution?: string } | undefined,
-  requestId: string
+  actorUserId: string,
+  billingAttribution: BillingAttributionSnapshot | undefined,
+  requestId: string,
+  resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry | undefined,
+  abortSignal: AbortSignal | undefined
 ): Promise<{
   passed: boolean
   error?: string
@@ -433,6 +477,12 @@ async function executeValidation(
         error: 'Model is required for hallucination validation',
       }
     }
+    if (!resolvedSecretTraceRegistry) {
+      throw new Error('Secret projection context is unavailable for hallucination validation')
+    }
+    if (!billingAttribution) {
+      throw new Error('Billing attribution is unavailable for hallucination validation')
+    }
 
     return await validateHallucination({
       userInput: inputStr,
@@ -444,8 +494,11 @@ async function executeValidation(
       providerCredentials,
       workflowId,
       workspaceId,
-      authHeaders,
+      actorUserId,
+      billingAttribution,
       requestId,
+      resolvedSecretTraceRegistry,
+      abortSignal,
     })
   }
   if (validationType === 'pii') {

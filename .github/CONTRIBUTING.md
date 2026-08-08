@@ -165,6 +165,15 @@ After running this command, open [http://localhost:3000/](http://localhost:3000/
 git clone https://github.com/<your-username>/sim.git
 cd sim
 
+# Generate the required secrets. The stack refuses to start without them
+# rather than booting with empty values.
+cat > .env << EOF
+BETTER_AUTH_SECRET=$(openssl rand -hex 32)
+ENCRYPTION_KEY=$(openssl rand -hex 32)
+INTERNAL_API_SECRET=$(openssl rand -hex 32)
+CRON_SECRET=$(openssl rand -hex 32)
+EOF
+
 # Start Sim
 docker compose -f docker-compose.prod.yml up -d
 ```
@@ -307,7 +316,7 @@ If you prefer not to use Docker or Dev Containers. **All commands run from the r
    ```bash
    bun run type-check   # TypeScript across every workspace
    bun run lint:check   # Biome lint across every workspace
-   bun run test         # Vitest across every workspace
+   bun run test         # Setup CLI Bun tests, then Vitest across every workspace
    ```
 
 ### Email Template Development

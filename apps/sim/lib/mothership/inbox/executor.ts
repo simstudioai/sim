@@ -18,6 +18,7 @@ import { computeWorkspaceEntitlements } from '@/lib/copilot/entitlements'
 import { runHeadlessCopilotLifecycle } from '@/lib/copilot/request/lifecycle/headless'
 import { requestChatTitle } from '@/lib/copilot/request/lifecycle/start'
 import type { OrchestratorResult } from '@/lib/copilot/request/types'
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { isDocSandboxEnabled, isHosted } from '@/lib/core/config/env-flags'
 import * as agentmail from '@/lib/mothership/inbox/agentmail-client'
 import { formatEmailAsMessage } from '@/lib/mothership/inbox/format'
@@ -64,6 +65,8 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       id: workspace.id,
       ownerId: workspace.ownerId,
       inboxProviderId: workspace.inboxProviderId,
+      inboxSecretScope: workspace.inboxSecretScope,
+      inboxMountedSecrets: workspace.inboxMountedSecrets,
     })
     .from(workspace)
     .where(eq(workspace.id, inboxTask.workspaceId))
@@ -82,14 +85,15 @@ export async function executeInboxTask(taskId: string): Promise<void> {
   let responseSent = false
 
   try {
-    const [[claimed], userId] = await Promise.all([
+    const [[claimed], actor] = await Promise.all([
       db
         .update(mothershipInboxTask)
         .set({ status: 'processing', processingStartedAt: new Date() })
         .where(and(eq(mothershipInboxTask.id, taskId), eq(mothershipInboxTask.status, 'received')))
         .returning({ id: mothershipInboxTask.id }),
-      resolveUserId(inboxTask.fromEmail, ws),
+      resolveInboxExecutionActor(inboxTask.fromEmail, ws),
     ])
+    const userId = actor.executionUserId
 
     if (!claimed) {
       logger.info('Task already claimed by another execution, skipping', { taskId })
@@ -212,10 +216,14 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 
     const workspaceAccess = await checkWorkspaceAccess(ws.id, userId)
     const userPermission = workspaceAccess.permission
+    const secretMountPolicy = normalizeSecretMountPolicy({
+      secretScope: ws.inboxSecretScope,
+      mountedSecrets: ws.inboxMountedSecrets,
+    })
     const [attachmentResult, workspaceContext, integrationTools, billingAttribution, entitlements] =
       await Promise.all([
         fetchAttachments(),
-        generateWorkspaceContext(ws.id, userId, { workspaceAccess }),
+        generateWorkspaceContext(ws.id, userId, { workspaceAccess, secretMountPolicy }),
         buildIntegrationToolSchemas(userId, undefined, undefined, ws.id),
         resolveBillingAttribution({ actorUserId: userId, workspaceId: ws.id }),
         computeWorkspaceEntitlements(ws.id, userId),
@@ -252,6 +260,9 @@ export async function executeInboxTask(taskId: string): Promise<void> {
       autoExecuteTools: true,
       interactive: false,
       billingAttribution,
+      ...(userPermission ? { userPermission } : {}),
+      secretActorUserId: actor.secretActorUserId,
+      secretMountPolicy,
     })
 
     const cleanContent = stripThinkingTags(result.content || '')
@@ -328,13 +339,19 @@ export async function executeInboxTask(taskId: string): Promise<void> {
 }
 
 /**
- * Resolve which user ID to use for execution.
- * Match sender email to a workspace member, fallback to workspace owner.
+ * Resolve the execution and raw-secret actors independently. Workspace members
+ * execute and mount secrets as themselves. External senders retain the existing
+ * owner execution fallback but receive no raw-secret actor.
  */
-async function resolveUserId(
+interface InboxExecutionActor {
+  executionUserId: string
+  secretActorUserId: string | null
+}
+
+async function resolveInboxExecutionActor(
   senderEmail: string,
   ws: { id: string; ownerId: string }
-): Promise<string> {
+): Promise<InboxExecutionActor> {
   const [matchedUser] = await db
     .select({ id: user.id })
     .from(user)
@@ -345,11 +362,11 @@ async function resolveUserId(
   if (matchedUser) {
     const permission = await getUserEntityPermissions(matchedUser.id, 'workspace', ws.id)
     if (permission !== null) {
-      return matchedUser.id
+      return { executionUserId: matchedUser.id, secretActorUserId: matchedUser.id }
     }
   }
 
-  return ws.ownerId
+  return { executionUserId: ws.ownerId, secretActorUserId: null }
 }
 
 /**

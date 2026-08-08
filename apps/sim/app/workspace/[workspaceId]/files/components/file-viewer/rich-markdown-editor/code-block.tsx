@@ -8,12 +8,11 @@ import {
   DropdownMenuTrigger,
   useCopyToClipboard,
 } from '@sim/emcn'
-import type { JSONContent } from '@tiptap/core'
-import { CodeBlock } from '@tiptap/extension-code-block'
+import { Check, ChevronDown, Code, Duplicate, Eye, Wrap } from '@sim/emcn/icons'
 import type { ReactNodeViewProps } from '@tiptap/react'
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer } from '@tiptap/react'
-import { Check, ChevronDown, Code, Copy, Eye, WrapText } from 'lucide-react'
 import { looksLikeMermaid, MermaidDiagram } from '../mermaid-diagram'
+import { MarkdownCodeBlock } from './code-block-schema'
 import { detectLanguage } from './detect-language'
 import { useEditorEditable } from './use-editor-editable'
 
@@ -155,7 +154,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
                   type='button'
                   aria-label='Code language'
                   className={cn(
-                    chipVariants({ variant: 'default', flush: true }),
+                    chipVariants({ variant: 'default' }),
                     'h-[24px] gap-1 px-1.5 text-[var(--text-muted)] data-[state=open]:bg-[var(--surface-active)] data-[state=open]:text-[var(--text-body)]'
                   )}
                 >
@@ -193,7 +192,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
               wrap && 'bg-[var(--surface-active)] text-[var(--text-body)]'
             )}
           >
-            <WrapText />
+            <Wrap />
           </button>
         )}
         <button
@@ -203,7 +202,7 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
           onClick={() => copy(text)}
           className={CONTROL_CLASS}
         >
-          {copied ? <Check /> : <Copy />}
+          {copied ? <Check /> : <Duplicate />}
         </button>
       </div>
       <pre className={cn('code-editor-theme pr-20', showDiagram && 'hidden')} data-wrap={wrap}>
@@ -227,30 +226,6 @@ function CodeBlockView({ node, updateAttributes, editor, getPos }: ReactNodeView
     </NodeViewWrapper>
   )
 }
-
-function codeBlockText(node: JSONContent): string {
-  return (node.content ?? []).map((child) => child.text ?? '').join('')
-}
-
-/** Fence sized to one backtick longer than the longest run inside the code (CommonMark rule). */
-function fenceFor(text: string): string {
-  const longestRun = Math.max(0, ...[...text.matchAll(/`+/g)].map((match) => match[0].length))
-  return '`'.repeat(Math.max(3, longestRun + 1))
-}
-
-/**
- * Code block whose markdown serializer sizes the fence to the interior backtick runs, so a code
- * block that itself contains a ``` line round-trips instead of shattering. Shared by the test
- * (plain) and live ({@link CodeBlockWithLanguage}) paths.
- */
-export const MarkdownCodeBlock = CodeBlock.extend({
-  renderMarkdown: (node: JSONContent) => {
-    const language = typeof node.attrs?.language === 'string' ? node.attrs.language : ''
-    const text = codeBlockText(node)
-    const fence = fenceFor(text)
-    return `${fence}${language}\n${text}\n${fence}`
-  },
-})
 
 /**
  * Code block with hover-revealed controls (language picker, line-wrap toggle, copy). The

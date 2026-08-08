@@ -20,8 +20,10 @@ import { listWorkspacesForViewer } from '@/lib/workspaces/list'
 import {
   getWorkspaceCreationPolicy,
   getWorkspaceInvitePolicy,
+  lockWorkspaceCreationContext,
   resolveInviteFlags,
   WORKSPACE_MODE,
+  WorkspaceCreationContextChangedError,
 } from '@/lib/workspaces/policy'
 
 const logger = createLogger('Workspaces')
@@ -58,11 +60,35 @@ export const GET = withRouteHandler(async (request: Request) => {
       return NextResponse.json({ workspaces: [], lastActiveWorkspaceId, creationPolicy })
     }
 
-    const defaultWorkspace = await createDefaultWorkspace(
-      session.user.id,
-      session.user.name,
-      creationPolicy
-    )
+    let defaultWorkspace: Awaited<ReturnType<typeof createDefaultWorkspace>>
+    try {
+      defaultWorkspace = await createDefaultWorkspace(
+        session.user.id,
+        session.user.name,
+        creationPolicy
+      )
+    } catch (error) {
+      /**
+       * The user joined an organization between the empty list read and the
+       * default-workspace insert. Their workspaces (the join sweep's output)
+       * exist now — re-list and return that instead of failing the load.
+       */
+      if (error instanceof WorkspaceCreationContextChangedError) {
+        logger.info(
+          'Default workspace creation raced an organization membership change; re-listing',
+          {
+            userId: session.user.id,
+          }
+        )
+        const refreshedPayload = await listWorkspacesForViewer({
+          userId: session.user.id,
+          activeOrganizationId,
+          scope,
+        })
+        return NextResponse.json(refreshedPayload)
+      }
+      throw error
+    }
 
     await migrateExistingWorkflows(session.user.id, defaultWorkspace.id)
 
@@ -118,6 +144,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
       organizationId: creationPolicy.organizationId,
       workspaceMode: creationPolicy.workspaceMode,
       billedAccountUserId: creationPolicy.billedAccountUserId,
+      observedOrganizationId: creationPolicy.observedOrganizationId,
     })
 
     captureServerEvent(
@@ -156,6 +183,15 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
 
     return NextResponse.json({ workspace: newWorkspace })
   } catch (error) {
+    if (error instanceof WorkspaceCreationContextChangedError) {
+      return NextResponse.json(
+        {
+          error:
+            'Your organization membership changed while this workspace was being created. Please try again.',
+        },
+        { status: 409 }
+      )
+    }
     logger.error('Error creating workspace:', error)
     return NextResponse.json({ error: 'Failed to create workspace' }, { status: 500 })
   }
@@ -168,6 +204,7 @@ async function createDefaultWorkspace(
     organizationId: string | null
     workspaceMode: WorkspaceMode
     billedAccountUserId: string
+    observedOrganizationId: string | null
   }
 ) {
   const firstName = userName?.split(' ')[0] || null
@@ -178,11 +215,14 @@ async function createDefaultWorkspace(
     organizationId: creationPolicy.organizationId,
     workspaceMode: creationPolicy.workspaceMode,
     billedAccountUserId: creationPolicy.billedAccountUserId,
+    observedOrganizationId: creationPolicy.observedOrganizationId,
   })
 }
 
 interface CreateWorkspaceParams {
   userId: string
+  /** Membership the creation policy observed; see WorkspaceCreationPolicy. */
+  observedOrganizationId: string | null
   name: string
   skipDefaultWorkflow?: boolean
   explicitColor?: string
@@ -193,6 +233,7 @@ interface CreateWorkspaceParams {
 
 async function createWorkspace({
   userId,
+  observedOrganizationId,
   name,
   skipDefaultWorkflow = false,
   explicitColor,
@@ -204,9 +245,28 @@ async function createWorkspace({
   const workflowId = generateId()
   const now = new Date()
   const color = explicitColor || getRandomWorkspaceColor()
+  let committedBilledAccountUserId = billedAccountUserId
 
   try {
     await db.transaction(async (tx) => {
+      /**
+       * Creation takes the same organization → user → membership fence as
+       * source access removal and transfer. If creation commits first, their
+       * post-lock workspace-set re-read sees this row and cleans it up. If the
+       * membership mutation commits first, this re-read rejects the stale
+       * creation policy before inserting anything.
+       */
+      const lockedCreationContext = await lockWorkspaceCreationContext(tx, {
+        userId,
+        organizationId,
+        observedOrganizationId,
+      })
+      const currentBilledAccountUserId =
+        workspaceMode === WORKSPACE_MODE.ORGANIZATION
+          ? lockedCreationContext.billedAccountUserId
+          : billedAccountUserId
+      committedBilledAccountUserId = currentBilledAccountUserId
+
       await tx.insert(workspace).values({
         id: workspaceId,
         name,
@@ -214,7 +274,7 @@ async function createWorkspace({
         ownerId: userId,
         organizationId,
         workspaceMode,
-        billedAccountUserId,
+        billedAccountUserId: currentBilledAccountUserId,
         allowPersonalApiKeys: true,
         createdAt: now,
         updatedAt: now,
@@ -234,14 +294,14 @@ async function createWorkspace({
 
       if (
         workspaceMode === WORKSPACE_MODE.ORGANIZATION &&
-        billedAccountUserId &&
-        billedAccountUserId !== userId
+        currentBilledAccountUserId &&
+        currentBilledAccountUserId !== userId
       ) {
         permissionRows.push({
           id: generateId(),
           entityType: 'workspace' as const,
           entityId: workspaceId,
-          userId: billedAccountUserId,
+          userId: currentBilledAccountUserId,
           permissionType: 'admin' as const,
           createdAt: now,
           updatedAt: now,
@@ -294,7 +354,7 @@ async function createWorkspace({
   const invitePolicy = await getWorkspaceInvitePolicy({
     organizationId,
     workspaceMode,
-    billedAccountUserId,
+    billedAccountUserId: committedBilledAccountUserId,
     ownerId: userId,
   })
 
@@ -305,13 +365,13 @@ async function createWorkspace({
     ownerId: userId,
     organizationId,
     workspaceMode,
-    billedAccountUserId,
+    billedAccountUserId: committedBilledAccountUserId,
     allowPersonalApiKeys: true,
     createdAt: now,
     updatedAt: now,
     role: 'owner',
     permissions: 'admin',
-    ...resolveInviteFlags(invitePolicy, billedAccountUserId === userId),
+    ...resolveInviteFlags(invitePolicy, committedBilledAccountUserId === userId),
   }
 }
 

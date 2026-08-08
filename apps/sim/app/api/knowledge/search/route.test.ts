@@ -21,20 +21,14 @@ import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vites
 
 const {
   mockGetDocumentTagDefinitions,
-  mockHandleTagOnlySearch,
-  mockHandleVectorOnlySearch,
-  mockHandleTagAndVectorSearch,
-  mockGetQueryStrategy,
+  mockExecuteKnowledgeSearch,
   mockGenerateSearchEmbedding,
-  mockGetDocumentMetadataByIds,
+  mockImportKnowledgeSearchResultSecretProvenance,
 } = vi.hoisted(() => ({
   mockGetDocumentTagDefinitions: vi.fn(),
-  mockHandleTagOnlySearch: vi.fn(),
-  mockHandleVectorOnlySearch: vi.fn(),
-  mockHandleTagAndVectorSearch: vi.fn(),
-  mockGetQueryStrategy: vi.fn(),
+  mockExecuteKnowledgeSearch: vi.fn(),
   mockGenerateSearchEmbedding: vi.fn(),
-  mockGetDocumentMetadataByIds: vi.fn(),
+  mockImportKnowledgeSearchResultSecretProvenance: vi.fn(),
 }))
 
 const mockCheckKnowledgeBaseAccess = knowledgeApiUtilsMockFns.mockCheckKnowledgeBaseAccess
@@ -50,6 +44,11 @@ vi.mock('@/lib/tokenization/estimators', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   calculateCost: vi.fn().mockReturnValue({
     input: 0.00001042,
     output: 0,
@@ -68,13 +67,13 @@ vi.mock('@/lib/knowledge/tags/service', () => ({
   getDocumentTagDefinitions: mockGetDocumentTagDefinitions,
 }))
 
+vi.mock('@/lib/knowledge/secret-provenance', () => ({
+  importKnowledgeSearchResultSecretProvenance: mockImportKnowledgeSearchResultSecretProvenance,
+}))
+
 vi.mock('./utils', () => ({
-  handleTagOnlySearch: mockHandleTagOnlySearch,
-  handleVectorOnlySearch: mockHandleVectorOnlySearch,
-  handleTagAndVectorSearch: mockHandleTagAndVectorSearch,
-  getQueryStrategy: mockGetQueryStrategy,
+  executeKnowledgeSearch: mockExecuteKnowledgeSearch,
   generateSearchEmbedding: mockGenerateSearchEmbedding,
-  getDocumentMetadataByIds: mockGetDocumentMetadataByIds,
   APIError: class APIError extends Error {
     public status: number
     constructor(message: string, status: number) {
@@ -85,6 +84,11 @@ vi.mock('./utils', () => ({
   },
 }))
 
+import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  RESOLVED_SECRET_PROVENANCE_FIELD,
+  RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+} from '@/lib/execution/private-tool-metadata'
 import { estimateTokenCount } from '@/lib/tokenization/estimators'
 import { POST } from '@/app/api/knowledge/search/route'
 import { calculateCost } from '@/providers/utils'
@@ -118,21 +122,24 @@ describe('Knowledge Search API Route', () => {
     resetDbChainMock()
     setEnv({ OPENAI_API_KEY: 'test-api-key' })
 
-    mockHandleTagOnlySearch.mockClear()
-    mockHandleVectorOnlySearch.mockClear()
-    mockHandleTagAndVectorSearch.mockClear()
-    mockGetQueryStrategy.mockClear().mockReturnValue({
-      useParallel: false,
-      distanceThreshold: 1.0,
-      parallelLimit: 15,
-      singleQueryOptimized: true,
-    })
+    mockExecuteKnowledgeSearch.mockClear()
     mockGenerateSearchEmbedding
       .mockClear()
       .mockResolvedValue({ embedding: [0.1, 0.2, 0.3, 0.4, 0.5], isBYOK: false })
-    mockGetDocumentMetadataByIds.mockClear().mockResolvedValue({
-      doc1: { filename: 'Document 1', sourceUrl: null },
-      doc2: { filename: 'Document 2', sourceUrl: null },
+    mockImportKnowledgeSearchResultSecretProvenance.mockClear().mockResolvedValue({
+      imported: true,
+      documentMetadata: {
+        doc1: {
+          filename: 'Document 1',
+          sourceUrl: null,
+          provenance: { status: 'known', entries: [] },
+        },
+        doc2: {
+          filename: 'Document 2',
+          sourceUrl: null,
+          provenance: { status: 'known', entries: [] },
+        },
+      },
     })
     mockGetDocumentTagDefinitions.mockClear()
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockClear().mockResolvedValue({
@@ -192,7 +199,7 @@ describe('Knowledge Search API Route', () => {
 
       dbChainMockFns.limit.mockResolvedValue([])
 
-      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -212,12 +219,48 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.results[0].similarity).toBe(0.8) // 1 - 0.2
       expect(data.data.query).toBe(validSearchData.query)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123'])
-      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
+        searchMode: 'vector',
+        query: validSearchData.query,
         queryVector: JSON.stringify(mockEmbedding),
-        distanceThreshold: expect.any(Number),
+        structuredFilters: undefined,
       })
+    })
+
+    it('should forward the hybrid searchMode opt-in to the retrieval layer', async () => {
+      mockGetUserId.mockResolvedValue('user-123')
+
+      mockCheckKnowledgeBaseAccess.mockResolvedValue({
+        hasAccess: true,
+        knowledgeBase: {
+          id: 'kb-123',
+          userId: 'user-123',
+          name: 'Test KB',
+          deletedAt: null,
+        },
+      })
+
+      dbChainMockFns.limit.mockResolvedValue([])
+
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
+
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: [{ embedding: mockEmbedding }],
+          }),
+      })
+
+      const req = createMockRequest('POST', { ...validSearchData, searchMode: 'hybrid' })
+      const response = await POST(req)
+
+      expect(response.status).toBe(200)
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith(
+        expect.objectContaining({ searchMode: 'hybrid' })
+      )
     })
 
     it('should perform search successfully with multiple knowledge bases', async () => {
@@ -239,7 +282,7 @@ describe('Knowledge Search API Route', () => {
 
       dbChainMockFns.limit.mockResolvedValue([])
 
-      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -256,11 +299,13 @@ describe('Knowledge Search API Route', () => {
       expect(response.status).toBe(200)
       expect(data.success).toBe(true)
       expect(data.data.knowledgeBaseIds).toEqual(['kb-123', 'kb-456'])
-      expect(mockHandleVectorOnlySearch).toHaveBeenCalledWith({
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123', 'kb-456'],
         topK: 10,
+        searchMode: 'vector',
+        query: multiKbData.query,
         queryVector: JSON.stringify(mockEmbedding),
-        distanceThreshold: expect.any(Number),
+        structuredFilters: undefined,
       })
     })
 
@@ -284,7 +329,7 @@ describe('Knowledge Search API Route', () => {
 
       dbChainMockFns.limit.mockResolvedValue([])
 
-      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -348,7 +393,7 @@ describe('Knowledge Search API Route', () => {
           embeddingModel: 'text-embedding-3-small',
         },
       })
-      mockHandleVectorOnlySearch.mockResolvedValue(mockSearchResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
       const attribution = encodeURIComponent(
         JSON.stringify({
           actorUserId: 'user-123',
@@ -366,8 +411,15 @@ describe('Knowledge Search API Route', () => {
 
       const req = createMockRequest(
         'POST',
-        { ...validSearchData, skipUsageBilling: true },
-        { 'x-sim-billing-attribution': attribution }
+        {
+          ...validSearchData,
+          skipUsageBilling: true,
+          [RESOLVED_SECRET_PROVENANCE_FIELD]: { version: 1, complete: true, entries: [] },
+        },
+        {
+          'x-sim-billing-attribution': attribution,
+          [PRIVATE_MODEL_INPUT_PROVENANCE_HEADER]: RESOLVED_SECRET_PROVENANCE_METADATA_V1,
+        }
       )
       const response = await POST(req)
 
@@ -532,7 +584,7 @@ describe('Knowledge Search API Route', () => {
       mockGetUserId.mockResolvedValue('user-123')
       dbChainMockFns.limit.mockResolvedValueOnce(mockKnowledgeBases)
 
-      mockHandleVectorOnlySearch.mockRejectedValueOnce(new Error('Database error'))
+      mockExecuteKnowledgeSearch.mockRejectedValueOnce(new Error('Database error'))
 
       const req = createMockRequest('POST', validSearchData)
       const response = await POST(req)
@@ -750,7 +802,7 @@ describe('Knowledge Search API Route', () => {
 
       dbChainMockFns.limit.mockResolvedValueOnce(mockTagDefinitions)
 
-      mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockTaggedResults)
 
       const req = createMockRequest('POST', tagOnlyData)
       const response = await POST(req)
@@ -763,9 +815,10 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.query).toBe('') // Empty query
       expect(data.data.cost).toBeUndefined() // No cost for tag-only search
       expect(mockGenerateSearchEmbedding).not.toHaveBeenCalled() // No embedding API call
-      expect(mockHandleTagOnlySearch).toHaveBeenCalledWith({
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
+        searchMode: 'vector',
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api', valueTo: undefined },
         ],
@@ -796,7 +849,7 @@ describe('Knowledge Search API Route', () => {
 
       dbChainMockFns.limit.mockResolvedValueOnce(mockTagDefinitions)
 
-      mockHandleTagAndVectorSearch.mockResolvedValue(mockSearchResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockSearchResults)
 
       mockFetch.mockResolvedValue({
         ok: true,
@@ -816,14 +869,15 @@ describe('Knowledge Search API Route', () => {
       expect(data.data.query).toBe('test search')
       expect(data.data.cost).toBeDefined() // Cost included for vector search
       expect(mockGenerateSearchEmbedding).toHaveBeenCalled() // Embedding API called
-      expect(mockHandleTagAndVectorSearch).toHaveBeenCalledWith({
+      expect(mockExecuteKnowledgeSearch).toHaveBeenCalledWith({
         knowledgeBaseIds: ['kb-123'],
         topK: 10,
+        searchMode: 'vector',
+        query: 'test search',
+        queryVector: JSON.stringify(mockEmbedding),
         structuredFilters: [
           { tagSlot: 'tag1', fieldType: 'text', operator: 'eq', value: 'api', valueTo: undefined },
         ],
-        queryVector: JSON.stringify(mockEmbedding),
-        distanceThreshold: 1, // Single KB uses threshold of 1.0
       })
     })
 
@@ -987,7 +1041,7 @@ describe('Knowledge Search API Route', () => {
 
       mockGetDocumentTagDefinitions.mockResolvedValue(mockTagDefinitions)
 
-      mockHandleTagOnlySearch.mockResolvedValue(mockTaggedResults)
+      mockExecuteKnowledgeSearch.mockResolvedValue(mockTaggedResults)
 
       dbChainMockFns.limit.mockResolvedValueOnce(mockTagDefinitions)
 
@@ -1016,7 +1070,7 @@ describe('Knowledge Search API Route', () => {
         },
       })
 
-      mockHandleVectorOnlySearch.mockResolvedValue([
+      mockExecuteKnowledgeSearch.mockResolvedValue([
         {
           id: 'chunk-1',
           content: 'Content from active document',
@@ -1034,18 +1088,15 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
-
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active': {
-          filename: 'Active Document.pdf',
-          sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active': {
+            filename: 'Active Document.pdf',
+            sourceUrl: 'https://example.atlassian.net/wiki/spaces/DOCS/pages/12345',
+            provenance: { status: 'known', entries: [] },
+          },
         },
       })
 
@@ -1092,7 +1143,7 @@ describe('Knowledge Search API Route', () => {
         { tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' },
       ])
 
-      mockHandleTagOnlySearch.mockResolvedValue([
+      mockExecuteKnowledgeSearch.mockResolvedValue([
         {
           id: 'chunk-2',
           content: 'Content from active document with tag',
@@ -1110,15 +1161,16 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
-
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active-tagged': { filename: 'Active Tagged Document.pdf', sourceUrl: null },
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active-tagged': {
+            filename: 'Active Tagged Document.pdf',
+            sourceUrl: null,
+            tag1: 'api',
+            provenance: { status: 'known', entries: [] },
+          },
+        },
       })
 
       const mockTagDefs = {
@@ -1164,7 +1216,7 @@ describe('Knowledge Search API Route', () => {
         { tagSlot: 'tag1', displayName: 'tag1', fieldType: 'text' },
       ])
 
-      mockHandleTagAndVectorSearch.mockResolvedValue([
+      mockExecuteKnowledgeSearch.mockResolvedValue([
         {
           id: 'chunk-3',
           content: 'Relevant content from active document',
@@ -1182,16 +1234,17 @@ describe('Knowledge Search API Route', () => {
         },
       ])
 
-      mockGetQueryStrategy.mockReturnValue({
-        useParallel: false,
-        distanceThreshold: 1.0,
-        parallelLimit: 15,
-        singleQueryOptimized: true,
-      })
-
       mockGenerateSearchEmbedding.mockResolvedValue({ embedding: [0.1, 0.2, 0.3], isBYOK: false })
-      mockGetDocumentMetadataByIds.mockResolvedValue({
-        'doc-active-combined': { filename: 'Active Combined Search.pdf', sourceUrl: null },
+      mockImportKnowledgeSearchResultSecretProvenance.mockResolvedValue({
+        imported: true,
+        documentMetadata: {
+          'doc-active-combined': {
+            filename: 'Active Combined Search.pdf',
+            sourceUrl: null,
+            tag1: 'guide',
+            provenance: { status: 'known', entries: [] },
+          },
+        },
       })
 
       const mockTagDefs = {

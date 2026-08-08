@@ -35,7 +35,7 @@ Integrate Fireflies.ai into the workflow. Manage meeting transcripts, add bot to
 
 ## Actions
 
-### `fireflies_list_transcripts`
+### Fireflies List Transcripts
 
 List meeting transcripts from Fireflies.ai with optional filtering
 
@@ -59,7 +59,7 @@ List meeting transcripts from Fireflies.ai with optional filtering
 | `transcripts` | array | List of transcripts |
 | `count` | number | Number of transcripts returned |
 
-### `fireflies_get_transcript`
+### Fireflies Get Transcript
 
 Get a single transcript with full details including summary, action items, and analytics
 
@@ -88,7 +88,7 @@ Get a single transcript with full details including summary, action items, and a
 |   ↳ `summary` | object | Meeting summary and action items |
 |   ↳ `analytics` | object | Meeting analytics and sentiment |
 
-### `fireflies_get_user`
+### Fireflies Get User
 
 Get user information from Fireflies.ai. Returns current user if no ID specified.
 
@@ -114,7 +114,7 @@ Get user information from Fireflies.ai. Returns current user if no ID specified.
 |   ↳ `recent_transcript` | string | Most recent transcript ID |
 |   ↳ `recent_meeting` | string | Most recent meeting date |
 
-### `fireflies_list_users`
+### Fireflies List Users
 
 List all users within your Fireflies.ai team
 
@@ -130,7 +130,7 @@ List all users within your Fireflies.ai team
 | --------- | ---- | ----------- |
 | `users` | array | List of team users |
 
-### `fireflies_upload_audio`
+### Fireflies Upload Audio
 
 Upload an audio file URL to Fireflies.ai for transcription
 
@@ -155,7 +155,7 @@ Upload an audio file URL to Fireflies.ai for transcription
 | `title` | string | Title of the uploaded meeting |
 | `message` | string | Status message from Fireflies |
 
-### `fireflies_delete_transcript`
+### Fireflies Delete Transcript
 
 Delete a transcript from Fireflies.ai
 
@@ -179,7 +179,7 @@ Delete a transcript from Fireflies.ai
 |   ↳ `host_email` | string | Host email address |
 |   ↳ `organizer_email` | string | Organizer email address |
 
-### `fireflies_add_to_live_meeting`
+### Fireflies Add to Live Meeting
 
 Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
 
@@ -200,7 +200,7 @@ Add the Fireflies.ai bot to an ongoing meeting to record and transcribe
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the bot was successfully added to the meeting |
 
-### `fireflies_create_bite`
+### Fireflies Create Bite
 
 Create a soundbite/highlight from a specific time range in a transcript
 
@@ -225,7 +225,7 @@ Create a soundbite/highlight from a specific time range in a transcript
 |   ↳ `name` | string | Bite name |
 |   ↳ `status` | string | Processing status |
 
-### `fireflies_list_bites`
+### Fireflies List Bites
 
 List soundbites/highlights from Fireflies.ai
 
@@ -245,7 +245,7 @@ List soundbites/highlights from Fireflies.ai
 | --------- | ---- | ----------- |
 | `bites` | array | List of bites/soundbites |
 
-### `fireflies_list_contacts`
+### Fireflies List Contacts
 
 List all contacts from your Fireflies.ai meetings
 

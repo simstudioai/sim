@@ -1,10 +1,10 @@
 import { createLogger } from '@sim/logger'
-import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
+import type { AsyncExecutionCorrelation } from '@/lib/core/async-jobs/types'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -12,6 +12,7 @@ import { handlePostExecutionPauseState } from '@/lib/workflows/executor/pause-pe
 import { ExecutionSnapshot } from '@/executor/execution/snapshot'
 import type { ExecutionMetadata, SerializableExecutionState } from '@/executor/execution/types'
 import type { ExecutionResult, StreamingExecution } from '@/executor/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowExecution')
 
@@ -35,6 +36,7 @@ export interface ExecuteWorkflowOptions {
     executionOrder: number
   ) => Promise<void>
   onBlockComplete?: (blockId: string, output: unknown) => Promise<void>
+  /** Transfers post-execution logging ownership to the streaming caller after execution succeeds. */
   skipLoggingComplete?: boolean
   includeFileBase64?: boolean
   base64MaxBytes?: number
@@ -51,9 +53,13 @@ export interface ExecuteWorkflowOptions {
     sourceSnapshot: SerializableExecutionState
     sourceExecutionId?: string
   }
+  /** Trusted encrypted provenance supplied by a server-only caller before execution starts. */
+  trustedInitialResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   executionMode?: 'sync' | 'stream' | 'async'
   /** Immutable actor/payer decision captured by preprocessing. */
   billingAttribution?: BillingAttributionSnapshot
+  /** Server-issued run identity persisted with the execution log and snapshot. */
+  trustedExecutionCorrelation?: AsyncExecutionCorrelation
   /** Deployed-chat thinking policy; persisted on the snapshot for resume. */
   includeThinking?: boolean
   /** Deployed-chat tool lifecycle policy; persisted on the snapshot for resume. */
@@ -101,6 +107,10 @@ export async function executeWorkflow(
   const executionId = providedExecutionId || generateId()
   const triggerType = streamConfig?.workflowTriggerType || 'api'
   const loggingSession = new LoggingSession(workflowId, executionId, triggerType, requestId)
+  if (streamConfig?.trustedExecutionCorrelation) {
+    loggingSession.setTrustedExecutionCorrelation(streamConfig.trustedExecutionCorrelation)
+  }
+  let postExecutionOwnershipTransferred = false
 
   try {
     const metadata: ExecutionMetadata = {
@@ -126,6 +136,7 @@ export async function executeWorkflow(
           ? streamConfig.includeToolCalls
           : undefined,
       agentEvents: streamConfig?.agentEvents === true ? true : undefined,
+      correlation: streamConfig?.trustedExecutionCorrelation,
     }
 
     const snapshot = new ExecutionSnapshot(
@@ -163,6 +174,8 @@ export async function executeWorkflow(
       base64MaxBytes: streamConfig?.base64MaxBytes,
       abortSignal: streamConfig?.abortSignal,
       stopAfterBlockId: streamConfig?.stopAfterBlockId,
+      trustedInitialResolvedSecretTraceProvenance:
+        streamConfig?.trustedInitialResolvedSecretTraceProvenance,
       runFromBlock: streamConfig?.runFromBlock,
     })
 
@@ -196,6 +209,7 @@ export async function executeWorkflow(
     await handlePostExecutionPauseState({ result, workflowId, executionId, loggingSession })
 
     if (streamConfig?.skipLoggingComplete) {
+      postExecutionOwnershipTransferred = true
       return {
         ...result,
         _streamingMetadata: {
@@ -207,7 +221,8 @@ export async function executeWorkflow(
 
     return result
   } catch (error: unknown) {
-    logger.error(`[${requestId}] Workflow execution failed:`, error)
+    const errorDiagnostic = loggingSession.projectDiagnosticError(error)
+    logger.error(`[${requestId}] Workflow execution failed`, errorDiagnostic)
 
     captureServerEvent(
       actorUserId,
@@ -216,11 +231,18 @@ export async function executeWorkflow(
         workflow_id: workflow.id,
         workspace_id: workspaceId,
         trigger_type: streamConfig?.workflowTriggerType || 'api',
-        error_message: toError(error).message,
+        error_message:
+          typeof errorDiagnostic.error === 'string'
+            ? errorDiagnostic.error
+            : 'Workflow execution failed',
       },
       { groups: { workspace: workspaceId } }
     )
 
     throw error
+  } finally {
+    if (!postExecutionOwnershipTransferred) {
+      await loggingSession.waitForPostExecution()
+    }
   }
 }

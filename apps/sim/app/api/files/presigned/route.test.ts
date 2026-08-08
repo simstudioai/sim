@@ -24,12 +24,13 @@ const {
   mockIsUsingCloudStorageUploads,
   mockGetUserEntityPermissions,
   mockGenerateWorkspaceFileKey,
-  mockGenerateExecutionFileKey,
+  mockGenerateExecutionAttachmentKey,
   mockInsertFileMetadata,
   mockCheckStorageQuotaForBillingContext,
   mockDecrementStorageUsageForBillingContext,
   mockIncrementStorageUsageForBillingContext,
   mockResolveStorageBillingContext,
+  mockSignUploadToken,
 } = vi.hoisted(() => ({
   mockVerifyFileAccess: vi.fn().mockResolvedValue(true),
   mockVerifyWorkspaceFileAccess: vi.fn().mockResolvedValue(true),
@@ -51,15 +52,16 @@ const {
   mockGenerateWorkspaceFileKey: vi.fn(
     (workspaceId: string, fileName: string) => `workspace/${workspaceId}/${fileName}`
   ),
-  mockGenerateExecutionFileKey: vi.fn(
+  mockGenerateExecutionAttachmentKey: vi.fn(
     (ctx: { workspaceId: string; workflowId: string; executionId: string }, fileName: string) =>
-      `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/${fileName}`
+      `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/attachment-${fileName}`
   ),
   mockInsertFileMetadata: vi.fn().mockResolvedValue({ id: 'wf_test' }),
   mockCheckStorageQuotaForBillingContext: vi.fn(),
   mockDecrementStorageUsageForBillingContext: vi.fn(),
   mockIncrementStorageUsageForBillingContext: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockSignUploadToken: vi.fn(),
 }))
 
 vi.mock('@/app/api/files/authorization', () => ({
@@ -83,6 +85,10 @@ vi.mock('@/lib/uploads/config', () => ({
 
 vi.mock('@/lib/uploads/core/storage-service', () => storageServiceMock)
 
+vi.mock('@/lib/uploads/core/upload-token', () => ({
+  signUploadToken: mockSignUploadToken,
+}))
+
 vi.mock('@/lib/billing/storage', () => ({
   checkStorageQuotaForBillingContext: mockCheckStorageQuotaForBillingContext,
   decrementStorageUsageForBillingContext: mockDecrementStorageUsageForBillingContext,
@@ -104,11 +110,11 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
-  generateExecutionFileKey: mockGenerateExecutionFileKey,
+  generateExecutionAttachmentKey: mockGenerateExecutionAttachmentKey,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
-  insertFileMetadata: mockInsertFileMetadata,
+  insertImmutableFileMetadata: mockInsertFileMetadata,
   recordKnowledgeBaseFileOwnership: (ownership: Record<string, unknown>) =>
     mockInsertFileMetadata({ ...ownership, context: 'knowledge-base' }),
 }))
@@ -181,6 +187,7 @@ function setupFileApiMocks(
       return {
         url: 'https://example.com/presigned-url',
         key,
+        uploadId: `receipt-${key}`,
       }
     }
   )
@@ -207,6 +214,7 @@ describe('/api/files/presigned', () => {
     vi.stubGlobal('crypto', {
       randomUUID: vi.fn().mockReturnValue('mock-uuid-1234-5678'),
     })
+    mockSignUploadToken.mockReturnValue('signed-receipt-token')
   })
 
   afterEach(() => {
@@ -220,14 +228,17 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -235,11 +246,11 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(data.directUploadSupported).toBe(false)
       expect(data.presignedUrl).toBe('')
-      expect(data.fileName).toBe('test.txt')
+      expect(data.fileName).toBe('avatar.png')
       expect(data.fileInfo).toBeDefined()
-      expect(data.fileInfo.name).toBe('test.txt')
+      expect(data.fileInfo.name).toBe('avatar.png')
       expect(data.fileInfo.size).toBe(1024)
-      expect(data.fileInfo.type).toBe('text/plain')
+      expect(data.fileInfo.type).toBe('image/png')
     })
 
     it('should return error when fileName is missing', async () => {
@@ -339,14 +350,17 @@ describe('/api/files/presigned', () => {
         storageProvider: 's3',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test document.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'test avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -354,11 +368,11 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(200)
       expect(data.presignedUrl).toBe('https://example.com/presigned-url')
       expect(data.fileInfo).toMatchObject({
-        path: expect.stringMatching(/\/api\/files\/serve\/s3\/.+\?context=chat$/),
-        key: expect.stringMatching(/.*test.document\.txt$/),
-        name: 'test document.txt',
+        path: expect.stringMatching(/\/api\/files\/serve\/s3\/.+\?context=profile-pictures$/),
+        key: expect.stringMatching(/.*test.avatar\.png$/),
+        name: 'test avatar.png',
         size: 1024,
-        type: 'text/plain',
+        type: 'image/png',
       })
       expect(data.directUploadSupported).toBe(true)
     })
@@ -389,27 +403,30 @@ describe('/api/files/presigned', () => {
       expect(data.directUploadSupported).toBe(true)
     })
 
-    it('should generate chat S3 presigned URL with chat prefix and direct path', async () => {
+    it('should generate profile-pictures S3 presigned URL with its prefix and direct path', async () => {
       setupFileApiMocks({
         cloudEnabled: true,
         storageProvider: 's3',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'chat-logo.png',
-          contentType: 'image/png',
-          fileSize: 4096,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
-      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/s3\/.+\?context=chat$/)
+      expect(data.fileInfo.key).toMatch(/^profile-pictures\/.*avatar\.png$/)
+      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/s3\/.+\?context=profile-pictures$/)
       expect(data.presignedUrl).toBeTruthy()
       expect(data.directUploadSupported).toBe(true)
     })
@@ -420,14 +437,17 @@ describe('/api/files/presigned', () => {
         storageProvider: 'blob',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test document.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'test avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -436,35 +456,38 @@ describe('/api/files/presigned', () => {
       expect(data.presignedUrl).toBeTruthy()
       expect(typeof data.presignedUrl).toBe('string')
       expect(data.fileInfo).toMatchObject({
-        key: expect.stringMatching(/.*test.document\.txt$/),
-        name: 'test document.txt',
+        key: expect.stringMatching(/.*test.avatar\.png$/),
+        name: 'test avatar.png',
         size: 1024,
-        type: 'text/plain',
+        type: 'image/png',
       })
       expect(data.directUploadSupported).toBe(true)
     })
 
-    it('should generate chat Azure Blob presigned URL with chat prefix and direct path', async () => {
+    it('should generate profile-pictures Azure Blob presigned URL with its prefix and direct path', async () => {
       setupFileApiMocks({
         cloudEnabled: true,
         storageProvider: 'blob',
       })
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'chat-logo.png',
-          contentType: 'image/png',
-          fileSize: 4096,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 4096,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
 
       expect(response.status).toBe(200)
-      expect(data.fileInfo.key).toMatch(/^chat\/.*chat-logo\.png$/)
-      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/blob\/.+\?context=chat$/)
+      expect(data.fileInfo.key).toMatch(/^profile-pictures\/.*avatar\.png$/)
+      expect(data.fileInfo.path).toMatch(/\/api\/files\/serve\/blob\/.+\?context=profile-pictures$/)
       expect(data.presignedUrl).toBeTruthy()
       expect(data.directUploadSupported).toBe(true)
     })
@@ -479,14 +502,17 @@ describe('/api/files/presigned', () => {
         new Error('Unknown storage provider: unknown')
       )
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -506,14 +532,17 @@ describe('/api/files/presigned', () => {
         new Error('S3 service unavailable')
       )
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -533,14 +562,17 @@ describe('/api/files/presigned', () => {
         new Error('Azure service unavailable')
       )
 
-      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
-        method: 'POST',
-        body: JSON.stringify({
-          fileName: 'test.txt',
-          contentType: 'text/plain',
-          fileSize: 1024,
-        }),
-      })
+      const request = new NextRequest(
+        'http://localhost:3000/api/files/presigned?type=profile-pictures',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            fileName: 'avatar.png',
+            contentType: 'image/png',
+            fileSize: 1024,
+          }),
+        }
+      )
 
       const response = await POST(request)
       const data = await response.json()
@@ -567,6 +599,26 @@ describe('/api/files/presigned', () => {
       expect(response.status).toBe(400) // Changed from 500 to 400 (ValidationError)
       expect(data.error).toBe('Invalid JSON in request body') // Updated error message
       expect(data.code).toBe('VALIDATION_ERROR')
+    })
+
+    it('rejects the unauthorizable chat context without minting a URL', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+
+      const request = new NextRequest('http://localhost:3000/api/files/presigned?type=chat', {
+        method: 'POST',
+        body: JSON.stringify({
+          fileName: 'poc.html',
+          contentType: 'text/html',
+          fileSize: 41,
+        }),
+      })
+
+      const response = await POST(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('Invalid type parameter')
+      expect(storageServiceMockFns.mockGeneratePresignedUploadUrl).not.toHaveBeenCalled()
     })
   })
 
@@ -698,6 +750,39 @@ describe('/api/files/presigned', () => {
   })
 
   describe('execution uploads', () => {
+    it('allocates distinct create-only keys for duplicate attachment names', async () => {
+      setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
+      mockGenerateExecutionAttachmentKey
+        .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/one-output.txt')
+        .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/two-output.txt')
+
+      const makeExecutionRequest = (fileSize: number) =>
+        new NextRequest(
+          'http://localhost:3000/api/files/presigned?type=execution&workspaceId=ws-1&workflowId=wf-1&executionId=exec-1',
+          {
+            method: 'POST',
+            body: JSON.stringify({
+              fileName: 'output.txt',
+              contentType: 'text/plain',
+              fileSize,
+            }),
+          }
+        )
+
+      const first = await POST(makeExecutionRequest(3))
+      const second = await POST(makeExecutionRequest(12))
+      const firstBody = await first.json()
+      const secondBody = await second.json()
+
+      expect(first.status).toBe(200)
+      expect(second.status).toBe(200)
+      expect(firstBody.fileInfo.key).toBe('execution/ws-1/wf-1/exec-1/one-output.txt')
+      expect(secondBody.fileInfo.key).toBe('execution/ws-1/wf-1/exec-1/two-output.txt')
+      expect(firstBody.fileInfo.key).not.toBe(secondBody.fileInfo.key)
+      expect(firstBody.uploadToken).toBe('signed-receipt-token')
+      expect(secondBody.uploadToken).toBe('signed-receipt-token')
+    })
+
     it('uses validateAttachmentFileType — accepts video', async () => {
       setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
 

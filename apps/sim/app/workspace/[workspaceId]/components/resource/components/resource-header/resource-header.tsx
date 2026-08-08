@@ -1,3 +1,5 @@
+'use client'
+
 import {
   type ComponentType,
   Fragment,
@@ -29,10 +31,11 @@ import {
   useFloatingTooltip,
   useIsOverflowing,
 } from '@sim/emcn'
-import { ArrowUpLeft } from 'lucide-react'
+import { ArrowUpLeft } from '@sim/emcn/icons'
 import { createPortal } from 'react-dom'
+import { HEADER_ACTION_CLUSTER, TITLE_BAR_LANE_PT } from '@/components/page-header-bar'
+import { orderHeaderActions } from '@/components/settings/settings-header'
 import { InlineRenameInput } from '@/app/workspace/[workspaceId]/components/inline-rename-input'
-import { FloatingOverflowText } from '@/app/workspace/[workspaceId]/components/resource/components/floating-overflow-text'
 
 export interface DropdownOption {
   label: string
@@ -77,6 +80,13 @@ export interface BreadcrumbItem {
  * a selected/toggle state with `active` (e.g. the Logs/Dashboard view toggle).
  */
 export interface ResourceAction {
+  /**
+   * Stable render identity, and the action's slot in the row. `'delete'` and
+   * `'discard'` are ordered by {@link orderHeaderActions} rather than by where the
+   * caller listed them; any other id is just a key. Falls back to `text`, which
+   * remounts the chip whenever the label flips (Delete → Deleting...).
+   */
+  id?: string
   icon?: ComponentType<{ className?: string }>
   text: string
   variant?: 'primary' | 'destructive'
@@ -131,7 +141,10 @@ export const ResourceHeader = memo(function ResourceHeader({
   return (
     <div
       ref={headerRef}
-      className='flex min-h-[48px] items-center border-[var(--border)] border-b px-4 py-[8.5px]'
+      className={cn(
+        'flex min-h-[48px] items-center border-[var(--border)] border-b px-4 pb-[8.5px]',
+        TITLE_BAR_LANE_PT
+      )}
     >
       <div className='flex min-w-0 flex-1 items-center justify-between gap-3'>
         <div className='flex min-w-0 flex-1 items-center gap-2 overflow-hidden'>
@@ -191,20 +204,19 @@ export const ResourceHeader = memo(function ResourceHeader({
             <span className={cn(chipGeometryClass, 'inline-flex shrink-0 cursor-default')}>
               {TitleIcon && <TitleIcon className={chipContentIconClass} />}
               {titleLabel && (
-                <FloatingOverflowText
-                  label={titleLabel}
-                  className='block whitespace-nowrap text-[var(--text-body)] text-sm'
-                />
+                <span className='block whitespace-nowrap text-[var(--text-body)] text-sm'>
+                  {titleLabel}
+                </span>
               )}
             </span>
           )}
         </div>
         {(aside || (actions && actions.length > 0)) && (
-          <div className='flex shrink-0 items-center'>
+          <div className={cn(HEADER_ACTION_CLUSTER, 'shrink-0')}>
             {aside}
-            {actions?.map((action) => (
+            {orderHeaderActions(actions).map(({ action }) => (
               <Chip
-                key={action.text}
+                key={action.id ?? action.text}
                 variant={action.variant}
                 active={action.active}
                 leftIcon={action.icon}
@@ -299,10 +311,7 @@ const BreadcrumbSegment = memo(function BreadcrumbSegment({
    * rounded-[5px] / justify-center and break chip parity with the static/title
    * crumbs.
    */
-  const triggerClassName = cn(
-    chipVariants({ flush: true }),
-    'group min-w-0 max-w-full justify-start'
-  )
+  const triggerClassName = cn(chipVariants(), 'group min-w-0 max-w-full justify-start')
 
   if (dropdownItems && dropdownItems.length > 0) {
     return (
@@ -449,7 +458,7 @@ function BreadcrumbLocationPopover({
             onMouseEnter={openPopover}
             onMouseLeave={scheduleClose}
             className={cn(
-              chipVariants({ flush: true }),
+              chipVariants(),
               'max-w-none gap-1.5 px-2 transition-colors',
               open && 'relative z-[var(--z-popover)]',
               className
@@ -457,10 +466,7 @@ function BreadcrumbLocationPopover({
           >
             <span className='relative inline-grid size-[16px] shrink-0 place-items-center'>
               <Icon className='col-start-1 row-start-1 size-[16px] text-[var(--text-icon)] opacity-100 blur-0 transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-[0.25] group-hover:opacity-0 group-hover:blur-[2px] group-focus-visible:scale-[0.25] group-focus-visible:opacity-0 group-focus-visible:blur-[2px] motion-reduce:transition-none' />
-              <ArrowUpLeft
-                strokeWidth={1.55}
-                className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none'
-              />
+              <ArrowUpLeft className='col-start-1 row-start-1 size-[16px] scale-[0.25] text-[var(--text-icon)] opacity-0 blur-[2px] transition-[opacity,filter,transform] duration-200 ease-in-out group-hover:scale-100 group-hover:opacity-100 group-hover:blur-0 group-focus-visible:scale-100 group-focus-visible:opacity-100 group-focus-visible:blur-0 motion-reduce:transition-none' />
             </span>
             {rootBreadcrumb?.label && (
               <span className='shrink-0 truncate text-[var(--text-body)] text-sm'>

@@ -20,6 +20,7 @@ import {
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
   isSubBlockVisibleForMode,
+  isToolInputOnlySubBlock,
   isTriggerModeSubBlock,
 } from '@/lib/workflows/subblocks/visibility'
 import { getBlock } from '@/blocks'
@@ -172,6 +173,10 @@ function getVisiblePreviewSubBlockCount(block: BlockState): number {
   return blockConfig.subBlocks.filter((subBlock) => {
     if (subBlock.hidden || subBlock.hideFromPreview) return false
     if (!isSubBlockFeatureEnabled(subBlock)) return false
+    // Never rendered on the canvas, so it must not contribute to node height —
+    // this filter has to agree with `workflow-block.tsx`'s or blocks lay out
+    // with a phantom row of space.
+    if (isToolInputOnlySubBlock(subBlock)) return false
     if (isSubBlockHidden(subBlock)) return false
 
     if (effectiveTrigger) {

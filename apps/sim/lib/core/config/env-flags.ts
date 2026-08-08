@@ -1,12 +1,21 @@
 /**
- * Environment utility functions for consistent environment detection across the application
+ * Loaded by `next.config.ts` before the `@/` alias is available, so
+ * config-boundary dependencies in this module must use relative imports.
  */
+
+import {
+  isImmutableDaytonaSnapshotRef,
+  isImmutableE2BTemplateRef,
+  isValidSandboxReleaseGeneration,
+} from '@sim/utils/sandbox-references'
 import {
   ENTERPRISE_FEATURE_LEGACY_DEFAULTS,
   type EnterpriseFeature,
   resolveEnterpriseEntitlement,
+  resolveSandboxFeatureAvailability,
 } from './enterprise-entitlements'
 import { env, envBoolean, getEnv, isFalsy, isTruthy } from './env'
+import { hasEnvCapabilityValue, inspectCapability, SANDBOX_CAPABILITY } from './env-capabilities'
 
 /**
  * Is the application running in production mode
@@ -34,7 +43,16 @@ try {
 } catch {
   // invalid URL — isHosted stays false
 }
-export const isHosted = appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
+/**
+ * Local-development escape hatch for exercising hosted-only paths (the sim-auto
+ * pool, platform keys, hosted-only UI) without pointing `NEXT_PUBLIC_APP_URL` at
+ * a sim.ai hostname, which would break local callback URLs. Ignored in
+ * production builds, so a self-hosted deployment can never claim to be Sim's
+ * hosted environment.
+ */
+const forceHosted = !isProd && isTruthy(getEnv('NEXT_PUBLIC_FORCE_HOSTED'))
+
+export const isHosted = forceHosted || appHostname === 'sim.ai' || appHostname.endsWith('.sim.ai')
 
 /**
  * Enables the strict attributed-v1 Sim/Copilot billing protocol after the Go
@@ -49,6 +67,23 @@ export const isCopilotBillingAttributionV1Enabled = isTruthy(
  * confirms the compatibility window has closed. Off by default.
  */
 export const isCopilotBillingProtocolRequired = isTruthy(env.COPILOT_BILLING_PROTOCOL_REQUIRED)
+
+/**
+ * Are the Chat module's surfaces shown. On by default, so a deployment that
+ * already has `COPILOT_API_KEY` keeps Chat without setting anything; the setup
+ * wizard writes the opt-out when you skip the key.
+ *
+ * This governs presentation only. Whether Chat can actually reach the mothership
+ * is a separate question answered by `COPILOT_API_KEY`, which gates the paths
+ * that need it (the Sim Chat block, prompt-job claims, inbox execution). Keeping
+ * them separate is what lets this be a single variable: the secret key could
+ * never be read in the browser, but `NEXT_PUBLIC_CHAT_DISABLED` can — no twin to
+ * keep in sync.
+ *
+ * Read at module scope or inline during render only. Resolving it through
+ * `useState`/`useEffect` would render chat surfaces before removing them.
+ */
+export const isChatEnabled = !isTruthy(getEnv('NEXT_PUBLIC_CHAT_DISABLED'))
 
 /**
  * Holds tools the catalog marks `requiresApproval` — shell commands, workflow
@@ -285,6 +320,20 @@ export const isInboxEnabled = enterpriseFeatureEnabled(
 )
 
 /**
+ * Whether deployment configuration entitles custom Function sandboxes.
+ *
+ * With billing enabled this is an explicit plan-gate override. Without billing,
+ * either the Enterprise master switch or the Sandbox-specific server/client pair
+ * enables the feature. Provider readiness is applied separately by
+ * {@link isSandboxesEnabled} so entitlement can never advertise a missing runtime.
+ */
+export const isSandboxDeploymentEntitled = enterpriseFeatureEnabled(
+  'sandboxes',
+  env.SANDBOXES_ENABLED,
+  'NEXT_PUBLIC_SANDBOXES_ENABLED'
+)
+
+/**
  * Is whitelabeling enabled
  */
 export const isWhitelabelingEnabled = enterpriseFeatureEnabled(
@@ -350,18 +399,72 @@ export const isForkingEnabled = enterpriseFeatureEnabled(
  * Availability below is derived from THIS provider's credentials, so a
  * Daytona-only deployment (E2B unset) still enables remote execution.
  */
-const sandboxProvider = (env.SANDBOX_PROVIDER || 'e2b').toLowerCase()
+const sandboxProvider = inspectCapability(SANDBOX_CAPABILITY, env).providerId
 
 /**
  * Whether remote code/shell execution is available with the selected provider.
  *
- * E2B keeps its explicit `E2B_ENABLED` switch; Daytona is available once its API
- * key is set (the shell snapshot is verified at create time, failing closed).
- * Mirrors the E2B gate exactly when the provider is E2B, so existing behavior is
- * unchanged.
+ * Both providers require their credential and dedicated Function base. The old
+ * Mothership shell template/snapshot names are intentionally not fallbacks: a
+ * deployment must build and configure the Function-owned image before exposing
+ * the runtime.
+ *
+ * The browser cannot inspect provider credentials, so
+ * `NEXT_PUBLIC_SANDBOXES_ENABLED` is its readiness projection. Set the public
+ * value only after this server-side check succeeds; `bun run setup --doctor`
+ * reports mismatches in either direction.
  */
 export const isRemoteSandboxEnabled =
-  sandboxProvider === 'daytona' ? Boolean(env.DAYTONA_API_KEY) : isTruthy(env.E2B_ENABLED)
+  sandboxProvider === 'daytona'
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      Boolean(
+        env.DAYTONA_FUNCTION_SNAPSHOT_ID &&
+          isImmutableDaytonaSnapshotRef(env.DAYTONA_FUNCTION_SNAPSHOT_ID)
+      )
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        Boolean(
+          env.E2B_FUNCTION_TEMPLATE_ID && isImmutableE2BTemplateRef(env.E2B_FUNCTION_TEMPLATE_ID)
+        ) &&
+        Boolean(
+          env.E2B_FUNCTION_TEMPLATE_GENERATION &&
+            isValidSandboxReleaseGeneration(env.E2B_FUNCTION_TEMPLATE_GENERATION)
+        )
+      : false
+
+/**
+ * Whether the complete custom-Sandbox feature is available on this deployment.
+ *
+ * Billing supplies hosted entitlement, while billing-free deployments require
+ * the Enterprise pair or the Sandbox-specific pair. Both modes additionally
+ * require a configured remote Function provider. The public flag projects that
+ * provider readiness into the browser; the server always verifies credentials
+ * and the immutable Function base directly.
+ */
+export const isSandboxesEnabled = resolveSandboxFeatureAvailability({
+  billingEnabled: isBillingEnabled,
+  deploymentEntitled: isSandboxDeploymentEntitled,
+  remoteProviderEnabled:
+    typeof window === 'undefined'
+      ? isRemoteSandboxEnabled
+      : isTruthy(getEnv('NEXT_PUBLIC_SANDBOXES_ENABLED')),
+})
+
+/**
+ * Whether the selected provider can serve Mothership's own code image.
+ * This is intentionally independent of {@link isRemoteSandboxEnabled}: the
+ * Function and Mothership images have separate release and rollout lifecycles.
+ */
+export const isMothershipSandboxEnabled =
+  sandboxProvider === 'daytona'
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_SHELL_SNAPSHOT_ID')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_TEMPLATE_ID')
+      : false
 
 /**
  * Whether the document-generation sandbox is available with the selected
@@ -377,10 +480,13 @@ export const isRemoteSandboxEnabled =
  */
 export const isDocSandboxEnabled =
   sandboxProvider === 'daytona'
-    ? Boolean(env.DAYTONA_API_KEY) && Boolean(env.DAYTONA_DOC_SNAPSHOT_ID)
-    : isTruthy(env.E2B_ENABLED) &&
-      Boolean(env.E2B_API_KEY) &&
-      Boolean(env.MOTHERSHIP_E2B_DOC_TEMPLATE_ID)
+    ? hasEnvCapabilityValue(env, 'DAYTONA_API_KEY') &&
+      hasEnvCapabilityValue(env, 'DAYTONA_DOC_SNAPSHOT_ID')
+    : sandboxProvider === 'e2b'
+      ? isTruthy(env.E2B_ENABLED) &&
+        hasEnvCapabilityValue(env, 'E2B_API_KEY') &&
+        hasEnvCapabilityValue(env, 'MOTHERSHIP_E2B_DOC_TEMPLATE_ID')
+      : false
 
 /**
  * Whether Ollama is configured (OLLAMA_URL is set).

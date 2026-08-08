@@ -22,7 +22,7 @@
 
 import * as React from 'react'
 import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu'
-import { Check, ChevronRight, Circle, Search } from 'lucide-react'
+import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipFieldSurfaceClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
@@ -30,8 +30,30 @@ import { InsideModalContext } from '../modal/modal'
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
 
+/**
+ * Menu row geometry. Rows sit 2px flatter than the 30px chip pill — the menu is a
+ * dense list, not a stack of pills — but keep the shared 8px control corner (see
+ * the surface note below). Every row (item, checkbox, radio, submenu trigger,
+ * search field) composes these, so the rhythm cannot drift the way it did when
+ * each row hardcoded its own height and radius.
+ */
+const MENU_ROW_HEIGHT_CLASS = 'h-[28px]'
+const MENU_ROW_RADIUS_CLASS = 'rounded-lg'
+
+/**
+ * Surface corner, shared by the root menu and submenus — they previously
+ * disagreed, at 12px and 8px.
+ *
+ * `rounded-xl`/`rounded-lg` here are the platform's two-tier radius convention,
+ * not a value tuned for this menu: every floating surface takes the 12px corner
+ * ({@link Modal}, {@link ChipModal}, {@link Popover} content) and every row or
+ * control inside one takes 8px (the chip, `Popover` items, `ChipModal` fields,
+ * {@link Tooltip}). A menu that picks its own pair reads as a different family of
+ * object next to the surfaces it opens over, so match the convention rather than
+ * making the two corners strictly concentric.
+ */
 const CONTENT_BASE_CLASSES =
-  'z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+  'z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
@@ -88,14 +110,14 @@ const DropdownMenuSubTrigger = React.forwardRef<
     <DropdownMenuPrimitive.SubTrigger
       ref={ref}
       className={cn(
-        'flex h-[30px] min-w-0 cursor-default select-none items-center gap-2 rounded-lg px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]',
+        `flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-default select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[state=open]:bg-[var(--surface-active)] [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`,
         inset && 'pl-7',
         className
       )}
       {...props}
     >
       {children}
-      <ChevronRight className='ml-auto shrink-0' />
+      <ChevronRight className='ml-auto size-[14px] shrink-0' />
     </DropdownMenuPrimitive.SubTrigger>
   )
 })
@@ -108,7 +130,7 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.Portal>
     <DropdownMenuPrimitive.SubContent
       ref={ref}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px] rounded-lg', className)}
+      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[280px]', className)}
       {...props}
       data-native-surface-overlay=''
     />
@@ -142,7 +164,7 @@ const DropdownMenuContent = React.forwardRef<
     <DropdownMenuPrimitive.Content
       ref={ref}
       sideOffset={sideOffset}
-      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px] rounded-xl', className)}
+      className={cn(ANIMATION_CLASSES, CONTENT_BASE_CLASSES, 'max-w-[220px]', className)}
       {...props}
       data-native-surface-overlay=''
     />
@@ -150,8 +172,7 @@ const DropdownMenuContent = React.forwardRef<
 ))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DROPDOWN_MENU_ITEM_BASE_CLASSES =
-  'relative flex h-[30px] min-w-0 cursor-pointer select-none items-center gap-2 rounded-lg px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]'
+const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&>span]:min-w-0 [&>span]:truncate [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,
@@ -231,7 +252,7 @@ const DropdownMenuCheckboxItem = React.forwardRef<
   <DropdownMenuPrimitive.CheckboxItem
     ref={ref}
     className={cn(
-      'relative flex h-[30px] cursor-default select-none items-center rounded-lg pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     checked={checked}
@@ -254,7 +275,7 @@ const DropdownMenuRadioItem = React.forwardRef<
   <DropdownMenuPrimitive.RadioItem
     ref={ref}
     className={cn(
-      'relative flex h-[30px] cursor-default select-none items-center rounded-lg pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+      `relative flex ${MENU_ROW_HEIGHT_CLASS} cursor-default select-none items-center ${MENU_ROW_RADIUS_CLASS} pr-2 pl-7 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50`,
       className
     )}
     {...props}
@@ -277,11 +298,7 @@ const DropdownMenuLabel = React.forwardRef<
 >(({ className, inset, ...props }, ref) => (
   <DropdownMenuPrimitive.Label
     ref={ref}
-    className={cn(
-      'px-2 py-1.5 font-medium text-[var(--text-tertiary)] text-xs',
-      inset && 'pl-7',
-      className
-    )}
+    className={cn('px-2 py-1.5 text-[var(--text-tertiary)] text-xs', inset && 'pl-7', className)}
     {...props}
   />
 ))
@@ -318,10 +335,17 @@ const DropdownMenuSearchInput = React.forwardRef<
     [ref]
   )
 
+  /*
+   * No horizontal margin: the field spans the same width as the rows beneath it,
+   * both inset only by the surface's `p-1.5`. It carried `mx-0.5` and so sat 2px
+   * narrower on each side. The vertical margins stay — the search field is a
+   * sibling of the item groups, not a member of one, so no container gap
+   * separates it from the first row.
+   */
   return (
     <div
       className={cn(
-        'mx-0.5 mt-0.5 mb-0.5 flex h-[30px] shrink-0 items-center gap-2 px-2',
+        `mt-0.5 mb-0.5 flex ${MENU_ROW_HEIGHT_CLASS} shrink-0 items-center gap-2 px-2`,
         chipFieldSurfaceClass
       )}
     >

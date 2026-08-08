@@ -1,3 +1,4 @@
+import { isPlainRecord } from '@sim/utils/object'
 import { PackageSearchIcon } from '@/components/icons'
 import { DEFAULT_RERANKER_MODEL, SUPPORTED_RERANKER_MODELS } from '@/lib/knowledge/reranker-models'
 import type { BlockConfig } from '@/blocks/types'
@@ -86,6 +87,18 @@ export const KnowledgeBlock: BlockConfig = {
       type: 'knowledge-tag-filters',
       placeholder: 'Add tag filters',
       dependsOn: ['knowledgeBaseSelector'],
+      condition: { field: 'operation', value: 'search' },
+    },
+    {
+      id: 'searchMode',
+      title: 'Retrieval Mode',
+      type: 'dropdown',
+      options: [
+        { label: 'Vector only', id: 'vector' },
+        { label: 'Hybrid (full-text + vector)', id: 'hybrid' },
+      ],
+      value: () => 'vector',
+      mode: 'advanced',
       condition: { field: 'operation', value: 'search' },
     },
     {
@@ -365,6 +378,7 @@ export const KnowledgeBlock: BlockConfig = {
         }
       },
       params: (params) => {
+        params = { ...params }
         const knowledgeBaseId = params.knowledgeBaseId ? String(params.knowledgeBaseId).trim() : ''
         if (!knowledgeBaseId) {
           throw new Error('Knowledge base ID is required')
@@ -416,6 +430,19 @@ export const KnowledgeBlock: BlockConfig = {
           params.documentId = String(params.upsertDocumentId).trim()
         }
 
+        if (
+          (params.operation === 'create_document' || params.operation === 'upsert_document') &&
+          typeof params.documentTags === 'string' &&
+          params.documentTags.trim().length > 0
+        ) {
+          try {
+            const documentTags: unknown = JSON.parse(params.documentTags)
+            if (Array.isArray(documentTags) || isPlainRecord(documentTags)) {
+              params.documentTags = documentTags
+            }
+          } catch {}
+        }
+
         // Convert enabled dropdown string to boolean for update_chunk
         if (params.operation === 'update_chunk' && typeof params.enabled === 'string') {
           params.enabled = params.enabled === 'true'
@@ -440,6 +467,10 @@ export const KnowledgeBlock: BlockConfig = {
     limit: { type: 'number', description: 'Max items to return' },
     offset: { type: 'number', description: 'Pagination offset' },
     tagFilters: { type: 'string', description: 'Tag filter criteria' },
+    searchMode: {
+      type: 'string',
+      description: 'Retrieval mode: vector only (default) or hybrid (full-text + vector)',
+    },
     rerankerEnabled: { type: 'boolean', description: 'Apply Cohere reranking to search results' },
     rerankerModel: { type: 'string', description: 'Cohere rerank model identifier' },
     rerankerInputCount: {

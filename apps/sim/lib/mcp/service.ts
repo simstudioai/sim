@@ -42,6 +42,10 @@ import {
   type McpTransport,
 } from '@/lib/mcp/types'
 import { MCP_CLIENT_CONSTANTS, MCP_CONSTANTS } from '@/lib/mcp/utils'
+import {
+  isResolvedSecretTraceProvenanceV1,
+  type ResolvedSecretTraceProvenanceV1,
+} from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('McpService')
 
@@ -54,6 +58,59 @@ function failureCacheKey(workspaceId: string, serverId: string): string {
 }
 
 const FAILURE_CACHE_SENTINEL: McpTool[] = []
+
+type ResolvedSecretTraceProvenanceCallback = (provenance: ResolvedSecretTraceProvenanceV1) => void
+
+function reportRetainedClientProvenance(
+  provenance: unknown,
+  userId: string,
+  workspaceId: string,
+  callback?: ResolvedSecretTraceProvenanceCallback
+): void {
+  if (!callback) return
+  callback(
+    isResolvedSecretTraceProvenanceV1(provenance)
+      ? provenance
+      : {
+          version: 1,
+          complete: false,
+          entries: [],
+          scope: { userId, workspaceId },
+        }
+  )
+}
+
+function isSameProvenance(
+  left: ResolvedSecretTraceProvenanceV1,
+  right: ResolvedSecretTraceProvenanceV1
+): boolean {
+  if (
+    left.complete !== right.complete ||
+    left.scope?.userId !== right.scope?.userId ||
+    left.scope?.workspaceId !== right.scope?.workspaceId ||
+    left.entries.length !== right.entries.length
+  ) {
+    return false
+  }
+
+  return left.entries.every((entry, index) => {
+    const other = right.entries[index]
+    return entry.name === other.name && entry.encryptedValue === other.encryptedValue
+  })
+}
+
+function createInvocationProvenanceReporter(
+  callback?: ResolvedSecretTraceProvenanceCallback
+): ResolvedSecretTraceProvenanceCallback | undefined {
+  if (!callback) return undefined
+
+  let lastReported: ResolvedSecretTraceProvenanceV1 | undefined
+  return (provenance) => {
+    if (lastReported && isSameProvenance(lastReported, provenance)) return
+    lastReported = provenance
+    callback(provenance)
+  }
+}
 
 type DiscoveryOutcome =
   | { kind: 'cached'; tools: McpTool[] }
@@ -212,14 +269,25 @@ class McpService {
   private async resolveConfigEnvVars(
     config: McpServerConfig,
     userId: string,
-    workspaceId?: string
-  ): Promise<{ config: McpServerConfig; resolvedIP: string | null }> {
-    const { config: resolvedConfig } = await resolveMcpConfigEnvVars(config, userId, workspaceId, {
-      strict: true,
-    })
+    workspaceId?: string,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
+  ): Promise<{
+    config: McpServerConfig
+    resolvedIP: string | null
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
+  }> {
+    const { config: resolvedConfig, resolvedSecretTraceProvenance } = await resolveMcpConfigEnvVars(
+      config,
+      userId,
+      workspaceId,
+      {
+        strict: true,
+        onResolvedSecretTraceProvenance,
+      }
+    )
     validateMcpDomain(resolvedConfig.url)
     const resolvedIP = await validateMcpServerSsrf(resolvedConfig.url)
-    return { config: resolvedConfig, resolvedIP }
+    return { config: resolvedConfig, resolvedIP, resolvedSecretTraceProvenance }
   }
 
   private async getServerConfig(
@@ -298,7 +366,8 @@ class McpService {
   private async createClient(
     config: McpServerConfig,
     resolvedIP: string | null,
-    userId?: string
+    userId?: string,
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
   ): Promise<McpClient> {
     const securityPolicy = {
       requireConsent: true,
@@ -312,6 +381,7 @@ class McpService {
         config,
         securityPolicy,
         resolvedIP: resolvedIP ?? undefined,
+        resolvedSecretTraceProvenance,
       })
       await client.connect()
       return client
@@ -343,6 +413,7 @@ class McpService {
         securityPolicy,
         authProvider,
         resolvedIP: resolvedIP ?? undefined,
+        resolvedSecretTraceProvenance,
       })
       await client.connect()
       return client
@@ -367,18 +438,24 @@ class McpService {
     config: McpServerConfig,
     userId: string,
     workspaceId: string,
-    extraHeaders?: Record<string, string>
+    extraHeaders?: Record<string, string>,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): () => Promise<McpClient> {
     return async () => {
-      const { config: resolvedConfig, resolvedIP } = await this.resolveConfigEnvVars(
+      const {
+        config: resolvedConfig,
+        resolvedIP,
+        resolvedSecretTraceProvenance,
+      } = await this.resolveConfigEnvVars(
         config,
         userId,
-        workspaceId
+        workspaceId,
+        onResolvedSecretTraceProvenance
       )
       if (extraHeaders) {
         resolvedConfig.headers = { ...resolvedConfig.headers, ...extraHeaders }
       }
-      return this.createClient(resolvedConfig, resolvedIP, userId)
+      return this.createClient(resolvedConfig, resolvedIP, userId, resolvedSecretTraceProvenance)
     }
   }
 
@@ -392,7 +469,8 @@ class McpService {
   private async fetchServerTools(
     config: McpServerConfig,
     userId: string,
-    workspaceId: string
+    workspaceId: string,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpTool[]> {
     for (let attempt = 0; ; attempt++) {
       try {
@@ -402,8 +480,16 @@ class McpService {
             serverId: config.id,
             allowPool: true,
           },
-          this.buildClient(config, userId, workspaceId),
-          (client) => client.listTools()
+          this.buildClient(config, userId, workspaceId, undefined, onResolvedSecretTraceProvenance),
+          (client) => {
+            reportRetainedClientProvenance(
+              client.getResolvedSecretTraceProvenance?.(),
+              userId,
+              workspaceId,
+              onResolvedSecretTraceProvenance
+            )
+            return client.listTools()
+          }
         )
       } catch (error) {
         if (attempt === 0 && isAuthError(error) && config.authType !== 'oauth') continue
@@ -462,10 +548,12 @@ class McpService {
     serverId: string,
     toolCall: McpToolCall,
     workspaceId: string,
-    extraHeaders?: Record<string, string>
+    extraHeaders?: Record<string, string>,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpToolResult> {
     const requestId = generateRequestId()
     const maxRetries = 2
+    const reportProvenance = createInvocationProvenanceReporter(onResolvedSecretTraceProvenance)
 
     for (let attempt = 0; attempt < maxRetries; attempt++) {
       try {
@@ -485,8 +573,22 @@ class McpService {
             serverId,
             allowPool: !hasExtraHeaders,
           },
-          this.buildClient(config, userId, workspaceId, hasExtraHeaders ? extraHeaders : undefined),
-          (client) => client.callTool(toolCall)
+          this.buildClient(
+            config,
+            userId,
+            workspaceId,
+            hasExtraHeaders ? extraHeaders : undefined,
+            reportProvenance
+          ),
+          (client) => {
+            reportRetainedClientProvenance(
+              client.getResolvedSecretTraceProvenance?.(),
+              userId,
+              workspaceId,
+              reportProvenance
+            )
+            return client.callTool(toolCall)
+          }
         )
         logger.info(`[${requestId}] Successfully executed tool ${toolCall.name}`)
         return result
@@ -874,8 +976,19 @@ class McpService {
     userId: string,
     serverId: string,
     workspaceId: string,
-    forceRefresh = false
+    forceRefresh = false,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpTool[]> {
+    if (onResolvedSecretTraceProvenance) {
+      return this.discoverServerToolsImpl(
+        userId,
+        serverId,
+        workspaceId,
+        forceRefresh,
+        createInvocationProvenanceReporter(onResolvedSecretTraceProvenance)
+      )
+    }
+
     const inflightKey = `${workspaceId}:${serverId}:${userId}:${forceRefresh ? 'force' : 'cache'}`
     const existing = this.inflightServerDiscovery.get(inflightKey)
     if (existing) return existing
@@ -884,7 +997,8 @@ class McpService {
       userId,
       serverId,
       workspaceId,
-      forceRefresh
+      forceRefresh,
+      undefined
     ).finally(() => {
       this.inflightServerDiscovery.delete(inflightKey)
     })
@@ -896,7 +1010,8 @@ class McpService {
     userId: string,
     serverId: string,
     workspaceId: string,
-    forceRefresh: boolean
+    forceRefresh: boolean,
+    onResolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceCallback
   ): Promise<McpTool[]> {
     const requestId = generateRequestId()
     const discoveryStartedAt = new Date()
@@ -934,7 +1049,12 @@ class McpService {
         }
         authType = config.authType
 
-        const tools = await this.fetchServerTools(config, userId, workspaceId)
+        const tools = await this.fetchServerTools(
+          config,
+          userId,
+          workspaceId,
+          onResolvedSecretTraceProvenance
+        )
         logger.info(`[${requestId}] Discovered ${tools.length} tools from server ${config.name}`)
         await Promise.allSettled([
           this.cacheAdapter

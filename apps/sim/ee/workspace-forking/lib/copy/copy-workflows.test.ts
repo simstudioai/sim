@@ -354,3 +354,81 @@ describe('copyWorkflowStateIntoTarget canonicalModes reindex propagation', () =>
     }
   )
 })
+
+describe('copyWorkflowStateIntoTarget webhook path pinning', () => {
+  const sourceState = {
+    blocks: {
+      'blk-src': {
+        id: 'blk-src',
+        type: 'slack',
+        name: 'Slack',
+        // The SOURCE's own path, written back into its draft after its deploy. Copying it would
+        // point the target at the source's URL, so the sanitizer strips it.
+        subBlocks: { triggerPath: { id: 'triggerPath', type: 'short-input', value: 'src-path' } },
+        outputs: {},
+        enabled: true,
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+    variables: {},
+  } as never
+
+  const baseParams = {
+    targetWorkflowId: 'wf-tgt',
+    targetWorkspaceId: 'ws-target',
+    userId: 'target-user',
+    mode: 'replace' as const,
+    now: new Date('2026-07-01'),
+    sourceState,
+    sourceMeta: { name: 'Prod', description: null, folderId: null, sortOrder: 0 },
+    workflowIdMap: new Map(),
+    folderIdMap: new Map(),
+    nameRegistry: buildWorkflowNameRegistry([]),
+    resolveBlockId: (_targetWorkflowId: string, sourceBlockId: string) => `tgt-${sourceBlockId}`,
+  }
+
+  /** `replace` mode updates the existing target workflow row; stub just that chain. */
+  const stubTx = () =>
+    ({
+      update: () => ({ set: () => ({ where: () => Promise.resolve() }) }),
+    }) as unknown as DbOrTx
+
+  function writtenSubBlocks() {
+    const state = mockSaveWorkflowToNormalizedTables.mock.calls.at(-1)?.[1] as {
+      blocks: Record<string, { subBlocks?: Record<string, { value?: unknown }> }>
+    }
+    return state.blocks['tgt-blk-src'].subBlocks ?? {}
+  }
+
+  it("pins the TARGET's live webhook path so a sync never moves a URL already in the wild", async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      triggerPathByBlockId: new Map([['tgt-blk-src', 'parent-live-path']]),
+    })
+    expect(writtenSubBlocks().triggerPath?.value).toBe('parent-live-path')
+  })
+
+  /**
+   * The adoption case: the arriving trigger has a different target block id (re-created in the
+   * source), and the resolver handed it the URL retiring in the same target workflow.
+   */
+  it('writes an ADOPTED path onto a trigger block that serves no webhook of its own', async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    await copyWorkflowStateIntoTarget({
+      ...baseParams,
+      tx: stubTx(),
+      triggerPathByBlockId: new Map([['tgt-blk-src', 'retiring-slack-path']]),
+    })
+    expect(writtenSubBlocks().triggerPath?.value).toBe('retiring-slack-path')
+  })
+
+  it('leaves the path unset when the target block serves no webhook yet (derives as before)', async () => {
+    mockSaveWorkflowToNormalizedTables.mockResolvedValue({ success: true })
+    await copyWorkflowStateIntoTarget({ ...baseParams, tx: stubTx() })
+    expect(writtenSubBlocks().triggerPath).toBeUndefined()
+  })
+})

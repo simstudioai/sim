@@ -407,6 +407,18 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
       'Content-Type': 'application/json',
       'X-Browser-Use-API-Key': params.apiKey,
     }),
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        task: params.task,
+        systemPromptExtension: params.systemPromptExtension,
+        structuredOutput: params.structuredOutput,
+      }),
+    },
+    opaqueModelInput: {
+      mode: 'reject-resolved-secrets',
+      inputPaths: () => [['startUrl']],
+    },
   },
 
   directExecution: async (params: BrowserUseRunTaskParams): Promise<ToolResponse> => {

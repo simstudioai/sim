@@ -8,18 +8,24 @@ import {
   isLargeValueStorageKey,
   type LargeValueRef,
 } from '@/lib/execution/payloads/large-value-ref'
+import {
+  MAX_DURABLE_LARGE_VALUE_BYTES,
+  MAX_FUNCTION_FILE_BYTES,
+  MAX_FUNCTION_INLINE_BYTES,
+  MAX_INLINE_MATERIALIZATION_BYTES,
+} from '@/lib/execution/payloads/limits'
 import { ExecutionResourceLimitError } from '@/lib/execution/resource-errors'
 import type { StorageContext } from '@/lib/uploads'
-import { bufferToBase64, inferContextFromKey } from '@/lib/uploads/utils/file-utils'
-import { downloadFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
+import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  bufferToBase64,
+  inferContextFromKey,
+  isGeneratedDocumentSourceType,
+} from '@/lib/uploads/utils/file-utils'
+import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import type { UserFile } from '@/executor/types'
 
 const logger = createLogger('ExecutionPayloadMaterialization')
-
-export const MAX_DURABLE_LARGE_VALUE_BYTES = 64 * 1024 * 1024
-export const MAX_INLINE_MATERIALIZATION_BYTES = 16 * 1024 * 1024
-export const MAX_FUNCTION_FILE_BYTES = 64 * 1024 * 1024
-export const MAX_FUNCTION_INLINE_BYTES = 10 * 1024 * 1024
 
 export interface ExecutionMaterializationContext {
   workflowId?: string
@@ -45,6 +51,11 @@ export interface ReadUserFileContentOptions extends ExecutionMaterializationCont
   length?: number
   chunked?: boolean
   encoding: 'base64' | 'text'
+}
+
+export interface ReadUserFileContentResult {
+  content: string
+  contributingFiles?: readonly WorkspaceFileSecretProvenanceIdentity[]
 }
 
 function getLogger(options: ExecutionMaterializationContext): Logger {
@@ -267,10 +278,15 @@ export async function assertUserFileContentAccess(
   }
 }
 
-export async function readUserFileContent(
+/**
+ * Reads the bytes a consumer should receive. For generated documents, updates the
+ * file's size to the rendered artifact size so downstream attachment routing does
+ * not make decisions from the smaller generation-source size.
+ */
+export async function readUserFileContentWithContributors(
   file: unknown,
   options: ReadUserFileContentOptions
-): Promise<string> {
+): Promise<ReadUserFileContentResult> {
   if (!isUserFileWithMetadata(file)) {
     throw new Error('Expected a file object with metadata.')
   }
@@ -287,13 +303,21 @@ export async function readUserFileContent(
   }
 
   let buffer: Buffer | null = null
+  let contributingFiles: readonly WorkspaceFileSecretProvenanceIdentity[] | undefined
   const log = getLogger(options)
   const requestId = options.requestId ?? 'unknown'
 
   try {
-    buffer = await downloadFileFromStorage(file, requestId, log, { maxBytes: maxSourceBytes })
+    const servable = await downloadServableFileFromStorage(file, requestId, log, {
+      maxBytes: maxSourceBytes,
+    })
+    buffer = servable.buffer
+    contributingFiles = servable.contributingFiles
   } catch (error) {
     if (isPayloadSizeLimitError(error)) {
+      if (isGeneratedDocumentSourceType(file.type) && error.observedBytes !== undefined) {
+        file.size = error.observedBytes
+      }
       throw new ExecutionResourceLimitError({
         resource: 'execution_payload_bytes',
         attemptedBytes: error.observedBytes ?? maxSourceBytes + 1,
@@ -305,6 +329,9 @@ export async function readUserFileContent(
 
   if (!buffer) {
     throw new Error(`File content for ${file.name} is unavailable.`)
+  }
+  if (isGeneratedDocumentSourceType(file.type)) {
+    file.size = buffer.length
   }
   if (buffer.length > maxSourceBytes) {
     throw new ExecutionResourceLimitError({
@@ -319,7 +346,17 @@ export async function readUserFileContent(
   const selected = shouldSlice ? normalizeRange(buffer, options) : buffer
   assertInlineMaterializationSize(selected.length, options.maxBytes ?? MAX_FUNCTION_INLINE_BYTES)
 
-  return options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8')
+  return {
+    content: options.encoding === 'base64' ? bufferToBase64(selected) : selected.toString('utf8'),
+    ...(contributingFiles && contributingFiles.length > 0 ? { contributingFiles } : {}),
+  }
+}
+
+export async function readUserFileContent(
+  file: unknown,
+  options: ReadUserFileContentOptions
+): Promise<string> {
+  return (await readUserFileContentWithContributors(file, options)).content
 }
 
 export function unavailableLargeValueError(ref: LargeValueRef): Error {

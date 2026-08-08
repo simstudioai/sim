@@ -40,9 +40,16 @@ vi.mock('@/providers/models', () => ({
   getProviderModels: mockGetProviderModels,
   getProviderIcon: mockGetProviderIcon,
   getBaseModelProviders: mockGetBaseModelProviders,
+  SIM_AUTO_MODEL_ID: 'sim-auto',
+  isAutoModel: (model: string) => model.trim().toLowerCase() === 'sim-auto',
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   getProviderFromModel: vi.fn(() => 'openai'),
 }))
 

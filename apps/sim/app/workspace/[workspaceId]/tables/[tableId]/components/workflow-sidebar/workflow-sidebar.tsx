@@ -18,11 +18,10 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft, ChevronDown, X } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Repeat, Split, SquareArrowUpRight, X } from '@sim/emcn/icons'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { ExternalLink, RepeatIcon, SplitIcon } from 'lucide-react'
 import { findValidationIssue, isValidationError } from '@/lib/api/client/errors'
 import { requestJson } from '@/lib/api/client/request'
 import type {
@@ -43,6 +42,7 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
+import { columnTypeById } from '@/lib/table/column-types'
 import {
   type FlattenOutputsBlockInput,
   type FlattenOutputsEdgeInput,
@@ -161,16 +161,7 @@ interface WorkflowStatePayload {
 }
 
 function tableColumnTypeToInputType(colType: ColumnDefinition['type'] | undefined): string {
-  switch (colType) {
-    case 'number':
-      return 'number'
-    case 'boolean':
-      return 'boolean'
-    case 'json':
-      return 'object'
-    default:
-      return 'string'
-  }
+  return columnTypeById(colType).workflowInputType
 }
 
 const TagIcon: React.FC<{
@@ -483,8 +474,8 @@ export function WorkflowSidebarBody({
           .charAt(0)
           .toUpperCase()
         if (blockConfig?.icon) blockIcon = blockConfig.icon
-        else if (f.blockType === 'loop') blockIcon = RepeatIcon
-        else if (f.blockType === 'parallel') blockIcon = SplitIcon
+        else if (f.blockType === 'loop') blockIcon = Repeat
+        else if (f.blockType === 'parallel') blockIcon = Split
         group = {
           blockId: f.blockId,
           blockName: f.blockName,
@@ -910,7 +901,7 @@ export function WorkflowSidebarBody({
                             }
                             className='absolute right-[6px] bottom-1.5 z-10 size-[24px] cursor-pointer border border-[var(--border)] bg-[var(--surface-2)] p-0 hover-hover:bg-[var(--surface-4)]'
                           >
-                            <ExternalLink className='size-[12px]' />
+                            <SquareArrowUpRight className='size-[12px]' />
                           </Button>
                         </Tooltip.Trigger>
                         <Tooltip.Content side='top'>Open workflow</Tooltip.Content>

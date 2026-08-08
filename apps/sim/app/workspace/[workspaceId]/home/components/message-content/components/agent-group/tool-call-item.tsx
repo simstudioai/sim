@@ -12,7 +12,7 @@ import {
 import { getReadTargetBlock } from '@/lib/copilot/tools/client/read-block'
 import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-args'
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
-import { getBareIconStyle } from '@/blocks/icon-color'
+import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getBlockByToolName } from '@/blocks/registry'
 import type { ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
@@ -206,11 +206,13 @@ export function ToolCallItem({
     return (
       <div className='pl-6'>
         <CredentialDisplay
-          data={{
-            type: 'terminal_handoff',
-            value: terminalHandoff.terminalId,
-            name: terminalHandoff.reason,
-          }}
+          data={[
+            {
+              type: 'terminal_handoff',
+              value: terminalHandoff.terminalId,
+              name: terminalHandoff.reason,
+            },
+          ]}
         />
       </div>
     )
@@ -220,7 +222,7 @@ export function ToolCallItem({
     const reason = typeof params?.reason === 'string' ? params.reason.trim() : ''
     return (
       <div className='pl-6'>
-        <CredentialDisplay data={{ type: 'browser_takeover', name: reason }} />
+        <CredentialDisplay data={[{ type: 'browser_takeover', name: reason }]} />
       </div>
     )
   }

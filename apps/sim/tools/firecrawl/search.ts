@@ -1,4 +1,8 @@
 import { firecrawlHosting } from '@/tools/firecrawl/hosting'
+import {
+  applyFirecrawlScrapeOptionsModelInput,
+  selectFirecrawlScrapeOptionsModelInput,
+} from '@/tools/firecrawl/model-input'
 import type { SearchParams, SearchResponse } from '@/tools/firecrawl/types'
 import { SEARCH_RESULT_OUTPUT_PROPERTIES } from '@/tools/firecrawl/types'
 import type { ToolConfig } from '@/tools/types'
@@ -16,6 +20,12 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       visibility: 'user-or-llm',
       description: 'The search query to use',
     },
+    scrapeOptions: {
+      type: 'json',
+      required: false,
+      visibility: 'hidden',
+      description: 'Advanced scrape options supplied by existing configurations',
+    },
     apiKey: {
       type: 'string',
       required: true,
@@ -27,6 +37,18 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
   hosting: firecrawlHosting(),
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({
+        scrapeOptions: selectFirecrawlScrapeOptionsModelInput(params.scrapeOptions),
+      }),
+      applyProjected: (selectedParams, projectedSelection) => ({
+        scrapeOptions: applyFirecrawlScrapeOptionsModelInput(
+          selectedParams.scrapeOptions,
+          projectedSelection.scrapeOptions
+        ),
+      }),
+    },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/search',
     headers: (params) => ({

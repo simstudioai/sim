@@ -3,8 +3,11 @@ import {
   type BillingAttributionSnapshot,
   resolveBillingAttribution,
 } from '@/lib/billing/core/billing-attribution'
+import {
+  type CopilotEnvironmentContext,
+  prepareCopilotEnvironmentContext,
+} from '@/lib/copilot/environment-context'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
-import { getEffectiveDecryptedEnv } from '@/lib/environment/utils'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 export async function prepareExecutionContext(
@@ -13,14 +16,14 @@ export async function prepareExecutionContext(
   chatId?: string,
   options?: {
     workspaceId?: string
-    decryptedEnvVars?: Record<string, string>
+    environmentContext?: CopilotEnvironmentContext
     billingAttribution?: BillingAttributionSnapshot
   }
 ): Promise<ExecutionContext> {
   const workspaceId =
     options?.workspaceId ?? (await getWorkflowById(workflowId))?.workspaceId ?? undefined
-  const [decryptedEnvVars, billingAttribution] = await Promise.all([
-    options?.decryptedEnvVars ?? getEffectiveDecryptedEnv(userId, workspaceId),
+  const [environmentContext, billingAttribution] = await Promise.all([
+    options?.environmentContext ?? prepareCopilotEnvironmentContext(userId, workspaceId),
     options?.billingAttribution
       ? Promise.resolve(assertBillingAttributionSnapshot(options.billingAttribution))
       : workspaceId
@@ -39,7 +42,7 @@ export async function prepareExecutionContext(
     workflowId,
     workspaceId,
     chatId,
-    decryptedEnvVars,
+    ...environmentContext,
     billingAttribution,
   }
 }

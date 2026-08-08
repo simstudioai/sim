@@ -9,8 +9,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@sim/emcn'
+import { ChevronLeft, ChevronRight } from '@sim/emcn/icons'
 import { format, parseISO } from 'date-fns'
-import { ChevronLeft, ChevronRight } from 'lucide-react'
 import type { CalendarScope } from '@/app/workspace/[workspaceId]/scheduled-tasks/utils/calendar-grid'
 
 const SCOPE_OPTIONS: { value: CalendarScope; label: string }[] = [
@@ -51,7 +51,7 @@ export function CalendarToolbar({
 
   return (
     <div className='flex items-center justify-between border-[var(--border)] border-b px-4 py-2.5'>
-      <div className='flex items-center'>
+      <div className='flex items-center gap-1'>
         <Chip onClick={onToday}>Today</Chip>
         <ChipDatePicker
           variant='ghost'
@@ -60,7 +60,7 @@ export function CalendarToolbar({
           onChange={(value) => onSelectDate(parseISO(value))}
         />
       </div>
-      <div className='flex items-center'>
+      <div className='flex items-center gap-1'>
         <Chip leftIcon={ChevronLeft} aria-label='Previous' onClick={onPrev} />
         <Chip leftIcon={ChevronRight} aria-label='Next' onClick={onNext} />
         <DropdownMenu modal={false}>

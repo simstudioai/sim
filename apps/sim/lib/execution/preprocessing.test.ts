@@ -47,6 +47,11 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 }))
 vi.mock('@/lib/core/execution-limits', () => ({
   getExecutionTimeout: vi.fn(() => 0),
+  resolveAsyncExecutionTimeout: vi.fn((policyTimeoutMs, requestedTimeoutSeconds) => {
+    if (requestedTimeoutSeconds === undefined) return policyTimeoutMs
+    const requestedTimeoutMs = requestedTimeoutSeconds * 1000
+    return policyTimeoutMs > 0 ? Math.min(policyTimeoutMs, requestedTimeoutMs) : requestedTimeoutMs
+  }),
 }))
 vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
   RateLimiter: vi.fn(function (this: unknown) {
@@ -56,7 +61,7 @@ vi.mock('@/lib/core/rate-limiter/rate-limiter', () => ({
 vi.mock('@/lib/logs/execution/logging-session', () => loggingSessionMock)
 
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
-import { preprocessExecution } from './preprocessing'
+import { preprocessExecution, WORKFLOW_NOT_DEPLOYED_CODE } from './preprocessing'
 
 const ORGANIZATION_ATTRIBUTION = {
   actorUserId: 'actor-1',
@@ -108,6 +113,34 @@ beforeEach(() => {
     payerUsage: { currentUsage: 1, limit: 10 },
   })
   mockReserveExecutionSlot.mockResolvedValue({ reserved: true })
+})
+
+describe('preprocessExecution deployment checks', () => {
+  it('returns a structured code when a required deployment is missing', async () => {
+    workflowAuthzMockFns.mockGetActiveWorkflowRecord.mockResolvedValueOnce({
+      id: 'workflow-1',
+      userId: 'user-1',
+      workspaceId: 'workspace-1',
+      isDeployed: false,
+    })
+    const result = await preprocessExecution({
+      workflowId: 'workflow-1',
+      userId: 'user-1',
+      triggerType: 'copilot',
+      executionId: 'execution-1',
+      requestId: 'request-1',
+      checkDeployment: true,
+    })
+
+    expect(result).toEqual({
+      success: false,
+      error: {
+        message: 'Workflow is not deployed',
+        statusCode: 403,
+        code: WORKFLOW_NOT_DEPLOYED_CODE,
+      },
+    })
+  })
 })
 
 describe('preprocessExecution correlation logging', () => {

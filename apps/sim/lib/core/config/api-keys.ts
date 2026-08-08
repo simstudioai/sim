@@ -1,4 +1,5 @@
 import { env } from '@/lib/core/config/env'
+import { LLM_KEY_POOLS } from '@/lib/core/config/env-capabilities'
 
 /**
  * Rotates through available API keys for a provider
@@ -7,48 +8,15 @@ import { env } from '@/lib/core/config/env'
  * @throws Error if no API keys are configured for rotation
  */
 export function getRotatingApiKey(provider: string): string {
-  if (
-    provider !== 'openai' &&
-    provider !== 'anthropic' &&
-    provider !== 'gemini' &&
-    provider !== 'cohere' &&
-    provider !== 'zai' &&
-    provider !== 'xai' &&
-    provider !== 'kimi'
-  ) {
+  if (!(provider in LLM_KEY_POOLS)) {
     throw new Error(`No rotation implemented for provider: ${provider}`)
   }
 
-  const keys = []
-
-  if (provider === 'openai') {
-    if (env.OPENAI_API_KEY_1) keys.push(env.OPENAI_API_KEY_1)
-    if (env.OPENAI_API_KEY_2) keys.push(env.OPENAI_API_KEY_2)
-    if (env.OPENAI_API_KEY_3) keys.push(env.OPENAI_API_KEY_3)
-  } else if (provider === 'anthropic') {
-    if (env.ANTHROPIC_API_KEY_1) keys.push(env.ANTHROPIC_API_KEY_1)
-    if (env.ANTHROPIC_API_KEY_2) keys.push(env.ANTHROPIC_API_KEY_2)
-    if (env.ANTHROPIC_API_KEY_3) keys.push(env.ANTHROPIC_API_KEY_3)
-  } else if (provider === 'gemini') {
-    if (env.GEMINI_API_KEY_1) keys.push(env.GEMINI_API_KEY_1)
-    if (env.GEMINI_API_KEY_2) keys.push(env.GEMINI_API_KEY_2)
-    if (env.GEMINI_API_KEY_3) keys.push(env.GEMINI_API_KEY_3)
-  } else if (provider === 'cohere') {
-    if (env.COHERE_API_KEY_1) keys.push(env.COHERE_API_KEY_1)
-    if (env.COHERE_API_KEY_2) keys.push(env.COHERE_API_KEY_2)
-    if (env.COHERE_API_KEY_3) keys.push(env.COHERE_API_KEY_3)
-  } else if (provider === 'zai') {
-    if (env.ZAI_API_KEY_1) keys.push(env.ZAI_API_KEY_1)
-    if (env.ZAI_API_KEY_2) keys.push(env.ZAI_API_KEY_2)
-    if (env.ZAI_API_KEY_3) keys.push(env.ZAI_API_KEY_3)
-  } else if (provider === 'xai') {
-    if (env.XAI_API_KEY_1) keys.push(env.XAI_API_KEY_1)
-    if (env.XAI_API_KEY_2) keys.push(env.XAI_API_KEY_2)
-    if (env.XAI_API_KEY_3) keys.push(env.XAI_API_KEY_3)
-  } else if (provider === 'kimi') {
-    if (env.KIMI_API_KEY_1) keys.push(env.KIMI_API_KEY_1)
-    if (env.KIMI_API_KEY_2) keys.push(env.KIMI_API_KEY_2)
-    if (env.KIMI_API_KEY_3) keys.push(env.KIMI_API_KEY_3)
+  const definition = LLM_KEY_POOLS[provider as keyof typeof LLM_KEY_POOLS]
+  const keys = definition.keys.map((key) => env[key]).filter((key): key is string => Boolean(key))
+  if (keys.length === 0 && 'fallbackKey' in definition) {
+    const fallback = env[definition.fallbackKey]
+    if (fallback) keys.push(fallback)
   }
 
   if (keys.length === 0) {

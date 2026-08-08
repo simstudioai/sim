@@ -1,3 +1,4 @@
+import { selectSttAudioModelInputPaths } from '@/tools/stt/model-input'
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import { STT_SEGMENT_OUTPUT_PROPERTIES } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
@@ -66,6 +67,11 @@ export const deepgramSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+      privateInputPaths: selectSttAudioModelInputPaths,
+    },
     url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({

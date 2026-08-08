@@ -13,6 +13,7 @@ const {
   mockGetObjectCommand,
   mockDeleteObjectCommand,
   mockCompleteMultipartUploadCommand,
+  mockHeadObjectCommand,
   mockGetSignedUrl,
   mockEnv,
   mockS3Config,
@@ -53,6 +54,7 @@ const {
     mockGetObjectCommand: vi.fn().mockImplementation(class {}),
     mockDeleteObjectCommand: vi.fn().mockImplementation(class {}),
     mockCompleteMultipartUploadCommand: vi.fn().mockImplementation(class {}),
+    mockHeadObjectCommand: vi.fn().mockImplementation(class {}),
     mockGetSignedUrl: vi.fn(),
     mockEnv,
   }
@@ -64,6 +66,7 @@ vi.mock('@aws-sdk/client-s3', () => ({
   GetObjectCommand: mockGetObjectCommand,
   DeleteObjectCommand: mockDeleteObjectCommand,
   CompleteMultipartUploadCommand: mockCompleteMultipartUploadCommand,
+  HeadObjectCommand: mockHeadObjectCommand,
 }))
 
 vi.mock('@aws-sdk/s3-request-presigner', () => ({
@@ -100,6 +103,7 @@ import {
   downloadFromS3,
   getPresignedUrl,
   getS3Client,
+  headS3Object,
   resetS3ClientForTesting,
   uploadToS3,
 } from '@/lib/uploads/providers/s3/client'
@@ -192,6 +196,61 @@ describe('S3 Client', () => {
       const contentType = 'text/plain'
 
       await expect(uploadToS3(testFile, fileName, contentType)).rejects.toThrow('Upload failed')
+    })
+  })
+
+  describe('headS3Object', () => {
+    it('returns custom metadata used for direct-upload receipt verification', async () => {
+      mockSend.mockResolvedValueOnce({
+        ContentLength: 12,
+        ContentType: 'text/plain',
+        Metadata: { simuploadid: 'receipt-1' },
+      })
+
+      await expect(headS3Object('workspace/file.txt')).resolves.toEqual({
+        size: 12,
+        contentType: 'text/plain',
+        metadata: { simuploadid: 'receipt-1' },
+      })
+    })
+
+    it('reports an absent object as null rather than raising', async () => {
+      /**
+       * A workspace file is rewritten under a new key on every content update, so a
+       * reader holding the previous key lands here routinely. Absence is the answer,
+       * not a failure.
+       */
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('NotFound'), {
+          name: 'NotFound',
+          $metadata: { httpStatusCode: 404 },
+        })
+      )
+
+      await expect(headS3Object('workspace/superseded.md')).resolves.toBeNull()
+    })
+
+    it('raises when the bucket itself is missing', async () => {
+      /** Also a 404, but a misconfiguration — reporting absence would hide an outage. */
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('NoSuchBucket'), {
+          name: 'NoSuchBucket',
+          $metadata: { httpStatusCode: 404 },
+        })
+      )
+
+      await expect(headS3Object('workspace/file.txt')).rejects.toThrow('NoSuchBucket')
+    })
+
+    it('raises on a permission failure', async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('AccessDenied'), {
+          name: 'AccessDenied',
+          $metadata: { httpStatusCode: 403 },
+        })
+      )
+
+      await expect(headS3Object('workspace/file.txt')).rejects.toThrow('AccessDenied')
     })
   })
 
@@ -411,6 +470,9 @@ describe('S3 Client', () => {
 
       const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
 
+      expect(mockCompleteMultipartUploadCommand).toHaveBeenCalledWith(
+        expect.objectContaining({ IfNoneMatch: '*' })
+      )
       expect(result.location).toBe('https://provided.example.com/object')
       expect(result.key).toBe('kb/uuid-file.txt')
       expect(result.path).toBe('/api/files/serve/kb%2Fuuid-file.txt')
@@ -424,6 +486,60 @@ describe('S3 Client', () => {
       expect(result.location).toBe(
         'https://test-kb-bucket.s3.test-region.amazonaws.com/kb/uuid-file.txt'
       )
+    })
+
+    it('returns the immutable object when a successful completion response was lost', async () => {
+      mockSend
+        .mockRejectedValueOnce(Object.assign(new Error('NoSuchUpload'), { name: 'NoSuchUpload' }))
+        .mockResolvedValueOnce({ ContentLength: 10, ContentType: 'text/plain' })
+
+      const result = await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+
+      expect(mockHeadObjectCommand).toHaveBeenCalledWith({
+        Bucket: 'test-kb-bucket',
+        Key: 'kb/uuid-file.txt',
+      })
+      expect(result.key).toBe('kb/uuid-file.txt')
+    })
+
+    it('fails closed when a different object already occupies the key', async () => {
+      mockSend.mockRejectedValueOnce(
+        Object.assign(new Error('PreconditionFailed'), { name: 'PreconditionFailed' })
+      )
+
+      await expect(
+        completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts)
+      ).rejects.toThrow('PreconditionFailed')
+
+      expect(mockHeadObjectCommand).not.toHaveBeenCalled()
+    })
+
+    it('retains replace semantics for deterministic internal exports', async () => {
+      mockSend.mockResolvedValueOnce({})
+
+      await completeS3MultipartUpload('kb/uuid-file.txt', 'upload-1', parts, undefined, 'replace')
+
+      expect(mockCompleteMultipartUploadCommand).toHaveBeenCalledWith(
+        expect.not.objectContaining({ IfNoneMatch: '*' })
+      )
+    })
+
+    it('reuses a conflicting snapshot only under the explicit policy', async () => {
+      mockSend
+        .mockRejectedValueOnce(
+          Object.assign(new Error('PreconditionFailed'), { name: 'PreconditionFailed' })
+        )
+        .mockResolvedValueOnce({ ContentLength: 10, ContentType: 'text/plain' })
+
+      const result = await completeS3MultipartUpload(
+        'table-snapshots/ws-1/table.csv',
+        'upload-1',
+        parts,
+        undefined,
+        'reuse-existing'
+      )
+
+      expect(result.key).toBe('table-snapshots/ws-1/table.csv')
     })
 
     it('builds a path-style fallback URL for a custom endpoint with forcePathStyle', async () => {

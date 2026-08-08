@@ -200,6 +200,14 @@ describe('createFork storage headroom gate', () => {
       bytes: 500,
     })
     expect(dbChainMockFns.transaction).toHaveBeenCalledTimes(1)
+    expect(mockCopyForkResourceContainers).toHaveBeenCalledWith(
+      expect.objectContaining({
+        documentMappingContext: {
+          edgeChildWorkspaceId: result.workspace.id,
+          sourceIsParent: true,
+        },
+      })
+    )
   })
 
   it('seeds identity mappings for copied FILES by storage key (a later sync must not re-offer them)', async () => {

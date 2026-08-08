@@ -1,5 +1,9 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
+import {
+  selectModelBoundFileInputPaths,
+  selectPreferredModelBoundFileInputPaths,
+} from '@/lib/uploads/utils/model-input'
 import type {
   ExtendParserInput,
   ExtendParserOutput,
@@ -60,6 +64,17 @@ export const extendParserTool: ToolConfig<ExtendParserInput, ExtendParserOutput>
   },
 
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) =>
+        selectPreferredModelBoundFileInputPaths({
+          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
+          filePath: params.filePath,
+          fileInputPath: params.file && typeof params.file === 'object' ? ['file'] : ['fileUpload'],
+          filePathInputPath: ['filePath'],
+          prefer: 'path',
+        }),
+    },
     url: '/api/tools/extend/parse',
     method: 'POST',
     headers: (params) => ({
@@ -208,6 +223,10 @@ export const extendParserV2Tool: ToolConfig<ExtendParserV2Input, ExtendParserOut
     apiKey: extendParserTool.params.apiKey,
   },
   request: {
+    modelInput: {
+      mode: 'private-provenance',
+      inputPaths: (params) => selectModelBoundFileInputPaths(params.file, ['file']),
+    },
     url: '/api/tools/extend/parse',
     method: 'POST',
     headers: (params) => ({

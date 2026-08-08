@@ -12,8 +12,16 @@ import {
   fetchWorkspaceFileBuffer,
   resolveWorkspaceFileReference,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
+  getBoundWorkspaceFileSecretProvenance,
+  mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('FfmpegTool')
+const MEDIA_OPERATION_FAILED_SAFELY = 'The media operation failed safely'
 
 const VALID_OPERATIONS: FfmpegOperation[] = [
   'overlay_audio',
@@ -80,13 +88,23 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       return { success: false, message: 'At least one input file is required in inputs.files' }
     }
 
+    let inputRequiresOpaqueError = false
     try {
       const mediaFiles: MediaFile[] = []
+      const inputProvenances: WorkspaceFileSecretProvenance[] = []
       for (const filePath of inputPaths) {
         const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
         if (!fileRecord) {
           return { success: false, message: `Input file not found: ${filePath}` }
         }
+        const fileProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+          fileId: fileRecord.id,
+          key: fileRecord.key,
+          context: fileRecord.storageContext ?? 'workspace',
+        })
+        inputRequiresOpaqueError ||=
+          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
+        inputProvenances.push(fileProvenance)
         const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         mediaFiles.push({
           buffer,
@@ -95,6 +113,9 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         })
       }
 
+      const inputProvenance = mergeWorkspaceFileSecretProvenance(...inputProvenances)
+      inputRequiresOpaqueError ||=
+        inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
       const result = await runFfmpegOperation(params.operation, mediaFiles, {
         text: params.text,
@@ -126,6 +147,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
       const mode = outputFile?.mode ?? 'create'
+      let outputProvenance = inputProvenance
+      if (params.operation === 'add_text' && params.text !== undefined) {
+        const textProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+          context.resolvedSecretTraceRegistry,
+          params.text,
+          { userId: context.userId, workspaceId }
+        )
+        outputProvenance = mergeWorkspaceFileSecretProvenance(
+          outputProvenance,
+          textProvenance.safe ? textProvenance.provenance : { status: 'unknown' as const }
+        )
+      }
 
       assertServerToolNotAborted(context)
       const written = await writeWorkspaceFileByPath({
@@ -134,6 +167,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',
+        secretProvenance: outputProvenance,
       })
 
       logger.info('ffmpeg operation completed', {
@@ -151,9 +185,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         downloadUrl: written.downloadUrl,
       }
     } catch (error) {
-      const msg = getErrorMessage(error, 'Unknown error')
-      logger.error('ffmpeg operation failed', { operation: params.operation, error: msg })
-      return { success: false, message: `ffmpeg ${params.operation} failed: ${msg}` }
+      const errorMessage = getErrorMessage(error, '')
+      const projection = inputRequiresOpaqueError
+        ? undefined
+        : errorMessage
+          ? projectResolvedSecretModelContent(errorMessage, context.resolvedSecretTraceRegistry)
+          : undefined
+      const message =
+        projection?.safe && typeof projection.value === 'string' && projection.value.length > 0
+          ? projection.value
+          : MEDIA_OPERATION_FAILED_SAFELY
+      logger.error('ffmpeg operation failed', { operation: params.operation, error: message })
+      return { success: false, message: `ffmpeg ${params.operation} failed: ${message}` }
     }
   },
 }

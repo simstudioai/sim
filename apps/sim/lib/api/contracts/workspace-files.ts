@@ -56,6 +56,24 @@ export const updateWorkspaceFileContentBodySchema = z.object({
   encoding: z.enum(['base64', 'utf-8']).optional(),
 })
 
+/** No real image approaches this; the bound rejects absurd or hostile values on the backfill path. */
+const IMAGE_DIMENSION_MAX = 100_000
+
+export const updateWorkspaceFileDimensionsBodySchema = z.object({
+  /**
+   * The storage key the client measured. The write commits only if the row still has this key — a
+   * content-version guard: the key changes on every content replacement, so a stale in-flight write for
+   * superseded bytes is rejected rather than persisting the old aspect ratio.
+   */
+  key: z.string().min(1, 'key is required'),
+  width: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+  height: z.number().int().positive().max(IMAGE_DIMENSION_MAX),
+})
+
+export type UpdateWorkspaceFileDimensionsBody = z.input<
+  typeof updateWorkspaceFileDimensionsBodySchema
+>
+
 export const workspaceFileRecordSchema = z.object({
   id: z.string(),
   workspaceId: z.string(),
@@ -65,6 +83,9 @@ export const workspaceFileRecordSchema = z.object({
   url: z.string().optional(),
   size: z.number(),
   type: z.string(),
+  /** Intrinsic image dimensions (px), populated lazily; null for non-images/un-backfilled rows. */
+  width: z.number().int().positive().nullable().optional(),
+  height: z.number().int().positive().nullable().optional(),
   uploadedBy: z.string(),
   folderId: z.string().nullable(),
   folderPath: z.string().nullable().optional(),
@@ -106,6 +127,19 @@ export const renameWorkspaceFileContract = defineRouteContract({
     schema: workspaceFileSuccessSchema.extend({
       file: workspaceFileRecordSchema,
     }),
+  },
+})
+
+export const updateWorkspaceFileDimensionsContract = defineRouteContract({
+  method: 'PATCH',
+  path: '/api/workspaces/[id]/files/[fileId]/dimensions',
+  params: workspaceFileParamsSchema,
+  body: updateWorkspaceFileDimensionsBodySchema,
+  response: {
+    mode: 'json',
+    // `success` reflects whether the row was actually written: false when the content-version guard
+    // rejected the write (the storage key changed since the client measured), not just on error.
+    schema: z.object({ success: z.boolean() }),
   },
 })
 

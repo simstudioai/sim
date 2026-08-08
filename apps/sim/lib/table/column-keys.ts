@@ -12,8 +12,11 @@ import { generateId } from '@sim/utils/id'
 import type {
   ColumnDefinition,
   Filter,
+  PredicateNode,
   RowData,
   Sort,
+  SortSpec,
+  TablePredicate,
   TableSchema,
   WorkflowGroup,
 } from '@/lib/table/types'
@@ -171,6 +174,32 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
   return out
 }
 
+/**
+ * Translates a v2 predicate's leaf `field` names → column ids (recursing through
+ * `all`/`any` groups). Fields with no matching column pass through unchanged.
+ * The v2 analogue of {@link filterNamesToIds}.
+ */
+export function predicateNamesToIds(
+  predicate: TablePredicate,
+  idByName: ReadonlyMap<string, string>
+): TablePredicate {
+  const remap = (node: PredicateNode): PredicateNode => {
+    // Group-first, matching isPredicateGroup/validateNode/buildPredicateNode.
+    if ('all' in node) return { all: node.all.map(remap) }
+    if ('any' in node) return { any: node.any.map(remap) }
+    return { ...node, field: idByName.get(node.field) ?? node.field }
+  }
+  return remap(predicate) as TablePredicate
+}
+
+/** Translates a v2 sort spec's field names → column ids. Unknown fields pass through. */
+export function sortSpecNamesToIds(
+  sort: SortSpec,
+  idByName: ReadonlyMap<string, string>
+): SortSpec {
+  return sort.map((s) => ({ field: idByName.get(s.field) ?? s.field, direction: s.direction }))
+}
+
 // The outbound direction (stored id-keyed row → name-keyed) deliberately does
 // NOT live here: a `select` cell's value also needs translating, and keeping the
 // key half separately callable is what let boundaries translate the keys and
@@ -178,26 +207,27 @@ export function sortNamesToIds(sort: Sort, idByName: ReadonlyMap<string, string>
 // does both in one pass.
 
 /**
- * Reverse of {@link filterNamesToIds}, for stored predicates on their way out to
- * a name-keyed wire (a saved view's config is id-keyed). Ids with no current
+ * Reverse of {@link predicateNamesToIds}, for a stored predicate on its way out
+ * to a name-keyed wire (a saved view's config is id-keyed). Ids with no current
  * column pass through rather than being dropped — a stale reference the caller
  * can see beats one that silently widens the predicate.
  */
-export function filterIdsToNames(filter: Filter, nameById: ReadonlyMap<string, string>): Filter {
-  const out: Filter = {}
-  for (const [key, value] of Object.entries(filter)) {
-    if ((key === '$or' || key === '$and') && Array.isArray(value)) {
-      out[key] = (value as Filter[]).map((f) => filterIdsToNames(f, nameById))
-    } else {
-      out[nameById.get(key) ?? key] = value
-    }
+export function predicateIdsToNames(
+  predicate: TablePredicate,
+  nameById: ReadonlyMap<string, string>
+): TablePredicate {
+  const remap = (node: PredicateNode): PredicateNode => {
+    if ('all' in node) return { all: node.all.map(remap) }
+    if ('any' in node) return { any: node.any.map(remap) }
+    return { ...node, field: nameById.get(node.field) ?? node.field }
   }
-  return out
+  return remap(predicate) as TablePredicate
 }
 
-/** Reverse of {@link sortNamesToIds}. Unknown ids pass through. */
-export function sortIdsToNames(sort: Sort, nameById: ReadonlyMap<string, string>): Sort {
-  const out: Sort = {}
-  for (const [field, dir] of Object.entries(sort)) out[nameById.get(field) ?? field] = dir
-  return out
+/** Reverse of {@link sortSpecNamesToIds}. Unknown ids pass through. */
+export function sortSpecIdsToNames(
+  sort: SortSpec,
+  nameById: ReadonlyMap<string, string>
+): SortSpec {
+  return sort.map((s) => ({ field: nameById.get(s.field) ?? s.field, direction: s.direction }))
 }

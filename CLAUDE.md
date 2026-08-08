@@ -19,6 +19,7 @@ You are a professional software engineer. All code must follow best practices: a
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
+- **Type-checking**: Run `bun run type-check` (per workspace) or `bunx turbo run type-check` (all of them). Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, but it is what makes a bare `tsc` resolve to the native TypeScript 7 compiler instead of the ~10x slower JavaScript TypeScript 6 one that `@typescript/typescript6` pulls in transitively. `bun run check:native-typecheck` enforces this
 
 ## Architecture
 
@@ -477,4 +478,10 @@ Two hard rules that the skills assume:
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
+
+## Tables
+
+Table column types are registry entries in `apps/sim/lib/table/column-types/` — one file per type owning its label, icon, storage cast, coercion, validation, conversion compatibility, formatting, and editor. `Record<ColumnType, …>` on `registry.ts` and `registry.server.ts` is a compile-time completeness gate: adding a type to the union errors until both entries exist.
+
+Never add a `case 'sometype':` outside `column-types/` — a missing arm fails silently (a wrong `jsonbCast` breaks every filter on the column). If a consumer needs per-type knowledge, add a registry field. Use `/add-column-type` for the full procedure.
 

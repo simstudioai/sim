@@ -15,7 +15,16 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, ne, sql } from 'drizzle-orm'
 import { getColumnId } from '@/lib/table/column-keys'
-import type { ColumnDefinition, TableViewConfig } from '@/lib/table/types'
+import { NAME_PATTERN } from '@/lib/table/constants'
+import { signalTableViewsChanged } from '@/lib/table/events'
+import { filterRulesToPredicate, filterToRules } from '@/lib/table/query-builder/converters'
+import type {
+  ColumnDefinition,
+  Filter,
+  Predicate,
+  PredicateNode,
+  TableViewConfig,
+} from '@/lib/table/types'
 
 const logger = createLogger('TableViewsService')
 
@@ -69,14 +78,47 @@ export function pruneViewConfig(
     pruned.columnWidths = widths
   }
   if (config.sort) {
-    const sort: Record<string, 'asc' | 'desc'> = {}
-    for (const [id, direction] of Object.entries(config.sort)) {
-      if (live.has(id)) sort[id] = direction
-    }
-    pruned.sort = Object.keys(sort).length > 0 ? sort : null
+    const sort = config.sort.filter((s) => live.has(s.field))
+    pruned.sort = sort.length > 0 ? sort : null
   }
 
   return pruned
+}
+
+/**
+ * Migrates a config stored before the grammar switch. The feature never
+ * released, so legacy-shaped rows exist only from pre-refactor testing: a
+ * `$`-object filter converts through the builder-rule round-trip (its exact
+ * authoring domain), and a `{col: dir}` sort record becomes an ordered spec.
+ * Anything unconvertible is dropped rather than surfaced broken.
+ */
+
+/** Every leaf field in the tree is a plausible column id. */
+function predicateFieldsAreValid(node: PredicateNode): boolean {
+  if ('all' in node) return node.all.every(predicateFieldsAreValid)
+  if ('any' in node) return node.any.every(predicateFieldsAreValid)
+  return NAME_PATTERN.test((node as Predicate).field)
+}
+
+export function normalizeStoredViewConfig(raw: Record<string, unknown>): TableViewConfig {
+  const config = { ...raw } as TableViewConfig
+  const filter = raw.filter as Record<string, unknown> | null | undefined
+  if (filter && !('all' in filter) && !('any' in filter)) {
+    try {
+      const converted = filterRulesToPredicate(filterToRules(filter as Filter))
+      // The rule converters don't reject garbage — an unknown `$op` becomes a
+      // rule on a column literally named `$op`. A converted leaf whose field
+      // fails the column-name pattern proves the input wasn't builder-authored.
+      config.filter = converted && predicateFieldsAreValid(converted) ? converted : null
+    } catch {
+      config.filter = null
+    }
+  }
+  const sort = raw.sort as Record<string, 'asc' | 'desc'> | unknown[] | null | undefined
+  if (sort && !Array.isArray(sort)) {
+    config.sort = Object.entries(sort).map(([field, direction]) => ({ field, direction }))
+  }
+  return config
 }
 
 function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinition[]): TableView {
@@ -84,7 +126,10 @@ function toTableView(row: typeof tableViews.$inferSelect, columns: ColumnDefinit
     id: row.id,
     tableId: row.tableId,
     name: row.name,
-    config: pruneViewConfig((row.config ?? {}) as TableViewConfig, columns),
+    config: pruneViewConfig(
+      normalizeStoredViewConfig((row.config ?? {}) as Record<string, unknown>),
+      columns
+    ),
     isDefault: row.isDefault,
     createdBy: row.createdBy,
     createdAt: row.createdAt,
@@ -160,6 +205,8 @@ export async function createTableView(data: CreateTableViewData): Promise<TableV
     .returning()
 
   logger.info('Created table view', { tableId: data.tableId, viewId: row.id })
+  // Views are table-wide shared state, so every open reader refetches the list live.
+  signalTableViewsChanged(data.tableId)
   return toTableView(row, data.columns)
 }
 
@@ -231,6 +278,8 @@ export async function updateTableView(data: UpdateTableViewData): Promise<TableV
   // route maps it to 404 the same way `deleteTableView`'s `false` does.
   if (!row) return null
 
+  // Only signal a real update — a no-op PATCH on a missing view (row === null) changed nothing.
+  signalTableViewsChanged(data.tableId)
   return toTableView(row, data.columns)
 }
 
@@ -241,6 +290,10 @@ export async function deleteTableView(viewId: string, tableId: string): Promise<
     .where(and(eq(tableViews.id, viewId), eq(tableViews.tableId, tableId)))
     .returning({ id: tableViews.id })
 
-  if (deleted.length > 0) logger.info('Deleted table view', { tableId, viewId })
+  if (deleted.length > 0) {
+    logger.info('Deleted table view', { tableId, viewId })
+    // Only signal a real deletion — a missing view (nothing deleted) changed nothing.
+    signalTableViewsChanged(tableId)
+  }
   return deleted.length > 0
 }

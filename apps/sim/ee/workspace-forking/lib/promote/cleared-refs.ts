@@ -300,6 +300,34 @@ export async function annotateForkClearedRefSourceLiveness(
   )
 }
 
+/**
+ * Narrow a caller's drop acknowledgments to the ones the server will actually honour: a reference
+ * whose kind can block at all, and whose resource is genuinely gone from the SOURCE workspace.
+ *
+ * Both promote gates consult this, so "which drops count" is decided once. The unmapped gate runs
+ * FIRST and would otherwise reject a dropped required reference before the cleared-ref gate ever
+ * got to honour it - making Drop unusable for exactly the required references it exists for. It
+ * cannot simply subtract the raw acknowledgments there either: an unmapped reference of a
+ * non-blocking kind (credential, env-var) never re-blocks downstream, so an unverified subtraction
+ * would let a crafted payload skip the required gate entirely.
+ */
+export async function verifyForkDropAcknowledgments(
+  executor: DbOrTx,
+  sourceWorkspaceId: string,
+  acknowledged: ReadonlyArray<{ kind: ForkRemapKind; sourceId: string }> | undefined
+): Promise<Array<{ kind: ForkRemapKind; sourceId: string }>> {
+  const droppable = (acknowledged ?? []).filter(
+    (entry) => !CLEARED_REF_EXCLUDED_KINDS.has(entry.kind)
+  )
+  if (droppable.length === 0) return []
+  const idsByKind: Partial<Record<ForkRemapKind, Set<string>>> = {}
+  for (const entry of droppable) {
+    ;(idsByKind[entry.kind] ??= new Set()).add(entry.sourceId)
+  }
+  const liveByKind = await filterExistingForkTargets(executor, sourceWorkspaceId, idsByKind)
+  return droppable.filter((entry) => !(liveByKind[entry.kind]?.has(entry.sourceId) ?? false))
+}
+
 /** Upper bound on the blockers a gate failure reports, so the error body stays sane. */
 const FORK_SYNC_BLOCKER_LIMIT = 100
 
@@ -376,24 +404,60 @@ export async function collectForkSyncBlockers(
      * rows) when one does. Omit to always collect from scratch.
      */
     planUnmapped?: ReadonlyArray<Pick<ForkReference, 'kind' | 'sourceId'>>
+    /**
+     * References the user explicitly acknowledged dropping. Applied ONLY where the source
+     * resource is actually gone, judged by the liveness annotation below - which reads the
+     * source workspace inside this same transaction - so an acknowledgment for a still-live
+     * reference is ignored and keeps blocking.
+     */
+    droppedReferences?: ReadonlyArray<{ kind: ForkRemapKind; sourceId: string }>
   }
-): Promise<ForkSyncBlocker[]> {
-  const { executor, sourceWorkspaceId, planUnmapped, ...collectParams } = params
-  if (planUnmapped && !hasForkSyncBlockerCandidates(planUnmapped, collectParams)) return []
+): Promise<{
+  blockers: ForkSyncBlocker[]
+  /** The acknowledgments that were actually honoured, for post-sync reporting. */
+  appliedDrops: Array<{ kind: ForkRemapKind; sourceId: string }>
+}> {
+  const { executor, sourceWorkspaceId, planUnmapped, droppedReferences, ...collectParams } = params
+  const empty = { blockers: [] as ForkSyncBlocker[], appliedDrops: [] }
+  if (planUnmapped && !hasForkSyncBlockerCandidates(planUnmapped, collectParams)) return empty
   const candidates = collectForkClearedRefCandidates({
     ...collectParams,
     sourceLabels: new Map(),
     sourceWorkflowNames: new Map(),
   })
-  if (!candidates.some((ref) => ref.cause === 'reference' || ref.cause === 'workflow')) return []
+  if (!candidates.some((ref) => ref.cause === 'reference' || ref.cause === 'workflow')) return empty
 
   const annotated = await annotateForkClearedRefSourceLiveness(
     executor,
     sourceWorkspaceId,
     candidates
   )
-  const blocking = selectForkSyncBlockingRefs(annotated).slice(0, FORK_SYNC_BLOCKER_LIMIT)
-  if (blocking.length === 0) return []
+
+  const acknowledged = new Set(
+    (droppedReferences ?? []).map((entry) => `${entry.kind}:${entry.sourceId}`)
+  )
+  const appliedDropKeys = new Set<string>()
+  const afterDrops =
+    acknowledged.size === 0
+      ? annotated
+      : annotated.filter((ref) => {
+          const key = `${ref.kind}:${ref.sourceId}`
+          // `sourceDeleted` is set only on `reference`-cause entries, so this can never drop a
+          // dependent- or workflow-cause blocker, nor a reference whose source is still live.
+          if (ref.cause !== 'reference' || !ref.sourceDeleted || !acknowledged.has(key)) return true
+          appliedDropKeys.add(key)
+          return false
+        })
+  const appliedDrops = Array.from(appliedDropKeys).map((key) => {
+    const separator = key.indexOf(':')
+    return {
+      kind: key.slice(0, separator) as ForkRemapKind,
+      sourceId: key.slice(separator + 1),
+    }
+  })
+
+  const blocking = selectForkSyncBlockingRefs(afterDrops).slice(0, FORK_SYNC_BLOCKER_LIMIT)
+  if (blocking.length === 0) return { blockers: [], appliedDrops }
 
   // Best-effort display labels (failure path only). Copyable kinds go through the shared label
   // loader (live rows only - a deleted source keeps its id label); MCP servers are read without
@@ -434,7 +498,10 @@ export async function collectForkSyncBlockers(
     return copyableLabels.get(`${ref.kind}:${ref.sourceId}`)?.label ?? ref.sourceLabel
   }
 
-  return toForkSyncBlockers(
-    blocking.map(({ ref, reason }) => ({ ref: { ...ref, sourceLabel: labelFor(ref) }, reason }))
-  )
+  return {
+    blockers: toForkSyncBlockers(
+      blocking.map(({ ref, reason }) => ({ ref: { ...ref, sourceLabel: labelFor(ref) }, reason }))
+    ),
+    appliedDrops,
+  }
 }

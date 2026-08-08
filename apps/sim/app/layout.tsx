@@ -6,7 +6,12 @@ import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
-import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
+import {
+  isChatEnabled,
+  isHosted,
+  isReactGrabEnabled,
+  isReactScanEnabled,
+} from '@/lib/core/config/env-flags'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
@@ -56,7 +61,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             strategy='lazyOnload'
           />
         )}
-        {/* 
+        {/*
           Workspace layout dimensions: set CSS vars before hydration to avoid layout jump.
           
           IMPORTANT: These hardcoded values must stay in sync with stores/constants.ts
@@ -88,9 +93,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 }
 
                 // Sidebar width. Mirror clampSidebarWidth() in stores/sidebar/store.ts:
-                // the upper bound can never fall below the 248px minimum, so a narrow
+                // the upper bound can never fall below the 238px minimum, so a narrow
                 // window yields a width >= MIN instead of a sub-minimum sliver.
-                var defaultSidebarWidth = 248;
+                var defaultSidebarWidth = 238;
                 try {
                   // Collapse comes from the cookie (independent of localStorage
                   // parsing); the persisted width is read defensively below. Match the
@@ -112,22 +117,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     document.cookie = 'sidebar_collapsed=' + (collapsed ? '1' : '0') + '; path=/; max-age=31536000; samesite=lax';
                   }
 
-                  if (collapsed) {
-                    document.documentElement.style.setProperty(
-                      '--sidebar-width',
-                      collapsedSidebarWidth + 'px'
-                    );
-                  } else {
-                    var width = state && state.sidebarWidth;
-                    var maxSidebarWidth = Math.max(248, window.innerWidth * 0.3);
-                    var finalWidth =
-                      typeof width === 'number' && isFinite(width)
-                        ? Math.min(Math.max(width, 248), maxSidebarWidth)
-                        : defaultSidebarWidth;
-                    document.documentElement.style.setProperty('--sidebar-width', finalWidth + 'px');
-                  }
+                  // The expanded width is published unconditionally, even while
+                  // collapsed, because the desktop hover-peek renders the sidebar at
+                  // its restore width while --sidebar-width still reads collapsed.
+                  var width = state && state.sidebarWidth;
+                  var maxSidebarWidth = Math.max(238, window.innerWidth * 0.3);
+                  var expandedWidth =
+                    typeof width === 'number' && isFinite(width)
+                      ? Math.min(Math.max(width, 238), maxSidebarWidth)
+                      : defaultSidebarWidth;
+                  document.documentElement.style.setProperty(
+                    '--sidebar-expanded-width',
+                    expandedWidth + 'px'
+                  );
+                  document.documentElement.style.setProperty(
+                    '--sidebar-width',
+                    (collapsed ? collapsedSidebarWidth : expandedWidth) + 'px'
+                  );
                 } catch (e) {
                   document.documentElement.style.setProperty('--sidebar-width', defaultSidebarWidth + 'px');
+                  document.documentElement.style.setProperty('--sidebar-expanded-width', defaultSidebarWidth + 'px');
                 }
 
                 // Panel width and active tab
@@ -146,6 +155,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     }
 
                     var activeTab = panelState && panelState.activeTab;
+                    // A session that used the Chat tab before it was turned off still
+                    // has 'copilot' persisted; without this the CSS hides every tab
+                    // body and the panel paints empty.
+                    if (activeTab === 'copilot' && !${isChatEnabled}) {
+                      activeTab = 'toolbar';
+                    }
                     if (activeTab) {
                       document.documentElement.setAttribute('data-panel-active-tab', activeTab);
                     }

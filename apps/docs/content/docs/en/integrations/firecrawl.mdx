@@ -42,7 +42,7 @@ Integrate Firecrawl into the workflow. Scrape pages, search the web, crawl entir
 
 ## Actions
 
-### `firecrawl_scrape`
+### Firecrawl Website Scraper
 
 Extract structured content from web pages with comprehensive metadata support. Converts content to markdown or HTML while capturing SEO metadata, Open Graph tags, and page information.
 
@@ -51,6 +51,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `url` | string | Yes | The URL to scrape content from \(e.g., "https://example.com/page"\) |
+| `formats` | json | No | Output formats supplied by existing Firecrawl block configurations |
 | `scrapeOptions` | json | No | Options for content scraping |
 | `apiKey` | string | Yes | Firecrawl API key |
 
@@ -76,7 +77,7 @@ Extract structured content from web pages with comprehensive metadata support. C
 |   ↳ `ogSiteName` | string | Open Graph site name |
 |   ↳ `error` | string | Error message if scrape failed |
 
-### `firecrawl_batch_scrape`
+### Firecrawl Batch Scrape
 
 Scrape multiple URLs in a single batch job and retrieve structured content from each page.
 
@@ -114,7 +115,7 @@ Scrape multiple URLs in a single batch job and retrieve structured content from 
 | `completed` | number | Number of pages successfully scraped |
 | `invalidURLs` | array | URLs that were skipped because they were invalid |
 
-### `firecrawl_batch_scrape_status`
+### Firecrawl Batch Scrape Status
 
 Check the status and retrieve results of a previously started Firecrawl batch scrape job by its job ID.
 
@@ -149,7 +150,7 @@ Check the status and retrieve results of a previously started Firecrawl batch sc
 |     ↳ `statusCode` | number | HTTP status code |
 |     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 
-### `firecrawl_search`
+### Firecrawl Search
 
 Search for information on the web using Firecrawl
 
@@ -158,6 +159,7 @@ Search for information on the web using Firecrawl
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
 | `query` | string | Yes | The search query to use |
+| `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `apiKey` | string | Yes | Firecrawl API key |
 
 #### Output
@@ -180,7 +182,7 @@ Search for information on the web using Firecrawl
 |     ↳ `statusCode` | number | HTTP status code |
 |     ↳ `error` | string | Error message if scrape failed |
 
-### `firecrawl_crawl`
+### Firecrawl Crawl
 
 Crawl entire websites and extract structured content from all accessible pages
 
@@ -192,6 +194,8 @@ Crawl entire websites and extract structured content from all accessible pages
 | `limit` | number | No | Maximum number of pages to crawl \(e.g., 50, 100, 500\). Default: 100 |
 | `maxDepth` | number | No | Maximum depth to crawl from the starting URL \(e.g., 1, 2, 3\). Controls how many levels deep to follow links |
 | `formats` | json | No | Output formats for scraped content \(e.g., \["markdown"\], \["markdown", "html"\], \["markdown", "links"\]\) |
+| `prompt` | string | No | Natural-language crawl guidance supplied by existing configurations |
+| `scrapeOptions` | json | No | Advanced scrape options supplied by existing configurations |
 | `excludePaths` | json | No | URL paths to exclude from crawling \(e.g., \["/blog/*", "/admin/*", "/*.pdf"\]\) |
 | `includePaths` | json | No | URL paths to include in crawling \(e.g., \["/docs/*", "/api/*"\]\). Only these paths will be crawled |
 | `onlyMainContent` | boolean | No | Extract only main content from pages |
@@ -216,7 +220,7 @@ Crawl entire websites and extract structured content from all accessible pages
 |     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 | `total` | number | Total number of pages found during crawl |
 
-### `firecrawl_crawl_status`
+### Firecrawl Crawl Status
 
 Check the status and retrieve results of a previously started Firecrawl crawl job by its job ID.
 
@@ -251,7 +255,7 @@ Check the status and retrieve results of a previously started Firecrawl crawl jo
 |     ↳ `statusCode` | number | HTTP status code |
 |     ↳ `ogLocaleAlternate` | array | Alternate locale versions |
 
-### `firecrawl_cancel_crawl`
+### Firecrawl Cancel Crawl
 
 Cancel an in-progress Firecrawl crawl job by its job ID.
 
@@ -268,7 +272,7 @@ Cancel an in-progress Firecrawl crawl job by its job ID.
 | --------- | ---- | ----------- |
 | `status` | string | Status of the cancelled crawl job \(e.g., "cancelled"\) |
 
-### `firecrawl_map`
+### Firecrawl Map
 
 Get a complete list of URLs from any website quickly and reliably. Useful for discovering all pages on a site without crawling them.
 
@@ -293,7 +297,7 @@ Get a complete list of URLs from any website quickly and reliably. Useful for di
 | `success` | boolean | Whether the mapping operation was successful |
 | `links` | array | Array of discovered URLs from the website |
 
-### `firecrawl_extract`
+### Firecrawl Extract
 
 Extract structured data from entire webpages using natural language prompts and JSON schema. Powerful agentic feature for intelligent data extraction.
 
@@ -319,7 +323,7 @@ Extract structured data from entire webpages using natural language prompts and 
 | `success` | boolean | Whether the extraction operation was successful |
 | `data` | object | Extracted structured data according to the schema or prompt |
 
-### `firecrawl_extract_status`
+### Firecrawl Extract Status
 
 Check the status and retrieve results of a previously started Firecrawl extract job by its job ID.
 
@@ -340,7 +344,7 @@ Check the status and retrieve results of a previously started Firecrawl extract 
 | `creditsUsed` | number | Number of credits used by the extract job |
 | `tokensUsed` | number | Number of tokens used by the extract job |
 
-### `firecrawl_agent`
+### Firecrawl Agent
 
 Autonomous web data extraction agent. Searches and gathers information based on natural language prompts without requiring specific URLs.
 
@@ -365,7 +369,7 @@ Autonomous web data extraction agent. Searches and gathers information based on 
 | `expiresAt` | string | Timestamp when the results expire \(24 hours\) |
 | `sources` | object | Array of source URLs used by the agent |
 
-### `firecrawl_parse`
+### Firecrawl Document Parser
 
 Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firecrawl. Supports .html, .htm, .pdf, .docx, .doc, .odt, .rtf, .xlsx, .xls.
 
@@ -408,7 +412,7 @@ Parse uploaded documents (PDF, DOCX, HTML, etc.) into clean markdown using Firec
 |   ↳ `error` | string | Error message if parse failed |
 | `warning` | string | Warning message from the parse operation |
 
-### `firecrawl_credit_usage`
+### Firecrawl Credit Usage
 
 Retrieve the remaining and allocated Firecrawl credits for the team.
 

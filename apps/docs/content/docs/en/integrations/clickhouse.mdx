@@ -39,7 +39,7 @@ Integrate ClickHouse into the workflow. Query and insert data, manage databases 
 
 ## Actions
 
-### `clickhouse_query`
+### ClickHouse Query
 
 Execute a SELECT query on a ClickHouse database
 
@@ -63,7 +63,7 @@ Execute a SELECT query on a ClickHouse database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_execute`
+### ClickHouse Execute
 
 Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
 
@@ -87,7 +87,7 @@ Execute raw SQL (DDL, mutations, or queries) on a ClickHouse database
 | `rows` | array | Array of rows returned from the statement |
 | `rowCount` | number | Number of rows returned or affected |
 
-### `clickhouse_insert`
+### ClickHouse Insert
 
 Insert a row into a ClickHouse table
 
@@ -112,7 +112,7 @@ Insert a row into a ClickHouse table
 | `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
 | `rowCount` | number | Number of rows inserted |
 
-### `clickhouse_insert_rows`
+### ClickHouse Insert Rows
 
 Insert multiple rows into a ClickHouse table
 
@@ -137,7 +137,7 @@ Insert multiple rows into a ClickHouse table
 | `rows` | array | Inserted rows \(empty for ClickHouse inserts\) |
 | `rowCount` | number | Number of rows inserted |
 
-### `clickhouse_update`
+### ClickHouse Update
 
 Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
 
@@ -163,7 +163,7 @@ Update rows in a ClickHouse table via an ALTER TABLE ... UPDATE mutation
 | `rows` | array | Updated rows \(empty for ClickHouse mutations\) |
 | `rowCount` | number | Number of rows written by the mutation |
 
-### `clickhouse_delete`
+### ClickHouse Delete
 
 Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
 
@@ -188,7 +188,7 @@ Delete rows from a ClickHouse table via an ALTER TABLE ... DELETE mutation
 | `rows` | array | Deleted rows \(empty for ClickHouse mutations\) |
 | `rowCount` | number | Number of rows affected by the mutation |
 
-### `clickhouse_list_databases`
+### ClickHouse List Databases
 
 List all databases on a ClickHouse server
 
@@ -211,7 +211,7 @@ List all databases on a ClickHouse server
 | `rows` | array | List of databases with engine and comment |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_list_tables`
+### ClickHouse List Tables
 
 List tables in the connected ClickHouse database
 
@@ -234,7 +234,7 @@ List tables in the connected ClickHouse database
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_describe_table`
+### ClickHouse Describe Table
 
 Describe the columns of a ClickHouse table
 
@@ -258,7 +258,7 @@ Describe the columns of a ClickHouse table
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_show_create_table`
+### ClickHouse Show Create Table
 
 Get the CREATE TABLE statement (DDL) for a ClickHouse table
 
@@ -281,7 +281,7 @@ Get the CREATE TABLE statement (DDL) for a ClickHouse table
 | `message` | string | Operation status message |
 | `ddl` | string | The CREATE TABLE statement |
 
-### `clickhouse_count_rows`
+### ClickHouse Count Rows
 
 Count rows in a ClickHouse table, optionally filtered
 
@@ -305,7 +305,7 @@ Count rows in a ClickHouse table, optionally filtered
 | `message` | string | Operation status message |
 | `count` | number | Number of rows |
 
-### `clickhouse_introspect`
+### ClickHouse Introspect
 
 Introspect a ClickHouse database to retrieve table structures, columns, and engines
 
@@ -338,7 +338,7 @@ Introspect a ClickHouse database to retrieve table structures, columns, and engi
 |     ↳ `isInPrimaryKey` | boolean | Whether the column is part of the primary key |
 |     ↳ `isInSortingKey` | boolean | Whether the column is part of the sorting key |
 
-### `clickhouse_create_database`
+### ClickHouse Create Database
 
 Create a new database on a ClickHouse server
 
@@ -360,7 +360,7 @@ Create a new database on a ClickHouse server
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_drop_database`
+### ClickHouse Drop Database
 
 Drop a database from a ClickHouse server
 
@@ -382,7 +382,7 @@ Drop a database from a ClickHouse server
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_create_table`
+### ClickHouse Create Table
 
 Create a new MergeTree-family table in ClickHouse
 
@@ -408,7 +408,7 @@ Create a new MergeTree-family table in ClickHouse
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_drop_table`
+### ClickHouse Drop Table
 
 Drop a table from a ClickHouse database
 
@@ -430,7 +430,7 @@ Drop a table from a ClickHouse database
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_truncate_table`
+### ClickHouse Truncate Table
 
 Remove all rows from a ClickHouse table
 
@@ -452,7 +452,7 @@ Remove all rows from a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_rename_table`
+### ClickHouse Rename Table
 
 Rename a ClickHouse table
 
@@ -475,7 +475,7 @@ Rename a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_optimize_table`
+### ClickHouse Optimize Table
 
 Trigger a merge of table parts via OPTIMIZE TABLE
 
@@ -498,7 +498,7 @@ Trigger a merge of table parts via OPTIMIZE TABLE
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_list_partitions`
+### ClickHouse List Partitions
 
 List active partitions for a ClickHouse table
 
@@ -522,7 +522,7 @@ List active partitions for a ClickHouse table
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_drop_partition`
+### ClickHouse Drop Partition
 
 Drop a partition from a ClickHouse table
 
@@ -545,7 +545,7 @@ Drop a partition from a ClickHouse table
 | --------- | ---- | ----------- |
 | `message` | string | Operation status message |
 
-### `clickhouse_list_mutations`
+### ClickHouse List Mutations
 
 List mutations (async ALTER UPDATE/DELETE) for the connected database
 
@@ -570,7 +570,7 @@ List mutations (async ALTER UPDATE/DELETE) for the connected database
 | `rows` | array | Array of mutation rows |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_list_running_queries`
+### ClickHouse List Running Queries
 
 List currently running queries on a ClickHouse server
 
@@ -593,7 +593,7 @@ List currently running queries on a ClickHouse server
 | `rows` | array | Array of rows returned from the query |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_kill_query`
+### ClickHouse Kill Query
 
 Kill a running query by its query ID
 
@@ -617,7 +617,7 @@ Kill a running query by its query ID
 | `rows` | array | Kill status rows |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_table_stats`
+### ClickHouse Table Stats
 
 Get row counts and on-disk size for tables in the connected database
 
@@ -641,7 +641,7 @@ Get row counts and on-disk size for tables in the connected database
 | `rows` | array | Array of table stats rows |
 | `rowCount` | number | Number of rows returned |
 
-### `clickhouse_list_clusters`
+### ClickHouse List Clusters
 
 List configured clusters, shards, and replicas
 

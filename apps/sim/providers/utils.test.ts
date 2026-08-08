@@ -2,6 +2,7 @@ import { resetEnvFlagsMock, setEnvFlags } from '@sim/testing'
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   calculateCost,
+  describeModelLevel,
   extractAndParseJSON,
   filterBlacklistedModels,
   formatCost,
@@ -1274,6 +1275,21 @@ describe('prepareToolExecution', () => {
       expect(toolParams.channel).toBe('#llm-channel')
       expect(toolParams.message).toBe('Hello')
     })
+
+    it('runs the legacy parameter transform once when no secret provenance is attached', () => {
+      const paramsTransform = vi.fn((params: Record<string, unknown>) => ({
+        token: params.apiKey,
+      }))
+
+      const { toolParams } = prepareToolExecution(
+        { params: { apiKey: 'ordinary-key' }, paramsTransform },
+        {},
+        {}
+      )
+
+      expect(toolParams).toEqual({ token: 'ordinary-key' })
+      expect(paramsTransform).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('_context propagation', () => {
@@ -1621,6 +1637,79 @@ describe('transformBlockTool multi-instance unique IDs', () => {
     expect(result?.id).toBe('table_query_rows_tbl_abc')
   })
 
+  it('resolves the active table selector before enriching the LLM tool schema', async () => {
+    const enrichTool = vi.fn(
+      async (
+        tableId: string,
+        schema: {
+          type: 'object'
+          properties: Record<string, unknown>
+          required: string[]
+        }
+      ) => ({
+        description: `Query rows from ${tableId}`,
+        parameters: {
+          ...schema,
+          properties: {
+            ...schema.properties,
+            customer_name: { type: 'string' },
+          },
+        },
+      })
+    )
+    const result = await transformBlockTool(
+      {
+        type: 'table',
+        operation: 'query_rows',
+        params: { tableId: 'tbl_stale', tableSelector: 'tbl_active' },
+      },
+      {
+        selectedOperation: 'query_rows',
+        getAllBlocks,
+        enrichmentContext: {
+          workspaceId: 'workspace-1',
+          userId: 'user-1',
+        },
+        getTool: (id: string) => ({
+          id,
+          name: 'Query Rows',
+          description: 'Query table rows',
+          params: {
+            tableId: { type: 'string', required: true, visibility: 'user-only' },
+            filter: { type: 'object', visibility: 'user-or-llm' },
+          },
+          toolEnrichment: {
+            dependsOn: 'tableId',
+            enrichTool,
+          },
+        }),
+      }
+    )
+
+    expect(enrichTool).toHaveBeenCalledWith(
+      'tbl_active',
+      expect.objectContaining({
+        properties: expect.objectContaining({ filter: expect.any(Object) }),
+      }),
+      'Query table rows',
+      {
+        workspaceId: 'workspace-1',
+        userId: 'user-1',
+      }
+    )
+    expect(result).toMatchObject({
+      id: 'table_query_rows_tbl_active',
+      description: 'Query rows from tbl_active',
+      params: { tableId: 'tbl_stale', tableSelector: 'tbl_active' },
+      parameters: {
+        properties: {
+          customer_name: { type: 'string' },
+        },
+      },
+    })
+    expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_active' })
+  })
+
   it('appends the table id resolved from the advanced manual input', async () => {
     const result = await transformTable(
       { manualTableId: 'tbl_xyz' },
@@ -1640,6 +1729,16 @@ describe('transformBlockTool multi-instance unique IDs', () => {
   it('appends the canonical table id when already present in params', async () => {
     const result = await transformTable({ tableId: 'tbl_direct' })
     expect(result?.id).toBe('table_query_rows_tbl_direct')
+  })
+
+  it('preserves the canonical table id when advanced mode is active', async () => {
+    const result = await transformTable(
+      { tableId: 'tbl_advanced', tableSelector: 'tbl_basic' },
+      { '0:tableId': 'advanced' },
+      0
+    )
+    expect(result?.id).toBe('table_query_rows_tbl_advanced')
+    expect(result?.paramsTransform?.(result.params)).toEqual({ tableId: 'tbl_advanced' })
   })
 
   it('falls back to the base tool id when no table is selected', async () => {
@@ -1728,5 +1827,71 @@ describe('transformBlockTool knowledge-base multi-instance unique IDs', () => {
   it('falls back to the base tool id when no knowledge base is selected', async () => {
     const result = await transformKb({})
     expect(result?.id).toBe('knowledge_search')
+  })
+})
+
+describe('prepareToolExecution invoker identity hand-off', () => {
+  const tool = { params: {}, parameters: {} }
+
+  /**
+   * A custom block invoked as an agent tool starts its own child execution, and
+   * correlates + cancels against the INVOKING run. That id only reaches it via
+   * `_context`, so this asserts the hand-off rather than any single hop — three
+   * separate fixes each repaired one hop and left the chain broken elsewhere.
+   */
+  it("puts the invoking run's execution id on tool _context", () => {
+    const { executionParams } = prepareToolExecution(
+      tool,
+      {},
+      {
+        workflowId: 'wf-1',
+        workspaceId: 'ws-1',
+        executionId: 'real-execution-id',
+      }
+    )
+
+    expect(executionParams._context.executionId).toBe('real-execution-id')
+  })
+
+  it('omits the execution id when the request carries none', () => {
+    const { executionParams } = prepareToolExecution(
+      tool,
+      {},
+      {
+        workflowId: 'wf-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    expect(executionParams._context.executionId).toBeUndefined()
+  })
+})
+
+/**
+ * The agent block's tuning-level fields accept variable and environment references, so any
+ * message that echoes a caller-supplied level can otherwise carry whatever that reference
+ * resolved to — including secret content.
+ */
+describe('describeModelLevel', () => {
+  it('echoes a level the catalogue declares', () => {
+    expect(describeModelLevel('high')).toBe('high')
+    expect(describeModelLevel('minimal')).toBe('minimal')
+    expect(describeModelLevel('xhigh')).toBe('xhigh')
+  })
+
+  it('echoes the auto and none sentinels', () => {
+    expect(describeModelLevel('auto')).toBe('auto')
+    expect(describeModelLevel('none')).toBe('none')
+  })
+
+  it('redacts anything else to a length', () => {
+    const secret = 'sk-proj-abcdef0123456789'
+    expect(describeModelLevel(secret)).toBe(`[redacted ${secret.length} chars]`)
+    expect(describeModelLevel(secret)).not.toContain('abcdef')
+  })
+
+  it('reports an absent level without throwing', () => {
+    expect(describeModelLevel(undefined)).toBe('(unset)')
+    expect(describeModelLevel('')).toBe('(unset)')
   })
 })

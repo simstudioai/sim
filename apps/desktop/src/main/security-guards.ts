@@ -2,6 +2,7 @@ import { createLogger } from '@sim/logger'
 import type { WebContents } from 'electron'
 import { app } from 'electron'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
+import { trackInputActivity } from '@/main/input-activity'
 import { classifyNavigation, openExternalSafe } from '@/main/navigation'
 import { scrubUrl } from '@/main/observability'
 
@@ -85,6 +86,7 @@ export function installGlobalGuards(deps: GuardDeps): void {
       })
     }
     contents.setWindowOpenHandler(() => ({ action: 'deny' }))
+    trackInputActivity(contents)
     attachNavigationGuards(contents, deps)
   })
 

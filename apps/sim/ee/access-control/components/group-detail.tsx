@@ -22,12 +22,12 @@ import {
   Switch,
   toast,
 } from '@sim/emcn'
-import { ArrowLeft } from '@sim/emcn/icons'
+import { ArrowLeft, ChevronDown, Plus } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { formatDate } from '@sim/utils/formatting'
-import { ChevronDown, Plus } from 'lucide-react'
 import { useQueryState } from 'nuqs'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import type { ShareAuthType } from '@/lib/api/contracts/public-shares'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
@@ -45,7 +45,6 @@ import {
   MemberRow,
 } from '@/app/workspace/[workspaceId]/settings/components/member-list'
 import { RowActionsMenu } from '@/app/workspace/[workspaceId]/settings/components/row-actions-menu'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
@@ -76,7 +75,7 @@ import {
 import type { ProviderId } from '@/providers/types'
 import { getAllProviderIds, getProviderFromModel } from '@/providers/utils'
 import type { ProviderName } from '@/stores/providers'
-import { getTool } from '@/tools/utils'
+import { getToolMetadata } from '@/tools/metadata'
 
 const logger = createLogger('AccessControlGroupDetail')
 
@@ -120,19 +119,16 @@ function matchesStatusFilter(filter: StatusFilter, enabled: boolean) {
 interface StatusFilterChipProps {
   value: StatusFilter
   onChange: (value: StatusFilter) => void
-  /** Set when the chip is the last control in its row, so it sits flush to the edge. */
-  flush?: boolean
 }
 
 /** The All/Enabled/Disabled narrowing control shared by the three list tabs. */
-function StatusFilterChip({ value, onChange, flush }: StatusFilterChipProps) {
+function StatusFilterChip({ value, onChange }: StatusFilterChipProps) {
   return (
     <ChipDropdown
       value={value}
       onChange={(next) => onChange(next as StatusFilter)}
       options={STATUS_FILTER_OPTIONS}
       matchTriggerWidth={false}
-      flush={flush}
       className='w-[140px] flex-shrink-0'
     />
   )
@@ -151,8 +147,6 @@ interface AuthModeFieldProps {
  * disables together with the toggle that owns it. The left padding lines both
  * children up with the parent's label text — row gutter (8) + checkbox (16) +
  * gap (8) = 32 — so the field reads as subordinate rather than as a sibling row.
- * The dropdown is `flush` so its own `mx-0.5` doesn't push it 2px past the
- * caption above it.
  */
 function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFieldProps) {
   const labelId = useId()
@@ -164,7 +158,6 @@ function AuthModeField({ label, value, onChange, options, disabled }: AuthModeFi
       </span>
       <ChipDropdown
         multiple
-        flush
         showAllOption={false}
         id={triggerId}
         // Both ids: `aria-labelledby` replaces the content-derived name, so
@@ -436,9 +429,9 @@ function AddMembersModal({
 
               <div className='max-h-[280px] overflow-y-auto'>
                 {filteredMembers.length === 0 ? (
-                  <p className='py-4 text-center text-[var(--text-muted)] text-sm'>
+                  <SettingsEmptyState variant='inline'>
                     No members found matching "{searchTerm}"
-                  </p>
+                  </SettingsEmptyState>
                 ) : (
                   <div className='flex flex-col'>
                     {filteredMembers.map((member) => {
@@ -451,7 +444,7 @@ function AddMembersModal({
                           key={member.userId}
                           type='button'
                           onClick={() => handleToggleMember(member.userId)}
-                          className='flex items-center gap-2.5 rounded-sm p-2 text-left hover-hover:bg-[var(--surface-active)]'
+                          className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
                         >
                           <Checkbox checked={isSelected} />
                           <MemberAvatar name={name} image={member.user?.image ?? null} />
@@ -733,7 +726,7 @@ function BlockToolRow({
   const checkboxId = `block-${block.type}`
 
   const toolItems = useMemo<DenylistGridItem[]>(
-    () => (block.tools?.access ?? []).map((id) => ({ id, label: getTool(id)?.name ?? id })),
+    () => (block.tools?.access ?? []).map((id) => ({ id, label: getToolMetadata(id)?.name ?? id })),
     [block.tools?.access]
   )
   const isExpandable = toolItems.length > 1
@@ -1543,8 +1536,8 @@ export function GroupDetail({
             saveDisabled: !trimmedName,
           }),
           {
+            id: 'delete',
             text: deletePermissionGroup.isPending ? 'Deleting...' : 'Delete',
-            variant: 'destructive',
             onSelect: () => setShowDeleteConfirm(true),
             disabled: deletePermissionGroup.isPending,
           },
@@ -1710,7 +1703,6 @@ export function GroupDetail({
                 onChange={(next) => void setStatusFilter(next)}
               />
               <Chip
-                flush
                 onClick={() => setProvidersAllowed(filteredProviders, !filteredProvidersAllAllowed)}
                 disabled={filteredProviders.length === 0}
               >
@@ -1754,7 +1746,6 @@ export function GroupDetail({
               <StatusFilterChip
                 value={statusFilter}
                 onChange={(next) => void setStatusFilter(next)}
-                flush
               />
             </div>
             {filteredCoreBlocks.length === 0 && filteredToolBlocks.length === 0 && (
@@ -1766,10 +1757,7 @@ export function GroupDetail({
               <SettingsSection
                 label='Core Blocks'
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredCoreBlocks, !coreBlocksAllAllowed)}>
                     {coreBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1821,10 +1809,7 @@ export function GroupDetail({
                   </Info>
                 }
                 action={
-                  <Chip
-                    flush
-                    onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}
-                  >
+                  <Chip onClick={() => setBlocksAllowed(filteredToolBlocks, !toolBlocksAllAllowed)}>
                     {toolBlocksAllAllowed ? 'Deselect All' : 'Select All'}
                   </Chip>
                 }
@@ -1871,7 +1856,6 @@ export function GroupDetail({
                     ),
                   }))
                 }
-                flush
                 disabled={filteredPlatformFeatures.length === 0}
               >
                 {platformAllVisible ? 'Deselect All' : 'Select All'}

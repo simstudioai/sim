@@ -11,12 +11,16 @@ const {
   mockGetTool,
   mockGetCustomToolById,
   mockGetSkillById,
+  mockGetHostedModels,
+  mockIsIntegrationDeploymentAvailable,
 } = vi.hoisted(() => ({
   mockValidateSelectorIds: vi.fn(),
   mockGetModelOptions: vi.fn(() => []),
   mockGetTool: vi.fn(),
   mockGetCustomToolById: vi.fn(),
   mockGetSkillById: vi.fn(),
+  mockGetHostedModels: vi.fn(() => [] as string[]),
+  mockIsIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
 
 const conditionBlockConfig = {
@@ -32,6 +36,29 @@ const oauthBlockConfig = {
   outputs: {},
   subBlocks: [{ id: 'credential', type: 'oauth-input' }],
   tools: { access: ['slack_message'] },
+}
+
+const tableBlockConfig = {
+  type: 'table',
+  name: 'Table',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Query Rows', id: 'query_rows' },
+        { label: 'Insert Row', id: 'insert_row' },
+      ],
+    },
+  ],
+  tools: {
+    access: ['table_query_rows', 'table_insert_row'],
+    config: {
+      tool: (params: Record<string, unknown>) =>
+        params.operation === 'insert_row' ? 'table_insert_row' : 'table_query_rows',
+    },
+  },
 }
 
 const routerBlockConfig = {
@@ -53,6 +80,18 @@ const agentBlockConfig = {
     { id: 'tools', type: 'tool-input' },
     { id: 'skills', type: 'skill-input' },
   ],
+}
+
+const piBlockConfig = {
+  type: 'pi',
+  name: 'Pi Coding Agent',
+  outputs: {},
+  subBlocks: [
+    { id: 'mode', type: 'dropdown' },
+    { id: 'model', type: 'combobox', options: mockGetModelOptions },
+    { id: 'apiKey', type: 'short-input' },
+  ],
+  tools: { access: [] },
 }
 
 const huggingfaceBlockConfig = {
@@ -136,6 +175,17 @@ const genericWebhookBlockConfig = {
   ],
 }
 
+const mothershipBlockConfig = {
+  type: 'mothership',
+  name: 'Sim Chat',
+  outputs: {},
+  subBlocks: [
+    { id: 'prompt', type: 'long-input' },
+    { id: 'secretScope', type: 'dropdown', hideFromCopilot: true },
+    { id: 'mountedSecrets', type: 'dropdown', hideFromCopilot: true },
+  ],
+}
+
 // Block whose tool selector throws — should fall back to scanning access tools (video_falai).
 const throwSelectorBlockConfig = {
   type: 'throw_selector_block',
@@ -175,35 +225,27 @@ const toolsByIdMock: Record<string, unknown> = {
   },
 }
 
+const blockConfigsByType: Record<string, unknown> = {
+  condition: conditionBlockConfig,
+  slack: oauthBlockConfig,
+  table: tableBlockConfig,
+  router_v2: routerBlockConfig,
+  agent: agentBlockConfig,
+  pi: piBlockConfig,
+  huggingface: huggingfaceBlockConfig,
+  knowledge: knowledgeBlockConfig,
+  canonicalcred: canonicalCredBlockConfig,
+  video_generator_v3: videoBlockConfig,
+  custom_key_block: customKeyBlockConfig,
+  image_generator_v2: imageBlockConfig,
+  throw_gate_block: throwGateBlockConfig,
+  throw_selector_block: throwSelectorBlockConfig,
+  generic_webhook: genericWebhookBlockConfig,
+  mothership: mothershipBlockConfig,
+}
+
 vi.mock('@/blocks/registry', () => ({
-  getBlock: (type: string) =>
-    type === 'condition'
-      ? conditionBlockConfig
-      : type === 'slack'
-        ? oauthBlockConfig
-        : type === 'router_v2'
-          ? routerBlockConfig
-          : type === 'agent'
-            ? agentBlockConfig
-            : type === 'huggingface'
-              ? huggingfaceBlockConfig
-              : type === 'knowledge'
-                ? knowledgeBlockConfig
-                : type === 'canonicalcred'
-                  ? canonicalCredBlockConfig
-                  : type === 'video_generator_v3'
-                    ? videoBlockConfig
-                    : type === 'custom_key_block'
-                      ? customKeyBlockConfig
-                      : type === 'image_generator_v2'
-                        ? imageBlockConfig
-                        : type === 'throw_gate_block'
-                          ? throwGateBlockConfig
-                          : type === 'throw_selector_block'
-                            ? throwSelectorBlockConfig
-                            : type === 'generic_webhook'
-                              ? genericWebhookBlockConfig
-                              : undefined,
+  getBlock: (type: string) => blockConfigsByType[type],
 }))
 
 vi.mock('@/blocks/utils', () => ({
@@ -227,7 +269,16 @@ vi.mock('@/lib/workflows/skills/operations', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
-  getHostedModels: () => [],
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
+  getHostedModels: mockGetHostedModels,
+}))
+
+vi.mock('@/lib/integrations/availability.server', () => ({
+  isIntegrationDeploymentAvailableForVisibility: mockIsIntegrationDeploymentAvailable,
 }))
 
 import {
@@ -238,7 +289,13 @@ import {
   validateWorkflowSelectorIds,
 } from './validation'
 
+const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+
 afterAll(resetEnvFlagsMock)
+
+beforeEach(() => {
+  mockIsIntegrationDeploymentAvailable.mockReturnValue(true)
+})
 
 describe('validateInputsForBlock', () => {
   beforeEach(() => {
@@ -350,6 +407,17 @@ describe('validateInputsForBlock', () => {
     expect(result.validInputs.webhookUrlDisplay).toBeUndefined()
     expect(result.errors).toHaveLength(1)
     expect(result.errors[0]?.error).toContain('read-only')
+  })
+
+  it('rejects server-only Sim Chat secret-mount policy inputs', () => {
+    const result = validateInputsForBlock(
+      'mothership',
+      { prompt: 'Keep this', secretScope: 'all', mountedSecrets: ['API_KEY'] },
+      'chat-1'
+    )
+
+    expect(result.validInputs).toEqual({ prompt: 'Keep this' })
+    expect(result.errors.map((error) => error.field)).toEqual(['secretScope', 'mountedSecrets'])
   })
 
   it('accepts known agent model ids', () => {
@@ -919,7 +987,69 @@ describe('preValidateCredentialInputs (hosted-tool blocks)', () => {
   })
 })
 
-const CTX = { userId: 'user-1', workspaceId: 'workspace-1' }
+describe('preValidateCredentialInputs (hosted models)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockValidateSelectorIds.mockResolvedValue({ valid: [], invalid: [] })
+    mockGetHostedModels.mockReturnValue(['claude-sonnet-4-6'])
+    setEnvFlags({ isHosted: true })
+  })
+
+  afterEach(() => {
+    mockGetHostedModels.mockReset()
+    setEnvFlags({ isHosted: false })
+  })
+
+  const piAddOperation = (mode: string) => [
+    {
+      operation_type: 'add' as const,
+      block_id: 'pi-1',
+      params: {
+        type: 'pi',
+        inputs: { mode, model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+      },
+    },
+  ]
+
+  it('strips apiKey for a hosted model on a normal LLM block', async () => {
+    const operations = [
+      {
+        operation_type: 'add' as const,
+        block_id: 'agent-1',
+        params: {
+          type: 'agent',
+          inputs: { model: 'claude-sonnet-4-6', apiKey: 'user-anthropic-key' },
+        },
+      },
+    ]
+
+    const result = await preValidateCredentialInputs(operations, CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('hosted model')
+  })
+
+  // Create PR hands the key to the sandbox, so Sim never covers it with a hosted
+  // key -- stripping it would leave the copilot authoring a block that cannot run.
+  it('preserves apiKey on a Create PR Pi block when the model is hosted', async () => {
+    const result = await preValidateCredentialInputs(piAddOperation('cloud'), CTX)
+
+    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
+    expect(result.errors).toHaveLength(0)
+  })
+
+  // Local Dev and Review Code keep the model client in Sim, so the hosted key applies.
+  it.each([['local'], ['cloud_review']])(
+    'strips apiKey on a Pi block in %s mode when the model is hosted',
+    async (mode) => {
+      const result = await preValidateCredentialInputs(piAddOperation(mode), CTX)
+
+      expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBeUndefined()
+      expect(result.errors).toHaveLength(1)
+    }
+  )
+})
 
 describe('validateWorkflowSelectorIds (credential inclusion)', () => {
   beforeEach(() => {
@@ -1131,6 +1261,55 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts a declared integration block operation', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', operation: 'insert_row', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects a prefixed tool id used as an integration block operation', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', operation: 'table_insert_row', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('invalid operation "table_insert_row"')
+    expect(result.errors[0]?.error).toContain('query_rows, insert_row')
+    expect(result.errors[0]?.error).toContain('may differ from the underlying tool id')
+  })
+
+  it('rejects a missing operation for a multi-operation integration block', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('requires an operation')
+  })
+
+  it('rejects an integration tool unavailable in this deployment', () => {
+    mockIsIntegrationDeploymentAvailable.mockReturnValue(false)
+
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'slack', operation: 'send', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('unavailable in this deployment')
   })
 
   it('rejects an unrecognized tool type', () => {

@@ -144,6 +144,22 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+## Resolved Secrets and Provenance Boundaries
+
+- Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
+  when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
+- Project AI-consumed text/structured fields with the smallest exact `request.modelInput` selector.
+- Reject resolved secrets in opaque model input sent directly to an external provider with
+  `request.opaqueModelInput`; never attach private metadata to an external URL or `directExecution`.
+- For authenticated internal routes, use `privateProvenance` for opaque model input or
+  `request.secretProvenance` for durable writes and execution handoffs. Authenticate first, validate
+  the exact selection and scope, strip the private envelope, then import or propagate provenance at
+  the receiving boundary. Preserve documented headerless legacy behavior.
+- Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
+  headers, or blanket-sanitize tool results.
+- Add focused tests for named projection, identical unproven public text, malformed/incomplete
+  metadata, metadata stripping, scope isolation, and legacy compatibility where applicable.
+
 ## Critical Rules for Outputs
 
 ### Output Types
@@ -295,6 +311,17 @@ export const tools = {
 }
 ```
 
+3. Regenerate the tool metadata artifacts:
+
+```bash
+bun run tool-metadata:generate
+```
+
+Client code reads a tool's `params`/`outputs` from generated metadata rather than
+importing the registry, so a tool you add, change or remove is invisible to the UI until
+these are regenerated — and CI fails on stale artifacts. Commit the result. See
+`.agents/skills/tool-registry-boundary/SKILL.md`.
+
 ## Wiring Tools into the Block (Required)
 
 After registering in `tools/registry.ts`, you MUST also update the block definition at `apps/sim/blocks/blocks/{service}.ts`. This is not optional — tools are only usable from the UI if they are wired into the block.
@@ -442,7 +469,11 @@ All tool IDs MUST use `snake_case`: `{service}_{action}` (e.g., `x_create_tweet`
 - [ ] Types file has all interfaces
 - [ ] Index.ts exports all tools and re-exports types (`export * from './types'`)
 - [ ] Tools registered in `tools/registry.ts`
+- [ ] `bun run tool-metadata:generate` run and the regenerated artifacts committed
 - [ ] Block wired: `tools.access`, dropdown options, subBlocks, `tools.config`, outputs, inputs
+- [ ] Model, durable-storage, and internal-execution boundaries use the shared provenance mechanisms
+      only where a concrete Sim `{{...}}` resolution path requires them
+- [ ] Ordinary third-party inputs/results remain unchanged and private metadata never leaves Sim
 
 ## Final Validation (Required)
 

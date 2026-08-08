@@ -8,9 +8,10 @@
  * The user and the agent share the same shells, so `cd`, exported variables,
  * and scrollback are common to both.
  *
- * Several terminals can be open at once, each its own shell with its own
- * working directory and scrollback, exactly like tabs in a terminal app. One is
- * active at a time; agent tools act on the active one unless they name another.
+ * Terminal tabs have no fixed app-level limit. Each is its own shell with its
+ * own working directory and scrollback, exactly like tabs in a terminal app.
+ * One is active at a time; agent tools act on the active one unless they name
+ * another.
  *
  * Tool names and parameter shapes mirror the mothership tool catalog
  * (`copilot/internal/tools/catalog/terminal` in the mothership repo) — that
@@ -74,13 +75,6 @@ export function isTerminalOperation(value: unknown): value is TerminalOperation 
 export function isTerminalToolName(name: string): boolean {
   return name === TERMINAL_TOOL_NAME
 }
-
-/**
- * Ceiling on concurrently open terminals. Each is a live shell process with its
- * own emulator and scrollback, so the cap bounds both memory and the number of
- * things the user has to keep track of.
- */
-export const MAX_TERMINALS = 8
 
 /**
  * Largest command output handed back to the model, in characters. Output past
@@ -340,6 +334,11 @@ export interface TerminalTabsState {
   activeTerminalId: string | null
 }
 
+/** A tab strip crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalTabsState extends TerminalTabsState {
+  scopeId: string
+}
+
 /** The result of one terminal tool invocation, as returned over the bridge. */
 export interface TerminalToolResponse {
   ok: boolean
@@ -361,8 +360,6 @@ export type TerminalErrorCode =
   | 'SPAWN_FAILED'
   /** No terminal with that id — the ids come from terminal_list. */
   | 'NO_SUCH_TERMINAL'
-  /** Already at {@link MAX_TERMINALS}. */
-  | 'TOO_MANY_TERMINALS'
   /** The operation needs tmux, and this terminal has no tmux attached. */
   | 'NO_TMUX'
   /** No pane with that target — the targets come from the `panes` operation. */
@@ -393,4 +390,9 @@ export interface TerminalCommandEvent {
   toolCallId?: string
   exitCode?: number
   durationMs?: number
+}
+
+/** A command event crossing the desktop bridge, tagged with its owning chat. */
+export interface ScopedTerminalCommandEvent extends TerminalCommandEvent {
+  scopeId: string
 }

@@ -10,7 +10,7 @@ import {
   useRef,
 } from 'react'
 import { noop } from '@sim/utils/helpers'
-import type { MothershipResource } from '@/app/workspace/[workspaceId]/home/types'
+import type { WorkspaceResourceRef } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 /**
@@ -26,10 +26,15 @@ interface ChatSurfaceContextValue {
   userId?: string
   /** Notifies the surface owner that a context chip was added to the input. */
   onContextAdd: (context: ChatContext) => void
-  /** Notifies the surface owner that a context chip was removed from the input. */
-  onContextRemove: (context: ChatContext) => void
+  /**
+   * Notifies the surface owner that a context chip was removed from the input.
+   * `remaining` is the input's context list AFTER the removal, so the owner can
+   * tell whether any other chip still references the removed chip's resource
+   * before closing a shared slideover tab.
+   */
+  onContextRemove: (context: ChatContext, remaining: ChatContext[]) => void
   /** Opens a workspace resource referenced from rendered message content. */
-  onWorkspaceResourceSelect: (resource: MothershipResource) => void
+  onWorkspaceResourceSelect: (resource: WorkspaceResourceRef) => void
 }
 
 const ChatSurfaceContext = createContext<ChatSurfaceContextValue>({
@@ -42,8 +47,8 @@ interface ChatSurfaceProviderProps {
   chatId?: string
   userId?: string
   onContextAdd?: (context: ChatContext) => void
-  onContextRemove?: (context: ChatContext) => void
-  onWorkspaceResourceSelect?: (resource: MothershipResource) => void
+  onContextRemove?: (context: ChatContext, remaining: ChatContext[]) => void
+  onWorkspaceResourceSelect?: (resource: WorkspaceResourceRef) => void
   children: ReactNode
 }
 
@@ -74,10 +79,10 @@ export function ChatSurfaceProvider({
   const stableOnContextAdd = useCallback((context: ChatContext) => {
     onContextAddRef.current?.(context)
   }, [])
-  const stableOnContextRemove = useCallback((context: ChatContext) => {
-    onContextRemoveRef.current?.(context)
+  const stableOnContextRemove = useCallback((context: ChatContext, remaining: ChatContext[]) => {
+    onContextRemoveRef.current?.(context, remaining)
   }, [])
-  const stableOnWorkspaceResourceSelect = useCallback((resource: MothershipResource) => {
+  const stableOnWorkspaceResourceSelect = useCallback((resource: WorkspaceResourceRef) => {
     onWorkspaceResourceSelectRef.current?.(resource)
   }, [])
 

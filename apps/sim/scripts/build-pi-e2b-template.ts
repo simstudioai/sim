@@ -1,7 +1,8 @@
 #!/usr/bin/env bun
 
 /**
- * Builds the E2B sandbox template used by Create PR and Review Code.
+ * Builds the E2B sandbox template used by Create PR (including its optional
+ * Babysit continuation) and Review Code.
  *
  * Layers the `pi` CLI, its required Node version, and git onto E2B's
  * `code-interpreter` base. The cloud backend runs `pi` and git inside this
@@ -18,9 +19,12 @@
 import { defaultBuildLogger, Template, waitForTimeout } from '@e2b/code-interpreter'
 import {
   PI_APT,
+  PI_BUN_VERSION_ASSERT,
+  PI_GLOBAL_NPM_PACKAGES,
   PI_NODE_MAJOR,
   PI_NODE_VERSION_ASSERT,
-  PI_NPM,
+  PI_SANDBOX_CPU_COUNT,
+  PI_SANDBOX_MEMORY_MB,
 } from '@/scripts/pi-sandbox-packages'
 
 const DEFAULT_TEMPLATE_NAME = 'sim-pi'
@@ -35,7 +39,8 @@ const piTemplate = Template()
   .fromTemplate('code-interpreter-v1')
   .runCmd(INSTALL_NODE_COMMAND, { user: 'root' })
   .aptInstall([...PI_APT])
-  .npmInstall([...PI_NPM], { g: true })
+  .npmInstall([...PI_GLOBAL_NPM_PACKAGES], { g: true })
+  .runCmd(PI_BUN_VERSION_ASSERT, { user: 'root' })
   .setStartCmd(START_COMMAND, waitForTimeout(1_000))
 
 async function main() {
@@ -50,9 +55,15 @@ async function main() {
   const skipCache = args.includes('--no-cache')
 
   console.log(`Building Pi E2B template: ${templateName}`)
+  console.log(`Resources: ${PI_SANDBOX_CPU_COUNT} vCPU / ${PI_SANDBOX_MEMORY_MB} MB`)
   console.log(skipCache ? 'Cache: disabled\n' : 'Cache: enabled\n')
 
+  // Resources are fixed at build time — E2B has no per-`Sandbox.create` override —
+  // so this template's sizing applies to Create PR, Review Code, and Babysit
+  // alike, and changing it means rebuilding rather than redeploying the app.
   const result = await Template.build(piTemplate, templateName, {
+    cpuCount: PI_SANDBOX_CPU_COUNT,
+    memoryMB: PI_SANDBOX_MEMORY_MB,
     onBuildLogs: defaultBuildLogger(),
     ...(skipCache ? { skipCache: true } : {}),
   })

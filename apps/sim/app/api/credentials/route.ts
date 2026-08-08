@@ -13,6 +13,7 @@ import {
 } from '@/lib/api/contracts/credentials'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
+import { acquireOrganizationUserMutationLocks } from '@/lib/billing/organizations/membership'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
@@ -21,7 +22,7 @@ import {
   SHARED_CREDENTIAL_TYPES,
 } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { getWorkspaceMembership } from '@/lib/credentials/environment'
+import { getCredentialCreationWorkspaceContext } from '@/lib/credentials/environment'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   ServiceAccountSecretError,
@@ -132,15 +133,24 @@ async function findExistingCredentialBySourceWith(
   return null
 }
 
+/**
+ * `return await` is load-bearing, not redundant. Next 16.3.0's Turbopack
+ * optimizer models a bare `return <asyncCall>()` tail call as returning the
+ * promise object, then propagates that always-truthy fact through the caller's
+ * `await`. It concludes `if (existingCredential)` is always taken and — because
+ * every branch inside that block returns — deletes the entire create path from
+ * the emitted bundle, so a first-time create throws on `existingCredential.id`.
+ * Awaiting here makes the optimizer model the resolved value instead.
+ */
 async function findExistingCredentialBySource(params: ExistingCredentialSourceParams) {
-  return findExistingCredentialBySourceWith(db, params)
+  return await findExistingCredentialBySourceWith(db, params)
 }
 
 async function findExistingCredentialBySourceTx(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   params: ExistingCredentialSourceParams
 ) {
-  return findExistingCredentialBySourceWith(tx, params)
+  return await findExistingCredentialBySourceWith(tx, params)
 }
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
@@ -269,7 +279,10 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
     const credentials = rows.map(({ memberRole, ...rest }) => ({
       ...rest,
       role:
-        isWorkspaceAdmin && isSharedCredentialType(rest.type) ? 'admin' : (memberRole ?? 'member'),
+        (rest.type === 'env_personal' && rest.envOwnerUserId === session.user.id) ||
+        (isWorkspaceAdmin && isSharedCredentialType(rest.type))
+          ? 'admin'
+          : (memberRole ?? 'member'),
     }))
 
     return NextResponse.json({ credentials })
@@ -317,6 +330,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       clientId,
       clientSecret,
       orgId,
+      dataCenter,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -377,6 +391,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           clientId,
           clientSecret,
           orgId,
+          dataCenter,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null
@@ -509,10 +524,52 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resolvedProviderId === SLACK_CUSTOM_BOT_PROVIDER_ID && clientCredentialId
         ? clientCredentialId
         : generateId()
-    const { ownerId: workspaceOwnerId, memberUserIds: workspaceMemberUserIds } =
-      await getWorkspaceMembership(workspaceId)
 
-    await db.transaction(async (tx) => {
+    const creationResult = await db.transaction(async (tx) => {
+      /**
+       * Discover the organization lock scope inside this transaction, then
+       * acquire the same organization → user → membership locks as org
+       * removal/transfer and re-authorize from the transaction before writing.
+       *
+       * If this insert wins, transfer sees the new source-owned personal
+       * credential and blocks. If transfer wins, its permission/member cleanup
+       * is visible to the authoritative re-read below and the insert is
+       * refused.
+       */
+      const plannedContext = await getCredentialCreationWorkspaceContext({
+        executor: tx,
+        workspaceId,
+        userId: session.user.id,
+      })
+      if (!plannedContext) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+
+      await acquireOrganizationUserMutationLocks(tx, {
+        userId: session.user.id,
+        organizationIds: plannedContext.organizationId ? [plannedContext.organizationId] : [],
+      })
+
+      const currentContext = await getCredentialCreationWorkspaceContext({
+        executor: tx,
+        workspaceId,
+        userId: session.user.id,
+        forUpdate: true,
+      })
+      if (!currentContext) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+      if (currentContext.organizationId !== plannedContext.organizationId) {
+        return {
+          success: false as const,
+          status: 409 as const,
+          error: 'Workspace organization changed while creating the credential. Please retry.',
+        }
+      }
+      if (!currentContext.canWrite) {
+        return { success: false as const, status: 403 as const, error: 'Write permission required' }
+      }
+
       // service_account has no DB-level unique index on (workspaceId, providerId,
       // displayName), so we re-check inside the tx. OAuth/env_* are guarded by
       // partial unique indexes and fall through to the 23505 handler below.
@@ -542,9 +599,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         updatedAt: now,
       })
 
-      if ((type === 'env_workspace' || type === 'service_account') && workspaceOwnerId) {
-        if (workspaceMemberUserIds.length > 0) {
-          for (const memberUserId of workspaceMemberUserIds) {
+      if ((type === 'env_workspace' || type === 'service_account') && currentContext.ownerId) {
+        if (currentContext.memberUserIds.length > 0) {
+          for (const memberUserId of currentContext.memberUserIds) {
             const isAdmin = memberUserId === session.user.id
             await tx.insert(credentialMember).values({
               id: generateId(),
@@ -572,7 +629,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           updatedAt: now,
         })
       }
+
+      return { success: true as const }
     })
+    if (!creationResult.success) {
+      return NextResponse.json({ error: creationResult.error }, { status: creationResult.status })
+    }
 
     const [created] = await db
       .select()
@@ -601,9 +663,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       resourceName: resolvedDisplayName,
       description: `Created ${type} credential "${resolvedDisplayName}"`,
       metadata: {
+        // Provider metadata spreads first so this route's own keys stay
+        // authoritative and can never be shadowed, matching the update path in
+        // `lib/credentials/orchestration`.
+        ...extraAuditMetadata,
         credentialType: type,
         providerId: resolvedProviderId,
-        ...extraAuditMetadata,
       },
       request,
     })

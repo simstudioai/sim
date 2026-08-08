@@ -33,6 +33,7 @@ export {
   createMockGetTool,
   mockBlockConfigs,
   mockToolConfigs,
+  toolsMetadataMock,
   toolsUtilsMock,
 } from './blocks.mock'
 // Copilot HTTP mocks (for @/lib/copilot/request/http)
@@ -45,6 +46,9 @@ export {
   dbChainMock,
   dbChainMockFns,
   drizzleOrmMock,
+  flattenMockConditions,
+  hasMockCondition,
+  type MockCondition,
   queueTableRows,
   resetDbChainMock,
 } from './database.mock'

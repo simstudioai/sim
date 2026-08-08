@@ -60,6 +60,10 @@ export interface DescribedError {
  *
  * Loggers do not serialize the non-enumerable `Error.prototype.cause`, so pass
  * the result as an explicit structured field rather than the raw error.
+ *
+ * Bound parameter values are stripped from every reported message: Drizzle's
+ * `DrizzleQueryError` appends `\nparams: <values>` to the failing SQL, and those
+ * values are user data that must never reach logs.
  */
 export function describeError(error: unknown): DescribedError {
   const chain: Error[] = []
@@ -73,7 +77,7 @@ export function describeError(error: unknown): DescribedError {
 
   if (chain.length === 0) {
     const normalized = toError(error)
-    return { name: normalized.name, message: normalized.message }
+    return { name: normalized.name, message: redactBoundParameters(normalized.message) }
   }
 
   const deepest = chain[chain.length - 1] as Error & Record<string, unknown>
@@ -85,12 +89,42 @@ export function describeError(error: unknown): DescribedError {
 
   return {
     name: deepest.name,
-    message: deepest.message,
+    message: redactBoundParameters(deepest.message),
     ...(code ? { code } : {}),
     ...(errno ? { errno } : {}),
     ...(syscall ? { syscall } : {}),
-    ...(chain.length > 1 ? { causeChain: chain.map((e) => `${e.name}: ${e.message}`) } : {}),
+    ...(chain.length > 1
+      ? { causeChain: chain.map((e) => `${e.name}: ${redactBoundParameters(e.message)}`) }
+      : {}),
   }
+}
+
+/** Replaces a driver-appended `params: <values>` tail with a redaction marker. */
+function redactBoundParameters(message: string): string {
+  const index = message.indexOf('\nparams:')
+  return index === -1 ? message : `${message.slice(0, index)}\nparams: [redacted]`
+}
+
+/**
+ * First link in the `.cause` chain (including `error` itself) matching
+ * `predicate`. Lets a caller recover a specific wrapped error class instead of
+ * re-parsing a formatted message. Cycle-safe and depth-bounded, mirroring
+ * {@link describeError}'s walk.
+ */
+export function findCause<T>(
+  error: unknown,
+  predicate: (value: unknown) => value is T
+): T | undefined {
+  const seen = new Set<unknown>()
+  let current: unknown = error
+
+  while (current instanceof Error && !seen.has(current) && seen.size < 10) {
+    seen.add(current)
+    if (predicate(current)) return current
+    current = current.cause
+  }
+
+  return undefined
 }
 
 function readPgErrorField(error: unknown, field: string): string | undefined {

@@ -2,9 +2,9 @@
 
 import { useCallback, useRef, useState } from 'react'
 import { ChevronDown, handleKeyboardActivation } from '@sim/emcn'
+import { Repeat, Split } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import clsx from 'clsx'
-import { RepeatIcon, SplitIcon } from 'lucide-react'
 import { useShallow } from 'zustand/react/shallow'
 import {
   FieldItem,
@@ -118,10 +118,10 @@ function ConnectionItem({
 
   if (!blockConfig) {
     if (connection.type === 'loop') {
-      Icon = RepeatIcon as typeof Icon
+      Icon = Repeat
       bgColor = '#2FB3FF'
     } else if (connection.type === 'parallel') {
-      Icon = SplitIcon as typeof Icon
+      Icon = Split
       bgColor = '#FEE12B'
     }
   }
@@ -161,7 +161,7 @@ function ConnectionItem({
         </div>
         <span
           className={clsx(
-            'truncate font-medium',
+            'truncate',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
           )}
         >

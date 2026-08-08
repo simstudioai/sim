@@ -14,6 +14,10 @@
       "types": "./src/compare.ts",
       "default": "./src/compare.ts"
     },
+    "./dns": {
+      "types": "./src/dns.ts",
+      "default": "./src/dns.ts"
+    },
     "./encryption": {
       "types": "./src/encryption.ts",
       "default": "./src/encryption.ts"

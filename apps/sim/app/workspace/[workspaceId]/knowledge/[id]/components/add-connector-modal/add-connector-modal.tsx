@@ -20,9 +20,8 @@ import {
   handleKeyboardActivation,
   Search,
 } from '@sim/emcn'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { ArrowLeft, Plus } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
-import { isBillingEnabled } from '@/lib/core/config/env-flags'
 import { consumeOAuthReturnContext } from '@/lib/credentials/client-state'
 import {
   getCanonicalScopesForProvider,
@@ -79,7 +78,7 @@ export function AddConnectorModal({
   const { ownerBilling } = useWorkspaceHostContext()
   const { mutate: createConnector, isPending: isCreating } = useCreateConnector()
 
-  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling, isBillingEnabled)
+  const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
   const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
@@ -236,9 +235,10 @@ export function AddConnectorModal({
     <>
       <ChipModal
         open={open}
-        onOpenChange={(val) => !isCreating && onOpenChange(val)}
+        onOpenChange={onOpenChange}
         srTitle={step === 'select-type' ? 'Connect Source' : `Configure ${connectorConfig?.name}`}
         size='md'
+        dismissDisabled={isCreating}
       >
         <ChipModalHeader onClose={() => onOpenChange(false)}>
           {step === 'configure' ? (
@@ -429,7 +429,6 @@ export function AddConnectorModal({
         {step === 'configure' && (
           <ChipModalFooter
             onCancel={() => onOpenChange(false)}
-            cancelDisabled={isCreating}
             primaryAction={{
               label: isCreating ? 'Connecting…' : 'Connect & Sync',
               onClick: handleSubmit,

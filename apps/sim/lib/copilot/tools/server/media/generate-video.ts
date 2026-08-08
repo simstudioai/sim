@@ -6,6 +6,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { generateFalVideo } from '@/lib/media/falai-video'
 import {
@@ -66,6 +67,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
         if (!fileRecord) {
           return { success: false, message: `Reference image not found: ${refPath}` }
         }
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
         const buffer = await fetchWorkspaceFileBuffer(fileRecord)
         const mime = fileRecord.type || 'image/png'
         imageDataUri = `data:${mime};base64,${buffer.toString('base64')}`

@@ -1,3 +1,4 @@
+import { selectSttAudioModelInputPaths } from '@/tools/stt/model-input'
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import {
   STT_ENTITY_OUTPUT_PROPERTIES,
@@ -94,6 +95,11 @@ export const assemblyaiSttTool: ToolConfig<SttParams, SttResponse> = {
   },
 
   request: {
+    modelInput: {
+      mode: 'project',
+      select: (params) => ({ language: params.language }),
+      privateInputPaths: selectSttAudioModelInputPaths,
+    },
     url: '/api/tools/stt',
     method: 'POST',
     headers: () => ({

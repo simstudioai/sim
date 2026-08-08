@@ -1,7 +1,6 @@
 import { createLogger } from '@sim/logger'
 import {
   CheckDeploymentStatus,
-  CompleteScheduledTask,
   Cp as CpTool,
   CreateWorkflow,
   CreateWorkspaceMcpServer,
@@ -29,7 +28,7 @@ import {
   ManageCredential,
   ManageCustomTool,
   ManageMcpTool,
-  ManageScheduledTask,
+  ManageSandbox,
   ManageSkill,
   MaterializeFile,
   Mkdir as MkdirTool,
@@ -50,7 +49,6 @@ import {
   SetBlockEnabled,
   SetGlobalWorkflowVariables,
   UpdateDeploymentVersion,
-  UpdateScheduledTaskHistory,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
@@ -76,14 +74,10 @@ import {
 } from '../tools/handlers/deployment/manage'
 import { executeFunctionExecute } from '../tools/handlers/function-execute'
 import { executeListIntegrationTools } from '../tools/handlers/integration-tools'
-import {
-  executeCompleteJob,
-  executeManageJob,
-  executeUpdateJobHistory,
-} from '../tools/handlers/jobs'
 import { executeManageCredential } from '../tools/handlers/management/manage-credential'
 import { executeManageCustomTool } from '../tools/handlers/management/manage-custom-tool'
 import { executeManageMcpTool } from '../tools/handlers/management/manage-mcp-tool'
+import { executeManageSandbox } from '../tools/handlers/management/manage-sandbox'
 import { executeManageSkill } from '../tools/handlers/management/manage-skill'
 import { executeMaterializeFile } from '../tools/handlers/materialize-file'
 import { executeOAuthGetAuthLink, executeOAuthRequestAccess } from '../tools/handlers/oauth'
@@ -178,10 +172,6 @@ function buildHandlerMap(): Record<string, ToolHandler> {
     [PromoteToLive.id]: h(executePromoteToLive),
     [UpdateDeploymentVersion.id]: h(executeUpdateDeploymentVersion),
 
-    [ManageScheduledTask.id]: h(executeManageJob),
-    [CompleteScheduledTask.id]: h(executeCompleteJob),
-    [UpdateScheduledTaskHistory.id]: h(executeUpdateJobHistory),
-
     [GrepTool.id]: h(executeVfsGrep),
     [GlobTool.id]: h(executeVfsGlob),
     [ReadTool.id]: h(executeVfsRead),
@@ -192,9 +182,13 @@ function buildHandlerMap(): Record<string, ToolHandler> {
 
     [ManageCustomTool.id]: h(executeManageCustomTool),
     [ManageMcpTool.id]: h(executeManageMcpTool),
+    [ManageSandbox.id]: h(executeManageSandbox),
     [ManageSkill.id]: h(executeManageSkill),
     [ManageCredential.id]: h(executeManageCredential),
     [OauthGetAuthLink.id]: h(executeOAuthGetAuthLink),
+    // Rolling-deploy compatibility for calls/checkpoints created before OAuth
+    // moved into terminal credential cards. New agents no longer receive this
+    // tool, but old calls must remain resumable until both services have soaked.
     [OauthRequestAccess.id]: h(executeOAuthRequestAccess),
     [OpenResource.id]: h(executeOpenResource),
     [RestoreResource.id]: h(executeRestoreResource),

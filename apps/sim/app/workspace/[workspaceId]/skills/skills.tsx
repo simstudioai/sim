@@ -2,13 +2,18 @@
 
 import { useEffect, useRef } from 'react'
 import { Chip, ChipInput, Search } from '@sim/emcn'
+import { Plus } from '@sim/emcn/icons'
 import { getErrorMessage } from '@sim/utils/errors'
-import { ArrowRight, Plus } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState } from 'nuqs'
-import { SkillTile } from '@/app/workspace/[workspaceId]/components'
-import { IntegrationTabsHeader } from '@/app/workspace/[workspaceId]/integrations/components/integration-tabs-header'
+import { IntegrationTabsHeader, SkillTile } from '@/app/workspace/[workspaceId]/components'
 import { ShowcaseWithExplore } from '@/app/workspace/[workspaceId]/integrations/components/showcase-with-explore'
+import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
+import {
+  RESOURCE_LIST_GRID,
+  SettingsResourceRow,
+} from '@/app/workspace/[workspaceId]/settings/components/settings-resource-row'
+import { SettingsSection } from '@/app/workspace/[workspaceId]/settings/components/settings-section/settings-section'
 import {
   skillIdParam,
   skillIdUrlKeys,
@@ -19,48 +24,6 @@ import { useSkills } from '@/hooks/queries/skills'
 import { useDebouncedSearchSetter } from '@/hooks/use-debounced-search-setter'
 
 const SKILLS_LABEL = 'Skills'
-
-interface SkillItemProps {
-  name: string
-  description: string
-  onClick: () => void
-}
-
-function SkillItem({ name, description, onClick }: SkillItemProps) {
-  return (
-    <button
-      type='button'
-      onClick={onClick}
-      className='flex items-center gap-2.5 rounded-lg p-2 text-left transition-colors hover-hover:bg-[var(--surface-active)]'
-    >
-      <SkillTile />
-      <div className='flex min-w-0 flex-1 flex-col justify-center gap-[1px]'>
-        <span className='truncate text-[var(--text-body)] text-sm'>{name}</span>
-        {description && (
-          <span className='truncate text-[var(--text-muted)] text-caption'>{description}</span>
-        )}
-      </div>
-      <ArrowRight className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-    </button>
-  )
-}
-
-interface SkillSectionProps {
-  label: string
-  children: React.ReactNode
-}
-
-function SkillSection({ label, children }: SkillSectionProps) {
-  return (
-    <section className='flex flex-col'>
-      <span className='pl-0.5 text-[var(--text-muted)] text-small'>{label}</span>
-      <div className='mt-[9px] mb-3 h-px bg-[var(--border)]' />
-      <div className='-mx-2 grid grid-cols-[repeat(auto-fit,minmax(280px,1fr))] gap-x-2 gap-y-0.5'>
-        {children}
-      </div>
-    </section>
-  )
-}
 
 export function Skills() {
   const params = useParams()
@@ -132,30 +95,36 @@ export function Skills() {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               disabled={isLoading}
-              className='flex-1'
+              className='min-w-0 flex-1'
             />
           </div>
 
           <div className='flex flex-col gap-7'>
             {error ? (
-              <div className='py-4 text-center text-[var(--error)] text-sm'>
+              <SettingsEmptyState variant='inline' tone='error'>
                 {getErrorMessage(error, 'Failed to load skills')}
-              </div>
+              </SettingsEmptyState>
             ) : filteredSkills.length > 0 ? (
-              <SkillSection label={SKILLS_LABEL}>
-                {filteredSkills.map((s) => (
-                  <SkillItem
-                    key={s.id}
-                    name={s.name}
-                    description={s.description}
-                    onClick={() => router.push(`${skillsHref}/${s.id}`)}
-                  />
-                ))}
-              </SkillSection>
+              <SettingsSection label={SKILLS_LABEL}>
+                <div className={RESOURCE_LIST_GRID}>
+                  {filteredSkills.map((s) => (
+                    <SettingsResourceRow
+                      key={s.id}
+                      iconVariant='custom'
+                      icon={<SkillTile />}
+                      title={s.name}
+                      description={s.description || undefined}
+                      onClick={() => router.push(`${skillsHref}/${s.id}`)}
+                      clickLabel={`Open ${s.name}`}
+                      navigable
+                    />
+                  ))}
+                </div>
+              </SettingsSection>
             ) : showNoResults ? (
-              <div className='py-4 text-center text-[var(--text-muted)] text-sm'>
+              <SettingsEmptyState variant='inline'>
                 No skills found matching “{searchTerm}”
-              </div>
+              </SettingsEmptyState>
             ) : null}
           </div>
         </div>

@@ -43,7 +43,12 @@ describe('desktop tool authorization', () => {
       toolName: 'read',
       args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
     })
-    getRunSegment.mockResolvedValue({ id: 'run-1', userId: 'user-1', status: 'active' })
+    getRunSegment.mockResolvedValue({
+      id: 'run-1',
+      chatId: 'chat-1',
+      userId: 'user-1',
+      status: 'active',
+    })
     claimPendingAsyncToolCall.mockResolvedValue({ toolCallId: 'browser-tool', status: 'running' })
   })
 
@@ -52,6 +57,7 @@ describe('desktop tool authorization', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
+      chatId: 'chat-1',
       toolName: 'read',
       args: { path: 'user-local/Project--mount-1/README.md', offset: 0, limit: 100 },
     })
@@ -69,6 +75,7 @@ describe('desktop tool authorization', () => {
     const response = await POST(request('browser-tool'))
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({
+      chatId: 'chat-1',
       toolName: 'browser_navigate',
       args: { url: 'https://example.com' },
     })

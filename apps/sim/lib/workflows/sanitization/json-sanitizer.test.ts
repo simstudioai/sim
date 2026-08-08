@@ -42,13 +42,41 @@ const multiTriggerConfig = {
   ],
 }
 
+const mothershipConfig = {
+  type: 'mothership',
+  name: 'Sim Chat',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'prompt', type: 'long-input' },
+    { id: 'secretScope', type: 'dropdown', hideFromCopilot: true },
+    { id: 'mountedSecrets', type: 'dropdown', hideFromCopilot: true },
+  ],
+}
+
+const functionConfig = {
+  type: 'function',
+  name: 'Function',
+  category: 'blocks',
+  outputs: {},
+  subBlocks: [
+    { id: 'code', type: 'code' },
+    { id: 'language', type: 'dropdown' },
+    { id: 'sandboxId', type: 'combobox' },
+  ],
+}
+
 vi.mock('@/blocks/registry', () => ({
   getBlock: (type: string) =>
     type === 'generic_webhook'
       ? genericWebhookConfig
       : type === 'github_v2'
         ? multiTriggerConfig
-        : undefined,
+        : type === 'mothership'
+          ? mothershipConfig
+          : type === 'function'
+            ? functionConfig
+            : undefined,
 }))
 
 /**
@@ -109,6 +137,50 @@ describe('sanitizeForCopilot knowledge tag subblocks', () => {
     const inputs = result.blocks['kb-1'].inputs
 
     expect(inputs).not.toHaveProperty('tagFilters')
+  })
+})
+
+describe('sanitizeForCopilot server-only block inputs', () => {
+  it('omits Sim Chat secret-mount policy while retaining model-visible inputs', () => {
+    const result = sanitizeForCopilot(
+      makeSingleBlockWorkflow('chat-1', {
+        type: 'mothership',
+        name: 'Sim Chat 1',
+        enabled: true,
+        subBlocks: {
+          prompt: { id: 'prompt', type: 'long-input', value: 'Help me' },
+          secretScope: { id: 'secretScope', type: 'dropdown', value: 'selected' },
+          mountedSecrets: {
+            id: 'mountedSecrets',
+            type: 'dropdown',
+            value: ['OPENAI_API_KEY'],
+          },
+        },
+      })
+    )
+
+    expect(result.blocks['chat-1'].inputs).toEqual({ prompt: 'Help me' })
+  })
+})
+
+describe('sanitizeForCopilot product-gated block inputs', () => {
+  it('retains a persisted Function sandbox selection for model-visible read access', () => {
+    const state = makeSingleBlockWorkflow('function-1', {
+      type: 'function',
+      name: 'Function 1',
+      enabled: true,
+      subBlocks: {
+        code: { id: 'code', type: 'code', value: 'return 1' },
+        language: { id: 'language', type: 'dropdown', value: 'javascript' },
+        sandboxId: { id: 'sandboxId', type: 'combobox', value: 'sandbox-1' },
+      },
+    })
+
+    expect(sanitizeForCopilot(state).blocks['function-1'].inputs).toEqual({
+      code: 'return 1',
+      language: 'javascript',
+      sandboxId: 'sandbox-1',
+    })
   })
 })
 

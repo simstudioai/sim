@@ -191,6 +191,27 @@ describe('tearDownSession', () => {
     expect(clearStorageData).toHaveBeenCalled()
   })
 
+  it('continues clearing account state when local teardown fails', async () => {
+    const clearStorageData = vi.fn(async () => {})
+    const clearBrowserProfile = vi.fn(async () => {})
+    const session = { clearStorageData } as unknown as Session
+
+    await expect(
+      tearDownSession(
+        session,
+        async () => {
+          throw new Error('local store unavailable')
+        },
+        { filePath: '/tmp/events.log', record: vi.fn() },
+        clearBrowserProfile,
+        async () => {}
+      )
+    ).resolves.toBeUndefined()
+
+    expect(clearBrowserProfile).toHaveBeenCalledOnce()
+    expect(clearStorageData).toHaveBeenCalledOnce()
+  })
+
   it('still clears local state when the server-side revoke fails', async () => {
     // Offline sign-out must not strand the user signed in locally.
     const clearStorageData = vi.fn(async () => {})

@@ -3,15 +3,37 @@ import { mcpServers } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { sleep } from '@sim/utils/helpers'
+import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
+import {
+  projectModelSchemaAnnotations,
+  projectResolvedModelInput,
+  selectModelSchemaInputPaths,
+} from '@/lib/execution/model-input-provenance'
+import type { McpToolSchema } from '@/lib/mcp/types'
 import { createMcpToolId } from '@/lib/mcp/utils'
-import { processFilesToUserFiles, type RawFileInput } from '@/lib/uploads/utils/file-utils'
+import {
+  type AutoMediaKind,
+  type AutoRoutingResult,
+  type AutoRoutingSignals,
+  resolveAutoModel,
+  SIM_AUTO_SYSTEM_PREAMBLE,
+} from '@/lib/model-router/resolve'
+import { importWorkspaceFileSecretProvenanceForModelView } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import {
+  getFileExtension,
+  MODEL_SUPPORTED_IMAGE_MIME_TYPES,
+  processFilesToUserFiles,
+  type RawFileInput,
+} from '@/lib/uploads/utils/file-utils'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import { hydrateUserFilesWithBase64 } from '@/lib/uploads/utils/user-file-base64.server'
 import { resolveCustomBlockToolBinding } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
 import { getAllBlocks } from '@/blocks'
+import { assembleCustomBlockInputMapping, isCustomBlockType } from '@/blocks/custom/build-config'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import {
@@ -39,20 +61,124 @@ import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/execu
 import { collectBlockData } from '@/executor/utils/block-data'
 import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
+import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
+import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
+import type {
+  ResolvedSecretInputPath,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { executeProviderRequest } from '@/providers'
 import {
-  INLINE_ATTACHMENT_THRESHOLD_BYTES,
+  formatAttachmentSizes,
+  getProviderFileStrategy,
+  isProviderAttachmentFilenameModelBound,
   shouldUseLargeFilePath,
   supportsFileAttachments,
 } from '@/providers/attachments'
+import {
+  canUseProviderLargeFilePath,
+  getInlineHydrationMaxBytes,
+} from '@/providers/file-attachments.server'
+import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
+import {
+  type ProviderToolInputProvenance,
+  registerProviderToolInputProvenance,
+} from '@/providers/tool-input-provenance'
+import type { ProviderToolConfig } from '@/providers/types'
 import { getProviderFromModel, transformBlockTool } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
-import { filterSchemaForLLM, type ToolSchema } from '@/tools/params'
+import { filterSchemaForLLM, type ToolSchema, ToolSchemaEnrichmentError } from '@/tools/params'
 import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+
+interface IndexedToolInput {
+  tool: ToolInput
+  toolIndex: number
+}
+
+interface FormattedAgentTools {
+  tools: ProviderToolConfig[]
+  inputProvenance: Map<ProviderToolConfig, Omit<ProviderToolInputProvenance, 'registry'>>
+  sourcePaths: ResolvedSecretInputPath[]
+}
+
+class AgentToolInputSafetyError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'AgentToolInputSafetyError'
+  }
+}
+
+function projectAgentDiagnosticMetadata(
+  ctx: ExecutionContext,
+  metadata: Record<string, unknown>,
+  fallback: Record<string, unknown>
+): Record<string, unknown> {
+  const projection = projectResolvedSecretDiagnosticContent(
+    metadata,
+    ctx.resolvedSecretTraceRegistry
+  )
+  return projection.safe && isPlainRecord(projection.value) ? projection.value : fallback
+}
+
+function getErrorDiagnosticMetadata(error: unknown): Record<string, unknown> {
+  const normalizedError = toError(error)
+  return {
+    errorName: normalizedError.name,
+    errorMessage: normalizedError.message,
+    ...(normalizedError.stack ? { errorStack: normalizedError.stack } : {}),
+  }
+}
+
+function getErrorDiagnosticFallback(error: unknown): Record<string, unknown> {
+  return {
+    errorType: error instanceof Error ? 'error' : typeof error,
+  }
+}
+
+function getToolDiagnosticMetadata(tool: ToolInput): Record<string, unknown> {
+  return {
+    toolType: tool.type,
+    customToolId: tool.customToolId,
+    title: tool.title,
+    operation: tool.operation,
+    usageControl: tool.usageControl,
+    toolName: tool.params?.toolName,
+    serverId: tool.params?.serverId,
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+function getToolDiagnosticFallback(tool: ToolInput): Record<string, unknown> {
+  return {
+    hasToolType: typeof tool.type === 'string',
+    hasCustomToolId: typeof tool.customToolId === 'string',
+    hasToolName: typeof tool.params?.toolName === 'string',
+    hasServerId: typeof tool.params?.serverId === 'string',
+    hasSchema: tool.schema !== undefined,
+    hasParams: tool.params !== undefined,
+  }
+}
+
+/**
+ * True when a failure originated from a transport deadline or abort, at any depth of the
+ * cause chain.
+ *
+ * Providers rewrap transport failures (`ProviderError` overwrites `name`), so a check on
+ * the top-level `name` alone misses every wrapped case. Bounded to a short walk so a
+ * self-referential cause cannot loop.
+ */
+function isTransportTimeout(error: unknown): boolean {
+  for (let current = error, depth = 0; current instanceof Error && depth < 5; depth++) {
+    if (current.name === 'AbortError' || current.name === 'TimeoutError') return true
+    current = current.cause
+  }
+  return false
+}
 
 /**
  * Handler for Agent blocks that process LLM requests with optional tools.
@@ -73,20 +199,94 @@ export class AgentBlockHandler implements BlockHandler {
 
     const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
     const filteredInputs = { ...inputs, tools: filteredTools }
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      this.getMessageStructuralInputPaths(filteredInputs),
+      'Agent structural model inputs cannot contain secret references'
+    )
+    const responseFormatProjection = this.projectResponseFormatForModel(ctx, filteredInputs)
+    const fileProjection = this.projectFileNamesForModel(ctx, filteredInputs)
+    const coreModelInputPaths = this.getModelInputPaths(filteredInputs)
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      {
+        systemPrompt: filteredInputs.systemPrompt,
+        userPrompt: filteredInputs.userPrompt,
+        messages: filteredInputs.messages,
+        memories: filteredInputs.memories,
+      },
+      coreModelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      throw new Error('Agent model input could not be safely projected')
+    }
+    const modelInputs: AgentInputs = {
+      ...filteredInputs,
+      ...modelInputProjection.value,
+      responseFormat: responseFormatProjection.value,
+    }
+    const modelInputPaths = [...coreModelInputPaths, ...responseFormatProjection.inputPaths]
+    const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
 
     await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
-    const responseFormat = parseResponseFormat(filteredInputs.responseFormat)
-    const model = filteredInputs.model || AGENT.DEFAULT_MODEL
+    const responseFormat = parseResponseFormat(modelInputs.responseFormat)
+    const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
+
+    let model = configuredModel
+    let autoRouting: AutoRoutingResult | null = null
+    if (isAutoModel(configuredModel)) {
+      autoRouting = await resolveAutoModel({
+        ctx,
+        blockId: block.id,
+        signals: this.buildAutoRoutingSignals(
+          {
+            ...modelInputs,
+            systemPrompt: filteredInputs.systemPrompt ? modelInputs.systemPrompt : undefined,
+            userPrompt: filteredInputs.userPrompt
+              ? modelInputs.userPrompt
+              : filteredInputs.userPrompt,
+          },
+          responseFormat
+        ),
+        fallbackModel: AGENT.DEFAULT_MODEL,
+      })
+      model = autoRouting.model
+      logger.info(
+        'Resolved sim-auto model',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          {
+            blockId: block.id,
+            model,
+            tier: autoRouting.tier,
+            decidedBy: autoRouting.decidedBy,
+          },
+          {
+            blockId: block.id,
+            tier: autoRouting.tier,
+            decidedBy: autoRouting.decidedBy,
+          }
+        )
+      )
+      // Hidden identity preamble for every auto execution (fallback included):
+      // keeps pool models in English by default and off the topic of which
+      // underlying model they are. Applied after signal building so the
+      // preamble never influences classification.
+      modelInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, modelInputs.systemPrompt]
+        .filter(Boolean)
+        .join('\n\n')
+    }
 
     await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
 
     const providerId = getProviderFromModel(model)
-    const formattedTools = await this.formatTools(
+    const formatted = await this.formatTools(
       ctx,
       filteredInputs.tools || [],
       block.canonicalModes,
-      toolIndexByRef
+      toolIndexByRef,
+      projectedToolInputs
     )
 
     const skillInputs = filteredInputs.skills ?? []
@@ -96,21 +296,26 @@ export class AgentBlockHandler implements BlockHandler {
       skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
       if (skillMetadata.length > 0) {
         const skillNames = skillMetadata.map((s) => s.name)
-        formattedTools.push(buildLoadSkillTool(skillNames))
+        formatted.tools.push(buildLoadSkillTool(skillNames))
       }
     }
 
     const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs, skillMetadata)
+    const messages = await this.buildMessages(ctx, filteredInputs, modelInputs, skillMetadata)
     const messagesWithInputFiles = this.attachFilesToLastUserMessage(
       ctx,
       messages,
-      filteredInputs.files
+      filteredInputs.files,
+      fileProjection.projectedFiles,
+      fileProjection.projectedNameByFile,
+      fileProjection.directNameInputPaths
     )
     const messagesWithFiles = await this.hydrateMessageFilesForProvider(
       ctx,
       messagesWithInputFiles,
-      providerId
+      providerId,
+      fileProjection.projectedNameByFile,
+      fileProjection.modelBoundInputPaths
     )
 
     const providerRequest = this.buildProviderRequest({
@@ -118,13 +323,40 @@ export class AgentBlockHandler implements BlockHandler {
       providerId,
       model,
       messages: messagesWithFiles,
-      inputs: filteredInputs,
-      formattedTools,
+      inputs: modelInputs,
+      formattedTools: formatted.tools,
       responseFormat,
       streaming: streamingConfig.shouldUseStreaming ?? false,
     })
 
-    const result = await this.executeProviderRequest(ctx, providerRequest, block, responseFormat)
+    const modelRuntimeRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths([
+      ...modelInputPaths,
+      ...fileProjection.modelBoundInputPaths,
+      ...formatted.sourcePaths,
+    ])
+    if (modelRuntimeRegistry) {
+      for (const [tool, provenance] of formatted.inputProvenance) {
+        registerProviderToolInputProvenance(tool, {
+          ...provenance,
+          registry: modelRuntimeRegistry,
+        })
+      }
+    }
+    const result = await this.executeProviderRequest(
+      ctx,
+      providerRequest,
+      block,
+      responseFormat,
+      modelRuntimeRegistry
+    )
+
+    if (autoRouting && autoRouting.billableRoutingCost > 0) {
+      this.applyRoutingCost(result, autoRouting.billableRoutingCost)
+    }
+
+    if (autoRouting) {
+      this.applyAutoModelLabel(result, model)
+    }
 
     if (this.isStreamingExecution(result)) {
       if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
@@ -142,6 +374,142 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     return result
+  }
+
+  /**
+   * Derives the compact routing signals for sim-auto resolution from the
+   * block's resolved inputs. Excerpts only — the resolver truncates further
+   * and mothership re-clamps server-side.
+   */
+  private buildAutoRoutingSignals(inputs: AgentInputs, responseFormat: any): AutoRoutingSignals {
+    const lastMessage =
+      typeof inputs.userPrompt === 'string'
+        ? inputs.userPrompt
+        : inputs.userPrompt != null
+          ? stringifyJSON(inputs.userPrompt)
+          : (inputs.messages?.at(-1)?.content ?? '')
+    const systemPrompt = inputs.systemPrompt ?? ''
+    const normalizedFiles = normalizeFileInput(inputs.files)
+    const approxChars =
+      systemPrompt.length +
+      lastMessage.length +
+      (inputs.messages ? stringifyJSON(inputs.messages).length : 0)
+
+    return {
+      systemPrompt,
+      lastMessage,
+      messageCount: (inputs.messages?.length ?? 0) + (inputs.userPrompt ? 1 : 0),
+      toolNames: (inputs.tools ?? []).map((t) => t.title || t.type || 'tool'),
+      mediaKind: this.resolveMediaKind(inputs, normalizedFiles),
+      hasResponseFormat: Boolean(responseFormat),
+      approxInputTokens: Math.ceil(approxChars / 4),
+    }
+  }
+
+  /**
+   * Classifies what the block attaches, which decides the sim-auto pool column.
+   *
+   * Media reaches the provider by two routes — the block's `files` input and
+   * files already carried on inbound messages (chat deployments, memory, an
+   * upstream block feeding `messages`) — and both count. A file whose MIME type
+   * is missing or unrecognized counts as `file`, the column served by the
+   * providers that accept the most input types, because the alternative is
+   * handing a document to a model whose API models no such content part.
+   */
+  private resolveMediaKind(inputs: AgentInputs, normalizedFiles: unknown): AutoMediaKind {
+    const attached: Array<{ type?: string }> = [
+      ...(Array.isArray(normalizedFiles) ? (normalizedFiles as Array<{ type?: string }>) : []),
+      ...(inputs.messages ?? []).flatMap((message) => message.files ?? []),
+    ]
+
+    if (attached.length === 0) return 'none'
+
+    return attached.every((file) =>
+      MODEL_SUPPORTED_IMAGE_MIME_TYPES.has((file.type ?? '').toLowerCase())
+    )
+      ? 'image'
+      : 'file'
+  }
+
+  /**
+   * Reports a completed auto run under the `sim-auto` identity everywhere the
+   * run is observed — the block output, the trace span, and the usage-ledger
+   * row keyed on the model name — so the pool model that served the request
+   * stays an implementation detail (matching the block's configured model and
+   * the hidden identity preamble the models themselves run under).
+   *
+   * Runs after `executeProviderRequest`, whose billability gate and pricing
+   * key on the concrete pool model: tokens and cost are already settled here,
+   * only the label changes.
+   */
+  private applyAutoModelLabel(
+    result: BlockOutput | StreamingExecution,
+    resolvedModel: string
+  ): void {
+    const output = this.isStreamingExecution(result)
+      ? (result as StreamingExecution).execution?.output
+      : (result as BlockOutput)
+    if (!output || typeof output !== 'object') return
+
+    const target = output as {
+      model?: string
+      providerTiming?: {
+        timeSegments?: Array<{ type?: string; name?: string; provider?: string }>
+      }
+    }
+    target.model = SIM_AUTO_MODEL_ID
+
+    // Model segments name themselves after the model (every provider does) and
+    // carry the serving provider, which the log detail renders as that
+    // provider's icon — the same leak by two other routes.
+    for (const segment of target.providerTiming?.timeSegments ?? []) {
+      if (segment.type !== 'model') continue
+      if (segment.name?.toLowerCase() === resolvedModel.toLowerCase()) {
+        segment.name = SIM_AUTO_MODEL_ID
+      }
+      segment.provider = undefined
+    }
+  }
+
+  /**
+   * Adds the billable sim-auto routing charge to the output's cost breakdown
+   * as a distinct `routing` component.
+   *
+   * A non-streaming cost is final, so it is mutated in place. A streaming
+   * output's cost settles at stream end — written through the accessor
+   * `installStreamingCostPolicy` installed — so the charge is layered as a
+   * read-time overlay on the property instead: whatever the drain writes,
+   * every later read (trace spans, cost summary, usage ledger) sees the
+   * routing component on top.
+   */
+  private applyRoutingCost(result: BlockOutput | StreamingExecution, routingCost: number): void {
+    const output = this.isStreamingExecution(result)
+      ? (result as StreamingExecution).execution?.output
+      : (result as BlockOutput)
+    if (!output || typeof output !== 'object') return
+    const target = output as { cost?: Record<string, number> }
+
+    const withRouting = (cost: Record<string, number> | undefined): Record<string, number> =>
+      cost && typeof cost.total === 'number'
+        ? { ...cost, routing: routingCost, total: cost.total + routingCost }
+        : { input: 0, output: 0, routing: routingCost, total: routingCost }
+
+    if (!this.isStreamingExecution(result)) {
+      target.cost = withRouting(target.cost)
+      return
+    }
+
+    const prior = Object.getOwnPropertyDescriptor(target, 'cost')
+    let raw = prior?.get ? undefined : (target.cost as Record<string, number> | undefined)
+    Object.defineProperty(target, 'cost', {
+      get: () => withRouting(prior?.get ? (prior.get.call(target) as never) : raw),
+      set: (value: Record<string, number> | undefined) => {
+        if (prior?.set) prior.set.call(target, value)
+        else raw = value
+      },
+      configurable: true,
+      enumerable: true,
+    })
   }
 
   private async validateToolPermissions(ctx: ExecutionContext, tools: ToolInput[]): Promise<void> {
@@ -196,7 +564,14 @@ export class AgentBlockHandler implements BlockHandler {
           }
         }
       } catch (error) {
-        logger.warn('Failed to check MCP server availability, including all tools:', error)
+        logger.warn(
+          'Failed to check MCP server availability, including all tools',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getErrorDiagnosticMetadata(error),
+            getErrorDiagnosticFallback(error)
+          )
+        )
         for (const serverId of serverIds) {
           availableServerIds.add(serverId)
         }
@@ -218,24 +593,91 @@ export class AgentBlockHandler implements BlockHandler {
    * original position across the mcp-availability filter and the mcp/other split below, both of
    * which would otherwise renumber tools by their post-filter position.
    */
+  private projectToolInputsForProvenance(
+    ctx: ExecutionContext,
+    inputTools: ToolInput[]
+  ): ToolInput[] | undefined {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry?.hasResolvedInputProjections() || inputTools.length === 0) return undefined
+
+    const projection = registry.projectResolvedInputSelection({ tools: inputTools })
+    if (!projection.complete || !Array.isArray(projection.value.tools)) {
+      throw new Error('Agent tool input could not be safely projected')
+    }
+    return projection.value.tools as ToolInput[]
+  }
+
   private async formatTools(
     ctx: ExecutionContext,
     inputTools: ToolInput[],
     canonicalModes?: Record<string, 'basic' | 'advanced'>,
-    toolIndexByRef?: Map<ToolInput, number>
-  ): Promise<any[]> {
-    if (!Array.isArray(inputTools)) return []
+    toolIndexByRef?: Map<ToolInput, number>,
+    projectedToolInputs?: ToolInput[]
+  ): Promise<FormattedAgentTools> {
+    if (!Array.isArray(inputTools)) {
+      return { tools: [], inputProvenance: new Map(), sourcePaths: [] }
+    }
 
     const filtered = inputTools
       .map((tool, localIndex) => ({ tool, toolIndex: toolIndexByRef?.get(tool) ?? localIndex }))
       .filter(({ tool }) => (tool.usageControl || 'auto') !== 'none')
 
-    const mcpTools: ToolInput[] = []
-    const otherTools: Array<{ tool: ToolInput; toolIndex: number }> = []
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      filtered.flatMap(({ tool, toolIndex }) => {
+        const root = ['tools', String(toolIndex)] as const
+        const paths: ResolvedSecretInputPath[] = [[...root, 'type']]
+        if (tool.operation !== undefined) paths.push([...root, 'operation'])
+        if (tool.customToolId !== undefined) paths.push([...root, 'customToolId'])
+        if (tool.type === 'mcp') {
+          paths.push([...root, 'params', 'serverId'], [...root, 'params', 'toolName'])
+        }
+        if (tool.type === 'custom-tool' && !tool.customToolId) {
+          paths.push([...root, 'title'], [...root, 'schema', 'function', 'name'])
+        }
+        return paths
+      }),
+      'Agent structural model inputs cannot contain secret references'
+    )
+
+    const mcpTools: IndexedToolInput[] = []
+    const otherTools: IndexedToolInput[] = []
+    const inputProvenance = new Map<
+      ProviderToolConfig,
+      Omit<ProviderToolInputProvenance, 'registry'>
+    >()
+    const sourcePaths: ResolvedSecretInputPath[] = []
+
+    const trackInputProvenance = (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ): ProviderToolConfig | null => {
+      if (!formattedTool) return null
+      const sourcePath = ['tools', String(entry.toolIndex), 'params']
+      const sourceProvenance =
+        ctx.resolvedSecretTraceRegistry?.exportCommittedProvenanceForInputPaths([sourcePath])
+      if (sourceProvenance && !sourceProvenance.complete) {
+        return null
+      }
+      if (!sourceProvenance || sourceProvenance.entries.length === 0) {
+        return formattedTool
+      }
+      const projectedInput = projectedToolInputs?.[entry.toolIndex]
+      inputProvenance.set(formattedTool, {
+        sourcePath,
+        projectedParams: this.getProjectedProviderToolParams(
+          entry.tool,
+          projectedInput,
+          formattedTool
+        ),
+      })
+      sourcePaths.push(sourcePath)
+      return formattedTool
+    }
 
     for (const entry of filtered) {
       if (entry.tool.type === 'mcp') {
-        mcpTools.push(entry.tool)
+        mcpTools.push(entry)
       } else {
         otherTools.push(entry)
       }
@@ -248,57 +690,206 @@ export class AgentBlockHandler implements BlockHandler {
             await validateBlockType(ctx.userId, ctx.workspaceId, tool.type, ctx)
           }
           if (tool.type === 'custom-tool' && (tool.schema || tool.customToolId)) {
-            return await this.createCustomTool(ctx, tool)
+            return trackInputProvenance(
+              await this.createCustomTool(
+                ctx,
+                tool,
+                projectedToolInputs?.[toolIndex],
+                toolIndex,
+                sourcePaths
+              ),
+              {
+                tool,
+                toolIndex,
+              }
+            )
           }
-          return this.transformBlockTool(ctx, tool, canonicalModes, toolIndex)
+          return trackInputProvenance(
+            await this.transformBlockTool(ctx, tool, canonicalModes, toolIndex),
+            { tool, toolIndex }
+          )
         } catch (error) {
-          logger.error(`[AgentHandler] Error creating tool:`, { tool, error })
+          if (
+            error instanceof ToolSchemaEnrichmentError ||
+            error instanceof AgentToolInputSafetyError
+          ) {
+            throw error
+          }
+          logger.error(
+            '[AgentHandler] Error creating tool',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+            )
+          )
           return null
         }
       })
     )
 
-    const mcpResults = await this.processMcpToolsBatched(ctx, mcpTools)
+    const mcpResults = await this.processMcpToolsBatched(
+      ctx,
+      mcpTools,
+      trackInputProvenance,
+      projectedToolInputs,
+      sourcePaths
+    )
 
     const allTools = [...otherResults, ...mcpResults]
-    return allTools.filter(
-      (tool): tool is NonNullable<typeof tool> => tool !== null && tool !== undefined
-    )
+    const orderedSourcePaths = [...new Map(sourcePaths.map((path) => [JSON.stringify(path), path]))]
+      .sort(([left], [right]) => (left < right ? -1 : left > right ? 1 : 0))
+      .map(([, path]) => path)
+    return {
+      tools: allTools.filter(
+        (tool): tool is ProviderToolConfig => tool !== null && tool !== undefined
+      ),
+      inputProvenance,
+      sourcePaths: orderedSourcePaths,
+    }
   }
 
-  private async createCustomTool(ctx: ExecutionContext, tool: ToolInput): Promise<any> {
+  private assertInputPathsDoNotResolveSecrets(
+    ctx: ExecutionContext,
+    inputPaths: readonly ResolvedSecretInputPath[],
+    errorMessage: string
+  ): void {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) return
+
+    const provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
+    if (!provenance.complete) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    if (provenance.entries.length > 0) {
+      throw new AgentToolInputSafetyError(errorMessage)
+    }
+  }
+
+  private getProjectedProviderToolParams(
+    tool: ToolInput,
+    projectedTool: ToolInput | undefined,
+    formattedTool: ProviderToolConfig
+  ): Record<string, unknown> {
+    const projectedParams = projectedTool?.params ?? tool.params ?? {}
+    const formattedParams = formattedTool.params ?? {}
+
+    if (isCustomBlockType(tool.type)) {
+      return {
+        ...formattedParams,
+        inputMapping: assembleCustomBlockInputMapping(projectedParams),
+      }
+    }
+
+    const alignedParams = Object.fromEntries(
+      Object.keys(formattedParams).map((key) => [
+        key,
+        Object.hasOwn(projectedParams, key) ? projectedParams[key] : formattedParams[key],
+      ])
+    )
+    if (tool.type === 'mcp' || tool.type === 'custom-tool') return alignedParams
+
+    const blockInputs = getAllBlocks().find((block) => block.type === tool.type)?.inputs
+    return prepareResolvedSecretProjectedInputs(alignedParams, blockInputs, formattedParams)
+  }
+
+  private async createCustomTool(
+    ctx: ExecutionContext,
+    tool: ToolInput,
+    projectedTool?: ToolInput,
+    toolIndex?: number,
+    modelInputPaths?: ResolvedSecretInputPath[]
+  ): Promise<any> {
     const userProvidedParams = tool.params || {}
 
     let schema = tool.schema
+    let modelSchema = projectedTool?.schema ?? schema
     let title = tool.title
+    let usesInlineDefinition = true
 
     if (tool.customToolId) {
       const resolved = await this.fetchCustomToolById(ctx, tool.customToolId)
       if (resolved) {
         schema = resolved.schema
+        modelSchema = resolved.schema
         title = resolved.title
+        usesInlineDefinition = false
       } else if (!schema) {
-        logger.error(`Custom tool not found: ${tool.customToolId}`)
+        logger.error(
+          'Custom tool not found',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         return null
       }
     }
 
-    if (!schema?.function) {
-      logger.error('Custom tool missing schema:', { customToolId: tool.customToolId, title })
-      return null
+    if (usesInlineDefinition && toolIndex !== undefined) {
+      const functionRoot = ['tools', String(toolIndex), 'schema', 'function'] as const
+      const schemaPaths = selectModelSchemaInputPaths(tool.schema?.function?.parameters, [
+        ...functionRoot,
+        'parameters',
+      ])
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        [
+          ['tools', String(toolIndex), 'title'],
+          [...functionRoot, 'name'],
+          ...schemaPaths.semanticInputPaths,
+        ],
+        'Agent structural model inputs cannot contain secret references'
+      )
+      if (tool.schema?.function?.description !== undefined) {
+        modelInputPaths?.push([...functionRoot, 'description'])
+      }
+      modelInputPaths?.push(...schemaPaths.annotationInputPaths)
     }
 
-    const filteredSchema = filterSchemaForLLM(schema.function.parameters, userProvidedParams)
+    if (!schema?.function) {
+      logger.error(
+        'Custom tool missing schema',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId: tool.customToolId, title },
+          { hasCustomToolId: typeof tool.customToolId === 'string', hasTitle: Boolean(title) }
+        )
+      )
+      return null
+    }
+    if (!modelSchema?.function) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    const parametersProjection = projectModelSchemaAnnotations(
+      schema.function.parameters,
+      modelSchema.function.parameters
+    )
+    if (!parametersProjection.safe) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    const rawDescription = schema.function.description
+    const projectedDescription = modelSchema.function.description
+    if (
+      (rawDescription === undefined && projectedDescription !== undefined) ||
+      (rawDescription !== undefined && projectedDescription === undefined)
+    ) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+
+    const modelParameters = parametersProjection.value as ToolSchema
+    const filteredSchema = filterSchemaForLLM(modelParameters, userProvidedParams)
 
     const toolId = `${AGENT.CUSTOM_TOOL_PREFIX}${title}`
     const base: any = {
       id: toolId,
       name: schema.function.name,
-      description: schema.function.description || '',
+      description: projectedDescription || '',
       params: userProvidedParams,
       parameters: {
         ...filteredSchema,
-        type: schema.function.parameters.type,
+        type: modelParameters.type,
       },
       usageControl: tool.usageControl || 'auto',
     }
@@ -314,7 +905,14 @@ export class AgentBlockHandler implements BlockHandler {
     customToolId: string
   ): Promise<{ schema: any; title: string } | null> {
     if (!ctx.userId) {
-      logger.error('Cannot fetch custom tool without userId:', { customToolId })
+      logger.error(
+        'Cannot fetch custom tool without userId',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId },
+          { hasCustomToolId: customToolId.length > 0 }
+        )
+      )
       return null
     }
 
@@ -326,7 +924,14 @@ export class AgentBlockHandler implements BlockHandler {
       })
 
       if (!tool) {
-        logger.warn(`Custom tool not found by ID: ${customToolId}`)
+        logger.warn(
+          'Custom tool not found by ID',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            { customToolId },
+            { hasCustomToolId: customToolId.length > 0 }
+          )
+        )
         return null
       }
 
@@ -335,7 +940,14 @@ export class AgentBlockHandler implements BlockHandler {
         title: tool.title,
       }
     } catch (error) {
-      logger.error('Error fetching custom tool:', { customToolId, error })
+      logger.error(
+        'Error fetching custom tool',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          { customToolId, ...getErrorDiagnosticMetadata(error) },
+          { hasCustomToolId: customToolId.length > 0, ...getErrorDiagnosticFallback(error) }
+        )
+      )
       return null
     }
   }
@@ -346,42 +958,82 @@ export class AgentBlockHandler implements BlockHandler {
    */
   private async processMcpToolsBatched(
     ctx: ExecutionContext,
-    mcpTools: ToolInput[]
-  ): Promise<any[]> {
+    mcpTools: IndexedToolInput[],
+    trackInputProvenance: (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ) => ProviderToolConfig | null,
+    projectedToolInputs?: ToolInput[],
+    modelInputPaths?: ResolvedSecretInputPath[]
+  ): Promise<Array<ProviderToolConfig | null>> {
     if (mcpTools.length === 0) return []
 
-    const results: any[] = []
-    const toolsWithSchema: ToolInput[] = []
-    const toolsNeedingDiscovery: ToolInput[] = []
+    const results: Array<ProviderToolConfig | null> = []
+    const toolsWithSchema: IndexedToolInput[] = []
+    const toolsNeedingDiscovery: IndexedToolInput[] = []
 
-    for (const tool of mcpTools) {
+    for (const entry of mcpTools) {
+      const { tool } = entry
       const serverId = tool.params?.serverId
       const toolName = tool.params?.toolName
 
       if (!serverId || !toolName) {
-        logger.error('MCP tool missing serverId or toolName:', tool)
+        logger.error(
+          'MCP tool missing serverId or toolName',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
         continue
       }
 
       if (tool.schema) {
-        toolsWithSchema.push(tool)
+        toolsWithSchema.push(entry)
       } else {
-        logger.warn(`MCP tool ${toolName} missing cached schema, will need discovery`)
-        toolsNeedingDiscovery.push(tool)
+        logger.warn(
+          'MCP tool missing cached schema, will need discovery',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            getToolDiagnosticMetadata(tool),
+            getToolDiagnosticFallback(tool)
+          )
+        )
+        toolsNeedingDiscovery.push(entry)
       }
     }
 
-    for (const tool of toolsWithSchema) {
+    for (const entry of toolsWithSchema) {
+      const { tool } = entry
       try {
-        const created = await this.createMcpToolFromCachedSchema(ctx, tool)
-        if (created) results.push(created)
+        const created = await this.createMcpToolFromCachedSchema(
+          ctx,
+          tool,
+          projectedToolInputs?.[entry.toolIndex],
+          entry.toolIndex,
+          modelInputPaths
+        )
+        if (created) results.push(trackInputProvenance(created, entry))
       } catch (error) {
-        logger.error(`Error creating MCP tool from cached schema:`, { tool, error })
+        if (error instanceof AgentToolInputSafetyError) throw error
+        logger.error(
+          'Error creating MCP tool from cached schema',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+            { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+          )
+        )
       }
     }
 
     if (toolsNeedingDiscovery.length > 0) {
-      const discoveredResults = await this.processMcpToolsWithDiscovery(ctx, toolsNeedingDiscovery)
+      const discoveredResults = await this.processMcpToolsWithDiscovery(
+        ctx,
+        toolsNeedingDiscovery,
+        trackInputProvenance
+      )
       results.push(...discoveredResults)
     }
 
@@ -393,15 +1045,52 @@ export class AgentBlockHandler implements BlockHandler {
    */
   private async createMcpToolFromCachedSchema(
     ctx: ExecutionContext,
-    tool: ToolInput
+    tool: ToolInput,
+    projectedTool?: ToolInput,
+    toolIndex?: number,
+    modelInputPaths?: ResolvedSecretInputPath[]
   ): Promise<any> {
     const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
+    const projectedSchema = projectedTool?.schema ?? tool.schema
+    if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    const schemaProjection = projectModelSchemaAnnotations(tool.schema, projectedSchema)
+    if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    const projectedServerName =
+      typeof projectedTool?.params?.serverName === 'string'
+        ? projectedTool.params.serverName
+        : serverName
+    if (schemaProjection.value.type !== 'object') {
+      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+    }
+    const schema: McpToolSchema = { ...schemaProjection.value, type: 'object' }
+    const schemaDescription =
+      typeof schema.description === 'string' ? schema.description : undefined
+    if (toolIndex !== undefined) {
+      const schemaPaths = selectModelSchemaInputPaths(tool.schema, [
+        'tools',
+        String(toolIndex),
+        'schema',
+      ])
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        schemaPaths.semanticInputPaths,
+        'Agent structural model inputs cannot contain secret references'
+      )
+      modelInputPaths?.push(...schemaPaths.annotationInputPaths)
+      if (!schemaDescription) {
+        modelInputPaths?.push(['tools', String(toolIndex), 'params', 'serverName'])
+      }
+    }
     return this.buildMcpTool({
       serverId,
       toolName,
       description:
-        tool.schema?.description || `MCP tool ${toolName} from ${serverName || serverId}`,
-      schema: tool.schema || { type: 'object', properties: {} },
+        schemaDescription || `MCP tool ${toolName} from ${projectedServerName || serverId}`,
+      schema,
       userProvidedParams,
       usageControl: tool.usageControl,
     })
@@ -412,15 +1101,20 @@ export class AgentBlockHandler implements BlockHandler {
    */
   private async processMcpToolsWithDiscovery(
     ctx: ExecutionContext,
-    mcpTools: ToolInput[]
-  ): Promise<any[]> {
-    const toolsByServer = new Map<string, ToolInput[]>()
-    for (const tool of mcpTools) {
+    mcpTools: IndexedToolInput[],
+    trackInputProvenance: (
+      formattedTool: ProviderToolConfig | null,
+      entry: IndexedToolInput
+    ) => ProviderToolConfig | null
+  ): Promise<Array<ProviderToolConfig | null>> {
+    const toolsByServer = new Map<string, IndexedToolInput[]>()
+    for (const entry of mcpTools) {
+      const { tool } = entry
       const serverId = tool.params?.serverId
       if (!toolsByServer.has(serverId)) {
         toolsByServer.set(serverId, [])
       }
-      toolsByServer.get(serverId)!.push(tool)
+      toolsByServer.get(serverId)!.push(entry)
     }
 
     const serverDiscoveryResults = await Promise.all(
@@ -429,30 +1123,52 @@ export class AgentBlockHandler implements BlockHandler {
           const discoveredTools = await this.discoverMcpToolsForServer(ctx, serverId)
           return { serverId, tools, discoveredTools, error: null as Error | null }
         } catch (error) {
-          logger.error(`Failed to discover tools from server ${serverId}:`)
+          logger.error(
+            'Failed to discover tools from MCP server',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { serverId, ...getErrorDiagnosticMetadata(error) },
+              { hasServerId: serverId.length > 0, ...getErrorDiagnosticFallback(error) }
+            )
+          )
           return { serverId, tools, discoveredTools: [] as any[], error: error as Error }
         }
       })
     )
 
-    const results: any[] = []
+    const results: Array<ProviderToolConfig | null> = []
     for (const { serverId, tools, discoveredTools, error } of serverDiscoveryResults) {
       if (error) continue
 
-      for (const tool of tools) {
+      for (const entry of tools) {
+        const { tool } = entry
         try {
           const toolName = tool.params?.toolName
           const mcpTool = discoveredTools.find((t: any) => t.name === toolName)
 
           if (!mcpTool) {
-            logger.error(`MCP tool ${toolName} not found on server ${serverId}`)
+            logger.error(
+              'MCP tool not found on server',
+              projectAgentDiagnosticMetadata(
+                ctx,
+                { toolName, serverId },
+                { hasToolName: Boolean(toolName), hasServerId: serverId.length > 0 }
+              )
+            )
             continue
           }
 
           const created = await this.createMcpToolFromDiscoveredData(ctx, tool, mcpTool, serverId)
-          if (created) results.push(created)
+          if (created) results.push(trackInputProvenance(created, entry))
         } catch (error) {
-          logger.error(`Error creating MCP tool:`, { tool, error })
+          logger.error(
+            'Error creating MCP tool',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { ...getToolDiagnosticMetadata(tool), ...getErrorDiagnosticMetadata(error) },
+              { ...getToolDiagnosticFallback(tool), ...getErrorDiagnosticFallback(error) }
+            )
+          )
         }
       }
     }
@@ -488,7 +1204,12 @@ export class AgentBlockHandler implements BlockHandler {
           const errorText = await response.text()
           if (this.isRetryableError(errorText) && attempt < maxAttempts - 1) {
             logger.warn(
-              `[AgentHandler] Session error discovering tools from ${serverId}, retrying (attempt ${attempt + 1})`
+              '[AgentHandler] Session error discovering tools, retrying',
+              projectAgentDiagnosticMetadata(
+                ctx,
+                { serverId, attempt: attempt + 1 },
+                { hasServerId: serverId.length > 0, attempt: attempt + 1 }
+              )
             )
             await sleep(100)
             continue
@@ -506,8 +1227,16 @@ export class AgentBlockHandler implements BlockHandler {
         const errorMsg = toError(error).message
         if (this.isRetryableError(errorMsg) && attempt < maxAttempts - 1) {
           logger.warn(
-            `[AgentHandler] Retryable error discovering tools from ${serverId} (attempt ${attempt + 1}):`,
-            error
+            '[AgentHandler] Retryable error discovering tools',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              { serverId, attempt: attempt + 1, ...getErrorDiagnosticMetadata(error) },
+              {
+                hasServerId: serverId.length > 0,
+                attempt: attempt + 1,
+                ...getErrorDiagnosticFallback(error),
+              }
+            )
           )
           await sleep(100)
           continue
@@ -547,7 +1276,7 @@ export class AgentBlockHandler implements BlockHandler {
     serverId: string
     toolName: string
     description: string
-    schema: ToolSchema
+    schema: McpToolSchema
     userProvidedParams: Record<string, unknown>
     usageControl?: 'auto' | 'force' | 'none'
   }) {
@@ -581,6 +1310,12 @@ export class AgentBlockHandler implements BlockHandler {
         }),
       getTool,
       canonicalModes,
+      enrichmentContext: {
+        workflowId: ctx.workflowId,
+        workspaceId: ctx.workspaceId,
+        executionId: ctx.executionId,
+        userId: ctx.userId,
+      },
       toolIndex,
       resolveCustomBlockBinding: (blockType: string) =>
         resolveCustomBlockToolBinding(blockType, ctx.workspaceId),
@@ -611,6 +1346,7 @@ export class AgentBlockHandler implements BlockHandler {
   private async buildMessages(
     ctx: ExecutionContext,
     inputs: AgentInputs,
+    modelInputs: AgentInputs,
     skillMetadata: Array<{ name: string; description: string }> = []
   ): Promise<Message[] | undefined> {
     const messages: Message[] = []
@@ -618,8 +1354,10 @@ export class AgentBlockHandler implements BlockHandler {
 
     // 1. Extract and validate messages from messages-input subblock
     const inputMessages = this.extractValidMessages(inputs.messages)
-    const systemMessages = inputMessages.filter((m) => m.role === 'system')
-    const conversationMessages = inputMessages.filter((m) => m.role !== 'system')
+    const projectedInputMessages = this.extractValidMessages(modelInputs.messages)
+    const systemMessages = projectedInputMessages.filter((m) => m.role === 'system')
+    const conversationMessages = projectedInputMessages.filter((m) => m.role !== 'system')
+    const rawConversationMessages = inputMessages.filter((m) => m.role !== 'system')
 
     // 2. Handle native memory: seed on first run, then fetch and append new user input
     if (memoryEnabled && ctx.workspaceId) {
@@ -630,21 +1368,33 @@ export class AgentBlockHandler implements BlockHandler {
         const taggedMessages = conversationMessages.map((m) =>
           m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
         )
-        await memoryService.seedMemory(ctx, inputs, taggedMessages)
+        const rawTaggedMessages = rawConversationMessages.map((m) =>
+          m.role === 'user' ? { ...m, executionId: ctx.executionId } : m
+        )
+        await memoryService.seedMemory(ctx, inputs, rawTaggedMessages)
         messages.push(...taggedMessages)
       } else {
         messages.push(...memoryMessages)
 
         if (hasExisting && conversationMessages.length > 0) {
           const latestUserFromInput = conversationMessages.filter((m) => m.role === 'user').pop()
+          const latestRawUserFromInput = rawConversationMessages
+            .filter((m) => m.role === 'user')
+            .pop()
           if (latestUserFromInput) {
+            if (!latestRawUserFromInput) {
+              throw new Error('Agent model input could not be safely projected')
+            }
             const userMessageInThisRun = memoryMessages.some(
               (m) => m.role === 'user' && m.executionId === ctx.executionId
             )
             if (!userMessageInThisRun) {
               const taggedMessage = { ...latestUserFromInput, executionId: ctx.executionId }
               messages.push(taggedMessage)
-              await memoryService.appendToMemory(ctx, inputs, taggedMessage)
+              await memoryService.appendToMemory(ctx, inputs, {
+                ...latestRawUserFromInput,
+                executionId: ctx.executionId,
+              })
             }
           }
         }
@@ -654,7 +1404,7 @@ export class AgentBlockHandler implements BlockHandler {
     // 3. Process legacy memories (backward compatibility - from Memory block)
     // These may include system messages which are preserved in their position
     if (inputs.memories) {
-      messages.push(...this.processMemories(inputs.memories))
+      messages.push(...this.processMemories(modelInputs.memories))
     }
 
     // 4. Add conversation messages from inputs.messages (if not using native memory)
@@ -668,19 +1418,22 @@ export class AgentBlockHandler implements BlockHandler {
     if (inputs.systemPrompt) {
       const hasSystem = systemMessages.length > 0 || messages.some((m) => m.role === 'system')
       if (!hasSystem) {
-        this.addSystemPrompt(messages, inputs.systemPrompt)
+        this.addSystemPrompt(messages, modelInputs.systemPrompt)
       }
     }
 
     // 6. Handle legacy userPrompt - this is NEW input each run
     if (inputs.userPrompt) {
-      this.addUserPrompt(messages, inputs.userPrompt)
+      this.addUserPrompt(messages, modelInputs.userPrompt)
 
       if (memoryEnabled) {
         const userMessages = messages.filter((m) => m.role === 'user')
         const lastUserMessage = userMessages[userMessages.length - 1]
         if (lastUserMessage) {
-          await memoryService.appendToMemory(ctx, inputs, lastUserMessage)
+          await memoryService.appendToMemory(ctx, inputs, {
+            ...lastUserMessage,
+            content: this.formatUserPrompt(inputs.userPrompt),
+          })
         }
       }
     }
@@ -711,11 +1464,18 @@ export class AgentBlockHandler implements BlockHandler {
   private attachFilesToLastUserMessage(
     ctx: ExecutionContext,
     messages: Message[] | undefined,
-    filesInput: unknown
+    filesInput: unknown,
+    projectedFilesInput: unknown,
+    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    directNameInputPaths: readonly ResolvedSecretInputPath[]
   ): Message[] | undefined {
     const normalizedFiles = normalizeFileInput(filesInput)
     if (!normalizedFiles || normalizedFiles.length === 0) {
       return messages
+    }
+    const projectedFiles = normalizeFileInput(projectedFilesInput)
+    if (!projectedFiles || projectedFiles.length !== normalizedFiles.length) {
+      throw new Error('Agent model input could not be safely projected')
     }
 
     if (!messages || messages.length === 0) {
@@ -734,7 +1494,24 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
-    const userFiles = processFilesToUserFiles(normalizedFiles as RawFileInput[], requestId, logger)
+    const userFiles = normalizedFiles.flatMap((file, index) => {
+      const converted = processFilesToUserFiles([file] as RawFileInput[], requestId, logger)
+      const userFile = converted[0]
+      if (!userFile) return []
+
+      const projectedFile = projectedFiles[index]
+      if (!isPlainRecord(projectedFile) || typeof projectedFile.name !== 'string') {
+        throw new Error('Agent model input could not be safely projected')
+      }
+      const rawName = isPlainRecord(file) ? file.name : undefined
+      if (typeof rawName === 'string' && projectedFile.name !== rawName) {
+        projectedNameByFile.set(userFile, {
+          name: projectedFile.name,
+          inputPath: directNameInputPaths[index] ?? ['files', String(index), 'name'],
+        })
+      }
+      return [userFile]
+    })
     if (userFiles.length === 0) {
       throw new Error('Files must include at least one valid file object')
     }
@@ -752,7 +1529,9 @@ export class AgentBlockHandler implements BlockHandler {
   private async hydrateMessageFilesForProvider(
     ctx: ExecutionContext,
     messages: Message[] | undefined,
-    providerId: string
+    providerId: string,
+    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>,
+    modelBoundInputPaths: ResolvedSecretInputPath[]
   ): Promise<Message[] | undefined> {
     if (!messages?.some((message) => message.files?.length)) {
       return messages
@@ -765,12 +1544,15 @@ export class AgentBlockHandler implements BlockHandler {
     const requestId = ctx.executionId || ctx.workflowId || 'agent-files'
     const nextMessages = [...messages]
 
+    const inlineMaxBytes = getInlineHydrationMaxBytes(providerId)
+
     for (let messageIndex = 0; messageIndex < messages.length; messageIndex++) {
       const message = messages[messageIndex]
       if (!message.files?.length) {
         continue
       }
 
+      const unsafeGeneratedDocumentFiles = new Set<string>()
       const hydratedFiles = await hydrateUserFilesWithBase64(message.files, {
         requestId,
         workspaceId: ctx.workspaceId,
@@ -782,21 +1564,94 @@ export class AgentBlockHandler implements BlockHandler {
         allowLargeValueWorkflowScope: ctx.allowLargeValueWorkflowScope,
         userId: ctx.userId,
         logger,
-        maxBytes: INLINE_ATTACHMENT_THRESHOLD_BYTES,
+        maxBytes: inlineMaxBytes,
+        onServableFileContributors: async (file, contributors) => {
+          if (!ctx.workspaceId) return
+          for (const identity of contributors) {
+            const safe = await importWorkspaceFileSecretProvenanceForModelView({
+              workspaceId: ctx.workspaceId,
+              identity,
+              registry: ctx.resolvedSecretTraceRegistry,
+              view: 'opaque',
+            })
+            if (!safe) {
+              unsafeGeneratedDocumentFiles.add(`${file.key}:${file.id}`)
+              return
+            }
+          }
+        },
       })
 
-      const missingFile = hydratedFiles.find(
-        (file) => !file.base64 && !shouldUseLargeFilePath(file, providerId)
+      const modelSafeHydratedFiles = hydratedFiles.flatMap((file, fileIndex) => {
+        if (unsafeGeneratedDocumentFiles.has(`${file.key}:${file.id}`)) return []
+
+        const sourceFile = message.files?.[fileIndex]
+        const nameProjection = sourceFile ? projectedNameByFile.get(sourceFile) : undefined
+        if (
+          !nameProjection ||
+          !isProviderAttachmentFilenameModelBound(file, providerId, {
+            largeFilePathAvailable: canUseProviderLargeFilePath(providerId),
+          })
+        ) {
+          return [file]
+        }
+
+        modelBoundInputPaths.push(nameProjection.inputPath)
+        const extension = getFileExtension(file.name)
+        const suffix = extension ? `.${extension}` : ''
+        const keepsSuffix =
+          suffix !== '' && nameProjection.name.toLowerCase().endsWith(suffix.toLowerCase())
+        return [
+          {
+            ...file,
+            name:
+              suffix !== '' && !keepsSuffix
+                ? `${nameProjection.name}${suffix}`
+                : nameProjection.name,
+          },
+        ]
+      })
+      if (modelSafeHydratedFiles.length !== hydratedFiles.length) {
+        logger.warn('Omitting generated document attachments with unsafe contributor provenance', {
+          omittedCount: hydratedFiles.length - modelSafeHydratedFiles.length,
+          attachmentCount: hydratedFiles.length,
+        })
+      }
+
+      const missingFile = modelSafeHydratedFiles.find(
+        (file) =>
+          !file.base64 &&
+          !(canUseProviderLargeFilePath(providerId) && shouldUseLargeFilePath(file, providerId))
       )
       if (missingFile) {
+        const { size: sizeMB, limit: inlineMB } = formatAttachmentSizes(
+          missingFile.size,
+          inlineMaxBytes
+        )
+        const oversized = Number.isFinite(missingFile.size) && missingFile.size > inlineMaxBytes
+        /**
+         * Ordered by how general the cause is. A provider with no upload path at all cannot be
+         * helped by changing the file, and a deployment with no object storage cannot reach any
+         * upload path whatever the file is — so both outrank the format-specific case. Leading
+         * with the generated-document arm blamed the document on providers that have no upload
+         * path for anything, and on hosts whose only real problem was unconfigured storage.
+         */
+        const reason =
+          getProviderFileStrategy(providerId) === 'inline'
+            ? `provider "${providerId}" has no large-file upload path`
+            : !canUseProviderLargeFilePath(providerId)
+              ? 'this deployment has no cloud file storage for the large-file upload path'
+              : `a generated document cannot use the large-file path for provider "${providerId}", because a signed URL points at the generation source rather than the rendered file`
         throw new Error(
-          `File "${missingFile.name}" could not be read for provider "${providerId}". The file may exceed the attachment size limit or may no longer be accessible.`
+          oversized
+            ? `File "${missingFile.name}" (${sizeMB}MB) exceeds the ${inlineMB}MB inline attachment limit, and ${reason}.`
+            : `File "${missingFile.name}" could not be read for provider "${providerId}". The file may no longer be accessible.`
         )
       }
 
       nextMessages[messageIndex] = {
         ...message,
-        files: hydratedFiles,
+        files: modelSafeHydratedFiles,
       }
     }
 
@@ -891,16 +1746,322 @@ export class AgentBlockHandler implements BlockHandler {
   }
 
   private addUserPrompt(messages: Message[], userPrompt: any) {
-    let content: string
+    messages.push({ role: 'user', content: this.formatUserPrompt(userPrompt) })
+  }
+
+  private formatUserPrompt(userPrompt: any): string {
     if (typeof userPrompt === 'object' && userPrompt.input) {
-      content = String(userPrompt.input)
-    } else if (typeof userPrompt === 'object') {
-      content = JSON.stringify(userPrompt)
-    } else {
-      content = String(userPrompt)
+      return String(userPrompt.input)
+    }
+    return typeof userPrompt === 'object' ? JSON.stringify(userPrompt) : String(userPrompt)
+  }
+
+  private projectResponseFormatForModel(
+    ctx: ExecutionContext,
+    inputs: AgentInputs
+  ): { value: AgentInputs['responseFormat']; inputPaths: ResolvedSecretInputPath[] } {
+    const responseFormat = inputs.responseFormat
+    if (responseFormat === undefined) return { value: undefined, inputPaths: [] }
+
+    let annotationInputPaths: ResolvedSecretInputPath[] = []
+    let structuralInputPaths: ResolvedSecretInputPath[] = []
+    const isWrapper =
+      isPlainRecord(responseFormat) &&
+      (Object.hasOwn(responseFormat, 'schema') || Object.hasOwn(responseFormat, 'name'))
+
+    if (isPlainRecord(responseFormat)) {
+      const schema = isWrapper ? responseFormat.schema : responseFormat
+      const schemaRoot = isWrapper ? ['responseFormat', 'schema'] : ['responseFormat']
+      const schemaPaths = selectModelSchemaInputPaths(schema, schemaRoot)
+      annotationInputPaths = schemaPaths.annotationInputPaths
+      structuralInputPaths = schemaPaths.semanticInputPaths
+      if (isWrapper) {
+        structuralInputPaths.push(
+          ...Object.keys(responseFormat)
+            .filter((key) => key !== 'schema')
+            .map((key) => ['responseFormat', key])
+        )
+      }
     }
 
-    messages.push({ role: 'user', content })
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      structuralInputPaths,
+      'Agent structural model inputs cannot contain secret references'
+    )
+
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) return { value: responseFormat, inputPaths: annotationInputPaths }
+    const projection = registry.projectResolvedInputSelection({ responseFormat })
+    if (!projection.complete) {
+      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+    }
+    const projectedResponseFormat = projection.value.responseFormat
+
+    if (typeof responseFormat === 'string') {
+      if (Object.is(responseFormat, projectedResponseFormat)) {
+        return { value: responseFormat, inputPaths: annotationInputPaths }
+      }
+      if (typeof projectedResponseFormat !== 'string') {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      try {
+        const rawParsed = JSON.parse(responseFormat)
+        const projectedParsed = JSON.parse(projectedResponseFormat)
+        if (!isPlainRecord(rawParsed)) {
+          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        }
+        this.projectResponseFormatObject(rawParsed, projectedParsed)
+      } catch (error) {
+        if (error instanceof AgentToolInputSafetyError) throw error
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      return { value: projectedResponseFormat, inputPaths: [['responseFormat']] }
+    }
+
+    if (!isPlainRecord(responseFormat)) {
+      if (!Object.is(responseFormat, projectedResponseFormat)) {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      return { value: responseFormat, inputPaths: annotationInputPaths }
+    }
+    return {
+      value: this.projectResponseFormatObject(responseFormat, projectedResponseFormat),
+      inputPaths: annotationInputPaths,
+    }
+  }
+
+  private projectResponseFormatObject(
+    rawValue: Record<string, unknown>,
+    projectedValue: unknown
+  ): Record<string, unknown> {
+    if (!isPlainRecord(projectedValue)) {
+      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+    }
+    const isWrapper = Object.hasOwn(rawValue, 'schema') || Object.hasOwn(rawValue, 'name')
+    if (!isWrapper) {
+      const schemaProjection = projectModelSchemaAnnotations(rawValue, projectedValue)
+      if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      return schemaProjection.value
+    }
+
+    const rawKeys = Object.keys(rawValue)
+    if (
+      rawKeys.length !== Object.keys(projectedValue).length ||
+      rawKeys.some((key) => !Object.hasOwn(projectedValue, key))
+    ) {
+      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+    }
+    for (const key of rawKeys) {
+      if (key !== 'schema' && !Object.is(rawValue[key], projectedValue[key])) {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+    }
+    const schemaProjection = projectModelSchemaAnnotations(rawValue.schema, projectedValue.schema)
+    if (!schemaProjection.safe) {
+      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+    }
+    return Object.hasOwn(rawValue, 'schema')
+      ? { ...rawValue, schema: schemaProjection.value }
+      : rawValue
+  }
+
+  private getFileInputPaths(
+    inputs: AgentInputs,
+    field: 'base64' | 'name'
+  ): ResolvedSecretInputPath[] {
+    const paths = selectModelBoundFileInputPaths(inputs.files, ['files'], {
+      includeInlineBase64: true,
+      includeName: true,
+    })
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      paths.push(
+        ...selectModelBoundFileInputPaths(
+          inputs.messages?.[messageIndex]?.files,
+          ['messages', String(messageIndex), 'files'],
+          { includeInlineBase64: true, includeName: true }
+        )
+      )
+    }
+    return paths.filter((path) => path.at(-1) === field)
+  }
+
+  private projectFileNamesForModel(
+    ctx: ExecutionContext,
+    inputs: AgentInputs
+  ): {
+    projectedFiles: unknown
+    projectedNameByFile: WeakMap<object, { name: string; inputPath: ResolvedSecretInputPath }>
+    directNameInputPaths: ResolvedSecretInputPath[]
+    modelBoundInputPaths: ResolvedSecretInputPath[]
+  } {
+    const inputPaths = this.getFileInputPaths(inputs, 'name')
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      this.getFileInputPaths(inputs, 'base64'),
+      'Agent inline file content cannot contain secret references'
+    )
+    const projection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { files: inputs.files, messages: inputs.messages },
+      inputPaths
+    )
+    if (!projection.complete) {
+      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+    }
+
+    let projectedFiles = projection.value.files
+    let directNameInputPaths: ResolvedSecretInputPath[] = Array.isArray(inputs.files)
+      ? inputs.files.map((_, index) => ['files', String(index), 'name'])
+      : isPlainRecord(inputs.files)
+        ? [['files', 'name']]
+        : []
+
+    if (typeof inputs.files === 'string' && ctx.resolvedSecretTraceRegistry) {
+      const serializedProjection = ctx.resolvedSecretTraceRegistry.projectResolvedInputSelection({
+        files: inputs.files,
+      })
+      if (!serializedProjection.complete) {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      const projectedSerializedFiles = serializedProjection.value.files
+      if (!Object.is(inputs.files, projectedSerializedFiles)) {
+        if (typeof projectedSerializedFiles !== 'string') {
+          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        }
+        const rawFiles = normalizeFileInput(inputs.files)
+        const projectedFileRecords = normalizeFileInput(projectedSerializedFiles)
+        if (!rawFiles || !projectedFileRecords || rawFiles.length !== projectedFileRecords.length) {
+          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        }
+
+        projectedFiles = rawFiles.map((rawFile, index) => {
+          const projectedFile = projectedFileRecords[index]
+          if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) {
+            throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          }
+          if (!Object.is(rawFile.base64, projectedFile.base64)) {
+            throw new AgentToolInputSafetyError(
+              'Agent inline file content cannot contain secret references'
+            )
+          }
+          if (rawFile.name === undefined) return rawFile
+          if (typeof projectedFile.name !== 'string') {
+            throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          }
+          return { ...rawFile, name: projectedFile.name }
+        })
+        directNameInputPaths = rawFiles.map(() => ['files'])
+      }
+    }
+
+    const projectedNameByFile = new WeakMap<
+      object,
+      { name: string; inputPath: ResolvedSecretInputPath }
+    >()
+    const projectedMessages = Array.isArray(projection.value.messages)
+      ? projection.value.messages
+      : []
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      const rawFiles = inputs.messages?.[messageIndex]?.files
+      const projectedMessage = projectedMessages[messageIndex]
+      const projectedFiles = isPlainRecord(projectedMessage) ? projectedMessage.files : undefined
+      if (!Array.isArray(rawFiles) || !Array.isArray(projectedFiles)) continue
+      if (rawFiles.length !== projectedFiles.length) {
+        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      }
+      for (let fileIndex = 0; fileIndex < rawFiles.length; fileIndex++) {
+        const rawFile = rawFiles[fileIndex]
+        const projectedFile = projectedFiles[fileIndex]
+        if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) continue
+        if (rawFile.name === undefined) continue
+        if (typeof projectedFile.name !== 'string') {
+          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        }
+        if (Object.is(rawFile.name, projectedFile.name)) continue
+        projectedNameByFile.set(rawFile, {
+          name: projectedFile.name,
+          inputPath: ['messages', String(messageIndex), 'files', String(fileIndex), 'name'],
+        })
+      }
+    }
+
+    return {
+      projectedFiles,
+      projectedNameByFile,
+      directNameInputPaths,
+      modelBoundInputPaths: [],
+    }
+  }
+
+  private getMessageStructuralInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
+    const paths: ResolvedSecretInputPath[] = []
+    for (let messageIndex = 0; messageIndex < (inputs.messages?.length ?? 0); messageIndex++) {
+      const message = inputs.messages?.[messageIndex]
+      if (!isPlainRecord(message)) continue
+      const messageRoot = ['messages', String(messageIndex)] as const
+      paths.push([...messageRoot, 'role'])
+      if (message.name !== undefined) paths.push([...messageRoot, 'name'])
+      if (message.tool_call_id !== undefined) paths.push([...messageRoot, 'tool_call_id'])
+
+      if (isPlainRecord(message.function_call) && message.function_call.name !== undefined) {
+        paths.push([...messageRoot, 'function_call', 'name'])
+      }
+      if (!Array.isArray(message.tool_calls)) continue
+      for (let toolIndex = 0; toolIndex < message.tool_calls.length; toolIndex++) {
+        const toolCall = message.tool_calls[toolIndex]
+        if (!isPlainRecord(toolCall)) continue
+        const toolRoot = [...messageRoot, 'tool_calls', String(toolIndex)]
+        if (toolCall.id !== undefined) paths.push([...toolRoot, 'id'])
+        if (toolCall.type !== undefined) paths.push([...toolRoot, 'type'])
+        if (!isPlainRecord(toolCall.function)) continue
+        if (toolCall.function.name !== undefined) {
+          paths.push([...toolRoot, 'function', 'name'])
+        }
+      }
+    }
+    return paths
+  }
+
+  private getModelInputPaths(inputs: AgentInputs): ResolvedSecretInputPath[] {
+    const paths: ResolvedSecretInputPath[] = [['systemPrompt'], ['userPrompt']]
+    for (let index = 0; index < (inputs.messages?.length ?? 0); index++) {
+      const message = inputs.messages?.[index]
+      const messageRoot = ['messages', String(index)] as const
+      paths.push([...messageRoot, 'content'])
+      if (isPlainRecord(message?.function_call) && message.function_call.arguments !== undefined) {
+        paths.push([...messageRoot, 'function_call', 'arguments'])
+      }
+      if (!Array.isArray(message?.tool_calls)) continue
+      for (let toolIndex = 0; toolIndex < message.tool_calls.length; toolIndex++) {
+        const toolCall = message.tool_calls[toolIndex]
+        if (!isPlainRecord(toolCall) || !isPlainRecord(toolCall.function)) continue
+        if (toolCall.function.arguments !== undefined) {
+          paths.push([...messageRoot, 'tool_calls', String(toolIndex), 'function', 'arguments'])
+        }
+      }
+    }
+
+    const memories = inputs.memories
+    const memoryArray = Array.isArray(memories)
+      ? memories
+      : Array.isArray(memories?.memories)
+        ? memories.memories
+        : []
+    const memoryRoot = Array.isArray(memories) ? ['memories'] : ['memories', 'memories']
+    for (let memoryIndex = 0; memoryIndex < memoryArray.length; memoryIndex++) {
+      const memory = memoryArray[memoryIndex]
+      if (Array.isArray(memory?.data)) {
+        for (let messageIndex = 0; messageIndex < memory.data.length; messageIndex++) {
+          paths.push([...memoryRoot, String(memoryIndex), 'data', String(messageIndex), 'content'])
+        }
+      } else {
+        paths.push([...memoryRoot, String(memoryIndex), 'content'])
+      }
+    }
+    return paths
   }
 
   private buildProviderRequest(config: {
@@ -945,6 +2106,7 @@ export class AgentBlockHandler implements BlockHandler {
       workflowId: ctx.workflowId,
       workspaceId: ctx.workspaceId,
       userId: ctx.userId,
+      executionId: ctx.executionId,
       stream: streaming,
       messages: messages?.map(({ executionId, ...msg }) => msg),
       environmentVariables: normalizeStringRecord(ctx.environmentVariables),
@@ -981,7 +2143,8 @@ export class AgentBlockHandler implements BlockHandler {
     ctx: ExecutionContext,
     providerRequest: any,
     block: SerializedBlock,
-    responseFormat: any
+    responseFormat: any,
+    modelRuntimeRegistry: ResolvedSecretTraceRegistry | undefined
   ): Promise<BlockOutput | StreamingExecution> {
     const providerId = providerRequest.provider
     const model = providerRequest.model
@@ -991,55 +2154,67 @@ export class AgentBlockHandler implements BlockHandler {
       let finalApiKey: string | undefined = providerRequest.apiKey
 
       if (providerId === 'vertex' && providerRequest.vertexCredential) {
-        finalApiKey = await resolveVertexCredential(
-          providerRequest.vertexCredential,
-          ctx.userId,
-          'vertex-agent'
-        )
+        finalApiKey = await resolveVertexCredential({
+          credentialId: providerRequest.vertexCredential,
+          actingUserId: ctx.userId,
+          workspaceId: ctx.workspaceId,
+          callerLabel: 'vertex-agent',
+        })
       }
 
       const { blockData, blockNameMapping } = collectBlockData(ctx)
 
-      const response = await executeProviderRequest(providerId, {
-        model,
-        systemPrompt: 'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
-        context: 'context' in providerRequest ? providerRequest.context : undefined,
-        tools: providerRequest.tools,
-        temperature: providerRequest.temperature,
-        maxTokens: providerRequest.maxTokens,
-        apiKey: finalApiKey,
-        azureEndpoint: providerRequest.azureEndpoint,
-        azureApiVersion: providerRequest.azureApiVersion,
-        vertexProject: providerRequest.vertexProject,
-        vertexLocation: providerRequest.vertexLocation,
-        bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
-        bedrockSecretKey: providerRequest.bedrockSecretKey,
-        bedrockRegion: providerRequest.bedrockRegion,
-        responseFormat: providerRequest.responseFormat,
-        workflowId: providerRequest.workflowId,
-        workspaceId: ctx.workspaceId,
-        userId: ctx.userId,
-        stream: providerRequest.stream,
-        messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
-        environmentVariables: normalizeStringRecord(ctx.environmentVariables),
-        workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-        blockData,
-        blockNameMapping,
-        isDeployedContext: ctx.isDeployedContext,
-        callChain: ctx.callChain,
-        billingAttribution: ctx.metadata.billingAttribution,
-        reasoningEffort: providerRequest.reasoningEffort,
-        verbosity: providerRequest.verbosity,
-        thinkingLevel: providerRequest.thinkingLevel,
-        promptCaching: providerRequest.promptCaching,
-        // Stable per-block identity; providers use it to route cache lookups.
-        blockId: block.id,
-        previousInteractionId: providerRequest.previousInteractionId,
-        agentEvents: providerRequest.agentEvents,
-        abortSignal: ctx.abortSignal,
-      })
+      const response = await executeProviderRequest(
+        providerId,
+        {
+          model,
+          systemPrompt:
+            'systemPrompt' in providerRequest ? providerRequest.systemPrompt : undefined,
+          context: 'context' in providerRequest ? providerRequest.context : undefined,
+          tools: providerRequest.tools,
+          temperature: providerRequest.temperature,
+          maxTokens: providerRequest.maxTokens,
+          apiKey: finalApiKey,
+          azureEndpoint: providerRequest.azureEndpoint,
+          azureApiVersion: providerRequest.azureApiVersion,
+          vertexProject: providerRequest.vertexProject,
+          vertexLocation: providerRequest.vertexLocation,
+          bedrockAccessKeyId: providerRequest.bedrockAccessKeyId,
+          bedrockSecretKey: providerRequest.bedrockSecretKey,
+          bedrockRegion: providerRequest.bedrockRegion,
+          responseFormat: providerRequest.responseFormat,
+          workflowId: providerRequest.workflowId,
+          workspaceId: ctx.workspaceId,
+          userId: ctx.userId,
+          stream: providerRequest.stream,
+          messages: 'messages' in providerRequest ? providerRequest.messages : undefined,
+          environmentVariables: normalizeStringRecord(ctx.environmentVariables),
+          workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
+          blockData,
+          blockNameMapping,
+          isDeployedContext: ctx.isDeployedContext,
+          callChain: ctx.callChain,
+          billingAttribution: ctx.metadata.billingAttribution,
+          // Reaches tool `_context` via `prepareToolExecution`, so a tool that starts
+          // its own child execution (a custom block) correlates and cancels against
+          // this real run instead of minting a phantom id.
+          executionId: ctx.executionId,
+          reasoningEffort: providerRequest.reasoningEffort,
+          verbosity: providerRequest.verbosity,
+          thinkingLevel: providerRequest.thinkingLevel,
+          promptCaching: providerRequest.promptCaching,
+          // Stable per-block identity; providers use it to route cache lookups.
+          blockId: block.id,
+          previousInteractionId: providerRequest.previousInteractionId,
+          agentEvents: providerRequest.agentEvents,
+          abortSignal: ctx.abortSignal,
+        },
+        {
+          resolvedSecretTraceRegistry: modelRuntimeRegistry,
+        }
+      )
 
-      return this.processProviderResponse(response, block, responseFormat)
+      return this.processProviderResponse(response, block, responseFormat, ctx)
     } catch (error) {
       this.handleExecutionError(error, providerStartTime, providerId, model, ctx, block)
       throw error
@@ -1056,28 +2231,38 @@ export class AgentBlockHandler implements BlockHandler {
   ) {
     const executionTime = Date.now() - startTime
 
-    logger.error('Error executing provider request:', {
-      error,
-      executionTime,
-      provider,
-      model,
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-    })
+    logger.error(
+      'Error executing provider request',
+      projectAgentDiagnosticMetadata(
+        ctx,
+        {
+          executionTime,
+          provider,
+          model,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticMetadata(error),
+        },
+        {
+          executionTime,
+          workflowId: ctx.workflowId,
+          blockId: block.id,
+          ...getErrorDiagnosticFallback(error),
+        }
+      )
+    )
 
     if (!(error instanceof Error)) return
 
-    logger.error('Provider request error details', {
-      workflowId: ctx.workflowId,
-      blockId: block.id,
-      errorName: error.name,
-      errorMessage: error.message,
-      errorStack: error.stack,
-      timestamp: new Date().toISOString(),
-    })
-
-    if (error.name === 'AbortError') {
-      throw new Error('Provider request timed out - the API took too long to respond')
+    /**
+     * The original message is appended rather than replaced: providers annotate it with
+     * the request phase they died in, which is the only thing separating a request that
+     * was never answered from one whose body stalled.
+     */
+    if (isTransportTimeout(error)) {
+      throw new Error(
+        `Provider request timed out - the API took too long to respond (${error.message})`
+      )
     }
     if (error.name === 'TypeError' && error.message.includes('fetch')) {
       throw new Error(
@@ -1101,7 +2286,14 @@ export class AgentBlockHandler implements BlockHandler {
         try {
           await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
         } catch (error) {
-          logger.error('Failed to persist streaming response:', error)
+          logger.error(
+            'Failed to persist streaming response',
+            projectAgentDiagnosticMetadata(
+              ctx,
+              getErrorDiagnosticMetadata(error),
+              getErrorDiagnosticFallback(error)
+            )
+          )
         }
       },
     }
@@ -1121,17 +2313,24 @@ export class AgentBlockHandler implements BlockHandler {
       await memoryService.appendToMemory(ctx, inputs, { role: 'assistant', content })
       logger.debug('Persisted assistant response to memory', {
         workflowId: ctx.workflowId,
-        conversationId: inputs.conversationId,
       })
     } catch (error) {
-      logger.error('Failed to persist response to memory:', error)
+      logger.error(
+        'Failed to persist response to memory',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          getErrorDiagnosticMetadata(error),
+          getErrorDiagnosticFallback(error)
+        )
+      )
     }
   }
 
   private processProviderResponse(
     response: any,
     block: SerializedBlock,
-    responseFormat: any
+    responseFormat: any,
+    ctx: ExecutionContext
   ): BlockOutput | StreamingExecution {
     if (this.isStreamingExecution(response)) {
       return this.processStreamingExecution(response, block)
@@ -1141,7 +2340,7 @@ export class AgentBlockHandler implements BlockHandler {
       return this.createMinimalStreamingExecution(response)
     }
 
-    return this.processRegularResponse(response, responseFormat)
+    return this.processRegularResponse(response, responseFormat, ctx)
   }
 
   private isStreamingExecution(response: any): boolean {
@@ -1182,15 +2381,23 @@ export class AgentBlockHandler implements BlockHandler {
     }
   }
 
-  private processRegularResponse(result: any, responseFormat: any): BlockOutput {
+  private processRegularResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     if (responseFormat) {
-      return this.processStructuredResponse(result, responseFormat)
+      return this.processStructuredResponse(result, responseFormat, ctx)
     }
 
     return this.processStandardResponse(result)
   }
 
-  private processStructuredResponse(result: any, responseFormat: any): BlockOutput {
+  private processStructuredResponse(
+    result: any,
+    responseFormat: any,
+    ctx: ExecutionContext
+  ): BlockOutput {
     const content = result.content
 
     try {
@@ -1200,10 +2407,20 @@ export class AgentBlockHandler implements BlockHandler {
         ...this.createResponseMetadata(result),
       }
     } catch (error) {
-      logger.error('LLM did not adhere to structured response format:', {
-        content: truncate(content, 200),
-        responseFormat: responseFormat,
-      })
+      logger.error(
+        'LLM did not adhere to structured response format',
+        projectAgentDiagnosticMetadata(
+          ctx,
+          {
+            content: truncate(content, 200),
+            responseFormat,
+          },
+          {
+            contentLength: typeof content === 'string' ? content.length : undefined,
+            hasResponseFormat: responseFormat !== undefined && responseFormat !== null,
+          }
+        )
+      )
 
       const standardResponse = this.processStandardResponse(result)
       return Object.assign(standardResponse, {

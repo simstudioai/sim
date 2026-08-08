@@ -60,9 +60,11 @@ import { DSPyBlock, DSPyBlockMeta } from '@/blocks/blocks/dspy'
 import { DubBlock, DubBlockMeta } from '@/blocks/blocks/dub'
 import { DuckDuckGoBlock, DuckDuckGoBlockMeta } from '@/blocks/blocks/duckduckgo'
 import { DynamoDBBlock, DynamoDBBlockMeta } from '@/blocks/blocks/dynamodb'
+import { DynatraceBlock, DynatraceBlockMeta } from '@/blocks/blocks/dynatrace'
 import { ElasticsearchBlock, ElasticsearchBlockMeta } from '@/blocks/blocks/elasticsearch'
 import { ElevenLabsBlock, ElevenLabsBlockMeta } from '@/blocks/blocks/elevenlabs'
 import { EmailBisonBlock, EmailBisonBlockMeta } from '@/blocks/blocks/emailbison'
+import { EmbeddingsBlock, EmbeddingsBlockMeta } from '@/blocks/blocks/embeddings'
 import { EnrichBlock, EnrichBlockMeta } from '@/blocks/blocks/enrich'
 import { EnrichmentBlock, EnrichmentBlockMeta } from '@/blocks/blocks/enrichment'
 import { EnrowBlock, EnrowBlockMeta } from '@/blocks/blocks/enrow'
@@ -178,6 +180,7 @@ import { LinearBlock, LinearBlockMeta, LinearV2Block } from '@/blocks/blocks/lin
 import { LinkedInBlock, LinkedInBlockMeta } from '@/blocks/blocks/linkedin'
 import { LinkupBlock, LinkupBlockMeta } from '@/blocks/blocks/linkup'
 import { LinqBlock, LinqBlockMeta } from '@/blocks/blocks/linq'
+import { LogfireBlock, LogfireBlockMeta } from '@/blocks/blocks/logfire'
 import { LogsBlock, LogsV2Block } from '@/blocks/blocks/logs'
 import { LoopsBlock, LoopsBlockMeta } from '@/blocks/blocks/loops'
 import { LumaBlock, LumaBlockMeta } from '@/blocks/blocks/luma'
@@ -279,6 +282,7 @@ import { SimWorkspaceEventBlock } from '@/blocks/blocks/sim_workspace_event'
 import { SimilarwebBlock, SimilarwebBlockMeta } from '@/blocks/blocks/similarweb'
 import { SixtyfourBlock, SixtyfourBlockMeta } from '@/blocks/blocks/sixtyfour'
 import { SlackBlock, SlackBlockMeta, SlackV2Block } from '@/blocks/blocks/slack'
+import { SmartleadBlock, SmartleadBlockMeta } from '@/blocks/blocks/smartlead'
 import { SmtpBlock, SmtpBlockMeta } from '@/blocks/blocks/smtp'
 import { SportmonksBlock, SportmonksBlockMeta } from '@/blocks/blocks/sportmonks'
 import { SpotifyBlock, SpotifyBlockMeta } from '@/blocks/blocks/spotify'
@@ -293,6 +297,7 @@ import { STSBlock, STSBlockMeta } from '@/blocks/blocks/sts'
 import { SttBlock, SttV2Block } from '@/blocks/blocks/stt'
 import { SupabaseBlock, SupabaseBlockMeta } from '@/blocks/blocks/supabase'
 import { TableBlock } from '@/blocks/blocks/table'
+import { TableV2Block } from '@/blocks/blocks/table_v2'
 import { TailscaleBlock, TailscaleBlockMeta } from '@/blocks/blocks/tailscale'
 import { TavilyBlock, TavilyBlockMeta } from '@/blocks/blocks/tavily'
 import { TelegramBlock, TelegramBlockMeta } from '@/blocks/blocks/telegram'
@@ -336,6 +341,7 @@ import { YouTubeBlock, YouTubeBlockMeta } from '@/blocks/blocks/youtube'
 import { ZendeskBlock, ZendeskBlockMeta } from '@/blocks/blocks/zendesk'
 import { ZepBlock, ZepBlockMeta } from '@/blocks/blocks/zep'
 import { ZeroBounceBlock, ZeroBounceBlockMeta } from '@/blocks/blocks/zerobounce'
+import { ZohoDeskBlock, ZohoDeskBlockMeta } from '@/blocks/blocks/zoho-desk'
 import { ZoomBlock, ZoomBlockMeta } from '@/blocks/blocks/zoom'
 import { ZoomInfoBlock, ZoomInfoBlockMeta } from '@/blocks/blocks/zoominfo'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
@@ -406,9 +412,11 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   dub: DubBlock,
   duckduckgo: DuckDuckGoBlock,
   dynamodb: DynamoDBBlock,
+  dynatrace: DynatraceBlock,
   elasticsearch: ElasticsearchBlock,
   elevenlabs: ElevenLabsBlock,
   emailbison: EmailBisonBlock,
+  embeddings: EmbeddingsBlock,
   enrich: EnrichBlock,
   enrichment: EnrichmentBlock,
   enrow: EnrowBlock,
@@ -505,6 +513,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   linkedin: LinkedInBlock,
   linkup: LinkupBlock,
   linq: LinqBlock,
+  logfire: LogfireBlock,
   logs: LogsBlock,
   logs_v2: LogsV2Block,
   loops: LoopsBlock,
@@ -596,6 +605,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   sixtyfour: SixtyfourBlock,
   slack: SlackBlock,
   slack_v2: SlackV2Block,
+  smartlead: SmartleadBlock,
   smtp: SmtpBlock,
   sportmonks: SportmonksBlock,
   spotify: SpotifyBlock,
@@ -611,6 +621,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   stt_v2: SttV2Block,
   supabase: SupabaseBlock,
   table: TableBlock,
+  table_v2: TableV2Block,
   tailscale: TailscaleBlock,
   tavily: TavilyBlock,
   telegram: TelegramBlock,
@@ -653,6 +664,7 @@ export const BLOCK_REGISTRY: Record<string, BlockConfig> = {
   youtube: YouTubeBlock,
   zendesk: ZendeskBlock,
   zep: ZepBlock,
+  zoho_desk: ZohoDeskBlock,
   zoom: ZoomBlock,
   zoominfo: ZoomInfoBlock,
 }
@@ -725,9 +737,11 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   dub: DubBlockMeta,
   duckduckgo: DuckDuckGoBlockMeta,
   dynamodb: DynamoDBBlockMeta,
+  dynatrace: DynatraceBlockMeta,
   elasticsearch: ElasticsearchBlockMeta,
   elevenlabs: ElevenLabsBlockMeta,
   emailbison: EmailBisonBlockMeta,
+  embeddings: EmbeddingsBlockMeta,
   enrich: EnrichBlockMeta,
   enrichment: EnrichmentBlockMeta,
   enrow: EnrowBlockMeta,
@@ -805,6 +819,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   linkedin: LinkedInBlockMeta,
   linkup: LinkupBlockMeta,
   linq: LinqBlockMeta,
+  logfire: LogfireBlockMeta,
   loops: LoopsBlockMeta,
   luma: LumaBlockMeta,
   mailchimp: MailchimpBlockMeta,
@@ -878,6 +893,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   similarweb: SimilarwebBlockMeta,
   sixtyfour: SixtyfourBlockMeta,
   slack: SlackBlockMeta,
+  smartlead: SmartleadBlockMeta,
   smtp: SmtpBlockMeta,
   sportmonks: SportmonksBlockMeta,
   spotify: SpotifyBlockMeta,
@@ -917,6 +933,7 @@ export const BLOCK_META_REGISTRY: Record<string, BlockMeta> = {
   zendesk: ZendeskBlockMeta,
   zep: ZepBlockMeta,
   zerobounce: ZeroBounceBlockMeta,
+  zoho_desk: ZohoDeskBlockMeta,
   zoom: ZoomBlockMeta,
   zoominfo: ZoomInfoBlockMeta,
 }

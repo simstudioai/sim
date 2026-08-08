@@ -251,6 +251,41 @@ function updateValueReferences(value: unknown, nameMap: Map<string, string>): un
   return value
 }
 
+/**
+ * Clears a cloned block's `triggerPath` so it derives a fresh webhook URL from its own block id.
+ *
+ * Before a deploy this field is empty and the URL is DERIVED — `useWebhookManagement` and the canvas
+ * both fall back to the block id, which cloning already regenerates. Deploy then registers the
+ * webhook at `triggerPath || block.id` and writes that literal path back into the source block, so
+ * from then on the URL is STORED and a clone would copy it verbatim and render the source's URL.
+ *
+ * Clears BOTH the sub-block structure and the sub-block value map. Both are required:
+ * `mergeSubblockStateWithValues` treats the value map as authoritative — a `null` there overrides the
+ * structure — but only materializes an entry for a structure-less key when the value is non-null. So
+ * nulling the map covers the common shape (no trigger declares `triggerPath` as a subblock, so it
+ * normally lives only in the store) and clearing the structure covers blocks hydrated from a merge.
+ *
+ * Deliberately unconditional and limited to `triggerPath`. No block declares `triggerPath` as a
+ * subblock, so there is nothing to collide with and no need to classify the block first. The sibling
+ * `TRIGGER_RUNTIME_SUBBLOCK_IDS` entries are all left alone on purpose: `triggerConfig`/`triggerId`
+ * are user configuration a clone should keep, and `webhookId` is a user-entered action field on the
+ * Attio, Vercel, and Discord blocks while being unused as trigger state (deploy mints its own row id
+ * and matches existing rows by block id, and `useWebhookManagement` overwrites the field from the
+ * server), so clearing it would destroy real config for no benefit.
+ *
+ * Mutates both arguments in place; both must be clone-owned copies. `subBlockValues` is optional so
+ * a caller with no value-map entry passes `undefined` rather than a throwaway object literal whose
+ * writes would be silently discarded.
+ */
+export function clearClonedWebhookPath(
+  subBlocks: Record<string, SubBlockState>,
+  subBlockValues: Record<string, unknown> | undefined
+): void {
+  const subBlock = subBlocks.triggerPath
+  if (subBlock) subBlocks.triggerPath = { ...subBlock, value: null }
+  if (subBlockValues && 'triggerPath' in subBlockValues) subBlockValues.triggerPath = null
+}
+
 function updateBlockReferences(
   blocks: Record<string, BlockState>,
   nameMap: Map<string, string>,
@@ -563,6 +598,10 @@ export function regenerateBlockIds(
     Object.keys(blockValues).forEach((subBlockId) => {
       blockValues[subBlockId] = updateValueReferences(blockValues[subBlockId], nameMap)
     })
+  })
+
+  Object.entries(newBlocks).forEach(([blockId, block]) => {
+    clearClonedWebhookPath(block.subBlocks, newSubBlockValues[blockId])
   })
 
   return {

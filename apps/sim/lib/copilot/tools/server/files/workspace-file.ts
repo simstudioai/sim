@@ -19,6 +19,7 @@ import {
   uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
@@ -187,9 +188,9 @@ export type CompileForWriteResult =
  * Shared write-time doc handling for create + edit_content: validates and builds
  * the document (E2B doc sandbox when enabled — Node pptx/docx, Python pdf/xlsx —
  * else isolated-vm JS) and returns the source MIME to store, or a user-facing
- * failure message. Non-doc files resolve to `fallbackMime`. Compilation happens
- * here exactly once per write; the artifact is content-addressed so a read can
- * later just load it.
+ * failure message. Non-doc files resolve to `fallbackMime`. The remote backend publishes a
+ * content-addressed artifact; the isolated-VM backend compiles through its live file broker and
+ * retains its historical compile-and-return behavior.
  */
 export async function compileDocForWrite(args: {
   source: string
@@ -212,10 +213,8 @@ export async function compileDocForWrite(args: {
   }
 
   if (e2bFmt) {
-    // compileDoc is load-or-build, so an identical re-write reuses the cached
-    // binary instead of re-running E2B.
     try {
-      await compileDoc({ source, fileName, workspaceId })
+      await compileDoc({ source, fileName, workspaceId, ownerKey, signal })
     } catch (err) {
       if (err instanceof DocCompileUserError) {
         return {
@@ -361,7 +360,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
             fileBuffer,
             fileName,
             contentType,
-            { folderId }
+            { folderId, secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
           )
           logger.info('Workspace file created via copilot', {
             fileId: result.id,

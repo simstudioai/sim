@@ -20,7 +20,7 @@
 'use client'
 
 import * as React from 'react'
-import { Check } from 'lucide-react'
+import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
 
 export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
@@ -71,7 +71,7 @@ InfoCardList.displayName = 'InfoCardList'
 
 export interface InfoCardItemProps extends React.LiHTMLAttributes<HTMLLIElement> {
   /**
-   * Leading glyph. Defaults to lucide `Check`. Pass `null` to omit.
+   * Leading glyph. Defaults to `Check`. Pass `null` to omit.
    */
   icon?: React.ComponentType<{ className?: string }> | null
 }

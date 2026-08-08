@@ -2,6 +2,8 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { validateSelectorIds } from '@/lib/copilot/validation/selector-validator'
+import { isHosted as isHostedDeployment } from '@/lib/core/config/env-flags'
+import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import type { PermissionGroupConfig } from '@/lib/permission-groups/types'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
@@ -15,8 +17,10 @@ import {
 import { getBlock } from '@/blocks/registry'
 import type { SubBlockConfig } from '@/blocks/types'
 import { getModelOptions } from '@/blocks/utils'
-import { EDGE, normalizeName } from '@/executor/constants'
-import { isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { overlayVisibility } from '@/blocks/visibility/context'
+import { BlockType, EDGE, normalizeName } from '@/executor/constants'
+import { isAutoModel, isKnownModelId, suggestModelIdsForUnknownModel } from '@/providers/models'
+import { isPiByokOnlyMode } from '@/providers/pi-providers'
 import { getTool } from '@/tools/utils'
 import { TRIGGER_RUNTIME_SUBBLOCK_IDS, TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import type {
@@ -126,6 +130,17 @@ export function validateInputsForBlock(
       continue
     }
 
+    if (subBlockConfig.hideFromCopilot === true) {
+      errors.push({
+        blockId,
+        blockType,
+        field: key,
+        value,
+        error: `Field "${key}" on block type "${blockType}" is server-managed and cannot be set by Copilot`,
+      })
+      continue
+    }
+
     // Note: We do NOT check subBlockConfig.condition here.
     // Conditions are for UI display logic (show/hide fields in the editor).
     // For API/Copilot, any valid field in the block schema should be accepted.
@@ -229,6 +244,37 @@ function validateAgentToolEntry(item: any, index: number): string | null {
     }
     if (!Array.isArray(block.tools?.access) || block.tools.access.length === 0) {
       return `${where} block type "${type}" cannot be attached as an agent tool (it exposes no callable tools)`
+    }
+    if (!isIntegrationDeploymentAvailableForVisibility(type, overlayVisibility())) {
+      return `${where} block type "${type}" is unavailable in this deployment`
+    }
+
+    const operationConfig = block.subBlocks?.find((subBlock) => subBlock.id === 'operation')
+    if (operationConfig?.options) {
+      let validOperations: string[]
+      try {
+        const options =
+          typeof operationConfig.options === 'function'
+            ? operationConfig.options()
+            : operationConfig.options
+        validOperations = options.map((option) => option.id)
+      } catch (error) {
+        return `${where} could not validate operations for block type "${type}": ${toError(error).message}`
+      }
+
+      const operation = item.operation
+      if (
+        validOperations.length > 1 &&
+        (typeof operation !== 'string' || operation.trim() === '')
+      ) {
+        return `${where} block type "${type}" requires an operation. Valid operations: ${validOperations.join(', ')}`
+      }
+      if (
+        operation !== undefined &&
+        (typeof operation !== 'string' || !validOperations.includes(operation))
+      ) {
+        return `${where} block type "${type}" has invalid operation "${String(operation)}". Valid operations: ${validOperations.join(', ')}. Use one of the block operation ids above; it may differ from the underlying tool id.`
+      }
     }
   }
 
@@ -556,6 +602,12 @@ export function validateValueForSubBlockType(
       if (usesProviderCatalog) {
         const stringValue = typeof value === 'string' ? value : String(value)
         const trimmed = stringValue.trim()
+        // sim-auto is a valid model value on hosted Sim only (mirrors the
+        // options array the agent reads: it is absent from self-hosted
+        // snapshots, so writes of it there are rejected as unknown).
+        if (trimmed !== '' && isAutoModel(trimmed) && isHostedDeployment) {
+          return { valid: true, value: trimmed.toLowerCase() }
+        }
         if (trimmed !== '' && !isKnownModelId(trimmed)) {
           const suggestions = suggestModelIdsForUnknownModel(trimmed)
           const suggestionText =
@@ -905,6 +957,7 @@ export function isBlockTypeAllowed(
   blockType: string,
   permissionConfig: PermissionGroupConfig | null
 ): boolean {
+  if (!isIntegrationDeploymentAvailableForVisibility(blockType, overlayVisibility())) return false
   if (isBlockTypeAccessControlExempt(blockType)) {
     return true
   }
@@ -1248,7 +1301,8 @@ export async function collectUnresolvedAgentToolReferences(
  * - Filters out apiKey inputs when isHosted is true and the key is platform-managed: either a
  *   hosted LLM model (model in getHostedModels) or a block whose active tool declares
  *   `hosting` (e.g. Fal-backed video/image generators) - the canonical signal also used by
- *   injectHostedKeyIfNeeded at execution
+ *   injectHostedKeyIfNeeded at execution. The Pi Coding Agent block in Create PR mode is
+ *   exempt from the hosted-model rule because it always runs on the user's own key
  * - Also validates credentials and apiKeys in nestedNodes (blocks inside loop/parallel)
  * Returns validation errors for any removed inputs.
  */
@@ -1316,17 +1370,24 @@ export async function preValidateCredentialInputs(
   }
 
   /**
-   * Check if apiKey should be filtered for a block with the given model
+   * Check if apiKey should be filtered for a block with the given model.
+   *
+   * The Pi Coding Agent in Create PR mode is exempt: it hands the model key to
+   * a sandbox, so Sim never covers it with a hosted key and the block needs the
+   * user's own key even for hosted models. Its other modes keep the model
+   * client in Sim and follow the normal rule.
    */
   function collectHostedApiKeyInput(
     inputs: Record<string, unknown>,
-    modelValue: string | undefined,
+    toolParams: Record<string, unknown>,
     opIndex: number,
     blockId: string,
     blockType: string,
     nestedBlockId?: string
   ) {
     if (!hostedModelsLower || !inputs.apiKey) return
+    if (blockType === BlockType.PI && isPiByokOnlyMode(toolParams.mode)) return
+    const modelValue = toolParams.model
     if (!modelValue || typeof modelValue !== 'string') return
 
     if (hostedModelsLower.has(modelValue.toLowerCase())) {
@@ -1525,10 +1586,9 @@ export async function preValidateCredentialInputs(
       // Hosted collectors no-op off hosted Sim, so only resolve the effective state when it matters.
       if (isHosted) {
         const toolParams = finalValues.get(stateKey) ?? inputs
-        const modelValue = toolParams.model as string | undefined
         collectHostedApiKeyInput(
           inputs,
-          modelValue,
+          toolParams,
           opIndex,
           reportBlockId,
           blockType,

@@ -233,12 +233,24 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
 
       const fileBuffer = Buffer.from(finalContent, 'utf-8')
       assertServerToolNotAborted(context)
+      // `updateWorkspaceFileContent` also streams this edit into any open collaborative editor as a live
+      // CRDT merge (gated to markdown, best-effort) — the shared chokepoint every external write path
+      // goes through — so a copilot edit shows up live instead of the file changing under the reader.
       await updateWorkspaceFileContent(
         workspaceId,
         intent.fileId,
         context.userId,
         fileBuffer,
-        compiled.sourceMime
+        compiled.sourceMime,
+        {
+          secretProvenancePolicy:
+            operation === 'update'
+              ? {
+                  mode: 'replace',
+                  provenance: { status: 'exact', entries: [] },
+                }
+              : { mode: 'preserve' },
+        }
       )
 
       const verb =

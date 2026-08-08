@@ -1,13 +1,17 @@
 import { z } from 'zod'
 import {
+  privateSecretProvenanceBundleSchema,
   requiredFieldSchema,
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 
 const subBlockValuesSchema = z.record(z.string(), z.record(z.string(), z.unknown()))
 export const WORKFLOW_EXECUTION_ID_HEADER = 'X-Execution-Id'
+export const WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER = 'X-Execution-Timeout-Seconds'
 
 export const executionIdSchema = z
   .string()
@@ -340,9 +344,19 @@ export const executeWorkflowTriggerTypeSchema = z.enum([
 
 export const executeWorkflowHeadersSchema = z.object({
   [WORKFLOW_EXECUTION_ID_HEADER]: executionIdSchema.optional(),
+  [WORKFLOW_EXECUTION_TIMEOUT_SECONDS_HEADER]: z.coerce
+    .number()
+    .int('Execution timeout must be a whole number of seconds')
+    .positive('Execution timeout must be positive')
+    .max(
+      MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS,
+      `Execution timeout cannot exceed ${MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS} seconds`
+    )
+    .optional(),
 })
 
 export const executeWorkflowBodySchema = z.object({
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
   selectedOutputs: z.array(z.string()).optional().default([]),
   triggerType: executeWorkflowTriggerTypeSchema.optional(),
   stream: z.boolean().optional(),
@@ -360,6 +374,8 @@ export const executeWorkflowBodySchema = z.object({
   includeToolCalls: z.boolean().optional().default(false),
   useDraftState: z.boolean().optional(),
   input: z.any().optional(),
+  /** Trusted server-side reuse of a prior execution's raw workflow input. */
+  inputFromExecutionId: executionIdSchema.optional(),
   isClientSession: z.boolean().optional(),
   includeFileBase64: z.boolean().optional().default(true),
   base64MaxBytes: z.number().int().positive().optional(),
@@ -367,6 +383,7 @@ export const executeWorkflowBodySchema = z.object({
   /** Internal MCP bridge pin for calls admitted before a deployment cutover. */
   deploymentVersionId: z.string().min(1).optional(),
   executionId: z.unknown().optional(),
+  copilotToolCallId: z.string().min(1).max(255).optional(),
   triggerBlockId: z.string().optional(),
   startBlockId: z.string().optional(),
   stopAfterBlockId: z.string().optional(),

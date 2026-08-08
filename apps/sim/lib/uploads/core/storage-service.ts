@@ -2,6 +2,7 @@ import type { Readable } from 'node:stream'
 import { randomBytes } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { generateId } from '@sim/utils/id'
 import { assertKnownSizeWithinLimit } from '@/lib/core/utils/stream-limits'
 import {
   getStorageConfig,
@@ -17,11 +18,14 @@ import type {
   DownloadFileOptions,
   FileInfo,
   GeneratePresignedUrlOptions,
+  MultipartCompletionPolicy,
   PresignedUrlResponse,
   StorageConfig,
   StorageContext,
+  StoredObjectInfo,
   UploadFileOptions,
 } from '@/lib/uploads/shared/types'
+import { PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY } from '@/lib/uploads/shared/types'
 import {
   sanitizeFileKey,
   sanitizeFilenameForMetadata,
@@ -264,7 +268,8 @@ async function createS3Backend(
   key: string,
   config: S3Config,
   contentType: string,
-  purpose: string
+  purpose: string,
+  completionPolicy: MultipartCompletionPolicy
 ): Promise<MultipartBackend> {
   const {
     initiateS3MultipartUpload,
@@ -285,7 +290,10 @@ async function createS3Backend(
     async uploadPart(partNumber, body) {
       parts.push(await uploadS3Part(key, uploadId, partNumber, body, config))
     },
-    finish: () => completeS3MultipartUpload(key, uploadId, parts, config).then(() => undefined),
+    finish: () =>
+      completeS3MultipartUpload(key, uploadId, parts, config, completionPolicy).then(
+        () => undefined
+      ),
     abort: () => abortS3MultipartUpload(key, uploadId, config),
   }
 }
@@ -293,18 +301,25 @@ async function createS3Backend(
 async function createBlobBackend(
   key: string,
   config: BlobConfig,
-  contentType: string
+  contentType: string,
+  completionPolicy: MultipartCompletionPolicy
 ): Promise<MultipartBackend> {
-  const { stageBlobPart, commitBlobBlockList, abortMultipartUpload } = await import(
-    '@/lib/uploads/providers/blob/client'
-  )
+  const { initiateMultipartUpload, stageBlobPart, commitBlobBlockList, abortMultipartUpload } =
+    await import('@/lib/uploads/providers/blob/client')
+  const { uploadId } = await initiateMultipartUpload({
+    fileName: key,
+    contentType,
+    fileSize: 0,
+    customConfig: config,
+    customKey: key,
+  })
   const parts: AzureMultipartPart[] = []
   return {
     async uploadPart(partNumber, body) {
       parts.push(await stageBlobPart(key, partNumber, body, config))
     },
-    finish: () => commitBlobBlockList(key, parts, contentType, config),
-    abort: () => abortMultipartUpload(key, config),
+    finish: () => commitBlobBlockList(key, uploadId, parts, contentType, config, completionPolicy),
+    abort: () => abortMultipartUpload(key, uploadId, config),
   }
 }
 
@@ -312,7 +327,8 @@ async function createGcsBackend(
   key: string,
   config: GcsConfig,
   contentType: string,
-  purpose: string
+  purpose: string,
+  completionPolicy: MultipartCompletionPolicy
 ): Promise<MultipartBackend> {
   const {
     initiateGcsMultipartUpload,
@@ -320,7 +336,7 @@ async function createGcsBackend(
     completeGcsMultipartUpload,
     abortGcsMultipartUpload,
   } = await import('@/lib/uploads/providers/gcs/client')
-  const { uploadId } = await initiateGcsMultipartUpload({
+  const { uploadId, key: uploadKey } = await initiateGcsMultipartUpload({
     fileName: key,
     contentType,
     fileSize: 0,
@@ -331,10 +347,13 @@ async function createGcsBackend(
   const parts: GcsMultipartPart[] = []
   return {
     async uploadPart(partNumber, body) {
-      parts.push(await uploadGcsPart(key, uploadId, partNumber, body, config))
+      parts.push(await uploadGcsPart(uploadKey, uploadId, partNumber, body, config))
     },
-    finish: () => completeGcsMultipartUpload(key, uploadId, parts, config).then(() => undefined),
-    abort: () => abortGcsMultipartUpload(key, uploadId, config),
+    finish: () =>
+      completeGcsMultipartUpload(uploadKey, uploadId, parts, config, completionPolicy).then(
+        () => undefined
+      ),
+    abort: () => abortGcsMultipartUpload(uploadKey, uploadId, config),
   }
 }
 
@@ -347,8 +366,9 @@ export async function createMultipartUpload(options: {
   key: string
   context: StorageContext
   contentType: string
+  completionPolicy: MultipartCompletionPolicy
 }): Promise<MultipartUploadHandle> {
-  const { key, context, contentType } = options
+  const { key, context, contentType, completionPolicy } = options
   const config = getStorageConfig(context)
   const cloud = hasCloudStorage()
 
@@ -369,11 +389,28 @@ export async function createMultipartUpload(options: {
   const ensureBackend = async (): Promise<MultipartBackend> => {
     if (!backend) {
       if (USE_BLOB_STORAGE) {
-        backend = await createBlobBackend(key, createBlobConfig(config), contentType)
+        backend = await createBlobBackend(
+          key,
+          createBlobConfig(config),
+          contentType,
+          completionPolicy
+        )
       } else if (USE_GCS_STORAGE) {
-        backend = await createGcsBackend(key, createGcsConfig(config), contentType, context)
+        backend = await createGcsBackend(
+          key,
+          createGcsConfig(config),
+          contentType,
+          context,
+          completionPolicy
+        )
       } else {
-        backend = await createS3Backend(key, createS3Config(config), contentType, context)
+        backend = await createS3Backend(
+          key,
+          createS3Config(config),
+          contentType,
+          context,
+          completionPolicy
+        )
       }
     }
     return backend
@@ -616,7 +653,7 @@ export async function deleteFiles(
 export async function headObject(
   key: string,
   context: StorageContext
-): Promise<{ size: number; contentType?: string } | null> {
+): Promise<StoredObjectInfo | null> {
   const config = getStorageConfig(context)
 
   if (USE_BLOB_STORAGE) {
@@ -637,6 +674,21 @@ export async function headObject(
   return null
 }
 
+/** Verifies that a create-only direct upload committed the object minted by one presigned URL. */
+export async function verifyPresignedUploadReceipt(options: {
+  key: string
+  context: StorageContext
+  uploadId: string
+}): Promise<boolean> {
+  const object = await headObject(options.key, options.context)
+  if (!object?.metadata) return false
+
+  return Object.entries(object.metadata).some(
+    ([key, value]) =>
+      key.toLowerCase() === PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY && value === options.uploadId
+  )
+}
+
 /**
  * Generate a presigned URL for direct file upload
  */
@@ -654,12 +706,15 @@ export async function generatePresignedUploadUrl(
     customKey,
   } = options
 
+  const uploadId = generateId()
+
   const allMetadata = {
     ...metadata,
     originalName: fileName,
     uploadedAt: new Date().toISOString(),
     purpose: context,
     ...(userId && { userId }),
+    [PRESIGNED_UPLOAD_RECEIPT_METADATA_KEY]: uploadId,
   }
 
   const config = getStorageConfig(context)
@@ -675,7 +730,7 @@ export async function generatePresignedUploadUrl(
   }
 
   if (USE_S3_STORAGE) {
-    return generateS3PresignedUrl(
+    const response = await generateS3PresignedUrl(
       key,
       contentType,
       fileSize,
@@ -683,14 +738,29 @@ export async function generatePresignedUploadUrl(
       config,
       expirationSeconds
     )
+    return { ...response, uploadId }
   }
 
   if (USE_BLOB_STORAGE) {
-    return generateBlobPresignedUrl(key, contentType, allMetadata, config, expirationSeconds)
+    const response = await generateBlobPresignedUrl(
+      key,
+      contentType,
+      allMetadata,
+      config,
+      expirationSeconds
+    )
+    return { ...response, uploadId }
   }
 
   if (USE_GCS_STORAGE) {
-    return generateGcsPresignedUrl(key, contentType, allMetadata, config, expirationSeconds)
+    const response = await generateGcsPresignedUrl(
+      key,
+      contentType,
+      allMetadata,
+      config,
+      expirationSeconds
+    )
+    return { ...response, uploadId }
   }
 
   throw new Error('Cloud storage not configured. Cannot generate presigned URL for local storage.')
@@ -752,6 +822,7 @@ async function generateS3PresignedUrl(
     Key: key,
     ContentType: contentType,
     ContentLength: fileSize,
+    IfNoneMatch: '*',
     Metadata: sanitizedMetadata,
   })
 
@@ -760,6 +831,9 @@ async function generateS3PresignedUrl(
   return {
     url: presignedUrl,
     key,
+    uploadHeaders: {
+      'If-None-Match': '*',
+    },
   }
 }
 
@@ -812,7 +886,7 @@ async function generateBlobPresignedUrl(
     {
       containerName: config.containerName,
       blobName: key,
-      permissions: BlobSASPermissions.parse('w'), // write permission for upload
+      permissions: BlobSASPermissions.parse('c'),
       startsOn,
       expiresOn,
     },
@@ -823,6 +897,7 @@ async function generateBlobPresignedUrl(
     url: `${blobClient.url}?${sasToken}`,
     key,
     uploadHeaders: {
+      'If-None-Match': '*',
       'x-ms-blob-type': 'BlockBlob',
       'x-ms-blob-content-type': contentType,
       ...Object.entries(metadata).reduce(

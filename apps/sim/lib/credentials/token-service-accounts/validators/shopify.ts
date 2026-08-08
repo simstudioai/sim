@@ -18,6 +18,14 @@ import { SHOPIFY_API_VERSION } from '@/tools/shopify/constants'
  */
 const SHOPIFY_HOST_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/
 
+/**
+ * Every selected field must stay scope-free. `hasShopifyAuthError` treats an
+ * auth-shaped GraphQL error as a rejected token, and that is only sound while
+ * this query cannot partially fail: adding a scoped field (anything guarded by
+ * `read_*`) makes Shopify answer a token missing that scope with HTTP 200,
+ * a populated `shop`, AND an `ACCESS_DENIED` error — a working credential that
+ * must not be rejected. Revisit that check before adding any field here.
+ */
 const SHOP_QUERY = '{ shop { name myshopifyDomain } }'
 
 interface ShopifyGraphqlError {
@@ -100,19 +108,29 @@ export async function validateShopifyServiceAccount(
 
   const payload = await parseProviderJson<ShopifyShopResponse>(res, 'shop_query')
 
+  // The auth heuristic only fires when the query returned nothing at all: an
+  // auth-shaped error alongside a populated `shop` is a partial-scope failure,
+  // not a rejected token, and blaming the credential there would be wrong.
   const shop = payload.data?.shop
-  if (hasShopifyAuthError(payload.errors)) {
-    throw new TokenServiceAccountValidationError('invalid_credentials', 401, {
-      step: 'shop_query',
-      domain,
-      reason: 'auth-shaped GraphQL error in 200 response',
-    })
-  }
-  if (payload.errors || !shop) {
+  if (!shop) {
+    if (hasShopifyAuthError(payload.errors)) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 401, {
+        step: 'shop_query',
+        domain,
+        reason: 'auth-shaped GraphQL error in 200 response',
+      })
+    }
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
       step: 'shop_query',
       domain,
       reason: payload.errors ? 'GraphQL errors in response' : 'missing shop in response',
+    })
+  }
+  if (payload.errors) {
+    throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
+      step: 'shop_query',
+      domain,
+      reason: 'GraphQL errors in response',
     })
   }
 
@@ -122,13 +140,17 @@ export async function validateShopifyServiceAccount(
       ? normalizeShopifyDomain(shop.myshopifyDomain)
       : undefined
   const canonicalDomain = apiDomain && SHOPIFY_HOST_REGEX.test(apiDomain) ? apiDomain : domain
-  const storedMetadata: Record<string, string> = { shopDomain: canonicalDomain }
-  if (shopName) storedMetadata.shopName = shopName
 
+  // A custom-app Admin API token belongs to the app, not to a staff member, so
+  // the store is the finest identity it can ever report.
   return {
     displayName: shopName ?? canonicalDomain,
-    auditMetadata: { shopifyShopDomain: canonicalDomain },
-    storedMetadata,
+    principal: {
+      kind: 'tenant',
+      id: canonicalDomain,
+      ...(shopName ? { label: shopName } : {}),
+    },
+    auditMetadata: {},
     normalizedDomain: canonicalDomain,
   }
 }

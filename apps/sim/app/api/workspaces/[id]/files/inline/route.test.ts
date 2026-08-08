@@ -38,15 +38,20 @@ describe('GET /api/workspaces/[id]/files/inline', () => {
     mockDownloadFile.mockResolvedValue(PNG)
   })
 
-  it('serves a workspace-scoped image by fileId', async () => {
+  it('serves a workspace-scoped image by fileId, always revalidating', async () => {
     const res = await GET(req('fileId=wf_abc'), params)
     expect(res.status).toBe(200)
     expect(mockResolveImage).toHaveBeenCalledWith('ws-1', { fileId: 'wf_abc' })
+    // Authenticated content: always revalidate so a deletion/revocation is enforced on the next request.
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
   })
 
-  it('serves a workspace-scoped image by key', async () => {
+  it('serves a workspace-scoped image by key, always revalidating', async () => {
     const res = await GET(req(`key=${encodeURIComponent('workspace/ws-1/x-photo.png')}`), params)
     expect(res.status).toBe(200)
+    // Same policy as fileId: authenticated content never cached past a revalidation, so a deleted or
+    // access-revoked image drops out immediately rather than lingering in a private browser cache.
+    expect(res.headers.get('Cache-Control')).toBe('private, no-cache, must-revalidate')
   })
 
   it('404s when the reference does not resolve in the workspace (cross-workspace)', async () => {

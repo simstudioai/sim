@@ -3,7 +3,7 @@
 import type React from 'react'
 import { useRef, useState } from 'react'
 import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight, ArrowUp } from 'lucide-react'
+import { ArrowLeftRight, ArrowUp } from '@sim/emcn/icons'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 
 /**
@@ -86,7 +86,7 @@ export function ParameterWithLabel({
   return (
     <div key={paramId} className='relative min-w-0 space-y-1.5'>
       <div className='flex items-center justify-between gap-1.5 pl-0.5'>
-        <Label className='flex items-baseline gap-1.5 whitespace-nowrap font-medium text-[var(--text-primary)] text-small'>
+        <Label className='flex items-baseline gap-1.5 whitespace-nowrap text-[var(--text-primary)] text-small'>
           {title}
           {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
         </Label>

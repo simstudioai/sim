@@ -6,6 +6,7 @@ import { Badge, Checkbox, cn, Tooltip } from '@sim/emcn'
 import { parse } from 'tldts'
 import { faviconUrl } from '@/lib/core/utils/favicon'
 import type { RowExecutionMetadata, SelectOption } from '@/lib/table'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { StatusBadge } from '@/app/workspace/[workspaceId]/logs/utils'
 import { storageToDisplay } from '../../../utils'
 import { resolveSelectOptions, SelectPill } from '../../select-field'
@@ -128,6 +129,13 @@ export function resolveCellRender({
     return { kind: 'select', options: resolveSelectOptions(column, value) }
   }
   if (isNull) return { kind: 'empty' }
+  // Formatted here rather than in a render branch because the symbol and
+  // fraction digits come from the COLUMN's currency, which the render switch
+  // (keyed on kind alone) no longer has. Renders as plain text — a currency
+  // cell is a number cell with a symbol, so it stays left-aligned like one.
+  if (column.type === 'currency') {
+    return { kind: 'text', text: columnTypeOf(column).formatForDisplay(value, column) }
+  }
   if (column.type === 'json') return { kind: 'json', text: JSON.stringify(value) }
   if (column.type === 'date') return { kind: 'date', text: String(value) }
   if (column.type === 'string') {

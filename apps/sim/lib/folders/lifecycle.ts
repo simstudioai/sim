@@ -19,6 +19,7 @@ import { folderResourceConfig } from '@/lib/folders/config'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import { wouldCreateFolderCycle } from '@/lib/folders/queries'
 import type { FolderMutationErrorCode } from '@/lib/folders/status'
+import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 import type { OrchestrationErrorCode } from '@/lib/workflows/orchestration/types'
 
 const logger = createLogger('FolderLifecycle')
@@ -128,6 +129,11 @@ export async function nextFolderSortOrder(
     ? eq(folderTable.parentId, parentId)
     : isNull(folderTable.parentId)
 
+  /**
+   * Both minima exclude soft-deleted rows. This returns `min - 1` to put a new folder at the
+   * top, so counting archived rows lets every delete ratchet the floor further negative and
+   * never recover — an archived folder at -400 pins the next new folder at -401 forever.
+   */
   const folderMinPromise = tx
     .select({ minSortOrder: min(folderTable.sortOrder) })
     .from(folderTable)
@@ -135,7 +141,8 @@ export async function nextFolderSortOrder(
       and(
         eq(folderTable.workspaceId, workspaceId),
         eq(folderTable.resourceType, resourceType),
-        folderParentCondition
+        folderParentCondition,
+        isNull(folderTable.deletedAt)
       )
     )
 
@@ -147,6 +154,7 @@ export async function nextFolderSortOrder(
           and(
             eq(config.workspaceColumn, workspaceId),
             parentId ? eq(config.folderIdColumn, parentId) : isNull(config.folderIdColumn),
+            isNull(config.deletedColumn),
             config.scope
           )
         )
@@ -223,6 +231,9 @@ export async function createFolder(params: CreateFolderParams): Promise<FolderMu
       },
     })
 
+    // Live resource list (e.g. tables): a new folder appears in the browser. No-op for resource
+    // types without an invalidation room.
+    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder }
   } catch (error) {
     // The partial unique index on active (workspaceId, resourceType, parent, name) makes a
@@ -306,6 +317,8 @@ export async function updateFolder(params: UpdateFolderParams): Promise<FolderMu
       updates,
     })
 
+    // Live resource list (e.g. tables): a rename/move changes the folder in the browser.
+    await notifyFolderResourceChanged(params.resourceType, params.workspaceId)
     return { success: true, folder }
   } catch (error) {
     if (getPostgresErrorCode(error) === '23505') {
@@ -384,6 +397,8 @@ export async function deleteFolder(params: DeleteFolderParams): Promise<DeleteFo
     },
   })
 
+  // Live resource list (e.g. tables): a delete removes the folder and cascades to its contents.
+  await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, deletedItems: toCascadeCounts(config, counts) }
 }
 
@@ -544,5 +559,7 @@ export async function restoreFolder(params: RestoreFolderParams): Promise<Restor
     },
   })
 
+  // Live resource list (e.g. tables): a restore brings the folder and its contents back.
+  await notifyFolderResourceChanged(resourceType, workspaceId)
   return { success: true, restoredItems: toCascadeCounts(config, counts) }
 }

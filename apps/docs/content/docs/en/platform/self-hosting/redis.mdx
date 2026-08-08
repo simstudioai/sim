@@ -1,0 +1,115 @@
+---
+title: Redis
+description: When Redis is optional, when it is required, and how to configure it
+---
+
+import { Tab, Tabs } from 'fumadocs-ui/components/tabs'
+import { Callout } from 'fumadocs-ui/components/callout'
+import { FAQ } from '@/components/ui/faq'
+
+Sim uses Redis as a message bus and shared cache. Both deployments ship it by default — Docker Compose as a `redis` service, Helm as a `redis` Deployment — so this page is mostly about when to replace the bundled instance with a managed one, and what breaks if Redis is absent entirely.
+
+## What it backs
+
+| Use | Without Redis |
+|---|---|
+| **Pub/sub** — live Chat task status, table events, execution cancellation, MCP tool-change notifications, copilot tool confirmations | Falls back to a **process-local** emitter: events never leave the pod that produced them |
+| **Socket.IO adapter** (realtime) | Collaboration events are not delivered across realtime pods |
+| Idempotency store | Falls back to PostgreSQL |
+| Execution progress markers | Falls back to PostgreSQL |
+| Distributed execution limits | Enforced per-pod instead of per-deployment |
+| CLI auth approval store | **No fallback** — CLI authentication requires Redis regardless of replica count |
+| Collaborative document store (realtime) | Falls back to in-process state |
+
+<Callout type="error">
+  With more than one app or realtime replica and no `REDIS_URL`, users on different pods stop seeing each other's edits and live status updates. Beyond one startup log line noting single-pod mode, nothing is logged — the app looks healthy and quietly loses events. Treat Redis as mandatory the moment `replicaCount` exceeds 1.
+</Callout>
+
+## Configuration
+
+```bash
+REDIS_URL=redis://:password@redis-host:6379
+# or, with TLS
+REDIS_URL=rediss://:password@redis-host:6380
+```
+
+Both the app and the realtime service need it — they use it for different things.
+
+<Tabs items={['Docker Compose', 'Kubernetes (Helm)', 'Managed Redis']}>
+  <Tab value="Docker Compose">
+
+`docker-compose.prod.yml` already includes a `redis:7-alpine` service and wires `REDIS_URL=redis://redis:6379` into both the app and realtime containers. Nothing to configure.
+
+The port is deliberately not published to the host, so a Redis already running locally will not collide. Override `REDIS_URL` in `.env` to point at an external instance instead.
+
+  </Tab>
+  <Tab value="Kubernetes (Helm)">
+
+The chart deploys Redis by default, matching the Compose stack. Nothing to configure.
+
+For production, prefer a managed instance — disable the bundled one and supply a URL:
+
+```yaml
+redis:
+  enabled: false
+
+app:
+  env:
+    REDIS_URL: "rediss://:<password>@my-cache.internal:6380"
+```
+
+`app.env.REDIS_URL` takes over whenever it is set, and the chart skips the bundled Deployment so you do not get a stray pod.
+
+If the URL lives in a secret store instead — a pre-created Secret or one synced by External Secrets — it also wins, and there is nothing extra to configure. The bundled URL is delivered as a ConfigMap listed before the app Secret in `envFrom`, and Kubernetes lets the last source win for duplicate keys, so your value overrides it without the chart ever reading it.
+
+The bundled Redis is deliberately non-persistent (`--save ""`, `--appendonly no`) with a 512 MB cap: Sim stores coordination state and short-lived keys in it, so a restart costs in-flight live updates rather than committed data.
+
+If `networkPolicy.enabled=true`, egress to the bundled Redis is allowed automatically. An **external** Redis needs its own rule under `networkPolicy.egress` — the chart cannot know your host and port at render time.
+
+  </Tab>
+  <Tab value="Managed Redis">
+
+Managed services work and are the recommended production choice:
+
+- **AWS** — ElastiCache for Redis or MemoryDB
+- **GCP** — Memorystore for Redis
+- **Azure** — Azure Cache for Redis
+
+Place the instance in the same VPC/VNet as the cluster and use its private endpoint. Enable TLS (`rediss://`) and auth.
+
+Sizing is modest: Sim uses Redis for coordination, not bulk storage. A 1–2 GB instance covers most deployments. Prefer a replicated/HA tier so a failover does not interrupt live collaboration.
+
+  </Tab>
+</Tabs>
+
+## TLS to an IP address
+
+If `REDIS_URL` uses `rediss://` and the host is a **bare IP** — common with AWS PrivateLink endpoints — TLS hostname verification cannot match an IP against the certificate. Sim throws rather than connecting insecurely, the first time it opens a Redis connection. Set the SNI override to the DNS name the certificate was issued for:
+
+```bash
+REDIS_URL=rediss://:password@10.0.12.34:6379
+REDIS_TLS_SERVERNAME=my-cluster.abc123.ng.0001.use1.cache.amazonaws.com
+```
+
+With a DNS hostname in `REDIS_URL`, default verification works and no override is needed.
+
+## Verifying
+
+```bash
+# Kubernetes
+kubectl exec -n simstudio deploy/sim-app -- printenv REDIS_URL
+
+# Docker Compose
+docker compose -f docker-compose.prod.yml exec redis redis-cli ping   # PONG
+```
+
+The functional test: open the same workflow in two browser windows served by different replicas and confirm edits appear in both. With a single replica this always passes, so scale to two before testing.
+
+Watch the app logs at startup for `Redis` connection errors — a wrong password or unreachable host is logged there.
+
+<FAQ items={[
+  { question: "Is Redis required?", answer: "It is required for any deployment with more than one app or realtime replica, because pub/sub and the Socket.IO adapter have no cross-pod fallback. On a single replica most subsystems fall back to Postgres or in-process state — with one exception: CLI authentication requires Redis at any replica count."},
+  { question: "Does the Helm chart install Redis?", answer: "Yes, by default — the same redis:7-alpine image Docker Compose uses. Set redis.enabled: false and put a connection string in app.env.REDIS_URL to use a managed instance instead, which is the better production choice."},
+  { question: "How much Redis do I need?", answer: "Little. Sim uses it for coordination and short-lived keys, not bulk data — 1–2 GB suits most deployments. Prioritize an HA/replicated tier over raw size."},
+  { question: "Can I lose Redis data?", answer: "Yes, without data loss to the application. Redis holds caches, coordination keys, and in-flight events. Losing it drops live updates in progress; committed data lives in PostgreSQL and object storage. Persistence is not required." },
+]} />

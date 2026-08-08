@@ -5,6 +5,7 @@ import {
   auditMock,
   dbChainMock,
   dbChainMockFns,
+  flattenMockConditions,
   queueTableRows,
   resetDbChainMock,
   schemaMock,
@@ -228,6 +229,39 @@ describe('createFolder', () => {
     await createFolder({ ...baseCreate, resourceType: 'workflow' })
 
     expect(dbChainMockFns.values).toHaveBeenCalledWith(expect.objectContaining({ sortOrder: -3 }))
+  })
+
+  // Asserted on the WHERE clauses, not the resulting sortOrder: the mock returns whatever was
+  // queued regardless of the filter, so a sortOrder assertion passes without either clause.
+  it('ignores soft-deleted folders and resources when picking the new sortOrder', async () => {
+    setConfig({
+      resourceType: 'workflow',
+      countKey: 'workflows',
+      sortOrderColumn: 'child.sortOrder',
+    })
+    queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
+    queueTableRows(CHILD_TABLE, [{ minSortOrder: 0 }])
+    dbChainMockFns.returning.mockResolvedValueOnce([folderRow({ sortOrder: -1 })])
+
+    await createFolder({ ...baseCreate, resourceType: 'workflow' })
+
+    const [folderWhere, childWhere] = dbChainMockFns.where.mock.calls
+      .slice(0, 2)
+      .map(([where]) => where)
+
+    // Assert on the specific COLUMN, not merely that some isNull exists: for a root folder the
+    // parent condition is itself `isNull(parentId)`, so a presence-only check stays green with
+    // the soft-delete filter deleted.
+    expect(
+      flattenMockConditions(folderWhere).some(
+        (node) => node.type === 'isNull' && node.column === schemaMock.folder.deletedAt
+      )
+    ).toBe(true)
+    expect(
+      flattenMockConditions(childWhere).some(
+        (node) => node.type === 'isNull' && node.column === 'child.archivedAt'
+      )
+    ).toBe(true)
   })
 
   it('starts at zero when the folder is the first thing in its location', async () => {

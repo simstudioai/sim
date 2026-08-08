@@ -163,6 +163,7 @@ describe('terminal console store', () => {
 
       const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
       expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamThinking).toBe('drafting…')
       expect(entry.agentStreamToolCalls?.[0]?.status).toBe('cancelled')
     })
 
@@ -284,7 +285,31 @@ describe('terminal console store', () => {
 
       const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
       expect(entry.agentStreamActive).toBe(false)
+      expect(entry.agentStreamThinking).toBe('working…')
       expect(entry.agentStreamToolCalls?.[0]?.status).toBe('error')
+    })
+
+    it('clears thinking without changing an active block when projection is unavailable', () => {
+      useTerminalConsoleStore.getState().addConsole({
+        workflowId: 'wf-1',
+        blockId: 'block-1',
+        blockName: 'Agent',
+        blockType: 'agent',
+        executionId: 'exec-1',
+        executionOrder: 1,
+        isRunning: true,
+        agentStreamActive: true,
+        agentStreamThinking: 'projected thinking',
+      })
+
+      useTerminalConsoleStore
+        .getState()
+        .updateConsole('block-1', { clearAgentStreamThinking: true }, 'exec-1')
+
+      const [entry] = useTerminalConsoleStore.getState().getWorkflowEntries('wf-1')
+      expect(entry.isRunning).toBe(true)
+      expect(entry.agentStreamActive).toBe(true)
+      expect(entry.agentStreamThinking).toBeUndefined()
     })
   })
 })

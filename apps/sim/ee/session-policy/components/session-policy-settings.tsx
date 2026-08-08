@@ -3,13 +3,13 @@
 import { useEffect, useState } from 'react'
 import { ChipConfirmModal, ChipInput, Label, toast } from '@sim/emcn'
 import { getErrorMessage } from '@sim/utils/errors'
+import { saveDiscardActions } from '@/components/settings/save-discard-actions'
 import {
   MAX_SESSION_POLICY_HOURS,
   MIN_IDLE_TIMEOUT_HOURS,
   MIN_SESSION_LIFETIME_HOURS,
 } from '@/lib/api/contracts/organization'
 import { isBillingEnabled } from '@/lib/core/config/env-flags'
-import { saveDiscardActions } from '@/app/workspace/[workspaceId]/settings/components/save-discard-actions/save-discard-actions'
 import { SettingsEmptyState } from '@/app/workspace/[workspaceId]/settings/components/settings-empty-state'
 import { SettingsPanel } from '@/app/workspace/[workspaceId]/settings/components/settings-panel'
 import { useSettingsUnsavedGuard } from '@/app/workspace/[workspaceId]/settings/hooks/use-settings-unsaved-guard'

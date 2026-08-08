@@ -69,6 +69,11 @@ vi.mock('@/providers/trace-enrichment', () => ({
 }))
 
 vi.mock('@/providers/utils', () => ({
+  isFunctionToolCall: (toolCall: unknown) =>
+    typeof toolCall === 'object' &&
+    toolCall !== null &&
+    'function' in toolCall &&
+    (toolCall as { function?: unknown }).function != null,
   calculateCost: vi.fn(() => ({ input: 1, output: 2, total: 3 })),
   enforceStrictSchema: vi.fn((schema) => schema),
   generateSchemaInstructions: vi.fn(() => 'SCHEMA_INSTRUCTIONS'),
@@ -104,6 +109,7 @@ vi.mock('@/providers/fireworks/utils', () => ({
   })),
   createReadableStreamFromOpenAIStream: vi.fn(() => createEmptyStream()),
   supportsNativeStructuredOutputs: vi.fn(() => true),
+  resolveFireworksWireModel: vi.fn((stripped: string) => stripped),
 }))
 vi.mock('@/providers/openrouter/utils', () => ({
   checkForForcedToolUsage: vi.fn(() => ({

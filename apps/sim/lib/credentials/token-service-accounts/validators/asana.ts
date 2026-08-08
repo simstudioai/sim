@@ -1,3 +1,4 @@
+import { userPrincipal } from '@/lib/credentials/principal'
 import {
   fetchProvider,
   parseProviderJson,
@@ -51,12 +52,10 @@ export async function validateAsanaServiceAccount(
 
   const name = body.data?.name
   const email = body.data?.email
-  const storedMetadata: Record<string, string> = { userGid: gid }
-  if (email) storedMetadata.email = email
 
   return {
     displayName: name || email || `Asana user ${gid}`,
-    auditMetadata: { asanaUserGid: gid },
-    storedMetadata,
+    principal: userPrincipal(gid, email),
+    auditMetadata: {},
   }
 }

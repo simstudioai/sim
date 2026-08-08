@@ -2,7 +2,12 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { JOB_MAX_LIFETIME_SECONDS, JOB_RETENTION_HOURS, JOB_RETENTION_SECONDS } from './types'
+import {
+  JOB_MAX_LIFETIME_SECONDS,
+  JOB_PENDING_RETENTION_HOURS,
+  JOB_RETENTION_HOURS,
+  JOB_RETENTION_SECONDS,
+} from './types'
 
 describe('Job retention constants', () => {
   it.concurrent('JOB_RETENTION_HOURS should be 24', async () => {
@@ -29,4 +34,8 @@ describe('Job retention constants', () => {
       expect(JOB_MAX_LIFETIME_SECONDS).toBe(48 * 60 * 60)
     }
   )
+
+  it.concurrent('keeps pending queue wait separate from execution duration', async () => {
+    expect(JOB_PENDING_RETENTION_HOURS).toBe(14 * 24)
+  })
 })

@@ -1,13 +1,13 @@
 'use client'
 
-import { type RefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { type RefObject, useCallback, useMemo, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { noop } from '@/lib/core/utils/request'
 import {
   AGENT_STREAM_PROTOCOL_HEADER,
   AGENT_STREAM_PROTOCOL_V1,
 } from '@/lib/workflows/streaming/agent-stream-protocol'
+import { DesktopTitleBarLane } from '@/app/_shell/desktop-title-bar'
 import {
   ChatErrorState,
   ChatHeader,
@@ -17,22 +17,16 @@ import {
   ChatMessageContainer,
   EmailAuth,
   PasswordAuth,
-  VoiceInterface,
 } from '@/app/(interfaces)/chat/components'
 import { CHAT_ERROR_MESSAGES, CHAT_REQUEST_TIMEOUT_MS } from '@/app/(interfaces)/chat/constants'
-import { useAudioStreaming, useChatStreaming } from '@/app/(interfaces)/chat/hooks'
+import { useChatStreaming } from '@/app/(interfaces)/chat/hooks'
 import SSOAuth from '@/ee/sso/components/sso-auth'
 import { useDeployedChatConfig } from '@/hooks/queries/chats'
 import { useGitHubStars } from '@/hooks/queries/github-stars'
-import { useVoiceSettings } from '@/hooks/queries/voice-settings'
 
 const logger = createLogger('ChatClient')
 
-interface AudioStreamingOptions {
-  voiceId: string
-  chatId: string
-  onError: (error: Error) => void
-}
+const NEAR_BOTTOM_THRESHOLD_PX = 100
 
 interface ChatRequestFile {
   name: string
@@ -47,13 +41,6 @@ interface ChatRequestPayload {
   files?: ChatRequestFile[]
 }
 
-const DEFAULT_VOICE_SETTINGS = {
-  voiceId: 'cgSgspJ2msm6clMCkdW9', // Default ElevenLabs voice (Jessica) — Flash v2.5-optimized
-}
-
-/**
- * Converts a File object to a base64 data URL
- */
 function fileToBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader()
@@ -63,36 +50,8 @@ function fileToBase64(file: File): Promise<string> {
   })
 }
 
-/**
- * Creates an audio stream handler for text-to-speech conversion
- * @param streamTextToAudio - Function to stream text to audio
- * @param voiceId - The voice ID to use for TTS
- * @param chatId - Optional chat ID for deployed chat authentication
- * @returns Audio stream handler function or undefined
- */
-function createAudioStreamHandler(
-  streamTextToAudio: (text: string, options: AudioStreamingOptions) => Promise<void>,
-  voiceId: string,
-  chatId: string
-) {
-  return async (text: string) => {
-    try {
-      await streamTextToAudio(text, {
-        voiceId,
-        chatId,
-        onError: (error: Error) => {
-          logger.error('Audio streaming error:', error)
-        },
-      })
-    } catch (error) {
-      logger.error('TTS error:', error)
-    }
-  }
-}
-
 export default function ChatClient({ identifier }: { identifier: string }) {
   const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [inputValue, setInputValue] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const messagesContainerRef = useRef<HTMLDivElement>(null)
@@ -103,13 +62,9 @@ export default function ChatClient({ identifier }: { identifier: string }) {
   const stickToBottomRef = useRef(true)
   const ignoreScrollRef = useRef(false)
 
-  const [isVoiceFirstMode, setIsVoiceFirstMode] = useState(false)
-
   const { data: chatConfigResult, error: chatConfigError } = useDeployedChatConfig(identifier)
-  const { data: voiceSettings } = useVoiceSettings()
   const { data: starCount } = useGitHubStars()
 
-  const sttAvailable = voiceSettings?.sttAvailable === true
   const authRequired = chatConfigResult?.kind === 'auth' ? chatConfigResult.authType : null
   const chatConfig = chatConfigResult?.kind === 'config' ? chatConfigResult.config : null
 
@@ -133,16 +88,12 @@ export default function ChatClient({ identifier }: { identifier: string }) {
 
   const { isStreamingResponse, abortControllerRef, stopStreaming, handleStreamedResponse } =
     useChatStreaming()
-  const audioContextRef = useRef<AudioContext | null>(null)
-  const { isPlayingAudio, streamTextToAudio, stopAudio } = useAudioStreaming(audioContextRef)
-
-  const NEAR_BOTTOM_THRESHOLD_PX = 100
 
   /**
    * ChatGPT-style scroll. Without `force`, no-ops when the user has scrolled away.
    * With `force` (jump button), re-pins to bottom.
    */
-  const scrollToBottom = useCallback((options?: { behavior?: ScrollBehavior; force?: boolean }) => {
+  const scrollToBottom = (options?: { behavior?: ScrollBehavior; force?: boolean }) => {
     const behavior = options?.behavior ?? 'smooth'
     const force = options?.force === true
     if (!force && !stickToBottomRef.current) return
@@ -161,56 +112,49 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       },
       behavior === 'smooth' ? 400 : 50
     )
-  }, [])
+  }
 
-  const scrollToMessage = useCallback(
-    (messageId: string, scrollToShowOnlyMessage = false) => {
-      const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-      if (messageElement && messagesContainerRef.current) {
-        const container = messagesContainerRef.current
-        const containerRect = container.getBoundingClientRect()
-        const messageRect = messageElement.getBoundingClientRect()
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (!messageElement || !messagesContainerRef.current) return
 
-        if (scrollToShowOnlyMessage) {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top
-
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        } else {
-          const scrollTop = container.scrollTop + messageRect.top - containerRect.top - 80
-
-          container.scrollTo({
-            top: scrollTop,
-            behavior: 'smooth',
-          })
-        }
-      }
-    },
-    [messagesContainerRef]
-  )
-
-  useEffect(() => {
     const container = messagesContainerRef.current
-    if (!container) return
+    const containerRect = container.getBoundingClientRect()
+    const messageRect = messageElement.getBoundingClientRect()
+
+    container.scrollTo({
+      top: container.scrollTop + messageRect.top - containerRect.top,
+      behavior: 'smooth',
+    })
+  }
+
+  /**
+   * Attaches on mount via a ref callback rather than an effect: the container
+   * renders only after the auth/loading early returns, so an effect would need
+   * unrelated render values as a stand-in for "the node exists yet".
+   */
+  const attachMessagesContainer = useCallback((node: HTMLDivElement | null) => {
+    messagesContainerRef.current = node
+    if (!node) return
 
     const handleScroll = () => {
       if (ignoreScrollRef.current) return
-      const { scrollTop, scrollHeight, clientHeight } = container
+      const { scrollTop, scrollHeight, clientHeight } = node
       const distanceFromBottom = scrollHeight - scrollTop - clientHeight
       const nearBottom = distanceFromBottom <= NEAR_BOTTOM_THRESHOLD_PX
       stickToBottomRef.current = nearBottom
       setShowScrollButton(!nearBottom)
     }
 
-    container.addEventListener('scroll', handleScroll, { passive: true })
-    return () => container.removeEventListener('scroll', handleScroll)
-  }, [chatConfig, isVoiceFirstMode, authRequired])
+    node.addEventListener('scroll', handleScroll, { passive: true })
+    return () => {
+      node.removeEventListener('scroll', handleScroll)
+      messagesContainerRef.current = null
+    }
+  }, [])
 
   const handleSendMessage = async (
-    messageParam?: string,
-    isVoiceInput = false,
+    messageToSend: string,
     files?: Array<{
       id: string
       name: string
@@ -220,12 +164,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
       dataUrl?: string
     }>
   ) => {
-    const messageToSend = messageParam ?? inputValue
     if ((!messageToSend.trim() && (!files || files.length === 0)) || isLoading) return
 
     logger.info('Sending message:', {
       messageToSend,
-      isVoiceInput,
       conversationId,
       filesCount: files?.length,
     })
@@ -248,11 +190,10 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     }
 
     setMessages((prev) => [...prev, userMessage])
-    setInputValue('')
     setIsLoading(true)
 
     setTimeout(() => {
-      scrollToMessage(userMessage.id, true)
+      scrollToMessage(userMessage.id)
     }, 100)
 
     // One AbortController for fetch + SSE body reads so Stop cancels server work too.
@@ -314,30 +255,12 @@ export default function ChatClient({ identifier }: { identifier: string }) {
         throw new Error('Response body is missing')
       }
 
-      const shouldPlayAudio = isVoiceInput || isVoiceFirstMode
-      const audioHandler =
-        shouldPlayAudio && chatConfig?.id
-          ? createAudioStreamHandler(
-              streamTextToAudio,
-              DEFAULT_VOICE_SETTINGS.voiceId,
-              chatConfig.id
-            )
-          : undefined
-
-      logger.info('Starting to handle streamed response:', { shouldPlayAudio })
-
       await handleStreamedResponse(
         response,
         setMessages,
         setIsLoading,
         () => scrollToBottom({ behavior: 'auto' }),
         {
-          voiceSettings: {
-            isVoiceEnabled: shouldPlayAudio,
-            voiceId: DEFAULT_VOICE_SETTINGS.voiceId,
-            autoPlayResponses: shouldPlayAudio,
-          },
-          audioStreamHandler: audioHandler,
           outputConfigs: chatConfig?.outputConfigs,
           abortController,
         }
@@ -363,41 +286,6 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     }
   }
 
-  useEffect(() => {
-    return () => {
-      stopAudio()
-      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
-        audioContextRef.current.close()
-      }
-    }
-  }, [stopAudio])
-
-  const handleVoiceInterruption = useCallback(() => {
-    stopAudio()
-
-    if (isStreamingResponse) {
-      stopStreaming(setMessages)
-    }
-  }, [isStreamingResponse, stopStreaming, setMessages, stopAudio])
-
-  const handleVoiceStart = useCallback(() => {
-    if (!sttAvailable) return
-    setIsVoiceFirstMode(true)
-  }, [sttAvailable])
-
-  const handleExitVoiceMode = useCallback(() => {
-    setIsVoiceFirstMode(false)
-    stopAudio()
-  }, [stopAudio])
-
-  const handleVoiceTranscript = useCallback(
-    (transcript: string) => {
-      logger.info('Received voice transcript:', transcript)
-      handleSendMessage(transcript, true)
-    },
-    [handleSendMessage]
-  )
-
   if (chatConfigError) {
     logger.error('Error fetching chat config:', chatConfigError)
     return <ChatErrorState error={CHAT_ERROR_MESSAGES.CHAT_UNAVAILABLE} />
@@ -419,54 +307,29 @@ export default function ChatClient({ identifier }: { identifier: string }) {
     return <ChatLoadingState />
   }
 
-  if (isVoiceFirstMode) {
-    return (
-      <VoiceInterface
-        onCallEnd={handleExitVoiceMode}
-        onVoiceTranscript={handleVoiceTranscript}
-        onVoiceStart={noop}
-        onVoiceEnd={noop}
-        onInterrupt={handleVoiceInterruption}
-        isStreaming={isStreamingResponse}
-        isPlayingAudio={isPlayingAudio}
-        audioContextRef={audioContextRef}
-        chatId={chatConfig?.id}
-        messages={displayMessages.map((msg) => ({
-          content: typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content),
-          type: msg.type,
-        }))}
-      />
-    )
-  }
-
   return (
-    <div className='light fixed inset-0 z-[100] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
-      {/* Header component */}
+    <div className='light desktop-title-bar-page fixed inset-0 z-[var(--z-dropdown)] flex flex-col bg-[var(--bg)] text-[var(--text-primary)]'>
+      <DesktopTitleBarLane />
       <ChatHeader chatConfig={chatConfig} starCount={starCount} />
 
-      {/* Message Container component */}
       <ChatMessageContainer
         messages={displayMessages}
         isLoading={isLoading}
         showScrollButton={showScrollButton}
-        messagesContainerRef={messagesContainerRef as RefObject<HTMLDivElement>}
+        messagesContainerRef={attachMessagesContainer}
         messagesEndRef={messagesEndRef as RefObject<HTMLDivElement>}
         scrollToBottom={() => scrollToBottom({ behavior: 'smooth', force: true })}
-        scrollToMessage={scrollToMessage}
         chatConfig={chatConfig}
       />
 
-      {/* Input area (free-standing at the bottom) */}
       <div className='relative p-3 pb-4 md:p-4 md:pb-6'>
         <div className='relative mx-auto max-w-3xl md:max-w-[748px]'>
           <ChatInput
-            onSubmit={(value, isVoiceInput, files) => {
-              void handleSendMessage(value, isVoiceInput, files)
+            onSubmit={(value, files) => {
+              void handleSendMessage(value, files)
             }}
             isStreaming={isStreamingResponse}
             onStopStreaming={() => stopStreaming(setMessages)}
-            onVoiceStart={handleVoiceStart}
-            sttAvailable={sttAvailable}
           />
         </div>
       </div>

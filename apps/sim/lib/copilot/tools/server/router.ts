@@ -16,6 +16,7 @@ import {
   UserTable,
   WorkspaceFile,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { copilotToolCanWrite } from '@/lib/copilot/tools/permissions'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
@@ -40,7 +41,6 @@ import { shareFileServerTool } from '@/lib/copilot/tools/server/files/share-file
 import { workspaceFileServerTool } from '@/lib/copilot/tools/server/files/workspace-file'
 import { validateGeneratedToolPayload } from '@/lib/copilot/tools/server/generated-schema'
 import { generateImageServerTool } from '@/lib/copilot/tools/server/image/generate-image'
-import { getJobLogsServerTool } from '@/lib/copilot/tools/server/jobs/get-job-logs'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
 import { searchKnowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/search-knowledge-base'
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
@@ -73,14 +73,16 @@ const logger = createLogger('ServerToolRouter')
 const CUSTOM_BLOCK_OVERLAY_TOOLS = new Set(['edit_workflow', 'get_blocks_metadata'])
 
 /**
- * DISCOVERY tools that must run inside the viewer's block-visibility context so
- * gated (preview / kill-switched) blocks disappear from what the agent can
- * list. Deliberately a DIFFERENT set from {@link CUSTOM_BLOCK_OVERLAY_TOOLS}:
- * `edit_workflow` is excluded because its registry use is functional
- * (find-by-type over clones, never a discovery listing) and gating it would
- * only risk leaking display projections into persisted state.
+ * Discovery tools that consume the viewer's block-visibility context to hide
+ * gated blocks and credentials. `edit_workflow` establishes a narrower scope
+ * around operation validation after it resolves the workflow's actual
+ * workspace.
  */
-const VISIBILITY_GATED_TOOLS = new Set(['get_blocks_metadata', 'get_trigger_blocks'])
+const VISIBILITY_GATED_TOOLS = new Set([
+  'get_blocks_metadata',
+  'get_credentials',
+  'get_trigger_blocks',
+])
 
 const WRITE_ACTIONS: Record<string, string[]> = {
   [KnowledgeBase.id]: [
@@ -139,10 +141,6 @@ const WRITE_ACTIONS: Record<string, string[]> = {
   [enrichmentRunServerTool.name]: ['*'],
 }
 
-function isWritePermission(userPermission: string): boolean {
-  return userPermission === 'write' || userPermission === 'admin'
-}
-
 function isWriteAction(toolName: string, action: string | undefined): boolean {
   const writeActions = WRITE_ACTIONS[toolName]
   if (!writeActions) return false
@@ -157,7 +155,6 @@ const baseServerToolRegistry: Record<string, BaseServerTool> = {
   [getTriggerBlocksServerTool.name]: getTriggerBlocksServerTool,
   [editWorkflowServerTool.name]: editWorkflowServerTool,
   [queryLogsServerTool.name]: queryLogsServerTool,
-  [getJobLogsServerTool.name]: getJobLogsServerTool,
   [searchDocumentationServerTool.name]: searchDocumentationServerTool,
   [searchOnlineServerTool.name]: searchOnlineServerTool,
   [setEnvironmentVariablesServerTool.name]: setEnvironmentVariablesServerTool,
@@ -211,7 +208,7 @@ export async function routeExecution(
   if (WRITE_ACTIONS[toolName]) {
     const p = payload as Record<string, unknown>
     const action = (p?.operation ?? p?.action) as string | undefined
-    if (isWriteAction(toolName, action) && !isWritePermission(context?.userPermission ?? '')) {
+    if (isWriteAction(toolName, action) && !copilotToolCanWrite(context?.userPermission)) {
       const actionLabel = action ? `'${action}' on ` : ''
       throw new Error(
         `Permission denied: ${actionLabel}${toolName} requires write access. You have '${context?.userPermission ?? 'none'}' permission.`

@@ -123,9 +123,10 @@ export async function getWorkspaceWithOwner(
  */
 export async function getEffectiveWorkspacePermission(
   userId: string,
-  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>
+  ws: Pick<WorkspaceWithOwner, 'id' | 'organizationId'>,
+  executor: DbOrTx = db
 ): Promise<PermissionType | null> {
-  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId)
+  return resolveEffectiveWorkspacePermission(userId, ws.id, ws.organizationId, executor)
 }
 
 /**
@@ -280,6 +281,11 @@ export interface WorkspaceMemberWithRole {
    * derived and cannot be changed through the member UI.
    */
   roleSource: MemberRoleSource
+  /**
+   * The account the workspace bills to. Its role is pinned to `admin` by the
+   * workspace-permissions route, so the member UI must not offer to change it.
+   */
+  isBilledAccount: boolean
 }
 
 export async function getUsersWithPermissions(
@@ -317,6 +323,7 @@ export async function getUsersWithPermissions(
       isExternal: !isOwner && row.userOrganizationId !== ws.organizationId,
       joinedAt: row.joinedAt.toISOString(),
       roleSource: isOwner ? 'owner' : 'explicit',
+      isBilledAccount: row.userId === ws.billedAccountUserId,
     })
   }
 
@@ -357,6 +364,7 @@ export async function getUsersWithPermissions(
           isExternal: false,
           joinedAt: row.joinedAt.toISOString(),
           roleSource: isOwner ? 'owner' : 'org-admin',
+          isBilledAccount: row.userId === ws.billedAccountUserId,
         })
       }
     }

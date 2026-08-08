@@ -38,7 +38,7 @@ Integrate Google Maps Platform APIs into your workflow. Supports geocoding addre
 
 ## Actions
 
-### `google_maps_air_quality`
+### Google Maps Air Quality
 
 Get current air quality data for a location
 
@@ -50,8 +50,6 @@ Get current air quality data for a location
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
 | `languageCode` | string | No | Language code for the response \(e.g., "en", "es"\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -77,7 +75,7 @@ Get current air quality data for a location
 |   ↳ `additionalInfo` | object | Additional info about sources and effects |
 | `healthRecommendations` | object | Health recommendations for different populations |
 
-### `google_maps_directions`
+### Google Maps Directions
 
 Get directions and route information between two locations
 
@@ -93,8 +91,6 @@ Get directions and route information between two locations
 | `waypoints` | json | No | Array of intermediate waypoints |
 | `units` | string | No | Unit system: metric or imperial |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -124,7 +120,7 @@ Get directions and route information between two locations
 |   ↳ `maneuver` | string | Maneuver type \(turn-left, etc.\) |
 | `polyline` | string | Encoded polyline for the primary route |
 
-### `google_maps_distance_matrix`
+### Google Maps Distance Matrix
 
 Calculate travel distance and time between multiple origins and destinations
 
@@ -139,8 +135,6 @@ Calculate travel distance and time between multiple origins and destinations
 | `avoid` | string | No | Features to avoid: tolls, highways, or ferries |
 | `units` | string | No | Unit system: metric or imperial |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
-| `pricing` | custom | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -158,7 +152,7 @@ Calculate travel distance and time between multiple origins and destinations
 |     ↳ `durationInTrafficSeconds` | number | Duration in traffic in seconds |
 |     ↳ `status` | string | Element status \(OK, NOT_FOUND, ZERO_RESULTS\) |
 
-### `google_maps_elevation`
+### Google Maps Elevation
 
 Get elevation data for a location
 
@@ -169,8 +163,6 @@ Get elevation data for a location
 | `apiKey` | string | Yes | Google Maps API key |
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -181,7 +173,7 @@ Get elevation data for a location
 | `lng` | number | Longitude of the elevation sample |
 | `resolution` | number | Maximum distance between data points \(meters\) from which elevation was interpolated |
 
-### `google_maps_geocode`
+### Google Maps Geocode
 
 Convert an address into geographic coordinates (latitude and longitude)
 
@@ -193,8 +185,6 @@ Convert an address into geographic coordinates (latitude and longitude)
 | `address` | string | Yes | The address to geocode |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -211,7 +201,7 @@ Convert an address into geographic coordinates (latitude and longitude)
 |   ↳ `types` | array | Component types |
 | `locationType` | string | Location accuracy type \(ROOFTOP, RANGE_INTERPOLATED, etc.\) |
 
-### `google_maps_geolocate`
+### Google Maps Geolocate
 
 Geolocate a device using WiFi access points, cell towers, or IP address
 
@@ -227,8 +217,6 @@ Geolocate a device using WiFi access points, cell towers, or IP address
 | `considerIp` | boolean | No | Whether to use IP address for geolocation \(default: true\) |
 | `cellTowers` | array | No | Array of cell tower objects with cellId, locationAreaCode, mobileCountryCode, mobileNetworkCode |
 | `wifiAccessPoints` | array | No | Array of WiFi access point objects with macAddress \(required\), signalStrength, etc. |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -238,7 +226,7 @@ Geolocate a device using WiFi access points, cell towers, or IP address
 | `lng` | number | Longitude coordinate |
 | `accuracy` | number | Accuracy radius in meters |
 
-### `google_maps_place_details`
+### Google Maps Place Details
 
 Get detailed information about a specific place
 
@@ -250,8 +238,6 @@ Get detailed information about a specific place
 | `placeId` | string | Yes | Google Place ID |
 | `fields` | string | No | Comma-separated list of fields to return |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -289,7 +275,7 @@ Get detailed information about a specific place
 | `vicinity` | string | Simplified address \(neighborhood/street\) |
 | `businessStatus` | string | Business status \(OPERATIONAL, CLOSED_TEMPORARILY, CLOSED_PERMANENTLY\) |
 
-### `google_maps_places_nearby`
+### Google Maps Places Nearby Search
 
 Search for places of a given type within a radius of a location
 
@@ -306,8 +292,6 @@ Search for places of a given type within a radius of a location
 | `rankPreference` | string | No | How to rank results: POPULARITY \(default\) or DISTANCE |
 | `languageCode` | string | No | Language code for the response \(e.g., en, es\) |
 | `regionCode` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -326,7 +310,7 @@ Search for places of a given type within a radius of a location
 |   ↳ `openNow` | boolean | Whether currently open |
 |   ↳ `businessStatus` | string | Business status |
 
-### `google_maps_places_search`
+### Google Maps Places Search
 
 Search for places using a text query
 
@@ -342,8 +326,6 @@ Search for places using a text query
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
 | `region` | string | No | Region bias as a ccTLD code \(e.g., us, uk\) |
 | `pageToken` | string | No | Token from a previous search response to fetch the next page of results. Wait a couple seconds after receiving the token before using it, or the API returns INVALID_REQUEST |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -364,7 +346,7 @@ Search for places using a text query
 |   ↳ `businessStatus` | string | Business status |
 | `nextPageToken` | string | Token for fetching the next page of results |
 
-### `google_maps_pollen`
+### Google Maps Pollen
 
 Get a daily pollen forecast (grass, tree, weed) for a location
 
@@ -378,8 +360,6 @@ Get a daily pollen forecast (grass, tree, weed) for a location
 | `days` | number | No | Number of forecast days to return \(1-5, defaults to 1\) |
 | `languageCode` | string | No | Language code for the response \(e.g., "en", "es"\) |
 | `plantsDescription` | boolean | No | Include detailed plant descriptions \(defaults to true\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -401,7 +381,7 @@ Get a daily pollen forecast (grass, tree, weed) for a location
 |     ↳ `indexInfo` | object | Universal Pollen Index \(UPI\) info |
 |     ↳ `plantDescription` | object | Plant details \(type, family, season, cross-reactions\) |
 
-### `google_maps_reverse_geocode`
+### Google Maps Reverse Geocode
 
 Convert geographic coordinates (latitude and longitude) into a human-readable address
 
@@ -413,8 +393,6 @@ Convert geographic coordinates (latitude and longitude) into a human-readable ad
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
 | `language` | string | No | Language code for results \(e.g., en, es, fr\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -428,7 +406,7 @@ Convert geographic coordinates (latitude and longitude) into a human-readable ad
 |   ↳ `types` | array | Component types |
 | `types` | array | Address types \(e.g., street_address, route\) |
 
-### `google_maps_snap_to_roads`
+### Google Maps Snap to Roads
 
 Snap GPS coordinates to the nearest road segment
 
@@ -439,8 +417,6 @@ Snap GPS coordinates to the nearest road segment
 | `apiKey` | string | Yes | Google Maps API key with Roads API enabled |
 | `path` | string | Yes | Pipe-separated list of lat,lng coordinates \(e.g., "60.170880,24.942795\|60.170879,24.942796"\) |
 | `interpolate` | boolean | No | Whether to interpolate additional points along the road |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -454,7 +430,7 @@ Snap GPS coordinates to the nearest road segment
 |   ↳ `placeId` | string | Place ID for this road segment |
 | `warningMessage` | string | Warning message if any \(e.g., if points could not be snapped\) |
 
-### `google_maps_solar`
+### Google Maps Solar
 
 Get solar potential and panel insights for the building nearest a location
 
@@ -466,8 +442,6 @@ Get solar potential and panel insights for the building nearest a location
 | `lat` | number | Yes | Latitude coordinate |
 | `lng` | number | Yes | Longitude coordinate |
 | `requiredQuality` | string | No | Minimum imagery quality to accept \(HIGH, MEDIUM, or BASE\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -484,7 +458,7 @@ Get solar potential and panel insights for the building nearest a location
 | `administrativeArea` | string | Administrative area \(e.g., state or province\) |
 | `solarPotential` | object | Solar potential: max panel count/area, sunshine hours, carbon offset, panel specs, and configs |
 
-### `google_maps_speed_limits`
+### Google Maps Speed Limits
 
 Get speed limits for road segments. Requires either path coordinates or placeIds.
 
@@ -512,7 +486,7 @@ Get speed limits for road segments. Requires either path coordinates or placeIds
 |   ↳ `originalIndex` | number | Index in the original path |
 |   ↳ `placeId` | string | Place ID for this road segment |
 
-### `google_maps_timezone`
+### Google Maps Timezone
 
 Get timezone information for a location
 
@@ -525,8 +499,6 @@ Get timezone information for a location
 | `lng` | number | Yes | Longitude coordinate |
 | `timestamp` | number | No | Unix timestamp to determine DST offset \(defaults to current time\) |
 | `language` | string | No | Language code for timezone name \(e.g., en, es, fr\) |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 
@@ -539,7 +511,7 @@ Get timezone information for a location
 | `totalOffsetSeconds` | number | Total UTC offset in seconds \(rawOffset + dstOffset\) |
 | `totalOffsetHours` | number | Total UTC offset in hours \(e.g., -5 for EST, -4 for EDT\) |
 
-### `google_maps_validate_address`
+### Google Maps Validate Address
 
 Validate and standardize a postal address
 
@@ -552,8 +524,6 @@ Validate and standardize a postal address
 | `regionCode` | string | No | ISO 3166-1 alpha-2 country code \(e.g., "US", "CA"\) |
 | `locality` | string | No | City or locality name |
 | `enableUspsCass` | boolean | No | Enable USPS CASS validation for US addresses |
-| `pricing` | per_request | No | No description |
-| `rateLimit` | string | No | No description |
 
 #### Output
 

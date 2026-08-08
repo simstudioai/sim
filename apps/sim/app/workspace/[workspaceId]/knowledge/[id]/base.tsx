@@ -18,16 +18,18 @@ import {
   chipContentLabelClass,
   chipVariants,
   cn,
+  FloatingTooltip,
+  isTextClipped,
   Loader,
   Tooltip,
   Trash,
+  useFloatingTooltip,
 } from '@sim/emcn'
-import { Database, DatabaseX } from '@sim/emcn/icons'
+import { CircleAlert, Database, DatabaseX, Pencil, Plus, TagIcon, X } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { format } from 'date-fns'
-import { AlertCircle, Pencil, Plus, Tag, X } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryState, useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
@@ -144,7 +146,7 @@ const getStatusBadge = (doc: DocumentData) => {
       )
     case 'failed':
       return doc.processingError ? (
-        <Badge variant='red' size='sm' icon={AlertCircle}>
+        <Badge variant='red' size='sm' icon={CircleAlert}>
           Failed
         </Badge>
       ) : (
@@ -175,6 +177,39 @@ interface TagValue {
   slot: AllTagSlot
   displayName: string
   value: string
+}
+
+/**
+ * Tags cell for the documents table. Shows the joined tag values inline and
+ * reveals the full `name: value` breakdown only when the inline text is
+ * actually clipped — an un-truncated cell already says everything the tooltip
+ * would.
+ */
+function DocumentTagsCell({ tags }: { tags: TagValue[] }) {
+  const { state, handlers } = useFloatingTooltip(isTextClipped)
+
+  return (
+    <>
+      <span
+        role='presentation'
+        className='block max-w-full truncate text-[var(--text-secondary)] text-caption'
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => e.stopPropagation()}
+        {...handlers}
+      >
+        {tags.map((tag) => tag.value).join(', ')}
+      </span>
+      <FloatingTooltip state={state} className='max-w-[240px]'>
+        <div className='flex flex-col gap-0.5'>
+          {tags.map((tag) => (
+            <div key={tag.slot} className='truncate text-xs'>
+              <span className='text-[var(--text-muted)]'>{tag.displayName}:</span> {tag.value}
+            </div>
+          ))}
+        </div>
+      </FloatingTooltip>
+    </>
+  )
 }
 
 /**
@@ -865,7 +900,7 @@ export function KnowledgeBase({
               },
               {
                 label: 'Tags',
-                icon: Tag,
+                icon: TagIcon,
                 disabled: !userPermissions.canEdit,
                 onClick: () => setShowTagsModal(true),
               },
@@ -949,7 +984,6 @@ export function KnowledgeBase({
             }}
             align='start'
             fullWidth
-            flush
           />
         </div>
         <TagFilterSection
@@ -978,7 +1012,7 @@ export function KnowledgeBase({
               key={connector.id}
               type='button'
               onClick={() => setShowConnectorsModal(true)}
-              className={cn(chipVariants({ variant: 'filled', flush: true }), 'max-w-[180px]')}
+              className={cn(chipVariants({ variant: 'filled' }), 'max-w-[180px]')}
             >
               <span className='relative flex size-[14px] flex-shrink-0 items-center justify-center'>
                 {connector.status === 'syncing' ? (
@@ -1057,7 +1091,6 @@ export function KnowledgeBase({
         const DocIcon = ConnectorIcon || getDocumentIcon(doc.mimeType, doc.filename)
 
         const tags = getDocumentTags(doc, tagDefinitions)
-        const tagsDisplayText = tags.map((t) => t.value).join(', ')
 
         const statusCell: ResourceCell =
           doc.processingStatus === 'failed' && doc.processingError
@@ -1076,34 +1109,7 @@ export function KnowledgeBase({
             : { content: getStatusBadge(doc) }
 
         const tagsCell: ResourceCell =
-          tags.length === 0
-            ? { label: null }
-            : {
-                content: (
-                  <Tooltip.Root>
-                    <Tooltip.Trigger asChild>
-                      <span
-                        role='presentation'
-                        className='block max-w-full truncate text-[var(--text-secondary)] text-caption'
-                        onClick={(e) => e.stopPropagation()}
-                        onKeyDown={(e) => e.stopPropagation()}
-                      >
-                        {tagsDisplayText}
-                      </span>
-                    </Tooltip.Trigger>
-                    <Tooltip.Content side='top' className='max-w-[240px]'>
-                      <div className='flex flex-col gap-0.5'>
-                        {tags.map((tag) => (
-                          <div key={tag.slot} className='truncate text-xs'>
-                            <span className='text-[var(--text-muted)]'>{tag.displayName}:</span>{' '}
-                            {tag.value}
-                          </div>
-                        ))}
-                      </div>
-                    </Tooltip.Content>
-                  </Tooltip.Root>
-                ),
-              }
+          tags.length === 0 ? { label: null } : { content: <DocumentTagsCell tags={tags} /> }
 
         return {
           id: doc.id,
@@ -1517,7 +1523,6 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
             onChange={(value) => onChange({ value })}
             placeholder='From'
             fullWidth
-            flush
           />
           <span className='flex-shrink-0 text-[var(--text-muted)] text-caption'>to</span>
           <ChipDatePicker
@@ -1525,7 +1530,6 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
             onChange={(value) => onChange({ valueTo: value })}
             placeholder='To'
             fullWidth
-            flush
           />
         </div>
       )
@@ -1537,7 +1541,6 @@ function TagFilterValueControl({ entry, onChange }: TagFilterValueControlProps) 
         onChange={(value) => onChange({ value })}
         placeholder='Select date'
         fullWidth
-        flush
       />
     )
   }
@@ -1685,7 +1688,6 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                     matchTriggerWidth={false}
                     contentClassName='max-h-[240px] overflow-y-auto'
                     className='max-w-[150px]'
-                    flush
                   />
                   {entry.tagSlot && (
                     <ChipDropdown
@@ -1695,7 +1697,6 @@ function TagFilterSection({ tagDefinitions, entries, onChange }: TagFilterSectio
                       placeholder='Operator'
                       align='start'
                       matchTriggerWidth={false}
-                      flush
                     />
                   )}
                 </div>

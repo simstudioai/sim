@@ -8,8 +8,8 @@ import { forwardCommands, isLocalKubeContext } from './modes/k8s.ts'
 import { httpHealth } from './probes.ts'
 import * as p from './prompter.ts'
 import { glyph, theme } from './theme.ts'
+import { APP_SIGNUP_URL, APP_URL } from './urls.ts'
 
-const APP_URL = 'http://localhost:3000'
 const REALTIME_HEALTH = 'http://localhost:3002/health'
 const POSTGRES_VOLUME = 'sim-postgres-data'
 const COMPOSE_FILES = ['docker-compose.prod.yml', 'docker-compose.local.yml'] as const
@@ -258,7 +258,7 @@ function start(install: Install): void {
     dockerRun(composeArgs(install, 'up', '-d'), 'docker compose up failed', install.dir)
     spin.stop('Containers up')
     p.note(
-      [`open ${APP_URL}`, 'follow logs:  sim logs', 'stop:         sim stop'].join('\n'),
+      [`open ${APP_SIGNUP_URL}`, 'follow logs:  sim logs', 'stop:         sim stop'].join('\n'),
       'Running'
     )
     return
@@ -312,7 +312,7 @@ function restart(install: Install): void {
     spin.start('Restarting containers…')
     dockerRun(composeArgs(install, 'restart'), 'docker compose restart failed', install.dir)
     spin.stop('Containers restarted')
-    p.note(`open ${APP_URL}`, 'Running')
+    p.note(`open ${APP_SIGNUP_URL}`, 'Running')
     return
   }
   if (install.kind === 'dev') {

@@ -3,17 +3,26 @@
  *
  * @vitest-environment node
  */
-import { auditMock, authMockFns, createMockRequest, posthogServerMock } from '@sim/testing'
+import { credential } from '@sim/db/schema'
+import {
+  auditMock,
+  authMockFns,
+  createMockRequest,
+  dbChainMockFns,
+  posthogServerMock,
+  queueTableRows,
+  resetDbChainMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
 
 const {
   mockCheckWorkspaceAccess,
-  mockGetWorkspaceMembership,
+  mockGetCredentialCreationWorkspaceContext,
   mockVerifyAndBuildServiceAccountSecret,
 } = vi.hoisted(() => ({
   mockCheckWorkspaceAccess: vi.fn(),
-  mockGetWorkspaceMembership: vi.fn(),
+  mockGetCredentialCreationWorkspaceContext: vi.fn(),
   mockVerifyAndBuildServiceAccountSecret: vi.fn(),
 }))
 
@@ -25,7 +34,7 @@ vi.mock('@/lib/workspaces/permissions/utils', () => ({
 }))
 
 vi.mock('@/lib/credentials/environment', () => ({
-  getWorkspaceMembership: mockGetWorkspaceMembership,
+  getCredentialCreationWorkspaceContext: mockGetCredentialCreationWorkspaceContext,
 }))
 
 vi.mock('@/lib/credentials/oauth', () => ({
@@ -45,13 +54,70 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
 
-import { POST } from '@/app/api/credentials/route'
+import { GET, POST } from '@/app/api/credentials/route'
 
 const WORKSPACE_ID = '11111111-2222-4333-8444-555555555555'
+
+describe('GET /api/credentials', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    authMockFns.mockGetSession.mockResolvedValue({
+      user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
+    })
+    mockCheckWorkspaceAccess.mockResolvedValue({
+      hasAccess: true,
+      canWrite: true,
+      canAdmin: false,
+    })
+  })
+
+  it('reports an owned personal secret as raw-view admin without a membership row', async () => {
+    queueTableRows(credential, [
+      {
+        id: 'credential-1',
+        workspaceId: WORKSPACE_ID,
+        type: 'env_personal',
+        displayName: 'MY_API_KEY',
+        description: null,
+        providerId: null,
+        accountId: null,
+        envKey: 'MY_API_KEY',
+        envOwnerUserId: 'user-1',
+        createdBy: 'user-1',
+        createdAt: new Date('2026-08-01T00:00:00.000Z'),
+        updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+        memberRole: null,
+      },
+    ])
+
+    const response = await GET(
+      createMockRequest(
+        'GET',
+        undefined,
+        {},
+        `http://localhost:3000/api/credentials?workspaceId=${WORKSPACE_ID}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.credentials).toEqual([
+      expect.objectContaining({
+        id: 'credential-1',
+        type: 'env_personal',
+        envKey: 'MY_API_KEY',
+        envOwnerUserId: 'user-1',
+        role: 'admin',
+      }),
+    ])
+  })
+})
 
 describe('POST /api/credentials', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     authMockFns.mockGetSession.mockResolvedValue({
       user: { id: 'user-1', name: 'Test User', email: 'test@example.com' },
     })
@@ -60,7 +126,12 @@ describe('POST /api/credentials', () => {
       canWrite: true,
       canAdmin: true,
     })
-    mockGetWorkspaceMembership.mockResolvedValue({ ownerId: 'user-1', memberUserIds: ['user-1'] })
+    mockGetCredentialCreationWorkspaceContext.mockResolvedValue({
+      ownerId: 'user-1',
+      organizationId: 'org-1',
+      memberUserIds: ['user-1'],
+      canWrite: true,
+    })
   })
 
   describe('client-credential service accounts', () => {
@@ -69,7 +140,8 @@ describe('POST /api/credentials', () => {
         providerId: 'zoom-service-account',
         encryptedServiceAccountKey: 'encrypted-blob',
         displayName: 'Zoom account acct_123',
-        auditMetadata: { zoomAccountId: 'acct_123' },
+        auditMetadata: { principalKind: 'tenant', principalId: 'acct_123' },
+        principal: { kind: 'tenant', id: 'acct_123' },
       })
 
       const req = createMockRequest('POST', {
@@ -155,6 +227,43 @@ describe('POST /api/credentials', () => {
       expect(response.status).toBe(400)
       expect(data.error).toContain('clientSecret is required')
       expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+    })
+
+    it('re-authorizes a personal credential after the shared org/user locks', async () => {
+      mockGetCredentialCreationWorkspaceContext
+        .mockResolvedValueOnce({
+          ownerId: 'user-1',
+          organizationId: 'org-1',
+          memberUserIds: ['user-1'],
+          canWrite: true,
+        })
+        .mockResolvedValueOnce({
+          ownerId: 'org-owner',
+          organizationId: 'org-1',
+          memberUserIds: ['org-owner'],
+          canWrite: false,
+        })
+
+      const req = createMockRequest('POST', {
+        workspaceId: WORKSPACE_ID,
+        type: 'env_personal',
+        envKey: 'MY_API_KEY',
+      })
+
+      const response = await POST(req)
+      const data = await response.json()
+
+      expect(response.status).toBe(403)
+      expect(data).toEqual({ error: 'Write permission required' })
+      expect(mockGetCredentialCreationWorkspaceContext).toHaveBeenCalledTimes(2)
+      expect(dbChainMockFns.execute).toHaveBeenCalled()
+      expect(mockGetCredentialCreationWorkspaceContext.mock.invocationCallOrder[0]).toBeLessThan(
+        dbChainMockFns.execute.mock.invocationCallOrder[0]
+      )
+      expect(dbChainMockFns.execute.mock.invocationCallOrder.at(-1)).toBeLessThan(
+        mockGetCredentialCreationWorkspaceContext.mock.invocationCallOrder[1]
+      )
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
     })
   })
 })

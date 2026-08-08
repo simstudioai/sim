@@ -1,10 +1,11 @@
+import dns from 'node:dns/promises'
 import { Readable } from 'node:stream'
 import zlib from 'node:zlib'
-import dns from 'dns/promises'
 import http from 'http'
 import https from 'https'
 import type { LookupFunction } from 'net'
 import { createLogger } from '@sim/logger'
+import { preferIpv4, resolveHostAddresses } from '@sim/security/dns'
 import { isLoopbackIp, isPrivateIp, isPrivateIpHost, unwrapIpv6Brackets } from '@sim/security/ssrf'
 import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
@@ -65,19 +66,21 @@ export async function validateUrlWithDNS(
   const isLocalhost = cleanHostname === 'localhost' || isLoopbackIp(cleanHostname)
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways) — still-pinned consumers (providers, SSO,
-    // A2A) depend on this ordering.
-    const resolved = await dns.lookup(cleanHostname, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    // Refused records are filtered rather than failing the whole host, matching
+    // createSsrfGuardedLookup below. Pinning to a surviving public address is
+    // just as safe as refusing outright, and rejecting the host would break a
+    // split-horizon resolver that answers with a private record alongside the
+    // public one — with no operator opt-out on this path.
+    const { addresses } = await resolveHostAddresses(cleanHostname)
+    const usable = addresses.filter(
+      (address) => !isPrivateIp(address) || (isLocalhost && !isHosted && isLoopbackIp(address))
+    )
 
-    const resolvedIsLoopback = isLoopbackIp(address)
-
-    if (isPrivateIp(address) && !(isLocalhost && resolvedIsLoopback && !isHosted)) {
+    if (usable.length === 0) {
       logger.warn('URL resolves to blocked IP address', {
         paramName,
         hostname,
-        resolvedIP: address,
+        resolvedIP: addresses.find((address) => isPrivateIp(address)),
       })
       return {
         isValid: false,
@@ -87,7 +90,9 @@ export async function validateUrlWithDNS(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      // Re-preferred over the surviving set so the pin is never an address the
+      // filter above just refused.
+      resolvedIP: preferIpv4(usable as [string, ...string[]]),
       originalHostname: hostname,
     }
   } catch (error) {
@@ -206,16 +211,16 @@ export async function validateDatabaseHost(
   }
 
   try {
-    // Prefer IPv4: pinning strips Happy Eyeballs' fallback, and a pinned IPv6 address hangs
-    // on IPv4-only egress (e.g. AWS NAT gateways).
-    const resolved = await dns.lookup(cleanHost, { all: true, verbatim: true })
-    const { address } = resolved.find((entry) => entry.family === 4) ?? resolved[0]
+    const { addresses, preferred } = await resolveHostAddresses(cleanHost)
+    const blockedAddress = isPrivateDatabaseHostsAllowed
+      ? undefined
+      : addresses.find((candidate) => isPrivateIp(candidate))
 
-    if (isPrivateIp(address) && !isPrivateDatabaseHostsAllowed) {
+    if (blockedAddress !== undefined) {
       logger.warn('Database host resolves to blocked IP address', {
         paramName,
         hostname: host,
-        resolvedIP: address,
+        resolvedIP: blockedAddress,
       })
       return {
         isValid: false,
@@ -225,7 +230,7 @@ export async function validateDatabaseHost(
 
     return {
       isValid: true,
-      resolvedIP: address,
+      resolvedIP: preferred,
       originalHostname: host,
     }
   } catch (error) {
@@ -353,6 +358,11 @@ export interface SecureFetchOptions {
   body?: string | Buffer | Uint8Array
   timeout?: number
   maxRedirects?: number
+  /**
+   * Maximum bytes read from the response body. Defaults to
+   * {@link DEFAULT_MAX_RESPONSE_BYTES} — there is deliberately no "unlimited" mode, since
+   * many callers target a user-supplied host that can stream an endless body.
+   */
   maxResponseBytes?: number
   signal?: AbortSignal
   /** Drop the Authorization header when following a redirect, so it is not sent to the redirect target's origin. */
@@ -408,6 +418,19 @@ export interface SecureFetchResponse {
 }
 
 const DEFAULT_MAX_REDIRECTS = 5
+
+/**
+ * Fail-safe ceiling applied by {@link secureFetchWithPinnedIP} when the caller does not
+ * pass `maxResponseBytes`. Many callers fetch a user-supplied host, so an omitted cap
+ * would let a malicious upstream stream an endless chunked body into memory until the
+ * process is OOM-killed. Set to the platform's largest legitimate payload (100MB, matching
+ * the upload limit); callers that need more must opt in explicitly, and callers handling
+ * small JSON should pass a much tighter cap.
+ */
+export const DEFAULT_MAX_RESPONSE_BYTES = 100 * 1024 * 1024
+
+/** Response cap for JSON/control-plane proxies to user-supplied hosts. */
+export const MAX_JSON_API_RESPONSE_BYTES = 10 * 1024 * 1024
 
 function isRedirectStatus(status: number): boolean {
   return status >= 300 && status < 400 && status !== 304
@@ -487,10 +510,7 @@ function assertGuardedRedirectTarget(url: URL, allowedPinnedIp?: string): void {
   if (url.protocol !== 'http:' && url.protocol !== 'https:') {
     throw new Error(`Blocked by SSRF policy: redirect to unsupported protocol ${url.protocol}`)
   }
-  const host =
-    url.hostname.startsWith('[') && url.hostname.endsWith(']')
-      ? url.hostname.slice(1, -1)
-      : url.hostname
+  const host = unwrapIpv6Brackets(url.hostname)
   if (ipaddr.isValid(host) && isPrivateIp(host)) {
     // The pinned-private carve-out permits exactly its own validated IP as a target (a
     // self-hosted MCP on a private IP, or a same-host redirect that stays on it) — but nothing
@@ -935,6 +955,10 @@ export function createPinnedFetchWithDispatcher(
  * Performs a fetch with IP pinning to prevent DNS rebinding attacks.
  * Uses the pre-resolved IP address while preserving the original hostname for TLS SNI.
  * Follows redirects securely by validating each redirect target.
+ *
+ * The response body is always bounded — `options.maxResponseBytes` when supplied (and
+ * positive), otherwise {@link DEFAULT_MAX_RESPONSE_BYTES}. Exceeding the cap rejects with
+ * a {@link PayloadSizeLimitError} and destroys the socket.
  */
 export async function secureFetchWithPinnedIP(
   url: string,
@@ -943,7 +967,11 @@ export async function secureFetchWithPinnedIP(
   redirectCount = 0
 ): Promise<SecureFetchResponse> {
   const maxRedirects = options.maxRedirects ?? DEFAULT_MAX_REDIRECTS
-  const maxResponseBytes = options.maxResponseBytes
+  const requestedMaxResponseBytes = options.maxResponseBytes
+  const maxResponseBytes =
+    typeof requestedMaxResponseBytes === 'number' && requestedMaxResponseBytes > 0
+      ? requestedMaxResponseBytes
+      : DEFAULT_MAX_RESPONSE_BYTES
 
   return new Promise((resolve, reject) => {
     const parsed = new URL(url)
@@ -1035,8 +1063,15 @@ export async function secureFetchWithPinnedIP(
         }
       }
 
+      // Responses that carry no body (HEAD, 204, 304) may still advertise the resource's full
+      // size in content-length. That is metadata, not a payload, so it must not trip the cap —
+      // otherwise a HEAD probe of a large file, or a conditional-GET 304, would fail spuriously.
+      const isBodylessResponse =
+        (requestOptions.method || 'GET').toUpperCase() === 'HEAD' ||
+        statusCode === 204 ||
+        statusCode === 304
       const contentLength = headersRecord['content-length']
-      if (typeof maxResponseBytes === 'number' && maxResponseBytes > 0 && contentLength) {
+      if (contentLength && !isBodylessResponse) {
         const parsedLength = Number.parseInt(contentLength, 10)
         if (Number.isFinite(parsedLength) && parsedLength > maxResponseBytes) {
           cleanupAbort()
@@ -1072,11 +1107,7 @@ export async function secureFetchWithPinnedIP(
         start(controller) {
           nodeRes.on('data', (chunk: Buffer) => {
             totalBytes += chunk.length
-            if (
-              typeof maxResponseBytes === 'number' &&
-              maxResponseBytes > 0 &&
-              totalBytes > maxResponseBytes
-            ) {
+            if (totalBytes > maxResponseBytes) {
               cleanupAbort()
               controller.error(
                 new PayloadSizeLimitError({

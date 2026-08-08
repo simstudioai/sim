@@ -70,7 +70,7 @@ const emailStyles = {
     fontSize: '15px',
     lineHeight: '25px',
     color: '#1a1a1a',
-    fontWeight: 430,
+    fontWeight: 400,
   },
   content: {
     margin: 0,
@@ -105,7 +105,7 @@ const markdownStyles = {
     lineHeight: '25px',
     color: '#1a1a1a',
     fontFamily: FONT_FAMILY,
-    fontWeight: 430,
+    fontWeight: 400,
   },
   h1: {
     fontWeight: 600,

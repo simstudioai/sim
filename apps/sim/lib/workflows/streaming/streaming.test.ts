@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { readSSEStream } from '@/lib/core/utils/sse'
 import { clearLargeValueCacheForTests } from '@/lib/execution/payloads/cache'
@@ -8,6 +9,15 @@ import {
   agentStreamProtocolResponseHeaders,
   createStreamingResponse,
 } from '@/lib/workflows/streaming/streaming'
+
+const workflowStreamingLoggerCallIndex = loggerMock.createLogger.mock.calls.findIndex(
+  ([name]) => name === 'WorkflowStreaming'
+)
+const workflowStreamingLogger =
+  loggerMock.createLogger.mock.results[workflowStreamingLoggerCallIndex]?.value
+if (!workflowStreamingLogger) {
+  throw new Error('WorkflowStreaming logger mock was not initialized')
+}
 
 const { mockDownloadFile } = vi.hoisted(() => ({
   mockDownloadFile: vi.fn(),
@@ -89,6 +99,122 @@ describe('createStreamingResponse', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     clearLargeValueCacheForTests()
+  })
+
+  it('forwards raw execution state to terminal logging', async () => {
+    const safeComplete = vi.fn().mockResolvedValue(undefined)
+    const executionState = {
+      blockStates: { 'function-1': { output: { result: 'raw-secret-value' } } },
+    }
+    const stream = await createStreamingResponse({
+      requestId: 'request-1',
+      executionId: 'execution-1',
+      streamConfig: {
+        selectedOutputs: [],
+        includeFileBase64: false,
+      },
+      executeFn: async () =>
+        ({
+          success: true,
+          status: 'completed',
+          output: { result: 'raw-secret-value' },
+          logs: [],
+          metadata: { duration: 1 },
+          executionState,
+          _streamingMetadata: {
+            loggingSession: { safeComplete },
+            processedInput: { input: 'raw-runtime-value' },
+          },
+        }) as any,
+    })
+
+    await readSSEStream(stream)
+
+    expect(safeComplete).toHaveBeenCalledWith(
+      expect.objectContaining({
+        finalOutput: { result: 'raw-secret-value' },
+        workflowInput: { input: 'raw-runtime-value' },
+        executionState,
+      })
+    )
+  })
+
+  it('projects stream failures for logs without changing the terminal error frame', async () => {
+    const secret = 'streaming-secret-value'
+    const message = `Provider exposed ${secret} __var_API_KEY __sim_code_1_binding_0`
+    const rawError = new Error(message)
+    const stream = await createStreamingResponse({
+      requestId: 'request-secret-failure',
+      executionId: 'execution-1',
+      streamConfig: {},
+      executeFn: async () => {
+        throw rawError
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+
+    expect(events).toContainEqual({ event: 'error', error: message })
+    expect(events.some((event) => event.event === 'final')).toBe(false)
+    expect(workflowStreamingLogger.error).toHaveBeenCalledWith(
+      '[request-secret-failure] Stream error',
+      {
+        errorType: 'error',
+        hasStack: true,
+      }
+    )
+    const loggerPayload = JSON.stringify(workflowStreamingLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toBe(message)
+  })
+
+  it('fails closed when a block stream reader rejects while preserving the raw stream frame', async () => {
+    const secret = 'block-stream-secret-7f3a91'
+    const message = `reader failed ${secret} __var_API_KEY __sim_code_2_binding_0`
+    const rawError = new Error(message)
+    const stream = await createStreamingResponse({
+      requestId: 'request-block-stream-failure',
+      executionId: 'execution-1',
+      streamConfig: {},
+      executeFn: async ({ onStream }) => {
+        await onStream({
+          stream: new ReadableStream({
+            start(controller) {
+              controller.error(rawError)
+            },
+          }),
+          execution: {
+            blockId: 'agent-1',
+            success: false,
+            output: {},
+            logs: [],
+            metadata: {},
+          },
+        } as any)
+
+        return {
+          success: true,
+          output: {},
+          logs: [],
+          metadata: { duration: 1 },
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+
+    expect(events).toContainEqual({ event: 'stream_error', blockId: 'agent-1', error: message })
+    expect(workflowStreamingLogger.error).toHaveBeenCalledWith(
+      '[request-block-stream-failure] Error reading stream for block agent-1',
+      { errorType: 'error', hasStack: true }
+    )
+    const loggerPayload = JSON.stringify(workflowStreamingLogger.error.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toBe(message)
   })
 
   it('extracts block-level selected outputs from JSON content payloads', async () => {
@@ -304,6 +430,53 @@ describe('createStreamingResponse', () => {
     const chunkEvents = events.filter((event) => 'chunk' in event)
     expect(chunkEvents).toHaveLength(1)
     expect(chunkEvents[0]).toMatchObject({ blockId: 'block', chunk: 'ok' })
+  })
+
+  it('fails closed when selected-output materialization logs a secret-bearing error', async () => {
+    const secret = 'selected-output-secret-7f3a91'
+    const message = `download failed ${secret} __var_API_KEY __sim_code_3_binding_0`
+    const rawError = new Error(message)
+    const value = {
+      toJSON() {
+        throw rawError
+      },
+    }
+
+    const stream = await createStreamingResponse({
+      requestId: 'request-selected-output-failure',
+      executionId: 'execution-1',
+      streamConfig: {
+        selectedOutputs: ['block_value'],
+        includeFileBase64: false,
+      },
+      executeFn: async ({ onBlockComplete }) => {
+        await onBlockComplete('block', { value })
+        return {
+          success: true,
+          output: {},
+          logs: [],
+          metadata: { duration: 1 },
+        } as any
+      },
+    })
+
+    const events = await collectSSEEvents(stream)
+
+    expect(events).toContainEqual({ event: 'error', blockId: 'block', error: message })
+    expect(workflowStreamingLogger.warn).toHaveBeenCalledWith(
+      '[request-selected-output-failure] Failed to materialize selected output',
+      {
+        blockId: 'block',
+        outputId: 'block_value',
+        errorType: 'error',
+        hasStack: true,
+      }
+    )
+    const loggerPayload = JSON.stringify(workflowStreamingLogger.warn.mock.calls)
+    expect(loggerPayload).not.toContain(secret)
+    expect(loggerPayload).not.toContain('__var_')
+    expect(loggerPayload).not.toContain('__sim_')
+    expect(rawError.message).toBe(message)
   })
 
   it('fails when distinct selected outputs aggregate over the inline cap', async () => {

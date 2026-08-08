@@ -39,6 +39,9 @@ export const fileAppendTool: ToolConfig<FileAppendParams, ToolResponse> = {
       content: params.content,
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
+    secretProvenance: {
+      request: () => [{ key: 'content', inputPaths: [['content']] }],
+    },
   },
 
   transformResponse: async (response) => {

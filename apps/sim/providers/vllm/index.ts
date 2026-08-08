@@ -11,11 +11,13 @@ import { formatMessagesForProvider } from '@/providers/attachments'
 import { getCachedProviderClient } from '@/providers/client-cache'
 import { getProviderDefaultModel, getProviderModels } from '@/providers/models'
 import { createOpenAICompatAssistantHistory } from '@/providers/openai-compat/assistant-history'
+import { executeProviderTool } from '@/providers/runtime-context'
 import { createSettledAgentEventStream } from '@/providers/stream-events'
 import { createStreamingExecution } from '@/providers/streaming-execution'
 import { isAbortError, parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import { adaptOpenAIChatToolSchema } from '@/providers/tool-schema-adapter'
 import { enrichLastModelSegmentFromChatCompletions } from '@/providers/trace-enrichment'
+import { openAICompatTransport } from '@/providers/transport'
 import type {
   Message,
   ProviderConfig,
@@ -26,13 +28,13 @@ import type {
 import { ProviderError } from '@/providers/types'
 import {
   calculateCost,
+  isFunctionToolCall,
   prepareToolExecution,
   prepareToolsWithUsageControl,
   sumToolCosts,
 } from '@/providers/utils'
 import { checkForForcedToolUsage, createReadableStreamFromVLLMStream } from '@/providers/vllm/utils'
 import { useProvidersStore } from '@/stores/providers'
-import { executeTool } from '@/tools'
 
 const logger = createLogger('VLLMProvider')
 const VLLM_VERSION = '1.0.0'
@@ -143,6 +145,7 @@ export const vllmProvider: ProviderConfig = {
       `vllm::${apiKey}::${baseUrl}::${pinnedIP ?? 'no-pin'}`,
       () =>
         new OpenAI({
+          ...openAICompatTransport(),
           apiKey,
           baseURL: `${baseUrl}/v1`,
           ...(pinnedFetch ? { fetch: pinnedFetch } : {}),
@@ -339,7 +342,8 @@ export const vllmProvider: ProviderConfig = {
           }
         }
 
-        const toolCallsInResponse = currentResponse.choices[0]?.message?.tool_calls
+        const toolCallsInResponse =
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)
 
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
@@ -384,16 +388,21 @@ export const vllmProvider: ProviderConfig = {
             }
 
             const { toolParams, executionParams } = prepareToolExecution(tool, toolArgs, request)
-            const result = await executeTool(toolName, executionParams, {
-              signal: request.abortSignal,
-            })
+            const { rawResponse, modelResponse } = await executeProviderTool(
+              toolName,
+              executionParams,
+              {
+                signal: request.abortSignal,
+              }
+            )
             const toolCallEndTime = Date.now()
 
             return {
               toolCall,
               toolName,
               toolParams,
-              result,
+              result: rawResponse,
+              modelResult: modelResponse,
               startTime: toolCallStartTime,
               endTime: toolCallEndTime,
               duration: toolCallEndTime - toolCallStartTime,
@@ -436,6 +445,8 @@ export const vllmProvider: ProviderConfig = {
         for (const executionResult of executionResults) {
           const { toolCall, toolName, toolParams, result, startTime, endTime, duration } =
             executionResult
+          const modelResult =
+            'modelResult' in executionResult ? (executionResult.modelResult ?? result) : result
 
           timeSegments.push({
             type: 'tool',
@@ -459,6 +470,13 @@ export const vllmProvider: ProviderConfig = {
               tool: toolName,
             }
           }
+          const modelResultContent = modelResult.success
+            ? (modelResult.output ?? null)
+            : {
+                error: true,
+                message: modelResult.error || 'Tool execution failed',
+                tool: toolName,
+              }
 
           toolCalls.push({
             name: toolName,
@@ -473,7 +491,7 @@ export const vllmProvider: ProviderConfig = {
           currentMessages.push({
             role: 'tool',
             tool_call_id: toolCall.id,
-            content: JSON.stringify(resultContent),
+            content: JSON.stringify(modelResultContent),
           })
         }
 
@@ -551,11 +569,11 @@ export const vllmProvider: ProviderConfig = {
         enrichLastModelSegmentFromChatCompletions(
           timeSegments,
           currentResponse,
-          currentResponse.choices[0]?.message?.tool_calls,
+          currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
           { model: request.model, provider: 'vllm' }
         )
 
-        if (currentResponse.choices[0]?.message?.tool_calls?.length) {
+        if (currentResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall)?.length) {
           /**
            * The capped turn still requests tools, so make one tool-disabled call
            * to synthesize an answer from the tool results already gathered.
@@ -593,7 +611,7 @@ export const vllmProvider: ProviderConfig = {
           enrichLastModelSegmentFromChatCompletions(
             timeSegments,
             synthesisResponse,
-            synthesisResponse.choices[0]?.message?.tool_calls,
+            synthesisResponse.choices[0]?.message?.tool_calls?.filter(isFunctionToolCall),
             { model: request.model, provider: 'vllm' }
           )
         }

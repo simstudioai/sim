@@ -15,6 +15,12 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
 import { deleteRow, updateRow } from '@/lib/table'
+import { signalTableRowsChanged } from '@/lib/table/events'
+import {
+  createTableRowsResponse,
+  createTableWriteProvenanceTargets,
+  resolveTableWriteSecretProvenance,
+} from '@/app/api/table/row-secret-provenance'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
 import {
   accessError,
@@ -81,7 +87,7 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
 
     const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       data: {
         row: {
@@ -94,6 +100,14 @@ export const GET = withRouteHandler(async (request: NextRequest, { params }: Row
             row.updatedAt instanceof Date ? row.updatedAt.toISOString() : String(row.updatedAt),
         },
       },
+    }
+    return createTableRowsResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      body: responseBody,
+      rows: [{ ...row, data: row.data as RowData }],
     })
   } catch (error) {
     if (isZodError(error)) {
@@ -133,13 +147,25 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     }
 
     const wire = rowWireTranslators(authResult.authType, table.schema as TableSchema)
+    const rowData = validated.data as RowData
+    const provenance = resolveTableWriteSecretProvenance({
+      request,
+      payload: validated,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      targets: createTableWriteProvenanceTargets([rowData], wire.dataIn),
+      rowKeys: ['0'],
+    })
+    if (!provenance.success) return provenance.response
     const updatedRow = await updateRow(
       {
         tableId,
         rowId,
-        data: wire.dataIn(validated.data as RowData),
+        data: wire.dataIn(rowData),
         workspaceId: validated.workspaceId,
         actorUserId: authResult.userId,
+        secretProvenance: provenance.provenanceByRowKey?.['0'],
       },
       table,
       requestId
@@ -147,13 +173,16 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
     // Only `null` when a `cancellationGuard` is supplied and the SQL guard
     // rejects the write — this route doesn't pass one, so reaching null is a bug.
     if (!updatedRow) throw new Error('updateRow returned null without a cancellationGuard')
+    // An edit that also triggers a dispatch already emits dispatch/cell events; the
+    // debounced rows refetch on the peer coalesces the two.
+    signalTableRowsChanged(tableId)
     // Auto-dispatch for user edits is handled inside `updateRow` (mode: 'new').
     // Firing a second mode: 'incomplete' dispatch here would race with the
     // `mode: 'new'` one AND bulk-clear sibling-group outputs (the incomplete
     // bulk-clear wipes ALL targeted columns when any one column on the row
     // is empty).
 
-    return NextResponse.json({
+    const responseBody = {
       success: true,
       data: {
         row: {
@@ -171,6 +200,14 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
         },
         message: 'Row updated successfully',
       },
+    }
+    return createTableRowsResponse({
+      request,
+      authType: authResult.authType,
+      userId: authResult.userId,
+      workspaceId: table.workspaceId,
+      body: responseBody,
+      rows: [updatedRow],
     })
   } catch (error) {
     if (rootErrorMessage(error) === 'Row not found') {
@@ -213,6 +250,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
     }
 
     await deleteRow(table, rowId, requestId)
+    signalTableRowsChanged(tableId)
 
     return NextResponse.json({
       success: true,

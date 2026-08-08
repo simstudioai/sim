@@ -10,10 +10,15 @@ import {
   updateMemoryByIdContract,
 } from '@/lib/api/contracts/memory'
 import { parseRequest } from '@/lib/api/server'
-import { checkInternalAuth } from '@/lib/auth/hybrid'
+import { type AuthTypeValue, checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { replaceMemorySecretProvenanceInTx } from '@/lib/memory/secret-provenance'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
+import {
+  createMemoryResponse,
+  resolveMemoryWriteSecretProvenance,
+} from '@/app/api/memory/secret-provenance'
 
 const logger = createLogger('MemoryByIdAPI')
 
@@ -30,7 +35,7 @@ async function validateMemoryAccess(
   workspaceId: string,
   requestId: string,
   action: 'read' | 'write'
-): Promise<{ userId: string } | { error: NextResponse }> {
+): Promise<{ userId: string; authType?: AuthTypeValue } | { error: NextResponse }> {
   const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
   if (!authResult.success || !authResult.userId) {
     logger.warn(`[${requestId}] Unauthorized memory ${action} attempt`)
@@ -46,7 +51,7 @@ async function validateMemoryAccess(
     return { error: memoryEnvelopeError('Write access denied', 403) }
   }
 
-  return { userId: authResult.userId }
+  return { userId: authResult.userId, authType: authResult.authType }
 }
 
 export const dynamic = 'force-dynamic'
@@ -86,16 +91,33 @@ export const GET = withRouteHandler(async (request: NextRequest, context: Memory
       .limit(1)
 
     if (memories.length === 0) {
-      return NextResponse.json({ success: true, data: null }, { status: 200 })
+      return createMemoryResponse({
+        request,
+        authType: accessCheck.authType,
+        userId: accessCheck.userId,
+        workspaceId: validatedWorkspaceId,
+        body: { success: true, data: null },
+        memories: [],
+      })
     }
 
     const mem = memories[0]
 
     logger.info(`[${requestId}] Memory retrieved: ${id} for workspace: ${validatedWorkspaceId}`)
-    return NextResponse.json(
-      { success: true, data: { conversationId: mem.key, data: mem.data } },
-      { status: 200 }
-    )
+    return createMemoryResponse({
+      request,
+      authType: accessCheck.authType,
+      userId: accessCheck.userId,
+      workspaceId: validatedWorkspaceId,
+      body: { success: true, data: { conversationId: mem.key, data: mem.data } },
+      memories: [
+        {
+          id: mem.id,
+          data: mem.data,
+          secretProvenanceVersion: mem.secretProvenanceVersion,
+        },
+      ],
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error retrieving memory`, { error })
     return memoryEnvelopeError(error.message || 'Failed to retrieve memory', 500)
@@ -217,16 +239,42 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
     }
 
     const now = new Date()
-    await db
-      .update(memory)
-      .set({ data: validatedData, updatedAt: now })
-      .where(
-        and(
-          eq(memory.key, id),
-          eq(memory.workspaceId, validatedWorkspaceId),
-          isNull(memory.deletedAt)
+    const writeProvenance = resolveMemoryWriteSecretProvenance({
+      request,
+      payload: validation.data.body,
+      authType: accessCheck.authType,
+      userId: accessCheck.userId,
+      workspaceId: validatedWorkspaceId,
+    })
+    if (!writeProvenance.success) return writeProvenance.response
+    await db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(memory)
+        .set({
+          data: validatedData,
+          secretProvenanceVersion: writeProvenance.provenance
+            ? 1
+            : existingMemories[0].secretProvenanceVersion,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(memory.key, id),
+            eq(memory.workspaceId, validatedWorkspaceId),
+            isNull(memory.deletedAt)
+          )
         )
-      )
+        .returning({ id: memory.id })
+      if (!updated) throw new Error('Memory not found')
+      if (writeProvenance.provenance) {
+        await replaceMemorySecretProvenanceInTx(
+          tx,
+          updated.id,
+          validatedData,
+          writeProvenance.provenance
+        )
+      }
+    })
 
     const updatedMemories = await db
       .select()
@@ -243,10 +291,20 @@ export const PUT = withRouteHandler(async (request: NextRequest, context: Memory
     const mem = updatedMemories[0]
 
     logger.info(`[${requestId}] Memory updated: ${id} for workspace: ${validatedWorkspaceId}`)
-    return NextResponse.json(
-      { success: true, data: { conversationId: mem.key, data: mem.data } },
-      { status: 200 }
-    )
+    return createMemoryResponse({
+      request,
+      authType: accessCheck.authType,
+      userId: accessCheck.userId,
+      workspaceId: validatedWorkspaceId,
+      body: { success: true, data: { conversationId: mem.key, data: mem.data } },
+      memories: [
+        {
+          id: mem.id,
+          data: mem.data,
+          secretProvenanceVersion: mem.secretProvenanceVersion,
+        },
+      ],
+    })
   } catch (error: any) {
     logger.error(`[${requestId}] Error updating memory`, { error })
     return memoryEnvelopeError(error.message || 'Failed to update memory', 500)

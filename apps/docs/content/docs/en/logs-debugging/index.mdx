@@ -1,7 +1,6 @@
 ---
 title: Overview
 description: A log is the recorded trace of one workflow run, and debugging is reading that trace backward from the block that failed.
-pageType: concept
 ---
 
 import { Card, Cards } from 'fumadocs-ui/components/card'
@@ -43,7 +42,7 @@ This is the level you debug at, because a run fails when one of its blocks fails
 
 ### Input and output
 
-Each block in the sidebar has two tabs. The **Input** tab shows the resolved values the block actually ran with: the literal values you typed, and the earlier outputs it read by reference (with API keys redacted). The **Output** tab shows what the block produced, formatted as an object, with markdown rendered for agent-generated text.
+Each block in the sidebar has two tabs. The **Input** tab shows the resolved values the block actually ran with: the literal values you typed, and the earlier outputs it read by reference. Exact values successfully substituted from Secrets through `{{KEY}}` are masked in this trace copy; see [Execution log protection](/platform/credentials#execution-log-protection). The **Output** tab shows what the block produced, formatted as an object, with markdown rendered for agent-generated text.
 
 The input tab is the important one. A block reads earlier outputs by name, written `<blockName.field>`, and the input tab shows what those references resolved to at run time. If a reference pointed at a value that was not there, you see it here as missing or wrong, not as the tag you wrote. See [how blocks pass data](/workflows/data-flow) for how those references resolve.
 
@@ -90,7 +89,7 @@ When a value is the wrong shape, reshape it in a [Function](/workflows/blocks/fu
 
 ## AI-assisted debugging
 
-Mothership and Copilot can read a run's logs and propose a fix from the trace: the error message, the input the block received, and the output the upstream block produced. The logs stay the ground truth. You confirm a proposed fix the same way you confirm your own: rerun the workflow and compare the new trace against the failed one.
+Sim can read a run's logs and propose a fix from the trace: the error message, the input the block received, and the output the upstream block produced. The logs stay the ground truth. You confirm a proposed fix the same way you confirm your own: rerun the workflow and compare the new trace against the failed one.
 
 ## Retention
 
