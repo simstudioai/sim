@@ -54,13 +54,12 @@ everywhere else in the app. The one exception is a folder's own `index.ts`
 naming its siblings, which stays relative (`./<child>`) — it is describing its
 own directory, not reaching across the app.
 
-`table-view` is the one unit with no `<unit>.tsx`, and deliberately so: a table
-has no read-only surface yet, because everything that draws a grid today also
-writes one. It is absent from `CANONICAL_UNITS`' view list for exactly that
-reason, and carries the layout above so a future `TableView` lands in the shape
-the other three already have.
+All four kinds have a canonical view: `FileView`, `TableView`, `LogView`,
+`KnowledgeView`. A view reads **and** writes — `FileView` edits, `TableView`
+edits — gated on `grants.write`. "The view is read-only and the shell writes"
+was a staging point during the migration, never a rule.
 
-A resource kind with no canonical view yet — `table` alone today — is simply **absent** from the view list in `CANONICAL_UNITS`. That is the correct state for an unmigrated kind. Do not add a flag, a shim, or a placeholder entry for it.
+A kind with no canonical view would simply be **absent** from the view list in `CANONICAL_UNITS` — that is the correct state for an unmigrated kind, not a flag, a shim, or a placeholder entry. Every kind has one today, so the list is full.
 
 ## Consume: construct the axes, then mount
 

@@ -13,9 +13,9 @@ This is the migration plan.
 | Resource | Canonical view | Consumers today | Notes |
 | --- | --- | --- | --- |
 | **file** | `components/resources/file-view` | Files page, mothership panel, `/f/[token]` | Done. The reference implementation, and the only kind with a public surface. |
-| **table** | *view layer only* (`components/resources/table-view`) | tables page + mothership, via the editing shell that mounts its parts | Moved out of the route tree; no standalone read-only view has a consumer yet. |
-| **knowledge** | — | knowledge page, mothership panel | No public consumer yet. |
-| **log** | — | logs page, mothership panel, tables page | `LogDetailsContent` is already shared; it just leaks context. |
+| **table** | `components/resources/table-view` | tables page + mothership panel | Done. The view reads and writes; the route keeps `page`/`loading`/`error` and a ~50-line client shell. |
+| **knowledge** | `components/resources/knowledge-view` | knowledge page, mothership panel | Read surface done; the editing shell still lives in the route tree. |
+| **log** | `components/resources/log-view` | logs page, mothership panel, tables page | Done. The tables page mounts it directly for the execution slideout. |
 | **workflow** | *deliberately excluded* | — | Not a document. See "Why workflow is not a resource". |
 | **folder** | *not a resource* | — | Organisational structure inside files/knowledge, not a thing you render. |
 
@@ -118,11 +118,17 @@ a pure `resolveCellRender()` returning a typed `CellRenderKind` union and a dumb
 
 The move and the axes landed together. Two corrections to the plan below, learned by doing it:
 
-- **`table-grid.tsx` never moved, and did not need to.** It reads `useParams()`,
-  `useUserPermissionsContext()` and ten mutation hooks — it *is* the shell. Only what
-  it renders moved out from under it: 18 files, ~3.4k lines, at ~100% rename
-  similarity. Splitting the grid was never a prerequisite for giving the view layer
-  an address.
+- **`table-grid.tsx` did not move in the first pass, and did not need to.** It read
+  `useParams()`, `useUserPermissionsContext()` and ten mutation hooks — it *was* the
+  shell. Only what it renders moved out from under it: 18 files, ~3.4k lines, at
+  ~100% rename similarity. Splitting the grid was never a prerequisite for giving the
+  view layer an address.
+
+  It moved in the second pass, intact, once the context reads were severed in place
+  first. That ordering is the lesson: with the router, params and permission context
+  already gone, R6 was 0 *before* a single file changed directory, so the 61-file
+  move carried no semantic risk. Doing it the other way round would have buried four
+  behavioral edits inside a rename diff.
 - **The move needed four unblocking changes first**, each worth landing alone:
   `StatusBadge` out of `logs/utils` (it dragged the block registry into every table
   cell), `ChatMessageContext` read from its definition, `RemoteTableSelection` lifted
@@ -131,8 +137,11 @@ The move and the axes landed together. Two corrections to the plan below, learne
   the write path regardless of `isEditing`.
 
 Still open: the public surface (a token-scoped rows route plus a seed — see step 5),
-the mothership panel (still mounts the whole editing page — a product decision, not a
-refactor), and the row page-size split documented on `TABLE_VIEW_PAGE_SIZE`.
+and the row page-size split documented on `TABLE_VIEW_PAGE_SIZE`.
+
+The mothership panel no longer mounts the editing page. It mounts `TableView` against
+a source, exactly as it does for files and logs — which also stopped it writing
+`?sort` / `?dir` / `?table-view` into the host page's address bar.
 
 ### Original sequencing — three PRs, not one
 

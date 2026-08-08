@@ -27,7 +27,7 @@ apps/sim/resources/                    # kinds/source/grants/host — pure TS, N
 apps/sim/components/resources/<unit>/  # 'use client' — THE view, one per resource
 ```
 
-A kind with no canonical view yet — `table` alone today — is simply absent from the view list in the check’s `CANONICAL_UNITS`. Do not add a flag, shim, or placeholder for it.
+All four kinds have a canonical view. A kind without one would simply be absent from the view list in the check’s `CANONICAL_UNITS` — not a flag, shim, or placeholder.
 
 ## Consume: construct, then mount
 
