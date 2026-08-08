@@ -1252,6 +1252,47 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
+    it('prunes a private selector when an earlier message structural check fails', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'CUSTOM_TOOL_ID', plaintext: 'x', encryptedValue: 'encrypted-tool-id' },
+        { name: 'CALL_ID', plaintext: 'private-call', encryptedValue: 'encrypted-call-id' },
+      ])
+      const selectorPath = ['tools', '0', 'customToolId'] as const
+      registry.recordResolvedAtInputPath('CUSTOM_TOOL_ID', 'x', selectorPath)
+      registry.recordResolvedInputProjection(selectorPath, 'x', '{{CUSTOM_TOOL_ID}}')
+      const callIdPath = ['messages', '0', 'tool_calls', '0', 'id'] as const
+      registry.recordResolvedAtInputPath('CALL_ID', 'private-call', callIdPath)
+      registry.recordResolvedInputProjection(callIdPath, 'private-call', '{{CALL_ID}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      const inputs = {
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'assistant' as const,
+            content: '',
+            tool_calls: [
+              {
+                id: 'private-call',
+                type: 'function' as const,
+                function: { name: 'lookup', arguments: '{}' },
+              },
+            ],
+          },
+        ],
+        tools: [{ type: 'custom-tool', customToolId: 'x', usageControl: 'auto' as const }],
+      }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Agent structural model inputs cannot contain secret references'
+      )
+
+      expect(inputs.tools[0].customToolId).toBe('{{CUSTOM_TOOL_ID}}')
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([
+        { plaintext: 'private-call', replacement: '{{CALL_ID}}' },
+      ])
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
     it('binds a resolved tool preset to the exact formatted provider tool instance', async () => {
       const registry = new ResolvedSecretTraceRegistry([
         { name: 'API_KEY', plaintext: 'x', encryptedValue: 'encrypted-api-key' },
@@ -1931,7 +1972,7 @@ describe('AgentBlockHandler', () => {
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
     })
 
-    it('rejects a resolver-derived response format name', async () => {
+    it('aliases a resolver-derived response format name without changing the persisted input', async () => {
       const responseFormat = {
         name: 'private-schema',
         schema: { type: 'object', properties: {} },
@@ -1945,14 +1986,214 @@ describe('AgentBlockHandler', () => {
       registry.recordResolvedInputProjection(inputPath, 'private-schema', '{{FORMAT_NAME}}')
       mockContext.resolvedSecretTraceRegistry = registry
 
-      await expect(
-        handler.execute(mockContext, mockBlock, {
-          model: 'gpt-4o',
-          userPrompt: 'Return an answer.',
-          responseFormat,
-        })
-      ).rejects.toThrow('Agent structural model inputs cannot contain secret references')
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual({
+        name: 'response_schema',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      })
+      expect(JSON.stringify(mockExecuteProviderRequest.mock.calls[0][1])).not.toContain(
+        'private-schema'
+      )
+      expect(JSON.stringify(mockExecuteProviderRequest.mock.calls[0][1])).not.toContain(
+        'FORMAT_NAME'
+      )
+      expect(responseFormat).toEqual({
+        name: 'private-schema',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      })
+    })
+
+    it('prunes a private response format name when another structural field fails', async () => {
+      const responseFormat = {
+        name: 'x',
+        schema: { type: 'object', properties: {} },
+        strict: 'locked',
+      }
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FORMAT_NAME', plaintext: 'x', encryptedValue: 'encrypted-name' },
+        { name: 'STRICT_VALUE', plaintext: 'locked', encryptedValue: 'encrypted-strict' },
+      ])
+      const namePath = ['responseFormat', 'name'] as const
+      registry.recordResolvedAtInputPath('FORMAT_NAME', 'x', namePath)
+      registry.recordResolvedInputProjection(namePath, 'x', '{{FORMAT_NAME}}')
+      const strictPath = ['responseFormat', 'strict'] as const
+      registry.recordResolvedAtInputPath('STRICT_VALUE', 'locked', strictPath)
+      registry.recordResolvedInputProjection(strictPath, 'locked', '{{STRICT_VALUE}}')
+      mockContext.resolvedSecretTraceRegistry = registry
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Agent structural model inputs cannot contain secret references'
+      )
+
+      expect(inputs.responseFormat).toEqual({
+        name: '{{FORMAT_NAME}}',
+        schema: { type: 'object', properties: {} },
+        strict: 'locked',
+      })
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
       expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('prunes a private name from serialized response format before a structural failure', async () => {
+      const responseFormat = JSON.stringify({
+        name: 'x',
+        schema: { type: 'object', properties: {} },
+        strict: 'locked',
+      })
+      const projectedResponseFormat = JSON.stringify({
+        name: '{{FORMAT_NAME}}',
+        schema: { type: 'object', properties: {} },
+        strict: '{{STRICT_VALUE}}',
+      })
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FORMAT_NAME', plaintext: 'x', encryptedValue: 'encrypted-name' },
+        { name: 'STRICT_VALUE', plaintext: 'locked', encryptedValue: 'encrypted-strict' },
+      ])
+      registry.recordResolvedAtInputPath('FORMAT_NAME', 'x', ['responseFormat'])
+      registry.recordResolvedAtInputPath('STRICT_VALUE', 'locked', ['responseFormat'])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        responseFormat,
+        projectedResponseFormat
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+      const inputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      }
+
+      await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toThrow(
+        'Agent model input could not be safely projected'
+      )
+
+      expect(inputs.responseFormat).toBe(projectedResponseFormat)
+      expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+      expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+    })
+
+    it('aliases a resolver-derived name inside a persisted JSON response format', async () => {
+      const responseFormat = JSON.stringify({
+        name: 'private-schema',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      })
+      const projectedResponseFormat = JSON.stringify({
+        name: '{{FORMAT_NAME}}',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      })
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FORMAT_NAME', plaintext: 'private-schema', encryptedValue: 'encrypted-name' },
+      ])
+      registry.recordResolvedAtInputPath('FORMAT_NAME', 'private-schema', ['responseFormat'])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        responseFormat,
+        projectedResponseFormat
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+
+      await handler.execute(mockContext, mockBlock, {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      })
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual({
+        name: 'response_schema',
+        schema: { type: 'object', properties: {} },
+        strict: true,
+      })
+      expect(JSON.stringify(mockExecuteProviderRequest.mock.calls[0][1])).not.toContain(
+        'private-schema'
+      )
+      expect(JSON.stringify(mockExecuteProviderRequest.mock.calls[0][1])).not.toContain(
+        'FORMAT_NAME'
+      )
+      expect(responseFormat).toContain('private-schema')
+    })
+
+    it('excludes an aliased persisted response format name from block output provenance', async () => {
+      const responseFormat = JSON.stringify({
+        name: 'x',
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string', description: 'classified' } },
+        },
+        strict: true,
+      })
+      const projectedResponseFormat = JSON.stringify({
+        name: '{{FORMAT_NAME}}',
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string', description: '{{DESCRIPTION}}' } },
+        },
+        strict: true,
+      })
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'FORMAT_NAME', plaintext: 'x', encryptedValue: 'encrypted-name' },
+        {
+          name: 'DESCRIPTION',
+          plaintext: 'classified',
+          encryptedValue: 'encrypted-description',
+        },
+      ])
+      registry.recordResolvedAtInputPath('FORMAT_NAME', 'x', ['responseFormat'])
+      registry.recordResolvedAtInputPath('DESCRIPTION', 'classified', ['responseFormat'])
+      registry.recordResolvedInputProjection(
+        ['responseFormat'],
+        responseFormat,
+        projectedResponseFormat
+      )
+      mockContext.resolvedSecretTraceRegistry = registry
+      const handlerInputs = {
+        model: 'gpt-4o',
+        userPrompt: 'Return an answer.',
+        responseFormat,
+      }
+
+      await handler.execute(mockContext, mockBlock, handlerInputs)
+
+      expect(mockExecuteProviderRequest.mock.calls[0][1].responseFormat).toEqual({
+        name: 'response_schema',
+        schema: {
+          type: 'object',
+          properties: { answer: { type: 'string', description: '{{DESCRIPTION}}' } },
+        },
+        strict: true,
+      })
+      const modelRegistry = mockExecuteProviderRequest.mock.calls[0][2]
+        .resolvedSecretTraceRegistry as ResolvedSecretTraceRegistry
+      const snapshot = modelRegistry.getModelEgressSnapshot()
+      expect(snapshot.complete).toBe(true)
+      if (!snapshot.complete) throw new Error('Expected complete model provenance')
+      expect(snapshot.matches).toContainEqual({
+        plaintext: 'classified',
+        replacement: '{{DESCRIPTION}}',
+      })
+      expect(snapshot.matches.map((match) => match.plaintext)).not.toContain('x')
+      const blockSnapshot = mockContext.resolvedSecretTraceRegistry?.getModelEgressSnapshot()
+      expect(blockSnapshot?.complete).toBe(true)
+      if (!blockSnapshot?.complete) throw new Error('Expected complete block provenance')
+      expect(blockSnapshot.matches).toContainEqual({
+        plaintext: 'classified',
+        replacement: '{{DESCRIPTION}}',
+      })
+      expect(blockSnapshot.matches.map((match) => match.plaintext)).not.toContain('x')
+      expect(handlerInputs.responseFormat).toContain('{{FORMAT_NAME}}')
     })
 
     it('should handle responseFormat when it is an empty string', async () => {
@@ -3511,8 +3752,7 @@ describe('AgentBlockHandler', () => {
         registry.recordResolvedAtInputPath('CANARY_CUSTOM_TOOL_ID', toolId, inputPath)
         registry.recordResolvedInputProjection(inputPath, toolId, '{{CANARY_CUSTOM_TOOL_ID}}')
         mockContext.resolvedSecretTraceRegistry = registry
-
-        await handler.execute(mockContext, mockBlock, {
+        const inputs = {
           model: 'gpt-4o',
           userPrompt: 'Format a report',
           apiKey: 'test-api-key',
@@ -3520,10 +3760,12 @@ describe('AgentBlockHandler', () => {
             {
               type: 'custom-tool',
               customToolId: toolId,
-              usageControl: 'auto',
+              usageControl: 'auto' as const,
             },
           ],
-        })
+        }
+
+        await handler.execute(mockContext, mockBlock, inputs)
 
         expect(mockGetCustomToolById).toHaveBeenCalledWith(expect.objectContaining({ toolId }))
         const providerRequest = mockExecuteProviderRequest.mock.calls[0][1]
@@ -3531,6 +3773,145 @@ describe('AgentBlockHandler', () => {
         expect(providerRequest.tools[0].name).toBe('formatReport')
         expect(JSON.stringify(providerRequest.tools)).not.toContain(toolId)
         expect(JSON.stringify(providerRequest.tools)).not.toContain('CANARY_CUSTOM_TOOL_ID')
+        expect(inputs.tools[0].customToolId).toBe('{{CANARY_CUSTOM_TOOL_ID}}')
+        expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+      })
+
+      it('retains raw tool-call result provenance without reactivating a private selector', async () => {
+        const toolId = 'x'
+        const resultSecret = 'tool-result-secret'
+        mockDBForCustomTool(toolId)
+        const registry = new ResolvedSecretTraceRegistry([
+          {
+            name: 'CANARY_CUSTOM_TOOL_ID',
+            plaintext: toolId,
+            encryptedValue: 'encrypted-custom-tool-id',
+          },
+          {
+            name: 'TOOL_RESULT',
+            plaintext: resultSecret,
+            encryptedValue: 'encrypted-tool-result',
+          },
+        ])
+        const inputPath = ['tools', '0', 'customToolId'] as const
+        registry.recordResolvedAtInputPath('CANARY_CUSTOM_TOOL_ID', toolId, inputPath)
+        registry.recordResolvedInputProjection(inputPath, toolId, '{{CANARY_CUSTOM_TOOL_ID}}')
+        mockContext.resolvedSecretTraceRegistry = registry
+        mockExecuteProviderRequest.mockImplementationOnce((_provider, _request, runtimeContext) => {
+          runtimeContext.resolvedSecretTraceRegistry.recordResolved('TOOL_RESULT', resultSecret, {
+            propagated: true,
+          })
+          return Promise.resolve({
+            content: 'done',
+            model: 'mock-model',
+            tokens: { input: 10, output: 20, total: 30 },
+            toolCalls: [{ name: 'formatReport', result: { value: resultSecret, public: 'Box' } }],
+            cost: 0.001,
+            timing: { total: 100 },
+          })
+        })
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format a report',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              usageControl: 'auto' as const,
+            },
+          ],
+        }
+
+        const result = await handler.execute(mockContext, mockBlock, inputs)
+
+        expect((result as { toolCalls: { list: unknown[] } }).toolCalls.list).toContainEqual(
+          expect.objectContaining({ result: { value: resultSecret, public: 'Box' } })
+        )
+        expect(inputs.tools[0].customToolId).toBe('{{CANARY_CUSTOM_TOOL_ID}}')
+        expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([
+          { plaintext: resultSecret, replacement: '{{TOOL_RESULT}}' },
+        ])
+        expect(
+          mockContext.resolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(result)
+        ).toEqual({
+          version: 1,
+          complete: true,
+          entries: [{ name: 'TOOL_RESULT', encryptedValue: 'encrypted-tool-result' }],
+        })
+      })
+
+      it('settles a private selector when a later pre-provider tool build fails', async () => {
+        const toolId = 'x'
+        mockDBForCustomTool(toolId)
+        const failure = new ToolSchemaEnrichmentError(
+          'table_query_rows',
+          new Error('table metadata unavailable')
+        )
+        mockTransformBlockTool.mockRejectedValueOnce(failure)
+        const registry = new ResolvedSecretTraceRegistry([
+          {
+            name: 'CANARY_CUSTOM_TOOL_ID',
+            plaintext: toolId,
+            encryptedValue: 'encrypted-custom-tool-id',
+          },
+        ])
+        const inputPath = ['tools', '0', 'customToolId'] as const
+        registry.recordResolvedAtInputPath('CANARY_CUSTOM_TOOL_ID', toolId, inputPath)
+        registry.recordResolvedInputProjection(inputPath, toolId, '{{CANARY_CUSTOM_TOOL_ID}}')
+        mockContext.resolvedSecretTraceRegistry = registry
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Format and query a report',
+          tools: [
+            {
+              type: 'custom-tool',
+              customToolId: toolId,
+              usageControl: 'auto' as const,
+            },
+            { type: 'table', operation: 'query_rows', usageControl: 'auto' as const },
+          ],
+        }
+
+        await expect(handler.execute(mockContext, mockBlock, inputs)).rejects.toBe(failure)
+
+        expect(mockGetCustomToolById).toHaveBeenCalledWith(expect.objectContaining({ toolId }))
+        expect(inputs.tools[0].customToolId).toBe('{{CANARY_CUSTOM_TOOL_ID}}')
+        expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+        expect(mockExecuteProviderRequest).not.toHaveBeenCalled()
+      })
+
+      it('uses a secret-backed skillId for lookup without carrying it into output provenance', async () => {
+        const skillId = 'x'
+        mockContext.workspaceId = 'workspace-1'
+        queueTableRows(schemaMock.skill, [
+          { id: skillId, name: 'Reporting', description: 'Prepare reporting workflows' },
+        ])
+        const registry = new ResolvedSecretTraceRegistry([
+          {
+            name: 'CANARY_SKILL_ID',
+            plaintext: skillId,
+            encryptedValue: 'encrypted-skill-id',
+          },
+        ])
+        const inputPath = ['skills', '0', 'skillId'] as const
+        registry.recordResolvedAtInputPath('CANARY_SKILL_ID', skillId, inputPath)
+        registry.recordResolvedInputProjection(inputPath, skillId, '{{CANARY_SKILL_ID}}')
+        mockContext.resolvedSecretTraceRegistry = registry
+        const inputs = {
+          model: 'gpt-4o',
+          userPrompt: 'Prepare a report',
+          skills: [{ skillId }],
+        }
+
+        await handler.execute(mockContext, mockBlock, inputs)
+
+        const providerRequest = mockExecuteProviderRequest.mock.calls[0][1]
+        expect(providerRequest.tools).toContainEqual(
+          expect.objectContaining({ id: 'load_skill', name: 'load_skill' })
+        )
+        expect(JSON.stringify(providerRequest.tools)).toContain('Reporting')
+        expect(inputs.skills[0].skillId).toBe('{{CANARY_SKILL_ID}}')
+        expect(mockContext.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
       })
 
       it('should fall back to inline schema when DB fetch fails and inline exists', async () => {

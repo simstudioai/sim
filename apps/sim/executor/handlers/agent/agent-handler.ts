@@ -93,6 +93,7 @@ import { getTool } from '@/tools/utils'
 import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
+const MODEL_SAFE_RESPONSE_FORMAT_NAME = 'response_schema'
 
 interface IndexedToolInput {
   tool: ToolInput
@@ -196,184 +197,216 @@ export class AgentBlockHandler implements BlockHandler {
     const toolIndexByRef = new Map<ToolInput, number>(
       (inputs.tools || []).map((tool, index) => [tool, index] as const)
     )
-
-    const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
-    const filteredInputs = { ...inputs, tools: filteredTools }
-    this.assertInputPathsDoNotResolveSecrets(
-      ctx,
-      this.getMessageStructuralInputPaths(filteredInputs),
-      'Agent structural model inputs cannot contain secret references'
-    )
-    const responseFormatProjection = this.projectResponseFormatForModel(ctx, filteredInputs)
-    const fileProjection = this.projectFileNamesForModel(ctx, filteredInputs)
-    const coreModelInputPaths = this.getModelInputPaths(filteredInputs)
-    const modelInputProjection = projectResolvedModelInput(
-      ctx.resolvedSecretTraceRegistry,
-      {
-        systemPrompt: filteredInputs.systemPrompt,
-        userPrompt: filteredInputs.userPrompt,
-        messages: filteredInputs.messages,
-        memories: filteredInputs.memories,
-      },
-      coreModelInputPaths
-    )
-    if (!modelInputProjection.complete) {
-      throw new Error('Agent model input could not be safely projected')
-    }
-    const modelInputs: AgentInputs = {
-      ...filteredInputs,
-      ...modelInputProjection.value,
-      responseFormat: responseFormatProjection.value,
-    }
-    const modelInputPaths = [...coreModelInputPaths, ...responseFormatProjection.inputPaths]
-    const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
-
-    await this.validateToolPermissions(ctx, filteredInputs.tools || [])
-
-    const responseFormat = parseResponseFormat(modelInputs.responseFormat)
-    const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
-
-    let model = configuredModel
-    let autoRouting: AutoRoutingResult | null = null
-    if (isAutoModel(configuredModel)) {
-      autoRouting = await resolveAutoModel({
+    const privateAgentSelectorInputPaths: ResolvedSecretInputPath[] = []
+    let responseFormatModelInputPaths: ResolvedSecretInputPath[] = []
+    let privateAgentSelectorsSettled = false
+    const settlePrivateAgentSelectors = (): void => {
+      if (privateAgentSelectorsSettled) return
+      privateAgentSelectorsSettled = true
+      this.settlePrivateAgentSelectors(
         ctx,
-        blockId: block.id,
-        signals: this.buildAutoRoutingSignals(
-          {
-            ...modelInputs,
-            systemPrompt: filteredInputs.systemPrompt ? modelInputs.systemPrompt : undefined,
-            userPrompt: filteredInputs.userPrompt
-              ? modelInputs.userPrompt
-              : filteredInputs.userPrompt,
-          },
-          responseFormat
-        ),
-        fallbackModel: AGENT.DEFAULT_MODEL,
-      })
-      model = autoRouting.model
-      logger.info(
-        'Resolved sim-auto model',
-        projectAgentDiagnosticMetadata(
-          ctx,
-          {
-            blockId: block.id,
-            model,
-            tier: autoRouting.tier,
-            decidedBy: autoRouting.decidedBy,
-          },
-          {
-            blockId: block.id,
-            tier: autoRouting.tier,
-            decidedBy: autoRouting.decidedBy,
-          }
-        )
+        inputs,
+        privateAgentSelectorInputPaths,
+        responseFormatModelInputPaths
       )
-      // Hidden identity preamble for every auto execution (fallback included):
-      // keeps pool models in English by default and off the topic of which
-      // underlying model they are. Applied after signal building so the
-      // preamble never influences classification.
-      modelInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, modelInputs.systemPrompt]
-        .filter(Boolean)
-        .join('\n\n')
     }
 
-    await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
-
-    const providerId = getProviderFromModel(model)
-    const formatted = await this.formatTools(
-      ctx,
-      filteredInputs.tools || [],
-      block.canonicalModes,
-      toolIndexByRef,
-      projectedToolInputs
-    )
-
-    const skillInputs = filteredInputs.skills ?? []
-    let skillMetadata: Array<{ name: string; description: string }> = []
-    if (skillInputs.length > 0 && ctx.workspaceId) {
-      await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
-      skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
-      if (skillMetadata.length > 0) {
-        const skillNames = skillMetadata.map((s) => s.name)
-        formatted.tools.push(buildLoadSkillTool(skillNames))
+    try {
+      const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
+      privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
+      if (!privateAgentSelectors.complete) {
+        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
       }
-    }
-
-    const streamingConfig = this.getStreamingConfig(ctx, block)
-    const messages = await this.buildMessages(ctx, filteredInputs, modelInputs, skillMetadata)
-    const messagesWithInputFiles = this.attachFilesToLastUserMessage(
-      ctx,
-      messages,
-      filteredInputs.files,
-      fileProjection.projectedFiles,
-      fileProjection.projectedNameByFile,
-      fileProjection.directNameInputPaths
-    )
-    const messagesWithFiles = await this.hydrateMessageFilesForProvider(
-      ctx,
-      messagesWithInputFiles,
-      providerId,
-      fileProjection.projectedNameByFile,
-      fileProjection.modelBoundInputPaths
-    )
-
-    const providerRequest = this.buildProviderRequest({
-      ctx,
-      providerId,
-      model,
-      messages: messagesWithFiles,
-      inputs: modelInputs,
-      formattedTools: formatted.tools,
-      responseFormat,
-      streaming: streamingConfig.shouldUseStreaming ?? false,
-    })
-
-    const modelRuntimeRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths([
-      ...modelInputPaths,
-      ...fileProjection.modelBoundInputPaths,
-      ...formatted.sourcePaths,
-    ])
-    if (modelRuntimeRegistry) {
-      for (const [tool, provenance] of formatted.inputProvenance) {
-        registerProviderToolInputProvenance(tool, {
-          ...provenance,
-          registry: modelRuntimeRegistry,
-        })
+      const responseFormatProjection = this.projectResponseFormatForModel(
+        ctx,
+        inputs,
+        (privateNameInputPaths) => {
+          privateAgentSelectorInputPaths.push(...privateNameInputPaths)
+        }
+      )
+      responseFormatModelInputPaths = responseFormatProjection.inputPaths
+      const filteredTools = await this.filterUnavailableMcpTools(ctx, inputs.tools || [])
+      const filteredInputs = { ...inputs, tools: filteredTools }
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        this.getMessageStructuralInputPaths(filteredInputs),
+        'Agent structural model inputs cannot contain secret references'
+      )
+      const fileProjection = this.projectFileNamesForModel(ctx, filteredInputs)
+      const coreModelInputPaths = this.getModelInputPaths(filteredInputs)
+      const modelInputProjection = projectResolvedModelInput(
+        ctx.resolvedSecretTraceRegistry,
+        {
+          systemPrompt: filteredInputs.systemPrompt,
+          userPrompt: filteredInputs.userPrompt,
+          messages: filteredInputs.messages,
+          memories: filteredInputs.memories,
+        },
+        coreModelInputPaths
+      )
+      if (!modelInputProjection.complete) {
+        throw new Error('Agent model input could not be safely projected')
       }
-    }
-    const result = await this.executeProviderRequest(
-      ctx,
-      providerRequest,
-      block,
-      responseFormat,
-      modelRuntimeRegistry
-    )
+      const modelInputs: AgentInputs = {
+        ...filteredInputs,
+        ...modelInputProjection.value,
+        responseFormat: responseFormatProjection.value,
+      }
+      const modelInputPaths = [...coreModelInputPaths, ...responseFormatProjection.inputPaths]
+      const projectedToolInputs = this.projectToolInputsForProvenance(ctx, inputs.tools || [])
 
-    if (autoRouting && autoRouting.billableRoutingCost > 0) {
-      this.applyRoutingCost(result, autoRouting.billableRoutingCost)
-    }
+      await this.validateToolPermissions(ctx, filteredInputs.tools || [])
 
-    if (autoRouting) {
-      this.applyAutoModelLabel(result, model)
-    }
+      const responseFormat = parseResponseFormat(modelInputs.responseFormat)
+      const configuredModel = filteredInputs.model || AGENT.DEFAULT_MODEL
 
-    if (this.isStreamingExecution(result)) {
-      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-        return this.wrapStreamForMemoryPersistence(
+      let model = configuredModel
+      let autoRouting: AutoRoutingResult | null = null
+      if (isAutoModel(configuredModel)) {
+        autoRouting = await resolveAutoModel({
           ctx,
-          filteredInputs,
-          result as StreamingExecution
+          blockId: block.id,
+          signals: this.buildAutoRoutingSignals(
+            {
+              ...modelInputs,
+              systemPrompt: filteredInputs.systemPrompt ? modelInputs.systemPrompt : undefined,
+              userPrompt: filteredInputs.userPrompt
+                ? modelInputs.userPrompt
+                : filteredInputs.userPrompt,
+            },
+            responseFormat
+          ),
+          fallbackModel: AGENT.DEFAULT_MODEL,
+        })
+        model = autoRouting.model
+        logger.info(
+          'Resolved sim-auto model',
+          projectAgentDiagnosticMetadata(
+            ctx,
+            {
+              blockId: block.id,
+              model,
+              tier: autoRouting.tier,
+              decidedBy: autoRouting.decidedBy,
+            },
+            {
+              blockId: block.id,
+              tier: autoRouting.tier,
+              decidedBy: autoRouting.decidedBy,
+            }
+          )
         )
+        // Hidden identity preamble for every auto execution (fallback included):
+        // keeps pool models in English by default and off the topic of which
+        // underlying model they are. Applied after signal building so the
+        // preamble never influences classification.
+        modelInputs.systemPrompt = [SIM_AUTO_SYSTEM_PREAMBLE, modelInputs.systemPrompt]
+          .filter(Boolean)
+          .join('\n\n')
       }
+
+      await validateModelProvider(ctx.userId, ctx.workspaceId, model, ctx)
+
+      const providerId = getProviderFromModel(model)
+      const formatted = await this.formatTools(
+        ctx,
+        filteredInputs.tools || [],
+        block.canonicalModes,
+        toolIndexByRef,
+        projectedToolInputs
+      )
+
+      const skillInputs = filteredInputs.skills ?? []
+      let skillMetadata: Array<{ name: string; description: string }> = []
+      if (skillInputs.length > 0 && ctx.workspaceId) {
+        await validateSkillsAllowed(ctx.userId, ctx.workspaceId, ctx)
+        skillMetadata = await resolveSkillMetadata(skillInputs, ctx.workspaceId)
+        if (skillMetadata.length > 0) {
+          const skillNames = skillMetadata.map((s) => s.name)
+          formatted.tools.push(buildLoadSkillTool(skillNames))
+        }
+      }
+
+      const streamingConfig = this.getStreamingConfig(ctx, block)
+      const messages = await this.buildMessages(ctx, filteredInputs, modelInputs, skillMetadata)
+      const messagesWithInputFiles = this.attachFilesToLastUserMessage(
+        ctx,
+        messages,
+        filteredInputs.files,
+        fileProjection.projectedFiles,
+        fileProjection.projectedNameByFile,
+        fileProjection.directNameInputPaths
+      )
+      const messagesWithFiles = await this.hydrateMessageFilesForProvider(
+        ctx,
+        messagesWithInputFiles,
+        providerId,
+        fileProjection.projectedNameByFile,
+        fileProjection.modelBoundInputPaths
+      )
+
+      const providerRequest = this.buildProviderRequest({
+        ctx,
+        providerId,
+        model,
+        messages: messagesWithFiles,
+        inputs: modelInputs,
+        formattedTools: formatted.tools,
+        responseFormat,
+        streaming: streamingConfig.shouldUseStreaming ?? false,
+      })
+
+      settlePrivateAgentSelectors()
+
+      const modelRuntimeRegistry = ctx.resolvedSecretTraceRegistry?.forkForInputPaths([
+        ...modelInputPaths,
+        ...fileProjection.modelBoundInputPaths,
+        ...formatted.sourcePaths,
+      ])
+      if (modelRuntimeRegistry) {
+        ctx.resolvedSecretTraceRegistry = modelRuntimeRegistry
+        for (const [tool, provenance] of formatted.inputProvenance) {
+          registerProviderToolInputProvenance(tool, {
+            ...provenance,
+            registry: modelRuntimeRegistry,
+          })
+        }
+      }
+      const result = await this.executeProviderRequest(
+        ctx,
+        providerRequest,
+        block,
+        responseFormat,
+        modelRuntimeRegistry
+      )
+
+      if (autoRouting && autoRouting.billableRoutingCost > 0) {
+        this.applyRoutingCost(result, autoRouting.billableRoutingCost)
+      }
+
+      if (autoRouting) {
+        this.applyAutoModelLabel(result, model)
+      }
+
+      if (this.isStreamingExecution(result)) {
+        if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+          return this.wrapStreamForMemoryPersistence(
+            ctx,
+            filteredInputs,
+            result as StreamingExecution
+          )
+        }
+        return result
+      }
+
+      if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
+        await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
+      }
+
       return result
+    } finally {
+      settlePrivateAgentSelectors()
     }
-
-    if (filteredInputs.memoryType && filteredInputs.memoryType !== 'none') {
-      await this.persistResponseToMemory(ctx, filteredInputs, result as BlockOutput)
-    }
-
-    return result
   }
 
   /**
@@ -1755,12 +1788,111 @@ export class AgentBlockHandler implements BlockHandler {
     return typeof userPrompt === 'object' ? JSON.stringify(userPrompt) : String(userPrompt)
   }
 
+  private getPrivateAgentSelectorInputPaths(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    responseFormatNameInputPaths: readonly ResolvedSecretInputPath[]
+  ): { complete: boolean; inputPaths: ResolvedSecretInputPath[] } {
+    const registry = ctx.resolvedSecretTraceRegistry
+    if (!registry) return { complete: true, inputPaths: [] }
+
+    const candidatePaths: ResolvedSecretInputPath[] = [...responseFormatNameInputPaths]
+    for (let toolIndex = 0; toolIndex < (inputs.tools?.length ?? 0); toolIndex++) {
+      if (inputs.tools?.[toolIndex]?.customToolId) {
+        candidatePaths.push(['tools', String(toolIndex), 'customToolId'])
+      }
+    }
+    for (let skillIndex = 0; skillIndex < (inputs.skills?.length ?? 0); skillIndex++) {
+      if (inputs.skills?.[skillIndex]?.skillId) {
+        candidatePaths.push(['skills', String(skillIndex), 'skillId'])
+      }
+    }
+
+    const privatePaths: ResolvedSecretInputPath[] = []
+    let complete = true
+    for (const path of candidatePaths) {
+      const provenance = registry.exportCommittedProvenanceForInputPaths([path])
+      if (!provenance.complete) {
+        complete = false
+        continue
+      }
+      if (provenance.entries.length > 0) privatePaths.push(path)
+    }
+    return { complete, inputPaths: privatePaths }
+  }
+
+  private settlePrivateAgentSelectors(
+    ctx: ExecutionContext,
+    inputs: AgentInputs,
+    privateInputPaths: readonly ResolvedSecretInputPath[],
+    responseFormatModelInputPaths: readonly ResolvedSecretInputPath[]
+  ): void {
+    const sourceRegistry = ctx.resolvedSecretTraceRegistry
+    if (!sourceRegistry || privateInputPaths.length === 0) return
+
+    const privateRoots = new Set(privateInputPaths.map((path) => path[0]))
+    const displayProjection = sourceRegistry
+      .forkForInputPaths(privateInputPaths)
+      .projectResolvedInputSelection({
+        responseFormat: inputs.responseFormat,
+        tools: inputs.tools,
+        skills: inputs.skills,
+      })
+    if (!displayProjection.complete) {
+      throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+    }
+    if (privateRoots.has('responseFormat')) {
+      inputs.responseFormat = displayProjection.value
+        .responseFormat as AgentInputs['responseFormat']
+    }
+    if (privateRoots.has('tools')) {
+      if (!Array.isArray(displayProjection.value.tools)) {
+        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+      }
+      inputs.tools = displayProjection.value.tools as ToolInput[]
+    }
+    if (privateRoots.has('skills')) {
+      if (!Array.isArray(displayProjection.value.skills)) {
+        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+      }
+      inputs.skills = displayProjection.value.skills as AgentInputs['skills']
+    }
+
+    const excludedPaths = new Set(privateInputPaths.map((path) => JSON.stringify(path)))
+    const retainedInputPaths: ResolvedSecretInputPath[] = []
+    for (const [key, value] of Object.entries(inputs)) {
+      if (!privateRoots.has(key)) {
+        retainedInputPaths.push([key])
+        continue
+      }
+      if (key === 'responseFormat') {
+        retainedInputPaths.push(...responseFormatModelInputPaths)
+        continue
+      }
+      if (!Array.isArray(value)) continue
+      for (const [inputIndex, candidate] of value.entries()) {
+        if (!isPlainRecord(candidate)) continue
+        for (const candidateKey of Object.keys(candidate)) {
+          const path = [key, String(inputIndex), candidateKey]
+          if (!excludedPaths.has(JSON.stringify(path))) retainedInputPaths.push(path)
+        }
+      }
+    }
+    ctx.resolvedSecretTraceRegistry = sourceRegistry.forkForInputPaths(retainedInputPaths)
+  }
+
   private projectResponseFormatForModel(
     ctx: ExecutionContext,
-    inputs: AgentInputs
-  ): { value: AgentInputs['responseFormat']; inputPaths: ResolvedSecretInputPath[] } {
+    inputs: AgentInputs,
+    onPrivateNameInputPaths: (paths: readonly ResolvedSecretInputPath[]) => void
+  ): {
+    value: AgentInputs['responseFormat']
+    inputPaths: ResolvedSecretInputPath[]
+  } {
     const responseFormat = inputs.responseFormat
-    if (responseFormat === undefined) return { value: undefined, inputPaths: [] }
+    if (responseFormat === undefined) {
+      return { value: undefined, inputPaths: [] }
+    }
 
     let annotationInputPaths: ResolvedSecretInputPath[] = []
     let structuralInputPaths: ResolvedSecretInputPath[] = []
@@ -1777,20 +1909,21 @@ export class AgentBlockHandler implements BlockHandler {
       if (isWrapper) {
         structuralInputPaths.push(
           ...Object.keys(responseFormat)
-            .filter((key) => key !== 'schema')
+            .filter((key) => key !== 'schema' && key !== 'name')
             .map((key) => ['responseFormat', key])
         )
       }
     }
 
-    this.assertInputPathsDoNotResolveSecrets(
-      ctx,
-      structuralInputPaths,
-      'Agent structural model inputs cannot contain secret references'
-    )
-
     const registry = ctx.resolvedSecretTraceRegistry
-    if (!registry) return { value: responseFormat, inputPaths: annotationInputPaths }
+    if (!registry) {
+      this.assertInputPathsDoNotResolveSecrets(
+        ctx,
+        structuralInputPaths,
+        'Agent structural model inputs cannot contain secret references'
+      )
+      return { value: responseFormat, inputPaths: annotationInputPaths }
+    }
     const projection = registry.projectResolvedInputSelection({ responseFormat })
     if (!projection.complete) {
       throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
@@ -1807,23 +1940,59 @@ export class AgentBlockHandler implements BlockHandler {
       try {
         const rawParsed = JSON.parse(responseFormat)
         const projectedParsed = JSON.parse(projectedResponseFormat)
-        if (!isPlainRecord(rawParsed)) {
+        if (!isPlainRecord(rawParsed) || !isPlainRecord(projectedParsed)) {
           throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
         }
-        this.projectResponseFormatObject(rawParsed, projectedParsed)
+        const privateNameInputPaths =
+          Object.hasOwn(rawParsed, 'name') && !Object.is(rawParsed.name, projectedParsed.name)
+            ? ([['responseFormat']] as const)
+            : []
+        onPrivateNameInputPaths(privateNameInputPaths)
+        const modelSafeResponseFormat = this.projectResponseFormatObject(rawParsed, projectedParsed)
+        const parsedIsWrapper =
+          Object.hasOwn(rawParsed, 'schema') || Object.hasOwn(rawParsed, 'name')
+        const parsedSchema = parsedIsWrapper ? rawParsed.schema : rawParsed
+        const parsedSchemaRoot = parsedIsWrapper ? ['responseFormat', 'schema'] : ['responseFormat']
+        const parsedAnnotationInputPaths = selectModelSchemaInputPaths(
+          parsedSchema,
+          parsedSchemaRoot
+        ).annotationInputPaths
+        registry.recordTransformedInputProjection(
+          { responseFormat: rawParsed },
+          { responseFormat: projectedParsed },
+          { targetPaths: parsedAnnotationInputPaths }
+        )
+        return {
+          value: modelSafeResponseFormat,
+          inputPaths: parsedAnnotationInputPaths,
+        }
       } catch (error) {
         if (error instanceof AgentToolInputSafetyError) throw error
         throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
       }
-      return { value: projectedResponseFormat, inputPaths: [['responseFormat']] }
     }
 
     if (!isPlainRecord(responseFormat)) {
       if (!Object.is(responseFormat, projectedResponseFormat)) {
         throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
       }
-      return { value: responseFormat, inputPaths: annotationInputPaths }
+      return {
+        value: responseFormat,
+        inputPaths: annotationInputPaths,
+      }
     }
+    const privateNameInputPaths =
+      Object.hasOwn(responseFormat, 'name') &&
+      isPlainRecord(projectedResponseFormat) &&
+      !Object.is(responseFormat.name, projectedResponseFormat.name)
+        ? [['responseFormat', 'name']]
+        : []
+    onPrivateNameInputPaths(privateNameInputPaths)
+    this.assertInputPathsDoNotResolveSecrets(
+      ctx,
+      structuralInputPaths,
+      'Agent structural model inputs cannot contain secret references'
+    )
     return {
       value: this.projectResponseFormatObject(responseFormat, projectedResponseFormat),
       inputPaths: annotationInputPaths,
@@ -1854,7 +2023,7 @@ export class AgentBlockHandler implements BlockHandler {
       throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
     }
     for (const key of rawKeys) {
-      if (key !== 'schema' && !Object.is(rawValue[key], projectedValue[key])) {
+      if (key !== 'schema' && key !== 'name' && !Object.is(rawValue[key], projectedValue[key])) {
         throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
       }
     }
@@ -1862,9 +2031,13 @@ export class AgentBlockHandler implements BlockHandler {
     if (!schemaProjection.safe) {
       throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
     }
-    return Object.hasOwn(rawValue, 'schema')
-      ? { ...rawValue, schema: schemaProjection.value }
-      : rawValue
+    return {
+      ...rawValue,
+      ...(Object.hasOwn(rawValue, 'name') && !Object.is(rawValue.name, projectedValue.name)
+        ? { name: MODEL_SAFE_RESPONSE_FORMAT_NAME }
+        : {}),
+      ...(Object.hasOwn(rawValue, 'schema') ? { schema: schemaProjection.value } : {}),
+    }
   }
 
   private getFileInputPaths(

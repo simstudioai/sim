@@ -679,6 +679,28 @@ describe('MothershipBlockHandler', () => {
     expect(fetchMock).not.toHaveBeenCalled()
   })
 
+  it('settles a private skill selector before reporting a missing COPILOT_API_KEY', async () => {
+    setEnv({ COPILOT_API_KEY: undefined })
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SKILL_ID', plaintext: 'i', encryptedValue: 'encrypted-skill-id' },
+    ])
+    registry.recordResolvedAtInputPath('SKILL_ID', 'i', ['skills', '0', 'skillId'])
+    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'i', '{{SKILL_ID}}')
+    context.resolvedSecretTraceRegistry = registry
+    const handlerInputs = {
+      prompt: 'Hello from workflow',
+      skills: [{ skillId: 'i' }],
+    }
+
+    await expect(handler.execute(context, block, handlerInputs)).rejects.toThrow(
+      'COPILOT_API_KEY is not configured'
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(handlerInputs.skills).toEqual([{ skillId: '{{SKILL_ID}}' }])
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+  })
+
   it('rejects execution before the internal request when billing attribution is missing', async () => {
     context.metadata.billingAttribution = undefined
 
@@ -1006,6 +1028,107 @@ describe('MothershipBlockHandler', () => {
     expect(tools[0].params.serverName).toBe('Docs private server label')
     expect(tools[0].schema.description).toBe('Search private schema text for Box')
     expect(skills[0].name).toBe('Playbook private skill label')
+  })
+
+  it('keeps low-entropy skill selectors private without changing lookup semantics', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FIRST_SKILL_ID', plaintext: 'x', encryptedValue: 'encrypted-first-skill-id' },
+      { name: 'SECOND_SKILL_ID', plaintext: 'y', encryptedValue: 'encrypted-second-skill-id' },
+    ])
+    registry.recordResolvedAtInputPath('FIRST_SKILL_ID', 'x', ['skills', '0', 'skillId'])
+    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'x', '{{FIRST_SKILL_ID}}')
+    registry.recordResolvedAtInputPath('SECOND_SKILL_ID', 'y', ['skills', '1', 'skillId'])
+    registry.recordResolvedInputProjection(['skills', '1', 'skillId'], 'y', '{{SECOND_SKILL_ID}}')
+    context.resolvedSecretTraceRegistry = registry
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(
+      new Response(JSON.stringify({ content: 'Box', toolCalls: [] }), {
+        headers: { 'Content-Type': 'application/json' },
+      })
+    )
+
+    const skills = [{ skillId: 'x' }, { skillId: 'y' }]
+    const handlerInputs = {
+      prompt: 'Use the selected skill',
+      skills,
+    }
+
+    const result = await handler.execute(context, block, handlerInputs)
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.contexts).toEqual([
+      { kind: 'skill', skillId: 'x', label: 'Skill 1' },
+      { kind: 'skill', skillId: 'y', label: 'Skill 2' },
+    ])
+    expect(handlerInputs.skills).toEqual([
+      { skillId: '{{FIRST_SKILL_ID}}' },
+      { skillId: '{{SECOND_SKILL_ID}}' },
+    ])
+    expect(result).toMatchObject({ content: 'Box' })
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+    expect(JSON.stringify(body.contexts)).not.toContain('FIRST_SKILL_ID')
+    expect(JSON.stringify(body.contexts)).not.toContain('SECOND_SKILL_ID')
+  })
+
+  it('fails closed when a selected skill has incomplete resolver provenance', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.recordResolvedAtInputPath('UNKNOWN_SKILL_ID', 'x', ['skills', '0', 'skillId'])
+    context.resolvedSecretTraceRegistry = registry
+
+    await expect(
+      handler.execute(context, block, {
+        prompt: 'Use the selected skill',
+        skills: [{ skillId: 'x' }],
+      })
+    ).rejects.toThrow('Mothership skill selector provenance is incomplete')
+
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('settles a private skill selector before a pre-provider failure', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SKILL_ID', plaintext: 'x', encryptedValue: 'encrypted-skill-id' },
+    ])
+    registry.recordResolvedAtInputPath('SKILL_ID', 'x', ['skills', '0', 'skillId'])
+    registry.recordResolvedInputProjection(['skills', '0', 'skillId'], 'x', '{{SKILL_ID}}')
+    context.resolvedSecretTraceRegistry = registry
+    const handlerInputs = {
+      prompt: '',
+      skills: [{ skillId: 'x' }],
+    }
+
+    await expect(handler.execute(context, block, handlerInputs)).rejects.toThrow(
+      'Prompt input is required'
+    )
+
+    expect(fetchMock).not.toHaveBeenCalled()
+    expect(handlerInputs.skills).toEqual([{ skillId: '{{SKILL_ID}}' }])
+    expect(JSON.stringify(handlerInputs)).not.toContain('"x"')
+    expect(context.resolvedSecretTraceRegistry?.getActiveMatches()).toEqual([])
+  })
+
+  it('preserves legacy unnamed skill labels when selectors have no resolver provenance', async () => {
+    mockGenerateId
+      .mockReturnValueOnce('chat-uuid')
+      .mockReturnValueOnce('message-uuid')
+      .mockReturnValueOnce('request-uuid')
+    fetchMock.mockResolvedValue(createJsonResponse({ content: 'done', toolCalls: [] }))
+
+    await handler.execute(context, block, {
+      prompt: 'Use the selected skills',
+      skills: [{ skillId: 'legacy-first' }, { skillId: 'legacy-second' }],
+    })
+
+    const [, options] = fetchMock.mock.calls[0] as [string, RequestInit]
+    const body = JSON.parse(String(options.body))
+    expect(body.contexts).toEqual([
+      { kind: 'skill', skillId: 'legacy-first', label: 'legacy-first' },
+      { kind: 'skill', skillId: 'legacy-second', label: 'legacy-second' },
+    ])
   })
 
   it('rejects only an enabled structural identifier with exact resolver provenance', async () => {

@@ -38,10 +38,6 @@ import {
   serializeExecutionDeadlineHeader,
 } from '@/lib/execution/execution-deadline-header'
 import {
-  OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR,
-  OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR,
-} from '@/lib/execution/model-input-provenance'
-import {
   inspectPrivateToolMetadataEnvelope,
   inspectPrivateToolMetadataResponseCapability,
   MAX_PRIVATE_TOOL_METADATA_OVERHEAD_BYTES,
@@ -66,7 +62,6 @@ import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import {
   isResolvedSecretTraceProvenanceV1,
-  type ResolvedSecretInputPath,
   type ResolvedSecretTraceRegistry,
 } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ErrorInfo } from '@/tools/error-extractors'
@@ -94,39 +89,6 @@ const PRIVATE_MODEL_INPUT_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private model input provenance is not supported by direct execution'
 const PRIVATE_SECRET_PROVENANCE_DIRECT_EXECUTION_ERROR_MESSAGE =
   'Private secret provenance is not supported by direct execution'
-
-function assertOpaqueToolModelInputSafe(
-  tool: ToolConfig,
-  params: Record<string, any>,
-  registry: ResolvedSecretTraceRegistry | undefined
-): void {
-  const opaqueModelInput = tool.request.opaqueModelInput
-  if (!opaqueModelInput || !registry) return
-  if (opaqueModelInput.mode !== 'reject-resolved-secrets') {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-
-  let inputPaths: readonly ResolvedSecretInputPath[]
-  try {
-    inputPaths = opaqueModelInput.inputPaths(params)
-  } catch {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (inputPaths.length === 0) return
-
-  let provenance
-  try {
-    provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
-  } catch {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (!provenance.complete) {
-    throw new Error(OPAQUE_MODEL_INPUT_PROVENANCE_UNAVAILABLE_ERROR)
-  }
-  if (provenance.entries.length > 0) {
-    throw new Error(OPAQUE_MODEL_INPUT_RESOLVED_SECRET_ERROR)
-  }
-}
 
 function projectToolLogMetadata(
   metadata: Record<string, unknown>,
@@ -1613,7 +1575,6 @@ async function executeToolImplementation(
     normalizeCopilotCredentialParams(contextParams)
     enforceCopilotCredentialSelection(toolId, tool, contextParams, scope)
     await resolveCopilotEnvReferences(tool, contextParams, scope, resolvedSecretTraceRegistry)
-    assertOpaqueToolModelInputSafe(tool, contextParams, resolvedSecretTraceRegistry)
 
     // Inject hosted API key if tool supports it and user didn't provide one
     const hostedKeyInfo = await injectHostedKeyIfNeeded(

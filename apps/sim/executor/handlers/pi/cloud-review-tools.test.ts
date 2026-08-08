@@ -320,7 +320,7 @@ describe('cloud review tools', () => {
     expect(JSON.stringify(options.envs)).not.toContain('ghp_')
   })
 
-  it('scrubs credentials from repository tool output before it reaches the model', async () => {
+  it('does not rewrite repository content that matches a transport credential', async () => {
     run.mockResolvedValue({
       stdout: 'committed value sk-hosted/secret and sk-hosted%2Fsecret',
       stderr: '',
@@ -339,8 +339,25 @@ describe('cloud review tools', () => {
       {} as never
     )
 
-    expect(result.content).toEqual([{ type: 'text', text: 'committed value *** and ***' }])
-    expect(JSON.stringify(result)).not.toContain('sk-hosted')
+    expect(result.content).toEqual([
+      { type: 'text', text: 'committed value sk-hosted/secret and sk-hosted%2Fsecret' },
+    ])
+  })
+
+  it('redacts a credential echoed by a repository tool error', async () => {
+    run.mockResolvedValue({
+      stdout: '',
+      stderr: 'helper rejected sk-hosted/secret',
+      exitCode: 1,
+    })
+    const reviewTools = createCloudReviewTools(sdk, runner, BASE_SHA, HEAD_SHA, [
+      'sk-hosted/secret',
+    ])
+    const readTool = reviewTools.tools.find((tool) => tool.name === 'read_repo_file')
+
+    await expect(
+      readTool!.execute('call-1', { path: 'a.ts' }, undefined, undefined, {} as never)
+    ).rejects.toThrow('helper rejected ***')
   })
 
   it('rejects malformed structured findings without calling the sandbox validator', async () => {

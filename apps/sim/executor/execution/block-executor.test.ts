@@ -556,6 +556,112 @@ describe('BlockExecutor', () => {
     expect(onBlockComplete.mock.calls[1]?.[3]?.resolvedSecretTraceProvenance?.entries).toEqual([])
   })
 
+  it('uses a handler-narrowed registry for output provenance and parent commit', async () => {
+    const block: SerializedBlock = {
+      ...createBlock(),
+      metadata: { id: BlockType.MOTHERSHIP, name: 'Sim Chat' },
+      config: { tool: BlockType.MOTHERSHIP, params: { selector: 'x' } },
+    }
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PRIVATE_SELECTOR', plaintext: 'x', encryptedValue: 'encrypted-selector' },
+    ])
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        const callRegistry = blockContext.resolvedSecretTraceRegistry!
+        callRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', 'x', ['selector'])
+        callRegistry.recordResolvedInputProjection(['selector'], 'x', '{{PRIVATE_SELECTOR}}')
+        inputs.selector = '{{PRIVATE_SELECTOR}}'
+        blockContext.resolvedSecretTraceRegistry = callRegistry.forkForInputPaths([])
+        return { result: 'Box' }
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).resolves.toEqual({
+      result: 'Box',
+    })
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(state.getBlockOutput(block.id)).toEqual({ result: 'Box' })
+    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
+    expect(onBlockComplete.mock.calls[0]?.[3]?.input).toEqual({
+      selector: '{{PRIVATE_SELECTOR}}',
+    })
+    expect(onBlockComplete.mock.calls[0]?.[3]?.output).toEqual({ result: 'Box' })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
+    expect(
+      onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance?.entries
+    ).toEqual([])
+    expect(registry.getActiveMatches()).toEqual([])
+  })
+
+  it('uses a handler-narrowed registry when execution fails after private input settlement', async () => {
+    const block: SerializedBlock = {
+      ...createBlock(),
+      metadata: { id: BlockType.MOTHERSHIP, name: 'Sim Chat' },
+      config: { tool: BlockType.MOTHERSHIP, params: { selector: 'x' } },
+    }
+    const workflow: SerializedWorkflow = {
+      version: '1',
+      blocks: [block],
+      connections: [],
+      loops: {},
+      parallels: {},
+    }
+    const state = new ExecutionState()
+    const resolver = new VariableResolver(workflow, {}, state)
+    const onBlockComplete = vi.fn(async () => {})
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'PRIVATE_SELECTOR', plaintext: 'x', encryptedValue: 'encrypted-selector' },
+    ])
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        const callRegistry = blockContext.resolvedSecretTraceRegistry!
+        callRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', 'x', ['selector'])
+        callRegistry.recordResolvedInputProjection(['selector'], 'x', '{{PRIVATE_SELECTOR}}')
+        inputs.selector = '{{PRIVATE_SELECTOR}}'
+        blockContext.resolvedSecretTraceRegistry = callRegistry.forkForInputPaths([])
+        throw new Error('Provider request preparation failed')
+      },
+    }
+    const executor = new BlockExecutor([handler], resolver, { onBlockComplete }, state)
+    const ctx = createContext(state)
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await expect(executor.execute(ctx, createNode(block), block)).rejects.toThrow(
+      'Provider request preparation failed'
+    )
+    await vi.waitFor(() => expect(onBlockComplete).toHaveBeenCalledOnce())
+
+    expect(state.getBlockOutput(block.id)).toEqual({
+      error: 'Provider request preparation failed',
+    })
+    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
+    expect(onBlockComplete.mock.calls[0]?.[3]?.input).toEqual({
+      selector: '{{PRIVATE_SELECTOR}}',
+    })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance?.entries).toEqual([])
+    expect(
+      onBlockComplete.mock.calls[0]?.[3]?.displayResolvedSecretTraceProvenance?.entries
+    ).toEqual([])
+    expect(registry.getActiveMatches()).toEqual([])
+    expect(JSON.stringify(ctx.blockLogs)).not.toContain('"x"')
+  })
+
   it('fires block completion callbacks for pausing blocks so clients receive pause output', async () => {
     const block = {
       ...createBlock(),
@@ -1097,6 +1203,84 @@ describe('BlockExecutor streaming pump', () => {
     await executor.execute(ctx, createNode(block), block)
 
     expect(state.getBlockOutput(block.id)?.content).toBe('offline answer')
+  })
+
+  it('persists tool-result provenance activated in a narrowed registry during stream drain', async () => {
+    const selector = 'x'
+    const resultSecret = 'stream-tool-result-secret'
+    const handler: BlockHandler = {
+      canHandle: () => true,
+      execute: async (blockContext, _block, inputs) => {
+        const sourceRegistry = blockContext.resolvedSecretTraceRegistry!
+        sourceRegistry.recordResolvedAtInputPath('PRIVATE_SELECTOR', selector, ['selector'])
+        sourceRegistry.recordResolvedInputProjection(['selector'], selector, '{{PRIVATE_SELECTOR}}')
+        inputs.selector = '{{PRIVATE_SELECTOR}}'
+
+        const runtimeRegistry = sourceRegistry.forkForInputPaths([])
+        blockContext.resolvedSecretTraceRegistry = runtimeRegistry
+        const output = {
+          content: '',
+          toolCalls: { list: [] as Array<Record<string, unknown>>, count: 0 },
+        }
+        const stream = new ReadableStream({
+          start(controller) {
+            runtimeRegistry.recordResolved('TOOL_RESULT', resultSecret, { propagated: true })
+            output.toolCalls = {
+              list: [{ name: 'lookup', result: { value: resultSecret, public: 'Box' } }],
+              count: 1,
+            }
+            controller.enqueue({ type: 'text_delta', text: 'done', turn: 'final' })
+            controller.close()
+          },
+        })
+
+        return {
+          stream,
+          streamFormat: 'agent-events-v1' as const,
+          execution: {
+            success: true,
+            output,
+            logs: [],
+            metadata: { startTime: new Date().toISOString(), duration: 1 },
+          },
+        }
+      },
+    }
+    const { executor, block, state } = createExecutor(handler)
+    block.config.params = { selector }
+    const ctx = createContext(state)
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'PRIVATE_SELECTOR',
+        plaintext: selector,
+        encryptedValue: 'encrypted-selector',
+      },
+      {
+        name: 'TOOL_RESULT',
+        plaintext: resultSecret,
+        encryptedValue: 'encrypted-tool-result',
+      },
+    ])
+    ctx.resolvedSecretTraceRegistry = registry
+
+    await executor.execute(ctx, createNode(block), block)
+
+    expect(state.getBlockOutput(block.id)).toEqual({
+      content: 'done',
+      toolCalls: {
+        list: [{ name: 'lookup', result: { value: resultSecret, public: 'Box' } }],
+        count: 1,
+      },
+    })
+    expect(ctx.blockLogs[0]?.input).toEqual({ selector: '{{PRIVATE_SELECTOR}}' })
+    expect(state.getBlockState(block.id)?.resolvedSecretTraceProvenance).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOOL_RESULT', encryptedValue: 'encrypted-tool-result' }],
+    })
+    expect(registry.getActiveMatches()).toEqual([
+      { plaintext: resultSecret, replacement: '{{TOOL_RESULT}}' },
+    ])
   })
 
   it('throws on mid-stream provider error (no truncated success)', async () => {

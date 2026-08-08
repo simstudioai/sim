@@ -109,16 +109,13 @@ export class BlockExecutor {
       : ctx
     let registryCommitted = false
     const commitBlockRegistry = () => {
-      if (
-        registryCommitted ||
-        !parentResolvedSecretTraceRegistry ||
-        !blockResolvedSecretTraceRegistry
-      ) {
+      const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
+      if (registryCommitted || !parentResolvedSecretTraceRegistry || !settledBlockRegistry) {
         return
       }
       registryCommitted = true
-      if (blockResolvedSecretTraceRegistry.isComplete()) {
-        parentResolvedSecretTraceRegistry.mergeToolCallRegistry(blockResolvedSecretTraceRegistry)
+      if (settledBlockRegistry.isComplete()) {
+        parentResolvedSecretTraceRegistry.mergeToolCallRegistry(settledBlockRegistry)
       }
     }
 
@@ -328,8 +325,8 @@ export class BlockExecutor {
 
       const { childTraceSpans: _traces, ...outputForState } = normalizedOutput
       const stateOutput = outputForState as NormalizedBlockOutput
-      const stateProvenance =
-        blockResolvedSecretTraceRegistry?.exportCommittedProvenanceForValue(stateOutput)
+      const settledBlockRegistry = blockCtx.resolvedSecretTraceRegistry
+      const stateProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue(stateOutput)
       this.setNodeOutput(node, stateOutput, duration, stateProvenance)
 
       if (!isSentinel && blockLog) {
@@ -341,11 +338,11 @@ export class BlockExecutor {
           block,
         })
         const displayInput = this.sanitizeInputsForLog(inputsForLog, block)
-        const displayProvenance =
-          blockResolvedSecretTraceRegistry?.exportCommittedProvenanceForValue({
-            input: displayInput,
-            output: displayOutput,
-          })
+        blockLog.input = displayInput
+        const displayProvenance = settledBlockRegistry?.exportCommittedProvenanceForValue({
+          input: displayInput,
+          output: displayOutput,
+        })
         this.setBlockLogDisplayProvenance(blockLog, displayProvenance)
         this.fireBlockCompleteCallback(
           blockStartPromise,

@@ -2,7 +2,6 @@ import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
   applyFirecrawlScrapeOptionsModelInput,
-  hasFirecrawlModelInputFormat,
   selectFirecrawlFormatModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
@@ -70,13 +69,6 @@ export const scrapeTool: ToolConfig<ScrapeParams, ScrapeResponse> = {
           ),
         }
       },
-    },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      inputPaths: (params) =>
-        hasFirecrawlModelInputFormat(params.scrapeOptions?.formats ?? params.formats)
-          ? [['url']]
-          : [],
     },
     method: 'POST',
     url: 'https://api.firecrawl.dev/v2/scrape',

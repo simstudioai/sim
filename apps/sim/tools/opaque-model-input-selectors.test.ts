@@ -2,39 +2,24 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { a2aSendMessageTool } from '@/tools/a2a/send_message'
-import { runTaskTool as browserUseRunTaskTool } from '@/tools/browser_use/run_task'
-import { contextDevExtractTool } from '@/tools/context_dev/extract'
-import { contextDevExtractProductTool } from '@/tools/context_dev/extract_product'
-import { contextDevExtractProductsTool } from '@/tools/context_dev/extract_products'
-import { addFollowupTool, addFollowupV2Tool } from '@/tools/cursor/add_followup'
-import { launchAgentTool, launchAgentV2Tool } from '@/tools/cursor/launch_agent'
 import { elevenLabsAudioIsolationTool } from '@/tools/elevenlabs/audio-isolation'
 import { elevenLabsSpeechToSpeechTool } from '@/tools/elevenlabs/speech-to-speech'
-import { findSimilarLinksTool as exaFindSimilarLinksTool } from '@/tools/exa/find_similar_links'
-import { getContentsTool as exaGetContentsTool } from '@/tools/exa/get_contents'
 import { extendParserTool, extendParserV2Tool } from '@/tools/extend/parser'
-import { agentTool as firecrawlAgentTool } from '@/tools/firecrawl/agent'
-import { batchScrapeTool as firecrawlBatchScrapeTool } from '@/tools/firecrawl/batch-scrape'
-import { crawlTool as firecrawlCrawlTool } from '@/tools/firecrawl/crawl'
-import { extractTool as firecrawlExtractTool } from '@/tools/firecrawl/extract'
 import { parseTool as firecrawlParseTool } from '@/tools/firecrawl/parse'
-import { scrapeTool as firecrawlScrapeTool } from '@/tools/firecrawl/scrape'
 import { firefliesUploadAudioTool } from '@/tools/fireflies/upload_audio'
-import { readUrlTool as jinaReadUrlTool } from '@/tools/jina/read_url'
 import { mistralParserTool, mistralParserV3Tool } from '@/tools/mistral/parser'
 import { pulseParserTool, pulseParserV2Tool } from '@/tools/pulse/parser'
 import { quiverImageToSvgTool } from '@/tools/quiver/image_to_svg'
 import { quiverTextToSvgTool } from '@/tools/quiver/text_to_svg'
 import { reductoParserTool, reductoParserV2Tool } from '@/tools/reducto/parser'
+import { projectToolModelInputParams } from '@/tools/request-transport'
 import { assemblyaiSttTool, assemblyaiSttV2Tool } from '@/tools/stt/assemblyai'
 import { deepgramSttTool, deepgramSttV2Tool } from '@/tools/stt/deepgram'
 import { elevenLabsSttTool, elevenLabsSttV2Tool } from '@/tools/stt/elevenlabs'
 import { geminiSttTool, geminiSttV2Tool } from '@/tools/stt/gemini'
-import { selectSttAudioModelInputPaths } from '@/tools/stt/model-input'
 import { whisperSttTool, whisperSttV2Tool } from '@/tools/stt/whisper'
-import { crawlTool as tavilyCrawlTool } from '@/tools/tavily/crawl'
-import { mapTool as tavilyMapTool } from '@/tools/tavily/map'
 import { textractAnalyzeExpenseTool } from '@/tools/textract/analyze-expense'
 import { textractAnalyzeIdTool } from '@/tools/textract/analyze-id'
 import { textractParserTool, textractParserV2Tool } from '@/tools/textract/parser'
@@ -42,475 +27,214 @@ import type { ToolConfig } from '@/tools/types'
 import { runwayVideoTool } from '@/tools/video/runway'
 import { visionTool } from '@/tools/vision/tool'
 
-function selectOpaqueModelInputPaths(
+const FILE = {
+  key: 'workspace/ws-1/report.pdf',
+  path: '/api/files/serve/workspace/ws-1/report.pdf',
+  url: 'https://storage.example/report.pdf?signature=private',
+  base64: 'raw-inline-field',
+  name: 'private-report.pdf',
+  size: 42,
+  type: 'application/pdf',
+}
+
+function selectPrivateInputPaths(
   tool: ToolConfig,
   params: Record<string, unknown>
 ): readonly (readonly string[])[] {
   const modelInput = tool.request.modelInput
-  if (!modelInput) throw new Error(`Missing model-input descriptor for ${tool.id}`)
-
+  if (!modelInput) return []
   if (modelInput.mode === 'private-provenance') return modelInput.inputPaths(params)
-  if (!modelInput.privateInputPaths) {
-    throw new Error(`Missing private provenance selector for ${tool.id}`)
+  return modelInput.privateInputPaths?.(params) ?? []
+}
+
+function getProjectingModelInput(tool: ToolConfig) {
+  const modelInput = tool.request.modelInput
+  expect(modelInput?.mode).toBe('project')
+  if (modelInput?.mode !== 'project' || !modelInput.applyProjected) {
+    throw new Error(`Expected ${tool.id} to apply projected model input`)
   }
-  return modelInput.privateInputPaths(params)
+  return modelInput
 }
 
-function selectRejectedOpaqueModelInputPaths(
-  tool: ToolConfig,
-  params: Record<string, unknown>
-): readonly (readonly string[])[] {
-  const opaqueModelInput = tool.request.opaqueModelInput
-  if (!opaqueModelInput) throw new Error(`Missing opaque model-input descriptor for ${tool.id}`)
-  expect(opaqueModelInput.mode).toBe('reject-resolved-secrets')
-  return opaqueModelInput.inputPaths(params)
-}
-
-describe('opaque model-input selectors', () => {
+describe('file model-input selectors', () => {
   it.each([
     extendParserTool,
-    mistralParserTool,
+    extendParserV2Tool,
     pulseParserTool,
+    pulseParserV2Tool,
     reductoParserTool,
+    reductoParserV2Tool,
     textractParserTool,
-  ])('%s mirrors legacy path-first input precedence', (tool) => {
-    expect(
-      selectOpaqueModelInputPaths(tool, {
-        filePath: '  https://example.com/effective.pdf  ',
-        file: { key: 'unused-file', metadata: 'unused-secret' },
-        fileUpload: { key: 'unused-upload', metadata: 'unused-secret' },
-      })
-    ).toEqual([['filePath']])
+    textractParserV2Tool,
+    textractAnalyzeExpenseTool,
+    textractAnalyzeIdTool,
+    firefliesUploadAudioTool,
+    runwayVideoTool,
+    deepgramSttTool,
+    deepgramSttV2Tool,
+    assemblyaiSttTool,
+    assemblyaiSttV2Tool,
+    elevenLabsSttTool,
+    elevenLabsSttV2Tool,
+    geminiSttTool,
+    geminiSttV2Tool,
+  ])('$id does not attach private provenance for server-resolved locators', (tool) => {
+    expect(selectPrivateInputPaths(tool, { file: FILE, filePath: FILE.url })).toEqual([])
+    expect(tool.request.modelInput?.mode).not.toBe('private-provenance')
+    if (tool.request.modelInput?.mode === 'project') {
+      expect(tool.request.modelInput.privateInputPaths).toBeUndefined()
+    }
   })
 
-  it.each([extendParserV2Tool, pulseParserV2Tool, reductoParserV2Tool, textractParserV2Tool])(
-    '%s selects only the effective locator from normalized files',
-    (tool) => {
-      expect(
-        selectOpaqueModelInputPaths(tool, {
-          file: {
-            key: 'effective-key',
-            path: 'unused-path',
-            url: 'unused-url',
-            metadata: 'unused-secret',
-          },
-        })
-      ).toEqual([])
-    }
-  )
-
-  it('selects inline Mistral bytes without unrelated locators or metadata', () => {
+  it('keeps only inline Mistral bytes fail-closed', () => {
     expect(
-      selectOpaqueModelInputPaths(mistralParserV3Tool, {
-        file: {
-          base64: 'effective-bytes',
-          key: 'unused-key',
-          type: 'application/pdf',
-          metadata: 'unused-secret',
-        },
+      selectPrivateInputPaths(mistralParserTool, {
+        filePath: 'https://example.com/document.pdf?token=private',
+      })
+    ).toEqual([])
+    expect(
+      selectPrivateInputPaths(mistralParserTool, {
+        filePath: 'data:application/pdf;base64,c2VjcmV0',
+      })
+    ).toEqual([['filePath']])
+    expect(
+      selectPrivateInputPaths(mistralParserV3Tool, {
+        file: { ...FILE, base64: 'effective-inline-bytes' },
       })
     ).toEqual([['file', 'base64']])
   })
 
-  it('selects only the active Textract source for sync and async requests', () => {
+  it('keeps only inline Vision bytes fail-closed', () => {
     expect(
-      selectOpaqueModelInputPaths(textractParserTool, {
-        processingMode: 'async',
-        s3Uri: '  s3://bucket/effective.pdf  ',
-        filePath: 'https://example.com/unused.pdf',
-        file: { key: 'unused-key', metadata: 'unused-secret' },
-      })
-    ).toEqual([['s3Uri']])
-
-    expect(
-      selectOpaqueModelInputPaths(textractAnalyzeExpenseTool, {
-        processingMode: 'sync',
-        file: { key: 'effective-key', metadata: 'unused-secret' },
-        filePath: 'https://example.com/unused.pdf',
-        s3Uri: 's3://bucket/unused.pdf',
+      selectPrivateInputPaths(visionTool, {
+        imageUrl: 'https://example.com/image.png?token=private',
       })
     ).toEqual([])
-
     expect(
-      selectOpaqueModelInputPaths(textractAnalyzeExpenseTool, {
-        processingMode: 'async',
-        s3Uri: '  s3://bucket/effective.pdf  ',
-        file: { key: 'unused-key', metadata: 'unused-secret' },
+      selectPrivateInputPaths(visionTool, {
+        imageUrl: 'data:image/png;base64,c2VjcmV0',
       })
-    ).toEqual([['s3Uri']])
-  })
-
-  it('mirrors independent front and back precedence for Textract Analyze ID', () => {
+    ).toEqual([['imageUrl']])
     expect(
-      selectOpaqueModelInputPaths(textractAnalyzeIdTool, {
-        file: { key: 'front-key', metadata: 'unused-secret' },
-        filePath: 'https://example.com/unused-front.png',
-        filePathBack: '  https://example.com/back.png  ',
-      })
-    ).toEqual([['filePathBack']])
-  })
-
-  it('selects only the image source actually used by Vision', () => {
-    expect(
-      selectOpaqueModelInputPaths(visionTool, {
-        imageFile: {
-          base64: 'effective-bytes',
-          key: 'unused-key',
-          type: 'image/png',
-          metadata: 'unused-secret',
-        },
-        imageUrl: 'https://example.com/unused.png',
+      selectPrivateInputPaths(visionTool, {
+        imageFile: { ...FILE, base64: 'effective-inline-bytes' },
       })
     ).toEqual([['imageFile', 'base64']])
   })
 
-  it('keeps A2A attachment metadata that is transmitted and drops everything else', () => {
+  it('treats Quiver URLs as locators and data URLs as inline media', () => {
+    const serializedFile = JSON.stringify(FILE)
+    expect(selectPrivateInputPaths(quiverImageToSvgTool, { image: serializedFile })).toEqual([])
     expect(
-      selectOpaqueModelInputPaths(a2aSendMessageTool, {
-        files: [
-          {
-            key: 'effective-key',
-            path: 'unused-path',
-            name: 'report.pdf',
-            type: 'application/pdf',
-            metadata: 'unused-secret',
-          },
-        ],
+      selectPrivateInputPaths(quiverTextToSvgTool, {
+        references: [serializedFile, 'https://example.com/reference.png'],
       })
-    ).toEqual([['files', '0', 'name']])
+    ).toEqual([])
+    expect(
+      selectPrivateInputPaths(quiverImageToSvgTool, {
+        image: 'data:image/png;base64,c2VjcmV0',
+      })
+    ).toEqual([['image']])
   })
 
-  it('keeps Firecrawl upload metadata that is transmitted and drops passthrough fields', () => {
-    expect(
-      selectOpaqueModelInputPaths(firecrawlParseTool, {
-        file: {
-          key: 'effective-key',
-          path: 'unused-path',
-          name: 'report.pdf',
-          type: 'application/pdf',
-          metadata: 'unused-secret',
-        },
-      })
-    ).toEqual([['file', 'name']])
-  })
-
-  it('mirrors Fireflies source precedence without selecting unused file metadata', () => {
-    expect(firefliesUploadAudioTool.request.modelInput?.mode).toBe('project')
-    if (firefliesUploadAudioTool.request.modelInput?.mode !== 'project') {
-      throw new Error('Fireflies metadata must use the shared model-input projector')
-    }
-    expect(
-      firefliesUploadAudioTool.request.modelInput.select({
-        title: 'Meeting title',
-        language: 'en',
-        attendees: '[{"displayName":"Ada"}]',
-        clientReferenceId: 'reference-1',
-        webhook: 'https://example.com/private-callback',
-      })
-    ).toEqual({
-      language: 'en',
+  it('projects A2A attachment names without rewriting file content or locators', () => {
+    const modelInput = getProjectingModelInput(a2aSendMessageTool)
+    expect(modelInput.select({ message: 'Analyze', files: [FILE] })).toEqual({
+      message: 'Analyze',
+      data: undefined,
+      files: [{ name: 'private-report.pdf' }],
     })
-
     expect(
-      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
-        audioFile: {
-          key: 'effective-key',
-          url: 'https://example.com/unused.mp3',
-          path: '/api/files/serve/unused.mp3',
-          metadata: 'unused-secret',
-        },
-        audioUrl: 'https://example.com/unused-fallback.mp3',
-      })
-    ).toEqual([])
-
-    expect(
-      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
-        audioFile: {
-          url: 'https://example.com/effective.mp3',
-          path: '/api/files/serve/unused.mp3',
-          metadata: 'unused-secret',
-        },
-        audioUrl: 'https://example.com/unused-fallback.mp3',
-      })
-    ).toEqual([['audioFile', 'url']])
-
-    expect(
-      selectOpaqueModelInputPaths(firefliesUploadAudioTool, {
-        audioUrl: 'https://example.com/fallback.mp3',
-      })
-    ).toEqual([['audioUrl']])
-  })
-
-  it('normalizes Quiver file objects in both structured and serialized forms', () => {
-    const serialized = JSON.stringify({
-      key: 'effective-key',
-      path: 'unused-path',
-      metadata: 'unused-secret',
-    })
-
-    expect(selectOpaqueModelInputPaths(quiverImageToSvgTool, { image: serialized })).toEqual([])
-    expect(
-      selectOpaqueModelInputPaths(quiverTextToSvgTool, {
-        references: [serialized, { path: 'effective-path', metadata: 'unused-secret' }],
-      })
-    ).toEqual([['references', '1', 'path']])
-  })
-
-  it('selects only STT source metadata that the target provider transmits', () => {
-    expect(
-      selectSttAudioModelInputPaths({
-        audioFile: {
-          key: 'uploaded-key',
-          name: 'uploaded.mp3',
-          type: 'audio/mpeg',
-          metadata: 'unused-secret',
-        },
-        audioFileReference: { key: 'unused-reference' },
-        audioUrl: 'https://example.com/unused.mp3',
-      })
-    ).toEqual([])
-
-    expect(
-      selectSttAudioModelInputPaths({
-        audioFileReference: {
-          key: 'reference-key',
-          name: 'reference.wav',
-          type: 'audio/wav',
-          metadata: 'unused-secret',
-        },
-        audioUrl: 'https://example.com/unused.mp3',
-      })
-    ).toEqual([])
-
-    expect(
-      selectSttAudioModelInputPaths(
-        {
-          audioFile: {
-            key: 'uploaded-key',
-            name: 'uploaded.mp3',
-            type: 'audio/mpeg',
-            metadata: 'unused-secret',
-          },
-          audioUrl: 'https://example.com/unused.mp3',
-        },
-        { includeName: true }
+      modelInput.applyProjected(
+        { message: 'Analyze', data: undefined, files: [FILE] },
+        { message: 'Analyze', data: undefined, files: [{ name: '{{FILE_NAME}}' }] }
       )
-    ).toEqual([['audioFile', 'name']])
-
-    expect(
-      selectSttAudioModelInputPaths({ audioUrl: '  https://example.com/audio.mp3  ' })
-    ).toEqual([['audioUrl']])
+    ).toEqual({ message: 'Analyze', data: undefined, files: [{ ...FILE, name: '{{FILE_NAME}}' }] })
   })
 
-  it.each([
-    deepgramSttTool,
-    deepgramSttV2Tool,
-    assemblyaiSttTool,
-    assemblyaiSttV2Tool,
-    elevenLabsSttTool,
-    elevenLabsSttV2Tool,
-    geminiSttTool,
-    geminiSttV2Tool,
-    whisperSttTool,
-    whisperSttV2Tool,
-  ])('%s projects rewritable STT metadata and transports audio provenance privately', (tool) => {
-    const modelInput = tool.request.modelInput
-    expect(modelInput?.mode).toBe('project')
-    if (modelInput?.mode !== 'project') {
-      throw new Error(`Missing shared STT metadata projection for ${tool.id}`)
-    }
-    expect(modelInput.privateInputPaths).toBeDefined()
-    expect(
-      modelInput.privateInputPaths?.({
-        audioFileReference: {
-          key: 'effective-key',
-          name: 'audio.mp3',
-          type: 'audio/mpeg',
-          metadata: 'unused-secret',
-        },
-        audioUrl: 'https://example.com/unused.mp3',
-      })
-    ).toEqual(tool.id.startsWith('stt_whisper') ? [['audioFileReference', 'name']] : [])
-    expect(modelInput.select({ language: 'en', prompt: 'Proper noun' })).toEqual(
-      tool.id.startsWith('stt_whisper')
-        ? { language: 'en', prompt: 'Proper noun' }
-        : { language: 'en' }
+  it('restores non-name A2A fields after the whole selected file param is projected', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'FILE_NAME', plaintext: 'private-report', encryptedValue: 'encrypted-name' },
+      { name: 'FILE_URL', plaintext: 'private', encryptedValue: 'encrypted-url' },
+      { name: 'INLINE_FIELD', plaintext: 'raw-inline-field', encryptedValue: 'encrypted-inline' },
+    ])
+    registry.recordResolvedAtInputPath('FILE_NAME', 'private-report', ['files', '0', 'name'])
+    registry.recordResolvedInputProjection(
+      ['files', '0', 'name'],
+      'private-report.pdf',
+      '{{FILE_NAME}}.pdf'
     )
+    registry.recordResolvedAtInputPath('FILE_URL', 'private', ['files', '0', 'url'])
+    registry.recordResolvedInputProjection(
+      ['files', '0', 'url'],
+      FILE.url,
+      'https://storage.example/report.pdf?signature={{FILE_URL}}'
+    )
+    registry.recordResolvedAtInputPath('INLINE_FIELD', 'raw-inline-field', ['files', '0', 'base64'])
+    registry.recordResolvedInputProjection(
+      ['files', '0', 'base64'],
+      FILE.base64,
+      '{{INLINE_FIELD}}'
+    )
+
+    expect(
+      projectToolModelInputParams(
+        a2aSendMessageTool,
+        { message: 'Analyze', files: [FILE] },
+        registry
+      )
+    ).toEqual({
+      message: 'Analyze',
+      data: undefined,
+      files: [{ ...FILE, name: '{{FILE_NAME}}.pdf' }],
+    })
   })
 
-  it.each([
-    whisperSttTool,
-    whisperSttV2Tool,
-    deepgramSttTool,
-    deepgramSttV2Tool,
-    elevenLabsSttTool,
-    elevenLabsSttV2Tool,
-    assemblyaiSttTool,
-    assemblyaiSttV2Tool,
-    geminiSttTool,
-    geminiSttV2Tool,
-  ])('$id selects only opaque STT metadata transmitted upstream', (tool) => {
+  it('projects the Firecrawl multipart filename without rewriting the stored file', () => {
+    const modelInput = getProjectingModelInput(firecrawlParseTool)
+    expect(modelInput.select({ file: FILE, formats: ['summary'] })).toEqual({
+      formats: [{}],
+      file: { name: 'private-report.pdf' },
+    })
     expect(
-      selectOpaqueModelInputPaths(tool, {
-        audioFileReference: {
-          key: 'effective-key',
-          name: 'audio.mp3',
-          type: 'audio/mpeg',
-          metadata: 'unused-secret',
-        },
-        audioUrl: 'https://example.com/unused.mp3',
-      })
-    ).toEqual(tool.id.startsWith('stt_whisper') ? [['audioFileReference', 'name']] : [])
+      modelInput.applyProjected(
+        { file: FILE, formats: ['summary'] },
+        { formats: [{}], file: { name: '{{FILE_NAME}}' } }
+      )
+    ).toEqual({ formats: ['summary'], file: { ...FILE, name: '{{FILE_NAME}}' } })
   })
 
-  it('selects only the Runway visual reference fields consumed by the provider', () => {
-    expect(
-      selectOpaqueModelInputPaths(runwayVideoTool, {
-        visualReference: {
-          key: 'effective-key',
-          type: 'image/png',
-          name: 'unused-name.png',
-          metadata: 'unused-secret',
-        },
+  it.each([whisperSttTool, whisperSttV2Tool])(
+    '$id projects the multipart filename without rewriting the audio source',
+    (tool) => {
+      const modelInput = getProjectingModelInput(tool)
+      expect(
+        modelInput.applyProjected(
+          { language: 'en', prompt: 'Hint', audioFile: FILE },
+          {
+            language: 'en',
+            prompt: 'Hint',
+            audioFile: { name: '{{FILE_NAME}}' },
+          }
+        )
+      ).toEqual({
+        language: 'en',
+        prompt: 'Hint',
+        audioFile: { ...FILE, name: '{{FILE_NAME}}' },
       })
-    ).toEqual([])
-  })
+    }
+  )
 
   it.each([elevenLabsSpeechToSpeechTool, elevenLabsAudioIsolationTool])(
-    '$id selects only the audio source consumed by ElevenLabs',
+    '$id projects the multipart filename without rewriting the audio source',
     (tool) => {
+      const modelInput = getProjectingModelInput(tool)
+      expect(modelInput.select({ audioFile: FILE })).toEqual({
+        audioFile: { name: 'private-report.pdf' },
+      })
       expect(
-        selectOpaqueModelInputPaths(tool, {
-          audioFile: {
-            key: 'effective-key',
-            name: 'audio.wav',
-            type: 'audio/wav',
-            metadata: 'unused-secret',
-          },
-        })
-      ).toEqual([['audioFile', 'name']])
-    }
-  )
-
-  it.each([
-    [exaFindSimilarLinksTool, { url: 'https://example.com/similar' }, [['url']]],
-    [firecrawlAgentTool, { urls: ['https://example.com/agent'] }, [['urls']]],
-    [firecrawlExtractTool, { urls: ['https://example.com/extract'] }, [['urls']]],
-    [contextDevExtractTool, { url: 'https://example.com/extract' }, [['url']]],
-    [contextDevExtractProductTool, { url: 'https://example.com/product' }, [['url']]],
-    [contextDevExtractProductsTool, { domain: 'example.com' }, [['domain']]],
-    [browserUseRunTaskTool, { startUrl: 'https://example.com/start' }, [['startUrl']]],
-  ])('$id selects its exact always-model-bound opaque input', (tool, params, expected) => {
-    expect(selectRejectedOpaqueModelInputPaths(tool, params)).toStrictEqual(expected)
-  })
-
-  it('selects Exa content URLs only when summaries are model-generated', () => {
-    expect(
-      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
-        urls: 'https://example.com/plain',
-        summary: false,
-      })
-    ).toEqual([])
-    expect(
-      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
-        urls: 'https://example.com/summary',
-        summary: true,
-      })
-    ).toEqual([['urls']])
-    expect(
-      selectRejectedOpaqueModelInputPaths(exaGetContentsTool, {
-        urls: 'https://example.com/query',
-        summaryQuery: 'Summarize this',
-      })
-    ).toEqual([['urls']])
-  })
-
-  it('selects Firecrawl URLs only for formats or prompts that invoke models', () => {
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
-        url: 'https://example.com/plain',
-        formats: ['markdown'],
-      })
-    ).toEqual([])
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
-        url: 'https://example.com/json',
-        formats: [{ type: 'json', schema: { type: 'object' } }],
-      })
-    ).toEqual([['url']])
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlScrapeTool, {
-        url: 'https://example.com/string-json',
-        formats: ['json'],
-      })
-    ).toEqual([['url']])
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlBatchScrapeTool, {
-        urls: ['https://example.com/question'],
-        scrapeOptions: { formats: [{ type: 'question', question: 'What changed?' }] },
-      })
-    ).toStrictEqual([['urls']])
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlCrawlTool, {
-        url: 'https://example.com/plain-crawl',
-        formats: ['markdown'],
-      })
-    ).toEqual([])
-    expect(
-      selectRejectedOpaqueModelInputPaths(firecrawlCrawlTool, {
-        url: 'https://example.com/prompted-crawl',
-        prompt: 'Focus on pricing',
-      })
-    ).toEqual([['url']])
-  })
-
-  it.each([tavilyCrawlTool, tavilyMapTool])(
-    '$id selects its URL only when natural-language instructions are active',
-    (tool) => {
-      expect(
-        selectRejectedOpaqueModelInputPaths(tool, {
-          url: 'https://example.com/plain',
-        })
-      ).toEqual([])
-      expect(
-        selectRejectedOpaqueModelInputPaths(tool, {
-          url: 'https://example.com/instructed',
-          instructions: 'Find pricing',
-        })
-      ).toEqual([['url']])
-    }
-  )
-
-  it('selects Jina Reader URLs only for ReaderLM or generated-alt processing', () => {
-    expect(
-      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, { url: 'https://example.com/plain' })
-    ).toEqual([])
-    expect(
-      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, {
-        url: 'https://example.com/readerlm',
-        useReaderLMv2: true,
-      })
-    ).toEqual([['url']])
-    expect(
-      selectRejectedOpaqueModelInputPaths(jinaReadUrlTool, {
-        url: 'https://example.com/alt',
-        withGeneratedAlt: true,
-      })
-    ).toEqual([['url']])
-  })
-
-  it.each([launchAgentTool, launchAgentV2Tool, addFollowupTool, addFollowupV2Tool])(
-    '$id selects the parsed Cursor image payload without rewriting it',
-    (tool) => {
-      const promptImages = JSON.stringify([
-        { data: 'quote" slash\\ newline\n123 true', dimension: { width: 10, height: 20 } },
-      ])
-      expect(selectRejectedOpaqueModelInputPaths(tool, { promptImages })).toStrictEqual([
-        ['promptImages'],
-      ])
-      expect(selectRejectedOpaqueModelInputPaths(tool, { promptImages: 'not-json' })).toStrictEqual(
-        []
-      )
+        modelInput.applyProjected({ audioFile: FILE }, { audioFile: { name: '{{FILE_NAME}}' } })
+      ).toEqual({ audioFile: { ...FILE, name: '{{FILE_NAME}}' } })
     }
   )
 })

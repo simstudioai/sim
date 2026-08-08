@@ -21,18 +21,15 @@ function selectFileRecordInputPaths(
   options: ModelBoundFileInputOptions
 ): ResolvedSecretInputPath[] {
   const paths: ResolvedSecretInputPath[] = []
-  let hasSource = false
+  const hasSource = Boolean(input.base64 || input.key || input.path || input.url)
 
   if (options.includeInlineBase64 && input.base64) {
-    hasSource = true
     paths.push([...rootPath, 'base64'])
-  } else if (input.key) {
-    hasSource = true
-  } else if (input.path) {
-    hasSource = true
+  }
+  if (typeof input.path === 'string' && isInlineDataUrl(input.path)) {
     paths.push([...rootPath, 'path'])
-  } else if (input.url) {
-    hasSource = true
+  }
+  if (typeof input.url === 'string' && isInlineDataUrl(input.url)) {
     paths.push([...rootPath, 'url'])
   }
 
@@ -42,7 +39,15 @@ function selectFileRecordInputPaths(
   return paths
 }
 
-/** Selects resolver input paths for only the source-bearing fields consumed by a model. */
+function isInlineDataUrl(value: string): boolean {
+  return /^data:[^,]*;base64,/iu.test(value.trim())
+}
+
+/**
+ * Selects inline file content and explicitly requested model-visible metadata. Storage keys,
+ * paths, and remote URLs are locators: provenance on a locator says nothing about the fetched
+ * bytes, which are authorized independently at the owning file boundary.
+ */
 export function selectModelBoundFileInputPaths(
   input: unknown,
   rootPath: ResolvedSecretInputPath,
@@ -57,14 +62,17 @@ export function selectModelBoundFileInputPaths(
     if (options.parseSerializedFile) {
       try {
         const parsed = JSON.parse(input)
-        if (isPlainRecord(parsed)) {
-          return selectFileRecordInputPaths(parsed, rootPath, options).length > 0 ? [rootPath] : []
-        }
+        return selectModelBoundFileInputPaths(parsed, rootPath, {
+          ...options,
+          parseSerializedFile: false,
+        }).length > 0
+          ? [rootPath]
+          : []
       } catch {
-        return [rootPath]
+        return isInlineDataUrl(input) ? [rootPath] : []
       }
     }
-    return [rootPath]
+    return isInlineDataUrl(input) ? [rootPath] : []
   }
   if (!isPlainRecord(input)) return []
   return selectFileRecordInputPaths(input, rootPath, options)
@@ -85,9 +93,59 @@ export function selectPreferredModelBoundFileInputPaths(
   if (options.prefer === 'file' && hasFile) {
     return selectModelBoundFileInputPaths(options.file, options.fileInputPath, options)
   }
-  if (filePath !== undefined) return [options.filePathInputPath]
+  if (filePath !== undefined) {
+    return isInlineDataUrl(filePath) ? [options.filePathInputPath] : []
+  }
   if (options.prefer === 'path' && hasFile) {
     return selectModelBoundFileInputPaths(options.file, options.fileInputPath, options)
   }
   return []
+}
+
+/** Selects only file names that are serialized into model-visible requests. */
+export function selectModelVisibleFileNames(input: unknown): unknown {
+  if (Array.isArray(input)) return input.map(selectModelVisibleFileNames)
+  if (!isPlainRecord(input)) return undefined
+  return Object.hasOwn(input, 'name') ? { name: input.name } : {}
+}
+
+function haveExactKeys(value: Record<string, unknown>, expected: readonly string[]): boolean {
+  const keys = Object.keys(value)
+  return keys.length === expected.length && expected.every((key) => Object.hasOwn(value, key))
+}
+
+/** Reapplies projected file names while preserving every locator and inline-content field. */
+export function applyProjectedModelVisibleFileNames(
+  original: unknown,
+  projected: unknown
+): unknown {
+  if (Array.isArray(original)) {
+    if (!Array.isArray(projected) || projected.length !== original.length) {
+      throw new Error('Projected file names do not match the original files')
+    }
+    return original.map((entry, index) =>
+      applyProjectedModelVisibleFileNames(entry, projected[index])
+    )
+  }
+
+  if (!isPlainRecord(original)) {
+    if (projected !== undefined) {
+      throw new Error('Projected file name does not match the original file')
+    }
+    return original
+  }
+  if (!isPlainRecord(projected)) {
+    throw new Error('Projected file name is invalid')
+  }
+
+  if (!Object.hasOwn(original, 'name')) {
+    if (!haveExactKeys(projected, [])) {
+      throw new Error('Projected file name does not match the original file')
+    }
+    return { ...original }
+  }
+  if (!haveExactKeys(projected, ['name']) || typeof projected.name !== 'string') {
+    throw new Error('Projected file name is invalid')
+  }
+  return { ...original, name: projected.name }
 }

@@ -105,11 +105,6 @@ export const readUrlTool: ToolConfig<ReadUrlParams, ReadUrlResponse> = {
   },
 
   request: {
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      inputPaths: (params) =>
-        params.useReaderLMv2 === true || params.withGeneratedAlt === true ? [['url']] : [],
-    },
     url: (params: ReadUrlParams) => {
       return `https://r.jina.ai/https://${params.url.replace(/^https?:\/\//, '')}`
     },
