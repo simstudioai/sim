@@ -8,15 +8,25 @@ import { sanitizeTextForUTF8 } from '@/lib/file-parsers/utils'
 const logger = createLogger('HtmlParser')
 
 /**
- * `cheerio.load` retains ~530 bytes of DOM per markup token (`<`) — measured on
- * cheerio 1.1.2 at 0.2M/1M/2M tokens (101/504/1008 MB), flat across all three —
- * so this bounds one document's tree at roughly 256 MB.
+ * Bounds the DOM tree, which costs ~500 bytes per markup token (`<`) on cheerio
+ * 1.1.2: measured at 0.2M/1M/2M tokens as 101/504/1008 MB retained, linear
+ * across all three.
+ *
+ * A 50,000-row by 8-column table export is ~900k tokens in only 8.7 MB, so a
+ * tighter cap rejects ordinary exports; 999k tokens in a 10 MB body parses
+ * inside a 2 GB heap.
  */
-const MAX_HTML_MARKUP_TOKENS = 500_000
+const MAX_HTML_MARKUP_TOKENS = 1_000_000
 
 /**
- * Backstop for markup sparse enough to pass the token cap: bounds the UTF-16
- * copy `buffer.toString` allocates and the text nodes the DOM keeps.
+ * Bounds the body, which governs peak memory: extraction materialises the text
+ * several times over (UTF-16 buffer copy, per-node strings, the joined output).
+ *
+ * Measured against a 2 GB heap with the token cap saturated: 32 MB parses,
+ * 48 MB parses, 64 MB aborts the process. Deliberately NOT raised to the
+ * shared 100 MB document limit — that limit governs what may be uploaded, and
+ * a 100 MB body aborts here even with few tokens. Any change to this number
+ * needs the same abort test, not a consistency argument.
  */
 const MAX_HTML_INPUT_BYTES = 32 * 1024 * 1024
 
