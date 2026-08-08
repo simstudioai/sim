@@ -1,7 +1,7 @@
 'use client'
 
-import { useMemo } from 'react'
-import { useParams } from 'next/navigation'
+import { useCallback, useMemo } from 'react'
+import { useParams, useRouter } from 'next/navigation'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
 import { grantsFromPermissions } from '@/resources'
@@ -29,13 +29,16 @@ export function TableRoute({ tableLocksEnabled, viewsEnabled }: TableRouteProps)
   const workspaceId = typeof params?.workspaceId === 'string' ? params.workspaceId : ''
   const tableId = typeof params?.tableId === 'string' ? params.tableId : ''
   const permissions = useUserPermissionsContext()
+  const router = useRouter()
 
   const grants = useMemo(() => grantsFromPermissions(permissions), [permissions])
+  const navigate = useCallback((path: string) => router.push(path), [router])
 
   return (
     <Table
       host='page'
       grants={grants}
+      onNavigate={navigate}
       workspaceId={workspaceId}
       tableId={tableId}
       tableLocksEnabled={tableLocksEnabled}

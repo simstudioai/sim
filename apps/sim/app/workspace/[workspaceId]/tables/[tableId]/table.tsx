@@ -5,7 +5,6 @@ import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
 import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { PresenceAvatars } from '@/components/presence'
 import {
@@ -57,7 +56,7 @@ import {
 import { useInlineRename } from '@/hooks/use-inline-rename'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useTableDetailState } from '@/hooks/use-table-detail-state'
-import { hostOwnsUrl, type ResourceGrants, type ResourceHost } from '@/resources'
+import { hostOwnsUrl, type ResourceGrants, type ResourceHost, workspaceSource } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import type { DeletedRowSnapshot } from '@/stores/table/types'
 import {
@@ -107,6 +106,12 @@ interface TableProps {
    * permanently loses its action.
    */
   grants: ResourceGrants
+  /**
+   * How this host moves the viewer — the router half of `host`. Targets come
+   * from `source.hrefFor`, so nothing here hand-builds a workspace path; a host
+   * that owns no router omits this and navigation is inert by construction.
+   */
+  onNavigate?: (path: string) => void
   /**
    * The table's address. Required rather than derived: both mounts know it
    * (`page.tsx` from its route params, the panel from the open resource), and a
@@ -232,12 +237,25 @@ function isSameViewConfig(a: TableViewConfig, b: TableViewConfig): boolean {
 export function Table({
   host,
   grants,
+  onNavigate,
   workspaceId,
   tableId,
   tableLocksEnabled = false,
   viewsEnabled = false,
 }: TableProps) {
-  const router = useRouter()
+  /**
+   * The table's address on the resource axis. Built here rather than taken as a
+   * prop because `page.tsx` is a Server Component and a source carries closures,
+   * which cannot cross the RSC boundary.
+   */
+  const source = useMemo(
+    () => workspaceSource({ kind: 'table' as const, workspaceId, resourceId: tableId }),
+    [workspaceId, tableId]
+  )
+  const navigateToList = useCallback(() => {
+    const list = source.hrefFor({ to: 'list' })
+    if (list) onNavigate?.(list)
+  }, [source, onNavigate])
 
   /**
    * Read through {@link hostOwnsUrl} rather than comparing `host` here: that
@@ -1011,9 +1029,7 @@ export function Table({
     },
   })
 
-  const handleNavigateBack = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/tables`)
-  }, [router, workspaceId])
+  const handleNavigateBack = navigateToList
 
   const handleStartTableRename = useCallback(() => {
     const data = tableDataRef.current
@@ -1269,7 +1285,7 @@ export function Table({
     try {
       await deleteTableMutation.mutateAsync(tableId)
       setShowDeleteTableConfirm(false)
-      router.push(`/workspace/${workspaceId}/tables`)
+      navigateToList()
     } catch {
       setShowDeleteTableConfirm(false)
     }
