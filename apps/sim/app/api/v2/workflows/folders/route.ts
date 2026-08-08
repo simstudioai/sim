@@ -4,122 +4,92 @@ import {
   v2ListWorkflowFoldersContract,
   v2RelocateWorkflowFolderContract,
 } from '@/lib/api/contracts/v2/workflows'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
-  createFolderAtPath,
-  deleteFolderByPath,
-  relocateFolderByPath,
-} from '@/lib/folders/orchestration'
-import { listActiveFolderRows, loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { withPublicApiRouteHandler } from '@/app/api/public-api-route-handler'
-import { resolveWorkspaceAccess } from '@/app/api/v1/middleware'
-import {
-  resolveFolderPathId,
-  toV2PathFolder,
-  v2FolderPathMutationError,
-} from '@/app/api/v2/lib/folders'
-import { v2CursorList, v2Data, v2Error, v2WorkspaceAccessError } from '@/app/api/v2/lib/response'
+  createWorkflowFolder,
+  deleteWorkflowFolder,
+  listWorkflowFolders,
+  relocateWorkflowFolder,
+} from '@/lib/workflows/application/workflow-folders'
+import { toV2PathFolder } from '@/app/api/v2/lib/folders'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
-export const GET = withPublicApiRouteHandler({
+function toV2WorkflowFolder(
+  folder: Parameters<typeof toV2PathFolder>[0],
+  index: Parameters<typeof toV2PathFolder>[1]
+) {
+  const view = toV2PathFolder(folder, index, true)
+  if (!('locked' in view)) throw new Error('Workflow folder projection omitted lock state')
+  return view
+}
+
+export const GET = defineV2JsonRoute({
   contract: v2ListWorkflowFoldersContract,
-  rateLimitEndpoint: 'workflows',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, parentPath, search, sortBy, sortOrder } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'read')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const index = await loadActiveFolderPathIndex(workspaceId, 'workflow')
-    const parentId = parentPath === undefined ? undefined : resolveFolderPathId(index, parentPath)
-    if (parentPath !== undefined && parentId === undefined) {
-      return v2Error('NOT_FOUND', 'Folder not found')
-    }
-    const rows = await listActiveFolderRows(workspaceId, 'workflow', {
-      parentId,
-      search,
-      sortBy,
-      sortOrder,
-    })
-    return v2CursorList(
-      rows.map((row) => toV2PathFolder(row, index, true)),
-      null,
-      { rateLimit }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.listFolders,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.default,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    parentPath: query.parentPath,
+    search: query.search,
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+  }),
+  useCase: listWorkflowFolders,
+  present: ({ folders, index }) => ({
+    data: folders.map((folder) => toV2WorkflowFolder(folder, index)),
+    nextCursor: null,
+  }),
 })
 
-export const POST = withPublicApiRouteHandler({
+export const POST = defineV2JsonRoute({
   contract: v2CreateWorkflowFolderContract,
-  rateLimitEndpoint: 'workflows',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const result = await createFolderAtPath({ resourceType: 'workflow', workspaceId, userId, path })
-    if (!result.success || !result.folder || !result.path) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to create folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'workflow')
-    return v2Data(
-      { folder: toV2PathFolder(result.folder, index, true) },
-      { rateLimit, status: 201 }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.createFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.default,
+  mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
+  useCase: createWorkflowFolder,
+  present: ({ folder, index }) => ({
+    data: { folder: toV2WorkflowFolder(folder, index) },
+  }),
 })
 
-export const PATCH = withPublicApiRouteHandler({
+export const PATCH = defineV2JsonRoute({
   contract: v2RelocateWorkflowFolderContract,
-  rateLimitEndpoint: 'workflows',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, destinationPath } = input.body
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const result = await relocateFolderByPath({
-      resourceType: 'workflow',
-      workspaceId,
-      userId,
-      path,
-      destinationPath,
-    })
-    if (!result.success || !result.folder || !result.path) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to move folder')
-    }
-    const index = await loadActiveFolderPathIndex(workspaceId, 'workflow')
-    return v2Data({ folder: toV2PathFolder(result.folder, index, true) }, { rateLimit })
-  },
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.relocateFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.default,
+  mapInput: ({ body }) => ({
+    workspaceId: body.workspaceId,
+    path: body.path,
+    destinationPath: body.destinationPath,
+  }),
+  useCase: relocateWorkflowFolder,
+  present: ({ folder, index }) => ({
+    data: { folder: toV2WorkflowFolder(folder, index) },
+  }),
 })
 
-export const DELETE = withPublicApiRouteHandler({
+export const DELETE = defineV2JsonRoute({
   contract: v2DeleteWorkflowFolderContract,
-  rateLimitEndpoint: 'workflows',
-  handler: async ({ input, auth: { userId, rateLimit } }) => {
-    const { workspaceId, path, recursive } = input.query
-    const access = await resolveWorkspaceAccess(rateLimit, userId, workspaceId, 'write')
-    if (access) return v2WorkspaceAccessError(access)
-
-    const result = await deleteFolderByPath({
-      resourceType: 'workflow',
-      workspaceId,
-      userId,
-      path,
-      recursive,
-    })
-    if (!result.success || !result.deletedItems) {
-      return v2FolderPathMutationError(result.errorCode, result.error ?? 'Failed to delete folder')
-    }
-    return v2Data(
-      {
-        path,
-        deleted: true as const,
-        deletedItems: {
-          folders: result.deletedItems.folders,
-          workflows: result.deletedItems.workflows ?? 0,
-        },
-      },
-      { rateLimit }
-    )
-  },
+  auth: v2ApiKeyAuth,
+  operation: workflowOperations.deleteFolder,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2WorkflowErrorPolicies.default,
+  mapInput: ({ query }) => ({
+    workspaceId: query.workspaceId,
+    path: query.path,
+    recursive: query.recursive,
+  }),
+  useCase: deleteWorkflowFolder,
+  present: ({ path, deletedItems }) => ({
+    data: { path, deleted: true as const, deletedItems },
+  }),
 })

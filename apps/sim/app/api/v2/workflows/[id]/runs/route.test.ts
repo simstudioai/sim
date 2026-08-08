@@ -1,20 +1,58 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockResolveV2WorkflowAccess } = vi.hoisted(() => ({
-  mockResolveV2WorkflowAccess: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  authenticate: vi.fn(),
+  checkPreAuthRate: vi.fn(),
+  checkOperationRate: vi.fn(),
+  listRuns: vi.fn(),
 }))
 
-vi.mock('@/app/api/v2/workflows/lib/access', () => ({
-  resolveV2WorkflowAccess: mockResolveV2WorkflowAccess,
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
+  authenticateV2ApiKey: mocks.authenticate,
+  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
 }))
 
+vi.mock('@/lib/core/rate-limiter', () => ({
+  getRateLimit: () => ({ maxTokens: 100, refillRate: 50, refillIntervalMs: 60_000 }),
+  RateLimiter: class RateLimiter {
+    checkRateLimitDirect = mocks.checkPreAuthRate
+    checkRateLimitDirectOrThrow = mocks.checkOperationRate
+  },
+}))
+
+vi.mock('@/app/api/v2/lib/gate', () => ({
+  v2ApiGateError: vi.fn().mockResolvedValue(null),
+}))
+
+vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
+  listWorkflowRuns: {
+    operation: { id: 'workflows.runs.list' },
+    execute: mocks.listRuns,
+  },
+}))
+
+import {
+  InsufficientWorkspacePermissionsError,
+  PersonalApiKeysDisabledError,
+} from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/route'
 
+const principal = {
+  kind: 'workspace_api_key' as const,
+  workspaceId: 'workspace-1',
+  keyId: 'key-1',
+}
+const auth = {
+  principal,
+  rolloutUserId: 'billing-owner-1',
+  rateLimitSubjectIds: ['api-key:key-1', 'workspace:workspace-1'] as const,
+  rateLimitSubscription: null,
+  keyType: 'workspace' as const,
+}
 const routeContext = () => ({ params: Promise.resolve({ id: 'workflow-1' }) })
 const callGet = (query = '') =>
   GET(
@@ -50,96 +88,122 @@ const EXECUTIONS = [
 describe('GET /api/v2/workflows/[id]/runs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetDbChainMock()
-    mockResolveV2WorkflowAccess.mockResolvedValue({
-      ok: true,
-      userId: 'user-1',
-      keyType: 'workspace',
-      workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
+    mocks.authenticate.mockResolvedValue(auth)
+    mocks.checkPreAuthRate.mockResolvedValue({
+      allowed: true,
+      remaining: 599,
+      resetAt: new Date('2026-08-05T01:00:00Z'),
     })
-    dbChainMockFns.limit.mockResolvedValue(EXECUTIONS)
+    mocks.checkOperationRate.mockResolvedValue({
+      allowed: true,
+      remaining: 99,
+      resetAt: new Date('2026-08-05T01:00:00Z'),
+    })
+    mocks.listRuns.mockResolvedValue({
+      data: EXECUTIONS,
+      nextCursor: null,
+      workflowId: 'workflow-1',
+      order: 'desc',
+    })
   })
 
-  it('lists lightweight run resources in the cursor envelope', async () => {
+  it('lists lightweight run resources through the semantic operation', async () => {
     const response = await callGet()
-    const body = await response.json()
 
     expect(response.status).toBe(200)
-    expect(body.nextCursor).toBeNull()
-    expect(body.data).toEqual([
-      {
-        runId: 'execution-2',
-        workflowId: 'workflow-1',
-        status: 'paused',
-        trigger: 'api',
-        startedAt: '2026-08-05T00:02:00.000Z',
-        endedAt: null,
-        durationMs: null,
-        cost: { total: 0.02 },
-      },
-      {
-        runId: 'execution-1',
-        workflowId: 'workflow-1',
-        status: 'completed',
-        trigger: 'schedule',
-        startedAt: '2026-08-05T00:01:00.000Z',
-        endedAt: '2026-08-05T00:01:03.000Z',
-        durationMs: 3000,
-        cost: null,
-      },
-    ])
+    expect(await response.json()).toEqual({
+      data: [
+        {
+          runId: 'execution-2',
+          workflowId: 'workflow-1',
+          status: 'paused',
+          trigger: 'api',
+          startedAt: '2026-08-05T00:02:00.000Z',
+          endedAt: null,
+          durationMs: null,
+          cost: { total: 0.02 },
+        },
+        {
+          runId: 'execution-1',
+          workflowId: 'workflow-1',
+          status: 'completed',
+          trigger: 'schedule',
+          startedAt: '2026-08-05T00:01:00.000Z',
+          endedAt: '2026-08-05T00:01:03.000Z',
+          durationMs: 3000,
+          cost: null,
+        },
+      ],
+      nextCursor: null,
+    })
+    expect(mocks.listRuns).toHaveBeenCalledWith({
+      principal,
+      input: expect.objectContaining({ workflowId: 'workflow-1', limit: 50, order: 'desc' }),
+      request: expect.anything(),
+    })
   })
 
-  it('returns an opaque cursor when another row exists', async () => {
-    dbChainMockFns.limit.mockResolvedValue([...EXECUTIONS, { ...EXECUTIONS[1], rowId: 'row-0' }])
+  it('encodes the repository cursor using the requested order', async () => {
+    mocks.listRuns.mockResolvedValueOnce({
+      data: EXECUTIONS,
+      nextCursor: { startedAt: EXECUTIONS[1].startedAt, rowId: 'row-1' },
+      workflowId: 'workflow-1',
+      order: 'asc',
+    })
 
-    const body = await (await callGet('?limit=2')).json()
+    const body = await (await callGet('?order=asc')).json()
 
-    expect(body.data).toHaveLength(2)
-    expect(body.nextCursor).toEqual(expect.any(String))
     expect(JSON.parse(Buffer.from(body.nextCursor, 'base64').toString())).toEqual({
-      sort: 'startedAt:desc',
+      sort: 'startedAt:asc',
       keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
     })
   })
 
-  it('rejects an invalid cursor', async () => {
+  it('rejects an invalid cursor after API-key admission without calling the use case', async () => {
     const response = await callGet('?cursor=not-a-cursor')
 
     expect(response.status).toBe(400)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
-  })
-
-  it('rejects a cursor minted under a different order', async () => {
-    const cursor = Buffer.from(
-      JSON.stringify({
-        sort: 'startedAt:desc',
-        keys: ['2026-08-05T00:01:00.000Z', 'row-1'],
-      })
-    ).toString('base64')
-
-    const response = await callGet(`?order=asc&cursor=${encodeURIComponent(cursor)}`)
-
-    expect(response.status).toBe(400)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(mocks.authenticate).toHaveBeenCalledOnce()
+    expect(mocks.checkOperationRate).toHaveBeenCalledTimes(2)
+    expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
   it('rejects queued as a durable-history filter', async () => {
     const response = await callGet('?status=queued')
 
     expect(response.status).toBe(400)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
-  it('authorizes the workflow before validating filters', async () => {
-    mockResolveV2WorkflowAccess.mockResolvedValue({
-      ok: false,
-      response: new Response(null, { status: 404 }),
-    })
+  it('conceals workflow authorization failures as absence', async () => {
+    mocks.listRuns.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
 
-    const response = await callGet('?limit=0')
+    const response = await callGet()
 
     expect(response.status).toBe(404)
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect((await response.json()).error).toMatchObject({
+      code: 'NOT_FOUND',
+      message: 'Workflow not found',
+    })
+  })
+
+  it('preserves the personal API-key workspace-policy denial', async () => {
+    mocks.listRuns.mockRejectedValueOnce(new PersonalApiKeysDisabledError())
+
+    const response = await callGet()
+
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
+  })
+
+  it('returns a safe error when run storage fails', async () => {
+    mocks.listRuns.mockRejectedValueOnce(new Error('database connection details'))
+
+    const response = await callGet()
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
   })
 })

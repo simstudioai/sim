@@ -9,8 +9,10 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   V1_IMPORT_DESCRIPTION_MAX_LENGTH,
   V1_IMPORT_NAME_MAX_LENGTH,
+  v1DeployWorkflowBodySchema,
   v1DeployWorkflowDataSchema,
   v1ImportWorkflowBodySchema,
+  v1RollbackWorkflowBodySchema,
   v1RollbackWorkflowDataSchema,
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
@@ -222,6 +224,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowListItemSchema),
+    status: 201,
   },
 })
 
@@ -268,7 +271,7 @@ export const v2CreateWorkflowFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema), status: 201 },
 })
 
 export const v2RelocateWorkflowFolderContract = defineRouteContract({
@@ -345,6 +348,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/deploy',
   params: workflowIdParamsSchema,
+  body: v1DeployWorkflowBodySchema.optional().default({}),
   response: {
     mode: 'json',
     schema: v2DataResponse(v1DeployWorkflowDataSchema),
@@ -365,6 +369,7 @@ export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/rollback',
   params: workflowIdParamsSchema,
+  body: v1RollbackWorkflowBodySchema.optional().default({}),
   response: {
     mode: 'json',
     schema: v2DataResponse(v1RollbackWorkflowDataSchema),
@@ -668,5 +673,6 @@ export const v2ImportWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2ImportWorkflowDataSchema),
+    status: 201,
   },
 })

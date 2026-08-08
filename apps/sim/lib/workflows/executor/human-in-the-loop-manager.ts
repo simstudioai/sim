@@ -692,7 +692,7 @@ export class PauseResumeManager {
         .limit(1)
         .then((rows) => rows[0])
 
-      const resumeExecutionId = executionId
+      const resumeExecutionId = generateId()
       const now = new Date()
 
       if (activeResume) {
