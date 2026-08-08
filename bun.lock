@@ -272,6 +272,7 @@
         "gray-matter": "^4.0.3",
         "groq-sdk": "^0.15.0",
         "heic-convert": "2.1.0",
+        "heic-decode": "2.1.0",
         "html-to-text": "^9.0.5",
         "http-proxy-agent": "7.0.2",
         "https-proxy-agent": "7.0.6",
