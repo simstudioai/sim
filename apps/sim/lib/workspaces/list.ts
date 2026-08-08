@@ -110,13 +110,7 @@ export async function listWorkspacesForViewer(params: {
 }): Promise<WorkspaceListPayload> {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
-  /**
-   * The viewer's workspace pins are read here rather than through
-   * `GET /api/pinned-items`, which lists the pins *inside* one workspace — the
-   * switcher needs the pins *of* every workspace. Riding along on this payload also
-   * means the sidebar prefetch hydrates them in the same pass, so pinned-first
-   * ordering is correct on first paint instead of re-sorting after hydration.
-   */
+  /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
   const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
     getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
     listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>

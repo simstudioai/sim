@@ -13,10 +13,11 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
  * two `usePinnedIds` sets.
  *
  * `workspace` pins the workspace itself, so its row stores `workspaceId === resourceId`.
- * It is the one kind that is not read back through `GET /api/pinned-items`: the switcher
- * needs every workspace the viewer pinned, not the pins inside one workspace, so those ids
- * ride along on the `/api/workspaces` payload it already loads. Writes still go through the
- * pin routes below, which is what keeps pin/unpin a per-row delta.
+ * It is the one kind not read back through `GET /api/pinned-items`, which lists the pins
+ * *inside* one workspace where the switcher needs the pins *of* every workspace; those ids
+ * ride along on the `/api/workspaces` payload it already loads, which also lets the sidebar
+ * prefetch hydrate them so pinned-first ordering is right on first paint. Writes still go
+ * through the pin routes below, which is what keeps pin/unpin a per-row delta.
  */
 export const pinnedResourceTypeSchema = z.enum([
   'workflow',

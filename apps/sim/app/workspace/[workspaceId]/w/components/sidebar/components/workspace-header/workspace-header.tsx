@@ -170,6 +170,11 @@ function WorkspaceHeaderImpl({
   const [isContextMenuOpen, setIsContextMenuOpen] = useState(false)
   const [menuOpenWorkspaceId, setMenuOpenWorkspaceId] = useState<string | null>(null)
   const contextMenuRef = useRef<HTMLDivElement | null>(null)
+  /**
+   * The row a context-menu action targets. Set alongside `menuOpenWorkspaceId` in
+   * {@link openContextMenuAt}, but only that state re-renders — so anything the menu
+   * *renders* must read the state, and only handlers may read this ref.
+   */
   const capturedWorkspaceRef = useRef<Workspace | null>(null)
   /**
    * Set by context-menu actions whose result is only visible in the still-open
@@ -389,10 +394,6 @@ function WorkspaceHeaderImpl({
     }
   }
 
-  /**
-   * Pinning leaves the switcher open: the row jumps to the pinned group, and
-   * closing the menu would hide the only feedback that the action landed.
-   */
   const handleTogglePinAction = () => {
     const target = capturedWorkspaceRef.current
     if (!target) return
@@ -540,7 +541,11 @@ function WorkspaceHeaderImpl({
             align='start'
             side={isCollapsed ? 'right' : 'bottom'}
             sideOffset={isCollapsed ? 16 : 8}
-            className='flex max-h-none flex-col overflow-hidden'
+            /* Overrides the 240px default cap so the six-row list is not clipped, but
+               still bounded by the space Radix measured — at six rows the menu is tall
+               enough that a short viewport would otherwise push the footer actions off
+               screen with nothing able to scroll to them. */
+            className='flex max-h-[var(--radix-dropdown-menu-content-available-height,400px)] flex-col overflow-y-auto'
             style={{
               width: `${SIDEBAR_WIDTH.DEFAULT}px`,
               maxWidth: 'calc(100vw - 24px)',
@@ -743,8 +748,6 @@ function WorkspaceHeaderImpl({
                               {workspace.name}
                             </span>
                             {pinnedWorkspaceIds.has(workspace.id) && (
-                              /* `Pin` hardcodes `aria-hidden` ahead of its prop spread,
-                                 so un-hiding it is what makes the label announce. */
                               <Pin
                                 aria-hidden={false}
                                 role='img'
@@ -887,11 +890,6 @@ function WorkspaceHeaderImpl({
             onTogglePin={handleTogglePinAction}
             onUploadLogo={handleUploadLogoAction}
             showPin={true}
-            /**
-             * Read from state, not `capturedWorkspaceRef` — both are set together in
-             * `openContextMenuAt`, but only the state re-renders, so the ref would
-             * leave the Pin/Unpin label showing the previous row's value.
-             */
             isPinned={Boolean(menuOpenWorkspaceId && pinnedWorkspaceIds.has(menuOpenWorkspaceId))}
             showRename={true}
             showUploadLogo={!!onUploadLogo}

@@ -38,7 +38,8 @@ vi.mock('@/hooks/queries/workspace', () => ({
   useWorkspaceCreationPolicy: mockUseWorkspaceCreationPolicy,
   useWorkspacesQuery: mockUseWorkspacesQuery,
   /** No pins: this suite is about the deep-link guard, not switcher ordering. */
-  usePinnedWorkspaceIds: () => ({ data: [] }),
+  EMPTY_PINNED_WORKSPACE_IDS: new Set<string>(),
+  usePinnedWorkspaceIds: () => ({ data: new Set<string>() }),
   useToggleWorkspacePin: () => ({ mutate: vi.fn() }),
 }))
 

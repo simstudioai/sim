@@ -20,7 +20,6 @@ import {
   type WorkspaceQueryScope,
   type WorkspacesResponse,
 } from '@/lib/api/contracts'
-import { pinnedItemKeys } from '@/hooks/queries/utils/pinned-item-keys'
 import {
   normalizeWorkspace,
   normalizeWorkspacesResponse,
@@ -101,13 +100,16 @@ export function useWorkspaceCreationPolicy(enabled = true) {
   })
 }
 
-const selectPinnedWorkspaceIds = (data: WorkspacesResponse): string[] => data.pinnedWorkspaceIds
+export const EMPTY_PINNED_WORKSPACE_IDS: ReadonlySet<string> = new Set()
+
+const selectPinnedWorkspaceIds = (data: WorkspacesResponse): ReadonlySet<string> =>
+  data.pinnedWorkspaceIds.length ? new Set(data.pinnedWorkspaceIds) : EMPTY_PINNED_WORKSPACE_IDS
 
 /**
- * The viewer's pinned workspace ids, read off the workspace list the switcher
- * already loads — pins ride along on that payload rather than costing a second
- * request, which is also what lets the server prefetch hydrate them in the same
- * pass and keeps pinned-first ordering from re-sorting after hydration.
+ * The viewer's pinned workspace ids, as a `Set` so a row resolves its pin state in
+ * O(1) — mirroring {@link usePinnedIds} for the workspace-scoped kinds. Sourced
+ * from the workspace list rather than `/api/pinned-items`; see
+ * `pinnedResourceTypeSchema` for why that is the one kind read this way.
  */
 export function usePinnedWorkspaceIds(enabled = true) {
   return useQuery({
@@ -119,58 +121,75 @@ export function usePinnedWorkspaceIds(enabled = true) {
   })
 }
 
+/** Applies one toggle to a pin list. Idempotent, so replaying it cannot double-apply. */
+function applyPinToggle(pinnedWorkspaceIds: string[], workspaceId: string, pinned: boolean) {
+  const without = pinnedWorkspaceIds.filter((id) => id !== workspaceId)
+  return pinned ? [...without, workspaceId] : without
+}
+
 /**
  * Pins or unpins a workspace in the switcher.
  *
- * Writes one `pinned_item` row per pin, so a pin is an insert and an unpin is a
- * delete. Two rapid toggles touch different rows and cannot overwrite each other,
- * which is why nothing here serializes or debounces. Re-pinning an already-pinned
- * workspace answers 409 and unpinning an absent pin is a no-op, so a duplicate
- * click is idempotent rather than an error.
+ * A pin is one `pinned_item` row, so pinning inserts and unpinning deletes. Both
+ * are idempotent against their own end state — a duplicate pin answers 409 and a
+ * duplicate unpin answers 404, and each means the row is already how the caller
+ * wants it, so neither is a failure to roll back.
  *
- * Optimistic against the workspace list, because that is where the pins are read
- * and the toggle re-sorts the row under the user's cursor.
+ * Ordering still matters, because pinning and unpinning the *same* workspace race
+ * on the *same* row: an unpin that overtook its pin would delete nothing and leave
+ * the workspace pinned. `scope` serializes them, and because TanStack runs
+ * `onMutate` before the scope gate, the optimistic update is still immediate.
  */
 export function useToggleWorkspacePin() {
   const queryClient = useQueryClient()
   const queryKey = workspaceKeys.list('active')
 
   return useMutation({
+    scope: { id: 'workspace-pin' },
     mutationFn: async ({ workspaceId, pinned }: { workspaceId: string; pinned: boolean }) => {
-      if (!pinned) {
-        await requestJson(deletePinnedItemContract, {
-          params: { resourceType: 'workspace', resourceId: workspaceId },
-        })
-        return
-      }
       try {
-        await requestJson(createPinnedItemContract, {
-          body: { workspaceId, resourceType: 'workspace', resourceId: workspaceId },
-        })
+        if (pinned) {
+          await requestJson(createPinnedItemContract, {
+            body: { workspaceId, resourceType: 'workspace', resourceId: workspaceId },
+          })
+        } else {
+          await requestJson(deletePinnedItemContract, {
+            params: { resourceType: 'workspace', resourceId: workspaceId },
+          })
+        }
       } catch (error) {
-        /** Already pinned — the desired state, so not a failure to roll back. */
-        if (error instanceof ApiClientError && error.status === 409) return
+        const alreadyInEndState = pinned ? 409 : 404
+        if (error instanceof ApiClientError && error.status === alreadyInEndState) return
         throw error
       }
     },
     onMutate: async ({ workspaceId, pinned }) => {
       await queryClient.cancelQueries({ queryKey })
-      const previous = queryClient.getQueryData<WorkspacesResponse>(queryKey)
-      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) => {
-        if (!old) return old
-        const next = pinned
-          ? [...old.pinnedWorkspaceIds.filter((id) => id !== workspaceId), workspaceId]
-          : old.pinnedWorkspaceIds.filter((id) => id !== workspaceId)
-        return { ...old, pinnedWorkspaceIds: next }
-      })
-      return { previous }
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              pinnedWorkspaceIds: applyPinToggle(old.pinnedWorkspaceIds, workspaceId, pinned),
+            }
+          : old
+      )
     },
-    onError: (_error, _variables, context) => {
-      if (context?.previous) queryClient.setQueryData(queryKey, context.previous)
+    /**
+     * Undoes this toggle rather than restoring a snapshot: a snapshot taken before
+     * a concurrent toggle would silently drop that one's optimistic state too.
+     */
+    onError: (_error, { workspaceId, pinned }) => {
+      queryClient.setQueryData<WorkspacesResponse>(queryKey, (old) =>
+        old
+          ? {
+              ...old,
+              pinnedWorkspaceIds: applyPinToggle(old.pinnedWorkspaceIds, workspaceId, !pinned),
+            }
+          : old
+      )
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: workspaceKeys.lists() })
-      queryClient.invalidateQueries({ queryKey: pinnedItemKeys.all })
     },
   })
 }

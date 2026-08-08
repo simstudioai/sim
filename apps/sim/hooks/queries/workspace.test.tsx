@@ -78,6 +78,10 @@ function readPins(queryClient: QueryClient): string[] | undefined {
     ?.pinnedWorkspaceIds
 }
 
+function apiError(status: number) {
+  return new ApiClientError({ status, message: `status ${status}`, body: {} })
+}
+
 afterEach(() => {
   act(() => {
     for (const root of mountedRoots.splice(0)) root.unmount()
@@ -121,13 +125,78 @@ describe('useToggleWorkspacePin', () => {
   })
 
   /**
-   * Two rapid toggles write different rows, so neither can overwrite the other and
-   * both survive regardless of the order the requests land in.
+   * Pin then unpin the same workspace race on the same row: an unpin that overtook
+   * its pin would delete nothing and leave the workspace pinned. The mutation scope
+   * must hold the second request until the first resolves.
    */
-  it('keeps both pins when two toggles overlap', async () => {
+  it('serializes toggles of the same workspace so the last one wins', async () => {
     const resolvers: Array<() => void> = []
     mockRequestJson.mockImplementation(
       () => new Promise((resolve) => resolvers.push(() => resolve({ pinnedItem: {} })))
+    )
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+      getResult().mutate({ workspaceId: 'ws-a', pinned: false })
+    })
+    await flush()
+
+    // The unpin must not be on the wire while the pin is still outstanding.
+    expect(mockRequestJson).toHaveBeenCalledOnce()
+    expect(mockRequestJson.mock.calls[0][0]).toBe(createPinnedItemContract)
+    // Optimistic state already reflects the user's last click.
+    expect(readPins(queryClient)).toEqual([])
+
+    act(() => resolvers[0]())
+    await flush()
+
+    expect(mockRequestJson).toHaveBeenCalledTimes(2)
+    expect(mockRequestJson.mock.calls[1][0]).toBe(deletePinnedItemContract)
+    expect(readPins(queryClient)).toEqual([])
+  })
+
+  /** Both duplicate-click outcomes mean the row is already in the requested end state. */
+  it.each([
+    ['pin', true, 409],
+    ['unpin', false, 404],
+  ])('treats a duplicate %s (%s) as success', async (_label, pinned, status) => {
+    mockRequestJson.mockRejectedValue(apiError(status as number))
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, pinned ? [] : ['ws-a'])
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: pinned as boolean })
+    })
+    await flush()
+
+    expect(getResult().isError).toBe(false)
+    expect(readPins(queryClient)).toEqual(pinned ? ['ws-a'] : [])
+  })
+
+  it('rolls the optimistic pin back when the write fails', async () => {
+    mockRequestJson.mockRejectedValue(apiError(500))
+    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
+    seedList(queryClient, [])
+
+    act(() => {
+      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
+    })
+    await flush()
+
+    expect(readPins(queryClient)).toEqual([])
+  })
+
+  /**
+   * The rollback undoes its own toggle rather than restoring a snapshot, so a
+   * concurrent toggle's optimistic state survives a sibling's failure.
+   */
+  it('does not drop a concurrent toggle when one fails', async () => {
+    mockRequestJson.mockImplementation((contract: unknown) =>
+      contract === createPinnedItemContract && mockRequestJson.mock.calls.length === 1
+        ? Promise.reject(apiError(500))
+        : Promise.resolve({ pinnedItem: {} })
     )
     const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
     seedList(queryClient, [])
@@ -138,49 +207,6 @@ describe('useToggleWorkspacePin', () => {
     })
     await flush()
 
-    expect(readPins(queryClient)).toEqual(['ws-a', 'ws-b'])
-
-    // Resolve out of order — the older request landing last must not undo the newer.
-    act(() => {
-      resolvers[1]()
-      resolvers[0]()
-    })
-    await flush()
-
-    const bodies = mockRequestJson.mock.calls.map((call) => call[1].body.resourceId)
-    expect(bodies).toEqual(['ws-a', 'ws-b'])
-    expect(readPins(queryClient)).toEqual(['ws-a', 'ws-b'])
-  })
-
-  /** Re-pinning an already-pinned workspace is the desired end state, not a failure. */
-  it('treats a 409 from a duplicate pin as success', async () => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ status: 409, message: 'This item is already pinned', body: {} })
-    )
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, [])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
-    })
-    await flush()
-
-    expect(getResult().isError).toBe(false)
-    expect(readPins(queryClient)).toEqual(['ws-a'])
-  })
-
-  it('rolls the optimistic pin back when the write fails', async () => {
-    mockRequestJson.mockRejectedValue(
-      new ApiClientError({ status: 500, message: 'boom', body: {} })
-    )
-    const { getResult, queryClient } = renderHookWithClient(() => useToggleWorkspacePin())
-    seedList(queryClient, [])
-
-    act(() => {
-      getResult().mutate({ workspaceId: 'ws-a', pinned: true })
-    })
-    await flush()
-
-    expect(readPins(queryClient)).toEqual([])
+    expect(readPins(queryClient)).toEqual(['ws-b'])
   })
 })

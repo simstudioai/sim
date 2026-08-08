@@ -6,6 +6,7 @@ import { updateUserSettingsContract } from '@/lib/api/contracts'
 import { WorkspaceRecencyStorage } from '@/lib/core/utils/browser-storage'
 import { useLeaveWorkspace } from '@/hooks/queries/invitations'
 import {
+  EMPTY_PINNED_WORKSPACE_IDS,
   useCreateWorkspace,
   useDeleteWorkspace,
   usePinnedWorkspaceIds,
@@ -47,7 +48,9 @@ export function useWorkspaceManagement({
   const { data: workspaceCreationPolicy = null } = useWorkspaceCreationPolicy(
     Boolean(sessionUserId)
   )
-  const { data: pinnedWorkspaceIdList } = usePinnedWorkspaceIds(Boolean(sessionUserId))
+  const { data: pinnedWorkspaceIds = EMPTY_PINNED_WORKSPACE_IDS } = usePinnedWorkspaceIds(
+    Boolean(sessionUserId)
+  )
   const { mutate: toggleWorkspacePinMutate } = useToggleWorkspacePin()
 
   const leaveWorkspaceMutation = useLeaveWorkspace()
@@ -91,11 +94,6 @@ export function useWorkspaceManagement({
     }, 1000)
   }, [])
 
-  const pinnedWorkspaceIds = useMemo(
-    () => new Set(pinnedWorkspaceIdList ?? []),
-    [pinnedWorkspaceIdList]
-  )
-
   /**
    * Pinned workspaces float to the top, recency ordering them within each group.
    * Matches `resource-sort.ts`: pinning is a user-declared priority layered over
@@ -114,18 +112,11 @@ export function useWorkspaceManagement({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaces, recencySortKey, pinnedWorkspaceIds])
 
-  const pinnedWorkspaceIdsRef = useRef<Set<string>>(pinnedWorkspaceIds)
-  pinnedWorkspaceIdsRef.current = pinnedWorkspaceIds
-
-  /** Reads the current pins through a ref so the callback identity stays stable for the memoized switcher. */
   const toggleWorkspacePin = useCallback(
     (workspaceId: string) => {
-      toggleWorkspacePinMutate({
-        workspaceId,
-        pinned: !pinnedWorkspaceIdsRef.current.has(workspaceId),
-      })
+      toggleWorkspacePinMutate({ workspaceId, pinned: !pinnedWorkspaceIds.has(workspaceId) })
     },
-    [toggleWorkspacePinMutate]
+    [pinnedWorkspaceIds, toggleWorkspacePinMutate]
   )
 
   const activeWorkspace = useMemo(() => {
