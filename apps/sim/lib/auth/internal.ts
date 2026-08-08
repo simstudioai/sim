@@ -97,6 +97,7 @@ export async function generateInternalDelegationToken(
 ): Promise<string> {
   const subjectUserId = requireNonEmptyDelegationClaim(input.subjectUserId, 'subjectUserId')
   const workflowId = requireNonEmptyDelegationClaim(input.workflowId, 'workflowId')
+  const issuedAtSeconds = Math.floor(Date.now() / 1000)
   const executionId = input.executionId
     ? requireNonEmptyDelegationClaim(input.executionId, 'executionId')
     : undefined
@@ -110,8 +111,8 @@ export async function generateInternalDelegationToken(
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(subjectUserId)
     .setJti(generateId())
-    .setIssuedAt()
-    .setExpirationTime(`${INTERNAL_DELEGATION_TTL_SECONDS}s`)
+    .setIssuedAt(issuedAtSeconds)
+    .setExpirationTime(issuedAtSeconds + INTERNAL_DELEGATION_TTL_SECONDS)
     .setIssuer(INTERNAL_DELEGATION_ISSUER)
     .setAudience(INTERNAL_DELEGATION_AUDIENCE)
     .sign(getJwtSecret())

@@ -3,6 +3,7 @@
  */
 
 import { resetEnvMock } from '@sim/testing'
+import { decodeJwt } from 'jose'
 import { afterAll, describe, expect, it, vi } from 'vitest'
 
 vi.unmock('@/lib/auth/internal')
@@ -65,6 +66,19 @@ describe('internal executor delegation claims', () => {
     expect(delegation.delegationId).toBeTruthy()
     expect(delegation.issuedAt).toBeInstanceOf(Date)
     expect(delegation.expiresAt.getTime()).toBeGreaterThan(delegation.issuedAt.getTime())
+  })
+
+  it('derives issued-at and expiry from one timestamp', async () => {
+    const token = await generateInternalDelegationToken({
+      subjectUserId: 'user-1',
+      workflowId: 'workflow-1',
+    })
+    const payload = decodeJwt(token)
+
+    if (typeof payload.exp !== 'number' || typeof payload.iat !== 'number') {
+      throw new Error('Generated delegation token is missing numeric lifetime claims')
+    }
+    expect(payload.exp - payload.iat).toBe(5 * 60)
   })
 
   it('rejects missing delegation scope at issuance', async () => {
