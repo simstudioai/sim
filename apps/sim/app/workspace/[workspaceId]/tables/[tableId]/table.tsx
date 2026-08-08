@@ -10,10 +10,17 @@ import { useQueryStates } from 'nuqs'
 import { usePostHog } from 'posthog-js/react'
 import { PresenceAvatars } from '@/components/presence'
 import {
+  type BreadcrumbItem,
+  type ColumnOption,
+  Resource,
+  type SortConfig,
+} from '@/components/resource'
+import {
   COLUMN_SIDEBAR_WIDTH,
   columnTypeIcon,
   generateColumnName,
 } from '@/components/resources/table-view'
+import { ImportCsvDialog, ImportProgressMenu } from '@/components/table-import'
 import type { RunLimit, RunMode, TableViewWire } from '@/lib/api/contracts/tables'
 import { captureEvent } from '@/lib/posthog/client'
 import type {
@@ -28,16 +35,8 @@ import type {
 } from '@/lib/table'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import {
-  type BreadcrumbItem,
-  type ColumnOption,
-  Resource,
-  type SortConfig,
-} from '@/app/workspace/[workspaceId]/components'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
-import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
 import { useLogByExecutionId } from '@/hooks/queries/logs'
 import {
   downloadTableExport,

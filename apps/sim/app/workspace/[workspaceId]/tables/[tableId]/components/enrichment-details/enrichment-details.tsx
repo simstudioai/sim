@@ -10,8 +10,8 @@ import {
   iconColorClass,
 } from '@/components/resources/log-view'
 import type { EnrichmentProviderOutcome, EnrichmentRunDetail } from '@/lib/table'
-import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import { useEnrichmentDetail } from '@/hooks/queries/tables'
+import { useLogDetailsResize } from '@/hooks/use-log-details-resize'
 import { formatCost } from '@/providers/utils'
 import { useLogDetailsUIStore } from '@/stores/logs/store'
 import { MAX_LOG_DETAILS_WIDTH_RATIO, MIN_LOG_DETAILS_WIDTH } from '@/stores/logs/utils'

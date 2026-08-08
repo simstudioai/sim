@@ -8,12 +8,12 @@ import { useQueryState } from 'nuqs'
 import type { LogViewTab } from '@/components/resources/log-view'
 import { LogView } from '@/components/resources/log-view'
 import type { WorkflowLogRow } from '@/lib/api/contracts/logs'
-import { useLogDetailsResize } from '@/app/workspace/[workspaceId]/logs/hooks'
 import {
   logDetailsTabParam,
   logDetailsTabUrlKeys,
 } from '@/app/workspace/[workspaceId]/logs/search-params'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import { useLogDetailsResize } from '@/hooks/use-log-details-resize'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { grantsFromPermissions, workspaceSource } from '@/resources'
 import { useLogDetailsUIStore } from '@/stores/logs/store'

@@ -9,6 +9,7 @@ import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { useParams, useRouter } from 'next/navigation'
 import { useQueryStates } from 'nuqs'
+import { ImportCsvDialog, ImportProgressMenu } from '@/components/table-import'
 import type { TableDefinition } from '@/lib/table'
 import { CSV_ASYNC_IMPORT_THRESHOLD_BYTES, generateUniqueTableName } from '@/lib/table/constants'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
@@ -48,11 +49,7 @@ import {
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import {
-  ImportCsvDialog,
-  ImportProgressMenu,
-  TablesListContextMenu,
-} from '@/app/workspace/[workspaceId]/tables/components'
+import { TablesListContextMenu } from '@/app/workspace/[workspaceId]/tables/components'
 import { TableContextMenu } from '@/app/workspace/[workspaceId]/tables/components/table-context-menu'
 import { useWorkspaceTablesRoom } from '@/app/workspace/[workspaceId]/tables/hooks/use-workspace-tables-room'
 import {
