@@ -838,11 +838,6 @@ export const jobExecutionLogs = pgTable(
   })
 )
 
-/** Extracts the canonical credential ID persisted in webhook provider configuration. */
-export function webhookCredentialIdExpression(column: AnyPgColumn): SQL<string> {
-  return sql<string>`((${column})::jsonb ->> 'credentialId')`
-}
-
 export const webhook = pgTable(
   'webhook',
   {
@@ -861,15 +856,15 @@ export const webhook = pgTable(
     blockId: text('block_id'),
     /**
      * URL-addressable webhook path. NULL for shared-app providers (e.g. the
-     * native Slack OAuth trigger) whose events arrive on a single shared
+     * native Slack and TikTok triggers) whose events arrive on a single shared
      * endpoint and route by `routingKey` instead of a per-workflow path.
      */
     path: text('path'),
     /**
-     * Tenant routing key for shared-app providers. For `provider='slack_app'`
-     * this is the Slack `team_id`, derived server-side from the connected
-     * credential at deploy time — never user input. Inbound events match on
-     * this after HMAC verification.
+     * Tenant routing key for shared-app providers, such as Slack `team_id` or
+     * TikTok `open_id`, derived server-side from the connected credential at
+     * deploy time — never user input. Inbound events match on this after HMAC
+     * verification.
      */
     routingKey: text('routing_key'),
     provider: text('provider'), // e.g., "whatsapp", "github", etc.
@@ -901,11 +896,6 @@ export const webhook = pgTable(
       providerActiveWorkflowDeploymentIdx: index(
         'idx_webhook_on_provider_is_active_workflow_id_deploym_bdeed5468'
       ).on(table.provider, table.isActive, table.workflowId, table.deploymentVersionId),
-      tiktokCredentialIdIdx: index('webhook_tiktok_credential_id_idx')
-        .on(webhookCredentialIdExpression(table.providerConfig))
-        .where(
-          sql`${table.provider} = 'tiktok' AND ${table.isActive} = true AND ${table.archivedAt} IS NULL`
-        ),
       workflowBlockUpdatedDescIdx: index('idx_webhook_on_workflow_id_block_id_updated_at_desc').on(
         table.workflowId,
         table.blockId,
