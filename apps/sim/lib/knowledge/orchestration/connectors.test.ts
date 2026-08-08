@@ -207,6 +207,24 @@ describe('performUpdateKnowledgeConnector', () => {
       expect.objectContaining({ consecutiveFailures: 0, lastSyncError: null })
     )
   })
+
+  it('leaves semantic audit to an authorized application caller when requested', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'paused' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+      recordSemanticAudit: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
 })
 
 describe('performSyncKnowledgeConnector', () => {

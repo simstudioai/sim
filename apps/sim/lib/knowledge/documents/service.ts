@@ -1819,6 +1819,30 @@ export async function getKnowledgeDocument(
   return row ? { ...row, connectorType: row.connectorType ?? null } : null
 }
 
+/** Loads one visible document by its canonical ID before any asserted parent is trusted. */
+export async function getKnowledgeDocumentById(
+  documentId: string
+): Promise<ActiveKnowledgeDocument | null> {
+  const [row] = await db
+    .select({
+      ...getTableColumns(document),
+      connectorType: knowledgeConnector.connectorType,
+    })
+    .from(document)
+    .leftJoin(knowledgeConnector, eq(document.connectorId, knowledgeConnector.id))
+    .where(
+      and(
+        eq(document.id, documentId),
+        eq(document.userExcluded, false),
+        isNull(document.archivedAt),
+        isNull(document.deletedAt)
+      )
+    )
+    .limit(1)
+
+  return row ? { ...row, connectorType: row.connectorType ?? null } : null
+}
+
 export async function createSingleDocument(
   documentData: {
     filename: string

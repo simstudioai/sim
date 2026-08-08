@@ -7,6 +7,8 @@ const ALL_PRINCIPAL_POLICY = {
 
 const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
 
+const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
+
 export const knowledgeOperations = {
   list: defineWorkspaceOperation({
     id: 'knowledge.list',
@@ -92,6 +94,66 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  updateDocument: defineWorkspaceOperation({
+    id: 'knowledge.documents.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  listTags: defineWorkspaceOperation({
+    id: 'knowledge.tags.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  createTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  updateTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  deleteTag: defineWorkspaceOperation({
+    id: 'knowledge.tags.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  readTagUsage: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_usage',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  createConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  updateConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  deleteConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
+  syncConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.sync',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  }),
   uploadCreate: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.create',
     minimumRole: 'write',
@@ -116,6 +178,10 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     principalKinds: HTTP_PRINCIPAL_KINDS,
   }),
+} as const
+
+export const knowledgeSessionOperations = {
+  list: Object.freeze({ id: 'knowledge.session.list' as const }),
 } as const
 
 export type KnowledgeOperation = (typeof knowledgeOperations)[keyof typeof knowledgeOperations]

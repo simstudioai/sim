@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   updateRecord: vi.fn(),
   deleteRecord: vi.fn(),
   listRecords: vi.fn(),
+  listInternalRecords: vi.fn(),
   loadFolderIndex: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -60,12 +61,14 @@ vi.mock('@/lib/knowledge/service', () => ({
   createAuthorizedKnowledgeBase: mocks.createRecord,
   updateKnowledgeBase: mocks.updateRecord,
   deleteKnowledgeBase: mocks.deleteRecord,
+  getKnowledgeBases: mocks.listInternalRecords,
   getWorkspaceKnowledgeBases: mocks.listRecords,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   createKnowledgeBase,
+  listInternalKnowledgeBases,
   readKnowledgeBase,
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
@@ -111,7 +114,63 @@ describe('knowledge base application use cases', () => {
     })
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
+    mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
     mocks.updateRecord.mockResolvedValue({ ...knowledgeBase, name: 'Renamed' })
+  })
+
+  it('lists legacy personal knowledge bases through the explicit session-only operation', async () => {
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { scope: 'all' },
+      })
+    ).resolves.toEqual({ knowledgeBases: [knowledgeBase] })
+
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', undefined, 'all')
+  })
+
+  it('authorizes a canonical workspace before listing its internal knowledge bases', async () => {
+    await listInternalKnowledgeBases.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'workspace-1', scope: 'archived' },
+    })
+
+    expect(mocks.resolveWorkspace).toHaveBeenCalledWith({ workspaceId: 'workspace-1' })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      'organization-1',
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+  })
+
+  it('rejects a workspace listing before reading when current access is insufficient', async () => {
+    mocks.resolvePermission.mockResolvedValueOnce(null)
+
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { workspaceId: 'workspace-1', scope: 'active' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-session principals before resolving internal list input', async () => {
+    await expect(
+      listInternalKnowledgeBases.execute({
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        input: { scope: 'active' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(mocks.listInternalRecords).not.toHaveBeenCalled()
   })
 
   it('rejects an insufficient role before the protected mutation', async () => {
@@ -156,6 +215,29 @@ describe('knowledge base application use cases', () => {
           },
         }),
       })
+    )
+  })
+
+  it('passes the internal folder ID through only after workspace authorization', async () => {
+    await createKnowledgeBase.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workspaceId: 'workspace-1',
+        name: 'Docs',
+        folderId: 'folder-1',
+        source: 'ui',
+      },
+    })
+
+    expect(mocks.loadFolderIndex).toHaveBeenCalledWith(
+      'workspace-1',
+      'knowledge_base',
+      undefined,
+      expect.any(Object)
+    )
+    expect(mocks.createRecord).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-1' }),
+      expect.any(String)
     )
   })
 

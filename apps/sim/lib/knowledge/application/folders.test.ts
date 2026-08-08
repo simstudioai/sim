@@ -13,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   relocateByPath: vi.fn(),
   deleteByPath: vi.fn(),
   recordAudit: vi.fn(),
-  notify: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -51,10 +50,6 @@ vi.mock('@/lib/folders/orchestration', () => ({
   createFolderAtPath: mocks.createAtPath,
   relocateFolderByPath: mocks.relocateByPath,
   deleteFolderByPath: mocks.deleteByPath,
-}))
-
-vi.mock('@/lib/realtime/notify', () => ({
-  notifyFolderResourceChanged: mocks.notify,
 }))
 
 import {
@@ -101,7 +96,6 @@ describe('knowledge folder application use cases', () => {
       path: '/Docs',
       deletedItems: { folders: 2, knowledgeBases: 3 },
     })
-    mocks.notify.mockResolvedValue(undefined)
   })
 
   it('resolves a canonical parent path before listing', async () => {
@@ -161,9 +155,7 @@ describe('knowledge folder application use cases', () => {
         }),
       })
     )
-    expect(mocks.recordAudit.mock.invocationCallOrder[0]).toBeLessThan(
-      mocks.notify.mock.invocationCallOrder[0]
-    )
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
 
   it('preserves recursive cascade counts', async () => {
@@ -178,7 +170,7 @@ describe('knowledge folder application use cases', () => {
     expect(result.deletedItems).toEqual({ folders: 2, knowledgeBases: 3 })
   })
 
-  it('propagates infrastructure failures without audit or notification', async () => {
+  it('propagates infrastructure failures without audit', async () => {
     const failure = new Error('folder database unavailable')
     mocks.createAtPath.mockRejectedValueOnce(failure)
 
@@ -190,6 +182,5 @@ describe('knowledge folder application use cases', () => {
     ).rejects.toBe(failure)
 
     expect(mocks.recordAudit).not.toHaveBeenCalled()
-    expect(mocks.notify).not.toHaveBeenCalled()
   })
 })

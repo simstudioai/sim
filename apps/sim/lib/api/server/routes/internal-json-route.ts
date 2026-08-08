@@ -203,7 +203,7 @@ type InternalJsonRouteOptions<
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
-  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  parseOptions?: ParseRequestOptions
   beforeParse?(args: {
     request: NextRequest
     principal: P

@@ -6,12 +6,7 @@ import {
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
 import { parseRequest } from '@/lib/api/server'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
 import type { JsonRouteContext } from '@/lib/api/server/routes/types'
 import { admitV2Request, V2RouteInfrastructureError } from '@/lib/api/server/routes/v2-json-route'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -238,7 +233,7 @@ export const POST = withRouteHandler<JsonRouteContext | undefined>(
       if (isPayloadSizeLimitError(error)) {
         return v2Error('PAYLOAD_TOO_LARGE', error.message)
       }
-      const response = v2OrchestrationErrorPolicy.render(error)
+      const response = v2KnowledgeErrorPolicies.default.render(error)
       if (response) return response
       throw error
     }

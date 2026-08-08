@@ -13,6 +13,7 @@ import {
   type ActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeDocumentContext,
+  resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -22,6 +23,7 @@ import {
   getDocuments,
   type ProcessingOptions,
   processDocumentsWithQueue,
+  updateDocument,
 } from '@/lib/knowledge/documents/service'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
@@ -76,6 +78,12 @@ export interface UploadKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
 }
 
 export interface DeleteKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
+  source?: string
+}
+
+export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
+  filename?: string
+  enabled?: boolean
   source?: string
 }
 
@@ -241,6 +249,40 @@ export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       fileName: result.filename,
       fileSize: result.fileSize,
       mimeType: result.mimeType,
+    },
+  }),
+})
+
+export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.updateDocument,
+  resolveContext: ({ input }: { input: UpdateKnowledgeDocumentInput }) =>
+    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  async execute({ input, context }) {
+    const updates = { filename: input.filename, enabled: input.enabled }
+    const updatedFields = Object.keys(updates).filter(
+      (key) => updates[key as keyof typeof updates] !== undefined
+    )
+    if (updatedFields.length === 0) {
+      throw new OrchestrationError('validation', 'No updates specified')
+    }
+    return {
+      document: await updateDocument(context.documentId, updates, generateRequestId()),
+      updatedFields,
+    }
+  },
+  projectAudit: ({ input, context, result }) => ({
+    action: AuditAction.DOCUMENT_UPDATED,
+    resourceType: AuditResourceType.DOCUMENT,
+    resourceId: result.document.id,
+    resourceName: result.document.filename,
+    description: `Updated document "${result.document.filename}" in knowledge base "${context.knowledgeBase.name}"`,
+    metadata: {
+      source: input.source,
+      knowledgeBaseId: context.knowledgeBaseId,
+      knowledgeBaseName: context.knowledgeBase.name,
+      fileName: result.document.filename,
+      updatedFields: result.updatedFields,
+      ...(input.enabled !== undefined && { enabled: input.enabled }),
     },
   }),
 })

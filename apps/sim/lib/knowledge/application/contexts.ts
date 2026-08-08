@@ -1,8 +1,14 @@
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeAuthorizationContext } from '@/lib/knowledge/application/authorization'
+import {
+  type ActiveKnowledgeConnectorReference,
+  getActiveKnowledgeConnectorReference,
+} from '@/lib/knowledge/connectors/service'
 import type { ActiveKnowledgeDocument } from '@/lib/knowledge/documents/service'
-import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
+import { getKnowledgeDocument, getKnowledgeDocumentById } from '@/lib/knowledge/documents/service'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
+import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
@@ -18,6 +24,16 @@ export interface ActiveKnowledgeBaseContext extends KnowledgeWorkspaceContext {
 export interface ActiveKnowledgeDocumentContext extends ActiveKnowledgeBaseContext {
   documentId: string
   document: ActiveKnowledgeDocument
+}
+
+export interface ActiveKnowledgeTagContext extends ActiveKnowledgeBaseContext {
+  tagDefinitionId: string
+  tagDefinition: DocumentTagDefinition
+}
+
+export interface ActiveKnowledgeConnectorContext extends ActiveKnowledgeBaseContext {
+  connectorId: string
+  connector: ActiveKnowledgeConnectorReference
 }
 
 export async function loadKnowledgeWorkspaceContext(
@@ -67,5 +83,71 @@ export async function resolveActiveKnowledgeDocumentContext(input: {
     ...context,
     documentId: document.id,
     document,
+  }
+}
+
+export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
+  knowledgeBaseId: string
+  documentId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeDocumentContext> {
+  const document = await getKnowledgeDocumentById(input.documentId)
+  if (!document || document.knowledgeBaseId !== input.knowledgeBaseId) {
+    throw new OrchestrationError('not_found', 'Document not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: document.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    documentId: document.id,
+    document,
+  }
+}
+
+export async function resolveActiveKnowledgeTagContext(input: {
+  tagDefinitionId: string
+  knowledgeBaseId?: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeTagContext> {
+  const tagDefinition = await getTagDefinitionById(input.tagDefinitionId)
+  if (
+    !tagDefinition ||
+    (input.knowledgeBaseId && tagDefinition.knowledgeBaseId !== input.knowledgeBaseId)
+  ) {
+    throw new OrchestrationError('not_found', 'Tag definition not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: tagDefinition.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    tagDefinitionId: tagDefinition.id,
+    tagDefinition,
+  }
+}
+
+export async function resolveActiveKnowledgeConnectorContext(input: {
+  connectorId: string
+  knowledgeBaseId?: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeConnectorContext> {
+  const connector = await getActiveKnowledgeConnectorReference(input.connectorId)
+  if (
+    !connector ||
+    (input.knowledgeBaseId && connector.knowledgeBaseId !== input.knowledgeBaseId)
+  ) {
+    throw new OrchestrationError('not_found', 'Connector not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: connector.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    connectorId: connector.id,
+    connector,
   }
 }

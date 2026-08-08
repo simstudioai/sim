@@ -17,7 +17,6 @@ import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/bi
 import { resolveKnowledgeWorkspaceContext } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE } from '@/lib/knowledge/constants'
-import { notifyFolderResourceChanged } from '@/lib/realtime/notify'
 
 type KnowledgeFolder = typeof folder.$inferSelect & { path: string }
 
@@ -120,7 +119,6 @@ export const createKnowledgeFolder = defineAuthorizedKnowledgeUseCase({
       folderResourceType: 'knowledge_base',
     },
   }),
-  afterSuccess: ({ context }) => notifyFolderResourceChanged('knowledge_base', context.workspaceId),
 })
 
 export const relocateKnowledgeFolder = defineAuthorizedKnowledgeUseCase({
@@ -154,7 +152,6 @@ export const relocateKnowledgeFolder = defineAuthorizedKnowledgeUseCase({
       folderResourceType: 'knowledge_base',
     },
   }),
-  afterSuccess: ({ context }) => notifyFolderResourceChanged('knowledge_base', context.workspaceId),
 })
 
 export const deleteKnowledgeFolder = defineAuthorizedKnowledgeUseCase({
@@ -205,5 +202,4 @@ export const deleteKnowledgeFolder = defineAuthorizedKnowledgeUseCase({
       deletedItems: result.deletedItems,
     },
   }),
-  afterSuccess: ({ context }) => notifyFolderResourceChanged('knowledge_base', context.workspaceId),
 })

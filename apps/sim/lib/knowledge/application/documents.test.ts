@@ -7,6 +7,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
   resolveDocument: vi.fn(),
+  resolveCanonicalDocument: vi.fn(),
   resolvePermission: vi.fn(),
   resolveHumanBilling: vi.fn(),
   resolveSystemBilling: vi.fn(),
@@ -14,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   getDocuments: vi.fn(),
   createDocument: vi.fn(),
   deleteDocument: vi.fn(),
+  updateDocument: vi.fn(),
   processQueue: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -22,6 +24,7 @@ vi.mock('@sim/audit', () => ({
   AuditAction: {
     DOCUMENT_UPLOADED: 'document.uploaded',
     DOCUMENT_DELETED: 'document.deleted',
+    DOCUMENT_UPDATED: 'document.updated',
   },
   AuditResourceType: { DOCUMENT: 'document' },
   recordAudit: mocks.recordAudit,
@@ -46,12 +49,14 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeDocumentContext: mocks.resolveDocument,
+  resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveCanonicalDocument,
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   getDocuments: mocks.getDocuments,
   createSingleDocument: mocks.createDocument,
   deleteKnowledgeDocumentInKnowledgeBase: mocks.deleteDocument,
+  updateDocument: mocks.updateDocument,
   processDocumentsWithQueue: mocks.processQueue,
 }))
 
@@ -59,6 +64,7 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
+  updateKnowledgeDocument,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 
@@ -92,6 +98,11 @@ describe('knowledge document application use cases', () => {
       documentId: document.id,
       document,
     })
+    mocks.resolveCanonicalDocument.mockResolvedValue({
+      ...context,
+      documentId: document.id,
+      document,
+    })
     mocks.resolveSystemBilling.mockResolvedValue({
       actorUserId: 'billing-owner-1',
       workspaceId: 'workspace-1',
@@ -102,6 +113,7 @@ describe('knowledge document application use cases', () => {
     })
     mocks.checkUsage.mockResolvedValue({ isExceeded: false })
     mocks.createDocument.mockResolvedValue(document)
+    mocks.updateDocument.mockResolvedValue(document)
     mocks.processQueue.mockResolvedValue(undefined)
     mocks.getDocuments.mockResolvedValue({
       documents: [],
@@ -226,6 +238,89 @@ describe('knowledge document application use cases', () => {
         metadata: expect.objectContaining({
           operation: 'knowledge.documents.delete',
           knowledgeBaseId: 'knowledge-1',
+        }),
+      })
+    )
+  })
+
+  it('rejects a cross-workspace document update before current membership or mutation', async () => {
+    mocks.resolveCanonicalDocument.mockResolvedValueOnce({
+      ...context,
+      workspaceId: 'workspace-b',
+      billedAccountUserId: 'billing-owner-b',
+      knowledgeBaseId: 'knowledge-b',
+      knowledgeBase: { id: 'knowledge-b', name: 'Workspace B docs' },
+      documentId: 'document-b',
+      document: { ...document, id: 'document-b', knowledgeBaseId: 'knowledge-b' },
+    })
+
+    await expect(
+      updateKnowledgeDocument.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'shared-user',
+          workspaceId: 'workspace-a',
+          delegationId: 'tool-call-1',
+          audience: 'sim:knowledge',
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+          resourceScope: {},
+        },
+        input: {
+          knowledgeBaseId: 'knowledge-b',
+          documentId: 'document-b',
+          assertedWorkspaceId: 'workspace-a',
+          filename: 'renamed.pdf',
+        },
+      })
+    ).rejects.toMatchObject({
+      name: 'DelegatedWorkspaceAuthorizationError',
+      code: 'forbidden',
+    })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.updateDocument).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('authorizes and audits a same-workspace delegated document update', async () => {
+    await updateKnowledgeDocument.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'shared-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'tool-call-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+        resourceScope: {},
+      },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        documentId: 'document-1',
+        assertedWorkspaceId: 'workspace-1',
+        enabled: false,
+        source: 'agent',
+      },
+    })
+
+    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateDocument.mock.invocationCallOrder[0]
+    )
+    expect(mocks.updateDocument).toHaveBeenCalledWith(
+      'document-1',
+      { filename: undefined, enabled: false },
+      expect.any(String)
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'document.updated',
+        metadata: expect.objectContaining({
+          operation: 'knowledge.documents.update',
+          enabled: false,
+          actor: expect.objectContaining({ kind: 'delegated', serviceId: 'copilot' }),
         }),
       })
     )

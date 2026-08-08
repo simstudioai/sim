@@ -1,5 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
+import {
+  authorizeWorkspaceOperation,
+  type OperationUseCase,
+  PrincipalKindAuthorizationError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
@@ -15,7 +21,10 @@ import {
   knowledgeFolderPathForId,
   resolveKnowledgeFolderPath,
 } from '@/lib/knowledge/application/folder-paths'
-import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import {
+  knowledgeOperations,
+  knowledgeSessionOperations,
+} from '@/lib/knowledge/application/operations'
 import {
   DEFAULT_CHUNKING_CONFIG,
   MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE,
@@ -24,7 +33,9 @@ import { EMBEDDING_DIMENSIONS, getConfiguredEmbeddingModel } from '@/lib/knowled
 import {
   createAuthorizedKnowledgeBase,
   deleteKnowledgeBase,
+  getKnowledgeBases,
   getWorkspaceKnowledgeBases,
+  type KnowledgeBaseScope,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
 import type { ChunkingConfig, KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
@@ -54,7 +65,17 @@ export interface CreateKnowledgeBaseInput {
   description?: string
   chunkingConfig?: Partial<ChunkingConfig>
   folderPath?: string
+  folderId?: string | null
   source?: string
+}
+
+export interface ListInternalKnowledgeBasesInput {
+  workspaceId?: string
+  scope: KnowledgeBaseScope
+}
+
+export interface ListInternalKnowledgeBasesResult {
+  knowledgeBases: KnowledgeBaseWithCounts[]
 }
 
 export interface ReadKnowledgeBaseInput {
@@ -109,8 +130,21 @@ async function executeCreateKnowledgeBase(args: {
   input: CreateKnowledgeBaseInput
   context: KnowledgeWorkspaceContext
 }): Promise<KnowledgeBaseResult> {
-  const path = args.input.folderPath ?? '/'
-  const { folderId, index } = await resolveKnowledgeFolderPath(args.context.workspaceId, path)
+  if (args.input.folderId !== undefined && args.input.folderPath !== undefined) {
+    throw new OrchestrationError('validation', 'Specify either folderId or folderPath, not both')
+  }
+  const { folderId, index } =
+    args.input.folderId !== undefined
+      ? {
+          folderId: args.input.folderId,
+          index: await loadActiveFolderPathIndex(
+            args.context.workspaceId,
+            'knowledge_base',
+            undefined,
+            { maxRows: MAX_KNOWLEDGE_FOLDERS_PER_WORKSPACE }
+          ),
+        }
+      : await resolveKnowledgeFolderPath(args.context.workspaceId, args.input.folderPath ?? '/')
   const chunkingConfig: ChunkingConfig = {
     ...DEFAULT_CHUNKING_CONFIG,
     ...args.input.chunkingConfig,
@@ -202,6 +236,32 @@ export const listKnowledgeBases = defineAuthorizedKnowledgeUseCase({
     resolveKnowledgeWorkspaceContext(input),
   execute: executeListKnowledgeBases,
 })
+
+export const listInternalKnowledgeBases = {
+  operation: knowledgeSessionOperations.list,
+  async execute({
+    principal,
+    input,
+  }: {
+    principal: Principal
+    input: ListInternalKnowledgeBasesInput
+  }): Promise<ListInternalKnowledgeBasesResult> {
+    if (principal.kind !== 'session') {
+      throw new PrincipalKindAuthorizationError(principal.kind, knowledgeSessionOperations.list.id)
+    }
+    if (input.workspaceId !== undefined) {
+      const context = await resolveKnowledgeWorkspaceContext({ workspaceId: input.workspaceId })
+      await authorizeWorkspaceOperation(principal, knowledgeOperations.list, context)
+    }
+    return {
+      knowledgeBases: await getKnowledgeBases(principal.userId, input.workspaceId, input.scope),
+    }
+  },
+} satisfies OperationUseCase<
+  (typeof knowledgeSessionOperations)['list'],
+  ListInternalKnowledgeBasesInput,
+  ListInternalKnowledgeBasesResult
+>
 
 export const createKnowledgeBase = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.create,

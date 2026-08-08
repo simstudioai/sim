@@ -34,6 +34,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
+import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
@@ -171,28 +172,8 @@ export const v2KnowledgeDocumentUploadParamsSchema = knowledgeBaseParamsSchema.e
 })
 export type V2KnowledgeDocumentUploadParams = z.output<typeof v2KnowledgeDocumentUploadParamsSchema>
 
-const knowledgeDocumentUploadTagSchema = z
-  .string()
-  .max(1000, 'Knowledge document tag values cannot exceed 1000 characters')
-  .optional()
-
 export const v2KnowledgeDocumentUploadMetadataSchema = z
-  .object({
-    tag1: knowledgeDocumentUploadTagSchema,
-    tag2: knowledgeDocumentUploadTagSchema,
-    tag3: knowledgeDocumentUploadTagSchema,
-    tag4: knowledgeDocumentUploadTagSchema,
-    tag5: knowledgeDocumentUploadTagSchema,
-    tag6: knowledgeDocumentUploadTagSchema,
-    tag7: knowledgeDocumentUploadTagSchema,
-    processingOptions: z
-      .object({
-        recipe: z.string().max(255, 'recipe cannot exceed 255 characters').optional(),
-        lang: z.string().max(35, 'lang cannot exceed 35 characters').optional(),
-      })
-      .strict()
-      .optional(),
-  })
+  .object({ ...knowledgeDocumentUploadMetadataSchema.shape })
   .strict()
 export type V2KnowledgeDocumentUploadMetadata = z.output<
   typeof v2KnowledgeDocumentUploadMetadataSchema
