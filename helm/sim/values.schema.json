@@ -244,6 +244,10 @@
               "type": "string",
               "description": "Set to 'true' to hide GitHub OAuth login even when credentials are configured"
             },
+            "MSHIP_SYSPROMPT_OVERRIDE": {
+              "type": "string",
+              "description": "Optional enterprise-only highest-priority system prompt override forwarded to Mothership"
+            },
             "OPENAI_API_KEY": {
               "type": "string",
               "description": "Primary OpenAI API key"
