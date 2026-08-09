@@ -80,9 +80,17 @@ app:
     # Merged into Better Auth `trustedOrigins` alongside NEXT_PUBLIC_APP_URL. Leave empty when serving from a single origin.
     TRUSTED_ORIGINS: ""
     # AUTH_TRUSTED_PROXIES: comma-separated reverse-proxy IPs or CIDR ranges in front of the app
-    # (ingress controller, load balancer). Better Auth walks x-forwarded-for right to left, skips
-    # these hops, and uses the first untrusted address as the client IP. Required for correct
-    # session IPs and rate-limit keying behind a multi-hop proxy chain (e.g. "10.0.0.0/16").
+    # (ingress controller, load balancer). Sim walks x-forwarded-for right to left, skips these
+    # hops, and uses the first untrusted address as the client IP; x-real-ip is the fallback when
+    # x-forwarded-for yields nothing. Governs session IPs, per-IP rate-limit keying, the audit
+    # log ipAddress column, and per-webhook IP allowlists.
+    #
+    # Set this to your ingress controller's pod/service CIDR (e.g. "10.0.0.0/16"), NOT to
+    # 0.0.0.0/0 — that matches every hop, so the walk finds no client and nothing resolves an IP.
+    # Left empty behind a proxy, no client IP resolves: rate limits fall back to one shared
+    # bucket per endpoint, audit rows record a blank IP, and webhook IP allowlists reject all
+    # deliveries. The leftmost x-forwarded-for value is never used as a fallback — clients can
+    # set that header themselves.
     AUTH_TRUSTED_PROXIES: ""
     # SOCKET_SERVER_URL: Auto-detected when realtime.enabled=true (uses internal service)
     # NEXT_PUBLIC_SOCKET_URL: public WebSocket URL for browsers. Leave empty to default to the

@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest, requestUtilsMockFns } from '@sim/testing'
+import { createMockRequest } from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { mockAdapter } = vi.hoisted(() => ({
@@ -21,15 +21,6 @@ vi.mock('@/lib/core/rate-limiter/storage', async () => {
     createStorageAdapter: () => mockAdapter,
   }
 })
-
-function passThroughClientIp() {
-  requestUtilsMockFns.mockGetClientIp.mockImplementation(
-    (req: { headers: { get(name: string): string | null } }) =>
-      req.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ||
-      req.headers.get('x-real-ip')?.trim() ||
-      'unknown'
-  )
-}
 
 import { enforceIpRateLimit, enforceUserOrIpRateLimit, enforceUserRateLimit } from './route-helpers'
 
@@ -102,18 +93,14 @@ describe('route-helpers rate limiting', () => {
   })
 
   describe('enforceIpRateLimit', () => {
-    beforeEach(() => {
-      passThroughClientIp()
-    })
-
-    it('uses the X-Forwarded-For client IP in the bucket key', async () => {
+    it('uses a trustworthy client IP in the bucket key', async () => {
       consume.mockResolvedValueOnce({
         allowed: true,
         tokensRemaining: 9,
         resetAt: new Date(),
       })
       const request = createMockRequest('POST', undefined, {
-        'x-forwarded-for': '203.0.113.7, 10.0.0.1',
+        'x-forwarded-for': '203.0.113.7',
       })
 
       await enforceIpRateLimit('public-bucket', request)
@@ -125,7 +112,30 @@ describe('route-helpers rate limiting', () => {
       )
     })
 
-    it('folds spoofed `X-Forwarded-For: unknown` into a single shared bucket', async () => {
+    it('does not let a prepended forwarded hop mint a per-request bucket', async () => {
+      // No trusted proxies are configured, so the chain is unverifiable and
+      // every such request shares one bucket. Reading the leftmost token
+      // instead would hand an attacker a fresh full allowance per request.
+      consume.mockResolvedValue({
+        allowed: true,
+        tokensRemaining: 9,
+        resetAt: new Date(),
+      })
+
+      const reqA = createMockRequest('POST', undefined, {
+        'x-forwarded-for': '203.0.113.7, 10.0.0.1',
+      })
+      const reqB = createMockRequest('POST', undefined, {
+        'x-forwarded-for': '198.51.100.4, 10.0.0.1',
+      })
+      await enforceIpRateLimit('otp', reqA)
+      await enforceIpRateLimit('otp', reqB)
+
+      const keys = consume.mock.calls.map((call) => call[0])
+      expect(keys).toEqual(['route:otp:ip:unresolved', 'route:otp:ip:unresolved'])
+    })
+
+    it('folds an unparseable forwarded header into the same shared bucket', async () => {
       consume.mockResolvedValue({
         allowed: true,
         tokensRemaining: 9,
@@ -138,7 +148,7 @@ describe('route-helpers rate limiting', () => {
       await enforceIpRateLimit('otp', reqB)
 
       const keys = consume.mock.calls.map((call) => call[0])
-      expect(keys).toEqual(['route:otp:ip:unknown', 'route:otp:ip:unknown'])
+      expect(keys).toEqual(['route:otp:ip:unresolved', 'route:otp:ip:unresolved'])
     })
 
     it('returns a 429 with Retry-After on rate limit', async () => {
@@ -159,9 +169,7 @@ describe('route-helpers rate limiting', () => {
   })
 
   describe('enforceUserOrIpRateLimit', () => {
-    beforeEach(() => {
-      passThroughClientIp()
-    })
+    beforeEach(() => {})
 
     it('keys per-user when userId is present', async () => {
       consume.mockResolvedValueOnce({

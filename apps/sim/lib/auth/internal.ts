@@ -3,7 +3,7 @@ import { safeCompare } from '@sim/security/compare'
 import { jwtVerify, SignJWT } from 'jose'
 import { type NextRequest, NextResponse } from 'next/server'
 import { env } from '@/lib/core/config/env'
-import { getClientIp } from '@/lib/core/utils/request'
+import { resolveClientIp } from '@/lib/core/utils/request'
 
 const logger = createLogger('CronAuth')
 
@@ -101,7 +101,7 @@ export function verifyCronAuth(request: NextRequest, context?: string): NextResp
   if (!env.CRON_SECRET) {
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`CRON endpoint accessed but CRON_SECRET is not configured${contextInfo}`, {
-      ip: getClientIp(request),
+      ip: resolveClientIp(request),
       userAgent: request.headers.get('user-agent') ?? 'unknown',
       context,
     })
@@ -115,7 +115,7 @@ export function verifyCronAuth(request: NextRequest, context?: string): NextResp
     const contextInfo = context ? ` for ${context}` : ''
     logger.warn(`Unauthorized CRON access attempt${contextInfo}`, {
       hasAuthorizationHeader: authHeader !== null,
-      ip: getClientIp(request),
+      ip: resolveClientIp(request),
       userAgent: request.headers.get('user-agent') ?? 'unknown',
       context,
     })

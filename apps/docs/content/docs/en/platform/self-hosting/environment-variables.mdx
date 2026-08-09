@@ -30,7 +30,7 @@ import { Callout } from 'fumadocs-ui/components/callout'
 | `REDIS_TLS_SERVERNAME` | TLS SNI override. Required when `REDIS_URL` uses `rediss://` with a bare IP, or the app throws at startup |
 | `NEXT_PUBLIC_SOCKET_URL` | WebSocket URL — defaults to the page origin; set only if realtime is on a separate host |
 | `TRUSTED_ORIGINS` | Comma-separated additional origins to trust for auth (apex + `www`, alias domains) |
-| `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For` |
+| `AUTH_TRUSTED_PROXIES` | Comma-separated reverse-proxy IPs/CIDRs so the client IP cannot be forged through `X-Forwarded-For`. Governs sessions, per-IP rate limits, audit log IPs, and webhook IP allowlists — behind a proxy, leaving it unset means no client IP resolves at all |
 | `INTERNAL_API_BASE_URL` | Internal URL for server-side self-calls, e.g. `http://sim-app.simstudio.svc.cluster.local:3000`. Required for PII log redaction; defaults to `NEXT_PUBLIC_APP_URL` |
 | `DATABASE_REPLICA_URL` | Read-replica connection string for log listing, audit logs, and dashboard aggregations. Falls back to the primary when unset |
 

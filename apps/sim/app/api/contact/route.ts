@@ -11,7 +11,7 @@ import { env } from '@/lib/core/config/env'
 import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
 import { RateLimiter } from '@/lib/core/rate-limiter'
 import { isTurnstileConfigured, verifyTurnstileToken } from '@/lib/core/security/turnstile'
-import { generateRequestId, getClientIp } from '@/lib/core/utils/request'
+import { generateRequestId, getRateLimitIpKey } from '@/lib/core/utils/request'
 import { getEmailDomain } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { sendEmail } from '@/lib/messaging/email/mailer'
@@ -53,7 +53,7 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
   const requestId = generateRequestId()
 
   try {
-    const ip = getClientIp(req)
+    const ip = getRateLimitIpKey(req)
     const storageKey = `public:contact:${ip}`
 
     const { allowed, remaining, resetAt } = await rateLimiter.checkRateLimitDirect(
