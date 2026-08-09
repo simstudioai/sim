@@ -167,6 +167,16 @@ describe('OAuth chat attempts', () => {
   const SWEEP_LATEST_KEY = 'sim.oauth-chat-latest.workspace-1.slack.message-1%3A0%3A0.'
   const PENDING_GRACE_MS = 24 * 60 * 60 * 1000
 
+  /** Storage is index-addressed and its keys are not own-enumerable in jsdom. */
+  function storageKeysWithPrefix(prefix: string): string[] {
+    const keys: string[] = []
+    for (let index = 0; index < window.localStorage.length; index++) {
+      const key = window.localStorage.key(index)
+      if (key?.startsWith(prefix)) keys.push(key)
+    }
+    return keys.sort()
+  }
+
   /** Backdates a stored attempt, then starts an unrelated one to trigger the sweep. */
   function ageAttemptThenSweep(
     attempt: OAuthChatAttempt,
@@ -199,6 +209,42 @@ describe('OAuth chat attempts', () => {
     // record itself must survive: a popup parked this long can still return.
     expect(readLatestOAuthChatAttempt(SWEEP_INPUT)).toBeNull()
     expect(setOAuthChatAttemptStatus(parked.id, 'connected')?.status).toBe('connected')
+  })
+
+  it('keeps a late verdict alive after it lands on a grace-preserved attempt', () => {
+    const parked = createOAuthChatAttempt(SWEEP_INPUT)
+    ageAttemptThenSweep(parked, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'pending')
+
+    // The verdict arrives long after the request, so the record is only young
+    // by resolution. Aging it from requestedAt would make it sweepable at once.
+    expect(setOAuthChatAttemptStatus(parked.id, 'connected')?.status).toBe('connected')
+    createOAuthChatAttempt({ ...SWEEP_INPUT, controlId: 'message-1:8:8' })
+
+    expect(readOAuthChatAttempt(parked.id)?.status).toBe('connected')
+  })
+
+  it('sweeps many adjacent stale records in one pass', () => {
+    const template = createOAuthChatAttempt(SWEEP_INPUT)
+    const staleIds = [0, 1, 2, 3, 4, 5].map((slot) => `stale-attempt-${slot}`)
+    // Written directly, so the records land in consecutive storage slots with
+    // no latest-pointer between them — interleaved keys would mask the skip.
+    for (const staleId of staleIds) {
+      window.localStorage.setItem(
+        `sim.oauth-chat-attempt.${staleId}`,
+        JSON.stringify({
+          ...template,
+          id: staleId,
+          status: 'connected',
+          resolvedAt: template.requestedAt - OAUTH_CHAT_ATTEMPT_MAX_AGE_MS - 1,
+        })
+      )
+    }
+
+    createOAuthChatAttempt({ ...SWEEP_INPUT, controlId: 'message-1:9:9' })
+
+    // Removing entries mid-scan would shift every later key down a slot and
+    // skip the next one, leaving about half of these behind.
+    expect(storageKeysWithPrefix('sim.oauth-chat-attempt.stale-attempt-')).toEqual([])
   })
 
   it('sweeps a pending attempt once it is past the abandoned grace period', () => {

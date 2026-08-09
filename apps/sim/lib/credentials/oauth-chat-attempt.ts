@@ -43,6 +43,8 @@ export interface OAuthChatAttempt {
   baselineCredentialUpdatedAt?: string
   requestedAt: number
   status: OAuthChatAttemptStatus
+  /** When {@link status} last left 'pending'. Absent on records written before this was tracked. */
+  resolvedAt?: number
 }
 
 interface CreateOAuthChatAttemptInput {
@@ -136,6 +138,7 @@ function isOAuthChatAttempt(value: unknown): value is OAuthChatAttempt {
       candidate.status === 'connected' ||
       candidate.status === 'failed') &&
     (candidate.credentialId === undefined || typeof candidate.credentialId === 'string') &&
+    (candidate.resolvedAt === undefined || typeof candidate.resolvedAt === 'number') &&
     Array.isArray(candidate.baselineCredentialIds) &&
     candidate.baselineCredentialIds.every((credentialId) => typeof credentialId === 'string') &&
     (candidate.baselineCredentialUpdatedAt === undefined ||
@@ -191,7 +194,15 @@ function pruneExpiredOAuthChatAttempts(now: number): void {
     // An unparseable or malformed record can never be read back, so it is
     // collected too rather than left behind forever.
     if (attempt) {
-      const age = now - attempt.requestedAt
+      // A resolved record ages from when it was resolved, not from when it was
+      // requested. Aging it from `requestedAt` would make the verdict on a
+      // grace-preserved pending record sweepable the instant it landed, and the
+      // next create would erase it — every chip re-reads its row on the event
+      // that create dispatches, so the row would drop straight back to unset.
+      const age =
+        attempt.status === 'pending'
+          ? now - attempt.requestedAt
+          : now - (attempt.resolvedAt ?? attempt.requestedAt)
       const maxAge =
         attempt.status === 'pending'
           ? OAUTH_CHAT_ATTEMPT_PENDING_GRACE_MS
@@ -267,7 +278,11 @@ export function setOAuthChatAttemptStatus(
 ): OAuthChatAttempt | null {
   const attempt = readOAuthChatAttempt(attemptId)
   if (!attempt) return null
-  const updated = { ...attempt, status }
+  const updated: OAuthChatAttempt = {
+    ...attempt,
+    status,
+    resolvedAt: status === 'pending' ? undefined : Date.now(),
+  }
   writeOAuthChatAttempt(updated)
   return updated
 }
