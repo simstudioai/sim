@@ -165,7 +165,7 @@ describe('OAuth chat attempts', () => {
     baselineCredentialIds: [],
   }
   const SWEEP_LATEST_KEY = 'sim.oauth-chat-latest.workspace-1.slack.message-1%3A0%3A0.'
-  const PENDING_GRACE_MS = 24 * 60 * 60 * 1000
+  const RETENTION_MS = 24 * 60 * 60 * 1000
 
   /** Storage is index-addressed and its keys are not own-enumerable in jsdom. */
   function storageKeysWithPrefix(prefix: string): string[] {
@@ -190,14 +190,25 @@ describe('OAuth chat attempts', () => {
     createOAuthChatAttempt({ ...SWEEP_INPUT, controlId: 'message-1:9:9' })
   }
 
-  it('sweeps resolved expired attempts and their latest-pointers when a new one starts', () => {
+  it('sweeps resolved attempts and their latest-pointers past the retention window', () => {
     const stale = createOAuthChatAttempt(SWEEP_INPUT)
     expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBe(stale.id)
 
-    ageAttemptThenSweep(stale, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'connected')
+    ageAttemptThenSweep(stale, RETENTION_MS + 1, 'connected')
 
     expect(window.localStorage.getItem(`sim.oauth-chat-attempt.${stale.id}`)).toBeNull()
     expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBeNull()
+  })
+
+  it('keeps a resolved attempt a mounted row still reads past the lookup cutoff', () => {
+    const settled = createOAuthChatAttempt(SWEEP_INPUT)
+
+    ageAttemptThenSweep(settled, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'connected')
+
+    // A chip recomputes itself from storage on every attempt event, and on the
+    // reconnect path the record is its only source of connected state — so
+    // sweeping at the lookup cutoff would revert a row that is still on screen.
+    expect(readOAuthChatAttempt(settled.id)?.status).toBe('connected')
   })
 
   it('keeps a pending attempt past the read cutoff so a late verdict still lands', () => {
@@ -211,7 +222,7 @@ describe('OAuth chat attempts', () => {
     expect(setOAuthChatAttemptStatus(parked.id, 'connected')?.status).toBe('connected')
   })
 
-  it('keeps a late verdict alive after it lands on a grace-preserved attempt', () => {
+  it('keeps a late verdict alive after it lands on a long-parked attempt', () => {
     const parked = createOAuthChatAttempt(SWEEP_INPUT)
     ageAttemptThenSweep(parked, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'pending')
 
@@ -235,7 +246,7 @@ describe('OAuth chat attempts', () => {
           ...template,
           id: staleId,
           status: 'connected',
-          resolvedAt: template.requestedAt - OAUTH_CHAT_ATTEMPT_MAX_AGE_MS - 1,
+          resolvedAt: template.requestedAt - RETENTION_MS - 1,
         })
       )
     }
@@ -247,10 +258,10 @@ describe('OAuth chat attempts', () => {
     expect(storageKeysWithPrefix('sim.oauth-chat-attempt.stale-attempt-')).toEqual([])
   })
 
-  it('sweeps a pending attempt once it is past the abandoned grace period', () => {
+  it('sweeps a pending attempt once it is past the retention window', () => {
     const abandoned = createOAuthChatAttempt(SWEEP_INPUT)
 
-    ageAttemptThenSweep(abandoned, PENDING_GRACE_MS + 1, 'pending')
+    ageAttemptThenSweep(abandoned, RETENTION_MS + 1, 'pending')
 
     expect(window.localStorage.getItem(`sim.oauth-chat-attempt.${abandoned.id}`)).toBeNull()
     expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBeNull()

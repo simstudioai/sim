@@ -161,15 +161,23 @@ function writeOAuthChatAttempt(attempt: OAuthChatAttempt): void {
 }
 
 /**
- * Grace period before a still-pending attempt is collected. A pending record is
- * a flow whose window may yet return: {@link readOAuthChatAttempt} applies no
- * age gate, so a popup parked past the read cutoff can still publish a verdict
- * through {@link setOAuthChatAttemptStatus}. Sweeping on age alone — as the
- * common OIDC client implementations do — would drop that record and strand the
- * row on 'pending' with no event to correct it. A day is far past any live
- * consent flow while still bounding what an abandoned one can leave behind.
+ * How long a record is kept after its last meaningful activity, whatever its
+ * status. Deliberately far longer than {@link OAUTH_CHAT_ATTEMPT_MAX_AGE_MS},
+ * which only governs what a *lookup* will honour — a record still has readers
+ * after that cutoff, and removing one out from under them is visible:
+ *
+ * - A pending record is a flow whose window may yet return.
+ *   {@link readOAuthChatAttempt} applies no age gate, so a parked popup can
+ *   still publish a verdict through {@link setOAuthChatAttemptStatus}.
+ * - A resolved record still backs a mounted chip. That row recomputes itself
+ *   from storage on every attempt event, and for a reconnect its connected
+ *   state has no other source, so sweeping the record reverts the row.
+ *
+ * Sweeping on the lookup cutoff — as the common OIDC client implementations do
+ * — breaks both. A day is past any live consent flow or session in which a row
+ * is still on screen, while still bounding what abandoned flows leave behind.
  */
-const OAUTH_CHAT_ATTEMPT_PENDING_GRACE_MS = 24 * 60 * 60 * 1000
+const OAUTH_CHAT_ATTEMPT_RETENTION_MS = 24 * 60 * 60 * 1000
 
 /**
  * Drops attempt records that can no longer inform a reader, along with the
@@ -194,20 +202,11 @@ function pruneExpiredOAuthChatAttempts(now: number): void {
     // An unparseable or malformed record can never be read back, so it is
     // collected too rather than left behind forever.
     if (attempt) {
-      // A resolved record ages from when it was resolved, not from when it was
-      // requested. Aging it from `requestedAt` would make the verdict on a
-      // grace-preserved pending record sweepable the instant it landed, and the
-      // next create would erase it — every chip re-reads its row on the event
-      // that create dispatches, so the row would drop straight back to unset.
-      const age =
-        attempt.status === 'pending'
-          ? now - attempt.requestedAt
-          : now - (attempt.resolvedAt ?? attempt.requestedAt)
-      const maxAge =
-        attempt.status === 'pending'
-          ? OAUTH_CHAT_ATTEMPT_PENDING_GRACE_MS
-          : OAUTH_CHAT_ATTEMPT_MAX_AGE_MS
-      if (age <= maxAge) continue
+      // Age from the last thing that happened to the record. Measuring a
+      // resolved one from `requestedAt` would make a verdict that landed late
+      // sweepable the instant it arrived.
+      const lastActivityAt = attempt.resolvedAt ?? attempt.requestedAt
+      if (now - lastActivityAt <= OAUTH_CHAT_ATTEMPT_RETENTION_MS) continue
     }
     expiredAttemptIds.add(attemptId)
     staleKeys.push(key)
