@@ -47,6 +47,8 @@ import {
   GIT_CONFIG_DIGEST_MARKER,
   MAX_DIFF_BYTES,
   MIN_PI_TIMEOUT_MS,
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
   PROMPT_PATH,
   PUSH_ERROR_MAX,
   REPO_DIR,
@@ -850,6 +852,7 @@ export async function runBabysitPiWithOptions(
           lastKnownChecksGreen
         )
       }
+      await runner.writeFile(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }

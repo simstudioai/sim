@@ -43,6 +43,8 @@ import {
   FINALIZE_TIMEOUT_MS,
   GIT_CONFIG_DIGEST_LINE,
   MAX_DIFF_BYTES,
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
   PREPARE_SCRIPT,
   PROMPT_PATH,
   PUSH_ERR_PATH,
@@ -466,6 +468,7 @@ async function runCloudAuthoringPi(
 
       // Outside REPO_DIR: a path inside the cloned tree would be staged by `git add -A` into the
       // user's pull request, and the agent holds write/edit/bash on that tree for the whole run.
+      await runner.writeFile(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }

@@ -14,6 +14,7 @@ export const PROMPT_PATH = '/workspace/pi-prompt.txt'
 export const DIFF_PATH = '/workspace/pi.diff'
 export const COMMIT_MSG_PATH = '/workspace/pi-commit.txt'
 export const PUSH_ERR_PATH = '/workspace/pi-push-err.txt'
+export const PI_EVENT_FILTER_PATH = '/workspace/sim-pi-event-filter.mjs'
 export const CLONE_TIMEOUT_MS = 10 * 60 * 1000
 export const FINALIZE_TIMEOUT_MS = 10 * 60 * 1000
 export const MAX_DIFF_BYTES = 200_000
@@ -128,8 +129,125 @@ export const PUSH_SCRIPT = `cd ${REPO_DIR}
 /usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "HEAD:refs/heads/$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
 
 /**
- * The Pi CLI invocation for the sandbox modes. With no options it emits exactly what Create PR
- * always did.
+ * Reduces Pi's cumulative JSON event stream before either sandbox provider retains it.
+ * The emitted shapes contain only fields consumed by `normalizePiEvent`; in particular,
+ * every `message_update` drops the full message Pi repeats alongside its delta.
+ */
+export const PI_EVENT_FILTER_SOURCE = `function asRecord(value) {
+  return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : null
+}
+
+function asString(value) {
+  return typeof value === 'string' ? value : undefined
+}
+
+function compactUsage(value) {
+  const usage = asRecord(value)
+  if (!usage) return null
+  return {
+    input: usage.input,
+    output: usage.output,
+    inputTokens: usage.inputTokens,
+    outputTokens: usage.outputTokens,
+    prompt_tokens: usage.prompt_tokens,
+    completion_tokens: usage.completion_tokens,
+  }
+}
+
+function compactAssistantMessage(value) {
+  const message = asRecord(value)
+  if (!message || message.role !== 'assistant') return null
+  const content = Array.isArray(message.content)
+    ? message.content.flatMap((value) => {
+        const block = asRecord(value)
+        return block?.type === 'text' && typeof block.text === 'string'
+          ? [{ type: 'text', text: block.text }]
+          : []
+      })
+    : []
+  return {
+    role: 'assistant',
+    content,
+    stopReason: asString(message.stopReason),
+    errorMessage: asString(message.errorMessage),
+  }
+}
+
+function compactEvent(value) {
+  const event = asRecord(value)
+  if (!event) return null
+
+  switch (event.type) {
+    case 'message_update': {
+      const update = asRecord(event.assistantMessageEvent)
+      if (update?.type !== 'text_delta' && update?.type !== 'thinking_delta') return null
+      return {
+        type: 'message_update',
+        assistantMessageEvent: { type: update.type, delta: asString(update.delta) },
+      }
+    }
+    case 'tool_execution_start':
+      return { type: 'tool_execution_start', toolName: asString(event.toolName) }
+    case 'tool_execution_end':
+      return {
+        type: 'tool_execution_end',
+        toolName: asString(event.toolName),
+        isError: event.isError === true,
+      }
+    case 'turn_end': {
+      const message = asRecord(event.message)
+      const usage = compactUsage(event.usage)
+      const messageUsage = compactUsage(message?.usage)
+      if (!usage && !messageUsage) return null
+      return {
+        type: 'turn_end',
+        ...(usage ? { usage } : {}),
+        ...(messageUsage ? { message: { usage: messageUsage } } : {}),
+      }
+    }
+    case 'agent_end': {
+      if (event.willRetry === true) return { type: 'agent_end', willRetry: true }
+      const messages = Array.isArray(event.messages) ? event.messages : []
+      let assistant = null
+      for (let index = messages.length - 1; index >= 0; index -= 1) {
+        assistant = compactAssistantMessage(messages[index])
+        if (assistant) break
+      }
+      return { type: 'agent_end', messages: assistant ? [assistant] : [] }
+    }
+    case 'error':
+      return {
+        type: 'error',
+        error: asString(event.error),
+        message: asString(event.message),
+      }
+    default:
+      return null
+  }
+}
+
+function processLine(line) {
+  if (!line.trim()) return
+  try {
+    const event = compactEvent(JSON.parse(line))
+    if (event) process.stdout.write(JSON.stringify(event) + '\\n')
+  } catch {}
+}
+
+process.stdin.setEncoding('utf8')
+let buffer = ''
+process.stdin.on('data', (chunk) => {
+  buffer += chunk
+  const lines = buffer.split('\\n')
+  buffer = lines.pop() ?? ''
+  for (const line of lines) processLine(line)
+})
+process.stdin.on('end', () => processLine(buffer))
+`
+
+/**
+ * The Pi CLI invocation for the sandbox modes. Every caller receives the compact event stream;
+ * options only control which repository resources Pi may load.
  *
  * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
  * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
@@ -149,8 +267,9 @@ export function buildPiScript(
       ? ' --no-extensions'
       : ''
   const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
-  return `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH}`
+  return `set -o pipefail
+cd ${REPO_DIR}
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH} | node ${PI_EVENT_FILTER_PATH}`
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

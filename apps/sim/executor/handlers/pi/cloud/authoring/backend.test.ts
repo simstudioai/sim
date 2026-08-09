@@ -284,13 +284,24 @@ describe('runCloudPi', () => {
 
     // Untrusted text is written through the sandbox FS API, not interpolated into a shell command.
     expect(mockWriteFile).toHaveBeenCalledWith('/workspace/pi-prompt.txt', 'PROMPT')
+    expect(mockWriteFile).toHaveBeenCalledWith(
+      '/workspace/sim-pi-event-filter.mjs',
+      expect.stringContaining("case 'message_update'")
+    )
     expect(mockWriteFile).toHaveBeenCalledWith('/workspace/pi-commit.txt', 'Pi: do it')
 
     const [piCmd, piOpts] = mockRun.mock.calls[1]
     // Prompt arrives on stdin from a fixed path; never a CLI arg or env value.
     expect(piCmd).toContain('< /workspace/pi-prompt.txt')
+    expect(piCmd).toContain('| node /workspace/sim-pi-event-filter.mjs')
     expect(piCmd).not.toContain('PROMPT')
     expect(piOpts.envs.PI_TASK).toBeUndefined()
+    const filterWrite = mockWriteFile.mock.calls.findIndex(
+      ([path]: [string]) => path === '/workspace/sim-pi-event-filter.mjs'
+    )
+    expect(mockWriteFile.mock.invocationCallOrder[filterWrite]).toBeLessThan(
+      mockRun.mock.invocationCallOrder[1]
+    )
 
     const [prepareCmd, prepareOpts] = mockRun.mock.calls[2]
     // Commit message is read from a file, not passed as -m "...".
