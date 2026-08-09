@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -36,11 +37,7 @@ export const memoryDeleteTool: ToolConfig<any, MemoryResponse> = {
         throw new Error('conversationId or id is required')
       }
 
-      const url = new URL('/api/memory', 'http://dummy')
-      url.searchParams.set('workspaceId', workspaceId)
-      url.searchParams.set('conversationId', conversationId)
-
-      return url.pathname + url.search
+      return internalRoute`/api/memory`.withQuery({ workspaceId, conversationId })
     },
     method: 'DELETE',
     headers: () => ({

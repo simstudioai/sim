@@ -78,7 +78,7 @@ export const confluenceUpdateBlogPostTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/blogposts',
+    url: '/api/tools/confluence/blogposts',
     method: 'PUT',
     headers: (params: ConfluenceUpdateBlogPostParams) => ({
       Accept: 'application/json',

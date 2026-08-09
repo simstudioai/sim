@@ -1,5 +1,5 @@
 import { createLogger } from '@sim/logger'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
@@ -23,7 +23,7 @@ import {
   ROUTER,
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
-import { buildAuthHeaders } from '@/executor/utils/http'
+import { buildAuthHeaders, buildInternalApiUrl } from '@/executor/utils/http'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
@@ -97,8 +97,9 @@ export class RouterBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
+      const url = buildInternalApiUrl(
+        internalRoute`/api/providers`.withQuery({ userId: ctx.userId || undefined })
+      )
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
       const systemPrompt = generateRouterPrompt(routerConfig.prompt, targetBlocks)
@@ -275,8 +276,9 @@ export class RouterBlockHandler implements BlockHandler {
     }
 
     try {
-      const url = new URL('/api/providers', getInternalApiBaseUrl())
-      if (ctx.userId) url.searchParams.set('userId', ctx.userId)
+      const url = buildInternalApiUrl(
+        internalRoute`/api/providers`.withQuery({ userId: ctx.userId || undefined })
+      )
 
       const messages = [{ role: 'user', content: routerConfig.context }]
       const systemPrompt = generateRouterV2Prompt(routerConfig.context, modelRoutes)

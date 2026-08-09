@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableBulkOperationResponse, TableDeleteByFilterParams } from '@/tools/table/types'
@@ -42,7 +43,7 @@ export const tableDeleteRowsByFilterTool: ToolConfig<
   },
 
   request: {
-    url: (params: TableDeleteByFilterParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableDeleteByFilterParams) => internalRoute`/api/table/${params.tableId}/rows`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

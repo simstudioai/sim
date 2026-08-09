@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeListTagsResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -17,7 +18,7 @@ export const knowledgeListTagsTool: ToolConfig<any, KnowledgeListTagsResponse> =
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/tag-definitions`,
+    url: (params) => internalRoute`/api/knowledge/${params.knowledgeBaseId}/tag-definitions`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

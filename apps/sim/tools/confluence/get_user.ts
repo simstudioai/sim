@@ -62,7 +62,7 @@ export const confluenceGetUserTool: ToolConfig<ConfluenceGetUserParams, Confluen
     },
 
     request: {
-      url: () => '/api/tools/confluence/user',
+      url: '/api/tools/confluence/user',
       method: 'POST',
       headers: (params: ConfluenceGetUserParams) => ({
         Accept: 'application/json',

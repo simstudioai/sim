@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
+import type { InternalRoute } from '@/lib/core/utils/internal-route'
 import { memoryGetTool } from '@/tools/memory/get'
 
 interface MemoryGetParams {
@@ -13,14 +14,14 @@ interface MemoryGetParams {
 }
 
 describe('memoryGetTool', () => {
-  const buildUrl = memoryGetTool.request.url as (params: MemoryGetParams) => string
+  const buildRoute = memoryGetTool.request.url as (params: MemoryGetParams) => InternalRoute
   const transformResponse = memoryGetTool.transformResponse!
 
   it('builds an exact memory lookup URL', () => {
-    const url = buildUrl({
+    const url = buildRoute({
       _context: { workspaceId: 'workspace-1' },
       conversationId: 'user-123',
-    })
+    }).path
 
     expect(url).toBe('/api/memory/user-123?workspaceId=workspace-1')
     expect(url).not.toContain('query=')
@@ -28,10 +29,10 @@ describe('memoryGetTool', () => {
   })
 
   it('encodes legacy id values in the path', () => {
-    const url = buildUrl({
+    const url = buildRoute({
       _context: { workspaceId: 'workspace-1' },
       id: 'team/user 123',
-    })
+    }).path
 
     expect(url).toBe('/api/memory/team%2Fuser%20123?workspaceId=workspace-1')
   })

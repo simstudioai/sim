@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { OneDriveToolParams, OneDriveUploadResponse } from '@/tools/onedrive/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -60,7 +61,7 @@ export const uploadTool: ToolConfig<OneDriveToolParams, OneDriveUploadResponse> 
       const isExcelFile =
         params.mimeType === 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       if (params.file || isExcelFile) {
-        return '/api/tools/onedrive/upload'
+        return internalRoute`/api/tools/onedrive/upload`
       }
 
       let fileName = params.fileName || 'untitled'

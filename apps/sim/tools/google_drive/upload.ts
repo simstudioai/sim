@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { GoogleDriveToolParams, GoogleDriveUploadResponse } from '@/tools/google_drive/types'
 import {
   ALL_FILE_FIELDS,
@@ -70,7 +71,7 @@ export const uploadTool: ToolConfig<GoogleDriveToolParams, GoogleDriveUploadResp
     url: (params) => {
       // Use custom API route if file is provided, otherwise use Google Drive API directly
       if (params.file) {
-        return '/api/tools/google_drive/upload'
+        return internalRoute`/api/tools/google_drive/upload`
       }
       return 'https://www.googleapis.com/drive/v3/files?supportsAllDrives=true'
     },

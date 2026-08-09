@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -97,7 +98,7 @@ export const confluenceListPagePropertiesTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/page-properties?${query.toString()}`
+      return internalRoute`/api/tools/confluence/page-properties`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListPagePropertiesParams) => ({

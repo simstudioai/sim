@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { getColumnId } from '@/lib/table/column-keys'
 import type { ColumnDefinition } from '@/lib/table/types'
 import type { TableGetSchemaParams, TableGetSchemaResponse } from '@/tools/table/types'
@@ -25,7 +26,7 @@ export const tableGetSchemaTool: ToolConfig<TableGetSchemaParams, TableGetSchema
         throw new Error('Workspace ID is required in execution context')
       }
 
-      return `/api/table/${params.tableId}?workspaceId=${encodeURIComponent(workspaceId)}`
+      return internalRoute`/api/table/${params.tableId}`.withQuery({ workspaceId })
     },
     method: 'GET',
     headers: () => ({

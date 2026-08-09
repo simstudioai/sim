@@ -79,7 +79,7 @@ export const confluenceListSpacePropertiesTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space-properties',
+    url: '/api/tools/confluence/space-properties',
     method: 'POST',
     headers: (params: ConfluenceListSpacePropertiesParams) => ({
       Accept: 'application/json',

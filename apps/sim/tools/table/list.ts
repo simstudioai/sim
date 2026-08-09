@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { TableListParams, TableListResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -15,7 +16,7 @@ export const tableListTool: ToolConfig<TableListParams, TableListResponse> = {
       if (!workspaceId) {
         throw new Error('Workspace ID is required in execution context')
       }
-      return `/api/table?workspaceId=${encodeURIComponent(workspaceId)}`
+      return internalRoute`/api/table`.withQuery({ workspaceId })
     },
     method: 'GET',
     headers: () => ({

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { SPACES_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -85,7 +86,7 @@ export const confluenceListSpacesTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/spaces?${query.toString()}`
+      return internalRoute`/api/tools/confluence/spaces`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListSpacesParams) => {

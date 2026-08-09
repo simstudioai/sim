@@ -461,12 +461,34 @@ Use `@sim/testing` mocks/factories over local test data.
 
 New integrations are built in order: **Tools** → **Block** → **Icon** → (optional) **Trigger**. Always look up the service's API docs first.
 
-Two hard rules that the skills assume:
+Three hard rules that the skills assume:
 
 - **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry.ts` (alphabetically).
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
+- **A tool that calls Sim's own API declares it** — a static `request.url` string (`'/api/tools/{service}/{action}'`), or `internalRoute` from `@/lib/core/utils/internal-route` when the path is dynamic. A builder returning a bare `/api/...` string is treated as EXTERNAL and will fail, because params can produce that string. See "Internal tool routes" below.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
+
+### Internal tool routes
+
+The transport resolves a tool request against the internal base URL and signs it with an internal token for the executing user. That decision comes from the tool's source, never from the resolved URL string — a `user-or-llm` param can make any tool emit `/api/...` (the HTTP Request tool passes its `url` through verbatim; a self-hosted integration with a blank host param collapses `${host}/api/v2/x` to `/api/v2/x`).
+
+```typescript
+// ✓ Static route — a source literal no param can influence
+url: '/api/tools/{service}/{action}',
+
+// ✓ Dynamic route — branded, and every interpolated id is encoded for you
+import { internalRoute } from '@/lib/core/utils/internal-route'
+url: (params) => internalRoute`/api/table/${params.tableId}/rows`,
+
+// ✓ Query params go through withQuery, not the template
+url: (params) => internalRoute`/api/logs`.withQuery({ workspaceId, limit: params.limit }),
+
+// ✗ Treated as EXTERNAL — a builder's plain string carries no provenance
+url: (params) => `/api/table/${params.tableId}/rows`,
+```
+
+`internalRoute` rejects a path outside `/api/`, rejects a query string in the template, and percent-encodes every `${...}` so an id can fill a segment but never widen the path into another route. Never hand-roll `encodeURIComponent` inside the template — that double-encodes.
 
 ## Tables
 

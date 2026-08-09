@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { TIMESTAMP_OUTPUT, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -113,7 +114,7 @@ export const confluenceListBlogPostsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/blogposts?${query.toString()}`
+      return internalRoute`/api/tools/confluence/blogposts`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListBlogPostsParams) => ({

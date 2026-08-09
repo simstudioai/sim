@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { LogsGetParams, LogsGetResponse } from '@/tools/logs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -22,8 +23,7 @@ export const logsGetTool: ToolConfig<LogsGetParams, LogsGetResponse> = {
       if (!workspaceId) {
         throw new Error('workspaceId is required in execution context')
       }
-      const qs = new URLSearchParams({ workspaceId })
-      return `/api/logs/${encodeURIComponent(params.id)}?${qs.toString()}`
+      return internalRoute`/api/logs/${params.id}`.withQuery({ workspaceId })
     },
     method: 'GET',
     headers: () => ({

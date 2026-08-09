@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeDeleteChunkResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,7 +31,7 @@ export const knowledgeDeleteChunkTool: ToolConfig<any, KnowledgeDeleteChunkRespo
 
   request: {
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
+      internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

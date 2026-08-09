@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeGetDocumentResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,7 +25,8 @@ export const knowledgeGetDocumentTool: ToolConfig<any, KnowledgeGetDocumentRespo
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
+    url: (params) =>
+      internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },
     headers: () => ({

@@ -1,6 +1,7 @@
 import { isDeepStrictEqual } from 'node:util'
 import { isPlainRecord } from '@sim/utils/object'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { InternalRoute } from '@/lib/core/utils/internal-route'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
@@ -121,8 +122,32 @@ export function projectToolModelInputParams(
   }
 }
 
+/**
+ * Resolves a tool's request URL and whether it may use the pre-authenticated internal transport.
+ *
+ * Internal routing follows the tool's source, never the resolved string. A static config URL is a
+ * source literal that no param can influence; a builder must return an {@link InternalRoute},
+ * which params cannot construct. A builder returning a bare `/api/...` string is therefore
+ * external — the HTTP Request tool returns its caller-supplied `url` verbatim, and a self-hosted
+ * integration with a blank host param collapses `${host}/api/x` to `/api/x`.
+ */
+function resolveToolUrl(
+  tool: ToolConfig,
+  params: Record<string, any>
+): { url: string; isInternalRoute: boolean } {
+  const configured = tool.request.url
+  if (typeof configured === 'string') {
+    return { url: configured, isInternalRoute: configured.startsWith('/api/') }
+  }
+
+  const resolved = configured(params)
+  return resolved instanceof InternalRoute
+    ? { url: resolved.path, isInternalRoute: true }
+    : { url: resolved, isInternalRoute: false }
+}
+
 function formatToolRequest(tool: ToolConfig, params: Record<string, any>): PreparedToolRequest {
-  const url = typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+  const { url, isInternalRoute } = resolveToolUrl(tool, params)
   const method =
     typeof tool.request.method === 'function'
       ? tool.request.method(params)
@@ -169,7 +194,7 @@ function formatToolRequest(tool: ToolConfig, params: Record<string, any>): Prepa
     timeout: validTimeout,
     proxyUrl,
     stripAuthOnRedirect: tool.request.stripAuthOnRedirect,
-    isInternalRoute: url.startsWith('/api/'),
+    isInternalRoute,
   }
 }
 
@@ -179,18 +204,17 @@ export function prepareToolRequest(
   params: Record<string, any>,
   registry?: ResolvedSecretTraceRegistry
 ): PreparedToolRequest {
-  const configuredUrl =
-    typeof tool.request.url === 'function' ? tool.request.url(params) : tool.request.url
+  const configured = resolveToolUrl(tool, params)
   const modelInput = tool.request.modelInput
   const secretProvenance = tool.request.secretProvenance
   const hasPrivateModelInputProvenance =
     modelInput?.mode === 'private-provenance' ||
     (modelInput?.mode === 'project' && modelInput.privateInputPaths !== undefined)
 
-  if (hasPrivateModelInputProvenance && !configuredUrl.startsWith('/api/')) {
+  if (hasPrivateModelInputProvenance && !configured.isInternalRoute) {
     throw new Error(PRIVATE_MODEL_INPUT_EXTERNAL_URL_ERROR_MESSAGE)
   }
-  if (secretProvenance && !configuredUrl.startsWith('/api/')) {
+  if (secretProvenance && !configured.isInternalRoute) {
     throw new Error(PRIVATE_SECRET_PROVENANCE_EXTERNAL_URL_ERROR_MESSAGE)
   }
 

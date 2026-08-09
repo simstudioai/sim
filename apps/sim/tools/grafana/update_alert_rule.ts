@@ -131,7 +131,7 @@ export const updateAlertRuleTool: ToolConfig<GrafanaUpdateAlertRuleParams, ToolR
   },
 
   request: {
-    url: () => '/api/tools/grafana/update_alert_rule',
+    url: '/api/tools/grafana/update_alert_rule',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

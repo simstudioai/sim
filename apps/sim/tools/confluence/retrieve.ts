@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { ConfluenceRetrieveParams, ConfluenceRetrieveResponse } from '@/tools/confluence/types'
 import {
   BODY_FORMAT_PROPERTIES,
@@ -51,7 +52,7 @@ export const confluenceRetrieveTool: ToolConfig<
 
   request: {
     url: (params: ConfluenceRetrieveParams) => {
-      return '/api/tools/confluence/page'
+      return internalRoute`/api/tools/confluence/page`
     },
     method: 'POST',
     headers: (params: ConfluenceRetrieveParams) => {

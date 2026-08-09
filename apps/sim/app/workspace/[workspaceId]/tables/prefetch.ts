@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { TableDefinition } from '@/lib/table'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
@@ -25,7 +26,7 @@ export async function prefetchTables(queryClient: QueryClient, workspaceId: stri
       queryKey: tableKeys.list(workspaceId, 'active'),
       queryFn: async () => {
         const response = await prefetchInternalJson<{ data: { tables: TableDefinition[] } }>(
-          `/api/table?workspaceId=${workspaceId}&scope=active`
+          internalRoute`/api/table`.withQuery({ workspaceId, scope: 'active' })
         )
         return response.data.tables
       },
@@ -35,7 +36,11 @@ export async function prefetchTables(queryClient: QueryClient, workspaceId: stri
       queryKey: folderKeys.list(workspaceId, 'active', 'table'),
       queryFn: async () => {
         const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=table`
+          internalRoute`/api/folders`.withQuery({
+            workspaceId,
+            scope: 'active',
+            resourceType: 'table',
+          })
         )
         return (folders ?? []).map(mapFolder)
       },

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeTriggerSyncResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,7 +25,7 @@ export const knowledgeTriggerSyncTool: ToolConfig<any, KnowledgeTriggerSyncRespo
 
   request: {
     url: (params) =>
-      `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}/sync`,
+      internalRoute`/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}/sync`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

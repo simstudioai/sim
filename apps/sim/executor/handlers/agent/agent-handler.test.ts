@@ -91,17 +91,9 @@ vi.mock('@/providers', () => ({
 
 vi.mock('@/executor/utils/http', () => ({
   buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
-  buildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
-    const url = new URL(path, 'http://localhost:3000')
-    if (params) {
-      for (const [key, value] of Object.entries(params)) {
-        if (value !== undefined && value !== null) {
-          url.searchParams.set(key, value)
-        }
-      }
-    }
-    return url
-  }),
+  buildInternalApiUrl: vi.fn(
+    (route: { path: string }) => new URL(route.path, 'http://localhost:3000')
+  ),
   extractAPIErrorMessage: vi.fn(async (response: Response) => {
     const defaultMessage = `API request failed with status ${response.status}`
     try {

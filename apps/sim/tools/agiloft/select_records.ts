@@ -51,7 +51,7 @@ export const agiloftSelectRecordsTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/agiloft/select_records',
+    url: '/api/tools/agiloft/select_records',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

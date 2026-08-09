@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
 import { validatePredicateShape } from '@/lib/table/query-builder/validate'
 import type { TableQueryV2Response, TableRowQueryV2Params } from '@/tools/table/types'
@@ -58,7 +59,7 @@ export const tableQueryRowsV2Tool: ToolConfig<TableRowQueryV2Params, TableQueryV
 
   request: {
     secretProvenance: { response: { incomplete: 'propagate' } },
-    url: (params: TableRowQueryV2Params) => `/api/table/${params.tableId}/query`,
+    url: (params: TableRowQueryV2Params) => internalRoute`/api/table/${params.tableId}/query`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params: TableRowQueryV2Params) => {

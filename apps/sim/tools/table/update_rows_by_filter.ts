@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
@@ -52,7 +53,7 @@ export const tableUpdateRowsByFilterTool: ToolConfig<
     secretProvenance: {
       request: (params) => selectTableRowSecretProvenance([params.data]),
     },
-    url: (params: TableUpdateByFilterParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableUpdateByFilterParams) => internalRoute`/api/table/${params.tableId}/rows`,
     method: 'PUT',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeListConnectorsResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,7 +19,7 @@ export const knowledgeListConnectorsTool: ToolConfig<any, KnowledgeListConnector
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors`,
+    url: (params) => internalRoute`/api/knowledge/${params.knowledgeBaseId}/connectors`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

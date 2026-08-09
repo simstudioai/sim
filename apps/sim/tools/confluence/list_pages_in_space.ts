@@ -111,7 +111,7 @@ export const confluenceListPagesInSpaceTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/space-pages',
+    url: '/api/tools/confluence/space-pages',
     method: 'POST',
     headers: (params: ConfluenceListPagesInSpaceParams) => ({
       Accept: 'application/json',

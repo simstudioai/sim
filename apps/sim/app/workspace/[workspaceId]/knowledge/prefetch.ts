@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts/folders'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { prefetchResourceListChrome } from '@/app/workspace/[workspaceId]/lib/prefetch-resource-list-chrome'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
@@ -29,7 +30,7 @@ export async function prefetchKnowledgeBases(
       queryKey: knowledgeKeys.list(workspaceId, 'active'),
       queryFn: async () => {
         const result = await prefetchInternalJson<{ data: KnowledgeBaseData[] }>(
-          `/api/knowledge?workspaceId=${workspaceId}&scope=active`
+          internalRoute`/api/knowledge`.withQuery({ workspaceId, scope: 'active' })
         )
         return result.data
       },
@@ -39,7 +40,11 @@ export async function prefetchKnowledgeBases(
       queryKey: folderKeys.list(workspaceId, 'active', 'knowledge_base'),
       queryFn: async () => {
         const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=knowledge_base`
+          internalRoute`/api/folders`.withQuery({
+            workspaceId,
+            scope: 'active',
+            resourceType: 'knowledge_base',
+          })
         )
         return (folders ?? []).map(mapFolder)
       },

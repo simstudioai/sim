@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type {
   DeploymentsGetVersionParams,
   DeploymentsGetVersionResponse,
@@ -40,7 +41,7 @@ export const deploymentsGetVersionTool: ToolConfig<
         workspaceId,
         version: String(params.version),
       })
-      return `/api/tools/deployments/version?${qs.toString()}`
+      return internalRoute`/api/tools/deployments/version`.withQuery(qs)
     },
     method: 'GET',
     headers: () => ({ 'Content-Type': 'application/json' }),

@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { extractInputFieldsFromBlocks } from '@/lib/workflows/input-format'
 import {
   buildCanonicalIndex,
@@ -776,10 +777,10 @@ async function fetchWorkflowInputFields(
   workflowId: string
 ): Promise<Array<{ name: string; type: string; description?: string }>> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+    const url = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {

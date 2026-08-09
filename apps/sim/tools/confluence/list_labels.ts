@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { LABEL_ITEM_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -91,7 +92,7 @@ export const confluenceListLabelsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/labels?${query.toString()}`
+      return internalRoute`/api/tools/confluence/labels`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListLabelsParams) => {

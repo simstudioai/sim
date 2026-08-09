@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeListChunksResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -55,8 +56,9 @@ export const knowledgeListChunksTool: ToolConfig<any, KnowledgeListChunksRespons
       if (params.limit)
         queryParams.set('limit', String(Math.max(1, Math.min(100, Number(params.limit)))))
       if (params.offset != null) queryParams.set('offset', String(params.offset))
-      const qs = queryParams.toString()
-      return `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks${qs ? `?${qs}` : ''}`
+      return internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks`.withQuery(
+        queryParams
+      )
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

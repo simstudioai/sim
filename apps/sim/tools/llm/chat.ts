@@ -128,7 +128,7 @@ export const llmChatTool: ToolConfig<LLMChatParams, LLMChatResponse> = {
   },
 
   request: {
-    url: () => '/api/providers',
+    url: '/api/providers',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

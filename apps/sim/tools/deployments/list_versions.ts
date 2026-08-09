@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type {
   DeploymentsListVersionsParams,
   DeploymentsListVersionsResponse,
@@ -30,7 +31,7 @@ export const deploymentsListVersionsTool: ToolConfig<
         throw new Error('workspaceId is required in execution context')
       }
       const qs = new URLSearchParams({ workflowId: params.workflowId, workspaceId })
-      return `/api/tools/deployments/versions?${qs.toString()}`
+      return internalRoute`/api/tools/deployments/versions`.withQuery(qs)
     },
     method: 'GET',
     headers: () => ({ 'Content-Type': 'application/json' }),

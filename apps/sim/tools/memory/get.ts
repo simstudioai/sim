@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -35,10 +36,7 @@ export const memoryGetTool: ToolConfig<any, MemoryResponse> = {
       if (!conversationId) {
         throw new Error('conversationId or id is required')
       }
-      const url = new URL(`/api/memory/${encodeURIComponent(conversationId)}`, 'http://dummy')
-      url.searchParams.set('workspaceId', workspaceId)
-
-      return url.pathname + url.search
+      return internalRoute`/api/memory/${conversationId}`.withQuery({ workspaceId })
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

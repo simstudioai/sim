@@ -1,5 +1,6 @@
 import type { WorkflowLogDetail } from '@/lib/api/contracts/logs'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { LogsGetRunDetailsParams, LogsGetRunDetailsResponse } from '@/tools/logs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -26,8 +27,7 @@ export const logsGetRunDetailsTool: ToolConfig<LogsGetRunDetailsParams, LogsGetR
         if (!workspaceId) {
           throw new Error('workspaceId is required in execution context')
         }
-        const qs = new URLSearchParams({ workspaceId })
-        return `/api/logs/by-execution/${encodeURIComponent(params.runId)}?${qs.toString()}`
+        return internalRoute`/api/logs/by-execution/${params.runId}`.withQuery({ workspaceId })
       },
       method: 'GET',
       headers: () => ({

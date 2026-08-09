@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowInsertParams, TableRowResponse } from '@/tools/table/types'
@@ -36,7 +37,7 @@ export const tableInsertRowTool: ToolConfig<TableRowInsertParams, TableRowRespon
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowInsertParams) => `/api/table/${params.tableId}/rows`,
+    url: (params: TableRowInsertParams) => internalRoute`/api/table/${params.tableId}/rows`,
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

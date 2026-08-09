@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { isRecordLike } from '@sim/utils/object'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { isColumnType } from '@/lib/table/column-types'
 import { enrichTableToolDescription, enrichTableToolParameters } from '@/lib/table/llm/enrichment'
 import type { TableSummary } from '@/lib/table/types'
@@ -18,12 +19,14 @@ async function fetchTableSchema(
     throw new Error(`User ID is required to enrich table tool schema for ${tableId}`)
   }
 
-  const { buildAuthHeaders, buildAPIUrl, extractAPIErrorMessage } = await import(
+  const { buildAuthHeaders, buildInternalApiUrl, extractAPIErrorMessage } = await import(
     '@/executor/utils/http'
   )
 
   const headers = await buildAuthHeaders(context.userId)
-  const url = buildAPIUrl(`/api/table/${tableId}`, { workspaceId: context.workspaceId })
+  const url = buildInternalApiUrl(
+    internalRoute`/api/table/${tableId}`.withQuery({ workspaceId: context.workspaceId })
+  )
   const response = await fetch(url.toString(), { headers })
 
   if (!response.ok) {
@@ -127,10 +130,12 @@ async function fetchTagDefinitions(
   }
 
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders(context.userId)
-    const url = buildAPIUrl(`/api/knowledge/${knowledgeBaseId}/tag-definitions`)
+    const url = buildInternalApiUrl(
+      internalRoute`/api/knowledge/${knowledgeBaseId}/tag-definitions`
+    )
 
     logger.info(`Fetching tag definitions for KB ${knowledgeBaseId} from ${url.toString()}`)
 

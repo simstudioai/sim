@@ -45,6 +45,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import {
   assertContentLengthWithinLimit,
   assertKnownSizeWithinLimit,
@@ -52,7 +53,6 @@ import {
   readResponseTextWithLimit,
   readStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { SIM_VIA_HEADER } from '@/lib/execution/call-chain'
 import {
@@ -72,6 +72,7 @@ import {
 } from '@/lib/mcp/constants'
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import { buildInternalApiUrl } from '@/executor/utils/http'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
@@ -881,7 +882,9 @@ async function handleToolsCall(
       wf.workspaceId
     )
 
-    const executeUrl = `${getInternalApiBaseUrl()}/api/workflows/${tool.workflowId}/execute`
+    const executeUrl = buildInternalApiUrl(
+      internalRoute`/api/workflows/${tool.workflowId}/execute`
+    ).toString()
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       [BILLING_ATTRIBUTION_HEADER]: serializeBillingAttributionHeader(billingAttribution),

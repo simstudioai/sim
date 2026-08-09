@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { selectKnowledgeDocumentWriteSecretProvenance } from '@/tools/knowledge/secret-provenance'
 import {
   inferDocumentFileInfo,
@@ -60,7 +61,7 @@ export const knowledgeUpsertDocumentTool: ToolConfig<
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
+    url: (params) => internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents/upsert`,
     method: 'POST',
     secretProvenance: {
       request: selectKnowledgeDocumentWriteSecretProvenance,

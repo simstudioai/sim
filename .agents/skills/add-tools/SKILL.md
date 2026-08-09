@@ -145,6 +145,37 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Always explicitly set `required: true` or `required: false`
 - Optional params should have `required: false`
 
+## Internal Routes (calling Sim's own API)
+
+Most tools call a third-party service and `request.url` returns an absolute `https://...` URL. A
+tool that instead calls Sim's own API — a `/api/tools/{service}/{action}` proxy route, or a platform
+route like `/api/table/...` — must SAY SO, because the transport resolves those against the internal
+base URL and signs them with an internal token for the executing user.
+
+That declaration comes from the tool's source, never from the resolved string: a `user-or-llm` param
+can make any tool emit `/api/...` (the HTTP Request tool passes its `url` through verbatim, and a
+self-hosted integration with a blank host param collapses `${host}/api/v2/x` to `/api/v2/x`).
+
+```typescript
+import { internalRoute } from '@/lib/core/utils/internal-route'
+
+// ✓ Static route — a source literal no param can influence
+url: '/api/tools/{service}/{action}',
+
+// ✓ Dynamic route — branded, and every interpolated id is percent-encoded for you
+url: (params) => internalRoute`/api/table/${params.tableId}/rows`,
+
+// ✓ Query params via withQuery (accepts an object or URLSearchParams; skips undefined/null)
+url: (params) => internalRoute`/api/logs`.withQuery({ workspaceId, limit: params.limit }),
+
+// ✗ Treated as EXTERNAL and will fail — a builder's plain string carries no provenance
+url: (params) => `/api/table/${params.tableId}/rows`,
+```
+
+`internalRoute` throws on a path outside `/api/` and on a query string inside the template. Never
+write `encodeURIComponent` inside the template — the tag already encodes each `${...}`, so doing it
+yourself double-encodes the value.
+
 ## Resolved Secrets and Provenance Boundaries
 
 - Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
