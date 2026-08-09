@@ -176,12 +176,12 @@ export const InstagramBlock: BlockConfig<InstagramResponse> = {
         ],
         instagram_get_account_insights: [
           'Report account insights',
-          { text: ', measuring', field: 'metrics' },
+          { text: ', measuring', field: 'insightMetrics' },
           { text: ', since', field: 'since' },
         ],
         instagram_get_media_insights: [
           { text: 'Report insights for media', field: 'mediaId', core: true },
-          { text: ', measuring', field: 'metrics' },
+          { text: ', measuring', field: 'insightMetrics' },
         ],
       },
     },
