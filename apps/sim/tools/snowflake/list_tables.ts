@@ -1,5 +1,5 @@
-import { buildGetTask } from '@/tools/snowflake/sql'
-import type { SnowflakeStatementResponse, SnowflakeTaskParams } from '@/tools/snowflake/types'
+import { buildListTables } from '@/tools/snowflake/sql'
+import type { SnowflakeListTablesParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
@@ -9,11 +9,11 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
-  id: 'snowflake_get_task',
+export const listTablesTool: ToolConfig<SnowflakeListTablesParams, SnowflakeStatementResponse> = {
+  id: 'snowflake_list_tables',
   version: '1.0.0',
-  name: 'Snowflake Get Task',
-  description: 'Describe a Snowflake task.',
+  name: 'Snowflake List Tables',
+  description: 'List the tables in a Snowflake schema.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -40,15 +40,21 @@ export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResp
       visibility: 'user-or-llm',
       description: 'Schema name',
     },
-    taskName: {
+    nameLike: {
       type: 'string',
-      required: true,
+      required: false,
       visibility: 'user-or-llm',
-      description: 'Task name',
+      description: 'Optional SQL LIKE pattern for object names',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum rows, from 1 to 10000',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildGetTask(params), { maxRows: 1 })
+    buildSnowflakeStatementBody(params, buildListTables(params), { maxRows: params.limit })
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

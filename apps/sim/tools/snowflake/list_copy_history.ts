@@ -1,6 +1,6 @@
-import { buildCancelTaskRun } from '@/tools/snowflake/sql'
+import { buildListCopyHistory } from '@/tools/snowflake/sql'
 import type {
-  SnowflakeCancelTaskRunParams,
+  SnowflakeListCopyHistoryParams,
   SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
@@ -12,15 +12,14 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const cancelTaskRunTool: ToolConfig<
-  SnowflakeCancelTaskRunParams,
+export const listCopyHistoryTool: ToolConfig<
+  SnowflakeListCopyHistoryParams,
   SnowflakeStatementResponse
 > = {
-  id: 'snowflake_cancel_task_run',
+  id: 'snowflake_list_copy_history',
   version: '1.0.0',
-  name: 'Snowflake Cancel Task Query',
-  description:
-    'Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped.',
+  name: 'Snowflake List Copy History',
+  description: 'List staged-file load results for a table over the last fourteen days.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -41,18 +40,48 @@ export const cancelTaskRunTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Warehouse to use for this statement; defaults to the PAT user setting',
     },
-    queryId: {
+    database: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
+      description: 'Database name',
+    },
+    schema: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Schema name',
+    },
+    table: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Table whose load history to return',
+    },
+    startTime: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'ISO-8601 start of the load window, within the last fourteen days',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
       description:
-        'Query ID of the single running task query to cancel, taken from TASK_HISTORY. Cancels only that query.',
+        'ISO-8601 end of the load window, within the last fourteen days; defaults to now',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum load rows, from 1 to 10000',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildCancelTaskRun(params), {
+    buildSnowflakeStatementBody(params, buildListCopyHistory(params), {
       warehouse: params.warehouse,
-      maxRows: 1,
+      maxRows: params.limit,
     })
   ),
   transformResponse: transformSnowflakeResult(),

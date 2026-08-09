@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -28,18 +29,7 @@ export const introspectSchemaTool: ToolConfig<
   name: 'Snowflake Introspect Schema',
   description: 'Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

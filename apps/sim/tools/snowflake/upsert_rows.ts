@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeUpsertRowsParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -38,18 +39,7 @@ export const upsertRowsTool: ToolConfig<SnowflakeUpsertRowsParams, SnowflakeStat
   name: 'Snowflake Upsert Rows',
   description: 'Update matching rows and insert unmatched rows with a bound MERGE statement.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

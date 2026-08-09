@@ -1,5 +1,5 @@
-import { buildLoadData } from '@/tools/snowflake/sql'
-import type { SnowflakeLoadDataParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
+import { buildUnloadData } from '@/tools/snowflake/sql'
+import type { SnowflakeStatementResponse, SnowflakeUnloadDataParams } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
@@ -9,22 +9,11 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-/**
- * COPY INTO omits PURGE and FORCE entirely when the value is absent, which is how
- * Snowflake's FALSE defaults are inherited. A direct tool call can still supply the
- * string `"false"`, which is truthy, so only a real `true` or the exact string
- * `"true"` may enable an irreversible purge.
- */
-function optionalCopyFlag(value: unknown): boolean | undefined {
-  if (value === undefined || value === null || value === '') return undefined
-  return value === true || value === 'true'
-}
-
-export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatementResponse> = {
-  id: 'snowflake_load_data',
+export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStatementResponse> = {
+  id: 'snowflake_unload_data',
   version: '1.0.0',
-  name: 'Snowflake Load Data',
-  description: 'Load files from an existing Snowflake stage with COPY INTO.',
+  name: 'Snowflake Unload Data',
+  description: 'Export a table or query result to files in a Snowflake stage with COPY INTO.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -55,77 +44,70 @@ export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatemen
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Target database name',
+      description: 'Database name',
     },
     schema: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Target schema name',
-    },
-    table: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Target table name',
+      description: 'Schema name',
     },
     stagePath: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Existing stage path, for example @my_stage/path',
+      description: 'Destination stage reference, for example @EXPORTS/daily',
+    },
+    table: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Source table to unload; provide either this or a statement, not both',
+    },
+    statement: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Source SELECT statement to unload; provide either this or a table, not both',
     },
     fileFormat: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional named file format',
+      description: 'Named file format applied to the unloaded files',
     },
-    pattern: {
-      type: 'string',
+    header: {
+      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional regular expression used to select staged files',
+      description: 'Whether to write column headings into the unloaded files',
     },
-    onError: {
-      type: 'string',
+    overwrite: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to replace existing files with matching names in the stage',
+    },
+    singleFile: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to write one file instead of splitting the output across files',
+    },
+    maxFileSizeBytes: {
+      type: 'number',
       required: false,
       visibility: 'user-or-llm',
       description:
-        'COPY error handling: ABORT_STATEMENT, CONTINUE, SKIP_FILE, SKIP_FILE_<count>, or SKIP_FILE_<percent>%',
-    },
-    purge: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Remove successfully loaded files from the stage',
-    },
-    force: {
-      type: 'boolean',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Reload files even when Snowflake has loaded them before',
-    },
-    matchByColumnName: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'CASE_SENSITIVE, CASE_INSENSITIVE, or NONE',
+        'Upper size limit per unloaded file in bytes; Snowflake defaults to 16000000 and allows up to 5000000000',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(
-      params,
-      buildLoadData({
-        ...params,
-        purge: optionalCopyFlag(params.purge),
-        force: optionalCopyFlag(params.force),
-      }),
-      {
-        warehouse: params.warehouse,
-        maxRows: params.maxRows,
-      }
-    )
+    buildSnowflakeStatementBody(params, buildUnloadData(params), {
+      context: { database: params.database, schema: params.schema },
+      warehouse: params.warehouse,
+      maxRows: params.maxRows,
+    })
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

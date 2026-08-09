@@ -14,6 +14,27 @@ export const SNOWFLAKE_BINDING_TYPES = [
   'TIMESTAMP_NTZ',
 ] as const
 
+/**
+ * Warehouse sizes Snowflake accepts as bare keywords. The hyphenated aliases
+ * (`'X-SMALL'`, `'2X-LARGE'`, …) name the same sizes but must be quoted, so
+ * only the keyword spellings are offered — one accepted form, no quoting rule
+ * for the caller to get wrong.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/sql/alter-warehouse
+ */
+export const SNOWFLAKE_WAREHOUSE_SIZES = [
+  'XSMALL',
+  'SMALL',
+  'MEDIUM',
+  'LARGE',
+  'XLARGE',
+  'XXLARGE',
+  'XXXLARGE',
+  'X4LARGE',
+  'X5LARGE',
+  'X6LARGE',
+] as const
+
 export type SnowflakeBindingType = (typeof SNOWFLAKE_BINDING_TYPES)[number]
 
 export interface SnowflakeBinding {
@@ -22,8 +43,12 @@ export interface SnowflakeBinding {
 }
 
 export interface SnowflakeBaseParams {
-  host: string
-  apiKey: string
+  /** Id of the selected Snowflake programmatic-access-token credential. */
+  oauthCredential: string
+  /** Programmatic access token, injected by the executor from the credential. */
+  accessToken?: string
+  /** Account host, injected by the executor from the credential. */
+  domain?: string
 }
 
 export interface SnowflakeStatementParams extends SnowflakeBaseParams {
@@ -93,6 +118,52 @@ export interface SnowflakeLoadDataParams extends SnowflakeTableParams {
   matchByColumnName?: 'CASE_SENSITIVE' | 'CASE_INSENSITIVE' | 'NONE'
 }
 
+export interface SnowflakeUnloadDataParams extends SnowflakeResultParams {
+  database: string
+  schema: string
+  stagePath: string
+  /** Source table, mutually exclusive with `statement`. */
+  table?: string
+  /** Source query, mutually exclusive with `table`. */
+  statement?: string
+  fileFormat?: string
+  header?: boolean
+  overwrite?: boolean
+  singleFile?: boolean
+  maxFileSizeBytes?: number
+}
+
+export interface SnowflakeListDatabasesParams extends SnowflakeStatementParams {
+  nameLike?: string
+  limit?: number
+}
+
+export interface SnowflakeListSchemasParams extends SnowflakeListDatabasesParams {
+  database: string
+}
+
+export interface SnowflakeListTablesParams extends SnowflakeListSchemasParams {
+  schema: string
+}
+
+export interface SnowflakeListQueryHistoryParams extends SnowflakeComputeParams {
+  userName?: string
+  warehouseName?: string
+  startTime?: string
+  endTime?: string
+  errorOnly?: boolean
+  limit?: number
+}
+
+export interface SnowflakeListCopyHistoryParams extends SnowflakeComputeParams {
+  database: string
+  schema: string
+  table: string
+  startTime: string
+  endTime?: string
+  limit?: number
+}
+
 export interface SnowflakeListWarehousesParams extends SnowflakeStatementParams {
   maxRows?: number
   nameLike?: string
@@ -100,6 +171,12 @@ export interface SnowflakeListWarehousesParams extends SnowflakeStatementParams 
 
 export interface SnowflakeWarehouseParams extends SnowflakeStatementParams {
   warehouseName: string
+}
+
+export interface SnowflakeAlterWarehouseParams extends SnowflakeWarehouseParams {
+  warehouseSize?: string
+  autoSuspendSeconds?: number
+  autoResume?: boolean
 }
 
 export interface SnowflakeListTasksParams extends SnowflakeStatementParams {

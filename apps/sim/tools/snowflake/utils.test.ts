@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest'
+import { buildCanonicalIndex } from '@/lib/workflows/subblocks/visibility'
 import { SnowflakeBlock } from '@/blocks/blocks/snowflake'
+import type { SubBlockConfig } from '@/blocks/types'
 import { prepareToolRequest } from '@/tools/request-transport'
 import * as snowflakeTools from '@/tools/snowflake'
 import { cancelStatementTool } from '@/tools/snowflake/cancel_statement'
@@ -15,6 +17,7 @@ import {
   normalizeSnowflakeHost,
   readSnowflakeResult,
   SNOWFLAKE_MAX_RESPONSE_BYTES,
+  snowflakeAuthParamFields,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
@@ -38,14 +41,40 @@ function mergedBlockInputs(inputs: Record<string, unknown>): Record<string, unkn
   return { ...inputs, ...mapParams(inputs) }
 }
 
+const snowflakeToolById = new Map(registeredSnowflakeTools().map((tool) => [tool.id, tool]))
+const snowflakeOperationIds = (
+  SnowflakeBlock.subBlocks.find((block) => block.id === 'operation')?.options ?? []
+).map((option) => String(option.id))
+
+/** The tool param a sub-block ultimately publishes under. */
+const paramIdOf = (subBlock: SubBlockConfig) => subBlock.canonicalParamId ?? subBlock.id
+
+/** Operations a sub-block is visible for, expanded from its condition. */
+function conditionOperations(subBlock: SubBlockConfig): string[] {
+  const condition = subBlock.condition
+  if (!condition || typeof condition === 'function') return snowflakeOperationIds
+  const value = condition.value
+  const list = (Array.isArray(value) ? value : [value]).map(String)
+  return condition.not ? snowflakeOperationIds.filter((op) => !list.includes(op)) : list
+}
+
+/** Operations a sub-block is required for. */
+function requiredOperations(subBlock: SubBlockConfig): string[] {
+  const required = subBlock.required
+  if (required === true) return snowflakeOperationIds
+  if (!required || typeof required !== 'object') return []
+  const value = (required as { value: unknown }).value
+  return (Array.isArray(value) ? value : [value]).map(String)
+}
+
 describe('Snowflake integration contracts', () => {
-  it('keeps all 21 block operations aligned with registered tool IDs', () => {
+  it('keeps all 30 block operations aligned with registered tool IDs', () => {
     const tools = registeredSnowflakeTools()
     const operationBlock = SnowflakeBlock.subBlocks.find((block) => block.id === 'operation')
     const operationIds = operationBlock?.options?.map((option) => String(option.id)) ?? []
     const expectedToolIds = operationIds.map((operation) => `snowflake_${operation}`)
 
-    expect(operationIds).toHaveLength(21)
+    expect(operationIds).toHaveLength(30)
     expect(SnowflakeBlock.tools.access).toEqual(expectedToolIds)
     expect(tools.map((tool) => tool.id).sort()).toEqual([...expectedToolIds].sort())
     for (const operation of operationIds) {
@@ -53,16 +82,156 @@ describe('Snowflake integration contracts', () => {
     }
   })
 
+  it('keeps every canonical selector group well formed', () => {
+    const ids = SnowflakeBlock.subBlocks.map((subBlock) => subBlock.id)
+    expect(new Set(ids).size, 'duplicate sub-block id').toBe(ids.length)
+
+    // A canonical id that also names a sub-block collides with its own group:
+    // the serializer deletes member ids and republishes under the canonical id,
+    // so the two would fight over the same key.
+    for (const subBlock of SnowflakeBlock.subBlocks) {
+      if (!subBlock.canonicalParamId) continue
+      expect(ids, `${subBlock.id} canonical id collides with a sub-block id`).not.toContain(
+        subBlock.canonicalParamId
+      )
+    }
+
+    const groups = buildCanonicalIndex(SnowflakeBlock.subBlocks).groupsById
+    // Each picker pairs one basic selector with one advanced text input, so a
+    // value can always be typed or referenced when the picker cannot list it.
+    // Both members must agree on condition and required, or the serializer's
+    // basic/advanced swap would change when the field shows or blocks a run.
+    for (const [canonicalId, group] of Object.entries(groups)) {
+      expect(group.basicId, `${canonicalId} has no basic member`).toBeTruthy()
+      expect(group.advancedIds, `${canonicalId} has no advanced member`).toHaveLength(1)
+      const members = SnowflakeBlock.subBlocks.filter(
+        (subBlock) => subBlock.canonicalParamId === canonicalId
+      )
+      expect(
+        new Set(members.map((member) => JSON.stringify(member.required ?? null))).size,
+        `${canonicalId} members disagree on required`
+      ).toBe(1)
+      expect(
+        new Set(members.map((member) => JSON.stringify(member.condition ?? null))).size,
+        `${canonicalId} members disagree on condition`
+      ).toBe(1)
+    }
+    expect(Object.keys(groups).sort()).toEqual([
+      'database',
+      'fileFormat',
+      'oauthCredential',
+      'procedureName',
+      'role',
+      'schema',
+      'table',
+      'warehouse',
+      'warehouseName',
+    ])
+  })
+
+  it('every required tool param is required on the block for that operation', () => {
+    const problems: string[] = []
+    for (const op of snowflakeOperationIds) {
+      const tool = snowflakeToolById.get(`snowflake_${op}`)
+      for (const [name, cfg] of Object.entries<any>(tool.params ?? {})) {
+        if (cfg.visibility === 'hidden' || !cfg.required) continue
+        if (name === 'oauthCredential') continue
+        const members = SnowflakeBlock.subBlocks.filter((sb) => paramIdOf(sb) === name)
+        if (!members.length) {
+          problems.push(`${tool.id}.${name}: no sub-block`)
+          continue
+        }
+        const shown = members.filter((sb) => conditionOperations(sb).includes(op))
+        if (!shown.length) problems.push(`${tool.id}.${name}: not shown for ${op}`)
+        const required = shown.filter((sb) => requiredOperations(sb).includes(op))
+        if (shown.length && !required.length)
+          problems.push(`${tool.id}.${name}: not required for ${op}`)
+      }
+    }
+    expect(problems).toEqual([])
+  })
+
+  it('no sub-block is shown for an operation whose tool does not accept it', () => {
+    const skip = new Set(['operation', 'onErrorThreshold'])
+    const problems: string[] = []
+    for (const sb of SnowflakeBlock.subBlocks) {
+      if (skip.has(sb.id)) continue
+      const name = paramIdOf(sb)
+      for (const op of conditionOperations(sb)) {
+        const tool = snowflakeToolById.get(`snowflake_${op}`)
+        if (!tool) {
+          problems.push(`${sb.id}: unknown op ${op}`)
+          continue
+        }
+        if (!(name in (tool.params ?? {})))
+          problems.push(`${sb.id} shown for ${op} but ${tool.id} has no ${name}`)
+      }
+    }
+    expect(problems).toEqual([])
+  })
+
+  it('block inputs and dependsOn reference real things', () => {
+    const surfaces = new Set(SnowflakeBlock.subBlocks.map(paramIdOf))
+    const orphanInputs = Object.keys(SnowflakeBlock.inputs).filter((k) => !surfaces.has(k))
+    expect(orphanInputs).toEqual([])
+    const ids = new Set(SnowflakeBlock.subBlocks.map((sb) => sb.id))
+    const badDeps: string[] = []
+    for (const sb of SnowflakeBlock.subBlocks) {
+      for (const dep of (sb as any).dependsOn ?? []) {
+        if (!ids.has(dep)) badDeps.push(`${sb.id} -> ${dep}`)
+      }
+    }
+    expect(badDeps).toEqual([])
+  })
+
+  it('never hides a required field behind advanced mode', () => {
+    const problems: string[] = []
+    for (const subBlock of SnowflakeBlock.subBlocks) {
+      if (!requiredOperations(subBlock).length) continue
+      // A canonical pair always has a basic member, and a field gated behind an
+      // advanced-only parent (onErrorThreshold under onError) cannot appear in
+      // basic mode at all — neither is reachable-only-in-advanced.
+      if (subBlock.canonicalParamId || (subBlock.required as { and?: unknown })?.and) continue
+      if (subBlock.mode === 'advanced')
+        problems.push(`${subBlock.id} is required but advanced-only`)
+    }
+    expect(problems).toEqual([])
+  })
+
+  it('every tool param declares required, visibility and description', () => {
+    const problems: string[] = []
+    for (const tool of registeredSnowflakeTools()) {
+      for (const [name, cfg] of Object.entries<any>(tool.params ?? {})) {
+        if (typeof cfg.required !== 'boolean') problems.push(`${tool.id}.${name} required`)
+        if (!cfg.visibility) problems.push(`${tool.id}.${name} visibility`)
+        if (!cfg.description) problems.push(`${tool.id}.${name} description`)
+      }
+      if (tool.version !== '1.0.0') problems.push(`${tool.id} version`)
+      if (!tool.name?.startsWith('Snowflake ')) problems.push(`${tool.id} name`)
+      if (!tool.description?.endsWith('.')) problems.push(`${tool.id} description`)
+      if (!tool.outputs) problems.push(`${tool.id} outputs`)
+    }
+    expect(problems).toEqual([])
+  })
   it('keeps tool parameters and outputs represented by the block contract', () => {
     for (const tool of registeredSnowflakeTools()) {
-      expect(tool.params.host).toMatchObject({ required: true, visibility: 'user-only' })
-      expect(tool.params.apiKey).toMatchObject({ required: true, visibility: 'user-only' })
+      expect(tool.params.oauthCredential).toMatchObject({
+        required: true,
+        visibility: 'user-only',
+      })
       expect(tool.params).not.toHaveProperty('timeout')
       expect(tool.version).toBe('1.0.0')
-      for (const param of Object.keys(tool.params)) {
+      for (const [param, config] of Object.entries(tool.params)) {
+        // Hidden params (accessToken, domain) are injected by the executor
+        // from the selected credential, so they have no editor surface.
+        if (config.visibility === 'hidden') continue
         expect(SnowflakeBlock.inputs, `${tool.id}.${param} block input`).toHaveProperty(param)
+        // A param is surfaced either by a sub-block of the same id or by a
+        // basic/advanced pair republishing under that canonical id.
         expect(
-          SnowflakeBlock.subBlocks.some((subBlock) => subBlock.id === param),
+          SnowflakeBlock.subBlocks.some(
+            (subBlock) => subBlock.id === param || subBlock.canonicalParamId === param
+          ),
           `${tool.id}.${param} sub-block`
         ).toBe(true)
       }
@@ -74,23 +243,13 @@ describe('Snowflake integration contracts', () => {
 
   it('declares every shared connection and session param identically across tools', () => {
     /**
-     * Each tool inlines these params rather than spreading a shared object, matching
-     * the convention used by every other integration. Duplication is only safe while
-     * the definitions stay byte-identical, so pin them here.
+     * The auth params come from a shared object; the session params are still
+     * inlined per tool, matching the convention used by every other
+     * integration. Duplication is only safe while the definitions stay
+     * byte-identical, so pin them all here.
      */
     const shared = {
-      host: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-      },
-      apiKey: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'Snowflake programmatic access token',
-      },
+      ...snowflakeAuthParamFields,
       role: {
         type: 'string',
         required: false,
@@ -128,12 +287,13 @@ describe('Snowflake integration contracts', () => {
     }
 
     expect(seen).toEqual({
-      host: 21,
-      apiKey: 21,
-      role: 19,
-      statementTimeoutSeconds: 19,
-      warehouse: 12,
-      maxRows: 6,
+      oauthCredential: 30,
+      accessToken: 30,
+      domain: 30,
+      role: 28,
+      statementTimeoutSeconds: 28,
+      warehouse: 15,
+      maxRows: 7,
     })
   })
 
@@ -163,6 +323,12 @@ describe('Snowflake integration contracts', () => {
       procedureArguments: '[{"type":"TEXT","value":"x"}]',
       onError: 'CONTINUE',
       onErrorThreshold: '1',
+      maxFileSizeBytes: '16000000',
+      autoSuspendSeconds: '600',
+      header: true,
+      overwrite: true,
+      singleFile: true,
+      autoResume: true,
     }
 
     let coveredCoercions = 0
@@ -188,7 +354,7 @@ describe('Snowflake integration contracts', () => {
       }
     }
 
-    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(37)
+    expect(coveredCoercions, 'coercion fixture must exercise every coerced tool param').toBe(54)
 
     expect(
       mapParams({ operation: 'load_data', onError: 'SKIP_FILE_PERCENT', onErrorThreshold: '5' })
@@ -252,8 +418,8 @@ describe('Snowflake SQL API transport', () => {
     )
 
     const snowflakeHeaders = getSnowflakeHeaders({
-      host: 'acme.snowflakecomputing.com',
-      apiKey: ' secret ',
+      domain: 'acme.snowflakecomputing.com',
+      accessToken: ' secret ',
     })
     expect(snowflakeHeaders).toMatchObject({
       Authorization: 'Bearer secret',
@@ -266,8 +432,8 @@ describe('Snowflake SQL API transport', () => {
 
   it('keeps statement timeout in the Snowflake body, not the HTTP transport', () => {
     const prepared = prepareToolRequest(executeSqlTool, {
-      host: 'acme.snowflakecomputing.com',
-      apiKey: 'secret',
+      domain: 'acme.snowflakecomputing.com',
+      accessToken: 'secret',
       statement: 'SELECT 1',
       statementTimeoutSeconds: 60,
     })
@@ -284,8 +450,8 @@ describe('Snowflake SQL API transport', () => {
     expect(
       buildSnowflakeStatementBody(
         {
-          host: 'acme.snowflakecomputing.com',
-          apiKey: 'secret',
+          domain: 'acme.snowflakecomputing.com',
+          accessToken: 'secret',
           role: '"Analyst ""Plus"""',
           statementTimeoutSeconds: 30,
         },
@@ -309,7 +475,7 @@ describe('Snowflake SQL API transport', () => {
   })
 
   it('uses list limits as the SQL API result bound', () => {
-    const auth = { host: 'acme.snowflakecomputing.com', apiKey: 'secret' }
+    const auth = { domain: 'acme.snowflakecomputing.com', accessToken: 'secret' }
     const listTasksBody = listTasksTool.request.body
     const listRunsBody = listTaskRunsTool.request.body
     if (typeof listTasksBody !== 'function' || typeof listRunsBody !== 'function') {
@@ -338,8 +504,8 @@ describe('Snowflake SQL API transport', () => {
     const listTasks = listTasksBody(
       mergedBlockInputs({
         operation: 'list_tasks',
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         database: 'ANALYTICS',
         schema: 'PUBLIC',
         limit: '25',
@@ -353,8 +519,8 @@ describe('Snowflake SQL API transport', () => {
     const insertRows = insertRowsBody(
       mergedBlockInputs({
         operation: 'insert_rows',
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         database: 'ANALYTICS',
         schema: 'PUBLIC',
         table: 'EVENTS',
@@ -367,8 +533,8 @@ describe('Snowflake SQL API transport', () => {
     const execute = executeBody(
       mergedBlockInputs({
         operation: 'execute_sql',
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         statement: 'SELECT 1',
         warehouse: 'compute_wh',
         maxRows: '25',
@@ -397,8 +563,8 @@ describe('Snowflake SQL API transport', () => {
       }
     )
     const transformed = await getStatementTool.transformResponse?.(response, {
-      host: 'acme.snowflakecomputing.com',
-      apiKey: 'secret',
+      domain: 'acme.snowflakecomputing.com',
+      accessToken: 'secret',
       statementHandle: 'handle',
       partition: 0,
     })
@@ -562,8 +728,8 @@ describe('Snowflake SQL API transport', () => {
     const pending = await executeSqlTool.transformResponse?.(
       jsonResponse({ statementHandle: 'async-handle', message: 'Running' }, 202),
       {
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         statement: 'SELECT 1',
         async: true,
       }
@@ -579,8 +745,8 @@ describe('Snowflake SQL API transport', () => {
     const canceled = await cancelStatementTool.transformResponse?.(
       jsonResponse({ statementHandle: 'cancel-handle', sqlState: '57014', message: 'Canceled' }),
       {
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         statementHandle: 'cancel-handle',
       }
     )
@@ -600,8 +766,8 @@ describe('Snowflake SQL API transport', () => {
           message: 'Unexpected cancellation failure',
         }),
         {
-          host: 'acme.snowflakecomputing.com',
-          apiKey: 'secret',
+          domain: 'acme.snowflakecomputing.com',
+          accessToken: 'secret',
           statementHandle: 'cancel-handle',
         }
       )
@@ -615,8 +781,8 @@ describe('Snowflake SQL API transport', () => {
         message: 'Statement executed successfully',
       }),
       {
-        host: 'acme.snowflakecomputing.com',
-        apiKey: 'secret',
+        domain: 'acme.snowflakecomputing.com',
+        accessToken: 'secret',
         statementHandle: 'cancel-handle',
       }
     )
@@ -655,8 +821,8 @@ describe('Snowflake SQL API transport', () => {
       cancelStatementTool.transformResponse?.(
         jsonResponse({ statementHandle: 'cancel-handle', sqlState: '57014' }, 408),
         {
-          host: 'acme.snowflakecomputing.com',
-          apiKey: 'secret',
+          domain: 'acme.snowflakecomputing.com',
+          accessToken: 'secret',
           statementHandle: 'cancel-handle',
         }
       )
@@ -708,7 +874,7 @@ describe('Snowflake SQL API transport', () => {
   })
 
   it('rejects session-context names that are not Snowflake identifiers', () => {
-    const auth = { host: 'acme.snowflakecomputing.com', apiKey: 'secret' }
+    const auth = { domain: 'acme.snowflakecomputing.com', accessToken: 'secret' }
     const spec = { statement: 'SELECT 1' }
     expect(() => buildSnowflakeStatementBody({ ...auth, role: 'ACCOUNTADMIN; --' }, spec)).toThrow(
       'Snowflake role must be an unquoted identifier'
@@ -780,8 +946,8 @@ describe('Snowflake common result contract', () => {
       },
     }
     const params = {
-      host: 'acme.snowflakecomputing.com',
-      apiKey: 'secret',
+      domain: 'acme.snowflakecomputing.com',
+      accessToken: 'secret',
       statement: 'SELECT 1',
     }
     const submitted = await executeSqlTool.transformResponse?.(jsonResponse(body), params)

@@ -1,9 +1,9 @@
-import { buildGetTaskRunOutput } from '@/tools/snowflake/sql'
+import { buildAlterWarehouse } from '@/tools/snowflake/sql'
 import type {
-  SnowflakeGetTaskRunOutputParams,
+  SnowflakeAlterWarehouseParams,
   SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
-import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
+import { SNOWFLAKE_STATEMENT_OUTPUTS, SNOWFLAKE_WAREHOUSE_SIZES } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
   snowflakeAuthParamFields,
@@ -12,15 +12,14 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskRunOutputTool: ToolConfig<
-  SnowflakeGetTaskRunOutputParams,
+export const alterWarehouseTool: ToolConfig<
+  SnowflakeAlterWarehouseParams,
   SnowflakeStatementResponse
 > = {
-  id: 'snowflake_get_task_run_output',
+  id: 'snowflake_alter_warehouse',
   version: '1.0.0',
-  name: 'Snowflake Get Task Run Output',
-  description:
-    'Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role.',
+  name: 'Snowflake Alter Warehouse',
+  description: 'Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -35,31 +34,34 @@ export const getTaskRunOutputTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
     },
-    warehouse: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Warehouse to use for this statement; defaults to the PAT user setting',
-    },
-    maxRows: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
-    },
-    queryId: {
+    warehouseName: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
+      description: 'Warehouse name',
+    },
+    warehouseSize: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: `New warehouse size, one of ${SNOWFLAKE_WAREHOUSE_SIZES.join(', ')}`,
+    },
+    autoSuspendSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
       description:
-        'Completed task query ID; task results require the task owner role, while manual query results require the same user',
+        'Seconds of inactivity before the warehouse suspends; 0 disables automatic suspension',
+    },
+    autoResume: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether the warehouse resumes automatically when a statement is submitted',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildGetTaskRunOutput(params), {
-      warehouse: params.warehouse,
-      maxRows: params.maxRows,
-    })
+    buildSnowflakeStatementBody(params, buildAlterWarehouse(params))
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

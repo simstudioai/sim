@@ -1,7 +1,13 @@
 import { isValidUuid } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
+import type {
+  SnowflakeSelectorKind,
+  SnowflakeSelectorScope,
+} from '@/tools/snowflake/selector-kinds'
 import {
   SNOWFLAKE_BINDING_TYPES,
+  SNOWFLAKE_WAREHOUSE_SIZES,
+  type SnowflakeAlterWarehouseParams,
   type SnowflakeBinding,
   type SnowflakeCallProcedureParams,
   type SnowflakeCancelTaskRunParams,
@@ -10,11 +16,17 @@ import {
   type SnowflakeGetTaskRunParams,
   type SnowflakeInsertRowsParams,
   type SnowflakeIntrospectSchemaParams,
+  type SnowflakeListCopyHistoryParams,
+  type SnowflakeListDatabasesParams,
+  type SnowflakeListQueryHistoryParams,
+  type SnowflakeListSchemasParams,
+  type SnowflakeListTablesParams,
   type SnowflakeListTaskRunsParams,
   type SnowflakeListTasksParams,
   type SnowflakeLoadDataParams,
   type SnowflakeRunTaskParams,
   type SnowflakeTaskParams,
+  type SnowflakeUnloadDataParams,
   type SnowflakeUpdateRowsParams,
   type SnowflakeWarehouseParams,
 } from '@/tools/snowflake/types'
@@ -502,12 +514,22 @@ export function buildRunTask(params: SnowflakeRunTaskParams): SnowflakeStatement
  * is silently dropped rather than rejected, which would turn the requested window into a
  * no-op, so the timestamp is emitted as a literal instead.
  */
-function taskHistoryTimestamp(value: string, field: string): string {
+function historyTimestamp(value: string, field: string, retentionDays: number): string {
   const trimmed = value.trim()
-  if (Number.isNaN(Date.parse(trimmed))) {
-    throw new Error(`${field} must be an ISO-8601 timestamp within the last seven days`)
+  const parsed = Date.parse(trimmed)
+  if (Number.isNaN(parsed)) {
+    throw new Error(`${field} must be an ISO-8601 timestamp within the last ${retentionDays} days`)
+  }
+  // Snowflake rejects a window outside the function's retention, so the bound is
+  // checked here rather than advertised in the message and left unenforced.
+  if (Date.now() - parsed > retentionDays * 24 * 60 * 60 * 1000) {
+    throw new Error(`${field} must be within the last ${retentionDays} days`)
   }
   return `TO_TIMESTAMP_LTZ(${stringLiteral(trimmed)})`
+}
+
+function taskHistoryTimestamp(value: string, field: string): string {
+  return historyTimestamp(value, field, 7)
 }
 
 function unqualifiedTaskName(value: string): string {
@@ -614,5 +636,361 @@ export function buildCallProcedure(params: SnowflakeCallProcedureParams): Snowfl
   return {
     statement: `CALL ${qualifiedIdentifier(params.database, params.schema, params.procedureName)}(${placeholders.join(', ')})`,
     bindings,
+  }
+}
+
+/**
+ * `SHOW` scoping and filter clauses shared by the list operations. `LIKE` must
+ * precede `IN`, and `LIMIT` must follow both — the grammar is positional.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/sql/show-tables
+ */
+function showClauses(
+  nameLike: string | undefined,
+  scope: string,
+  limit: number | undefined
+): string {
+  const like = nameLike?.trim() ? ` LIKE ${stringLiteral(nameLike.trim())}` : ''
+  return `${like}${scope} LIMIT ${normalizeMaxRows(limit)}`
+}
+
+export function buildListDatabases(params: SnowflakeListDatabasesParams): SnowflakeStatementSpec {
+  return { statement: `SHOW DATABASES${showClauses(params.nameLike, '', params.limit)}` }
+}
+
+export function buildListSchemas(params: SnowflakeListSchemasParams): SnowflakeStatementSpec {
+  return {
+    statement: `SHOW SCHEMAS${showClauses(params.nameLike, ` IN DATABASE ${identifier(params.database)}`, params.limit)}`,
+  }
+}
+
+export function buildListTables(params: SnowflakeListTablesParams): SnowflakeStatementSpec {
+  return {
+    statement: `SHOW TABLES${showClauses(params.nameLike, ` IN SCHEMA ${qualifiedIdentifier(params.database, params.schema)}`, params.limit)}`,
+  }
+}
+
+export function buildResumeTask(params: SnowflakeTaskParams): SnowflakeStatementSpec {
+  return {
+    statement: `ALTER TASK ${qualifiedIdentifier(params.database, params.schema, params.taskName)} RESUME`,
+  }
+}
+
+export function buildSuspendTask(params: SnowflakeTaskParams): SnowflakeStatementSpec {
+  return {
+    statement: `ALTER TASK ${qualifiedIdentifier(params.database, params.schema, params.taskName)} SUSPEND`,
+  }
+}
+
+/**
+ * Documented spellings that name a size already in {@link SNOWFLAKE_WAREHOUSE_SIZES}.
+ * Snowflake accepts `X2LARGE`/`X3LARGE` as bare keywords and the hyphenated
+ * forms (`'X-SMALL'`, `'2X-LARGE'`, …) when quoted, so a value copied straight
+ * out of the vendor docs normalizes instead of being rejected.
+ */
+const WAREHOUSE_SIZE_ALIASES: Record<string, string> = {
+  XSMALL: 'XSMALL',
+  SMALL: 'SMALL',
+  MEDIUM: 'MEDIUM',
+  LARGE: 'LARGE',
+  XLARGE: 'XLARGE',
+  X2LARGE: 'XXLARGE',
+  XXLARGE: 'XXLARGE',
+  X3LARGE: 'XXXLARGE',
+  XXXLARGE: 'XXXLARGE',
+  X4LARGE: 'X4LARGE',
+  X5LARGE: 'X5LARGE',
+  X6LARGE: 'X6LARGE',
+  // Dehyphenated forms of the quoted spellings ('2X-LARGE' → 2XLARGE).
+  '2XLARGE': 'XXLARGE',
+  '3XLARGE': 'XXXLARGE',
+  '4XLARGE': 'X4LARGE',
+  '5XLARGE': 'X5LARGE',
+  '6XLARGE': 'X6LARGE',
+}
+
+/** Folds quoting, hyphens, and case so every documented spelling resolves. */
+function normalizeWarehouseSize(value: string): string | undefined {
+  const bare = value
+    .trim()
+    .replace(/^'(.*)'$/, '$1')
+    .replace(/-/g, '')
+    .toUpperCase()
+  return Object.hasOwn(WAREHOUSE_SIZE_ALIASES, bare) ? WAREHOUSE_SIZE_ALIASES[bare] : undefined
+}
+
+export function buildAlterWarehouse(params: SnowflakeAlterWarehouseParams): SnowflakeStatementSpec {
+  const clauses: string[] = []
+  if (params.warehouseSize?.trim()) {
+    const size = normalizeWarehouseSize(params.warehouseSize)
+    if (!size) {
+      throw new Error(`warehouseSize must be one of ${SNOWFLAKE_WAREHOUSE_SIZES.join(', ')}`)
+    }
+    clauses.push(`WAREHOUSE_SIZE = ${size}`)
+  }
+  if (params.autoSuspendSeconds !== undefined) {
+    // Snowflake documents "any integer 0 or greater, or NULL" — there is no
+    // upper bound to enforce here.
+    const seconds = params.autoSuspendSeconds
+    if (!Number.isInteger(seconds) || seconds < 0) {
+      throw new Error(
+        'autoSuspendSeconds must be an integer of 0 or greater; 0 disables automatic suspension'
+      )
+    }
+    clauses.push(`AUTO_SUSPEND = ${seconds}`)
+  }
+  if (params.autoResume !== undefined) {
+    clauses.push(`AUTO_RESUME = ${params.autoResume ? 'TRUE' : 'FALSE'}`)
+  }
+  if (clauses.length === 0) {
+    throw new Error('Set at least one of warehouseSize, autoSuspendSeconds, or autoResume')
+  }
+  return {
+    statement: `ALTER WAREHOUSE ${identifier(params.warehouseName)} SET ${clauses.join(' ')}`,
+  }
+}
+
+/**
+ * Rejects a source query that would escape the derived table it is embedded in.
+ *
+ * The query is the only user value in a COPY INTO statement that cannot be
+ * passed through an identifier or literal helper. An unbalanced `)` would close
+ * the derived table early and let whatever follows land in the copy-option slot
+ * — an LLM-supplied query could then set `OVERWRITE = TRUE` and replace staged
+ * files the workflow author never authorized. Quoted strings and comments are
+ * tracked so a legitimate `')'` inside them does not trip the check.
+ */
+function assertBalancedQuery(query: string): string {
+  if (!/^\s*(SELECT|WITH)\b/i.test(query)) {
+    throw new Error('The unload source statement must be a SELECT or WITH query')
+  }
+  let depth = 0
+  let index = 0
+  while (index < query.length) {
+    const char = query[index]
+    if (char === "'" || char === '"') {
+      const quote = char
+      index += 1
+      while (index < query.length) {
+        if (query[index] === '\\' && quote === "'") index += 1
+        else if (query[index] === quote) {
+          if (query[index + 1] === quote) index += 1
+          else break
+        }
+        index += 1
+      }
+      if (index >= query.length)
+        throw new Error('The unload source statement has an unterminated string')
+    } else if (char === '-' && query[index + 1] === '-') {
+      const newline = query.indexOf('\n', index)
+      index = newline === -1 ? query.length : newline
+      continue
+    } else if (char === '/' && query[index + 1] === '*') {
+      const close = query.indexOf('*/', index + 2)
+      if (close === -1) throw new Error('The unload source statement has an unterminated comment')
+      index = close + 1
+    } else if (char === '(') depth += 1
+    else if (char === ')') {
+      depth -= 1
+      if (depth < 0) throw new Error('The unload source statement has unbalanced parentheses')
+    }
+    index += 1
+  }
+  if (depth !== 0) throw new Error('The unload source statement has unbalanced parentheses')
+  return query
+}
+
+/** Documented ceiling for a single unloaded file: 5368709120 bytes (5 GB). */
+const MAX_UNLOAD_FILE_SIZE_BYTES = 5_368_709_120
+
+/**
+ * `COPY INTO <location>` grammar is positional: FROM, then PARTITION BY, then
+ * FILE_FORMAT, then the copy options.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/sql/copy-into-location
+ */
+export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeStatementSpec {
+  const hasTable = Boolean(params.table?.trim())
+  const hasStatement = Boolean(params.statement?.trim())
+  if (hasTable === hasStatement) {
+    throw new Error('Provide exactly one of table or statement as the unload source')
+  }
+
+  // The newline before the closing paren keeps a trailing line comment in the
+  // source query from swallowing it.
+  const source = hasTable
+    ? qualifiedIdentifier(params.database, params.schema, params.table as string)
+    : `(${assertBalancedQuery((params.statement as string).trim().replace(/;+\s*$/, ''))}\n)`
+
+  const clauses = [`COPY INTO ${stagePath(params.stagePath)}`, `FROM ${source}`]
+  if (params.fileFormat?.trim()) {
+    clauses.push(
+      `FILE_FORMAT = (FORMAT_NAME = ${stringLiteral(qualifiedIdentifierValue(params.fileFormat.trim()))})`
+    )
+  }
+  if (params.overwrite !== undefined) {
+    clauses.push(`OVERWRITE = ${params.overwrite ? 'TRUE' : 'FALSE'}`)
+  }
+  if (params.singleFile !== undefined) {
+    clauses.push(`SINGLE = ${params.singleFile ? 'TRUE' : 'FALSE'}`)
+  }
+  if (params.maxFileSizeBytes !== undefined) {
+    // Snowflake documents 16777216 (16 MB) as the default and 5368709120 (5 GB)
+    // as the maximum — both binary, not decimal, multiples.
+    if (
+      !Number.isInteger(params.maxFileSizeBytes) ||
+      params.maxFileSizeBytes < 1 ||
+      params.maxFileSizeBytes > MAX_UNLOAD_FILE_SIZE_BYTES
+    ) {
+      throw new Error(
+        `maxFileSizeBytes must be an integer between 1 and ${MAX_UNLOAD_FILE_SIZE_BYTES}`
+      )
+    }
+    clauses.push(`MAX_FILE_SIZE = ${params.maxFileSizeBytes}`)
+  }
+  // HEADER is not a copy option: the grammar places it after copyOptions and
+  // VALIDATION_MODE, so it must be emitted last.
+  if (params.header !== undefined) clauses.push(`HEADER = ${params.header ? 'TRUE' : 'FALSE'}`)
+  return { statement: clauses.join(' ') }
+}
+
+/**
+ * QUERY_HISTORY covers the last seven days. BCR-1410 does allowlist binds for
+ * these arguments, but they are emitted as literals anyway so every history
+ * builder in this file reads the same way — TASK_HISTORY's time bounds are NOT
+ * allowlisted, and a bind there is silently dropped rather than rejected.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/functions/query_history
+ */
+export function buildListQueryHistory(
+  params: SnowflakeListQueryHistoryParams
+): SnowflakeStatementSpec {
+  const userName = params.userName?.trim()
+  const warehouseName = params.warehouseName?.trim()
+  if (userName && warehouseName) {
+    throw new Error('Filter query history by user or by warehouse, not both')
+  }
+
+  const args = [`RESULT_LIMIT => ${normalizeMaxRows(params.limit)}`]
+  if (userName) args.push(`USER_NAME => ${stringLiteral(resolvedIdentifierName(userName))}`)
+  if (warehouseName) {
+    args.push(`WAREHOUSE_NAME => ${stringLiteral(resolvedIdentifierName(warehouseName))}`)
+  }
+  if (params.startTime?.trim()) {
+    args.push(`END_TIME_RANGE_START => ${historyTimestamp(params.startTime, 'startTime', 7)}`)
+  }
+  if (params.endTime?.trim()) {
+    args.push(`END_TIME_RANGE_END => ${historyTimestamp(params.endTime, 'endTime', 7)}`)
+  }
+
+  const fn = userName
+    ? 'QUERY_HISTORY_BY_USER'
+    : warehouseName
+      ? 'QUERY_HISTORY_BY_WAREHOUSE'
+      : 'QUERY_HISTORY'
+  // INFORMATION_SCHEMA.QUERY_HISTORY reports failures as `failed_with_error` or
+  // `failed_with_incident`. `FAIL` is the ACCOUNT_USAGE spelling and matches
+  // nothing here, which would make errorOnly a silent no-op. Casing is not
+  // documented as normalized and Snowflake compares strings case-sensitively,
+  // so the filter folds case rather than guessing.
+  const where = params.errorOnly
+    ? " WHERE UPPER(EXECUTION_STATUS) IN ('FAILED_WITH_ERROR', 'FAILED_WITH_INCIDENT')"
+    : ''
+  // Qualified with the always-present SNOWFLAKE database: a bare
+  // INFORMATION_SCHEMA resolves against the session's current database, and this
+  // statement never sets one. The account-wide result is the same either way.
+  return {
+    statement: `SELECT * FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.${fn}(${args.join(', ')}))${where} ORDER BY END_TIME DESC`,
+  }
+}
+
+/**
+ * COPY_HISTORY covers the last 14 days and requires START_TIME, which is
+ * enforced here rather than left to a server-side error. It has no
+ * RESULT_LIMIT argument, so the row bound is applied by the wrapping SELECT, and
+ * it is database-scoped, so it is read from the target database's
+ * INFORMATION_SCHEMA rather than an unset session database.
+ *
+ * @see https://docs.snowflake.com/en/sql-reference/functions/copy_history
+ */
+export function buildListCopyHistory(
+  params: SnowflakeListCopyHistoryParams
+): SnowflakeStatementSpec {
+  if (!params.startTime?.trim()) {
+    throw new Error('startTime is required to list copy history')
+  }
+  const table = qualifiedIdentifier(params.database, params.schema, params.table)
+  const args = [
+    `TABLE_NAME => ${stringLiteral(table)}`,
+    `START_TIME => ${historyTimestamp(params.startTime, 'startTime', 14)}`,
+  ]
+  if (params.endTime?.trim()) {
+    args.push(`END_TIME => ${historyTimestamp(params.endTime, 'endTime', 14)}`)
+  }
+  return {
+    statement: `SELECT * FROM TABLE(${identifier(params.database)}.INFORMATION_SCHEMA.COPY_HISTORY(${args.join(', ')})) ORDER BY LAST_LOAD_TIME DESC LIMIT ${normalizeMaxRows(params.limit)}`,
+  }
+}
+
+/** `SHOW` command and its per-kind detail column, keyed by picker kind. */
+const SELECTOR_SHOW_COMMANDS: Record<
+  Exclude<SnowflakeSelectorKind, 'roles'>,
+  { command: string; scope: 'account' | 'database' | 'schema'; detail: string }
+> = {
+  databases: { command: 'SHOW DATABASES', scope: 'account', detail: '"comment"' },
+  warehouses: { command: 'SHOW WAREHOUSES', scope: 'account', detail: '"state"' },
+  schemas: { command: 'SHOW SCHEMAS', scope: 'database', detail: '"comment"' },
+  tables: { command: 'SHOW TABLES', scope: 'schema', detail: '"comment"' },
+  file_formats: { command: 'SHOW FILE FORMATS', scope: 'schema', detail: '"type"' },
+  // SHOW PROCEDURES names a callable by name plus signature, and its comment
+  // column is `description` rather than `comment`.
+  procedures: { command: 'SHOW PROCEDURES', scope: 'schema', detail: '"arguments"' },
+}
+
+function requireScope(
+  value: string | undefined,
+  kind: SnowflakeSelectorKind,
+  field: string
+): string {
+  if (!value?.trim()) throw new Error(`Snowflake ${field} is required to list ${kind}`)
+  return value
+}
+
+/**
+ * Statement backing one editor picker.
+ *
+ * Every `SHOW` is post-processed with the flow operator (`->>`) rather than
+ * read positionally: `SHOW` output columns differ per command and Snowflake
+ * adds new ones between releases, and several of these commands
+ * (`SHOW WAREHOUSES`, `SHOW FILE FORMATS`, `SHOW PROCEDURES`) accept no
+ * `LIMIT` clause of their own. Projecting `name` and one detail column through
+ * a piped `SELECT` gives every kind the same two-column shape, a stable order,
+ * and a row bound.
+ */
+export function buildSelectorStatement(
+  kind: SnowflakeSelectorKind,
+  scope: SnowflakeSelectorScope,
+  limit: number
+): SnowflakeStatementSpec {
+  if (kind === 'roles') {
+    // Returns one row holding a JSON array of the roles available to the
+    // token's user. SHOW ROLES would need account-level privileges a
+    // programmatic access token often lacks.
+    return { statement: 'SELECT CURRENT_AVAILABLE_ROLES()' }
+  }
+
+  const { command, scope: requiredScope, detail } = SELECTOR_SHOW_COMMANDS[kind]
+  const target =
+    requiredScope === 'account'
+      ? ''
+      : requiredScope === 'database'
+        ? ` IN DATABASE ${identifier(requireScope(scope.database, kind, 'database'))}`
+        : ` IN SCHEMA ${qualifiedIdentifier(
+            requireScope(scope.database, kind, 'database'),
+            requireScope(scope.schema, kind, 'schema')
+          )}`
+
+  return {
+    statement: `${command}${target} ->> SELECT "name", ${detail} AS "detail" FROM $1 ORDER BY 1 LIMIT ${normalizeMaxRows(limit)}`,
   }
 }

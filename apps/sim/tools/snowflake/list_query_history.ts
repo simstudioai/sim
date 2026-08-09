@@ -1,5 +1,8 @@
-import { buildGetTaskRun } from '@/tools/snowflake/sql'
-import type { SnowflakeGetTaskRunParams, SnowflakeStatementResponse } from '@/tools/snowflake/types'
+import { buildListQueryHistory } from '@/tools/snowflake/sql'
+import type {
+  SnowflakeListQueryHistoryParams,
+  SnowflakeStatementResponse,
+} from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
@@ -9,12 +12,14 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskRunTool: ToolConfig<SnowflakeGetTaskRunParams, SnowflakeStatementResponse> = {
-  id: 'snowflake_get_task_run',
+export const listQueryHistoryTool: ToolConfig<
+  SnowflakeListQueryHistoryParams,
+  SnowflakeStatementResponse
+> = {
+  id: 'snowflake_list_query_history',
   version: '1.0.0',
-  name: 'Snowflake Get Task Run',
-  description:
-    'Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters.',
+  name: 'Snowflake List Query History',
+  description: 'List queries that completed in the last seven days, optionally filtered.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -35,38 +40,47 @@ export const getTaskRunTool: ToolConfig<SnowflakeGetTaskRunParams, SnowflakeStat
       visibility: 'user-or-llm',
       description: 'Warehouse to use for this statement; defaults to the PAT user setting',
     },
-    queryId: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Task run query ID from TASK_HISTORY',
-    },
-    taskName: {
+    userName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Optional task name used to narrow the 10000-record history window. TASK_HISTORY supports only non-qualified task names, so pass DAILY_LOAD rather than DB.SCHEMA.DAILY_LOAD',
+      description: 'Only queries run by this user; cannot be combined with warehouseName',
+    },
+    warehouseName: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Only queries run on this warehouse; cannot be combined with userName',
     },
     startTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Optional scheduled-time range start as an ISO timestamp within the last seven days',
+      description: 'ISO-8601 start of the query completion window, within the last seven days',
     },
     endTime: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Optional scheduled-time range end as an ISO timestamp within the last seven days',
+      description: 'ISO-8601 end of the query completion window, within the last seven days',
+    },
+    errorOnly: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Whether to return only queries whose execution status is FAIL',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum query rows, from 1 to 10000',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildGetTaskRun(params), {
+    buildSnowflakeStatementBody(params, buildListQueryHistory(params), {
       warehouse: params.warehouse,
-      maxRows: 1,
+      maxRows: params.limit,
     })
   ),
   transformResponse: transformSnowflakeResult(),
