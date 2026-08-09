@@ -1,11 +1,9 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
-const ALL_PRINCIPAL_KINDS = [
-  'session',
-  'personal_api_key',
-  'workspace_api_key',
-  'delegated',
-] as const
+const ALL_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot'],
+} as const
 
 const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
 
@@ -14,37 +12,37 @@ export const knowledgeOperations = {
     id: 'knowledge.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
     id: 'knowledge.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   update: defineWorkspaceOperation({
     id: 'knowledge.update',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   delete: defineWorkspaceOperation({
     id: 'knowledge.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   search: defineWorkspaceOperation({
     id: 'knowledge.search',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   listFolders: defineWorkspaceOperation({
     id: 'knowledge.folders.list',
@@ -74,25 +72,25 @@ export const knowledgeOperations = {
     id: 'knowledge.documents.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   readDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   uploadDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.upload',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   deleteDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   }),
   uploadCreate: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.create',

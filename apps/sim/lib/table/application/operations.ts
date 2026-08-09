@@ -1,18 +1,16 @@
 import { defineWorkspaceOperation } from '@/lib/core/application'
 
-const ALL_PRINCIPAL_KINDS = [
-  'session',
-  'personal_api_key',
-  'workspace_api_key',
-  'delegated',
-] as const
+const ALL_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot'],
+} as const
 
 function readOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   })
 }
 
@@ -21,7 +19,7 @@ function writeOperation<const Id extends string>(id: Id) {
     id,
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_PRINCIPAL_KINDS,
+    ...ALL_PRINCIPAL_POLICY,
   })
 }
 

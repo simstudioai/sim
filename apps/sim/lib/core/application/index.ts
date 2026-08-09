@@ -16,6 +16,7 @@ export type {
 } from '@/lib/core/application/workspace-authorization'
 export {
   authorizeWorkspaceOperation,
+  DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
   PersonalApiKeysDisabledError,

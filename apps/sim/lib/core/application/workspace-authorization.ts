@@ -63,12 +63,28 @@ export class PrincipalKindAuthorizationError extends OrchestrationError {
   }
 }
 
+export class DelegatedServiceAuthorizationError extends OrchestrationError {
+  constructor(serviceId: DelegatedPrincipal['serviceId'], operationId: string) {
+    super('forbidden', `Delegated service ${serviceId} cannot perform operation ${operationId}`)
+    this.name = 'DelegatedServiceAuthorizationError'
+  }
+}
+
 export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
   principal: Principal,
   operation: O
 ): asserts principal is PrincipalForOperation<O> {
   if (!operation.principalKinds.some((kind) => kind === principal.kind)) {
     throw new PrincipalKindAuthorizationError(principal.kind, operation.id)
+  }
+  if (principal.kind !== 'delegated') return
+
+  const delegatedServices = operation.delegatedServices
+  if (!delegatedServices?.length) {
+    throw new Error(`Operation ${operation.id} is missing its delegated service policy`)
+  }
+  if (!delegatedServices.some((serviceId) => serviceId === principal.serviceId)) {
+    throw new DelegatedServiceAuthorizationError(principal.serviceId, operation.id)
   }
 }
 

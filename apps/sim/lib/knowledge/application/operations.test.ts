@@ -46,5 +46,7 @@ describe('knowledge operation registry', () => {
     expect(knowledgeOperations.uploadDocument.principalKinds).toContain('delegated')
     expect(knowledgeOperations.listFolders.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
+    expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
+    expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
   })
 })

@@ -47,6 +47,7 @@ const delegatedOperation = defineWorkspaceOperation({
   minimumRole: 'read',
   workspaceApiKey: 'deny',
   principalKinds: ['delegated'],
+  delegatedServices: ['executor'],
 })
 
 const workspaceKeyOperation = defineWorkspaceOperation({
@@ -222,7 +223,8 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       resolveContext: async (_args: { principal: DelegatedPrincipal; input: TestInput }) =>
         canonicalContext,
       authorizationOptions: ({ principal }) => {
-        expectTypeOf(principal).toEqualTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return {
           delegation: {
             audience: 'test:files',
@@ -231,7 +233,8 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
         }
       },
       async execute({ principal }) {
-        expectTypeOf(principal).toEqualTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal).toMatchTypeOf<DelegatedPrincipal>()
+        expectTypeOf(principal.serviceId).toEqualTypeOf<'executor'>()
         return { ok: true as const }
       },
     })
@@ -258,6 +261,43 @@ describe('defineAuthorizedWorkspaceUseCase', () => {
       undefined,
       { forUpdate: undefined }
     )
+  })
+
+  it('rejects a disallowed delegated service before canonical loading', async () => {
+    const resolveContext = vi.fn(
+      async (_args: { principal: DelegatedPrincipal; input: TestInput }) => canonicalContext
+    )
+    const useCase = defineAuthorizedWorkspaceUseCase({
+      operation: delegatedOperation,
+      resolveContext,
+      authorizationOptions: {
+        delegation: { audience: 'test:files', isWithinScope: () => true },
+      },
+      async execute() {
+        return { ok: true as const }
+      },
+    })
+
+    await expect(
+      useCase.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'delegation-1',
+          audience: 'test:files',
+          issuedAt: new Date(Date.now() - 1_000),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        input: { resourceId: 'resource-1' },
+      })
+    ).rejects.toMatchObject<Partial<OrchestrationError>>({
+      code: 'forbidden',
+      message: 'Delegated service copilot cannot perform operation test.delegated_read',
+    })
+    expect(resolveContext).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
   })
 
   it('records workspace API keys as non-human audit actors', async () => {
