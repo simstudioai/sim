@@ -1,6 +1,4 @@
-import { db, workflowDeploymentVersion } from '@sim/db'
 import { createLogger } from '@sim/logger'
-import { and, eq } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -8,10 +6,11 @@ import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/ser
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { activateWorkflowVersion } from '@/lib/workflows/application/deployments'
+import {
+  activateWorkflowVersion,
+  updateWorkflowVersion,
+} from '@/lib/workflows/application/deployments'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
-import { updateDeploymentVersionMetadata } from '@/lib/workflows/persistence/utils'
-import { validateWorkflowPermissions } from '@/lib/workflows/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('WorkflowDeploymentVersionAPI')
@@ -97,36 +96,22 @@ export const PATCH = withRouteHandler(
         let updatedName: string | null | undefined
         let updatedDescription: string | null | undefined
         if (name !== undefined || description !== undefined) {
-          const activationUpdateData: { name?: string; description?: string | null } = {}
-          if (name !== undefined) {
-            activationUpdateData.name = name
-          }
-          if (description !== undefined) {
-            activationUpdateData.description = description
-          }
-
-          const [updated] = await db
-            .update(workflowDeploymentVersion)
-            .set(activationUpdateData)
-            .where(
-              and(
-                eq(workflowDeploymentVersion.workflowId, id),
-                eq(workflowDeploymentVersion.version, versionNum)
-              )
-            )
-            .returning({
-              name: workflowDeploymentVersion.name,
-              description: workflowDeploymentVersion.description,
-            })
-
-          if (updated) {
-            updatedName = updated.name
-            updatedDescription = updated.description
-            logger.info(
-              `[${requestId}] Updated deployment version ${version} metadata during activation`,
-              { name: activationUpdateData.name, description: activationUpdateData.description }
-            )
-          }
+          const updated = await updateWorkflowVersion.execute({
+            principal,
+            input: {
+              workflowId: id,
+              version: versionNum,
+              name,
+              description,
+            },
+            request,
+          })
+          updatedName = updated.name
+          updatedDescription = updated.description
+          logger.info(
+            `[${requestId}] Updated deployment version ${version} metadata during activation`,
+            { name, description }
+          )
         }
 
         return createSuccessResponse({
@@ -140,22 +125,11 @@ export const PATCH = withRouteHandler(
         })
       }
 
-      const { error } = await validateWorkflowPermissions(id, requestId, 'write')
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
-
-      // Handle name/description updates (shared with the update_deployment_version copilot tool)
-      const updated = await updateDeploymentVersionMetadata({
-        workflowId: id,
-        version: versionNum,
-        name,
-        description,
+      const updated = await updateWorkflowVersion.execute({
+        principal,
+        input: { workflowId: id, version: versionNum, name, description },
+        request,
       })
-
-      if (!updated) {
-        return createErrorResponse('Deployment version not found', 404)
-      }
 
       logger.info(`[${requestId}] Updated deployment version ${version} for workflow ${id}`, {
         name,

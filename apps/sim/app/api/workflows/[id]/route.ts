@@ -7,150 +7,74 @@ import {
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { type NextRequest, NextResponse } from 'next/server'
-import { updateWorkflowContract } from '@/lib/api/contracts/workflows'
+import {
+  getWorkflowResponseDataSchema,
+  getWorkflowStateContract,
+  updateWorkflowContract,
+} from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
-import { AuthType, checkHybridAuth, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
+import {
+  defineInternalJsonRoute,
+  internalPlainOrchestrationErrorPolicy,
+  internalRateLimits,
+} from '@/lib/api/server/routes'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
+import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { loadWorkflowReadSnapshot } from '@/lib/workflows/queries'
 import { getWorkflowById } from '@/lib/workflows/utils'
 
 const logger = createLogger('WorkflowByIdAPI')
 
-/**
- * GET /api/workflows/[id]
- * Fetch a single workflow by ID
- * Uses hybrid approach: try normalized tables first, fallback to JSON blob
- */
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await params
-
-    try {
-      const auth = await checkHybridAuth(request, { requireWorkflowId: false })
-      if (!auth.success) {
-        logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+export const GET = defineInternalJsonRoute({
+  contract: getWorkflowStateContract,
+  auth: internalWorkflowSessionOrExecutorAuth,
+  operation: readWorkflowDefinition.operation,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal workflow read behavior',
+  }),
+  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  mapInput: ({ params }) => ({ workflowId: params.id, state: 'draft' as const }),
+  useCase: readWorkflowDefinition,
+  present: ({ workflow: workflowData, state }) => {
+    const persistedVariables =
+      (workflowData.variables as Record<string, Record<string, unknown>>) || {}
+    const stampedVariables: Record<string, Record<string, unknown>> = {}
+    for (const [variableId, variable] of Object.entries(persistedVariables)) {
+      if (variable && typeof variable === 'object') {
+        stampedVariables[variableId] = { ...variable, workflowId: workflowData.id }
       }
-
-      const isInternalCall = auth.authType === AuthType.INTERNAL_JWT
-      const userId = auth.userId || null
-
-      let workflowData = await getWorkflowById(workflowId)
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      if (auth.apiKeyType === 'workspace' && auth.workspaceId !== workflowData.workspaceId) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
-      }
-
-      if (isInternalCall && !userId) {
-        // Internal system calls (e.g. workflow-in-workflow executor) may not carry a userId.
-        // These are already authenticated via internal JWT; allow read access.
-        logger.info(`[${requestId}] Internal API call for workflow ${workflowId}`)
-      } else if (!userId) {
-        logger.warn(`[${requestId}] Unauthorized access attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      } else {
-        const authorization = await authorizeWorkflowByWorkspacePermission({
-          workflowId,
-          userId,
-          action: 'read',
-        })
-        if (!authorization.workflow) {
-          logger.warn(`[${requestId}] Workflow ${workflowId} not found`)
-          return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-        }
-
-        workflowData = authorization.workflow
-        if (!authorization.allowed) {
-          logger.warn(`[${requestId}] User ${userId} denied access to workflow ${workflowId}`)
-          return NextResponse.json(
-            { error: authorization.message || 'Access denied' },
-            { status: authorization.status }
-          )
-        }
-      }
-
-      const snapshot = await loadWorkflowReadSnapshot(workflowId)
-      const responseWorkflowData = snapshot.workflowRecord ?? workflowData
-
-      // Stamp `workflowId` from the path param on each variable so the
-      // global client-side variables store can filter by workflow without
-      // requiring persisted variables to carry a redundant `workflowId`.
-      // The persisted blob may or may not include `workflowId` depending on
-      // when the variable was last written; the path param is authoritative.
-      const persistedVariables =
-        (responseWorkflowData.variables as Record<string, Record<string, unknown>>) || {}
-      const stampedVariables: Record<string, Record<string, unknown>> = {}
-      for (const [variableId, variable] of Object.entries(persistedVariables)) {
-        if (variable && typeof variable === 'object') {
-          stampedVariables[variableId] = { ...variable, workflowId }
-        }
-      }
-      const workflowStateMetadata = {
-        name: responseWorkflowData.name,
-        ...(typeof responseWorkflowData.description === 'string'
-          ? { description: responseWorkflowData.description }
-          : {}),
-      }
-
-      if (snapshot.normalizedData) {
-        const finalWorkflowData = {
-          ...responseWorkflowData,
-          state: {
-            blocks: snapshot.normalizedData.blocks,
-            edges: snapshot.normalizedData.edges,
-            loops: snapshot.normalizedData.loops,
-            parallels: snapshot.normalizedData.parallels,
-            lastSaved: Date.now(),
-            isDeployed: responseWorkflowData.isDeployed || false,
-            deployedAt: responseWorkflowData.deployedAt,
-            metadata: workflowStateMetadata,
-          },
-          variables: stampedVariables,
-        }
-
-        logger.info(`[${requestId}] Loaded workflow ${workflowId} from normalized tables`)
-        const elapsed = Date.now() - startTime
-        logger.info(`[${requestId}] Successfully fetched workflow ${workflowId} in ${elapsed}ms`)
-
-        return NextResponse.json({ data: finalWorkflowData }, { status: 200 })
-      }
-
-      const emptyWorkflowData = {
-        ...responseWorkflowData,
+    }
+    const workflowStateMetadata = {
+      name: workflowData.name,
+      ...(typeof workflowData.description === 'string'
+        ? { description: workflowData.description }
+        : {}),
+    }
+    return {
+      data: getWorkflowResponseDataSchema.parse({
+        ...workflowData,
         state: {
-          blocks: {},
-          edges: [],
-          loops: {},
-          parallels: {},
+          blocks: state?.blocks ?? {},
+          edges: state?.edges ?? [],
+          loops: state?.loops ?? {},
+          parallels: state?.parallels ?? {},
           lastSaved: Date.now(),
-          isDeployed: responseWorkflowData.isDeployed || false,
-          deployedAt: responseWorkflowData.deployedAt,
+          isDeployed: workflowData.isDeployed || false,
+          deployedAt: workflowData.deployedAt,
           metadata: workflowStateMetadata,
         },
         variables: stampedVariables,
-      }
-
-      return NextResponse.json({ data: emptyWorkflowData }, { status: 200 })
-    } catch (error: any) {
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error fetching workflow ${workflowId} after ${elapsed}ms`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
+      }),
     }
-  }
-)
+  },
+  onSuccess: ({ result }) => {
+    logger.info('Successfully fetched workflow', { workflowId: result.workflow.id })
+  },
+})
 
 /**
  * DELETE /api/workflows/[id]

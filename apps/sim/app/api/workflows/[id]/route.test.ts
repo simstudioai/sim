@@ -7,6 +7,7 @@
 
 import {
   auditMock,
+  authMockFns,
   dbChainMockFns,
   hybridAuthMockFns,
   resetDbChainMock,
@@ -22,6 +23,24 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { getWorkflowResponseDataSchema } from '@/lib/api/contracts/workflows'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+const { mockReadWorkflowDefinition } = vi.hoisted(() => ({
+  mockReadWorkflowDefinition: vi.fn(),
+}))
+
+vi.mock('@/lib/workflows/application/read-workflow-definition', () => {
+  const operation = {
+    id: 'workflows.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+    delegatedServices: ['copilot', 'executor'],
+  } as const
+  return {
+    readWorkflowDefinition: { operation, execute: mockReadWorkflowDefinition },
+  }
+})
 
 const mockLoadWorkflowFromNormalizedTables =
   workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
@@ -36,6 +55,10 @@ const mockPerformUpdateWorkflow = workflowsOrchestrationMockFns.mockPerformUpdat
  */
 function mockGetSession(session: { user: { id: string } } | null) {
   if (session) {
+    authMockFns.mockGetSession.mockResolvedValue({
+      ...session,
+      session: { id: 'session-1' },
+    })
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
       success: true,
       userId: session.user.id,
@@ -45,8 +68,41 @@ function mockGetSession(session: { user: { id: string } } | null) {
       userId: session.user.id,
     })
   } else {
+    authMockFns.mockGetSession.mockResolvedValue(null)
     hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
+  }
+}
+
+function workflowReadResult(
+  workflowOverrides: Record<string, unknown> = {},
+  state: Record<string, unknown> = { blocks: {}, edges: [], loops: {}, parallels: {} }
+) {
+  const now = new Date('2026-08-08T00:00:00.000Z')
+  return {
+    workflow: {
+      id: 'workflow-123',
+      userId: 'user-123',
+      workspaceId: 'workspace-456',
+      folderId: null,
+      sortOrder: 0,
+      name: 'Test Workflow',
+      description: null,
+      lastSynced: now,
+      createdAt: now,
+      updatedAt: now,
+      isDeployed: false,
+      deployedAt: null,
+      isPublicApi: false,
+      locked: false,
+      runCount: 0,
+      lastRunAt: null,
+      archivedAt: null,
+      variables: {},
+      ...workflowOverrides,
+    },
+    workspaceId: 'workspace-456',
+    state,
   }
 }
 
@@ -76,6 +132,7 @@ describe('Workflow By ID API Route', () => {
     })
 
     mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
+    mockReadWorkflowDefinition.mockResolvedValue(workflowReadResult())
     mockPerformUpdateWorkflow.mockImplementation(async (params) => ({
       success: true,
       workflow: {
@@ -111,7 +168,9 @@ describe('Workflow By ID API Route', () => {
     it('should return 404 when workflow does not exist', async () => {
       mockGetSession({ user: { id: 'user-123' } })
 
-      mockGetWorkflowById.mockResolvedValue(null)
+      mockReadWorkflowDefinition.mockRejectedValue(
+        new OrchestrationError('not_found', 'Workflow not found')
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent')
       const params = Promise.resolve({ id: 'nonexistent' })
@@ -123,7 +182,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Workflow not found')
     })
 
-    it.concurrent('should allow access when user has admin workspace permission', async () => {
+    it('should allow access when user has admin workspace permission', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -150,6 +209,9 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
+      mockReadWorkflowDefinition.mockResolvedValue(
+        workflowReadResult(mockWorkflow, mockNormalizedData)
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -198,6 +260,9 @@ describe('Workflow By ID API Route', () => {
         loops: {},
         parallels: {},
       })
+      mockReadWorkflowDefinition.mockResolvedValue(
+        workflowReadResult(mockWorkflow, { blocks: {}, edges: [], loops: {}, parallels: {} })
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-null-description')
       const params = Promise.resolve({ id: 'workflow-null-description' })
@@ -210,7 +275,7 @@ describe('Workflow By ID API Route', () => {
       expect(getWorkflowResponseDataSchema.safeParse(data.data).success).toBe(true)
     })
 
-    it.concurrent('should allow access when user has workspace permissions', async () => {
+    it('should allow access when user has workspace permissions', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'other-user',
@@ -237,6 +302,9 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
+      mockReadWorkflowDefinition.mockResolvedValue(
+        workflowReadResult(mockWorkflow, mockNormalizedData)
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -266,6 +334,9 @@ describe('Workflow By ID API Route', () => {
         workflow: mockWorkflow,
         workspacePermission: null,
       })
+      mockReadWorkflowDefinition.mockRejectedValue(
+        new OrchestrationError('forbidden', 'Unauthorized: Access denied to read this workflow')
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -277,7 +348,7 @@ describe('Workflow By ID API Route', () => {
       expect(data.error).toBe('Unauthorized: Access denied to read this workflow')
     })
 
-    it.concurrent('should use normalized tables when available', async () => {
+    it('should use normalized tables when available', async () => {
       const mockWorkflow = {
         id: 'workflow-123',
         userId: 'user-123',
@@ -286,7 +357,17 @@ describe('Workflow By ID API Route', () => {
       }
 
       const mockNormalizedData = {
-        blocks: { 'block-1': { id: 'block-1', type: 'starter' } },
+        blocks: {
+          'block-1': {
+            id: 'block-1',
+            type: 'starter',
+            name: 'Start',
+            position: { x: 0, y: 0 },
+            subBlocks: {},
+            outputs: {},
+            enabled: true,
+          },
+        },
         edges: [{ id: 'edge-1', source: 'block-1', target: 'block-2' }],
         loops: {},
         parallels: {},
@@ -304,6 +385,9 @@ describe('Workflow By ID API Route', () => {
       })
 
       mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
+      mockReadWorkflowDefinition.mockResolvedValue(
+        workflowReadResult(mockWorkflow, mockNormalizedData)
+      )
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })
@@ -925,10 +1009,11 @@ describe('Workflow By ID API Route', () => {
   })
 
   describe('Error handling', () => {
-    it.concurrent('should handle database errors gracefully', async () => {
+    it('should handle database errors gracefully', async () => {
       mockGetSession({ user: { id: 'user-123' } })
 
       mockGetWorkflowById.mockRejectedValue(new Error('Database connection timeout'))
+      mockReadWorkflowDefinition.mockRejectedValue(new Error('Database connection timeout'))
 
       const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
       const params = Promise.resolve({ id: 'workflow-123' })

@@ -53,8 +53,7 @@ export async function executeGetWorkflowRunOptions(
     const { state: normalized } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
     if (!normalized) {
       return { success: false, error: `Workflow ${workflowId} has no saved state` }
@@ -135,8 +134,7 @@ export async function executeGetWorkflowData(
     const { workflow: workflowRecord, workspaceId } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
 
     if (dataType === 'global_variables') {
@@ -229,8 +227,7 @@ export async function executeGetBlockOutputs(
     const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
     if (!normalized) {
       return { success: false, error: 'Workflow has no normalized data' }
@@ -320,8 +317,7 @@ export async function executeGetBlockUpstreamReferences(
     const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
     if (!normalized) {
       return { success: false, error: 'Workflow has no normalized data' }
@@ -517,8 +513,7 @@ export async function executeGetDeployedWorkflowState(
     const { workflow: workflowRecord, state: deployedState } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'deployed' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'deployed' }
     )
     if (deployedState) {
       const formatted = formatNormalizedWorkflowForCopilot({

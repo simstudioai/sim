@@ -64,17 +64,15 @@ describe('Copilot Workflow application adapter', () => {
     })
   })
 
-  it('derives optional workflow scope only from trusted adapter input', async () => {
+  it('derives identity only from trusted adapter context', async () => {
     const execute = vi.fn().mockResolvedValue({ ok: true })
     const useCase = { operation: workflowOperations.update, execute }
 
     await expect(
-      executeCopilotWorkflowUseCase(
-        trustedContext,
-        useCase,
-        { workflowId: 'workflow-1', userId: 'forged-user' },
-        { workflowId: 'workflow-1' }
-      )
+      executeCopilotWorkflowUseCase(trustedContext, useCase, {
+        workflowId: 'workflow-1',
+        userId: 'forged-user',
+      })
     ).resolves.toEqual({ ok: true })
 
     expect(execute).toHaveBeenCalledWith({
@@ -83,11 +81,7 @@ describe('Copilot Workflow application adapter', () => {
         subjectUserId: 'trusted-user',
         workspaceId: 'workspace-1',
         audience: 'sim:workflows',
-        resourceScope: {
-          workflowId: 'workflow-1',
-          chatId: 'chat-1',
-          executionId: 'execution-1',
-        },
+        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
       }),
       input: { workflowId: 'workflow-1', userId: 'forged-user' },
     })

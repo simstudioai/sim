@@ -1,9 +1,8 @@
-import { db } from '@sim/db'
-import { workflowDeploymentVersion } from '@sim/db/schema'
-import { and, eq } from 'drizzle-orm'
-import { loadWorkflowDeploymentSnapshot } from '@/lib/workflows/persistence/utils'
+import { executeCopilotWorkflowUseCase } from '@/lib/copilot/application/execute-workflow-use-case'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
+import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import type { WorkflowState } from '@/stores/workflows/workflow/types'
-import { ensureWorkflowAccess } from '../access'
 
 /** Canonical workflow-state selector: a deployment version number, the live
  * (active) deployment, or the current draft. */
@@ -42,48 +41,27 @@ export function parseWorkflowRef(raw: unknown): WorkflowRef {
 export async function resolveWorkflowStateRef(
   workflowId: string,
   rawRef: unknown,
-  userId: string
+  context: ExecutionContext
 ): Promise<ResolvedWorkflowRef> {
   const ref = parseWorkflowRef(rawRef)
-  await ensureWorkflowAccess(workflowId, userId, 'read')
 
   if (ref === 'draft') {
-    const state = await loadWorkflowDeploymentSnapshot(workflowId)
+    const { state } = await executeCopilotWorkflowUseCase(context, readWorkflowDefinition, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      state: 'draft',
+    })
     if (!state) {
       throw new Error(`Workflow ${workflowId} has no draft state`)
     }
-    return { state, ref: 'draft' }
+    return { state: state as WorkflowState, ref: 'draft' }
   }
 
-  const whereClause =
-    ref === 'live'
-      ? and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.isActive, true)
-        )
-      : and(
-          eq(workflowDeploymentVersion.workflowId, workflowId),
-          eq(workflowDeploymentVersion.version, ref)
-        )
-
-  const [row] = await db
-    .select({
-      version: workflowDeploymentVersion.version,
-      state: workflowDeploymentVersion.state,
-      isActive: workflowDeploymentVersion.isActive,
-      createdAt: workflowDeploymentVersion.createdAt,
-    })
-    .from(workflowDeploymentVersion)
-    .where(whereClause)
-    .limit(1)
-
-  if (!row?.state) {
-    throw new Error(
-      ref === 'live'
-        ? `Workflow ${workflowId} has no active deployment`
-        : `Deployment version ${ref} not found for workflow ${workflowId}`
-    )
-  }
+  const { version: row } = await executeCopilotWorkflowUseCase(context, readWorkflowVersion, {
+    workflowId,
+    assertedWorkspaceId: context.workspaceId,
+    version: ref === 'live' ? 'active' : ref,
+  })
 
   return {
     state: row.state as WorkflowState,

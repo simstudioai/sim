@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
-import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import type { NextRequest } from 'next/server'
-import { workflowDeploymentVersionParamSchema } from '@/lib/api/contracts/workflows'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { revertToDeploymentVersionContract } from '@/lib/api/contracts/deployments'
+import { parseRequest } from '@/lib/api/server'
+import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { performRevertToVersion } from '@/lib/workflows/orchestration'
-import { validateWorkflowPermissions } from '@/lib/workflows/utils'
+import { captureServerEvent } from '@/lib/posthog/server'
+import { revertWorkflowVersion } from '@/lib/workflows/application/deployments'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('RevertToDeploymentVersionAPI')
@@ -14,57 +15,47 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
 export const POST = withRouteHandler(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; version: string }> }
-  ) => {
-    const requestId = generateRequestId()
-    const { id, version } = await params
-
+  async (request: NextRequest, context: { params: Promise<{ id: string; version: string }> }) => {
     try {
-      const {
-        error,
-        session,
-        workflow: workflowRecord,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
-      if (error) {
-        return createErrorResponse(error.message, error.status)
-      }
-      await assertWorkflowMutable(id)
+      const principal = await internalSessionAuth.authenticate()
+      const parsed = await parseRequest(revertToDeploymentVersionContract, request, context)
+      if (!parsed.success) return parsed.response
+      const { id, version } = parsed.data.params
 
-      const versionValidation = workflowDeploymentVersionParamSchema.safeParse(version)
-      if (!versionValidation.success) {
-        return createErrorResponse('Invalid version', 400)
-      }
-
-      const result = await performRevertToVersion({
-        workflowId: id,
-        version: versionValidation.data,
-        userId: session!.user.id,
-        workflow: (workflowRecord ?? {}) as Record<string, unknown>,
+      const result = await revertWorkflowVersion.execute({
+        principal,
+        input: { workflowId: id, version },
         request,
-        actorName: session!.user.name ?? undefined,
-        actorEmail: session!.user.email ?? undefined,
       })
 
-      if (!result.success) {
-        return createErrorResponse(
-          result.error || 'Failed to revert',
-          result.errorCode === 'not_found' ? 404 : 500
-        )
-      }
+      captureServerEvent(
+        principal.userId,
+        'workflow_deployment_reverted',
+        {
+          workflow_id: result.workflowId,
+          workspace_id: result.workspaceId,
+          version: String(result.version),
+        },
+        { groups: { workspace: result.workspaceId } }
+      )
 
       return createSuccessResponse({
         message: 'Reverted to deployment version',
         lastSaved: result.lastSaved,
       })
-    } catch (error: any) {
-      if (error instanceof WorkflowLockedError) {
-        return createErrorResponse(error.message, error.status)
+    } catch (error: unknown) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return createErrorResponse(error.message, 401)
       }
-
-      logger.error('Error reverting to deployment version', error)
-      return createErrorResponse(error.message || 'Failed to revert', 500)
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
+        return createErrorResponse(
+          orchestrationError.message,
+          statusForOrchestrationError(orchestrationError.code)
+        )
+      }
+      logger.error('Error reverting to deployment version', { error })
+      return createErrorResponse('Failed to revert', 500)
     }
   }
 )

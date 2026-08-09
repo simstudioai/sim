@@ -31,13 +31,7 @@ interface CopilotApplicationAdapterOptions<O extends WorkspaceOperation, ScopeIn
 
 type ScopeArguments<ScopeInput> = [ScopeInput] extends [undefined] ? [] : [scope: ScopeInput]
 
-const RESOURCE_SCOPE_KEYS = [
-  'fileId',
-  'tableId',
-  'workflowId',
-  'chatId',
-  'executionId',
-] as const
+const RESOURCE_SCOPE_KEYS = ['fileId', 'tableId', 'chatId', 'executionId'] as const
 
 function requireValidProjectedResourceScope(resourceScope: CopilotResourceScope): void {
   if (resourceScope.fileId !== undefined && !resourceScope.fileId.trim()) {
@@ -45,9 +39,6 @@ function requireValidProjectedResourceScope(resourceScope: CopilotResourceScope)
   }
   if (resourceScope.tableId !== undefined && !resourceScope.tableId.trim()) {
     throw new Error('Copilot application resource scope contains an invalid table ID')
-  }
-  if (resourceScope.workflowId !== undefined && !resourceScope.workflowId.trim()) {
-    throw new Error('Copilot application resource scope contains an invalid workflow ID')
   }
 }
 

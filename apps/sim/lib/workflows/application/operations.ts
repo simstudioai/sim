@@ -5,6 +5,11 @@ const ALL_WORKFLOW_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+const WORKFLOW_READ_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
 const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
   delegatedServices: ['copilot'],
@@ -21,7 +26,7 @@ export const workflowOperations = {
     id: 'workflows.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
   create: defineWorkspaceOperation({
     id: 'workflows.create',
@@ -39,25 +44,26 @@ export const workflowOperations = {
     id: 'workflows.state.update',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   updateVariables: defineWorkspaceOperation({
     id: 'workflows.variables.update',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   duplicate: defineWorkspaceOperation({
     id: 'workflows.duplicate',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    principalKinds: ALL_WORKFLOW_PRINCIPALS,
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   runFromCopilot: defineWorkspaceOperation({
     id: 'workflows.copilot.run',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
   }),
   delete: defineWorkspaceOperation({
     id: 'workflows.delete',
@@ -101,11 +107,29 @@ export const workflowOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  updatePublicApi: defineWorkspaceOperation({
+    id: 'workflows.public_api.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
+  }),
   activateVersion: defineWorkspaceOperation({
     id: 'workflows.versions.activate',
     minimumRole: 'admin',
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  revertVersion: defineWorkspaceOperation({
+    id: 'workflows.versions.revert',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  updateVersion: defineWorkspaceOperation({
+    id: 'workflows.versions.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
   listVersions: defineWorkspaceOperation({
     id: 'workflows.versions.list',

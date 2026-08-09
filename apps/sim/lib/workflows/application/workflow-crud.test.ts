@@ -142,6 +142,21 @@ const workspacePrincipal = {
   workspaceId: WORKSPACE_ID,
   keyId: 'workspace-key-1',
 }
+const executorPrincipal = {
+  kind: 'delegated' as const,
+  serviceId: 'executor' as const,
+  subjectUserId: 'user-1',
+  workspaceId: WORKSPACE_ID,
+  delegationId: 'executor-1',
+  audience: 'sim:workflows',
+  issuedAt: new Date('2026-08-01T00:00:00Z'),
+  expiresAt: new Date('2999-08-01T00:00:00Z'),
+  delegationContext: {
+    kind: 'workflow_execution' as const,
+    workflowId: 'origin-workflow',
+    executionId: 'origin-run',
+  },
+}
 
 describe('authorized workflow CRUD and version reads', () => {
   beforeEach(() => {
@@ -277,31 +292,63 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
   })
 
-  it('rejects a workflow ID outside delegated resource scope', async () => {
-    mocks.resolveWorkflowContext.mockResolvedValueOnce({
-      ...workflowContext,
-      workflowId: 'workflow-2',
-      workflow: { ...workflowRecord, id: 'workflow-2' },
-    })
-    const delegated = {
+  it('rejects executor workflow mutations before canonical resource loading', async () => {
+    const executor = {
       kind: 'delegated' as const,
-      serviceId: 'copilot' as const,
+      serviceId: 'executor' as const,
       subjectUserId: 'user-1',
       workspaceId: WORKSPACE_ID,
       delegationId: 'delegation-1',
       audience: 'sim:workflows',
       issuedAt: new Date('2026-08-01T00:00:00Z'),
       expiresAt: new Date('2999-01-01T00:00:00Z'),
-      resourceScope: { workflowId: WORKFLOW_ID },
+      delegationContext: {
+        kind: 'workflow_execution' as const,
+        workflowId: WORKFLOW_ID,
+        executionId: 'execution-1',
+      },
     }
 
     await expect(
       updateWorkflow.execute({
-        principal: delegated,
-        input: { workflowId: 'workflow-2', name: 'Forged target' },
+        principal: executor,
+        input: { workflowId: WORKFLOW_ID, name: 'Forged target' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
     expect(mocks.updateRecord).not.toHaveBeenCalled()
+  })
+
+  it('allows executor reads only after canonical same-workspace binding and permission recheck', async () => {
+    await readWorkflow.execute({
+      principal: executorPrincipal,
+      input: { workflowId: WORKFLOW_ID },
+    })
+
+    expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
+      workflowId: WORKFLOW_ID,
+      assertedWorkspaceId: WORKSPACE_ID,
+    })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
+      forUpdate: undefined,
+    })
+    expect(mocks.loadSnapshot).toHaveBeenCalledWith(WORKFLOW_ID)
+  })
+
+  it('rejects executor reads whose canonical target is outside the signed origin workspace', async () => {
+    mocks.resolveWorkflowContext.mockResolvedValueOnce({
+      ...workflowContext,
+      workspaceId: 'workspace-other',
+      workflow: { ...workflowRecord, workspaceId: 'workspace-other' },
+    })
+
+    await expect(
+      readWorkflow.execute({
+        principal: executorPrincipal,
+        input: { workflowId: WORKFLOW_ID },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+    expect(mocks.loadSnapshot).not.toHaveBeenCalled()
   })
 
   it('rechecks current permission for every workflow mutation', async () => {

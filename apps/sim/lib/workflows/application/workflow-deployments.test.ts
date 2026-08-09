@@ -14,6 +14,8 @@ const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
       audit: vi.fn(),
       deploy: vi.fn(),
       findPrevious: vi.fn(),
+      notifyReverted: vi.fn(),
+      revert: vi.fn(),
       resolveContext: vi.fn(),
       resolvePermission: vi.fn(),
       undeploy: vi.fn(),
@@ -22,7 +24,10 @@ const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
 })
 
 vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UNDEPLOYED: 'workflow.undeployed' },
+  AuditAction: {
+    WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
+    WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
+  },
   AuditResourceType: { WORKFLOW: 'workflow' },
   recordAudit: mocks.audit,
 }))
@@ -50,15 +55,26 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performActivateVersion: mocks.activate,
   performFullDeploy: mocks.deploy,
   performFullUndeploy: mocks.undeploy,
+  performRevertToVersion: mocks.revert,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   findPreviousDeploymentVersion: mocks.findPrevious,
+  updateDeploymentVersionMetadata: vi.fn(),
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkflowReverted: mocks.notifyReverted,
+}))
+
+vi.mock('@/app/api/workflows/utils', () => ({
+  checkNeedsRedeployment: vi.fn(),
 }))
 
 import {
   activateWorkflowVersion,
   deployWorkflow,
+  revertWorkflowVersion,
   undeployWorkflow,
 } from '@/lib/workflows/application/deployments'
 
@@ -124,6 +140,7 @@ describe('workflow deployment application use cases', () => {
       warnings: [],
     })
     mocks.findPrevious.mockResolvedValue({ ok: true, version: 3 })
+    mocks.revert.mockResolvedValue({ success: true, lastSaved: 12345 })
   })
 
   it.each(adminPrincipals)(
@@ -166,6 +183,32 @@ describe('workflow deployment application use cases', () => {
           keyId: 'workspace-key',
         },
         input: { workflowId: 'workflow-1', requestId: 'request-1', analytics: 'human' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mocks.deploy).not.toHaveBeenCalled()
+  })
+
+  it('rejects executor deployment transitions before canonical lookup', async () => {
+    await expect(
+      deployWorkflow.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'executor-1',
+          audience: 'sim:workflows',
+          issuedAt: new Date('2026-08-08T00:00:00Z'),
+          expiresAt: new Date('2999-08-08T00:00:00Z'),
+          delegationContext: {
+            kind: 'workflow_execution',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          },
+        },
+        input: { workflowId: 'workflow-1', requestId: 'request-1', analytics: 'none' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
@@ -227,6 +270,34 @@ describe('workflow deployment application use cases', () => {
         metadata: expect.objectContaining({ operation: 'workflows.undeploy' }),
       })
     )
+  })
+
+  it('projects revert audit and notification exactly once outside legacy orchestration', async () => {
+    await revertWorkflowVersion.execute({
+      principal: adminPrincipals[2].principal,
+      input: { workflowId: 'workflow-1', version: 3 },
+    })
+
+    expect(mocks.revert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        version: 3,
+        userId: 'delegated-user',
+        captureAnalytics: false,
+        projectLegacyAudit: false,
+        notifyRealtime: false,
+      })
+    )
+    expect(mocks.audit).toHaveBeenCalledOnce()
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workflow.deployment_reverted',
+        resourceId: 'workflow-1',
+        metadata: expect.objectContaining({ targetVersion: '3' }),
+      })
+    )
+    expect(mocks.notifyReverted).toHaveBeenCalledOnce()
+    expect(mocks.notifyReverted).toHaveBeenCalledWith('workflow-1', 12345)
   })
 
   it('keeps human activation analytics enabled for durable post-activation capture', async () => {

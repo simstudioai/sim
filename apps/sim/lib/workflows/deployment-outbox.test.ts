@@ -303,6 +303,7 @@ describe('versioned deployment preparation outbox', () => {
       'workflow_deployed',
       { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
       expect.objectContaining({
+        insertId: 'event-1',
         groups: { workspace: 'workspace-1' },
         setOnce: expect.objectContaining({ first_workflow_deployed_at: expect.any(String) }),
       })

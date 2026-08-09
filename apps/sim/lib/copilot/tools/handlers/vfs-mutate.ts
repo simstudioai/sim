@@ -736,17 +736,12 @@ async function mutateWorkflows(
         assertMutationNotAborted(context)
         if (verb === 'cp') {
           const targetFolderId = await dest.ensureFolderId()
-          const duplicated = await executeCopilotWorkflowUseCase(
-            context,
-            duplicateWorkflow,
-            {
-              sourceWorkflowId: wf.id,
-              assertedWorkspaceId: workspaceId,
-              folderId: targetFolderId,
-              name: targetName,
-            },
-            { workflowId: wf.id }
-          )
+          const duplicated = await executeCopilotWorkflowUseCase(context, duplicateWorkflow, {
+            sourceWorkflowId: wf.id,
+            assertedWorkspaceId: workspaceId,
+            folderId: targetFolderId,
+            name: targetName,
+          })
           outcomes.push({
             from: ref.source,
             to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, duplicated.name])}`,
@@ -755,17 +750,12 @@ async function mutateWorkflows(
           })
         } else {
           const targetFolderId = await dest.ensureFolderId()
-          await executeCopilotWorkflowUseCase(
-            context,
-            updateWorkflow,
-            {
-              workflowId: wf.id,
-              assertedWorkspaceId: workspaceId,
-              name: dest.dirMode ? undefined : targetName,
-              folderId: targetFolderId,
-            },
-            { workflowId: wf.id }
-          )
+          await executeCopilotWorkflowUseCase(context, updateWorkflow, {
+            workflowId: wf.id,
+            assertedWorkspaceId: workspaceId,
+            name: dest.dirMode ? undefined : targetName,
+            folderId: targetFolderId,
+          })
           outcomes.push({
             from: ref.source,
             to: `workflows/${encodeVfsPathSegments([...dest.folderSegments, targetName])}`,
@@ -1136,12 +1126,10 @@ async function removeWorkflowPath(
 
   const workflow = workflowByPath.get(`workflows/${encoded}`)
   if (workflow) {
-    await executeCopilotWorkflowUseCase(
-      context,
-      deleteWorkflow,
-      { workflowId: workflow.id, assertedWorkspaceId: workspaceId },
-      { workflowId: workflow.id }
-    )
+    await executeCopilotWorkflowUseCase(context, deleteWorkflow, {
+      workflowId: workflow.id,
+      assertedWorkspaceId: workspaceId,
+    })
     logger.info('Deleted workflow via rm', { workflowId: workflow.id, workspaceId })
     return { from: path, kind: 'workflow', id: workflow.id }
   }

@@ -160,9 +160,7 @@ async function prepareWorkflowRunForCopilot(
   input: Parameters<typeof prepareCopilotWorkflowRun.execute>[0]['input']
 ) {
   try {
-    return await executeCopilotWorkflowUseCase(context, prepareCopilotWorkflowRun, input, {
-      workflowId: input.workflowId,
-    })
+    return await executeCopilotWorkflowUseCase(context, prepareCopilotWorkflowRun, input)
   } catch (error) {
     throw new Error(messageForCopilotWorkflowError(error, 'Workflow execution failed'))
   }
@@ -491,8 +489,7 @@ export async function executeSetGlobalWorkflowVariables(
     const { workflow: workflowRecord } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
 
     interface WorkflowVariable {
@@ -580,18 +577,13 @@ export async function executeSetGlobalWorkflowVariables(
     const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
     assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(
-      context,
-      updateWorkflowVariables,
-      {
-        workflowId,
-        assertedWorkspaceId: context.workspaceId,
-        variables: nextVarsRecord,
-        operationCount: operations.length,
-        source: 'copilot',
-      },
-      { workflowId }
-    )
+    const result = await executeCopilotWorkflowUseCase(context, updateWorkflowVariables, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      variables: nextVarsRecord,
+      operationCount: operations.length,
+      source: 'copilot',
+    })
 
     return { success: true, output: result }
   } catch (error) {
@@ -617,12 +609,11 @@ export async function executeRenameWorkflow(
     }
 
     assertWorkflowMutationNotAborted(context)
-    await executeCopilotWorkflowUseCase(
-      context,
-      updateWorkflow,
-      { workflowId, assertedWorkspaceId: context.workspaceId, name },
-      { workflowId }
-    )
+    await executeCopilotWorkflowUseCase(context, updateWorkflow, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      name,
+    })
 
     return { success: true, output: { workflowId, name } }
   } catch (error) {
@@ -650,12 +641,11 @@ export async function executeMoveWorkflow(
     for (const workflowId of workflowIds) {
       try {
         assertWorkflowMutationNotAborted(context)
-        await executeCopilotWorkflowUseCase(
-          context,
-          updateWorkflow,
-          { workflowId, assertedWorkspaceId: context.workspaceId, folderId },
-          { workflowId }
-        )
+        await executeCopilotWorkflowUseCase(context, updateWorkflow, {
+          workflowId,
+          assertedWorkspaceId: context.workspaceId,
+          folderId,
+        })
         moved.push(workflowId)
       } catch {
         failed.push(workflowId)
@@ -845,8 +835,7 @@ export async function executeSetBlockEnabled(
     const { workflow: workflowRecord, state: normalized } = await executeCopilotWorkflowUseCase(
       context,
       readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' },
-      { workflowId }
+      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
     )
     if (!normalized) {
       return { success: false, error: `Workflow ${workflowId} has no normalized state` }
@@ -920,12 +909,11 @@ export async function executeSetBlockEnabled(
     }
 
     assertWorkflowMutationNotAborted(context)
-    await executeCopilotWorkflowUseCase(
-      context,
-      updateWorkflowState,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: nextState },
-      { workflowId }
-    )
+    await executeCopilotWorkflowUseCase(context, updateWorkflowState, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      state: nextState,
+    })
 
     return {
       success: true,

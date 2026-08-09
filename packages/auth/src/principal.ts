@@ -34,7 +34,6 @@ export interface DelegatedPrincipal {
   resourceScope?: {
     fileId?: string
     tableId?: string
-    workflowId?: string
     chatId?: string
     executionId?: string
   }

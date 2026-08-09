@@ -625,6 +625,9 @@ export interface PerformRevertToVersionParams {
   actorId?: string
   actorName?: string
   actorEmail?: string
+  captureAnalytics?: false
+  projectLegacyAudit?: boolean
+  notifyRealtime?: boolean
 }
 
 export interface PerformRevertToVersionResult {
@@ -947,46 +950,52 @@ export async function performRevertToVersion(
     }
   }
 
-  try {
-    await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-api-key': env.INTERNAL_API_SECRET,
-      },
-      body: JSON.stringify({ workflowId, timestamp: lastSaved }),
-    })
-  } catch (error) {
-    logger.error('Error sending workflow reverted event to socket server', error)
+  if (params.notifyRealtime !== false) {
+    try {
+      await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': env.INTERNAL_API_SECRET,
+        },
+        body: JSON.stringify({ workflowId, timestamp: lastSaved }),
+      })
+    } catch (error) {
+      logger.error('Error sending workflow reverted event to socket server', error)
+    }
   }
 
   const workspaceId = (workflow.workspaceId as string) || ''
-  captureServerEvent(
-    userId,
-    'workflow_deployment_reverted',
-    {
-      workflow_id: workflowId,
-      workspace_id: workspaceId,
-      version: versionLabel,
-    },
-    workspaceId ? { groups: { workspace: workspaceId } } : undefined
-  )
+  if (params.captureAnalytics !== false) {
+    captureServerEvent(
+      userId,
+      'workflow_deployment_reverted',
+      {
+        workflow_id: workflowId,
+        workspace_id: workspaceId,
+        version: versionLabel,
+      },
+      workspaceId ? { groups: { workspace: workspaceId } } : undefined
+    )
+  }
 
-  recordAudit({
-    workspaceId: workspaceId || null,
-    actorId,
-    actorName: params.actorName,
-    actorEmail: params.actorEmail,
-    action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
-    resourceType: AuditResourceType.WORKFLOW,
-    resourceId: workflowId,
-    resourceName: (workflow.name as string) || undefined,
-    description: `Reverted workflow to deployment version ${versionLabel}`,
-    metadata: {
-      targetVersion: versionLabel,
-    },
-    request: params.request,
-  })
+  if (params.projectLegacyAudit !== false) {
+    recordAudit({
+      workspaceId: workspaceId || null,
+      actorId,
+      actorName: params.actorName,
+      actorEmail: params.actorEmail,
+      action: AuditAction.WORKFLOW_DEPLOYMENT_REVERTED,
+      resourceType: AuditResourceType.WORKFLOW,
+      resourceId: workflowId,
+      resourceName: (workflow.name as string) || undefined,
+      description: `Reverted workflow to deployment version ${versionLabel}`,
+      metadata: {
+        targetVersion: versionLabel,
+      },
+      request: params.request,
+    })
+  }
 
   return {
     success: true,

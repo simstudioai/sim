@@ -478,7 +478,8 @@ describe('vfs mv/cp', () => {
       expect(mocks.performUpdateWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({
           principal: expect.objectContaining({
-            resourceScope: expect.objectContaining({ workflowId: 'wf-1' }),
+            serviceId: 'copilot',
+            workspaceId: 'ws-1',
           }),
           input: expect.objectContaining({ workflowId: 'wf-1', name: 'New Name', folderId: null }),
         })
@@ -623,7 +624,8 @@ describe('vfs mv/cp', () => {
       expect(mocks.deleteWorkflow).toHaveBeenCalledWith(
         expect.objectContaining({
           principal: expect.objectContaining({
-            resourceScope: expect.objectContaining({ workflowId: 'wf-1' }),
+            serviceId: 'copilot',
+            workspaceId: 'ws-1',
           }),
           input: { workflowId: 'wf-1', assertedWorkspaceId: 'ws-1' },
         })

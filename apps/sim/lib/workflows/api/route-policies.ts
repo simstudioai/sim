@@ -1,8 +1,10 @@
 import {
+  createInternalSessionOrExecutorAuth,
   createV2ResourceConcealmentPolicy,
   type V2ErrorPolicy,
   v2OrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
+import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
@@ -23,3 +25,7 @@ export const v2WorkflowErrorPolicies = {
     notFoundMessage: 'Run not found',
   }),
 } as const
+
+export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
+  audience: WORKFLOW_DELEGATION_AUDIENCE,
+})

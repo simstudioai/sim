@@ -12,7 +12,7 @@ const logger = createLogger('ReadWorkflowVersion')
 export interface ReadWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
-  version: number
+  version: number | 'active'
 }
 
 export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({

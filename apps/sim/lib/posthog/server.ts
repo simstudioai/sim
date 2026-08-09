@@ -36,6 +36,8 @@ function getClient(): PostHog | null {
 type PersonProperties = Record<string, string | number | boolean>
 
 interface CaptureOptions {
+  /** Stable event identity used by PostHog to collapse retried server captures. */
+  insertId?: string
   /**
    * Associate this event with workspace-level group analytics.
    * Pass `{ workspace: workspaceId }`.
@@ -79,6 +81,7 @@ export function captureServerEvent<E extends PostHogEventName>(
       properties: {
         ...properties,
         ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
+        ...(options?.insertId ? { $insert_id: options.insertId } : {}),
         ...(options?.groups ? { $groups: options.groups } : {}),
         ...(options?.set ? { $set: options.set } : {}),
         ...(options?.setOnce ? { $set_once: options.setOnce } : {}),

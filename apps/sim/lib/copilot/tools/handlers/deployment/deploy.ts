@@ -2,7 +2,12 @@ import { db } from '@sim/db'
 import { chat, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
 import { toError } from '@sim/utils/errors'
 import { and, eq, isNull } from 'drizzle-orm'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
   performCreateWorkflowMcpTool,
@@ -15,11 +20,11 @@ import {
   generateToolInputSchema,
   sanitizeToolName,
 } from '@/lib/mcp/workflow-tool-schema'
+import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import {
   performChatDeploy,
   performChatUndeploy,
-  performFullDeploy,
-  performFullUndeploy,
+  type performFullDeploy,
 } from '@/lib/workflows/orchestration'
 import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import {
@@ -162,14 +167,12 @@ export async function executeDeployApi(
       return { success: false, error: 'workflowId is required' }
     }
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
-
     if (action === 'undeploy') {
-      const result = await performFullUndeploy({ workflowId, userId: context.userId })
+      const result = await executeCopilotWorkflowUseCase(context, undeployWorkflow, {
+        workflowId,
+        assertedWorkspaceId: context.workspaceId,
+        requestId: generateRequestId(),
+      })
       if (!result.success) {
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
@@ -219,12 +222,14 @@ export async function executeDeployApi(
       }
     }
 
-    const result = await performFullDeploy({
+    const result = await executeCopilotWorkflowUseCase(context, deployWorkflow, {
       workflowId,
-      userId: context.userId,
-      versionDescription,
-      versionName,
+      assertedWorkspaceId: context.workspaceId,
+      description: versionDescription,
+      name: versionName,
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      analytics: 'none',
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to deploy workflow' }
@@ -277,7 +282,10 @@ export async function executeDeployApi(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to update API deployment'),
+    }
   }
 }
 
@@ -865,14 +873,14 @@ export async function executeRedeploy(
           'versionName is required. Provide a short human-readable label for this deployment version.',
       }
     }
-    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
-
-    const result = await performFullDeploy({
+    const result = await executeCopilotWorkflowUseCase(context, deployWorkflow, {
       workflowId,
-      userId: context.userId,
-      versionDescription,
-      versionName,
+      assertedWorkspaceId: context.workspaceId,
+      description: versionDescription,
+      name: versionName,
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
+      analytics: 'none',
     })
     if (!result.success) {
       return { success: false, error: result.error || 'Failed to redeploy workflow' }
@@ -924,6 +932,9 @@ export async function executeRedeploy(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to redeploy workflow'),
+    }
   }
 }

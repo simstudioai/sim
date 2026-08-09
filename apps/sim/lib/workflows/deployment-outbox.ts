@@ -656,6 +656,7 @@ async function emitPostActivationSideEffects(params: {
           ...(isVersionActivation ? { version: params.payload.version } : {}),
         },
         {
+          insertId: params.context.eventId,
           groups: workspaceId ? { workspace: workspaceId } : undefined,
           ...(isVersionActivation
             ? {}

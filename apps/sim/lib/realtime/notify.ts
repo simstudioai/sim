@@ -104,6 +104,26 @@ export async function notifyWorkflowUpdated(workflowId: string): Promise<void> {
   }
 }
 
+/** Best-effort fan-out that replaces an open editor after a deployment is loaded into draft. */
+export async function notifyWorkflowReverted(workflowId: string, timestamp: number): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workflow-reverted`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+      body: JSON.stringify({ workflowId, timestamp }),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      logger.warn('workflow-reverted notify failed', { workflowId, status: response.status })
+    }
+  } catch (error) {
+    logger.warn('workflow-reverted notify error', {
+      workflowId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 /**
  * Folder resource types whose list is kept live by a workspace invalidation room: a folder mutation
  * (create/rename/move/delete/restore) for one of these must fan out the same list-changed signal as a
