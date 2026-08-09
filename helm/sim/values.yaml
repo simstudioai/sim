@@ -156,9 +156,6 @@ app:
     OCR_AZURE_MODEL_NAME: ""                              # Azure Mistral OCR model name
     OCR_AZURE_API_KEY: ""                                 # Azure Mistral OCR API key
 
-    # Mothership Copilot Configuration
-    MSHIP_SYSPROMPT_OVERRIDE: ""                          # Optional enterprise-only highest-priority system prompt override forwarded to Mothership
-
     # AI Provider API Keys (leave empty if not using)
     OPENAI_API_KEY: ""                                    # Primary OpenAI API key
     OPENAI_API_KEY_1: ""                                  # Additional OpenAI API key for load balancing
@@ -1850,8 +1847,6 @@ externalSecrets:
       CRON_SECRET: ""
       # Path to API_ENCRYPTION_KEY in external store (optional)
       API_ENCRYPTION_KEY: ""
-      # Path to MSHIP_SYSPROMPT_OVERRIDE in external store (optional)
-      MSHIP_SYSPROMPT_OVERRIDE: ""
       # Path to REDIS_URL in external store (optional)
       REDIS_URL: ""
 
