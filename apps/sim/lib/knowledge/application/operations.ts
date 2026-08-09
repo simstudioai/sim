@@ -55,6 +55,12 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  bulkDelete: defineWorkspaceOperation({
+    id: 'knowledge.bulk_delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_PRINCIPAL_POLICY,
+  }),
   search: defineWorkspaceOperation({
     id: 'knowledge.search',
     minimumRole: 'read',
@@ -103,11 +109,23 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
+  addWorkspaceFiles: defineWorkspaceOperation({
+    id: 'knowledge.documents.add_workspace_files',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
   deleteDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
+  }),
+  bulkDeleteDocuments: defineWorkspaceOperation({
+    id: 'knowledge.documents.bulk_delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   updateDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.update',

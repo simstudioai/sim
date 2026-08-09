@@ -4,16 +4,23 @@ import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { authorizeWorkspaceOperation } from '@/lib/core/application'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
+import {
+  BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY,
+  requireBoundedKnowledgeBatch,
+} from '@/lib/knowledge/application/batch-policy'
 import {
   KnowledgeUsageLimitExceededError,
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
 import {
+  type ActiveKnowledgeBaseContext,
   type ActiveKnowledgeDocumentContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeDocumentContext,
@@ -43,6 +50,7 @@ import {
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -111,6 +119,31 @@ export interface CreateKnowledgeDocumentsInput extends UploadKnowledgeDocumentAd
 
 export interface DeleteKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
   source?: string
+}
+
+export interface BulkDeleteKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmissionInput {
+  documentIds: string[]
+  cancellationSignal?: AbortSignal
+  source?: string
+}
+
+interface DeletedKnowledgeDocument {
+  id: string
+  filename: string
+  fileSize: number
+  mimeType: string
+}
+
+export interface BulkDeleteKnowledgeDocumentsResult {
+  knowledgeBaseId: string
+  deleted: string[]
+  failed: string[]
+  deletedDocuments: DeletedKnowledgeDocument[]
+  cancelled: boolean
+}
+
+interface BulkDeleteKnowledgeDocumentsContext extends ActiveKnowledgeBaseContext {
+  documentIds: string[]
 }
 
 export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
@@ -533,6 +566,103 @@ export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       mimeType: result.mimeType,
     },
   }),
+})
+
+export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.bulkDeleteDocuments,
+  async resolveContext({
+    input,
+  }: {
+    input: BulkDeleteKnowledgeDocumentsInput
+  }): Promise<BulkDeleteKnowledgeDocumentsContext> {
+    const documentIds = requireBoundedKnowledgeBatch(
+      input.documentIds,
+      'document IDs',
+      BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY.maxItems
+    )
+    return {
+      ...(await resolveActiveKnowledgeBaseContext(input)),
+      documentIds,
+    }
+  },
+  async execute({ principal, input, context }): Promise<BulkDeleteKnowledgeDocumentsResult> {
+    const deletedDocuments: DeletedKnowledgeDocument[] = []
+    const failed: string[] = []
+
+    for (const documentId of context.documentIds) {
+      if (input.cancellationSignal?.aborted) break
+      try {
+        const canonical = await resolveCanonicalActiveKnowledgeDocumentContext({
+          knowledgeBaseId: context.knowledgeBaseId,
+          documentId,
+          assertedWorkspaceId: context.workspaceId,
+        })
+        await authorizeWorkspaceOperation(
+          principal,
+          knowledgeOperations.bulkDeleteDocuments,
+          canonical,
+          { delegation: knowledgeDelegationPolicy }
+        )
+        if (input.cancellationSignal?.aborted) break
+        await deleteKnowledgeDocumentInKnowledgeBase(
+          canonical.knowledgeBaseId,
+          canonical.documentId,
+          generateRequestId()
+        )
+        deletedDocuments.push({
+          id: canonical.documentId,
+          filename: canonical.document.filename,
+          fileSize: canonical.document.fileSize,
+          mimeType: canonical.document.mimeType,
+        })
+      } catch (error) {
+        const classified = asOrchestrationError(error)
+        if (classified && classified.code !== 'internal') {
+          failed.push(documentId)
+          continue
+        }
+        throw error
+      }
+    }
+
+    return {
+      knowledgeBaseId: context.knowledgeBaseId,
+      deleted: deletedDocuments.map((document) => document.id),
+      failed,
+      deletedDocuments,
+      cancelled: input.cancellationSignal?.aborted ?? false,
+    }
+  },
+  projectAudit: ({ input, context, result }) =>
+    result.deletedDocuments.map((document) => ({
+      action: AuditAction.DOCUMENT_DELETED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: document.id,
+      resourceName: document.filename,
+      description: `Deleted document "${document.filename}" from knowledge base "${context.knowledgeBase.name}"`,
+      metadata: {
+        source: input.source,
+        knowledgeBaseId: context.knowledgeBaseId,
+        knowledgeBaseName: context.knowledgeBase.name,
+        fileName: document.filename,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+      },
+    })),
+  afterSuccess: ({ principal, context, result }) => {
+    const userId = resolveKnowledgeAttributedUserId(principal, context)
+    for (const _document of result.deletedDocuments) {
+      captureServerEvent(
+        userId,
+        'knowledge_base_document_deleted',
+        {
+          knowledge_base_id: context.knowledgeBaseId,
+          workspace_id: context.workspaceId,
+        },
+        { groups: { workspace: context.workspaceId } }
+      )
+    }
+  },
 })
 
 export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({

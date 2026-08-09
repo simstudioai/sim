@@ -44,6 +44,12 @@ import { calculateCost } from '@/providers/utils'
 
 const logger = createLogger('KnowledgeSearchApplication')
 
+export const KNOWLEDGE_SEARCH_COST_POLICY = {
+  maxKnowledgeBases: 20,
+  maxTopK: 100,
+  usageAdmission: 'before_model_execution',
+} as const
+
 export class KnowledgeSearchProvenanceUnavailableError extends Error {
   constructor() {
     super('Knowledge result secret provenance is unavailable')
@@ -115,6 +121,7 @@ export interface SearchKnowledgeResult {
   results: KnowledgeSearchItem[]
   query: string
   knowledgeBaseIds: string[]
+  knowledgeBases: Array<{ id: string; name: string }>
   knowledgeBaseId: string
   topK: number
   totalResults: number
@@ -127,14 +134,24 @@ export interface SearchKnowledgeResult {
 async function resolveKnowledgeSearchContext(
   input: SearchKnowledgeInput
 ): Promise<KnowledgeSearchContext> {
-  if (input.knowledgeBaseIds.length < 1 || input.knowledgeBaseIds.length > 20) {
+  if (
+    input.knowledgeBaseIds.length < 1 ||
+    input.knowledgeBaseIds.length > KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases
+  ) {
     throw new OrchestrationError(
       'validation',
-      'Knowledge search requires between 1 and 20 knowledge bases'
+      `Knowledge search requires between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxKnowledgeBases} knowledge bases`
     )
   }
-  if (!Number.isInteger(input.topK) || input.topK < 1 || input.topK > 100) {
-    throw new OrchestrationError('validation', 'topK must be an integer between 1 and 100')
+  if (
+    !Number.isInteger(input.topK) ||
+    input.topK < 1 ||
+    input.topK > KNOWLEDGE_SEARCH_COST_POLICY.maxTopK
+  ) {
+    throw new OrchestrationError(
+      'validation',
+      `topK must be an integer between 1 and ${KNOWLEDGE_SEARCH_COST_POLICY.maxTopK}`
+    )
   }
   const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
   const missingIds = input.knowledgeBaseIds.filter(
@@ -321,8 +338,11 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
     const useReranker = Boolean(input.rerankerEnabled && hasQuery)
     const candidateTopK = useReranker
       ? input.rerankerInputCount !== undefined
-        ? Math.min(100, Math.max(input.topK, input.rerankerInputCount))
-        : Math.min(100, input.topK * 4)
+        ? Math.min(
+            KNOWLEDGE_SEARCH_COST_POLICY.maxTopK,
+            Math.max(input.topK, input.rerankerInputCount)
+          )
+        : Math.min(KNOWLEDGE_SEARCH_COST_POLICY.maxTopK, input.topK * 4)
       : input.topK
     let rows = await executeKnowledgeSearch({
       knowledgeBaseIds,
@@ -532,6 +552,10 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       results,
       query: input.query ?? '',
       knowledgeBaseIds,
+      knowledgeBases: context.knowledgeBases.map((knowledgeBase) => ({
+        id: knowledgeBase.id,
+        name: knowledgeBase.name,
+      })),
       knowledgeBaseId: knowledgeBaseIds[0],
       topK: input.topK,
       totalResults: results.length,

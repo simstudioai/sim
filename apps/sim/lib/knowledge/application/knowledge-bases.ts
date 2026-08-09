@@ -7,10 +7,16 @@ import {
   PrincipalKindAuthorizationError,
   type WorkspaceOperation,
 } from '@/lib/core/application'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
+import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
+import {
+  BULK_DELETE_KNOWLEDGE_BASES_COST_POLICY,
+  requireBoundedKnowledgeBatch,
+} from '@/lib/knowledge/application/batch-policy'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import {
   type ActiveKnowledgeBaseContext,
@@ -103,6 +109,24 @@ export interface UpdateKnowledgeBaseInput extends ReadKnowledgeBaseInput {
 
 export interface DeleteKnowledgeBaseInput extends ReadKnowledgeBaseInput {
   source?: string
+}
+
+export interface BulkDeleteKnowledgeBasesInput {
+  assertedWorkspaceId: string
+  knowledgeBaseIds: string[]
+  cancellationSignal?: AbortSignal
+  source?: string
+}
+
+export interface BulkDeleteKnowledgeBasesResult {
+  deleted: Array<{ id: string; name: string }>
+  notFound: string[]
+  failed: Array<{ id: string; name: string; reason: string }>
+  cancelled: boolean
+}
+
+interface BulkDeleteKnowledgeBasesContext extends KnowledgeWorkspaceContext {
+  knowledgeBaseIds: string[]
 }
 
 export interface ReadInternalKnowledgeBaseInput {
@@ -394,6 +418,87 @@ export const deleteKnowledgeBaseOperation = defineAuthorizedKnowledgeUseCase({
     description: `Deleted knowledge base "${result.name}"`,
     metadata: { source: input.source, knowledgeBaseName: result.name },
   }),
+})
+
+export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.bulkDelete,
+  async resolveContext({
+    input,
+  }: {
+    input: BulkDeleteKnowledgeBasesInput
+  }): Promise<BulkDeleteKnowledgeBasesContext> {
+    const knowledgeBaseIds = requireBoundedKnowledgeBatch(
+      input.knowledgeBaseIds,
+      'knowledge base IDs',
+      BULK_DELETE_KNOWLEDGE_BASES_COST_POLICY.maxItems
+    )
+    return {
+      ...(await resolveKnowledgeWorkspaceContext({ workspaceId: input.assertedWorkspaceId })),
+      knowledgeBaseIds,
+    }
+  },
+  async execute({ principal, input, context }): Promise<BulkDeleteKnowledgeBasesResult> {
+    const deleted: BulkDeleteKnowledgeBasesResult['deleted'] = []
+    const notFound: string[] = []
+    const failed: BulkDeleteKnowledgeBasesResult['failed'] = []
+
+    for (const knowledgeBaseId of context.knowledgeBaseIds) {
+      if (input.cancellationSignal?.aborted) break
+      let knowledgeBaseName = knowledgeBaseId
+      try {
+        const canonical = await resolveActiveKnowledgeBaseContext({
+          knowledgeBaseId,
+          assertedWorkspaceId: context.workspaceId,
+        })
+        knowledgeBaseName = canonical.knowledgeBase.name
+        await authorizeWorkspaceOperation(principal, knowledgeOperations.bulkDelete, canonical, {
+          delegation: knowledgeDelegationPolicy,
+        })
+        if (input.cancellationSignal?.aborted) break
+        deleted.push(await executeDeleteKnowledgeBase({ context: canonical }))
+      } catch (error) {
+        const classified = asOrchestrationError(error)
+        if (
+          classified?.code === 'not_found' ||
+          classified?.code === 'forbidden' ||
+          classified?.code === 'unauthorized'
+        ) {
+          notFound.push(knowledgeBaseId)
+          continue
+        }
+        if (classified && classified.code !== 'internal') {
+          failed.push({
+            id: knowledgeBaseId,
+            name: knowledgeBaseName,
+            reason: classified.message,
+          })
+          continue
+        }
+        throw error
+      }
+    }
+
+    return {
+      deleted,
+      notFound,
+      failed,
+      cancelled: input.cancellationSignal?.aborted ?? false,
+    }
+  },
+  projectAudit: ({ input, result }) =>
+    result.deleted.map((knowledgeBase) => ({
+      action: AuditAction.KNOWLEDGE_BASE_DELETED,
+      resourceType: AuditResourceType.KNOWLEDGE_BASE,
+      resourceId: knowledgeBase.id,
+      resourceName: knowledgeBase.name,
+      description: `Deleted knowledge base "${knowledgeBase.name}"`,
+      metadata: { source: input.source, knowledgeBaseName: knowledgeBase.name },
+    })),
+  afterSuccess: ({ result }) => {
+    for (const knowledgeBase of result.deleted) {
+      PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: knowledgeBase.id })
+    }
+  },
 })
 
 export const readInternalKnowledgeBase = {

@@ -4,6 +4,7 @@ import { messageForCopilotApplicationError } from '@/lib/copilot/application/err
 import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
+  type TrustedCopilotExecutionContext,
   createCopilotApplicationPrincipal,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/copilot/auth/application-delegation'
@@ -29,14 +30,26 @@ const executeKnowledgeUseCase = createCopilotApplicationAdapter({
   operations: knowledgeOperations,
 })
 
+function requireTrustedCopilotKnowledgeContext(
+  context: CopilotKnowledgeDelegationContext | undefined
+): TrustedCopilotExecutionContext {
+  return requireTrustedCopilotExecutionContext(context)
+}
+
+/** Requires the immutable trusted workspace bound to a Copilot Knowledge execution. */
+export function requireCopilotKnowledgeWorkspaceId(
+  context: CopilotKnowledgeDelegationContext | undefined
+): string {
+  return requireTrustedCopilotKnowledgeContext(context).workspaceId
+}
+
 /** Normalizes immutable Copilot execution identity into a knowledge delegation. */
 export function resolveCopilotKnowledgePrincipal(
   context: CopilotKnowledgeDelegationContext | undefined
 ): DelegatedPrincipal {
-  return createCopilotApplicationPrincipal(
-    requireTrustedCopilotExecutionContext(context),
-    knowledgeDelegation
-  )
+  const trustedContext = requireTrustedCopilotKnowledgeContext(context)
+
+  return createCopilotApplicationPrincipal(trustedContext, knowledgeDelegation)
 }
 
 /** Enters a registered knowledge application use case with trusted Copilot identity. */

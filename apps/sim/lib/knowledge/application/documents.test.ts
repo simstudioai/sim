@@ -18,6 +18,7 @@ const mocks = vi.hoisted(() => ({
   updateDocument: vi.fn(),
   processQueue: vi.fn(),
   recordAudit: vi.fn(),
+  captureServerEvent: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -60,8 +61,11 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentsWithQueue: mocks.processQueue,
 }))
 
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
+
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  bulkDeleteKnowledgeDocuments,
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
   updateKnowledgeDocument,
@@ -342,5 +346,118 @@ describe('knowledge document application use cases', () => {
     ).rejects.toBe(failure)
 
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('bounds best-effort document deletion before canonical knowledge loading', async () => {
+    await expect(
+      bulkDeleteKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          documentIds: Array.from({ length: 101 }, (_, index) => `document-${index}`),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.resolveKnowledgeBase).not.toHaveBeenCalled()
+    expect(mocks.deleteDocument).not.toHaveBeenCalled()
+  })
+
+  it('conceals a cross-knowledge-base bulk document before mutation for a dual-workspace subject', async () => {
+    mocks.resolveCanonicalDocument.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Document not found')
+    )
+
+    const result = await bulkDeleteKnowledgeDocuments.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'dual-workspace-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'tool-call-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        documentIds: ['workspace-2-document'],
+      },
+    })
+
+    expect(result).toMatchObject({ deleted: [], failed: ['workspace-2-document'] })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'dual-workspace-user',
+      'workspace-1',
+      null,
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.deleteDocument).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('returns partial document outcomes and audits only completed deletions', async () => {
+    mocks.resolveCanonicalDocument.mockImplementation(async ({ documentId }) => ({
+      ...context,
+      documentId,
+      document: { ...document, id: documentId, filename: `${documentId}.pdf` },
+    }))
+    mocks.deleteDocument
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new OrchestrationError('conflict', 'Document is locked'))
+
+    const result = await bulkDeleteKnowledgeDocuments.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        documentIds: ['document-1', 'document-2'],
+        source: 'agent',
+      },
+    })
+
+    expect(result).toMatchObject({
+      deleted: ['document-1'],
+      failed: ['document-2'],
+      cancelled: false,
+    })
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(3)
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceId: 'document-1',
+        metadata: expect.objectContaining({ operation: 'knowledge.documents.bulk_delete' }),
+      })
+    )
+    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+  })
+
+  it('stops between document deletions while auditing completed items', async () => {
+    const controller = new AbortController()
+    mocks.resolveCanonicalDocument.mockImplementation(async ({ documentId }) => ({
+      ...context,
+      documentId,
+      document: { ...document, id: documentId },
+    }))
+    mocks.deleteDocument.mockImplementationOnce(async () => {
+      controller.abort('user stopped')
+    })
+
+    const result = await bulkDeleteKnowledgeDocuments.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        documentIds: ['document-1', 'document-2'],
+        cancellationSignal: controller.signal,
+      },
+    })
+
+    expect(result).toMatchObject({ deleted: ['document-1'], cancelled: true })
+    expect(mocks.deleteDocument).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
 })

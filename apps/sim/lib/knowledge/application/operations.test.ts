@@ -15,6 +15,7 @@ describe('knowledge operation registry', () => {
       'knowledge.create',
       'knowledge.update',
       'knowledge.delete',
+      'knowledge.bulk_delete',
       'knowledge.search',
       'knowledge.folders.list',
       'knowledge.folders.create',
@@ -23,7 +24,9 @@ describe('knowledge operation registry', () => {
       'knowledge.documents.list',
       'knowledge.documents.read',
       'knowledge.documents.upload',
+      'knowledge.documents.add_workspace_files',
       'knowledge.documents.delete',
+      'knowledge.documents.bulk_delete',
       'knowledge.documents.update',
       'knowledge.documents.bulk',
       'knowledge.chunks.list',
@@ -68,9 +71,11 @@ describe('knowledge operation registry', () => {
     }
   })
 
-  it('keeps Copilot-only tag, connector, and document-update operations off workspace keys', () => {
+  it('keeps human-delegated tag, connector, and composed document operations off workspace keys', () => {
     const operations = [
       knowledgeOperations.updateDocument,
+      knowledgeOperations.addWorkspaceFiles,
+      knowledgeOperations.bulkDeleteDocuments,
       knowledgeOperations.listTags,
       knowledgeOperations.createTag,
       knowledgeOperations.updateTag,

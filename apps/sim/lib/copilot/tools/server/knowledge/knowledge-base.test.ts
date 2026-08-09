@@ -4,50 +4,46 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
+  mockAddWorkspaceFiles,
+  mockBulkDeleteKnowledgeBases,
+  mockBulkDeleteKnowledgeDocuments,
   mockCaptureServerEvent,
   mockCreateKnowledgeBase,
-  mockDeleteKnowledgeBase,
   mockDeleteKnowledgeConnector,
-  mockDeleteKnowledgeDocument,
   mockDeleteKnowledgeTag,
-  mockGetBoundWorkspaceFileSecretProvenance,
   mockKnowledgeBaseCreated,
   mockKnowledgeBaseDeleted,
   mockKnowledgeBaseDocumentsUploaded,
   mockReadKnowledgeBase,
   mockReadKnowledgeTagUsage,
-  mockResolveWorkspaceFileReference,
   mockSearchKnowledge,
   mockSyncKnowledgeConnector,
   mockUpdateKnowledgeBase,
   mockUpdateKnowledgeConnector,
   mockUpdateKnowledgeDocument,
   mockUpdateKnowledgeTag,
-  mockUploadKnowledgeDocument,
   mockCreateKnowledgeConnector,
   mockCreateKnowledgeTag,
   mockListKnowledgeTags,
 } = vi.hoisted(() => ({
+  mockAddWorkspaceFiles: vi.fn(),
+  mockBulkDeleteKnowledgeBases: vi.fn(),
+  mockBulkDeleteKnowledgeDocuments: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
   mockCreateKnowledgeBase: vi.fn(),
-  mockDeleteKnowledgeBase: vi.fn(),
   mockDeleteKnowledgeConnector: vi.fn(),
-  mockDeleteKnowledgeDocument: vi.fn(),
   mockDeleteKnowledgeTag: vi.fn(),
-  mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockKnowledgeBaseCreated: vi.fn(),
   mockKnowledgeBaseDeleted: vi.fn(),
   mockKnowledgeBaseDocumentsUploaded: vi.fn(),
   mockReadKnowledgeBase: vi.fn(),
   mockReadKnowledgeTagUsage: vi.fn(),
-  mockResolveWorkspaceFileReference: vi.fn(),
   mockSearchKnowledge: vi.fn(),
   mockSyncKnowledgeConnector: vi.fn(),
   mockUpdateKnowledgeBase: vi.fn(),
   mockUpdateKnowledgeConnector: vi.fn(),
   mockUpdateKnowledgeDocument: vi.fn(),
   mockUpdateKnowledgeTag: vi.fn(),
-  mockUploadKnowledgeDocument: vi.fn(),
   mockCreateKnowledgeConnector: vi.fn(),
   mockCreateKnowledgeTag: vi.fn(),
   mockListKnowledgeTags: vi.fn(),
@@ -64,12 +60,18 @@ vi.mock('@/lib/core/telemetry', () => ({
   },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
-vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
-  createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreateKnowledgeBase },
-  deleteKnowledgeBaseOperation: {
-    operation: { id: 'knowledge.delete' },
-    execute: mockDeleteKnowledgeBase,
+vi.mock('@/lib/knowledge/application/add-workspace-files', () => ({
+  addWorkspaceFilesToKnowledgeBase: {
+    operation: { id: 'knowledge.documents.add_workspace_files' },
+    execute: mockAddWorkspaceFiles,
   },
+}))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  bulkDeleteKnowledgeBases: {
+    operation: { id: 'knowledge.bulk_delete' },
+    execute: mockBulkDeleteKnowledgeBases,
+  },
+  createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreateKnowledgeBase },
   readKnowledgeBase: { operation: { id: 'knowledge.read' }, execute: mockReadKnowledgeBase },
   updateKnowledgeBaseOperation: {
     operation: { id: 'knowledge.update' },
@@ -77,17 +79,13 @@ vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   },
 }))
 vi.mock('@/lib/knowledge/application/documents', () => ({
-  deleteKnowledgeDocument: {
-    operation: { id: 'knowledge.documents.delete' },
-    execute: mockDeleteKnowledgeDocument,
+  bulkDeleteKnowledgeDocuments: {
+    operation: { id: 'knowledge.documents.bulk_delete' },
+    execute: mockBulkDeleteKnowledgeDocuments,
   },
   updateKnowledgeDocument: {
     operation: { id: 'knowledge.documents.update' },
     execute: mockUpdateKnowledgeDocument,
-  },
-  uploadKnowledgeDocument: {
-    operation: { id: 'knowledge.documents.upload' },
-    execute: mockUploadKnowledgeDocument,
   },
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
@@ -132,15 +130,6 @@ vi.mock('@/lib/knowledge/application/tags', () => ({
     operation: { id: 'knowledge.tags.update' },
     execute: mockUpdateKnowledgeTag,
   },
-}))
-vi.mock('@/lib/uploads', () => ({
-  StorageService: { generatePresignedDownloadUrl: vi.fn().mockResolvedValue('https://file.test') },
-}))
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
-}))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
-  getBoundWorkspaceFileSecretProvenance: mockGetBoundWorkspaceFileSecretProvenance,
 }))
 vi.mock('@/app/api/auth/oauth/utils', () => ({ getCredential: vi.fn() }))
 
@@ -191,15 +180,38 @@ describe('knowledge_base trusted application delegation', () => {
     mockReadKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
     mockCreateKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
     mockUpdateKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
-    mockDeleteKnowledgeBase.mockResolvedValue({ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name })
+    mockBulkDeleteKnowledgeBases.mockResolvedValue({
+      deleted: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
+      notFound: [],
+      failed: [],
+    })
+    mockBulkDeleteKnowledgeDocuments.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      deleted: ['document-1'],
+      failed: [],
+      deletedDocuments: [],
+    })
+    mockAddWorkspaceFiles.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [
+        {
+          documentId: 'document-1',
+          filename: 'report.pdf',
+          fileSize: 100,
+          mimeType: 'application/pdf',
+        },
+      ],
+      failed: [],
+    })
     mockSearchKnowledge.mockResolvedValue({
       results: [],
       query: 'query',
       knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      knowledgeBases: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
       topK: 5,
       totalResults: 0,
     })
-    mockDeleteKnowledgeDocument.mockResolvedValue({ id: 'document-1', filename: 'doc.pdf' })
   })
 
   it.each([
@@ -286,6 +298,7 @@ describe('knowledge_base trusted application delegation', () => {
       ],
       query: '{{KB_QUERY}}',
       knowledgeBaseIds: [KNOWLEDGE_BASE.id],
+      knowledgeBases: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
       topK: 5,
       totalResults: 1,
     })
@@ -311,6 +324,7 @@ describe('knowledge_base trusted application delegation', () => {
       topK: 5,
       resultSecretRegistry: registry,
     })
+    expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
   })
 
   it('returns a safe model result for search infrastructure failures', async () => {
@@ -342,7 +356,7 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
-  it('keeps the unexposed delete compatibility path on the shared delete operation', async () => {
+  it('delegates the unexposed delete compatibility path once to the bulk command', async () => {
     const result = await knowledgeBaseServerTool.execute(
       { operation: 'delete', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
       CONTEXT
@@ -352,22 +366,23 @@ describe('knowledge_base trusted application delegation', () => {
       success: true,
       data: { deleted: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }] },
     })
-    const call = mockDeleteKnowledgeBase.mock.calls[0][0]
+    const call = mockBulkDeleteKnowledgeBases.mock.calls[0][0]
     expectDelegatedPrincipal(call)
-    expect(call.input).toEqual({
-      knowledgeBaseId: KNOWLEDGE_BASE.id,
+    expect(call.input).toMatchObject({
       assertedWorkspaceId: 'workspace-paid',
+      knowledgeBaseIds: [KNOWLEDGE_BASE.id],
       source: 'agent',
-    })
-    expect(mockKnowledgeBaseDeleted).toHaveBeenCalledWith({
-      knowledgeBaseId: KNOWLEDGE_BASE.id,
     })
   })
 
   it('keeps classified delete failures in the batch result', async () => {
-    mockDeleteKnowledgeBase.mockRejectedValueOnce(
-      new OrchestrationError('conflict', 'Knowledge base is locked')
-    )
+    mockBulkDeleteKnowledgeBases.mockResolvedValueOnce({
+      deleted: [],
+      notFound: [],
+      failed: [
+        { id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name, reason: 'Knowledge base is locked' },
+      ],
+    })
 
     const result = await knowledgeBaseServerTool.execute(
       { operation: 'delete', args: { knowledgeBaseId: KNOWLEDGE_BASE.id } },
@@ -386,9 +401,12 @@ describe('knowledge_base trusted application delegation', () => {
   })
 
   it('delegates document deletion and retains partial batch results', async () => {
-    mockDeleteKnowledgeDocument.mockRejectedValueOnce(
-      new OrchestrationError('not_found', 'Document not found')
-    )
+    mockBulkDeleteKnowledgeDocuments.mockResolvedValueOnce({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      deleted: ['document-1'],
+      failed: ['missing'],
+      deletedDocuments: [],
+    })
 
     const result = await knowledgeBaseServerTool.execute(
       {
@@ -402,13 +420,8 @@ describe('knowledge_base trusted application delegation', () => {
       success: true,
       data: { deleted: ['document-1'], failed: ['missing'] },
     })
-    expectDelegatedPrincipal(mockDeleteKnowledgeDocument.mock.calls[1][0])
-    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
-      'external-admin',
-      'knowledge_base_document_deleted',
-      expect.objectContaining({ knowledge_base_id: KNOWLEDGE_BASE.id }),
-      expect.any(Object)
-    )
+    expectDelegatedPrincipal(mockBulkDeleteKnowledgeDocuments.mock.calls[0][0])
+    expect(mockBulkDeleteKnowledgeDocuments).toHaveBeenCalledOnce()
   })
 
   it('delegates document updates with only the trusted workspace assertion', async () => {
@@ -522,9 +535,9 @@ describe('knowledge_base trusted application delegation', () => {
       expect(result.success).toBe(false)
       expect(result.message).toContain('Maximum is 100')
       expect(mockReadKnowledgeBase).not.toHaveBeenCalled()
-      expect(mockDeleteKnowledgeBase).not.toHaveBeenCalled()
-      expect(mockDeleteKnowledgeDocument).not.toHaveBeenCalled()
-      expect(mockUploadKnowledgeDocument).not.toHaveBeenCalled()
+      expect(mockBulkDeleteKnowledgeBases).not.toHaveBeenCalled()
+      expect(mockBulkDeleteKnowledgeDocuments).not.toHaveBeenCalled()
+      expect(mockAddWorkspaceFiles).not.toHaveBeenCalled()
     }
   )
 })
@@ -532,27 +545,22 @@ describe('knowledge_base trusted application delegation', () => {
 describe('knowledge_base add_file delegation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockReadKnowledgeBase.mockResolvedValue({ knowledgeBase: KNOWLEDGE_BASE, folderPath: '/' })
-    mockResolveWorkspaceFileReference.mockResolvedValue({
-      id: 'file-1',
-      key: 'workspace/workspace-paid/report.pdf',
-      name: 'report.pdf',
-      size: 100,
-      type: 'application/pdf',
-    })
-    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
-    mockUploadKnowledgeDocument.mockResolvedValue({
-      created: true,
-      document: {
-        id: 'document-1',
-        filename: 'report.pdf',
-        fileSize: 100,
-        mimeType: 'application/pdf',
-      },
+    mockAddWorkspaceFiles.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [
+        {
+          documentId: 'document-1',
+          filename: 'report.pdf',
+          fileSize: 100,
+          mimeType: 'application/pdf',
+        },
+      ],
+      failed: [],
     })
   })
 
-  it('preserves file resolution and performs current admission inside uploadKnowledgeDocument', async () => {
+  it('maps aliases and delegates the complete batch once to the application command', async () => {
     const result = await knowledgeBaseServerTool.execute(
       {
         operation: 'add_file',
@@ -565,28 +573,23 @@ describe('knowledge_base add_file delegation', () => {
       success: true,
       data: { added: [{ documentId: 'document-1', filename: 'report.pdf' }] },
     })
-    expect(mockResolveWorkspaceFileReference).toHaveBeenCalledWith(
-      expect.objectContaining({ workspaceId: 'workspace-paid', reference: 'files/report.pdf' })
-    )
-    const call = mockUploadKnowledgeDocument.mock.calls[0][0]
+    const call = mockAddWorkspaceFiles.mock.calls[0][0]
     expectDelegatedPrincipal(call)
     expect(call.input).toMatchObject({
       knowledgeBaseId: KNOWLEDGE_BASE.id,
       assertedWorkspaceId: 'workspace-paid',
-      startProcessing: true,
+      fileReferences: ['files/report.pdf'],
       source: 'agent',
-      document: { filename: 'report.pdf', fileSize: 100, mimeType: 'application/pdf' },
     })
-    expect(call.input).not.toHaveProperty('usageAdmission')
-    expect(mockKnowledgeBaseDocumentsUploaded).toHaveBeenCalledWith(
-      expect.objectContaining({ knowledgeBaseId: KNOWLEDGE_BASE.id, documentsCount: 1 })
-    )
+    expect(mockAddWorkspaceFiles).toHaveBeenCalledOnce()
   })
 
-  it('rejects files carrying resolved-secret provenance before durable registration', async () => {
-    mockGetBoundWorkspaceFileSecretProvenance.mockResolvedValueOnce({
-      status: 'exact',
-      entries: [{ name: 'API_KEY', encryptedValue: 'encrypted-secret' }],
+  it('preserves explicit partial failures returned by the application command', async () => {
+    mockAddWorkspaceFiles.mockResolvedValueOnce({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      knowledgeBaseName: KNOWLEDGE_BASE.name,
+      added: [],
+      failed: ['files/report.pdf'],
     })
 
     const result = await knowledgeBaseServerTool.execute(
@@ -598,6 +601,47 @@ describe('knowledge_base add_file delegation', () => {
     )
 
     expect(result.success).toBe(false)
-    expect(mockUploadKnowledgeDocument).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ data: { added: [], failed: ['files/report.pdf'] } })
+  })
+
+  it('does not expose add-file infrastructure failures to the model', async () => {
+    mockAddWorkspaceFiles.mockRejectedValueOnce(new Error('storage host=private-bucket'))
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'add_file',
+        args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
+      },
+      CONTEXT
+    )
+
+    expect(result).toEqual({ success: false, message: 'Failed to add_file knowledge base' })
+    expect(result.message).not.toContain('private-bucket')
+  })
+
+  it('rechecks cancellation after application composition before presenting a partial result', async () => {
+    const controller = new AbortController()
+    mockAddWorkspaceFiles.mockImplementationOnce(async () => {
+      controller.abort('user stopped')
+      return {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        knowledgeBaseName: KNOWLEDGE_BASE.name,
+        added: [{ documentId: 'document-1', filename: 'report.pdf' }],
+        failed: [],
+        cancelled: true,
+      }
+    })
+
+    await expect(
+      knowledgeBaseServerTool.execute(
+        {
+          operation: 'add_file',
+          args: { knowledgeBaseId: KNOWLEDGE_BASE.id, filePaths: ['files/report.pdf'] },
+        },
+        { ...CONTEXT, userStopSignal: controller.signal }
+      )
+    ).rejects.toThrow('Request aborted before knowledge mutation could be applied')
+
+    expect(mockAddWorkspaceFiles).toHaveBeenCalledOnce()
   })
 })

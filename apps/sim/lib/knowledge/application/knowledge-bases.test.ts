@@ -22,6 +22,7 @@ const mocks = vi.hoisted(() => ({
   performRestore: vi.fn(),
   loadFolderIndex: vi.fn(),
   recordAudit: vi.fn(),
+  knowledgeBaseDeleted: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -42,6 +43,10 @@ vi.mock('@sim/platform-authz/workspace', () => ({
     )
   },
   resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+
+vi.mock('@/lib/core/telemetry', () => ({
+  PlatformEvents: { knowledgeBaseDeleted: mocks.knowledgeBaseDeleted },
 }))
 
 vi.mock('@/lib/folders/queries', () => ({
@@ -82,6 +87,7 @@ vi.mock('@/lib/knowledge/orchestration', () => ({
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  bulkDeleteKnowledgeBases,
   createKnowledgeBase,
   deleteInternalKnowledgeBase,
   listInternalKnowledgeBases,
@@ -144,6 +150,7 @@ describe('knowledge base application use cases', () => {
     mocks.performDelete.mockResolvedValue({ success: true })
     mocks.performRestore.mockResolvedValue({ success: true, knowledgeBase })
     mocks.updateRecord.mockResolvedValue({ ...knowledgeBase, name: 'Renamed' })
+    mocks.deleteRecord.mockResolvedValue(undefined)
   })
 
   it('lists legacy personal knowledge bases through the explicit session-only operation', async () => {
@@ -393,5 +400,114 @@ describe('knowledge base application use cases', () => {
       includeArchived: true,
     })
     expect(mocks.performRestore).toHaveBeenCalledOnce()
+  })
+
+  it('bounds bulk deletion before canonical workspace loading', async () => {
+    await expect(
+      bulkDeleteKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          assertedWorkspaceId: 'workspace-1',
+          knowledgeBaseIds: Array.from({ length: 101 }, (_, index) => `knowledge-${index}`),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
+  })
+
+  it('conceals a cross-workspace bulk target before mutation for a dual-workspace subject', async () => {
+    mocks.resolveKnowledgeBase.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Knowledge base not found')
+    )
+
+    const result = await bulkDeleteKnowledgeBases.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'dual-workspace-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'tool-call-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        knowledgeBaseIds: ['workspace-2-knowledge'],
+      },
+    })
+
+    expect(result).toMatchObject({ deleted: [], notFound: ['workspace-2-knowledge'] })
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'dual-workspace-user',
+      'workspace-1',
+      'organization-1',
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.deleteRecord).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('returns explicit best-effort outcomes and audits only authoritative deletions', async () => {
+    mocks.resolveKnowledgeBase.mockImplementation(async ({ knowledgeBaseId }) => ({
+      ...context,
+      knowledgeBaseId,
+      knowledgeBase: { ...knowledgeBase, id: knowledgeBaseId, name: `Name ${knowledgeBaseId}` },
+    }))
+    mocks.deleteRecord
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new OrchestrationError('conflict', 'Knowledge base is locked'))
+
+    const result = await bulkDeleteKnowledgeBases.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
+        source: 'agent',
+      },
+    })
+
+    expect(result).toMatchObject({
+      deleted: [{ id: 'knowledge-1', name: 'Name knowledge-1' }],
+      failed: [{ id: 'knowledge-2', name: 'Name knowledge-2', reason: 'Knowledge base is locked' }],
+      cancelled: false,
+    })
+    expect(mocks.resolvePermission).toHaveBeenCalledTimes(3)
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        resourceId: 'knowledge-1',
+        metadata: expect.objectContaining({ operation: 'knowledge.bulk_delete' }),
+      })
+    )
+    expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledWith({ knowledgeBaseId: 'knowledge-1' })
+  })
+
+  it('stops between bulk mutations while auditing completed items', async () => {
+    const controller = new AbortController()
+    mocks.resolveKnowledgeBase.mockImplementation(async ({ knowledgeBaseId }) => ({
+      ...context,
+      knowledgeBaseId,
+      knowledgeBase: { ...knowledgeBase, id: knowledgeBaseId, name: knowledgeBaseId },
+    }))
+    mocks.deleteRecord.mockImplementationOnce(async () => {
+      controller.abort('user stopped')
+    })
+
+    const result = await bulkDeleteKnowledgeBases.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        assertedWorkspaceId: 'workspace-1',
+        knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
+        cancellationSignal: controller.signal,
+      },
+    })
+
+    expect(result).toMatchObject({ deleted: [{ id: 'knowledge-1' }], cancelled: true })
+    expect(mocks.deleteRecord).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
 })
