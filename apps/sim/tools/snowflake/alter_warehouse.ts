@@ -51,7 +51,7 @@ export const alterWarehouseTool: ToolConfig<
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Seconds of inactivity before the warehouse suspends; 0 disables automatic suspension',
+        'Seconds of inactivity before the warehouse suspends. Snowflake polls every 30 seconds, so values under 30 or not a multiple of 30 may not behave as expected. 0 means the warehouse never suspends and keeps consuming credits',
     },
     autoResume: {
       type: 'boolean',

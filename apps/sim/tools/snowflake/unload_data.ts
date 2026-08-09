@@ -80,7 +80,8 @@ export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStat
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to write column headings into the unloaded files',
+      description:
+        'Whether to write column headings into the unloaded files; supported for CSV and Parquet only',
     },
     overwrite: {
       type: 'boolean',
@@ -99,7 +100,7 @@ export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStat
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Upper size limit per unloaded file in bytes; Snowflake defaults to 16000000 and allows up to 5000000000',
+        'Upper size limit per unloaded file in bytes; Snowflake defaults to 16777216 (16 MB) and allows up to 5368709120 (5 GB)',
     },
   },
   request: snowflakeStatementRequest((params) =>

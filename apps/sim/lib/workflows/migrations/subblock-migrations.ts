@@ -14,6 +14,12 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('SubblockMigrations')
 
 /**
+ * Marks a migration target as "this field is gone", rather than a rename. The
+ * old value is discarded instead of being carried into workflow state.
+ */
+const REMOVED_SUBBLOCK_ID_PREFIX = '_removed_'
+
+/**
  * Maps old subblock IDs to their current equivalents per block type.
  *
  * When a subblock is renamed in a block definition, old deployed/saved states
@@ -21,6 +27,10 @@ const logger = createLogger('SubblockMigrations')
  * serializer silently drops the value, breaking execution.
  *
  * Format: { blockType: { oldSubblockId: newSubblockId } }
+ *
+ * A target prefixed with `_removed_` means the field was deleted outright; the
+ * stored value is dropped. Use it for fields with no replacement — never map a
+ * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   instagram: {
@@ -150,6 +160,16 @@ function migrateBlockSubblockIds(
 
   for (const [oldId, newId] of Object.entries(renames)) {
     if (!(oldId in result)) continue
+
+    // A `_removed_` target means the field no longer exists in the block. Drop
+    // the value rather than parking it under a dead key: nothing ever reads
+    // these keys, and secret scrubbing walks the block config, so a parked
+    // `password: true` value would never be cleared and would ride along in
+    // workflow exports and templates.
+    if (newId.startsWith(REMOVED_SUBBLOCK_ID_PREFIX)) {
+      delete result[oldId]
+      continue
+    }
 
     if (newId in result) {
       delete result[oldId]

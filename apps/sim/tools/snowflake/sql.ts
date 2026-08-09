@@ -754,49 +754,94 @@ export function buildAlterWarehouse(params: SnowflakeAlterWarehouseParams): Snow
  * Rejects a source query that would escape the derived table it is embedded in.
  *
  * The query is the only user value in a COPY INTO statement that cannot be
- * passed through an identifier or literal helper. An unbalanced `)` would close
- * the derived table early and let whatever follows land in the copy-option slot
- * — an LLM-supplied query could then set `OVERWRITE = TRUE` and replace staged
- * files the workflow author never authorized. Quoted strings and comments are
- * tracked so a legitimate `')'` inside them does not trip the check.
+ * passed through an identifier or literal helper. An unbalanced `)` closes the
+ * derived table early and lets whatever follows land in the copy-option slot —
+ * an LLM-authored query could then set `OVERWRITE = TRUE` and replace staged
+ * files the workflow author never authorized.
+ *
+ * Counting parens is only sound if every construct that can *hide* one is
+ * skipped, so all six are handled: single-quoted strings (backslash escapes and
+ * `''` doubling), double-quoted identifiers (`""` doubling), dollar-quoted
+ * strings, `--` and `//` line comments, and `/* *\/` block comments. Snowflake
+ * does not document whether block comments nest, so an inner `/*` is rejected
+ * as ambiguous rather than guessed at — and `buildUnloadData` emits `OVERWRITE`
+ * unconditionally, so an injected duplicate collides even if this check is ever
+ * outrun.
  */
 function assertBalancedQuery(query: string): string {
   if (!/^\s*(SELECT|WITH)\b/i.test(query)) {
     throw new Error('The unload source statement must be a SELECT or WITH query')
   }
+
+  const unbalanced = () => new Error('The unload source statement has unbalanced parentheses')
   let depth = 0
   let index = 0
+
   while (index < query.length) {
     const char = query[index]
+    const next = query[index + 1]
+
+    if (char === '$' && next === '$') {
+      const close = query.indexOf('$$', index + 2)
+      if (close === -1) {
+        throw new Error('The unload source statement has an unterminated dollar-quoted string')
+      }
+      index = close + 2
+      continue
+    }
+
     if (char === "'" || char === '"') {
       const quote = char
       index += 1
+      let closed = false
       while (index < query.length) {
-        if (query[index] === '\\' && quote === "'") index += 1
-        else if (query[index] === quote) {
-          if (query[index + 1] === quote) index += 1
-          else break
+        if (query[index] === '\\' && quote === "'") {
+          index += 2
+          continue
+        }
+        if (query[index] === quote) {
+          if (query[index + 1] === quote) {
+            index += 2
+            continue
+          }
+          closed = true
+          index += 1
+          break
         }
         index += 1
       }
-      if (index >= query.length)
-        throw new Error('The unload source statement has an unterminated string')
-    } else if (char === '-' && query[index + 1] === '-') {
-      const newline = query.indexOf('\n', index)
-      index = newline === -1 ? query.length : newline
+      if (!closed) throw new Error('The unload source statement has an unterminated string')
       continue
-    } else if (char === '/' && query[index + 1] === '*') {
+    }
+
+    if ((char === '-' && next === '-') || (char === '/' && next === '/')) {
+      const newline = query.indexOf('\n', index)
+      if (newline === -1) break
+      index = newline + 1
+      continue
+    }
+
+    if (char === '/' && next === '*') {
       const close = query.indexOf('*/', index + 2)
-      if (close === -1) throw new Error('The unload source statement has an unterminated comment')
-      index = close + 1
-    } else if (char === '(') depth += 1
+      if (close === -1) {
+        throw new Error('The unload source statement has an unterminated comment')
+      }
+      if (query.slice(index + 2, close).includes('/*')) {
+        throw new Error('The unload source statement has a nested block comment')
+      }
+      index = close + 2
+      continue
+    }
+
+    if (char === '(') depth += 1
     else if (char === ')') {
       depth -= 1
-      if (depth < 0) throw new Error('The unload source statement has unbalanced parentheses')
+      if (depth < 0) throw unbalanced()
     }
     index += 1
   }
-  if (depth !== 0) throw new Error('The unload source statement has unbalanced parentheses')
+
+  if (depth !== 0) throw unbalanced()
   return query
 }
 
@@ -828,9 +873,10 @@ export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeSta
       `FILE_FORMAT = (FORMAT_NAME = ${stringLiteral(qualifiedIdentifierValue(params.fileFormat.trim()))})`
     )
   }
-  if (params.overwrite !== undefined) {
-    clauses.push(`OVERWRITE = ${params.overwrite ? 'TRUE' : 'FALSE'}`)
-  }
+  // Always emitted, never conditional: an injected `OVERWRITE = TRUE` that
+  // somehow escaped the derived table would duplicate this option and be
+  // rejected by Snowflake instead of silently replacing staged files.
+  clauses.push(`OVERWRITE = ${params.overwrite ? 'TRUE' : 'FALSE'}`)
   if (params.singleFile !== undefined) {
     clauses.push(`SINGLE = ${params.singleFile ? 'TRUE' : 'FALSE'}`)
   }
@@ -855,10 +901,11 @@ export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeSta
 }
 
 /**
- * QUERY_HISTORY covers the last seven days. BCR-1410 does allowlist binds for
- * these arguments, but they are emitted as literals anyway so every history
- * builder in this file reads the same way — TASK_HISTORY's time bounds are NOT
- * allowlisted, and a bind there is silently dropped rather than rejected.
+ * QUERY_HISTORY covers the last seven days. BCR-1410 allowlists binds for the
+ * base function's arguments — but not for every variant, and not for
+ * TASK_HISTORY's time bounds, where a bind is silently dropped rather than
+ * rejected. Everything here is emitted as a literal so no argument's
+ * bind-ability has to be tracked per variant.
  *
  * @see https://docs.snowflake.com/en/sql-reference/functions/query_history
  */
@@ -896,9 +943,11 @@ export function buildListQueryHistory(
   const where = params.errorOnly
     ? " WHERE UPPER(EXECUTION_STATUS) IN ('FAILED_WITH_ERROR', 'FAILED_WITH_INCIDENT')"
     : ''
-  // Qualified with the always-present SNOWFLAKE database: a bare
-  // INFORMATION_SCHEMA resolves against the session's current database, and this
-  // statement never sets one. The account-wide result is the same either way.
+  // Qualification is required: a bare INFORMATION_SCHEMA resolves against the
+  // session's current database and this statement never sets one. SNOWFLAKE is
+  // used because it always exists and QUERY_HISTORY is account-scoped, so the
+  // answer is identical from any database. Note the vendor docs show this
+  // qualification only for TASK_HISTORY — it is inferred here, not documented.
   return {
     statement: `SELECT * FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.${fn}(${args.join(', ')}))${where} ORDER BY END_TIME DESC`,
   }
@@ -942,8 +991,8 @@ const SELECTOR_SHOW_COMMANDS: Record<
   schemas: { command: 'SHOW SCHEMAS', scope: 'database', detail: '"comment"' },
   tables: { command: 'SHOW TABLES', scope: 'schema', detail: '"comment"' },
   file_formats: { command: 'SHOW FILE FORMATS', scope: 'schema', detail: '"type"' },
-  // SHOW PROCEDURES names a callable by name plus signature, and its comment
-  // column is `description` rather than `comment`.
+  // SHOW PROCEDURES has no `comment` column; the argument signature is what
+  // disambiguates overloads, so that is the detail worth showing.
   procedures: { command: 'SHOW PROCEDURES', scope: 'schema', detail: '"arguments"' },
 }
 

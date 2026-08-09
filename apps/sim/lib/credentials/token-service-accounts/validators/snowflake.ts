@@ -90,16 +90,11 @@ export async function validateSnowflakeServiceAccount(
       body: await readProviderErrorSnippet(res),
     })
   }
-  // Snowflake documents 403 as "the SQL API is not enabled for this account",
-  // which the shared 401/403 branch would misreport as a rejected token.
-  if (res.status === 403) {
-    throw new TokenServiceAccountValidationError('provider_unavailable', 403, {
-      step: 'identity_statement',
-      domain,
-      reason: 'SQL API not enabled for this account',
-      body: await readProviderErrorSnippet(res),
-    })
-  }
+  // 403 is left to the shared 401/403 branch on purpose. Snowflake returns it
+  // both when the SQL API is disabled and when a network policy rejects the
+  // caller's IP, and the response wording for neither is documented — so rather
+  // than guess from the body, both surface the provider's `invalidCredentialsHelp`,
+  // which names every cause.
   await throwForProviderResponse(res, 'identity_statement', { domain })
 
   // 202 means the statement is still executing. A context-only SELECT that

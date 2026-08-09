@@ -128,6 +128,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     return NextResponse.json({ error: getErrorMessage(error, 'Invalid request') }, { status: 400 })
   }
 
+  let upstreamStatus = 0
   try {
     const response = await fetch(`${baseUrl}/api/v2/statements`, {
       method: 'POST',
@@ -153,6 +154,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       )
     }
 
+    // A 4xx names something wrong with the request (missing object, privilege
+    // gap); only a 5xx or a malformed body is a gateway failure.
+    upstreamStatus = response.status
     const result = await readSnowflakeResult(response)
     // A metadata-only statement completes synchronously; a 202 means Snowflake
     // deferred it, and returning an empty list would read as "no objects".
@@ -179,7 +183,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     logger.error('Failed to list Snowflake objects', { kind, error })
     return NextResponse.json(
       { error: getErrorMessage(error, 'Failed to list Snowflake objects') },
-      { status: 502 }
+      { status: upstreamStatus >= 400 && upstreamStatus < 500 ? 400 : 502 }
     )
   }
 })

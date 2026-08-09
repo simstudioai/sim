@@ -68,7 +68,8 @@ export const listQueryHistoryTool: ToolConfig<
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Whether to return only queries whose execution status is FAIL',
+      description:
+        'Whether to return only queries that failed (execution status FAILED_WITH_ERROR or FAILED_WITH_INCIDENT). Snowflake applies the limit before this filter, so it selects the failures among the most recent queries rather than the most recent failures',
     },
     limit: {
       type: 'number',

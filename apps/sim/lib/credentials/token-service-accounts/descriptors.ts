@@ -413,9 +413,9 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
     ],
     docsUrl: 'https://docs.sim.ai/integrations/snowflake-service-account',
     helpText:
-      'A programmatic access token acts as the Snowflake user that owns it, or as the single role it was restricted to. It always expires — 15 days by default, 365 at most — and human users must be covered by a network policy unless an authentication policy waives it.',
+      'A programmatic access token acts as the Snowflake user that owns it, or as the single role it was restricted to. It always expires — 15 days by default, 365 at most — and every user type except SERVICE_AGENT must be covered by a network policy to authenticate with it, unless an authentication policy waives that.',
     invalidCredentialsHelp:
-      'Snowflake rejected this token. Check that it belongs to a user on this exact account host, has not expired, and that a network policy allows Sim to reach the account.',
+      'Snowflake rejected this token. Check that it belongs to a user on this exact account host, that it has not expired or been revoked, that a network policy allows Sim to reach the account, and that the SQL API is enabled for the account.',
   },
 }
 

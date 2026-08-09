@@ -61,6 +61,56 @@ describe('migrateSubblockIds', () => {
     expect(blocks.b1.subBlocks.metrics).toBeUndefined()
   })
 
+  describe('snowflake block', () => {
+    it('renames the object fields onto their pickers', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'snowflake',
+          subBlocks: {
+            operation: { id: 'operation', type: 'dropdown', value: 'insert_rows' },
+            database: { id: 'database', type: 'short-input', value: 'ANALYTICS' },
+            schema: { id: 'schema', type: 'short-input', value: 'PUBLIC' },
+            table: { id: 'table', type: 'short-input', value: 'EVENTS' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.databaseSelector?.value).toBe('ANALYTICS')
+      expect(blocks.b1.subBlocks.schemaSelector?.value).toBe('PUBLIC')
+      expect(blocks.b1.subBlocks.tableSelector?.value).toBe('EVENTS')
+      expect(blocks.b1.subBlocks.database).toBeUndefined()
+    })
+
+    /**
+     * Secret scrubbing for exports walks the block config, so a value parked
+     * under a key the config no longer declares would never be cleared. A
+     * `_removed_` target must drop the value, not carry it forward.
+     */
+    it('discards the retired host and programmatic access token', () => {
+      const input: Record<string, BlockState> = {
+        b1: makeBlock({
+          type: 'snowflake',
+          subBlocks: {
+            host: { id: 'host', type: 'short-input', value: 'acme.snowflakecomputing.com' },
+            apiKey: { id: 'apiKey', type: 'short-input', value: 'super-secret-pat' },
+          },
+        }),
+      }
+
+      const { blocks, migrated } = migrateSubblockIds(input)
+
+      expect(migrated).toBe(true)
+      expect(blocks.b1.subBlocks.apiKey).toBeUndefined()
+      expect(blocks.b1.subBlocks.host).toBeUndefined()
+      expect(blocks.b1.subBlocks._removed_apiKey).toBeUndefined()
+      expect(blocks.b1.subBlocks._removed_host).toBeUndefined()
+      expect(JSON.stringify(blocks.b1)).not.toContain('super-secret-pat')
+    })
+  })
+
   describe('knowledge block', () => {
     it('should rename knowledgeBaseId to knowledgeBaseSelector', () => {
       const input: Record<string, BlockState> = {

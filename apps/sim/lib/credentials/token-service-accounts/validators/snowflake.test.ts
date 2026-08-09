@@ -16,10 +16,11 @@ function jsonResponse(status: number, body: unknown): Response {
 
 const fields = { apiToken: 'pat-secret', domain: 'MyOrg-MyAccount.snowflakecomputing.com' }
 
-async function expectCode(promise: Promise<unknown>, code: string) {
+async function expectCode(promise: Promise<unknown>, code: string, status?: number) {
   await expect(promise).rejects.toBeInstanceOf(TokenServiceAccountValidationError)
   await promise.catch((error: TokenServiceAccountValidationError) => {
     expect(error.code).toBe(code)
+    if (status !== undefined) expect(error.status).toBe(status)
   })
 }
 
@@ -30,7 +31,9 @@ describe('validateSnowflakeServiceAccount', () => {
 
   afterEach(() => {
     vi.unstubAllGlobals()
-    vi.clearAllMocks()
+    // resetAllMocks, not clearAllMocks: the latter leaves queued
+    // mockResolvedValueOnce values behind to leak into the next test.
+    vi.resetAllMocks()
   })
 
   it('verifies through the SQL API with the PAT headers the tools use', async () => {
@@ -72,20 +75,30 @@ describe('validateSnowflakeServiceAccount', () => {
     await expectCode(validateSnowflakeServiceAccount(fields), 'site_not_found')
   })
 
-  it('maps 401 to a rejected token and 403 to the SQL API being disabled', async () => {
+  /**
+   * Snowflake answers 403 both for a disabled SQL API and for a network-policy
+   * rejection, so both must reach the provider's invalid-credentials help,
+   * which names every cause — not a "provider is down" message.
+   */
+  it('maps 401 and 403 to a rejected credential', async () => {
     mockFetch.mockResolvedValueOnce(jsonResponse(401, { message: 'invalid token' }))
-    await expectCode(validateSnowflakeServiceAccount(fields), 'invalid_credentials')
+    await expectCode(validateSnowflakeServiceAccount(fields), 'invalid_credentials', 401)
 
-    mockFetch.mockResolvedValueOnce(jsonResponse(403, { message: 'SQL API not enabled' }))
-    await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable')
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(403, { message: 'not allowed to access Snowflake' })
+    )
+    await expectCode(validateSnowflakeServiceAccount(fields), 'invalid_credentials', 403)
   })
 
-  it('treats a deferred statement and a metadata-less success as provider problems', async () => {
+  it('treats a deferred statement and a metadata-less success as distinct provider problems', async () => {
+    // The status is what separates these two: without the 202 branch the
+    // deferred response would fall through to the metadata-less path and throw
+    // 502, so asserting only the code cannot tell them apart.
     mockFetch.mockResolvedValueOnce(jsonResponse(202, { statementHandle: 'abc' }))
-    await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable')
+    await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable', 202)
 
     mockFetch.mockResolvedValueOnce(jsonResponse(200, { data: [] }))
-    await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable')
+    await expectCode(validateSnowflakeServiceAccount(fields), 'provider_unavailable', 502)
   })
 
   it('falls back to the account when the token reports no user', async () => {

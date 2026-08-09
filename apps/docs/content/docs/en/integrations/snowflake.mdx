@@ -389,10 +389,10 @@ Export a table or query result to files in a Snowflake stage with COPY INTO.
 | `table` | string | No | Source table to unload; provide either this or a statement, not both |
 | `statement` | string | No | Source SELECT statement to unload; provide either this or a table, not both |
 | `fileFormat` | string | No | Named file format applied to the unloaded files |
-| `header` | boolean | No | Whether to write column headings into the unloaded files |
+| `header` | boolean | No | Whether to write column headings into the unloaded files; supported for CSV and Parquet only |
 | `overwrite` | boolean | No | Whether to replace existing files with matching names in the stage |
 | `singleFile` | boolean | No | Whether to write one file instead of splitting the output across files |
-| `maxFileSizeBytes` | number | No | Upper size limit per unloaded file in bytes; Snowflake defaults to 16000000 and allows up to 5000000000 |
+| `maxFileSizeBytes` | number | No | Upper size limit per unloaded file in bytes; Snowflake defaults to 16777216 \(16 MB\) and allows up to 5368709120 \(5 GB\) |
 
 #### Output
 
@@ -721,7 +721,7 @@ Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
 | `warehouseSize` | string | No | New warehouse size, one of $\{SNOWFLAKE_WAREHOUSE_SIZES.join\(', '\)\} |
-| `autoSuspendSeconds` | number | No | Seconds of inactivity before the warehouse suspends; 0 disables automatic suspension |
+| `autoSuspendSeconds` | number | No | Seconds of inactivity before the warehouse suspends. Snowflake polls every 30 seconds, so values under 30 or not a multiple of 30 may not behave as expected. 0 means the warehouse never suspends and keeps consuming credits |
 | `autoResume` | boolean | No | Whether the warehouse resumes automatically when a statement is submitted |
 
 #### Output
@@ -1151,7 +1151,7 @@ List queries that completed in the last seven days, optionally filtered.
 | `warehouseName` | string | No | Only queries run on this warehouse; cannot be combined with userName |
 | `startTime` | string | No | ISO-8601 start of the query completion window, within the last seven days |
 | `endTime` | string | No | ISO-8601 end of the query completion window, within the last seven days |
-| `errorOnly` | boolean | No | Whether to return only queries whose execution status is FAIL |
+| `errorOnly` | boolean | No | Whether to return only queries that failed \(execution status FAILED_WITH_ERROR or FAILED_WITH_INCIDENT\). Snowflake applies the limit before this filter, so it selects the failures among the most recent queries rather than the most recent failures |
 | `limit` | number | No | Maximum query rows, from 1 to 10000 |
 
 #### Output

@@ -462,22 +462,54 @@ describe('Snowflake SQL builders', () => {
     // The newline before the closing paren keeps a trailing line comment in the
     // source query from swallowing it.
     expect(buildUnloadData({ ...base, statement: 'SELECT 1 -- daily' }).statement).toBe(
-      'COPY INTO @EXPORTS/daily FROM (SELECT 1 -- daily\n)'
+      'COPY INTO @EXPORTS/daily FROM (SELECT 1 -- daily\n) OVERWRITE = FALSE'
     )
     expect(buildUnloadData({ ...base, statement: 'SELECT 1;' }).statement).toBe(
-      'COPY INTO @EXPORTS/daily FROM (SELECT 1\n)'
+      'COPY INTO @EXPORTS/daily FROM (SELECT 1\n) OVERWRITE = FALSE'
     )
     expect(() => buildUnloadData({ ...base, table: 'EVENTS', statement: 'SELECT 1' })).toThrow(
       /exactly one of table or statement/
     )
-    // A stray closing paren would end the derived table early and let the rest of
-    // the query supply its own copy options, including OVERWRITE = TRUE.
-    expect(() =>
-      buildUnloadData({
-        ...base,
-        statement: 'SELECT 1) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV',
-      })
-    ).toThrow(/unbalanced parentheses/)
+    // Each of these ends the derived table early and supplies its own copy
+    // options, including OVERWRITE = TRUE, by hiding a paren in a construct the
+    // paren counter must skip. All are valid Snowflake syntax.
+    const breakouts: Array<[string, string, RegExp]> = [
+      [
+        'bare paren',
+        'SELECT 1) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV',
+        /unbalanced parentheses/,
+      ],
+      [
+        'double-slash comment',
+        'SELECT 1 // (\n) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV // )',
+        /unbalanced parentheses/,
+      ],
+      [
+        'dollar quoting',
+        'SELECT $$($$ ) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV, RECORD_DELIMITER = $$)$$',
+        /unbalanced parentheses/,
+      ],
+      [
+        'nested block comment',
+        'SELECT 1 /* /* */ ( */ ) OVERWRITE = TRUE /* /* */ ) */',
+        /nested block comment/,
+      ],
+    ]
+    for (const [name, statement, expected] of breakouts) {
+      expect(() => buildUnloadData({ ...base, statement }), name).toThrow(expected)
+    }
+
+    // A paren legitimately inside a dollar-quoted string is not a breakout.
+    expect(buildUnloadData({ ...base, statement: 'SELECT $$a)b$$ AS x' }).statement).toContain(
+      'FROM (SELECT $$a)b$$ AS x\n)'
+    )
+    expect(() => buildUnloadData({ ...base, statement: 'SELECT $$unterminated' })).toThrow(
+      /unterminated dollar-quoted string/
+    )
+
+    // OVERWRITE is always emitted, so an injected duplicate collides instead of
+    // silently replacing staged files.
+    expect(buildUnloadData({ ...base, table: 'EVENTS' }).statement).toContain('OVERWRITE = FALSE')
     expect(() => buildUnloadData({ ...base, statement: 'DROP TABLE EVENTS' })).toThrow(
       /must be a SELECT or WITH query/
     )

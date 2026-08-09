@@ -12,11 +12,11 @@ import type { SnowflakeSelectorKind } from '@/tools/snowflake/selector-kinds'
 type SnowflakeSelectorKey = Extract<SelectorKey, `snowflake.${string}`>
 
 /** What each picker needs in scope before it can list anything. */
-type SnowflakeSelectorScope = 'account' | 'database' | 'schema'
+type SnowflakeSelectorScopeLevel = 'account' | 'database' | 'schema'
 
 interface SnowflakeSelectorSpec {
   kind: SnowflakeSelectorKind
-  scope: SnowflakeSelectorScope
+  scope: SnowflakeSelectorScopeLevel
 }
 
 const SNOWFLAKE_SELECTOR_SPECS: Record<SnowflakeSelectorKey, SnowflakeSelectorSpec> = {
