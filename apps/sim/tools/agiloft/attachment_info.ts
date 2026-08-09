@@ -59,7 +59,7 @@ export const agiloftAttachmentInfoTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/agiloft/attachment_info',
+    url: '/api/tools/agiloft/attachment_info',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

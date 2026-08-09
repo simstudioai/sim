@@ -6,6 +6,7 @@ import { sleep } from '@sim/utils/helpers'
 import { isPlainRecord } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { normalizeStringRecord, normalizeWorkflowVariables } from '@/lib/core/utils/records'
 import {
   projectModelSchemaAnnotations,
@@ -59,7 +60,7 @@ import type {
 import { parseResponseFormat } from '@/executor/handlers/shared/response-format'
 import type { BlockHandler, ExecutionContext, StreamingExecution } from '@/executor/types'
 import { collectBlockData } from '@/executor/utils/block-data'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { buildAuthHeaders, buildInternalApiUrl } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
@@ -1212,12 +1213,14 @@ export class AgentBlockHandler implements BlockHandler {
     }
 
     const headers = await buildAuthHeaders(ctx.userId)
-    const url = buildAPIUrl('/api/mcp/tools/discover', {
-      serverId,
-      workspaceId: ctx.workspaceId,
-      workflowId: ctx.workflowId,
-      ...(ctx.userId ? { userId: ctx.userId } : {}),
-    })
+    const url = buildInternalApiUrl(
+      internalRoute`/api/mcp/tools/discover`.withQuery({
+        serverId,
+        workspaceId: ctx.workspaceId,
+        workflowId: ctx.workflowId,
+        userId: ctx.userId,
+      })
+    )
 
     const maxAttempts = 2
     for (let attempt = 0; attempt < maxAttempts; attempt++) {

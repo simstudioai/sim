@@ -15,9 +15,10 @@ import {
   createRequestTracker,
   createUnauthorizedResponse,
 } from '@/lib/copilot/request/http'
-import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { isUuidV4 } from '@/executor/constants'
+import { buildInternalApiUrl } from '@/executor/utils/http'
 
 const logger = createLogger('CheckpointRevertAPI')
 
@@ -122,7 +123,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const stateResponse = await fetch(
-      `${getInternalApiBaseUrl()}/api/workflows/${checkpoint.workflowId}/state`,
+      buildInternalApiUrl(internalRoute`/api/workflows/${checkpoint.workflowId}/state`).toString(),
       {
         method: 'PUT',
         headers: {

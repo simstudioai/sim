@@ -4,6 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isRecordLike } from '@sim/utils/object'
 import { resolveBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import { getExecutionDeadlineAt } from '@/lib/core/execution-limits'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { buildNextCallChain, validateCallChain } from '@/lib/execution/call-chain'
 import { LoggingSession } from '@/lib/logs/execution/logging-session'
@@ -42,7 +43,7 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { buildAuthHeaders, buildInternalApiUrl } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
@@ -952,7 +953,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
   private async loadChildWorkflow(workflowId: string, userId?: string) {
     const headers = await buildAuthHeaders(userId)
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+    const url = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
 
@@ -1015,7 +1016,7 @@ export class WorkflowBlockHandler implements BlockHandler {
   private async checkChildDeployment(workflowId: string, userId?: string): Promise<boolean> {
     try {
       const headers = await buildAuthHeaders(userId)
-      const url = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
+      const url = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}/deployed`)
 
       const response = await fetch(url.toString(), {
         headers,
@@ -1037,7 +1038,7 @@ export class WorkflowBlockHandler implements BlockHandler {
 
   private async loadChildWorkflowDeployed(workflowId: string, userId?: string) {
     const headers = await buildAuthHeaders(userId)
-    const deployedUrl = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
+    const deployedUrl = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}/deployed`)
 
     const deployedRes = await fetch(deployedUrl.toString(), {
       headers,
@@ -1058,7 +1059,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       throw new Error(`Deployed state missing or invalid for child workflow ${workflowId}`)
     }
 
-    const metaUrl = buildAPIUrl(`/api/workflows/${workflowId}`)
+    const metaUrl = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}`)
     const metaRes = await fetch(metaUrl.toString(), {
       headers,
       cache: 'no-store',

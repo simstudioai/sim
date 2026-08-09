@@ -1,6 +1,7 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { FolderApi } from '@/lib/api/contracts'
 import type { ListWorkspaceFilesResponse } from '@/lib/api/contracts/workspace-files'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { FOLDER_LIST_STALE_TIME, folderKeys, mapFolder } from '@/hooks/queries/utils/folder-keys'
 import {
@@ -30,7 +31,11 @@ export async function prefetchHomeLists(
       queryKey: folderKeys.list(workspaceId, 'active', 'workflow'),
       queryFn: async () => {
         const { folders } = await prefetchInternalJson<{ folders?: FolderApi[] }>(
-          `/api/folders?workspaceId=${workspaceId}&scope=active&resourceType=workflow`
+          internalRoute`/api/folders`.withQuery({
+            workspaceId,
+            scope: 'active',
+            resourceType: 'workflow',
+          })
         )
         return (folders ?? []).map(mapFolder)
       },
@@ -40,7 +45,7 @@ export async function prefetchHomeLists(
       queryKey: workspaceFilesKeys.list(workspaceId, 'active'),
       queryFn: async () => {
         const data = await prefetchInternalJson<ListWorkspaceFilesResponse>(
-          `/api/workspaces/${workspaceId}/files?scope=active`
+          internalRoute`/api/workspaces/${workspaceId}/files`.withQuery({ scope: 'active' })
         )
         return data.success ? data.files : []
       },

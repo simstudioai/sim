@@ -6,6 +6,7 @@ import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attr
 import { formatCreditCost } from '@/lib/billing/credits/conversion'
 import { env } from '@/lib/core/config/env'
 import { getBlacklistedProvidersFromEnv, isHosted } from '@/lib/core/config/env-flags'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import {
   normalizeRecord,
   normalizeStringRecord,
@@ -84,10 +85,10 @@ async function fetchWorkflowMetadata(
   workflowId: string
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    const { buildAuthHeaders, buildInternalApiUrl } = await import('@/executor/utils/http')
 
     const headers = await buildAuthHeaders()
-    const url = buildAPIUrl(`/api/workflows/${workflowId}`)
+    const url = buildInternalApiUrl(internalRoute`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {

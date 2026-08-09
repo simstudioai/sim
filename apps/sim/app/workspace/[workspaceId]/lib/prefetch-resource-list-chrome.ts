@@ -1,5 +1,6 @@
 import type { QueryClient } from '@tanstack/react-query'
 import type { PinnedItemApi, PinnedResourceType } from '@/lib/api/contracts/pinned-items'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { prefetchInternalJson } from '@/app/workspace/[workspaceId]/lib/prefetch-internal-fetch'
 import { PINNED_ITEMS_STALE_TIME, pinnedItemKeys } from '@/hooks/queries/utils/pinned-item-keys'
 import {
@@ -30,7 +31,7 @@ export async function prefetchResourceListChrome(
       queryKey: pinnedItemKeys.list(workspaceId, type),
       queryFn: async () => {
         const { pinnedItems } = await prefetchInternalJson<{ pinnedItems: PinnedItemApi[] }>(
-          `/api/pinned-items?workspaceId=${workspaceId}&resourceType=${type}`
+          internalRoute`/api/pinned-items`.withQuery({ workspaceId, resourceType: type })
         )
         return pinnedItems
       },
@@ -44,7 +45,7 @@ export async function prefetchResourceListChrome(
       queryKey: workspaceKeys.members(workspaceId),
       queryFn: async () => {
         const { members } = await prefetchInternalJson<{ members: WorkspaceMember[] }>(
-          `/api/workspaces/${workspaceId}/members`
+          internalRoute`/api/workspaces/${workspaceId}/members`
         )
         return members
       },

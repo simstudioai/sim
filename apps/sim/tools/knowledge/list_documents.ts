@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeListDocumentsResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -47,8 +48,9 @@ export const knowledgeListDocumentsTool: ToolConfig<any, KnowledgeListDocumentsR
       if (params.enabledFilter) queryParams.set('enabledFilter', params.enabledFilter)
       if (params.limit != null) queryParams.set('limit', String(params.limit))
       if (params.offset != null) queryParams.set('offset', String(params.offset))
-      const qs = queryParams.toString()
-      return `/api/knowledge/${params.knowledgeBaseId}/documents${qs ? `?${qs}` : ''}`
+      return internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents`.withQuery(
+        queryParams
+      )
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

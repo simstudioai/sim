@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { MemoryResponse } from '@/tools/memory/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -16,7 +17,7 @@ export const memoryGetAllTool: ToolConfig<any, MemoryResponse> = {
         throw new Error('workspaceId is required in execution context')
       }
 
-      return `/api/memory?workspaceId=${encodeURIComponent(workspaceId)}`
+      return internalRoute`/api/memory`.withQuery({ workspaceId })
     },
     method: 'GET',
     secretProvenance: { response: { incomplete: 'reject' } },

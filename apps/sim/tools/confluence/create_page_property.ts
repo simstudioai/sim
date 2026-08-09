@@ -79,7 +79,7 @@ export const confluenceCreatePagePropertyTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/page-properties',
+    url: '/api/tools/confluence/page-properties',
     method: 'POST',
     headers: (params: ConfluenceCreatePagePropertyParams) => ({
       Accept: 'application/json',

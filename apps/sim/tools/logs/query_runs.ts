@@ -1,4 +1,5 @@
 import { creditsToDollars } from '@/lib/billing/credits/conversion'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { LogsQueryRunsParams, LogsQueryRunsResponse } from '@/tools/logs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -130,7 +131,7 @@ export const logsQueryRunsTool: ToolConfig<LogsQueryRunsParams, LogsQueryRunsRes
       }
       if (params.sortBy) qs.set('sortBy', params.sortBy)
       if (params.sortOrder) qs.set('sortOrder', params.sortOrder)
-      return `/api/logs?${qs.toString()}`
+      return internalRoute`/api/logs`.withQuery(qs)
     },
     method: 'GET',
     headers: () => ({

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import {
   normalizeWorkflowExecutorInput,
   WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY,
@@ -34,7 +35,8 @@ export const workflowExecutorTool: ToolConfig<
     },
   },
   request: {
-    url: (params: WorkflowExecutorParams) => `/api/workflows/${params.workflowId}/execute`,
+    url: (params: WorkflowExecutorParams) =>
+      internalRoute`/api/workflows/${params.workflowId}/execute`,
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     secretProvenance: {

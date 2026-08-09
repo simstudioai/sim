@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type {
   MicrosoftTeamsToolParams,
   MicrosoftTeamsWriteResponse,
@@ -63,13 +64,13 @@ export const writeChatTool: ToolConfig<MicrosoftTeamsToolParams, MicrosoftTeamsW
 
       // If files are provided, use custom API route for attachment handling
       if (params.files && params.files.length > 0) {
-        return '/api/tools/microsoft_teams/write_chat'
+        return internalRoute`/api/tools/microsoft_teams/write_chat`
       }
 
       // If content contains mentions, use custom API route for mention resolution
       const hasMentions = /<at>[^<]+<\/at>/i.test(params.content || '')
       if (hasMentions) {
-        return '/api/tools/microsoft_teams/write_chat'
+        return internalRoute`/api/tools/microsoft_teams/write_chat`
       }
 
       return `https://graph.microsoft.com/v1.0/chats/${encodeURIComponent(chatId)}/messages`

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { ATTACHMENTS_OUTPUT, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -93,7 +94,7 @@ export const confluenceListAttachmentsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/attachments?${query.toString()}`
+      return internalRoute`/api/tools/confluence/attachments`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListAttachmentsParams) => {

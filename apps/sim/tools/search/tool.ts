@@ -22,7 +22,7 @@ export const searchTool: ToolConfig<SearchParams, SearchResponse> = {
       mode: 'project',
       select: (params) => ({ query: params.query }),
     },
-    url: () => '/api/tools/search',
+    url: '/api/tools/search',
     method: 'POST',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type {
   MicrosoftTeamsDeleteMessageParams,
   MicrosoftTeamsDeleteResponse,
@@ -53,7 +54,7 @@ export const deleteChatMessageTool: ToolConfig<
       if (!chatId || !messageId) {
         throw new Error('Chat ID and Message ID are required')
       }
-      return '/api/tools/microsoft_teams/delete_chat_message'
+      return internalRoute`/api/tools/microsoft_teams/delete_chat_message`
     },
     method: 'POST',
     headers: (params) => {

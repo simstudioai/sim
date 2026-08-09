@@ -1,4 +1,5 @@
 import { headers } from 'next/headers'
+import type { InternalRoute } from '@/lib/core/utils/internal-route'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 
 /**
@@ -12,14 +13,14 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
  * still on this helper have not been converted; a converted one must prove the
  * viewer itself, since the route's own authorization no longer runs.
  */
-export async function prefetchInternalJson<T>(path: string): Promise<T> {
+export async function prefetchInternalJson<T>(route: InternalRoute): Promise<T> {
   const cookie = (await headers()).get('cookie')
   // boundary-raw-fetch: server-side RSC prefetch forwarding the session cookie to an internal API route; requestJson is client-only and cannot run here
-  const response = await fetch(`${getInternalApiBaseUrl()}${path}`, {
+  const response = await fetch(`${getInternalApiBaseUrl()}${route.path}`, {
     headers: cookie ? { cookie } : {},
   })
   if (!response.ok) {
-    throw new Error(`Prefetch failed for ${path}: ${response.status}`)
+    throw new Error(`Prefetch failed for ${route.path}: ${response.status}`)
   }
   return response.json() as Promise<T>
 }

@@ -74,7 +74,7 @@ export const confluenceGetPageAncestorsTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/page-ancestors',
+    url: '/api/tools/confluence/page-ancestors',
     method: 'POST',
     headers: (params: ConfluenceGetPageAncestorsParams) => ({
       Accept: 'application/json',

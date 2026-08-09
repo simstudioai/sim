@@ -21,6 +21,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { type InternalRoute, internalRoute } from '@/lib/core/utils/internal-route'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import {
@@ -971,7 +972,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           assertNotAborted()
           const createRes = await connectorApiCall(
             context.userId,
-            `/api/knowledge/${args.knowledgeBaseId}/connectors`,
+            internalRoute`/api/knowledge/${args.knowledgeBaseId}/connectors`,
             'POST',
             createBody,
             billingAttribution
@@ -1033,7 +1034,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           assertNotAborted()
           const updateRes = await connectorApiCall(
             context.userId,
-            `/api/knowledge/${kbId}/connectors/${args.connectorId}`,
+            internalRoute`/api/knowledge/${kbId}/connectors/${args.connectorId}`,
             'PATCH',
             updateBody
           )
@@ -1072,7 +1073,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           assertNotAborted()
           const deleteRes = await connectorApiCall(
             context.userId,
-            `/api/knowledge/${deleteKbId}/connectors/${args.connectorId}`,
+            internalRoute`/api/knowledge/${deleteKbId}/connectors/${args.connectorId}`,
             'DELETE'
           )
 
@@ -1121,7 +1122,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           assertNotAborted()
           const syncRes = await connectorApiCall(
             context.userId,
-            `/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,
+            internalRoute`/api/knowledge/${syncKbId}/connectors/${args.connectorId}/sync`,
             'POST',
             undefined,
             billingAttribution
@@ -1167,7 +1168,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
 
 async function connectorApiCall(
   userId: string,
-  path: string,
+  route: InternalRoute,
   method: string,
   body?: Record<string, unknown>,
   billingAttribution?: BillingAttributionSnapshot
@@ -1175,7 +1176,7 @@ async function connectorApiCall(
   const token = await generateInternalToken(userId)
   const baseUrl = getInternalApiBaseUrl()
 
-  const res = await fetch(`${baseUrl}${path}`, {
+  const res = await fetch(`${baseUrl}${route.path}`, {
     method,
     headers: {
       'Content-Type': 'application/json',

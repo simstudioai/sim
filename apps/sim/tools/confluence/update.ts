@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { ConfluenceUpdateParams, ConfluenceUpdateResponse } from '@/tools/confluence/types'
 import { CONTENT_BODY_OUTPUT_PROPERTIES, VERSION_OUTPUT_PROPERTIES } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
@@ -55,7 +56,7 @@ export const confluenceUpdateTool: ToolConfig<ConfluenceUpdateParams, Confluence
 
   request: {
     url: (params: ConfluenceUpdateParams) => {
-      return '/api/tools/confluence/page'
+      return internalRoute`/api/tools/confluence/page`
     },
     method: 'PUT',
     headers: (params: ConfluenceUpdateParams) => {

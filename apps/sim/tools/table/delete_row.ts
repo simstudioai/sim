@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { TableDeleteResponse, TableRowDeleteParams } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,7 +24,8 @@ export const tableDeleteRowTool: ToolConfig<TableRowDeleteParams, TableDeleteRes
   },
 
   request: {
-    url: (params: TableRowDeleteParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
+    url: (params: TableRowDeleteParams) =>
+      internalRoute`/api/table/${params.tableId}/rows/${params.rowId}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

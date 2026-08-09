@@ -872,7 +872,12 @@ export const {service}UploadTool: ToolConfig<Params, Response> = {
     fileContent: { type: 'string', required: false, visibility: 'hidden' }, // Legacy
   },
   request: {
-    url: '/api/tools/{service}/upload',  // Internal route
+    // Internal route. A static string is a source literal, so the transport trusts it. When the
+    // path is dynamic, use `internalRoute` from '@/tools/internal-route' instead of a template
+    // string — a builder's plain `/api/...` string is treated as external, because a caller- or
+    // model-supplied param can produce one:
+    //   url: (params) => internalRoute`/api/tools/{service}/upload/${params.folderId}`
+    url: '/api/tools/{service}/upload',
     method: 'POST',
     body: (params) => ({
       accessToken: params.accessToken,

@@ -53,7 +53,7 @@ export const agiloftReadRecordTool: ToolConfig<AgiloftReadRecordParams, AgiloftR
   },
 
   request: {
-    url: () => '/api/tools/agiloft/read_record',
+    url: '/api/tools/agiloft/read_record',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

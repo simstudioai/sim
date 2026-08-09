@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { TableRowGetParams, TableRowResponse } from '@/tools/table/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -30,7 +31,9 @@ export const tableGetRowTool: ToolConfig<TableRowGetParams, TableRowResponse> = 
         throw new Error('Workspace ID is required in execution context')
       }
 
-      return `/api/table/${params.tableId}/rows/${params.rowId}?workspaceId=${encodeURIComponent(workspaceId)}`
+      return internalRoute`/api/table/${params.tableId}/rows/${params.rowId}`.withQuery({
+        workspaceId,
+      })
     },
     method: 'GET',
     headers: () => ({

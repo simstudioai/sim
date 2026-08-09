@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeDeleteDocumentResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -23,7 +24,8 @@ export const knowledgeDeleteDocumentTool: ToolConfig<any, KnowledgeDeleteDocumen
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
+    url: (params) =>
+      internalRoute`/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}`,
     method: 'DELETE',
     headers: () => ({
       'Content-Type': 'application/json',

@@ -68,7 +68,7 @@ export const confluenceDeleteLabelTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/labels',
+    url: '/api/tools/confluence/labels',
     method: 'DELETE',
     headers: (params: ConfluenceDeleteLabelParams) => ({
       Accept: 'application/json',

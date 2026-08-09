@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { LogsGetExecutionParams, LogsGetExecutionResponse } from '@/tools/logs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -18,7 +19,7 @@ export const logsGetExecutionTool: ToolConfig<LogsGetExecutionParams, LogsGetExe
   },
 
   request: {
-    url: (params) => `/api/logs/execution/${encodeURIComponent(params.executionId)}`,
+    url: (params) => internalRoute`/api/logs/execution/${params.executionId}`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

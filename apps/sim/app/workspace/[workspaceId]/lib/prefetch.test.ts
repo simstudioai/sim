@@ -53,6 +53,11 @@ function makeClient() {
   return new QueryClient({ defaultOptions: { queries: { retry: false } } })
 }
 
+/** Prefetches now pass a branded InternalRoute; assert on the relative path it resolves to. */
+function prefetchedPaths(): string[] {
+  return mockPrefetchInternalJson.mock.calls.map(([route]) => (route as { path: string }).path)
+}
+
 describe('workspace list prefetches', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -69,9 +74,7 @@ describe('workspace list prefetches', () => {
 
       await prefetchKnowledgeBases(client, WORKSPACE_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/knowledge?workspaceId=${WORKSPACE_ID}&scope=active`
-      )
+      expect(prefetchedPaths()).toContain(`/api/knowledge?workspaceId=${WORKSPACE_ID}&scope=active`)
       expect(client.getQueryData(knowledgeKeys.list(WORKSPACE_ID, 'active'))).toEqual(bases)
     })
   })
@@ -84,9 +87,7 @@ describe('workspace list prefetches', () => {
 
       await prefetchTables(client, WORKSPACE_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-        `/api/table?workspaceId=${WORKSPACE_ID}&scope=active`
-      )
+      expect(prefetchedPaths()).toContain(`/api/table?workspaceId=${WORKSPACE_ID}&scope=active`)
       expect(client.getQueryData(tableKeys.list(WORKSPACE_ID, 'active'))).toEqual(tables)
     })
   })
@@ -152,7 +153,8 @@ describe('workspace list prefetches', () => {
       it(`primes pinned ids (${resourceType} + folder) and members for ${name}`, async () => {
         const pinnedItems = [{ id: 'p-1', resourceId: 'r-1' }]
         const members = [{ userId: 'u-1', name: 'Ada' }]
-        mockPrefetchInternalJson.mockImplementation(async (path: string) => {
+        mockPrefetchInternalJson.mockImplementation(async (route: { path: string }) => {
+          const { path } = route
           if (path.startsWith('/api/pinned-items')) return { pinnedItems }
           if (path.endsWith('/members')) return { members }
           if (path.includes('/folders')) return { folders: [] }
@@ -162,15 +164,13 @@ describe('workspace list prefetches', () => {
 
         await run(client)
 
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
+        expect(prefetchedPaths()).toContain(
           `/api/pinned-items?workspaceId=${WORKSPACE_ID}&resourceType=${resourceType}`
         )
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
+        expect(prefetchedPaths()).toContain(
           `/api/pinned-items?workspaceId=${WORKSPACE_ID}&resourceType=folder`
         )
-        expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
-          `/api/workspaces/${WORKSPACE_ID}/members`
-        )
+        expect(prefetchedPaths()).toContain(`/api/workspaces/${WORKSPACE_ID}/members`)
         expect(client.getQueryData(pinnedItemKeys.list(WORKSPACE_ID, resourceType))).toEqual(
           pinnedItems
         )
@@ -198,14 +198,14 @@ describe('workspace list prefetches', () => {
         deletedAt: null,
       }
       const files = [{ id: 'f-1' }]
-      mockPrefetchInternalJson.mockImplementation(async (path: string) =>
-        path.startsWith('/api/folders') ? { folders: [folderRow] } : { success: true, files }
+      mockPrefetchInternalJson.mockImplementation(async (route: { path: string }) =>
+        route.path.startsWith('/api/folders') ? { folders: [folderRow] } : { success: true, files }
       )
       const client = makeClient()
 
       await prefetchHomeLists(client, WORKSPACE_ID)
 
-      expect(mockPrefetchInternalJson).toHaveBeenCalledWith(
+      expect(prefetchedPaths()).toContain(
         `/api/folders?workspaceId=${WORKSPACE_ID}&scope=active&resourceType=workflow`
       )
       const cachedFolders = client.getQueryData(folderKeys.list(WORKSPACE_ID, 'active')) as Array<{

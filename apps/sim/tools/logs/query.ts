@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { LogsQueryParams, LogsQueryResponse } from '@/tools/logs/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -97,7 +98,7 @@ export const logsQueryTool: ToolConfig<LogsQueryParams, LogsQueryResponse> = {
       if (params.limit !== undefined && params.limit !== null) {
         qs.set('limit', String(params.limit))
       }
-      return `/api/logs?${qs.toString()}`
+      return internalRoute`/api/logs`.withQuery(qs)
     },
     method: 'GET',
     headers: () => ({

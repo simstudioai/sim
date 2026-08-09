@@ -60,7 +60,7 @@ export const agiloftGetChoiceLineIdTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/agiloft/get_choice_line_id',
+    url: '/api/tools/agiloft/get_choice_line_id',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

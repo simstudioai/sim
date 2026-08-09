@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import type { KnowledgeGetConnectorResponse } from '@/tools/knowledge/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -24,7 +25,8 @@ export const knowledgeGetConnectorTool: ToolConfig<any, KnowledgeGetConnectorRes
   },
 
   request: {
-    url: (params) => `/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}`,
+    url: (params) =>
+      internalRoute`/api/knowledge/${params.knowledgeBaseId}/connectors/${params.connectorId}`,
     method: 'GET',
     headers: () => ({
       'Content-Type': 'application/json',

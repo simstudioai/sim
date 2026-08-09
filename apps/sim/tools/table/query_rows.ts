@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableQueryResponse, TableRowQueryParams } from '@/tools/table/types'
@@ -74,7 +75,7 @@ export const tableQueryRowsTool: ToolConfig<TableRowQueryParams, TableQueryRespo
         searchParams.append('offset', String(params.offset))
       }
 
-      return `/api/table/${params.tableId}/rows?${searchParams.toString()}`
+      return internalRoute`/api/table/${params.tableId}/rows`.withQuery(searchParams)
     },
     method: 'GET',
     headers: () => ({

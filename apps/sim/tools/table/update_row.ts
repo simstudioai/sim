@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { selectTableRowSecretProvenance } from '@/lib/table/secret-provenance-selection'
 import { enrichTableToolSchema } from '@/tools/schema-enrichers'
 import type { TableRowResponse, TableRowUpdateParams } from '@/tools/table/types'
@@ -42,7 +43,8 @@ export const tableUpdateRowTool: ToolConfig<TableRowUpdateParams, TableRowRespon
       request: (params) => selectTableRowSecretProvenance([params.data]),
       response: { incomplete: 'propagate' },
     },
-    url: (params: TableRowUpdateParams) => `/api/table/${params.tableId}/rows/${params.rowId}`,
+    url: (params: TableRowUpdateParams) =>
+      internalRoute`/api/table/${params.tableId}/rows/${params.rowId}`,
     method: 'PATCH',
     headers: () => ({
       'Content-Type': 'application/json',

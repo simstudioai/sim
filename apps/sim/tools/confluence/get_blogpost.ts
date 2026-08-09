@@ -84,7 +84,7 @@ export const confluenceGetBlogPostTool: ToolConfig<
   },
 
   request: {
-    url: () => '/api/tools/confluence/blogposts',
+    url: '/api/tools/confluence/blogposts',
     method: 'POST',
     headers: (params: ConfluenceGetBlogPostParams) => ({
       Accept: 'application/json',

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { InternalRoute } from '@/lib/core/utils/internal-route'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 describe('workflowExecutorTool', () => {
@@ -311,10 +312,10 @@ describe('workflowExecutorTool', () => {
 
   describe('request.url', () => {
     it.concurrent('should build correct URL with workflowId', () => {
-      const url = workflowExecutorTool.request.url as (params: any) => string
+      const route = workflowExecutorTool.request.url as (params: any) => InternalRoute
 
-      expect(url({ workflowId: 'abc-123' })).toBe('/api/workflows/abc-123/execute')
-      expect(url({ workflowId: 'my-workflow' })).toBe('/api/workflows/my-workflow/execute')
+      expect(route({ workflowId: 'abc-123' }).path).toBe('/api/workflows/abc-123/execute')
+      expect(route({ workflowId: 'my-workflow' }).path).toBe('/api/workflows/my-workflow/execute')
     })
   })
 

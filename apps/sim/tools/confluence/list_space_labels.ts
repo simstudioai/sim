@@ -1,3 +1,4 @@
+import { internalRoute } from '@/lib/core/utils/internal-route'
 import { LABEL_ITEM_PROPERTIES, TIMESTAMP_OUTPUT } from '@/tools/confluence/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -92,7 +93,7 @@ export const confluenceListSpaceLabelsTool: ToolConfig<
       if (params.cloudId) {
         query.set('cloudId', params.cloudId)
       }
-      return `/api/tools/confluence/space-labels?${query.toString()}`
+      return internalRoute`/api/tools/confluence/space-labels`.withQuery(query)
     },
     method: 'GET',
     headers: (params: ConfluenceListSpaceLabelsParams) => ({

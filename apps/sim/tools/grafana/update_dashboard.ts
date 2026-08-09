@@ -85,7 +85,7 @@ export const updateDashboardTool: ToolConfig<GrafanaUpdateDashboardParams, ToolR
   },
 
   request: {
-    url: () => '/api/tools/grafana/update_dashboard',
+    url: '/api/tools/grafana/update_dashboard',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({

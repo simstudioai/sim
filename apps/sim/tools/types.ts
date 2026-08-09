@@ -1,5 +1,6 @@
 import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
+import type { InternalRoute } from '@/lib/core/utils/internal-route'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
@@ -174,7 +175,12 @@ export interface ToolConfig<P = any, R = any> {
 
   // Request configuration
   request: {
-    url: string | ((params: P) => string)
+    /**
+     * The request target. A static string may be a relative `/api/` route on Sim's own API; a
+     * builder must return an absolute URL, or an `internalRoute` template to target Sim's API —
+     * a bare `/api/` string from a builder is treated as external, because params can produce one.
+     */
+    url: string | ((params: P) => string | InternalRoute)
     method: HttpMethod | ((params: P) => HttpMethod)
     headers: (params: P) => Record<string, string>
     body?: (params: P) => Record<string, any> | string | FormData | undefined

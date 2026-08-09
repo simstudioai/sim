@@ -3,20 +3,18 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockBuildAPIUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(() => ({
-  mockBuildAPIUrl: vi.fn((path: string, params?: Record<string, string>) => {
-    const url = new URL(path, 'http://localhost:3000')
-    for (const [key, value] of Object.entries(params ?? {})) {
-      url.searchParams.set(key, value)
-    }
-    return url
-  }),
-  mockBuildAuthHeaders: vi.fn(),
-  mockExtractAPIErrorMessage: vi.fn(),
-}))
+const { mockBuildInternalApiUrl, mockBuildAuthHeaders, mockExtractAPIErrorMessage } = vi.hoisted(
+  () => ({
+    mockBuildInternalApiUrl: vi.fn(
+      (route: { path: string }) => new URL(route.path, 'http://localhost:3000')
+    ),
+    mockBuildAuthHeaders: vi.fn(),
+    mockExtractAPIErrorMessage: vi.fn(),
+  })
+)
 
 vi.mock('@/executor/utils/http', () => ({
-  buildAPIUrl: mockBuildAPIUrl,
+  buildInternalApiUrl: mockBuildInternalApiUrl,
   buildAuthHeaders: mockBuildAuthHeaders,
   extractAPIErrorMessage: mockExtractAPIErrorMessage,
 }))
