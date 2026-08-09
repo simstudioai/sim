@@ -6,10 +6,22 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
-import { inferContentType } from './workspace-file'
 
 const logger = createLogger('CreateFileServerTool')
 const CREATE_FILE_TOOL_ID = 'create_file'
+
+const MIME_SHAPE = /^[a-z0-9][a-z0-9!#$&^_.+-]*\/[a-z0-9][a-z0-9!#$&^_.+-]*$/
+
+/**
+ * Normalizes a model-declared MIME before it becomes the stored (load-bearing) file type:
+ * strips parameters (";charset=..."), trims, lowercases, and rejects anything that is not
+ * a bare type/subtype token pair. Returns null when the value cannot be a MIME at all, so
+ * the caller can fail with an instructive message instead of persisting junk verbatim.
+ */
+function normalizeDeclaredMime(raw: string): string | null {
+  const bare = raw.split(';')[0].trim().toLowerCase()
+  return MIME_SHAPE.test(bare) ? bare : null
+}
 
 interface CreateFileArgs {
   fileName: string
@@ -50,7 +62,21 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     }
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
-    const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
+    const declaredType = outputFile?.mimeType ?? explicitType
+    if (!declaredType) {
+      return {
+        success: false,
+        message:
+          'create_file requires an explicit MIME type: pass outputs.files[0].mimeType (e.g. "text/markdown"), or contentType when using the legacy fileName parameter. The MIME type is the source of truth for the file\'s type — the extension in the name is cosmetic and never determines it.',
+      }
+    }
+    const contentType = normalizeDeclaredMime(declaredType)
+    if (!contentType) {
+      return {
+        success: false,
+        message: `Invalid MIME type "${declaredType}": pass a full type/subtype MIME such as "text/markdown" or "application/json". It becomes the file's stored type, so a malformed value would break how the file is treated everywhere.`,
+      }
+    }
     const emptyBuffer = Buffer.from('', 'utf-8')
 
     assertServerToolNotAborted(context)
@@ -61,7 +87,7 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
       target: {
         path: outputPath,
         mode: outputFile?.mode ?? 'create',
-        mimeType: outputFile?.mimeType,
+        mimeType: outputFile?.mimeType ? contentType : undefined,
       },
       buffer: emptyBuffer,
       inferredMimeType: contentType,

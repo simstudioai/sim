@@ -10,16 +10,12 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import { ensureWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import {
   fetchWorkspaceFileBuffer as downloadWsFile,
   getWorkspaceFile,
-  getWorkspaceFileByName,
   resolveWorkspaceFileReference,
-  uploadWorkspaceFile,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
-import { EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import {
   performDeleteWorkspaceFileItems,
   performRenameWorkspaceFile,
@@ -32,27 +28,18 @@ import {
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'
-import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { storeFileIntent } from './file-intent-store'
 
 const logger = createLogger('WorkspaceFileServerTool')
 
-const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
-const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
-const PDF_MIME = 'application/pdf'
 // Single source of the JS source MIMEs is doc-compile.ts; reuse to avoid drift.
 const PPTX_SOURCE_MIME = PPTXGENJS_SOURCE_MIME
 const DOCX_SOURCE_MIME = DOCXJS_SOURCE_MIME
 const PDF_SOURCE_MIME = 'text/x-pdflibjs'
 
-type WorkspaceFileOperation = 'create' | 'append' | 'update' | 'delete' | 'rename' | 'patch'
+type WorkspaceFileOperation = 'append' | 'update' | 'delete' | 'rename' | 'patch'
 
 type WorkspaceFileTarget =
-  | {
-      kind: 'new_file'
-      fileName: string
-      fileId?: string
-    }
   | {
       kind: 'file_id'
       fileId: string
@@ -97,23 +84,6 @@ type WorkspaceFileResult = {
   success: boolean
   message: string
   data?: Record<string, unknown>
-}
-
-const EXT_TO_MIME: Record<string, string> = {
-  '.txt': 'text/plain',
-  '.md': 'text/markdown',
-  '.html': 'text/html',
-  '.json': 'application/json',
-  '.csv': 'text/csv',
-  '.pptx': PPTX_MIME,
-  '.docx': DOCX_MIME,
-  '.pdf': PDF_MIME,
-}
-
-export function inferContentType(fileName: string, explicitType?: string): string {
-  if (explicitType) return explicitType
-  const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
-  return EXT_TO_MIME[ext] || 'text/plain'
 }
 
 export function validateFlatWorkspaceFileName(fileName: string): string | null {
@@ -313,78 +283,6 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
       await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
       switch (operation) {
-        case 'create': {
-          const target = normalized.target
-          if (!target || target.kind !== 'new_file') {
-            return {
-              success: false,
-              message: 'create requires target.kind=new_file with target.fileName',
-            }
-          }
-
-          const { folderSegments, leafName } = splitWorkspaceFilePath(target.fileName)
-          const fileName = leafName
-          const content = normalized.content ?? ''
-          const explicitType = normalized.contentType
-          const fileNameValidationError = validateFlatWorkspaceFileName(target.fileName)
-          if (fileNameValidationError) return { success: false, message: fileNameValidationError }
-
-          const folderId = await ensureWorkspaceFileFolderPath({
-            workspaceId,
-            userId: context.userId,
-            pathSegments: folderSegments,
-          })
-          const existingFile = await getWorkspaceFileByName(workspaceId, fileName, { folderId })
-          if (existingFile) {
-            return { success: false, message: `File "${target.fileName}" already exists` }
-          }
-
-          const compiled = await compileDocForWrite({
-            source: content,
-            fileName,
-            workspaceId,
-            ownerKey: `user:${context.userId}`,
-            signal: context.abortSignal,
-            fallbackMime: inferContentType(fileName, explicitType),
-          })
-          if (!compiled.ok) {
-            return { success: false, message: compiled.message }
-          }
-          const contentType = compiled.sourceMime
-
-          const fileBuffer = Buffer.from(content, 'utf-8')
-          assertServerToolNotAborted(context)
-          const result = await uploadWorkspaceFile(
-            workspaceId,
-            context.userId,
-            fileBuffer,
-            fileName,
-            contentType,
-            { folderId, secretProvenance: EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE }
-          )
-          logger.info('Workspace file created via copilot', {
-            fileId: result.id,
-            name: fileName,
-            size: fileBuffer.length,
-            contentType,
-            userId: context.userId,
-          })
-
-          const embedWarning = await buildEmbeddedImageRefWarning(content, workspaceId)
-
-          return {
-            success: true,
-            message: `File "${fileName}" created successfully (${fileBuffer.length} bytes)${embedWarning}`,
-            data: {
-              id: result.id,
-              name: result.name,
-              contentType,
-              size: fileBuffer.length,
-              downloadUrl: result.url,
-            },
-          }
-        }
-
         case 'append': {
           const target = normalized.target
           const {
@@ -614,7 +512,7 @@ export const workspaceFileServerTool: BaseServerTool<WorkspaceFileArgs, Workspac
         default:
           return {
             success: false,
-            message: `Unknown operation: ${operation}. Supported: create, append, update, patch, rename, delete.`,
+            message: `Unknown operation: ${operation}. Supported: append, update, patch, rename, delete. New files go through the create_file tool.`,
           }
       }
     } catch (error) {
