@@ -83,6 +83,14 @@ interface WorkflowPreviewBlockData {
   executionStatus?: ExecutionStatus
   /** Subblock values from the workflow state */
   subBlockValues?: Record<string, SubBlockValueEntry | unknown>
+  /**
+   * Whether the block routes its failures to a second output. The port is the
+   * rendered half of that choice, so it only exists when the choice was made —
+   * or when an edge already leaves it, which React Flow needs a mounted handle
+   * for whatever the flag says.
+   */
+  errorEnabled?: boolean
+  hasErrorConnection?: boolean
   /** Skips expensive subblock computations for thumbnails/template previews */
   lightweight?: boolean
 }
@@ -222,6 +230,8 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
     isPreviewSelected = false,
     executionStatus,
     subBlockValues,
+    errorEnabled = false,
+    hasErrorConnection = false,
     lightweight = false,
   } = data
 
@@ -653,7 +663,11 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
         />
       )}
 
-      {shouldShowDefaultHandles && type !== 'response' && (
+      {/* The editor canvas gates this the same way — the port is the rendered
+          half of the error-output toggle, and a card that never opted in should
+          not grow one. An existing error edge keeps it mounted regardless, or
+          React Flow would drop that edge for having no handle to leave from. */}
+      {shouldShowDefaultHandles && type !== 'response' && (errorEnabled || hasErrorConnection) && (
         <Handle
           type='source'
           position={Position.Bottom}
@@ -685,6 +699,8 @@ function shouldSkipPreviewBlockRender(
     prevProps.data.enabled !== nextProps.data.enabled ||
     prevProps.data.isPreviewSelected !== nextProps.data.isPreviewSelected ||
     prevProps.data.executionStatus !== nextProps.data.executionStatus ||
+    prevProps.data.errorEnabled !== nextProps.data.errorEnabled ||
+    prevProps.data.hasErrorConnection !== nextProps.data.hasErrorConnection ||
     prevProps.data.lightweight !== nextProps.data.lightweight
   ) {
     return false

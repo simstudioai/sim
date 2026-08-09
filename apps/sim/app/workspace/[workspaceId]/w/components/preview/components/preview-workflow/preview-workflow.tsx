@@ -371,10 +371,28 @@ export function PreviewWorkflow({
     }
   }, [workflowState.edges, isValidWorkflowState])
 
+  /**
+   * Blocks that already route failures somewhere, as a content key.
+   *
+   * Such a block keeps its error port whatever its own flag says — React Flow
+   * drops an edge whose handle never mounts. A string rather than a Set so a
+   * re-received edges array with the same content does not rebuild every node.
+   * The raw handle is safe to test: `normalizeWorkflowEdgeHandles` only rewrites
+   * the side-anchored source ids, never `error`.
+   */
+  const errorSourceBlockKey = useMemo(() => {
+    const ids = new Set<string>()
+    for (const edge of workflowState.edges ?? []) {
+      if (edge.sourceHandle === 'error') ids.add(edge.source)
+    }
+    return [...ids].sort().join(',')
+  }, [workflowState.edges])
+
   const nodes: Node[] = useMemo(() => {
     if (!isValidWorkflowState) return []
 
     const nodeArray: Node[] = []
+    const blocksWithErrorEdge = new Set(errorSourceBlockKey ? errorSourceBlockKey.split(',') : [])
 
     const sortedBlocks = Object.entries(workflowState.blocks || {}).sort(
       ([, left], [, right]) =>
@@ -466,6 +484,8 @@ export function PreviewWorkflow({
           isPreviewSelected: isSelected,
           executionStatus,
           subBlockValues: block.subBlocks,
+          errorEnabled: block.errorEnabled === true,
+          hasErrorConnection: blocksWithErrorEdge.has(blockId),
           lightweight,
         },
       })
@@ -483,6 +503,7 @@ export function PreviewWorkflow({
     getSubflowExecutionStatus,
     workflowMap,
     workflowLabelsReady,
+    errorSourceBlockKey,
     lightweight,
   ])
 

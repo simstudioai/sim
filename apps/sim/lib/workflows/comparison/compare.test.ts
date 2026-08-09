@@ -193,6 +193,33 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
+    /**
+     * The two sides of a redeploy check are loaded by different paths, and only
+     * some of them canonicalize handles: the server diffs the normalized tables
+     * against the version's raw jsonb. A side-anchored spelling surviving on one
+     * side alone read as every edge being removed and re-added, so the button
+     * said "Live" while the modal said "Update deployment".
+     */
+    it.concurrent('should treat a side-anchored source handle as its canonical id', () => {
+      const state1 = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source-right', target: 'block2' }],
+      })
+      const state2 = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(false)
+    })
+
+    it.concurrent('should still tell two real ports apart', () => {
+      const state1 = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
+      })
+      const state2 = createWorkflowState({
+        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'error', target: 'block2' }],
+      })
+      expect(hasWorkflowChanged(state1, state2)).toBe(true)
+    })
+
     it.concurrent('should ignore edge ID changes', () => {
       const state1 = createWorkflowState({
         edges: [{ id: 'edge-old', source: 'block1', target: 'block2' }],
