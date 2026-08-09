@@ -157,11 +157,78 @@ function writeOAuthChatAttempt(attempt: OAuthChatAttempt): void {
   )
 }
 
+/**
+ * Grace period before a still-pending attempt is collected. A pending record is
+ * a flow whose window may yet return: {@link readOAuthChatAttempt} applies no
+ * age gate, so a popup parked past the read cutoff can still publish a verdict
+ * through {@link setOAuthChatAttemptStatus}. Sweeping on age alone — as the
+ * common OIDC client implementations do — would drop that record and strand the
+ * row on 'pending' with no event to correct it. A day is far past any live
+ * consent flow while still bounding what an abandoned one can leave behind.
+ */
+const OAUTH_CHAT_ATTEMPT_PENDING_GRACE_MS = 24 * 60 * 60 * 1000
+
+/**
+ * Drops attempt records that can no longer inform a reader, along with the
+ * latest-pointers aimed at them, so resolved flows stop accumulating for the
+ * life of the browser profile.
+ *
+ * Runs on create rather than on resolve: a verdict is published by status
+ * update and the row re-reads the attempt by id immediately afterwards, so
+ * removing it at that point would race the reader.
+ */
+function pruneExpiredOAuthChatAttempts(now: number): void {
+  const expiredAttemptIds = new Set<string>()
+  const staleKeys: string[] = []
+
+  // Keys are collected before any removal: localStorage is index-addressed, and
+  // removing mid-scan shifts every later entry down one slot, skipping it.
+  for (let index = 0; index < window.localStorage.length; index++) {
+    const key = window.localStorage.key(index)
+    if (!key?.startsWith(OAUTH_CHAT_ATTEMPT_KEY_PREFIX)) continue
+    const attemptId = key.slice(OAUTH_CHAT_ATTEMPT_KEY_PREFIX.length)
+    const attempt = readOAuthChatAttempt(attemptId)
+    // An unparseable or malformed record can never be read back, so it is
+    // collected too rather than left behind forever.
+    if (attempt) {
+      const age = now - attempt.requestedAt
+      const maxAge =
+        attempt.status === 'pending'
+          ? OAUTH_CHAT_ATTEMPT_PENDING_GRACE_MS
+          : OAUTH_CHAT_ATTEMPT_MAX_AGE_MS
+      if (age <= maxAge) continue
+    }
+    expiredAttemptIds.add(attemptId)
+    staleKeys.push(key)
+  }
+
+  if (expiredAttemptIds.size === 0) return
+
+  for (let index = 0; index < window.localStorage.length; index++) {
+    const key = window.localStorage.key(index)
+    if (!key?.startsWith(OAUTH_CHAT_LATEST_KEY_PREFIX)) continue
+    const pointedAttemptId = window.localStorage.getItem(key)
+    if (pointedAttemptId && expiredAttemptIds.has(pointedAttemptId)) staleKeys.push(key)
+  }
+
+  for (const key of staleKeys) {
+    window.localStorage.removeItem(key)
+  }
+}
+
 export function createOAuthChatAttempt(input: CreateOAuthChatAttemptInput): OAuthChatAttempt {
+  const requestedAt = Date.now()
+  if (typeof window !== 'undefined') {
+    // Same reasoning as the write path: a blocked or full store must not throw
+    // into the caller, and losing a sweep only defers it to the next attempt.
+    try {
+      pruneExpiredOAuthChatAttempts(requestedAt)
+    } catch {}
+  }
   const attempt: OAuthChatAttempt = {
     ...input,
     id: generateShortId(24),
-    requestedAt: Date.now(),
+    requestedAt,
     status: 'pending',
   }
   writeOAuthChatAttempt(attempt)

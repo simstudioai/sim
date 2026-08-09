@@ -4,6 +4,7 @@
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
+import type { OAuthChatAttempt, OAuthChatAttemptStatus } from '@/lib/credentials/oauth-chat-attempt'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
   buildOAuthChatCompleteAuthorizeUrl,
@@ -11,6 +12,7 @@ import {
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
   OAUTH_CHAT_ATTEMPT_EVENT,
+  OAUTH_CHAT_ATTEMPT_MAX_AGE_MS,
   OAUTH_CHAT_ATTEMPT_PARAM,
   OAUTH_CHAT_COMPLETE_PATH,
   OAUTH_CHAT_RETURN_TO_PARAM,
@@ -152,6 +154,69 @@ describe('OAuth chat attempts', () => {
 
     expect(resolveActiveDesktopOAuthChatAttempt('connected')?.id).toBe(attempt.id)
     expect(resolveActiveDesktopOAuthChatAttempt('connected')).toBeNull()
+  })
+
+  const SWEEP_INPUT = {
+    workspaceId: 'workspace-1',
+    providerId: 'slack',
+    baseProviderId: 'slack',
+    displayName: 'Slack',
+    controlId: 'message-1:0:0',
+    baselineCredentialIds: [],
+  }
+  const SWEEP_LATEST_KEY = 'sim.oauth-chat-latest.workspace-1.slack.message-1%3A0%3A0.'
+  const PENDING_GRACE_MS = 24 * 60 * 60 * 1000
+
+  /** Backdates a stored attempt, then starts an unrelated one to trigger the sweep. */
+  function ageAttemptThenSweep(
+    attempt: OAuthChatAttempt,
+    ageMs: number,
+    status: OAuthChatAttemptStatus
+  ): void {
+    window.localStorage.setItem(
+      `sim.oauth-chat-attempt.${attempt.id}`,
+      JSON.stringify({ ...attempt, requestedAt: attempt.requestedAt - ageMs, status })
+    )
+    createOAuthChatAttempt({ ...SWEEP_INPUT, controlId: 'message-1:9:9' })
+  }
+
+  it('sweeps resolved expired attempts and their latest-pointers when a new one starts', () => {
+    const stale = createOAuthChatAttempt(SWEEP_INPUT)
+    expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBe(stale.id)
+
+    ageAttemptThenSweep(stale, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'connected')
+
+    expect(window.localStorage.getItem(`sim.oauth-chat-attempt.${stale.id}`)).toBeNull()
+    expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBeNull()
+  })
+
+  it('keeps a pending attempt past the read cutoff so a late verdict still lands', () => {
+    const parked = createOAuthChatAttempt(SWEEP_INPUT)
+
+    ageAttemptThenSweep(parked, OAUTH_CHAT_ATTEMPT_MAX_AGE_MS + 1, 'pending')
+
+    // The read cutoff already hides it from the latest-pointer lookup, but the
+    // record itself must survive: a popup parked this long can still return.
+    expect(readLatestOAuthChatAttempt(SWEEP_INPUT)).toBeNull()
+    expect(setOAuthChatAttemptStatus(parked.id, 'connected')?.status).toBe('connected')
+  })
+
+  it('sweeps a pending attempt once it is past the abandoned grace period', () => {
+    const abandoned = createOAuthChatAttempt(SWEEP_INPUT)
+
+    ageAttemptThenSweep(abandoned, PENDING_GRACE_MS + 1, 'pending')
+
+    expect(window.localStorage.getItem(`sim.oauth-chat-attempt.${abandoned.id}`)).toBeNull()
+    expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBeNull()
+  })
+
+  it('keeps unexpired attempts across a sweep', () => {
+    const live = createOAuthChatAttempt(SWEEP_INPUT)
+
+    createOAuthChatAttempt({ ...SWEEP_INPUT, controlId: 'message-1:9:9' })
+
+    expect(readOAuthChatAttempt(live.id)?.id).toBe(live.id)
+    expect(window.localStorage.getItem(SWEEP_LATEST_KEY)).toBe(live.id)
   })
 
   it('resolves the exact correlated desktop attempt without consuming a sibling', () => {
