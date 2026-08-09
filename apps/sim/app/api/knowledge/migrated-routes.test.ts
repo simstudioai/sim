@@ -303,6 +303,7 @@ describe('migrated internal Knowledge routes', () => {
       document: { documentId: 'document-2', filename: 'new.txt' },
       isUpdate: false,
       previousDocumentId: null,
+      processingConfig: { maxConcurrentDocuments: 5, batchSize: 10 },
       workspaceId: 'workspace-1',
       userId: 'user-1',
     })

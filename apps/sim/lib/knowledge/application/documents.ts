@@ -504,10 +504,12 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       })
     })
     const isUpdate = existingDocumentId !== null
+    const { maxConcurrentDocuments, batchSize } = getProcessingConfig()
     return {
       document: createdDocument,
       isUpdate,
       previousDocumentId: existingDocumentId,
+      processingConfig: { maxConcurrentDocuments, batchSize },
       workspaceId: context.workspaceId,
       userId,
       secretProvenances,

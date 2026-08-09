@@ -48,7 +48,6 @@ import {
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { getCredential } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -748,8 +747,6 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
               resolveBillingAttribution: async (canonicalWorkspaceId) =>
                 requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
-              resolveAccessToken: async (requestId, credentialId) =>
-                (await getCredential(requestId, credentialId, context.userId))?.accessToken ?? null,
               source: 'agent',
             }
           )

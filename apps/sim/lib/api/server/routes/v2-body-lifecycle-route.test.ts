@@ -2,50 +2,28 @@
  * @vitest-environment node
  */
 
+import {
+  MockV2ApiKeyUnauthenticatedError,
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { z } from 'zod'
 
 const mocks = vi.hoisted(() => ({
   order: [] as string[],
-  authenticate: vi.fn(),
-  checkPreAuth: vi.fn(),
-  checkRateLimit: vi.fn(),
-  gate: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: (...args: unknown[]) => {
-    mocks.order.push('authenticate')
-    return mocks.authenticate(...args)
-  },
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect(...args: unknown[]) {
-      mocks.order.push('ip-limit')
-      return mocks.checkPreAuth(...args)
-    }
-
-    checkRateLimitDirectOrThrow(...args: unknown[]) {
-      mocks.order.push('operation-limit')
-      return mocks.checkRateLimit(...args)
-    }
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({
-  v2ApiGateError: (...args: unknown[]) => {
-    mocks.order.push('rollout')
-    return mocks.gate(...args)
-  },
-}))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 import { defineRouteContract } from '@/lib/api/contracts'
-import { V2ApiKeyUnauthenticatedError } from '@/lib/api/server/routes/v2-api-key-auth'
 import { defineV2BodyLifecycleRoute } from '@/lib/api/server/routes/v2-body-lifecycle-route'
 import { v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes/v2-json-route'
 import { v2Error } from '@/app/api/v2/lib/response'
@@ -62,13 +40,6 @@ const contract = defineRouteContract({
     status: 201,
   },
 })
-
-const RATE_LIMIT_OK = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
-}
 
 class StageRejection extends Error {}
 
@@ -148,15 +119,27 @@ describe('defineV2BodyLifecycleRoute', () => {
     vi.clearAllMocks()
     mocks.order.splice(0)
     rejectedStage = null
-    mocks.checkPreAuth.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.checkRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mocks.gate.mockResolvedValue(null)
-    mocks.authenticate.mockResolvedValue({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      rolloutUserId: 'user-1',
-      rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
-      rateLimitSubscription: null,
-      keyType: 'personal',
+    v2RouteMocks.preauthRate.mockImplementation(async () => {
+      mocks.order.push('ip-limit')
+      return V2_PREAUTH_RATE_LIMIT_ALLOWED
+    })
+    v2RouteMocks.operationRate.mockImplementation(async () => {
+      mocks.order.push('operation-limit')
+      return V2_OPERATION_RATE_LIMIT_ALLOWED
+    })
+    v2RouteMocks.gate.mockImplementation(async () => {
+      mocks.order.push('rollout')
+      return null
+    })
+    v2RouteMocks.authenticate.mockImplementation(async () => {
+      mocks.order.push('authenticate')
+      return {
+        principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
+        rolloutUserId: 'user-1',
+        rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
+        rateLimitSubscription: null,
+        keyType: 'personal',
+      }
     })
   })
 
@@ -211,7 +194,10 @@ describe('defineV2BodyLifecycleRoute', () => {
   })
 
   it('rejects at the IP abuse limit before authentication', async () => {
-    mocks.checkPreAuth.mockResolvedValue({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
+    v2RouteMocks.preauthRate.mockImplementation(async () => {
+      mocks.order.push('ip-limit')
+      return { ...V2_PREAUTH_RATE_LIMIT_ALLOWED, allowed: false, remaining: 0 }
+    })
 
     const response = await buildHandler()(buildRequest(), context())
 
@@ -220,9 +206,10 @@ describe('defineV2BodyLifecycleRoute', () => {
   })
 
   it('rejects unauthenticated requests before rollout and operation limiting', async () => {
-    mocks.authenticate.mockRejectedValue(
-      new V2ApiKeyUnauthenticatedError('Authentication required')
-    )
+    v2RouteMocks.authenticate.mockImplementation(async () => {
+      mocks.order.push('authenticate')
+      throw new MockV2ApiKeyUnauthenticatedError('Authentication required')
+    })
 
     const response = await buildHandler()(buildRequest(), context())
 
@@ -231,7 +218,10 @@ describe('defineV2BodyLifecycleRoute', () => {
   })
 
   it('rejects rollout-gated requests before operation limiting', async () => {
-    mocks.gate.mockResolvedValue(v2Error('FORBIDDEN', 'V2 API access is not enabled'))
+    v2RouteMocks.gate.mockImplementation(async () => {
+      mocks.order.push('rollout')
+      return v2Error('FORBIDDEN', 'V2 API access is not enabled')
+    })
 
     const response = await buildHandler()(buildRequest(), context())
 
@@ -240,7 +230,10 @@ describe('defineV2BodyLifecycleRoute', () => {
   })
 
   it('rejects operation-limited requests before contract or application admission', async () => {
-    mocks.checkRateLimit.mockResolvedValue({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
+    v2RouteMocks.operationRate.mockImplementation(async () => {
+      mocks.order.push('operation-limit')
+      return { ...V2_OPERATION_RATE_LIMIT_ALLOWED, allowed: false, remaining: 0 }
+    })
 
     const response = await buildHandler()(buildRequest(), context())
 
@@ -290,9 +283,9 @@ describe('defineV2BodyLifecycleRoute', () => {
     'maps %s infrastructure failures to service unavailable',
     async (stage) => {
       const failure = new Error(`${stage} unavailable`)
-      if (stage === 'authentication') mocks.authenticate.mockRejectedValue(failure)
-      if (stage === 'rollout') mocks.gate.mockRejectedValue(failure)
-      if (stage === 'rate_limit') mocks.checkRateLimit.mockRejectedValue(failure)
+      if (stage === 'authentication') v2RouteMocks.authenticate.mockRejectedValue(failure)
+      if (stage === 'rollout') v2RouteMocks.gate.mockRejectedValue(failure)
+      if (stage === 'rate_limit') v2RouteMocks.operationRate.mockRejectedValue(failure)
 
       const response = await buildHandler()(buildRequest(), context())
 

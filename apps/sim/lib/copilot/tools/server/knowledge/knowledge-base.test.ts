@@ -25,29 +25,60 @@ const {
   mockCreateKnowledgeConnector,
   mockCreateKnowledgeTag,
   mockListKnowledgeTags,
-} = vi.hoisted(() => ({
-  mockAddWorkspaceFiles: vi.fn(),
-  mockBulkDeleteKnowledgeBases: vi.fn(),
-  mockBulkDeleteKnowledgeDocuments: vi.fn(),
-  mockCaptureServerEvent: vi.fn(),
-  mockCreateKnowledgeBase: vi.fn(),
-  mockDeleteKnowledgeConnector: vi.fn(),
-  mockDeleteKnowledgeTag: vi.fn(),
-  mockKnowledgeBaseCreated: vi.fn(),
-  mockKnowledgeBaseDeleted: vi.fn(),
-  mockKnowledgeBaseDocumentsUploaded: vi.fn(),
-  mockReadKnowledgeBase: vi.fn(),
-  mockReadKnowledgeTagUsage: vi.fn(),
-  mockSearchKnowledge: vi.fn(),
-  mockSyncKnowledgeConnector: vi.fn(),
-  mockUpdateKnowledgeBase: vi.fn(),
-  mockUpdateKnowledgeConnector: vi.fn(),
-  mockUpdateKnowledgeDocument: vi.fn(),
-  mockUpdateKnowledgeTag: vi.fn(),
-  mockCreateKnowledgeConnector: vi.fn(),
-  mockCreateKnowledgeTag: vi.fn(),
-  mockListKnowledgeTags: vi.fn(),
-}))
+  knowledgeOperations,
+} = vi.hoisted(() => {
+  const defineOperation = (id: string, minimumRole: 'read' | 'write') =>
+    Object.freeze({
+      id,
+      minimumRole,
+      workspaceApiKey: 'deny' as const,
+      principalKinds: ['session', 'personal_api_key', 'delegated'] as const,
+      delegatedServices: ['copilot'] as const,
+    })
+
+  return {
+    mockAddWorkspaceFiles: vi.fn(),
+    mockBulkDeleteKnowledgeBases: vi.fn(),
+    mockBulkDeleteKnowledgeDocuments: vi.fn(),
+    mockCaptureServerEvent: vi.fn(),
+    mockCreateKnowledgeBase: vi.fn(),
+    mockDeleteKnowledgeConnector: vi.fn(),
+    mockDeleteKnowledgeTag: vi.fn(),
+    mockKnowledgeBaseCreated: vi.fn(),
+    mockKnowledgeBaseDeleted: vi.fn(),
+    mockKnowledgeBaseDocumentsUploaded: vi.fn(),
+    mockReadKnowledgeBase: vi.fn(),
+    mockReadKnowledgeTagUsage: vi.fn(),
+    mockSearchKnowledge: vi.fn(),
+    mockSyncKnowledgeConnector: vi.fn(),
+    mockUpdateKnowledgeBase: vi.fn(),
+    mockUpdateKnowledgeConnector: vi.fn(),
+    mockUpdateKnowledgeDocument: vi.fn(),
+    mockUpdateKnowledgeTag: vi.fn(),
+    mockCreateKnowledgeConnector: vi.fn(),
+    mockCreateKnowledgeTag: vi.fn(),
+    mockListKnowledgeTags: vi.fn(),
+    knowledgeOperations: {
+      addWorkspaceFiles: defineOperation('knowledge.documents.add_workspace_files', 'write'),
+      bulkDelete: defineOperation('knowledge.bulk_delete', 'write'),
+      bulkDeleteDocuments: defineOperation('knowledge.documents.bulk_delete', 'write'),
+      create: defineOperation('knowledge.create', 'write'),
+      createConnector: defineOperation('knowledge.connectors.create', 'write'),
+      createTag: defineOperation('knowledge.tags.create', 'write'),
+      deleteConnector: defineOperation('knowledge.connectors.delete', 'write'),
+      deleteTag: defineOperation('knowledge.tags.delete', 'write'),
+      listTags: defineOperation('knowledge.tags.list', 'read'),
+      read: defineOperation('knowledge.read', 'read'),
+      readTagUsage: defineOperation('knowledge.tags.read_usage', 'read'),
+      search: defineOperation('knowledge.search', 'read'),
+      syncConnector: defineOperation('knowledge.connectors.sync', 'write'),
+      update: defineOperation('knowledge.update', 'write'),
+      updateConnector: defineOperation('knowledge.connectors.update', 'write'),
+      updateDocument: defineOperation('knowledge.documents.update', 'write'),
+      updateTag: defineOperation('knowledge.tags.update', 'write'),
+    },
+  }
+})
 
 vi.mock('@/lib/copilot/generated/tool-catalog-v1', () => ({
   KnowledgeBase: { id: 'knowledge_base' },
@@ -60,78 +91,81 @@ vi.mock('@/lib/core/telemetry', () => ({
   },
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCaptureServerEvent }))
+vi.mock('@/lib/knowledge/application/operations', () => ({ knowledgeOperations }))
 vi.mock('@/lib/knowledge/application/add-workspace-files', () => ({
   addWorkspaceFilesToKnowledgeBase: {
-    operation: { id: 'knowledge.documents.add_workspace_files' },
+    operation: knowledgeOperations.addWorkspaceFiles,
     execute: mockAddWorkspaceFiles,
   },
 }))
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   bulkDeleteKnowledgeBases: {
-    operation: { id: 'knowledge.bulk_delete' },
+    operation: knowledgeOperations.bulkDelete,
     execute: mockBulkDeleteKnowledgeBases,
   },
-  createKnowledgeBase: { operation: { id: 'knowledge.create' }, execute: mockCreateKnowledgeBase },
-  readKnowledgeBase: { operation: { id: 'knowledge.read' }, execute: mockReadKnowledgeBase },
+  createKnowledgeBase: {
+    operation: knowledgeOperations.create,
+    execute: mockCreateKnowledgeBase,
+  },
+  readKnowledgeBase: { operation: knowledgeOperations.read, execute: mockReadKnowledgeBase },
   updateKnowledgeBaseOperation: {
-    operation: { id: 'knowledge.update' },
+    operation: knowledgeOperations.update,
     execute: mockUpdateKnowledgeBase,
   },
 }))
 vi.mock('@/lib/knowledge/application/documents', () => ({
   bulkDeleteKnowledgeDocuments: {
-    operation: { id: 'knowledge.documents.bulk_delete' },
+    operation: knowledgeOperations.bulkDeleteDocuments,
     execute: mockBulkDeleteKnowledgeDocuments,
   },
   updateKnowledgeDocument: {
-    operation: { id: 'knowledge.documents.update' },
+    operation: knowledgeOperations.updateDocument,
     execute: mockUpdateKnowledgeDocument,
   },
 }))
 vi.mock('@/lib/knowledge/application/search', () => ({
-  searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearchKnowledge },
+  searchKnowledge: { operation: knowledgeOperations.search, execute: mockSearchKnowledge },
 }))
 vi.mock('@/lib/knowledge/application/connectors', () => ({
   createKnowledgeConnector: {
-    operation: { id: 'knowledge.connectors.create' },
+    operation: knowledgeOperations.createConnector,
     execute: mockCreateKnowledgeConnector,
   },
   updateKnowledgeConnector: {
-    operation: { id: 'knowledge.connectors.update' },
+    operation: knowledgeOperations.updateConnector,
     execute: mockUpdateKnowledgeConnector,
   },
   deleteKnowledgeConnector: {
-    operation: { id: 'knowledge.connectors.delete' },
+    operation: knowledgeOperations.deleteConnector,
     execute: mockDeleteKnowledgeConnector,
   },
   syncKnowledgeConnector: {
-    operation: { id: 'knowledge.connectors.sync' },
+    operation: knowledgeOperations.syncConnector,
     execute: mockSyncKnowledgeConnector,
   },
 }))
 vi.mock('@/lib/knowledge/application/tags', () => ({
   createKnowledgeTag: {
-    operation: { id: 'knowledge.tags.create' },
+    operation: knowledgeOperations.createTag,
     execute: mockCreateKnowledgeTag,
   },
   deleteKnowledgeTag: {
-    operation: { id: 'knowledge.tags.delete' },
+    operation: knowledgeOperations.deleteTag,
     execute: mockDeleteKnowledgeTag,
   },
   listKnowledgeTags: {
-    operation: { id: 'knowledge.tags.list' },
+    operation: knowledgeOperations.listTags,
     execute: mockListKnowledgeTags,
   },
   readKnowledgeTagUsage: {
-    operation: { id: 'knowledge.tags.read_usage' },
+    operation: knowledgeOperations.readTagUsage,
     execute: mockReadKnowledgeTagUsage,
   },
   updateKnowledgeTag: {
-    operation: { id: 'knowledge.tags.update' },
+    operation: knowledgeOperations.updateTag,
     execute: mockUpdateKnowledgeTag,
   },
 }))
-vi.mock('@/app/api/auth/oauth/utils', () => ({ getCredential: vi.fn() }))
 
 import type { ServerToolContext } from '@/lib/copilot/tools/server/base-tool'
 import { knowledgeBaseServerTool } from '@/lib/copilot/tools/server/knowledge/knowledge-base'
@@ -167,7 +201,7 @@ function expectDelegatedPrincipal(call: unknown): void {
       serviceId: 'copilot',
       subjectUserId: 'external-admin',
       workspaceId: 'workspace-paid',
-      delegationId: 'copilot-tool:tool-call-1',
+      delegationId: 'tool-call-1',
       audience: 'sim:knowledge',
       resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
     },

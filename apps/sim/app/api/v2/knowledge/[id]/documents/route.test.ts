@@ -1,13 +1,18 @@
 /**
  * @vitest-environment node
  */
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAuthenticate,
-  mockCheckPreAuth,
-  mockCheckRateLimit,
   mockAdmitUpload,
   mockUploadDocument,
   mockReadFormData,
@@ -17,9 +22,6 @@ const {
   mockCapture,
   mockIsPayloadSizeLimitError,
 } = vi.hoisted(() => ({
-  mockAuthenticate: vi.fn(),
-  mockCheckPreAuth: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
   mockAdmitUpload: vi.fn(),
   mockUploadDocument: vi.fn(),
   mockReadFormData: vi.fn(),
@@ -30,25 +32,9 @@ const {
   mockIsPayloadSizeLimitError: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect(...args: unknown[]) {
-      return mockCheckPreAuth(...args)
-    }
-
-    checkRateLimitDirectOrThrow(...args: unknown[]) {
-      return mockCheckRateLimit(...args)
-    }
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/knowledge/application/documents', () => ({
   listKnowledgeDocuments: {
@@ -89,12 +75,6 @@ import { validateFileType } from '@/lib/uploads/utils/validation'
 import { POST } from '@/app/api/v2/knowledge/[id]/documents/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const RATE_LIMIT_OK = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
-}
 const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
 
 function buildRequest() {
@@ -107,10 +87,11 @@ function buildRequest() {
 describe('POST /api/v2/knowledge/[id]/documents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
     mockIsPayloadSizeLimitError.mockReturnValue(false)
-    mockAuthenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
       rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
@@ -218,7 +199,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
   })
 
   it('does not create human analytics for a workspace key', async () => {
-    mockAuthenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
       rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],

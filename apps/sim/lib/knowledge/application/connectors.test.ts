@@ -13,7 +13,9 @@ const mocks = vi.hoisted(() => ({
   deleteConnector: vi.fn(),
   syncConnector: vi.fn(),
   resolveBilling: vi.fn(),
-  resolveToken: vi.fn(),
+  resolveTokenIdentity: vi.fn(),
+  refreshToken: vi.fn(),
+  validateConnectorConfig: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
@@ -48,6 +50,23 @@ vi.mock('@/lib/knowledge/orchestration/connectors', () => ({
   performUpdateKnowledgeConnector: mocks.updateConnector,
   performDeleteKnowledgeConnector: mocks.deleteConnector,
   performSyncKnowledgeConnector: mocks.syncConnector,
+}))
+
+vi.mock('@/lib/credentials/access', () => ({
+  resolveCredentialTokenIdentity: mocks.resolveTokenIdentity,
+}))
+
+vi.mock('@/app/api/auth/oauth/utils', () => ({
+  refreshAccessTokenIfNeeded: mocks.refreshToken,
+}))
+
+vi.mock('@/connectors/registry.server', () => ({
+  CONNECTOR_REGISTRY: {
+    confluence: {
+      auth: { mode: 'oauth' },
+      validateConfig: mocks.validateConnectorConfig,
+    },
+  },
 }))
 
 import {
@@ -95,6 +114,9 @@ describe('knowledge connector application use cases', () => {
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveConnector.mockResolvedValue(connectorContext)
+    mocks.resolveTokenIdentity.mockResolvedValue({ kind: 'oauth', userId: 'credential-owner' })
+    mocks.refreshToken.mockResolvedValue('access-token')
+    mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
   })
 
   it.each([
@@ -109,7 +131,6 @@ describe('knowledge connector application use cases', () => {
         sourceConfig: {},
         syncIntervalMinutes: 1440,
         resolveBillingAttribution: mocks.resolveBilling,
-        resolveAccessToken: mocks.resolveToken,
       },
     ],
     [
@@ -147,7 +168,7 @@ describe('knowledge connector application use cases', () => {
 
       expect(mocks.resolvePermission).not.toHaveBeenCalled()
       expect(mocks.resolveBilling).not.toHaveBeenCalled()
-      expect(mocks.resolveToken).not.toHaveBeenCalled()
+      expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
       expect(mocks.createConnector).not.toHaveBeenCalled()
       expect(mocks.updateConnector).not.toHaveBeenCalled()
       expect(mocks.deleteConnector).not.toHaveBeenCalled()
@@ -215,5 +236,64 @@ describe('knowledge connector application use cases', () => {
         }),
       })
     )
+  })
+
+  it('owns source-config credential resolution and validation after authorization', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    mocks.updateConnector.mockResolvedValueOnce({
+      success: true,
+      connector: { ...sameWorkspaceContext.connector, sourceConfig: { space: 'ENG' } },
+    })
+
+    await updateKnowledgeConnector.execute({
+      principal: delegatedPrincipal,
+      input: {
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        updates: { sourceConfig: { space: 'ENG' } },
+        source: 'agent',
+      },
+    })
+
+    const orchestrationInput = mocks.updateConnector.mock.calls[0]?.[0] as {
+      validateSourceConfig?: (
+        connector: {
+          connectorType: string
+          credentialId: string
+          encryptedApiKey: null
+        },
+        sourceConfig: Record<string, unknown>
+      ) => Promise<unknown>
+    }
+    if (!orchestrationInput.validateSourceConfig) {
+      throw new Error('Application command did not provide source-config validation')
+    }
+    await expect(
+      orchestrationInput.validateSourceConfig(
+        {
+          connectorType: 'confluence',
+          credentialId: 'credential-1',
+          encryptedApiKey: null,
+        },
+        { space: 'ENG' }
+      )
+    ).resolves.toBeNull()
+    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.updateConnector.mock.invocationCallOrder[0]
+    )
+    expect(mocks.resolveTokenIdentity).toHaveBeenCalledWith('credential-1', 'workspace-a')
+    expect(mocks.refreshToken).toHaveBeenCalledWith(
+      'credential-1',
+      'credential-owner',
+      expect.any(String)
+    )
+    expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
   })
 })

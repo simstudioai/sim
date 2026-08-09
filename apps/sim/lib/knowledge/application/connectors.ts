@@ -2,9 +2,11 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
 import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import {
@@ -49,7 +51,6 @@ export interface CreateKnowledgeConnectorInput extends KnowledgeConnectorApplica
   sourceConfig: Record<string, unknown>
   syncIntervalMinutes: number
   resolveBillingAttribution(workspaceId: string): Promise<BillingAttributionSnapshot>
-  resolveAccessToken(requestId: string, credentialId: string): Promise<string | null>
 }
 
 export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -59,13 +60,6 @@ export interface UpdateKnowledgeConnectorInput extends KnowledgeConnectorApplica
     syncIntervalMinutes?: number
     status?: 'active' | 'paused'
   }
-  createSourceConfigValidator?(
-    workspaceId: string,
-    actingUserId: string
-  ): (
-    connector: KnowledgeConnectorRow,
-    sourceConfig: Record<string, unknown>
-  ) => Promise<SourceConfigRejection | null>
 }
 
 export interface DeleteKnowledgeConnectorInput extends KnowledgeConnectorApplicationInput {
@@ -105,6 +99,84 @@ function connectorTarget(context: ActiveKnowledgeBaseContext) {
     name: context.knowledgeBase.name,
     workspaceId: context.workspaceId,
   }
+}
+
+async function resolveConnectorCredentialAccessToken(input: {
+  credentialId: string
+  workspaceId: string
+  actingUserId: string
+  requestId: string
+}): Promise<string | null> {
+  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  if (!identity) return null
+  const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
+  return refreshAccessTokenIfNeeded(
+    input.credentialId,
+    identity.kind === 'oauth' ? identity.userId : input.actingUserId,
+    input.requestId
+  )
+}
+
+async function validateConnectorSourceConfig(input: {
+  connector: KnowledgeConnectorRow
+  sourceConfig: Record<string, unknown>
+  workspaceId: string
+  actingUserId: string
+  requestId: string
+}): Promise<SourceConfigRejection | null> {
+  const { CONNECTOR_REGISTRY } = await import('@/connectors/registry.server')
+  const connectorConfig = CONNECTOR_REGISTRY[input.connector.connectorType]
+  if (!connectorConfig) {
+    return {
+      message: `Unknown connector type: ${input.connector.connectorType}`,
+      errorCode: 'validation',
+    }
+  }
+
+  let accessToken: string | null = null
+  if (connectorConfig.auth.mode === 'apiKey') {
+    if (!input.connector.encryptedApiKey) {
+      return {
+        message: 'API key not found. Please reconfigure the connector.',
+        errorCode: 'validation',
+      }
+    }
+    accessToken = (await decryptApiKey(input.connector.encryptedApiKey)).decrypted
+  } else {
+    if (!input.connector.credentialId) {
+      return {
+        message: 'OAuth credential not found. Please reconfigure the connector.',
+        errorCode: 'validation',
+      }
+    }
+    const identity = await resolveCredentialTokenIdentity(
+      input.connector.credentialId,
+      input.workspaceId
+    )
+    if (!identity) {
+      return {
+        message: 'Credential is no longer usable in this workspace. Please reconnect it.',
+        errorCode: 'validation',
+      }
+    }
+    const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
+    accessToken = await refreshAccessTokenIfNeeded(
+      input.connector.credentialId,
+      identity.kind === 'oauth' ? identity.userId : input.actingUserId,
+      input.requestId
+    )
+    if (!accessToken) {
+      return {
+        message: 'Failed to refresh access token. Please reconnect your account.',
+        errorCode: 'unauthorized',
+      }
+    }
+  }
+
+  const validation = await connectorConfig.validateConfig(accessToken, input.sourceConfig)
+  return validation.valid
+    ? null
+    : { message: validation.error || 'Invalid source configuration', errorCode: 'validation' }
 }
 
 export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
@@ -151,6 +223,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     resolveActiveKnowledgeBaseContext(input),
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
+    const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorType: input.connectorType,
@@ -159,8 +232,14 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       sourceConfig: input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
       resolveBillingAttribution: () => input.resolveBillingAttribution(context.workspaceId),
-      resolveAccessToken: (credentialId) => input.resolveAccessToken(requestId, credentialId),
-      userId: resolveKnowledgeAttributedUserId(principal, context),
+      resolveAccessToken: (credentialId) =>
+        resolveConnectorCredentialAccessToken({
+          credentialId,
+          workspaceId: context.workspaceId,
+          actingUserId,
+          requestId,
+        }),
+      userId: actingUserId,
       source: input.source ?? 'agent',
       requestId,
       request,
@@ -191,17 +270,23 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: UpdateKnowledgeConnectorInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ principal, input, context, request }) {
+    const requestId = generateRequestId()
+    const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
     const outcome = await performUpdateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
       updates: input.updates,
-      validateSourceConfig: input.createSourceConfigValidator?.(
-        context.workspaceId,
-        resolveKnowledgeAttributedUserId(principal, context)
-      ),
-      userId: resolveKnowledgeAttributedUserId(principal, context),
+      validateSourceConfig: (connector, sourceConfig) =>
+        validateConnectorSourceConfig({
+          connector,
+          sourceConfig,
+          workspaceId: context.workspaceId,
+          actingUserId,
+          requestId,
+        }),
+      userId: actingUserId,
       source: input.source ?? 'agent',
-      requestId: generateRequestId(),
+      requestId,
       request,
       recordSemanticAudit: false,
     })

@@ -1,35 +1,24 @@
 /**
  * @vitest-environment node
  */
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockAuthenticate, mockCheckPreAuth, mockCheckRateLimit, mockSearch } = vi.hoisted(() => ({
-  mockAuthenticate: vi.fn(),
-  mockCheckPreAuth: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
+const { mockSearch } = vi.hoisted(() => ({
   mockSearch: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect(...args: unknown[]) {
-      return mockCheckPreAuth(...args)
-    }
-
-    checkRateLimitDirectOrThrow(...args: unknown[]) {
-      return mockCheckRateLimit(...args)
-    }
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/knowledge/application/search', () => ({
   searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearch },
@@ -41,13 +30,6 @@ import { POST } from '@/app/api/v2/knowledge/search/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' } as const
-const RATE_LIMIT_OK = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
-}
-
 function buildRequest(body: string, headers: Record<string, string> = {}) {
   return new NextRequest('http://localhost/api/v2/knowledge/search', {
     method: 'POST',
@@ -59,9 +41,10 @@ function buildRequest(body: string, headers: Record<string, string> = {}) {
 describe('POST /api/v2/knowledge/search', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockAuthenticate.mockResolvedValue({
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
       rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-1', `workspace:${WORKSPACE_ID}`],
@@ -122,7 +105,7 @@ describe('POST /api/v2/knowledge/search', () => {
     const response = await POST(buildRequest('{'))
 
     expect(response.status).toBe(400)
-    expect(mockAuthenticate).toHaveBeenCalledOnce()
+    expect(v2RouteMocks.authenticate).toHaveBeenCalledOnce()
     expect(mockSearch).not.toHaveBeenCalled()
   })
 

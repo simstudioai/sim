@@ -11,7 +11,6 @@ import {
 } from '@/lib/knowledge/api/route-policies'
 import { upsertKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { getProcessingConfig } from '@/lib/knowledge/documents/service'
 import {
   createKnowledgeProvenanceResponse,
   resolveKnowledgeDocumentWriteSecretProvenance,
@@ -59,25 +58,22 @@ export const POST = defineInternalJsonRoute({
     },
   }),
   useCase: upsertKnowledgeDocument,
-  present: ({ document, isUpdate, previousDocumentId }) => {
-    const { maxConcurrentDocuments, batchSize } = getProcessingConfig()
-    return {
-      success: true as const,
-      data: {
-        documentsCreated: [
-          {
-            documentId: document.documentId,
-            filename: document.filename,
-            status: 'pending' as const,
-          },
-        ],
-        isUpdate,
-        previousDocumentId,
-        processingMethod: 'background' as const,
-        processingConfig: { maxConcurrentDocuments, batchSize },
-      },
-    }
-  },
+  present: ({ document, isUpdate, previousDocumentId, processingConfig }) => ({
+    success: true as const,
+    data: {
+      documentsCreated: [
+        {
+          documentId: document.documentId,
+          filename: document.filename,
+          status: 'pending' as const,
+        },
+      ],
+      isUpdate,
+      previousDocumentId,
+      processingMethod: 'background' as const,
+      processingConfig,
+    },
+  }),
   renderResponse: ({ request, principal, result, body }) =>
     createKnowledgeProvenanceResponse({
       request,

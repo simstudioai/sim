@@ -4,7 +4,6 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
-  internalKnowledgeActorUserId,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
 } from '@/lib/knowledge/api/internal-route'
@@ -17,7 +16,6 @@ import {
   listKnowledgeConnectors,
 } from '@/lib/knowledge/application/connectors'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { getCredential } from '@/app/api/auth/oauth/utils'
 
 export const GET = defineInternalJsonRoute({
   contract: listKnowledgeConnectorsContract,
@@ -52,9 +50,6 @@ export const POST = defineInternalJsonRoute({
     syncIntervalMinutes: body.syncIntervalMinutes,
     resolveBillingAttribution: (workspaceId: string) =>
       resolveInternalKnowledgeBillingAttribution(request, principal, workspaceId),
-    resolveAccessToken: async (requestId: string, credentialId: string) =>
-      (await getCredential(requestId, credentialId, internalKnowledgeActorUserId(principal)))
-        ?.accessToken ?? null,
     source: 'ui' as const,
   }),
   useCase: createKnowledgeConnector,
