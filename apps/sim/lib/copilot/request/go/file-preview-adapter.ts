@@ -376,7 +376,11 @@ export async function processFilePreviewStreamEvent(input: {
     if (toolCallId && parsedArgs) {
       const { operation, title, contentType, edit } = parsedArgs
       const target = await resolvePreviewTarget({
-        context: execContext,
+        /* File delegation derives its audit id from the tool call
+           (`copilot-tool:<toolCallId>`), and that id lives on the frame rather
+           than the turn-scoped context. Passing the turn context alone made
+           every preview throw, so the file stopped streaming entirely. */
+        context: { ...execContext, toolCallId },
         workspaceId: execContext.workspaceId,
         target: parsedArgs.target,
       })
@@ -405,7 +409,7 @@ export async function processFilePreviewStreamEvent(input: {
           (operation === 'append' || operation === 'patch')
         ) {
           previewBase = await loadWorkspaceFileTextForPreview(
-            execContext,
+            { ...execContext, toolCallId },
             execContext.workspaceId,
             fileId
           )
@@ -480,7 +484,7 @@ export async function processFilePreviewStreamEvent(input: {
         (intent.operation === 'append' || intent.operation === 'patch')
       ) {
         previewBase = await loadWorkspaceFileTextForPreview(
-          execContext,
+          { ...execContext, toolCallId: streamEvent.payload.toolCallId },
           execContext.workspaceId,
           result.fileId
         )

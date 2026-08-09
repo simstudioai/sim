@@ -583,6 +583,11 @@ function registerSubagentToolCall(
       status: 'pending',
       agentId,
       params: args,
+      /* The invoking subagent's channel, recorded here rather than only on a
+         finalized frame: a call checkpointed while every frame is still partial
+         would otherwise execute with no channel, and the workspace_file ->
+         edit_content intent handoff scopes on exactly this id. */
+      parentToolCallId,
       startTime: Date.now(),
     }
     applyToolDisplay(toolCall)
