@@ -4,7 +4,7 @@ import { join } from 'node:path'
 import { Command } from 'commander'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { buildGeneratedCommands } from '../../runtime/build.js'
-import { streamToFile } from './files-get.js'
+import { isTerminalSafeContentType, streamToFile } from './files-get.js'
 import { attachProtocolCommands } from './index.js'
 
 const { output, requestRaw } = vi.hoisted(() => ({
@@ -87,6 +87,15 @@ describe('streamToFile', () => {
   )
 })
 
+describe('isTerminalSafeContentType', () => {
+  it('accepts text formats and rejects binary or unknown formats', () => {
+    expect(isTerminalSafeContentType('text/markdown; charset=utf-8')).toBe(true)
+    expect(isTerminalSafeContentType('application/problem+json')).toBe(true)
+    expect(isTerminalSafeContentType('application/pdf')).toBe(false)
+    expect(isTerminalSafeContentType(null)).toBe(false)
+  })
+})
+
 describe('files get', () => {
   it('prints a normalized machine-readable result', async () => {
     const target = join(dir, 'download.txt')
@@ -107,7 +116,7 @@ describe('files get', () => {
     })
   })
 
-  it('streams raw bytes to stdout with the conventional - destination', async () => {
+  it('streams raw bytes to stdout by default', async () => {
     requestRaw.mockResolvedValue(new Response('downloaded', { status: 200 }))
     const chunks: Uint8Array[] = []
     vi.spyOn(process.stdout, 'write').mockImplementation((chunk: string | Uint8Array) => {
@@ -116,16 +125,42 @@ describe('files get', () => {
     })
     const logged = vi.spyOn(console, 'log').mockImplementation(() => {})
 
-    await program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', '-o', '-'])
+    await program().parseAsync(['node', 'sim', 'file', 'get', 'file_1'])
 
     expect(Buffer.concat(chunks).toString('utf8')).toBe('downloaded')
     expect(logged).not.toHaveBeenCalled()
   })
 
-  it('rejects overwrite semantics for stdout', async () => {
+  it.each([
+    ['without an output path', ['--force']],
+    ['with the stdout alias', ['-o', '-', '--force']],
+  ])('rejects --force %s', async (_label, args) => {
     await expect(
-      program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', '-o', '-', '--force'])
-    ).rejects.toThrow(/--force cannot be used/)
+      program().parseAsync(['node', 'sim', 'file', 'get', 'file_1', ...args])
+    ).rejects.toThrow(/--force requires --output-file <path>/)
     expect(requestRaw).not.toHaveBeenCalled()
+  })
+
+  it('refuses binary content when stdout is an interactive terminal', async () => {
+    requestRaw.mockResolvedValue(
+      new Response(new Uint8Array([0, 1, 2]), {
+        status: 200,
+        headers: { 'content-type': 'application/octet-stream' },
+      })
+    )
+    const originalDescriptor = Object.getOwnPropertyDescriptor(process.stdout, 'isTTY')
+    Object.defineProperty(process.stdout, 'isTTY', { configurable: true, value: true })
+
+    try {
+      await expect(program().parseAsync(['node', 'sim', 'file', 'get', 'file_1'])).rejects.toThrow(
+        /Refusing to write application\/octet-stream.*--output-file/s
+      )
+    } finally {
+      if (originalDescriptor) {
+        Object.defineProperty(process.stdout, 'isTTY', originalDescriptor)
+      } else {
+        Reflect.deleteProperty(process.stdout, 'isTTY')
+      }
+    }
   })
 })

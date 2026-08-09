@@ -164,7 +164,7 @@ sim tables rows batch-delete <tableId> (--row <id>… | --filter <json>) --yes
 sim files ls [path] [--search <text>] [--limit <n>]
 sim files list [--folder <path>]
 sim files describe <fileId>
-sim files get <fileId> [-o <path|->]
+sim files get <fileId> [-o <path>]  # stdout by default
 sim files create --name <name> [--folder <path>] [--content <value>] [--encoding utf-8|base64]
 sim files upload <path> [--name <name>] [--folder <path>]
 sim files share <fileId> [--auth-type public|password|email|sso]
