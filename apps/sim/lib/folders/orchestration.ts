@@ -18,6 +18,7 @@ import {
   toCascadeCounts,
 } from '@/lib/folders/cascade'
 import { folderResourceConfig } from '@/lib/folders/config'
+import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { acquireFolderMutationLock, withFolderTreeLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import {
@@ -198,6 +199,9 @@ async function executeCreateFolderAtPath(
           isEffectivelyLocked(index, parentId)
         ) {
           throw new Error('Folder is locked')
+        }
+        if (params.maxFolderRows !== undefined && index.rowById.size >= params.maxFolderRows) {
+          throw new FolderCollectionLimitExceededError('path index', params.maxFolderRows)
         }
 
         const sortOrder = await nextFolderSortOrder(

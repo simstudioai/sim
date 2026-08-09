@@ -363,6 +363,33 @@ describe('path-owned folder mutations', () => {
     expect(dbChainMockFns.insert).not.toHaveBeenCalled()
   })
 
+  it.each(['workflow', 'table'] as const)(
+    'rejects a %s folder create at the cap before inserting',
+    async (resourceType) => {
+      const existing = folderRow({ id: 'existing-1', resourceType, name: 'Existing' })
+      mockLoadActiveFolderPathIndex.mockResolvedValueOnce({
+        rowById: new Map([[existing.id, existing]]),
+        pathById: new Map([[existing.id, '/Existing']]),
+        idByPath: new Map([['/Existing', existing.id]]),
+      })
+
+      const result = await createFolderAtPathTransition({
+        resourceType,
+        workspaceId: 'ws-1',
+        userId: 'user-1',
+        path: '/Reports',
+        maxFolderRows: 1,
+      })
+
+      expect(result).toEqual({
+        success: false,
+        error: 'Folder path index exceeds the 1 row limit',
+        errorCode: 'payload_too_large',
+      })
+      expect(dbChainMockFns.insert).not.toHaveBeenCalled()
+    }
+  )
+
   it('does not project legacy audit from the application transition', async () => {
     queueTableRows(schemaMock.folder, [{ minSortOrder: 0 }])
     dbChainMockFns.returning.mockResolvedValueOnce([folderRow()])
