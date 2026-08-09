@@ -36,8 +36,14 @@ function getTitleFontSize(title: string): number {
  * serves to browsers cannot be reused here.
  *
  * These live under `public/` so they need no `outputFileTracingIncludes` entry:
- * the Dockerfile copies that directory into the runner, which the
+ * `docker/app.Dockerfile` copies that directory into the runner, which the
  * `force-dynamic` share-token card needs since it renders per request.
+ *
+ * `process.cwd()` is the app directory in every environment this runs in, not
+ * just dev and build. The container starts at the monorepo root, but Next's
+ * generated standalone `server.js` opens with `process.chdir(__dirname)`, and
+ * that file ships beside `public/` — which is also why `content/` is read this
+ * way at runtime.
  */
 const FONT_DIR = join(process.cwd(), 'public', 'brand', 'fonts')
 
