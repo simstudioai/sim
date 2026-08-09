@@ -24,7 +24,7 @@ import {
   sql,
 } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
@@ -143,7 +143,7 @@ export interface GetKnowledgeBasesOptions {
   /** Case-insensitive substring match on the knowledge base name. */
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }
 
 async function attachConnectorTypes(

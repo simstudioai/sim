@@ -2,13 +2,8 @@ import {
   v2DeleteKnowledgeDocumentContract,
   v2GetKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
-import {
-  defineV2JsonRoute,
-  type V2ErrorPolicy,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import {
   deleteKnowledgeDocument,
   readKnowledgeDocument,
@@ -16,7 +11,6 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -33,21 +27,13 @@ function toProcessingStatus(status: string): 'pending' | 'processing' | 'complet
   }
 }
 
-const concealKnowledgeDocumentReadAuthorization = {
-  render(error) {
-    const response = v2OrchestrationErrorPolicy.render(error)
-    if (response?.status === 403) return v2Error('NOT_FOUND', 'Knowledge base not found')
-    return response
-  },
-} satisfies V2ErrorPolicy
-
 /** GET /api/v2/knowledge/[id]/documents/[documentId] — Get document details. */
 export const GET = defineV2JsonRoute({
   contract: v2GetKnowledgeDocumentContract,
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.readDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: concealKnowledgeDocumentReadAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
@@ -85,7 +71,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.deleteDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,

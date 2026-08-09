@@ -1,4 +1,5 @@
 import type { folder } from '@sim/db/schema'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import type { FolderPathIndex } from '@/lib/folders/paths'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
@@ -16,7 +17,9 @@ export async function resolveTableFolderPath(
   path: string
 ): Promise<ResolvedTableFolderPath | null> {
   return withFolderTreeLock(workspaceId, 'table', async (tx) => {
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx)
+    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId = resolveFolderPathFromIndex(index, path)
     return folderId === undefined ? null : { folderId, index }
   })

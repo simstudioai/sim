@@ -2,9 +2,9 @@ import { db } from '@sim/db'
 import { folder } from '@sim/db/schema'
 import { and, type Column, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { DbOrTx } from '@/lib/db/types'
+import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
@@ -158,14 +158,14 @@ interface ListFoldersOptions {
   /** Case-insensitive substring match on the folder name. */
   search?: string
   sortBy?: FolderSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }
 
 interface ListActiveFolderRowsOptions {
   parentId?: string | null
   search?: string
   sortBy?: Exclude<FolderSortBy, 'position'>
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
   maxRows?: number
 }
 
@@ -187,7 +187,7 @@ export async function loadActiveFolderPathIndex(
     )
   const rows = options?.maxRows === undefined ? await query : await query.limit(options.maxRows + 1)
   if (options?.maxRows !== undefined && rows.length > options.maxRows) {
-    throw new Error(`Folder path index exceeds the ${options.maxRows} row limit`)
+    throw new FolderCollectionLimitExceededError('path index', options.maxRows)
   }
 
   return buildFolderPathIndex(rows)
@@ -229,7 +229,7 @@ export async function listActiveFolderRows(
     .orderBy(...listOrderBy(FOLDER_SORTS[options.sortBy ?? 'name'], options.sortOrder ?? 'asc'))
   const rows = options.maxRows === undefined ? await query : await query.limit(options.maxRows + 1)
   if (options.maxRows !== undefined && rows.length > options.maxRows) {
-    throw new Error(`Folder list exceeds the ${options.maxRows} row limit`)
+    throw new FolderCollectionLimitExceededError('list', options.maxRows)
   }
   return rows
 }

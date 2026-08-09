@@ -1,8 +1,8 @@
 import type { Principal } from '@sim/auth/principal'
 import type { AuditLogOperation, AuditLogPrincipal } from '@/lib/audit-logs/application/operations'
+import { resolveEnterpriseAuditAccess } from '@/lib/audit-logs/authorization'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { resolveEnterpriseAuditAccess } from '@/app/api/v1/audit-logs/auth'
 
 export interface AuthorizedAuditLogContext {
   organizationId: string

@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import { LIST_SORT_ORDERS, type ListSortOrder } from '@/lib/api/list-query'
 import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
 
 /**
@@ -92,9 +93,9 @@ export const v2SearchSchema = z
   .max(200, 'search is too long')
   .optional()
 
-export const v2SortOrderSchema = z.enum(['asc', 'desc'])
+export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS)
 
-export type V2SortOrder = z.output<typeof v2SortOrderSchema>
+export type V2SortOrder = ListSortOrder
 
 function canonicalFolderPathSchema(parser: (path: string) => string[]) {
   return z.string().superRefine((path, ctx) => {
