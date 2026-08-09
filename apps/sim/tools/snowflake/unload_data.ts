@@ -13,7 +13,7 @@ export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStat
   id: 'snowflake_unload_data',
   version: '1.0.0',
   name: 'Snowflake Unload Data',
-  description: 'Export a table or query result to files in a Snowflake stage with COPY INTO.',
+  description: 'Export a Snowflake table to files in a stage with COPY INTO.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -60,15 +60,10 @@ export const unloadDataTool: ToolConfig<SnowflakeUnloadDataParams, SnowflakeStat
     },
     table: {
       type: 'string',
-      required: false,
+      required: true,
       visibility: 'user-or-llm',
-      description: 'Source table to unload; provide either this or a statement, not both',
-    },
-    statement: {
-      type: 'string',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Source SELECT statement to unload; provide either this or a table, not both',
+      description:
+        'Source table to unload. To export a query result, materialize it first as a view or with CREATE TABLE AS SELECT, then unload that',
     },
     fileFormat: {
       type: 'string',

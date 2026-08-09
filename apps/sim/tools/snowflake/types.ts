@@ -122,10 +122,8 @@ export interface SnowflakeUnloadDataParams extends SnowflakeResultParams {
   database: string
   schema: string
   stagePath: string
-  /** Source table, mutually exclusive with `statement`. */
-  table?: string
-  /** Source query, mutually exclusive with `table`. */
-  statement?: string
+  /** Source table. An inline query is deliberately not supported — see buildUnloadData. */
+  table: string
   fileFormat?: string
   header?: boolean
   overwrite?: boolean

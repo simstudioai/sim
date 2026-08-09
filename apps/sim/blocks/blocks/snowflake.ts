@@ -157,7 +157,7 @@ const tableOperations = [
   'list_copy_history',
   'introspect_schema',
 ] as const
-const tableRequiredOperations = [...dataOperations, 'list_copy_history'] as const
+const tableRequiredOperations = [...dataOperations, 'unload_data', 'list_copy_history'] as const
 
 /** Operations that bound their result with a `limit` parameter. */
 const limitOperations = [
@@ -192,13 +192,22 @@ const maxRowsOperationSet: ReadonlySet<string> = new Set(maxRowsOperations)
 const limitOperationSet: ReadonlySet<string> = new Set(limitOperations)
 
 /**
- * A switch the user never touched serializes as `null`, and in advanced mode the
- * serializer emits every advanced sub-block regardless. Builders test optional
- * booleans with `!== undefined`, so an untouched switch would otherwise emit a
- * clause the user never asked for — `AUTO_RESUME = FALSE` being the damaging one.
+ * Normalizes an optional switch to a real boolean or `undefined`.
+ *
+ * With advanced mode on, the serializer evaluates each advanced sub-block's
+ * condition and emits an untouched switch as `null`. Builders test these with
+ * `!== undefined`, so that `null` would otherwise emit a clause the user never
+ * asked for — `AUTO_RESUME = FALSE`, which permanently disables auto-resume on
+ * the warehouse, being the damaging one.
+ *
+ * The string forms are accepted because a direct tool call delivers booleans
+ * that way, matching the other boolean readers on this block.
  */
 function optionalBoolean(value: unknown): boolean | undefined {
-  return typeof value === 'boolean' ? value : undefined
+  if (typeof value === 'boolean') return value
+  if (value === 'true') return true
+  if (value === 'false') return false
+  return undefined
 }
 
 function resolveCopyOnError(value: unknown, threshold: unknown): string | undefined {
@@ -294,12 +303,12 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       title: 'SQL Statement',
       type: 'code',
       placeholder: 'SELECT * FROM ANALYTICS.PUBLIC.EVENTS LIMIT 100',
-      condition: { field: 'operation', value: ['execute_sql', 'unload_data'] },
+      condition: { field: 'operation', value: 'execute_sql' },
       required: { field: 'operation', value: 'execute_sql' },
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate one Snowflake SQL statement for the described request. For Execute SQL, use positional ? placeholders for any values that will be bound; for Unload Data, write a complete SELECT with literal values and no placeholders. Return ONLY the SQL statement - no explanations, no extra text.',
+          'Generate one Snowflake SQL statement for the described request. Use positional ? placeholders for any values that will be bound. Return ONLY the SQL statement - no explanations, no extra text.',
         placeholder: 'Describe the query to run...',
         generationType: 'sql-query',
       },
@@ -308,6 +317,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       id: 'bindings',
       title: 'Bindings',
       type: 'code',
+      language: 'json',
       placeholder: '{"1":{"type":"TEXT","value":"active"}}',
       condition: { field: 'operation', value: 'execute_sql' },
       mode: 'advanced',
@@ -423,6 +433,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       id: 'rows',
       title: 'Rows',
       type: 'code',
+      language: 'json',
       placeholder: '[{"id":1,"status":"active"}]',
       condition: { field: 'operation', value: ['insert_rows', 'update_rows', 'upsert_rows'] },
       required: { field: 'operation', value: ['insert_rows', 'update_rows', 'upsert_rows'] },
@@ -438,6 +449,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       id: 'matchColumns',
       title: 'Match Columns',
       type: 'code',
+      language: 'json',
       placeholder: '["id"]',
       condition: { field: 'operation', value: ['update_rows', 'upsert_rows'] },
       required: { field: 'operation', value: ['update_rows', 'upsert_rows'] },
@@ -453,6 +465,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       id: 'filters',
       title: 'Match Filters',
       type: 'code',
+      language: 'json',
       placeholder: '{"status":"expired","tenant_id":42,"archived_at":null}',
       condition: { field: 'operation', value: 'delete_rows' },
       required: { field: 'operation', value: 'delete_rows' },
@@ -773,6 +786,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       id: 'procedureArguments',
       title: 'Procedure Arguments',
       type: 'code',
+      language: 'json',
       placeholder: '[{"type":"TEXT","value":"daily"}]',
       condition: { field: 'operation', value: 'call_procedure' },
       mode: 'advanced',
@@ -1210,7 +1224,7 @@ export const SnowflakeBlockMeta = {
       name: 'export-snowflake-results',
       description: 'Unload a table or query result to files in a Snowflake stage.',
       content:
-        '# Export Snowflake Results\n\n## Steps\n1. Confirm the destination stage path and whether existing files may be overwritten.\n2. Choose exactly one source: a table, or a SELECT statement.\n3. Pick a named file format, and decide on column headings and whether one file or several.\n4. Run the unload and review the reported file count and row totals.\n\n## Output\nReturn the stage path, files written, and rows unloaded.',
+        '# Export Snowflake Results\n\n## Steps\n1. Confirm the destination table and the stage path, and whether existing files may be overwritten.\n2. To export a query result rather than a whole table, materialize it first — create a view or use CREATE TABLE AS SELECT via Execute SQL — then unload that object.\n3. Pick a named file format, and decide on column headings and whether one file or several.\n4. Run the unload and review the reported file count and row totals.\n\n## Output\nReturn the stage path, files written, and rows unloaded.',
     },
     {
       name: 'browse-snowflake-objects',

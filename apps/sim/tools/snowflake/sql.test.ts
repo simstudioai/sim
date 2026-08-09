@@ -482,7 +482,14 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
-  it('unloads from exactly one source and orders the COPY INTO clauses', () => {
+  /**
+   * The source is a table name, never an inline query. An inlined query sits
+   * directly before the copy-option slot, so anything escaping its parentheses
+   * becomes a copy clause — a guard for that has to match Snowflake's tokenizer
+   * exactly, and three versions of one were each defeated. `qualifiedIdentifier`
+   * removes the class instead of re-guarding it.
+   */
+  it('unloads a table and orders the COPY INTO clauses', () => {
     const base = {
       ...context,
       database: 'ANALYTICS',
@@ -500,68 +507,19 @@ describe('Snowflake SQL builders', () => {
         maxFileSizeBytes: 16_777_216,
       }).statement
     ).toBe(
+      // OVERWRITE/SINGLE/MAX_FILE_SIZE are all copyOptions members, so their
+      // order among themselves is free; HEADER must stay last.
       "COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS FILE_FORMAT = (FORMAT_NAME = 'ANALYTICS.PUBLIC.CSV_FORMAT') OVERWRITE = FALSE SINGLE = TRUE MAX_FILE_SIZE = 16777216 HEADER = TRUE"
     )
-    // A trailing semicolon on the source query would close the COPY statement.
-    // The newline before the closing paren keeps a trailing line comment in the
-    // source query from swallowing it.
-    expect(buildUnloadData({ ...base, statement: 'SELECT 1 -- daily' }).statement).toBe(
-      'COPY INTO @EXPORTS/daily FROM (SELECT 1 -- daily\n) OVERWRITE = FALSE'
+    // OVERWRITE is always emitted so the option can never be left to a default.
+    expect(buildUnloadData({ ...base, table: 'EVENTS' }).statement).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE'
     )
-    expect(buildUnloadData({ ...base, statement: 'SELECT 1;' }).statement).toBe(
-      'COPY INTO @EXPORTS/daily FROM (SELECT 1\n) OVERWRITE = FALSE'
-    )
-    expect(() => buildUnloadData({ ...base, table: 'EVENTS', statement: 'SELECT 1' })).toThrow(
-      /exactly one of table or statement/
-    )
-    // Each of these ends the derived table early and supplies its own copy
-    // options, including OVERWRITE = TRUE, by hiding a paren in a construct the
-    // paren counter must skip. All are valid Snowflake syntax.
-    const breakouts: Array<[string, string, RegExp]> = [
-      [
-        'bare paren',
-        'SELECT 1) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV',
-        /unbalanced parentheses/,
-      ],
-      [
-        'double-slash comment',
-        'SELECT 1 // (\n) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV // )',
-        /unbalanced parentheses/,
-      ],
-      [
-        'dollar quoting',
-        'SELECT $$($$ ) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV, RECORD_DELIMITER = $$)$$',
-        /unbalanced parentheses/,
-      ],
-      [
-        'nested block comment',
-        'SELECT 1 /* /* */ ( */ ) OVERWRITE = TRUE /* /* */ ) */',
-        /nested block comment/,
-      ],
-    ]
-    for (const [name, statement, expected] of breakouts) {
-      expect(() => buildUnloadData({ ...base, statement }), name).toThrow(expected)
-    }
-
-    // A paren legitimately inside a dollar-quoted string is not a breakout.
-    expect(buildUnloadData({ ...base, statement: 'SELECT $$a)b$$ AS x' }).statement).toContain(
-      'FROM (SELECT $$a)b$$ AS x\n)'
-    )
-    expect(() => buildUnloadData({ ...base, statement: 'SELECT $$unterminated' })).toThrow(
-      /unterminated dollar-quoted string/
-    )
-
-    // OVERWRITE is always emitted, so an injected duplicate collides instead of
-    // silently replacing staged files.
-    expect(buildUnloadData({ ...base, table: 'EVENTS' }).statement).toContain('OVERWRITE = FALSE')
-    expect(() => buildUnloadData({ ...base, statement: 'DROP TABLE EVENTS' })).toThrow(
-      /must be a SELECT or WITH query/
-    )
-    // Parens and quotes inside string literals and comments are not miscounted.
-    expect(
-      buildUnloadData({ ...base, statement: "SELECT ')' AS a -- )\nFROM T" }).statement
-    ).toContain("FROM (SELECT ')' AS a -- )\nFROM T\n)")
-    expect(() => buildUnloadData(base)).toThrow(/exactly one of table or statement/)
+    expect(() => buildUnloadData({ ...base, table: '' })).toThrow(/table is required/)
+    // No SQL text can reach the statement, so no breakout is expressible.
+    expect(() =>
+      buildUnloadData({ ...base, table: 'EVENTS) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV' })
+    ).toThrow(/Invalid Snowflake identifier/)
     expect(() =>
       buildUnloadData({ ...base, table: 'EVENTS', maxFileSizeBytes: 5_368_709_121 })
     ).toThrow(/maxFileSizeBytes/)

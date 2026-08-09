@@ -18286,7 +18286,7 @@
         },
         {
           "name": "Unload Data",
-          "description": "Export a table or query result to files in a Snowflake stage with COPY INTO."
+          "description": "Export a Snowflake table to files in a stage with COPY INTO."
         },
         {
           "name": "List Databases",

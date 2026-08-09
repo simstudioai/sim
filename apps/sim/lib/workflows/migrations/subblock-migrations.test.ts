@@ -2,13 +2,18 @@
  * @vitest-environment node
  */
 import { afterAll, describe, expect, it, vi } from 'vitest'
+import { getAllBlocks } from '@/blocks/registry'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 
 vi.unmock('@/blocks/registry')
 
 import * as blocksBarrel from '@/blocks'
 import { getBlock as getRealBlock } from '@/blocks/registry'
-import { backfillCanonicalModes, migrateSubblockIds } from './subblock-migrations'
+import {
+  backfillCanonicalModes,
+  migrateSubblockIds,
+  SUBBLOCK_ID_MIGRATIONS,
+} from './subblock-migrations'
 
 /**
  * Under `isolate: false` the module under test may already be cached from an
@@ -34,6 +39,47 @@ function makeBlock(overrides: Partial<BlockState> & { type: string }): BlockStat
     ...overrides,
   } as BlockState
 }
+
+/**
+ * `dropParkedSubblocks` deletes any subblock whose id starts with `_removed_`,
+ * on the assumption that no live block declares one. Nothing enforces that
+ * naming rule at the block level, so pin it here — a block that adopted the
+ * prefix for a real field would have its value silently deleted on every load.
+ */
+describe('_removed_ prefix invariant', () => {
+  it('is never used as a live subblock id', () => {
+    const offenders = getAllBlocks().flatMap((block) =>
+      (block.subBlocks ?? [])
+        .filter((subBlock) => subBlock.id.startsWith('_removed_'))
+        .map((subBlock) => `${block.type}.${subBlock.id}`)
+    )
+    expect(offenders).toEqual([])
+  })
+})
+
+/**
+ * A migration target that names no live subblock silently drops the value: the
+ * rename writes a key nothing reads, and the sweep or the serializer discards
+ * it. Nothing else checks the right-hand side of the map.
+ */
+describe('migration targets', () => {
+  it('every rename points at a subblock that still exists', () => {
+    const offenders: string[] = []
+    for (const [blockType, renames] of Object.entries(SUBBLOCK_ID_MIGRATIONS)) {
+      const config = getAllBlocks().find((block) => block.type === blockType)
+      if (!config) {
+        offenders.push(`${blockType} (block not registered)`)
+        continue
+      }
+      const liveIds = new Set((config.subBlocks ?? []).map((subBlock) => subBlock.id))
+      for (const [legacyId, currentId] of Object.entries(renames)) {
+        if (currentId.startsWith('_removed_')) continue
+        if (!liveIds.has(currentId)) offenders.push(`${blockType}.${legacyId} -> ${currentId}`)
+      }
+    }
+    expect(offenders).toEqual([])
+  })
+})
 
 describe('migrateSubblockIds', () => {
   it('should preserve Instagram insight metrics after the subblock rename', () => {
@@ -68,9 +114,14 @@ describe('migrateSubblockIds', () => {
           type: 'snowflake',
           subBlocks: {
             operation: { id: 'operation', type: 'dropdown', value: 'insert_rows' },
-            database: { id: 'database', type: 'short-input', value: 'ANALYTICS' },
-            schema: { id: 'schema', type: 'short-input', value: 'PUBLIC' },
-            table: { id: 'table', type: 'short-input', value: 'EVENTS' },
+            // Every legacy id in the map, so a rename added later without a
+            // matching assertion still fails here.
+            ...Object.fromEntries(
+              Object.keys(SUBBLOCK_ID_MIGRATIONS.snowflake).map((legacyId) => [
+                legacyId,
+                { id: legacyId, type: 'short-input', value: `value-${legacyId}` },
+              ])
+            ),
           },
         }),
       }
@@ -80,10 +131,13 @@ describe('migrateSubblockIds', () => {
       expect(migrated).toBe(true)
       // The advanced text members, not the pickers: a migrated block has no
       // credential yet, so a picker could not hydrate the stored name.
-      expect(blocks.b1.subBlocks.databaseName?.value).toBe('ANALYTICS')
-      expect(blocks.b1.subBlocks.schemaName?.value).toBe('PUBLIC')
-      expect(blocks.b1.subBlocks.tableName?.value).toBe('EVENTS')
-      expect(blocks.b1.subBlocks.database).toBeUndefined()
+      for (const [legacyId, currentId] of Object.entries(SUBBLOCK_ID_MIGRATIONS.snowflake)) {
+        if (currentId.startsWith('_removed_')) continue
+        expect(blocks.b1.subBlocks[currentId]?.value, `${legacyId} -> ${currentId}`).toBe(
+          `value-${legacyId}`
+        )
+        expect(blocks.b1.subBlocks[legacyId], legacyId).toBeUndefined()
+      }
     })
 
     /**

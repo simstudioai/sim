@@ -594,7 +594,9 @@ export function buildGetTaskRunOutput(
   params: SnowflakeGetTaskRunOutputParams
 ): SnowflakeStatementSpec {
   return {
-    statement: `SELECT * FROM TABLE(RESULT_SCAN(${stringLiteral(requireQueryId(params.queryId))}))`,
+    // Bounded in SQL as well as by `rows_per_resultset`: this reads back a
+    // result set Sim never submitted, so its size is not otherwise known here.
+    statement: `SELECT * FROM TABLE(RESULT_SCAN(${stringLiteral(requireQueryId(params.queryId))})) LIMIT ${normalizeMaxRows(params.maxRows)}`,
   }
 }
 
@@ -750,101 +752,6 @@ export function buildAlterWarehouse(params: SnowflakeAlterWarehouseParams): Snow
   }
 }
 
-/**
- * Rejects a source query that would escape the derived table it is embedded in.
- *
- * The query is the only user value in a COPY INTO statement that cannot be
- * passed through an identifier or literal helper. An unbalanced `)` closes the
- * derived table early and lets whatever follows land in the copy-option slot —
- * an LLM-authored query could then set `OVERWRITE = TRUE` and replace staged
- * files the workflow author never authorized.
- *
- * Counting parens is only sound if every construct that can *hide* one is
- * skipped, so all six are handled: single-quoted strings (backslash escapes and
- * `''` doubling), double-quoted identifiers (`""` doubling), dollar-quoted
- * strings, `--` and `//` line comments, and `/* *\/` block comments. Snowflake
- * does not document whether block comments nest, so an inner `/*` is rejected
- * as ambiguous rather than guessed at — and `buildUnloadData` emits `OVERWRITE`
- * unconditionally, so an injected duplicate collides even if this check is ever
- * outrun.
- */
-function assertBalancedQuery(query: string): string {
-  if (!/^\s*(SELECT|WITH)\b/i.test(query)) {
-    throw new Error('The unload source statement must be a SELECT or WITH query')
-  }
-
-  const unbalanced = () => new Error('The unload source statement has unbalanced parentheses')
-  let depth = 0
-  let index = 0
-
-  while (index < query.length) {
-    const char = query[index]
-    const next = query[index + 1]
-
-    if (char === '$' && next === '$') {
-      const close = query.indexOf('$$', index + 2)
-      if (close === -1) {
-        throw new Error('The unload source statement has an unterminated dollar-quoted string')
-      }
-      index = close + 2
-      continue
-    }
-
-    if (char === "'" || char === '"') {
-      const quote = char
-      index += 1
-      let closed = false
-      while (index < query.length) {
-        if (query[index] === '\\' && quote === "'") {
-          index += 2
-          continue
-        }
-        if (query[index] === quote) {
-          if (query[index + 1] === quote) {
-            index += 2
-            continue
-          }
-          closed = true
-          index += 1
-          break
-        }
-        index += 1
-      }
-      if (!closed) throw new Error('The unload source statement has an unterminated string')
-      continue
-    }
-
-    if ((char === '-' && next === '-') || (char === '/' && next === '/')) {
-      const newline = query.indexOf('\n', index)
-      if (newline === -1) break
-      index = newline + 1
-      continue
-    }
-
-    if (char === '/' && next === '*') {
-      const close = query.indexOf('*/', index + 2)
-      if (close === -1) {
-        throw new Error('The unload source statement has an unterminated comment')
-      }
-      if (query.slice(index + 2, close).includes('/*')) {
-        throw new Error('The unload source statement has a nested block comment')
-      }
-      index = close + 2
-      continue
-    }
-
-    if (char === '(') depth += 1
-    else if (char === ')') {
-      depth -= 1
-      if (depth < 0) throw unbalanced()
-    }
-    index += 1
-  }
-
-  if (depth !== 0) throw unbalanced()
-  return query
-}
-
 /** Documented ceiling for a single unloaded file: 5368709120 bytes (5 GB). */
 const MAX_UNLOAD_FILE_SIZE_BYTES = 5_368_709_120
 
@@ -855,18 +762,11 @@ const MAX_UNLOAD_FILE_SIZE_BYTES = 5_368_709_120
  * @see https://docs.snowflake.com/en/sql-reference/sql/copy-into-location
  */
 export function buildUnloadData(params: SnowflakeUnloadDataParams): SnowflakeStatementSpec {
-  const hasTable = Boolean(params.table?.trim())
-  const hasStatement = Boolean(params.statement?.trim())
-  if (hasTable === hasStatement) {
-    throw new Error('Provide exactly one of table or statement as the unload source')
+  if (!params.table?.trim()) {
+    throw new Error('table is required to unload data')
   }
 
-  // The newline before the closing paren keeps a trailing line comment in the
-  // source query from swallowing it.
-  const source = hasTable
-    ? qualifiedIdentifier(params.database, params.schema, params.table as string)
-    : `(${assertBalancedQuery((params.statement as string).trim().replace(/;+\s*$/, ''))}\n)`
-
+  const source = qualifiedIdentifier(params.database, params.schema, params.table)
   const clauses = [`COPY INTO ${stagePath(params.stagePath)}`, `FROM ${source}`]
   if (params.fileFormat?.trim()) {
     clauses.push(
