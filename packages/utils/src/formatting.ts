@@ -100,7 +100,8 @@ export function formatDate(date: Date): string {
 /**
  * Formats a date string to absolute format for tooltip display
  * @param dateString - ISO date string to format
- * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM")
+ * @returns A formatted date string (e.g., "Jan 22, 2026, 01:30 PM"), or the
+ * original `dateString` unchanged when it cannot be parsed into a valid date
  */
 export function formatAbsoluteDate(dateString: string): string {
   const date = new Date(dateString)
@@ -150,7 +151,8 @@ export function formatTimeWithSeconds(date: Date, includeTimezone = true): strin
 /**
  * Format an ISO timestamp into a compact format for UI display
  * @param iso - ISO timestamp string
- * @returns A formatted string in "MM-DD HH:mm" format
+ * @returns A formatted string in "MM-DD HH:mm" format, or the original `iso`
+ * string unchanged when it cannot be parsed into a valid date
  */
 export function formatCompactTimestamp(iso: string): string {
   try {
