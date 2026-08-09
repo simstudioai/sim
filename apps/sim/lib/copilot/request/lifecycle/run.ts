@@ -757,6 +757,11 @@ async function runCheckpointLoop(
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+  const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
+
+  if (typeof systemPromptOverride === 'string' && systemPromptOverride.trim() !== '') {
+    payload = { ...payload, systemPromptOverride }
+  }
 
   // Go's auth middleware re-validates every Sim -> Go request by reading
   // workspaceId from the JSON body and forwarding it to Sim's validate route,
