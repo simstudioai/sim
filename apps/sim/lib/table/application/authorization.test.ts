@@ -122,7 +122,7 @@ describe('table operation authorization', () => {
     )
   })
 
-  it('rejects wrong-audience, expired, cross-workspace, and wrong-table delegations before lookup', async () => {
+  it('rejects wrong-audience, expired, cross-workspace, unscoped, and wrong-table delegations before lookup', async () => {
     const base = {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
@@ -149,6 +149,10 @@ describe('table operation authorization', () => {
       workspaceId: 'workspace-2',
       expiresAt: new Date(Date.now() + 60_000),
       resourceScope: { tableId: 'table-1' },
+    })
+    await expectForbidden({
+      ...base,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     await expectForbidden({
       ...base,

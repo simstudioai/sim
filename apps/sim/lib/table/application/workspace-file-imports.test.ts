@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   resolvePermission: vi.fn(),
   resolveWorkspaceContext: vi.fn(),
   signal: vi.fn(),
+  validateMapping: vi.fn(),
+  CsvImportValidationError: class extends Error {},
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -39,14 +41,11 @@ vi.mock('@/lib/table', () => ({
   batchInsertRows: mocks.batchInsert,
   buildAutoMapping: vi.fn(() => ({ name: 'name' })),
   coerceRowsForTable: (rows: unknown[]) => rows,
+  CsvImportValidationError: mocks.CsvImportValidationError,
   CSV_MAX_BATCH_SIZE: 1000,
   getWorkspaceTableLimits: vi.fn(() => ({ maxRowsPerTable: 100, maxTables: 5 })),
   replaceTableRows: vi.fn(),
-  validateMapping: vi.fn(() => ({
-    effectiveMap: new Map([['name', 'name']]),
-    mappedHeaders: ['name'],
-    skippedHeaders: [],
-  })),
+  validateMapping: mocks.validateMapping,
 }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveTableContext,
@@ -94,6 +93,7 @@ const principal = {
   audience: 'sim:tables',
   issuedAt: new Date('2026-08-01T00:00:00.000Z'),
   expiresAt: new Date('2099-08-01T00:00:00.000Z'),
+  resourceScope: { tableId: 'table-1' },
 }
 const input = {
   kind: 'inline' as const,
@@ -136,6 +136,11 @@ describe('Copilot workspace-file table creation', () => {
     mocks.batchInsert.mockResolvedValue([{ id: 'row-1' }])
     mocks.markJob.mockResolvedValue(true)
     mocks.releaseJob.mockResolvedValue(true)
+    mocks.validateMapping.mockReturnValue({
+      effectiveMap: new Map([['name', 'name']]),
+      mappedHeaders: ['name'],
+      skippedHeaders: [],
+    })
   })
 
   it('owns table creation, row insertion, audit, and shared effects', async () => {
@@ -199,6 +204,53 @@ describe('Copilot workspace-file table creation', () => {
     })
 
     expect(events).toEqual(['claim', 'load', 'mutate', 'release'])
+  })
+
+  it('checks for a user stop after loading and before every inline insert batch', async () => {
+    const assertNotAborted = vi.fn()
+
+    await importWorkspaceFileIntoTable.execute({
+      principal,
+      input: {
+        kind: 'inline',
+        tableId: 'table-1',
+        assertedWorkspaceId: 'workspace-1',
+        sourceFile: input.sourceFile,
+        mode: 'append',
+        assertNotAborted,
+        loadRows: async () => ({
+          headers: ['name'],
+          rows: Array.from({ length: 1001 }, (_, index) => ({ name: `Person ${index}` })),
+        }),
+      },
+    })
+
+    expect(assertNotAborted).toHaveBeenCalledTimes(3)
+    expect(mocks.batchInsert).toHaveBeenCalledTimes(2)
+  })
+
+  it('classifies mapping failures before mutation so Copilot can correct them', async () => {
+    mocks.validateMapping.mockImplementationOnce(() => {
+      throw new mocks.CsvImportValidationError('Mapping references an unknown column')
+    })
+
+    await expect(
+      importWorkspaceFileIntoTable.execute({
+        principal,
+        input: {
+          kind: 'inline',
+          tableId: 'table-1',
+          assertedWorkspaceId: 'workspace-1',
+          sourceFile: input.sourceFile,
+          mode: 'append',
+          loadRows: async () => ({ headers: ['name'], rows: [{ name: 'Ada' }] }),
+        },
+      })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: 'Mapping references an unknown column',
+    })
+    expect(mocks.batchInsert).not.toHaveBeenCalled()
   })
 
   it('rolls back and propagates unknown insertion failures without audit or effects', async () => {

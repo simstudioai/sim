@@ -834,6 +834,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             columns,
             headerToColumn,
             rows,
+            assertNotAborted,
           })
           if (result.kind !== 'inline') {
             throw new Error('Inline table import returned a background result')
@@ -921,6 +922,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             sourceFile: record,
             mode,
             mapping: rawMapping,
+            assertNotAborted,
             loadRows: async () => {
               const { content } = await resolveWorkspaceFileRecordOrThrow(
                 fileReference,

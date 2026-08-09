@@ -12,6 +12,7 @@ import {
   type ColumnDefinition,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
+  CsvImportValidationError,
   coerceRowsForTable,
   getWorkspaceTableLimits,
   type RowData,
@@ -60,6 +61,7 @@ export type CreateTableFromWorkspaceFileInput = CreateTableFromWorkspaceFileBase
         columns: ColumnDefinition[]
         headerToColumn: Map<string, string>
         rows: Record<string, unknown>[]
+        assertNotAborted?: () => void
       }
   )
 
@@ -94,6 +96,7 @@ export type ImportWorkspaceFileInput = ImportWorkspaceFileBaseInput &
     | {
         kind: 'inline'
         loadRows: () => Promise<{ headers: string[]; rows: Record<string, unknown>[] }>
+        assertNotAborted?: () => void
       }
   )
 
@@ -148,9 +151,11 @@ async function batchInsertAll(params: {
   rows: RowData[]
   workspaceId: string
   userId: string
+  assertNotAborted?: () => void
 }): Promise<number> {
   let inserted = 0
   for (let index = 0; index < params.rows.length; index += CSV_MAX_BATCH_SIZE) {
+    params.assertNotAborted?.()
     const batch = params.rows.slice(index, index + CSV_MAX_BATCH_SIZE)
     const result = await batchInsertRows(
       {
@@ -303,6 +308,7 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
         rows: coerceRowsForTable(rows, table.schema, input.headerToColumn),
         workspaceId: context.workspaceId,
         userId,
+        assertNotAborted: input.assertNotAborted,
       })
       return {
         kind: input.kind,
@@ -391,15 +397,22 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
       throw new OrchestrationError('conflict', 'A job is already in progress for this table')
     return withReleasedTableJobClaim(context.table.id, context.workspaceId, jobId, async () => {
       const { headers, rows: sourceRows } = await input.loadRows()
+      input.assertNotAborted?.()
       if (sourceRows.length === 0) {
         return { kind: 'empty', table: context.table, mode: input.mode }
       }
       const mapping = input.mapping ?? buildAutoMapping(headers, context.table.schema)
-      const validation = validateMapping({
-        csvHeaders: headers,
-        mapping,
-        tableSchema: context.table.schema,
-      })
+      let validation: ReturnType<typeof validateMapping>
+      try {
+        validation = validateMapping({
+          csvHeaders: headers,
+          mapping,
+          tableSchema: context.table.schema,
+        })
+      } catch (error) {
+        if (!(error instanceof CsvImportValidationError)) throw error
+        throw new OrchestrationError('validation', error.message)
+      }
       if (validation.mappedHeaders.length === 0) {
         throw new OrchestrationError(
           'validation',
@@ -435,6 +448,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
         rows,
         workspaceId: context.workspaceId,
         userId,
+        assertNotAborted: input.assertNotAborted,
       })
       return {
         kind: input.kind,

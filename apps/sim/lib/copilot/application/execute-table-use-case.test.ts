@@ -42,10 +42,27 @@ describe('executeCopilotTableUseCase', () => {
         audience: 'sim:tables',
         issuedAt: new Date('2026-01-01T00:00:00Z'),
         expiresAt: new Date('2026-01-01T00:05:00Z'),
-        resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
+        resourceScope: {
+          chatId: 'chat-1',
+          executionId: 'execution-1',
+          tableId: 'table-1',
+        },
       },
       input: { tableId: 'table-1', workspaceId: 'workspace-1' },
     })
+  })
+
+  it('fails fast when a table-scoped input has no valid table id', () => {
+    const execute = vi.fn()
+
+    expect(() =>
+      executeCopilotTableUseCase(
+        trustedContext,
+        { operation: tableOperations.read, execute },
+        { tableId: '', workspaceId: 'workspace-1' }
+      )
+    ).toThrow('invalid table ID')
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('rejects untrusted Copilot context before application execution', () => {
