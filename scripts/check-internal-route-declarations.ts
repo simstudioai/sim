@@ -18,8 +18,13 @@ const ROOT = resolve(SCRIPT_DIR, '..')
 const TOOLS = join(ROOT, 'apps/sim/tools')
 const SOURCE_EXTENSIONS = new Set(['.ts', '.tsx'])
 
-/** A `/api/...` string or template literal that is returned rather than declared statically. */
-const RETURNED_INTERNAL_PATH = /(?:return|=>)\s*(['"`])(\/api\/)/
+/**
+ * A `/api/...` string or template literal returned by a builder rather than branded.
+ *
+ * Matched against the builder with newlines collapsed, because the formatter wraps a long body
+ * onto the line after `=>` or `return` — and an arrow body may also be parenthesized.
+ */
+const RETURNED_INTERNAL_PATH = /(?:return|=>)\s*\(?\s*(['"`])(\/api\/)/
 
 interface Violation {
   file: string
@@ -47,32 +52,47 @@ const violations: Violation[] = []
 
 for (const file of collectSources(TOOLS)) {
   const lines = readFileSync(file, 'utf8').split('\n')
-  let inUrlBuilder = false
+  let builderStart = -1
   let builderIndent = 0
+  let builderText = ''
+
+  const flush = () => {
+    if (builderStart !== -1 && RETURNED_INTERNAL_PATH.test(builderText)) {
+      violations.push({
+        file: relative(ROOT, file),
+        line: builderStart + 1,
+        text: builderText.trim().slice(0, 160),
+      })
+    }
+    builderStart = -1
+    builderText = ''
+  }
 
   for (const [index, line] of lines.entries()) {
-    if (/^\s*url:\s*(\(|async\s*\()/.test(line)) {
-      inUrlBuilder = true
-      builderIndent = line.match(/^\s*/)![0].length
-      // fall through so a single-line builder is checked on this same line
-    } else if (inUrlBuilder) {
-      const indent = line.match(/^\s*/)![0].length
-      const closesBuilder = line.trim() !== '' && indent <= builderIndent && /^\s*[a-z]+:/.test(line)
-      if (closesBuilder) inUrlBuilder = false
-    }
-    if (!inUrlBuilder) continue
+    const indent = line.match(/^\s*/)![0].length
+    const startsBuilder = /^\s*url:\s*(\(|async\s*\()/.test(line)
 
-    const match = line.match(RETURNED_INTERNAL_PATH)
-    if (match) {
-      violations.push({ file: relative(ROOT, file), line: index + 1, text: line.trim() })
+    if (builderStart !== -1) {
+      const closesBuilder =
+        !startsBuilder && line.trim() !== '' && indent <= builderIndent && /^\s*\w+:/.test(line)
+      if (closesBuilder) flush()
     }
+
+    if (startsBuilder) {
+      flush()
+      builderStart = index
+      builderIndent = indent
+    }
+    // Collapse the builder onto one line so a wrapped `=>` / `return` body still matches.
+    if (builderStart !== -1) builderText += ` ${line.trim()}`
   }
+  flush()
 }
 
 if (violations.length > 0) {
   console.error(
     `\n✗ ${violations.length} tool URL builder(s) return a bare internal path.\n\n` +
-      "  Use internalRoute from '@/tools/internal-route' so the route is declared by the tool's\n" +
+      "  Use internalRoute from '@/lib/core/utils/internal-route' so the route is declared by the tool's\n" +
       '  source, or make the URL a static config string:\n\n' +
       '    url: (params) => internalRoute`/api/table/${params.tableId}/rows`\n'
   )

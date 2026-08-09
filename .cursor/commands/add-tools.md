@@ -151,7 +151,7 @@ can make any tool emit `/api/...` (the HTTP Request tool passes its `url` throug
 self-hosted integration with a blank host param collapses `${host}/api/v2/x` to `/api/v2/x`).
 
 ```typescript
-import { internalRoute } from '@/tools/internal-route'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 
 // ✓ Static route — a source literal no param can influence
 url: '/api/tools/{service}/{action}',

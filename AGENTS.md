@@ -465,7 +465,7 @@ Three hard rules that the skills assume:
 
 - **Tool IDs are `snake_case`** (`service_action`) and must be registered in `tools/registry.ts`; blocks register in `blocks/registry.ts` (alphabetically).
 - **`tools.config.tool` runs during serialization (before variable resolution)** — never do `Number()` or other type coercions there, or dynamic references like `<Block.output>` are destroyed. Put all type coercions in `tools.config.params`, which runs during execution after variables resolve.
-- **A tool that calls Sim's own API declares it** — a static `request.url` string (`'/api/tools/{service}/{action}'`), or `internalRoute` from `@/tools/internal-route` when the path is dynamic. A builder returning a bare `/api/...` string is treated as EXTERNAL and will fail, because params can produce that string. See "Internal tool routes" below.
+- **A tool that calls Sim's own API declares it** — a static `request.url` string (`'/api/tools/{service}/{action}'`), or `internalRoute` from `@/lib/core/utils/internal-route` when the path is dynamic. A builder returning a bare `/api/...` string is treated as EXTERNAL and will fail, because params can produce that string. See "Internal tool routes" below.
 
 For the full authoring instructions — SubBlock property tables, `condition`/`dependsOn`/`required`/`mode`/`canonicalParamId` syntax, required block metadata (`integrationType`, `tags`, `authMode`, `docsLink`, `{Service}BlockMeta`), file-input/`normalizeFileInput` patterns, and checklists — use the skills: `/add-integration` (end-to-end), `/add-tools`, `/add-block`, `/add-trigger`.
 
@@ -478,7 +478,7 @@ The transport resolves a tool request against the internal base URL and signs it
 url: '/api/tools/{service}/{action}',
 
 // ✓ Dynamic route — branded, and every interpolated id is encoded for you
-import { internalRoute } from '@/tools/internal-route'
+import { internalRoute } from '@/lib/core/utils/internal-route'
 url: (params) => internalRoute`/api/table/${params.tableId}/rows`,
 
 // ✓ Query params go through withQuery, not the template

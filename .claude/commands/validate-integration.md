@@ -73,7 +73,7 @@ For **every** tool file, check:
 ### Request URL
 - [ ] A tool calling a third-party service returns an ABSOLUTE `https://...` URL
 - [ ] A tool calling Sim's own API declares it: a static `/api/...` string, or `internalRoute` from
-      `@/tools/internal-route` when the path is dynamic (query params via `.withQuery({...})`)
+      `@/lib/core/utils/internal-route` when the path is dynamic (query params via `.withQuery({...})`)
 - [ ] No builder returns a bare `` `/api/...` `` template string — that is treated as external and
       will fail, because a `user-or-llm` param can produce the same string
 - [ ] No `encodeURIComponent` inside an `internalRoute` template (the tag already encodes, so this
