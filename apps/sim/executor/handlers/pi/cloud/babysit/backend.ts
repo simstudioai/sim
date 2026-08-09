@@ -37,6 +37,10 @@ import {
   parseBabysitRound,
 } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
   COMMIT_MSG_PATH,
@@ -850,6 +854,7 @@ export async function runBabysitPiWithOptions(
           lastKnownChecksGreen
         )
       }
+      await runner.writeFile(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }
