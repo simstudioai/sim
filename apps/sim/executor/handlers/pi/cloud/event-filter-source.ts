@@ -46,6 +46,18 @@ function asString(value) {
   return typeof value === 'string' ? value : undefined
 }
 
+function compactAssistantContent(value) {
+  if (!Array.isArray(value)) return undefined
+  const content = []
+  for (const valueBlock of value) {
+    const block = asRecord(valueBlock)
+    if (block?.type === 'text' && typeof block.text === 'string') {
+      content.push({ type: 'text', text: block.text })
+    }
+  }
+  return content.length > 0 ? content : undefined
+}
+
 function compactUsage(value) {
   const usage = asRecord(value)
   if (!usage) return null
@@ -64,6 +76,7 @@ function compactAssistantMessage(value) {
   if (!message || message.role !== 'assistant') return null
   return {
     role: 'assistant',
+    content: compactAssistantContent(message.content),
     stopReason: asString(message.stopReason),
     errorMessage: asString(message.errorMessage),
   }

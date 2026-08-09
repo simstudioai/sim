@@ -9,6 +9,10 @@ import { createLogger } from '@sim/logger'
 import { withPiSandbox } from '@/lib/execution/remote-sandbox'
 import { resolvePiRunLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
   PROMPT_PATH,
@@ -97,6 +101,7 @@ export const runCloudPlanPi: PiBackendRun<PiCloudPlanRunParams> = async (params,
       }
 
       await runner.writeFile(PROMPT_PATH, prompt)
+      await runner.writeFile(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }

@@ -30,6 +30,10 @@ vi.mock('@/executor/handlers/pi/core/keys', () => ({
   mapThinkingLevel: () => 'high',
 }))
 
+import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
 import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
 import type { PiCloudPlanRunParams } from '@/executor/handlers/pi/core/backend'
 import {
@@ -99,6 +103,7 @@ describe('runCloudPlanPi', () => {
 
     const [piCommand, piOptions] = mockRun.mock.calls[1]
     expect(piCommand).toContain('--no-extensions --no-prompt-templates --no-skills --no-approve')
+    expect(piCommand).toContain(`| node ${PI_EVENT_FILTER_PATH}`)
     expect(piCommand).not.toContain('git commit')
     expect(piCommand).not.toContain('git push')
     expect(piOptions.envs.ANTHROPIC_API_KEY).toBe('sk-model-secret')
@@ -116,6 +121,18 @@ describe('runCloudPlanPi', () => {
       })
     )
     expect(mockWriteFile).toHaveBeenCalledWith('/workspace/pi-prompt.txt', 'PLAN PROMPT')
+    expect(mockWriteFile).toHaveBeenCalledWith(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
+    const filterWrites = mockWriteFile.mock.calls.filter(([path]) => path === PI_EVENT_FILTER_PATH)
+    expect(filterWrites).toHaveLength(1)
+    const filterWrite = mockWriteFile.mock.calls.findIndex(
+      ([path]) => path === PI_EVENT_FILTER_PATH
+    )
+    expect(mockRun.mock.invocationCallOrder[0]).toBeLessThan(
+      mockWriteFile.mock.invocationCallOrder[filterWrite]
+    )
+    expect(mockWriteFile.mock.invocationCallOrder[filterWrite]).toBeLessThan(
+      mockRun.mock.invocationCallOrder[1]
+    )
     expect(onEvent).toHaveBeenCalledWith({ type: 'text', text: '# Plan\nDo it' })
     expect(result.totals.finalText).toBe('# Plan\nDo it')
     expect(result).not.toHaveProperty('changedFiles')

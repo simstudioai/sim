@@ -207,12 +207,18 @@ describe('PI_EVENT_FILTER_SOURCE', () => {
         event.messages.length > 0 &&
         (event.messages[0] as { stopReason?: string }).stopReason === 'stop'
     )
-    // Reduced to the one message `normalizePiEvent` inspects, and to the three fields it reads off
-    // it. The transcript, the thinking block, and the final text all go: the run's text reaches
-    // Sim through the deltas, so carrying it again here would be the whole answer twice.
+    // Reduced to the one message `normalizePiEvent` inspects and only the fields it reads. Keeping
+    // the final text once lets Plan replace streamed progress with the authoritative final answer;
+    // the transcript, thinking blocks, and tool payloads still go.
     expect(completed).toEqual({
       type: 'agent_end',
-      messages: [{ role: 'assistant', stopReason: 'stop' }],
+      messages: [
+        {
+          role: 'assistant',
+          content: [{ type: 'text', text: 'final answer' }],
+          stopReason: 'stop',
+        },
+      ],
     })
     expect(output.some((event) => event.type === 'tool_execution_update')).toBe(false)
   })
@@ -297,6 +303,6 @@ describe('PI_EVENT_FILTER_SOURCE', () => {
     expect(text).toHaveLength(totalCharacters)
     expect(events).toContainEqual({ type: 'usage', inputTokens: 10, outputTokens: 20 })
     expect(events).toContainEqual({ type: 'tool_end', toolName: 'read', isError: false })
-    expect(events).toContainEqual({ type: 'final' })
+    expect(events).toContainEqual({ type: 'final', text: 'x'.repeat(totalCharacters) })
   })
 })
