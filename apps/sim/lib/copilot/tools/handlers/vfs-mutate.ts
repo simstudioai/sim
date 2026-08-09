@@ -30,6 +30,7 @@ import {
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { buildFolderPath } from '@/lib/folders/paths'
 import {
   deleteKnowledgeBaseOperation,
   listKnowledgeBases,
@@ -630,7 +631,7 @@ function makeWorkflowFolderEnsurer(
         parentId = existing
         continue
       }
-      const path = `/${segments.slice(0, position + 1).join('/')}`
+      const path = buildFolderPath(segments.slice(0, position + 1))
       const created = await executeCopilotWorkflowUseCase(context, createWorkflowFolder, {
         workspaceId,
         path,
@@ -800,7 +801,7 @@ async function mutateWorkflows(
       await executeCopilotWorkflowUseCase(context, relocateWorkflowFolder, {
         workspaceId,
         path: sourcePath,
-        destinationPath: `/${[...dest.folderSegments, finalLeaf].join('/')}`,
+        destinationPath: buildFolderPath([...dest.folderSegments, finalLeaf]),
       })
       outcomes.push({
         from: ref.source,

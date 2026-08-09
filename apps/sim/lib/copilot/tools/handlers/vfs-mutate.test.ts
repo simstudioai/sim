@@ -588,7 +588,7 @@ describe('vfs mv/cp', () => {
           input: {
             workspaceId: 'ws-1',
             path: '/Q1',
-            destinationPath: '/Archive/Q1 2026',
+            destinationPath: '/Archive/Q1%202026',
           },
         })
       )
@@ -648,14 +648,14 @@ describe('vfs mv/cp', () => {
     })
 
     it('creates a workflow folder through the workflow application operation', async () => {
-      const result = await executeVfsMkdir({ paths: ['workflows/Archive'] }, context)
+      const result = await executeVfsMkdir({ paths: ['workflows/Project Plans'] }, context)
 
       expect(mocks.createWorkflowFolder).toHaveBeenCalledWith(
-        expect.objectContaining({ input: { workspaceId: 'ws-1', path: '/Archive' } })
+        expect.objectContaining({ input: { workspaceId: 'ws-1', path: '/Project%20Plans' } })
       )
       expect(result.success).toBe(true)
       expect(result.output).toMatchObject({
-        results: [{ to: 'workflows/Archive', kind: 'workflow_folder', id: 'fold-new' }],
+        results: [{ to: 'workflows/Project%20Plans', kind: 'workflow_folder', id: 'fold-new' }],
       })
     })
 
