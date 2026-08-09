@@ -1,4 +1,4 @@
-import { buildGetTask } from '@/tools/snowflake/sql'
+import { buildResumeTask } from '@/tools/snowflake/sql'
 import type { SnowflakeStatementResponse, SnowflakeTaskParams } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
@@ -9,11 +9,11 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
-  id: 'snowflake_get_task',
+export const resumeTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResponse> = {
+  id: 'snowflake_resume_task',
   version: '1.0.0',
-  name: 'Snowflake Get Task',
-  description: 'Describe a Snowflake task.',
+  name: 'Snowflake Resume Task',
+  description: 'Resume a suspended Snowflake task so its schedule runs again.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -44,11 +44,11 @@ export const getTaskTool: ToolConfig<SnowflakeTaskParams, SnowflakeStatementResp
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Task name',
+      description: 'Task name without a database or schema prefix',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(params, buildGetTask(params), { maxRows: 1 })
+    buildSnowflakeStatementBody(params, buildResumeTask(params))
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

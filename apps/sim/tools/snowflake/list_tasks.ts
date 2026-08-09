@@ -3,6 +3,7 @@ import type { SnowflakeListTasksParams, SnowflakeStatementResponse } from '@/too
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -14,18 +15,7 @@ export const listTasksTool: ToolConfig<SnowflakeListTasksParams, SnowflakeStatem
   name: 'Snowflake List Tasks',
   description: 'List tasks in a Snowflake schema.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

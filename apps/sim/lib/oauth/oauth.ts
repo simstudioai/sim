@@ -47,6 +47,7 @@ import {
   SalesforceIcon,
   ShopifyIcon,
   SlackIcon,
+  SnowflakeIcon,
   SpotifyIcon,
   TikTokIcon,
   TrelloIcon,
@@ -837,6 +838,23 @@ export const OAUTH_PROVIDERS: Record<string, OAuthProviderConfig> = {
       },
     },
     defaultService: 'slack',
+  },
+  snowflake: {
+    name: 'Snowflake',
+    icon: SnowflakeIcon,
+    services: {
+      snowflake: {
+        name: 'Snowflake',
+        description: 'Query data and manage warehouses and tasks in Snowflake.',
+        providerId: 'snowflake',
+        serviceAccountProviderId: 'snowflake-service-account',
+        icon: SnowflakeIcon,
+        baseProviderIcon: SnowflakeIcon,
+        scopes: [],
+        authType: 'service_account',
+      },
+    },
+    defaultService: 'snowflake',
   },
   reddit: {
     name: 'Reddit',

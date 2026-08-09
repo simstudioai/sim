@@ -1,6 +1,6 @@
-import { buildIntrospectSchema } from '@/tools/snowflake/sql'
+import { buildListQueryHistory } from '@/tools/snowflake/sql'
 import type {
-  SnowflakeIntrospectSchemaParams,
+  SnowflakeListQueryHistoryParams,
   SnowflakeStatementResponse,
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
@@ -12,22 +12,14 @@ import {
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
 
-/**
- * Only a real `true` or the exact string `"true"` drops the TABLE_TYPE filter, so a
- * direct tool call supplying the truthy string `"false"` still excludes views.
- */
-function includesViews(value: unknown): boolean {
-  return value === true || value === 'true'
-}
-
-export const introspectSchemaTool: ToolConfig<
-  SnowflakeIntrospectSchemaParams,
+export const listQueryHistoryTool: ToolConfig<
+  SnowflakeListQueryHistoryParams,
   SnowflakeStatementResponse
 > = {
-  id: 'snowflake_introspect_schema',
+  id: 'snowflake_list_query_history',
   version: '1.0.0',
-  name: 'Snowflake Introspect Schema',
-  description: 'Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.',
+  name: 'Snowflake List Query History',
+  description: 'List queries that completed in the last seven days, optionally filtered.',
   params: {
     ...snowflakeAuthParamFields,
     role: {
@@ -48,46 +40,49 @@ export const introspectSchemaTool: ToolConfig<
       visibility: 'user-or-llm',
       description: 'Warehouse to use for this statement; defaults to the PAT user setting',
     },
-    maxRows: {
-      type: 'number',
-      required: false,
-      visibility: 'user-or-llm',
-      description: 'Maximum result rows; defaults to 1000 with a Sim safety limit of 10000',
-    },
-    database: {
-      type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Database containing the INFORMATION_SCHEMA views',
-    },
-    schema: {
+    userName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional exact schema name filter',
+      description: 'Only queries run by this user; cannot be combined with warehouseName',
     },
-    table: {
+    warehouseName: {
       type: 'string',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Optional exact table name filter',
+      description: 'Only queries run on this warehouse; cannot be combined with userName',
     },
-    includeViews: {
+    startTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ISO-8601 start of the query completion window, within the last seven days',
+    },
+    endTime: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'ISO-8601 end of the query completion window, within the last seven days',
+    },
+    errorOnly: {
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Include views and materialized views alongside tables',
+      description:
+        'Whether to return only queries that failed (execution status FAILED_WITH_ERROR or FAILED_WITH_INCIDENT). Snowflake applies the limit before this filter, so it selects the failures among the most recent queries rather than the most recent failures',
+    },
+    limit: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Maximum query rows, from 1 to 10000',
     },
   },
   request: snowflakeStatementRequest((params) =>
-    buildSnowflakeStatementBody(
-      params,
-      buildIntrospectSchema({ ...params, includeViews: includesViews(params.includeViews) }),
-      {
-        warehouse: params.warehouse,
-        maxRows: params.maxRows,
-      }
-    )
+    buildSnowflakeStatementBody(params, buildListQueryHistory(params), {
+      warehouse: params.warehouse,
+      maxRows: params.limit,
+    })
   ),
   transformResponse: transformSnowflakeResult(),
   outputs: SNOWFLAKE_STATEMENT_OUTPUTS,

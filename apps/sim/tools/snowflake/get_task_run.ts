@@ -3,6 +3,7 @@ import type { SnowflakeGetTaskRunParams, SnowflakeStatementResponse } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -15,18 +16,7 @@ export const getTaskRunTool: ToolConfig<SnowflakeGetTaskRunParams, SnowflakeStat
   description:
     'Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

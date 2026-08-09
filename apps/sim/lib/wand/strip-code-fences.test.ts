@@ -92,6 +92,7 @@ describe('shouldStripCodeFences', () => {
     expect(shouldStripCodeFences('javascript-function-body')).toBe(true)
     expect(shouldStripCodeFences('custom-tool-schema')).toBe(true)
     expect(shouldStripCodeFences('json-object')).toBe(true)
+    expect(shouldStripCodeFences('json-array')).toBe(true)
     expect(shouldStripCodeFences('cron-expression')).toBe(true)
   })
 

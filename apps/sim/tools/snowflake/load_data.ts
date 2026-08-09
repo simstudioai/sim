@@ -3,6 +3,7 @@ import type { SnowflakeLoadDataParams, SnowflakeStatementResponse } from '@/tool
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -25,18 +26,7 @@ export const loadDataTool: ToolConfig<SnowflakeLoadDataParams, SnowflakeStatemen
   name: 'Snowflake Load Data',
   description: 'Load files from an existing Snowflake stage with COPY INTO.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

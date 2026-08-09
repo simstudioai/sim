@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-08",
+  "updatedAt": "2026-08-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -18247,7 +18247,7 @@
       "slug": "snowflake",
       "name": "Snowflake",
       "description": "Query data and manage warehouses and tasks in Snowflake",
-      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load staged data, manage warehouses and tasks, inspect schemas, and call stored procedures.",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
       "bgColor": "#FFFFFF",
       "iconName": "SnowflakeIcon",
       "docsUrl": "https://docs.sim.ai/integrations/snowflake",
@@ -18285,6 +18285,22 @@
           "description": "Load files from an existing Snowflake stage with COPY INTO."
         },
         {
+          "name": "Unload Data",
+          "description": "Export a Snowflake table to files in a stage with COPY INTO."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases the credential can access."
+        },
+        {
+          "name": "List Schemas",
+          "description": "List the schemas in a Snowflake database."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in a Snowflake schema."
+        },
+        {
           "name": "List Warehouses",
           "description": "List warehouses visible to the active Snowflake role."
         },
@@ -18301,6 +18317,10 @@
           "description": "Suspend a Snowflake virtual warehouse."
         },
         {
+          "name": "Alter Warehouse",
+          "description": "Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings."
+        },
+        {
           "name": "List Tasks",
           "description": "List tasks in a Snowflake schema."
         },
@@ -18311,6 +18331,14 @@
         {
           "name": "Run Task",
           "description": "Run a Snowflake task immediately, optionally retrying its last failed graph."
+        },
+        {
+          "name": "Resume Task",
+          "description": "Resume a suspended Snowflake task so its schedule runs again."
+        },
+        {
+          "name": "Suspend Task",
+          "description": "Suspend a Snowflake task so its schedule stops triggering runs."
         },
         {
           "name": "List Task Runs",
@@ -18329,6 +18357,14 @@
           "description": "Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role."
         },
         {
+          "name": "List Query History",
+          "description": "List queries that completed in the last seven days, optionally filtered."
+        },
+        {
+          "name": "List Copy History",
+          "description": "List staged-file load results for a table over the last fourteen days."
+        },
+        {
           "name": "Introspect Schema",
           "description": "Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views."
         },
@@ -18337,7 +18373,7 @@
           "description": "Call a stored procedure with explicitly typed Snowflake bindings."
         }
       ],
-      "operationCount": 21,
+      "operationCount": 30,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

@@ -12,7 +12,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 
 ## Usage Instructions
 
-Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load staged data, manage warehouses and tasks, inspect schemas, and call stored procedures.
+Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.
 
 
 
@@ -26,8 +26,6 @@ Execute one parameterized SQL statement through the Snowflake SQL API.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -74,8 +72,6 @@ Check a running or completed statement and retrieve exactly one result partition
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
 | `partition` | number | No | Zero-based result partition to retrieve; defaults to 0 |
 | `partitionCount` | number | No | Total number of result partitions, taken from the partitionCount of the first partition. Snowflake omits metadata from every later partition response, so supply this when fetching partition 1 or higher to keep truncated and nextPartition accurate |
@@ -116,8 +112,6 @@ Cancel a running Snowflake SQL API statement.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `statementHandle` | string | Yes | Statement handle returned by Snowflake |
 
 #### Output
@@ -156,8 +150,6 @@ Insert structured JSON rows using bound values.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -202,8 +194,6 @@ Update matching rows with a bound MERGE statement without inserting new rows.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -249,8 +239,6 @@ Update matching rows and insert unmatched rows with a bound MERGE statement.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -296,8 +284,6 @@ Delete rows matching a required set of bound column filters.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -342,8 +328,6 @@ Load files from an existing Snowflake stage with COPY INTO.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -387,6 +371,182 @@ Load files from an existing Snowflake stage with COPY INTO.
 |   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
 |   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
 
+### Snowflake Unload Data
+
+Export a Snowflake table to files in a stage with COPY INTO.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
+| `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
+| `database` | string | Yes | Database name |
+| `schema` | string | Yes | Schema name |
+| `stagePath` | string | Yes | Destination stage reference, for example @EXPORTS/daily |
+| `table` | string | Yes | Source table to unload. To export a query result, materialize it first as a view or with CREATE TABLE AS SELECT, then unload that |
+| `fileFormat` | string | No | Named file format applied to the unloaded files |
+| `header` | boolean | No | Whether to write column headings into the unloaded files; supported for CSV and Parquet only |
+| `overwrite` | boolean | No | Whether to replace existing files with matching names in the stage |
+| `singleFile` | boolean | No | Whether to write one file instead of splitting the output across files |
+| `maxFileSizeBytes` | number | No | Upper size limit per unloaded file in bytes; Snowflake defaults to 16777216 \(16 MB\) and allows up to 5368709120 \(5 GB\) |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake List Databases
+
+List the databases the credential can access.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `nameLike` | string | No | Optional SQL LIKE pattern for object names |
+| `limit` | number | No | Maximum rows, from 1 to 10000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake List Schemas
+
+List the schemas in a Snowflake database.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `database` | string | Yes | Database name |
+| `nameLike` | string | No | Optional SQL LIKE pattern for object names |
+| `limit` | number | No | Maximum rows, from 1 to 10000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake List Tables
+
+List the tables in a Snowflake schema.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `database` | string | Yes | Database name |
+| `schema` | string | Yes | Schema name |
+| `nameLike` | string | No | Optional SQL LIKE pattern for object names |
+| `limit` | number | No | Maximum rows, from 1 to 10000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
 ### Snowflake List Warehouses
 
 List warehouses visible to the active Snowflake role.
@@ -395,8 +555,6 @@ List warehouses visible to the active Snowflake role.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
@@ -438,8 +596,6 @@ Get the full details for a Snowflake virtual warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -480,8 +636,6 @@ Resume a Snowflake virtual warehouse if it is suspended.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
@@ -522,11 +676,52 @@ Suspend a Snowflake virtual warehouse.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouseName` | string | Yes | Warehouse name |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake Alter Warehouse
+
+Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `warehouseName` | string | Yes | Warehouse name |
+| `warehouseSize` | string | No | New warehouse size, one of $\{SNOWFLAKE_WAREHOUSE_SIZES.join\(', '\)\} |
+| `autoSuspendSeconds` | number | No | Seconds of inactivity before the warehouse suspends. Snowflake polls every 30 seconds, so values under 30 or not a multiple of 30 may not behave as expected. 0 means the warehouse never suspends and keeps consuming credits |
+| `autoResume` | boolean | No | Whether the warehouse resumes automatically when a statement is submitted |
 
 #### Output
 
@@ -564,8 +759,6 @@ List tasks in a Snowflake schema.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -609,8 +802,6 @@ Describe a Snowflake task.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
@@ -653,14 +844,96 @@ Run a Snowflake task immediately, optionally retrying its last failed graph.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `database` | string | Yes | Database name |
 | `schema` | string | Yes | Schema name |
 | `taskName` | string | Yes | Task name |
 | `retryLast` | boolean | No | Retry the last failed task graph run |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake Resume Task
+
+Resume a suspended Snowflake task so its schedule runs again.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `database` | string | Yes | Database name |
+| `schema` | string | Yes | Schema name |
+| `taskName` | string | Yes | Task name without a database or schema prefix |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake Suspend Task
+
+Suspend a Snowflake task so its schedule stops triggering runs.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `database` | string | Yes | Database name |
+| `schema` | string | Yes | Schema name |
+| `taskName` | string | Yes | Task name without a database or schema prefix |
 
 #### Output
 
@@ -698,8 +971,6 @@ Query up to seven days of Snowflake task history, capped at 10000 rows.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -745,8 +1016,6 @@ Find one task history record by query ID within Snowflake’s seven-day window a
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -791,8 +1060,6 @@ Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs al
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -834,13 +1101,103 @@ Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
 | `maxRows` | number | No | Maximum result rows; defaults to 1000 with a Sim safety limit of 10000 |
 | `queryId` | string | Yes | Completed task query ID; task results require the task owner role, while manual query results require the same user |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake List Query History
+
+List queries that completed in the last seven days, optionally filtered.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
+| `userName` | string | No | Only queries run by this user; cannot be combined with warehouseName |
+| `warehouseName` | string | No | Only queries run on this warehouse; cannot be combined with userName |
+| `startTime` | string | No | ISO-8601 start of the query completion window, within the last seven days |
+| `endTime` | string | No | ISO-8601 end of the query completion window, within the last seven days |
+| `errorOnly` | boolean | No | Whether to return only queries that failed \(execution status FAILED_WITH_ERROR or FAILED_WITH_INCIDENT\). Snowflake applies the limit before this filter, so it selects the failures among the most recent queries rather than the most recent failures |
+| `limit` | number | No | Maximum query rows, from 1 to 10000 |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `statementHandle` | string | Snowflake statement handle |
+| `status` | string | Statement status: SUCCEEDED, RUNNING, or CANCELED |
+| `message` | string | Snowflake response message |
+| `result` | object | Completed result partition, or null while running or when no result is available |
+|   ↳ `columns` | array | Documented Snowflake result column metadata, or null when Snowflake returned a metadata-less partition response |
+|     ↳ `name` | string | Column name |
+|     ↳ `type` | string | Snowflake data type |
+|     ↳ `length` | number | Column length |
+|     ↳ `precision` | number | Numeric precision |
+|     ↳ `scale` | number | Numeric scale |
+|     ↳ `nullable` | boolean | Whether the column is nullable |
+|   ↳ `rows` | array | One complete Snowflake result partition as string or null arrays |
+|   ↳ `totalRows` | number | Total result rows |
+|   ↳ `currentPartition` | number | Zero-based partition returned |
+|   ↳ `partitionCount` | number | Total partitions in the result set. Snowflake reports this only on the first partition, so pass it back to Get Statement when fetching later partitions |
+|   ↳ `nextPartition` | number | Next partition to request with Get Statement, if one exists |
+|   ↳ `truncated` | boolean | Whether more result partitions remain to fetch with Get Statement, or null when Snowflake returned a metadata-less partition response and partitionCount was not supplied. Snowflake does not report when the requested row limit capped the result set, so that cap is never reflected here |
+| `dml` | object | Completed DML statistics, or null when the statement has no DML statistics |
+|   ↳ `rowsInserted` | number | Rows inserted by the statement |
+|   ↳ `rowsUpdated` | number | Rows updated by the statement |
+|   ↳ `rowsDeleted` | number | Rows deleted by the statement |
+|   ↳ `duplicateRowsUpdated` | number | Duplicate rows updated by the statement |
+|   ↳ `rowsAffected` | number | Total inserted, updated, and deleted rows |
+
+### Snowflake List Copy History
+
+List staged-file load results for a table over the last fourteen days.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `role` | string | No | Snowflake role to use for this statement |
+| `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
+| `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
+| `database` | string | Yes | Database name |
+| `schema` | string | Yes | Schema name |
+| `table` | string | Yes | Table whose load history to return |
+| `startTime` | string | Yes | ISO-8601 start of the load window, within the last fourteen days |
+| `endTime` | string | No | ISO-8601 end of the load window, within the last fourteen days; defaults to now |
+| `limit` | number | No | Maximum load rows, from 1 to 10000 |
 
 #### Output
 
@@ -878,8 +1235,6 @@ Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
@@ -925,8 +1280,6 @@ Call a stored procedure with explicitly typed Snowflake bindings.
 
 | Parameter | Type | Required | Description |
 | --------- | ---- | -------- | ----------- |
-| `host` | string | Yes | Snowflake account host, for example myorg-myaccount.snowflakecomputing.com |
-| `apiKey` | string | Yes | Snowflake programmatic access token |
 | `role` | string | No | Snowflake role to use for this statement |
 | `statementTimeoutSeconds` | number | No | Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds |
 | `warehouse` | string | No | Warehouse to use for this statement; defaults to the PAT user setting |
