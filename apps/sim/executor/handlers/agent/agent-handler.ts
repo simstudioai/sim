@@ -1218,7 +1218,7 @@ export class AgentBlockHandler implements BlockHandler {
         serverId,
         workspaceId: ctx.workspaceId,
         workflowId: ctx.workflowId,
-        userId: ctx.userId,
+        userId: ctx.userId || undefined,
       })
     )
 

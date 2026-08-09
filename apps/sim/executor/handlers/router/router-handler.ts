@@ -98,7 +98,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = buildInternalApiUrl(
-        internalRoute`/api/providers`.withQuery({ userId: ctx.userId })
+        internalRoute`/api/providers`.withQuery({ userId: ctx.userId || undefined })
       )
 
       const messages = [{ role: 'user', content: routerConfig.prompt }]
@@ -277,7 +277,7 @@ export class RouterBlockHandler implements BlockHandler {
 
     try {
       const url = buildInternalApiUrl(
-        internalRoute`/api/providers`.withQuery({ userId: ctx.userId })
+        internalRoute`/api/providers`.withQuery({ userId: ctx.userId || undefined })
       )
 
       const messages = [{ role: 'user', content: routerConfig.context }]

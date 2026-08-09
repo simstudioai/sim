@@ -192,7 +192,7 @@ export class EvaluatorBlockHandler implements BlockHandler {
 
     try {
       const url = buildInternalApiUrl(
-        internalRoute`/api/providers`.withQuery({ userId: ctx.userId })
+        internalRoute`/api/providers`.withQuery({ userId: ctx.userId || undefined })
       )
 
       const providerRequest: ProviderRequest = {
