@@ -4,6 +4,7 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { snowflakeObjectsSelectorContract } from '@/lib/api/contracts/selectors/snowflake'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { authorizeCredentialUse } from '@/lib/auth/credential-access'
+import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { resolveCredentialAccessToken } from '@/app/api/auth/oauth/utils'
@@ -69,6 +70,14 @@ function parseAvailableRoles(cellValue: string | null | undefined): SnowflakeObj
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
 
+  // Authenticate the caller before touching the body: contract validation must
+  // never run for an unauthenticated request. This reads headers and the
+  // session only, so it is safe ahead of parsing.
+  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: true })
+  if (!auth.success || !auth.userId) {
+    return NextResponse.json({ error: auth.error || 'Authentication required' }, { status: 401 })
+  }
+
   const parsed = await parseRequest(
     snowflakeObjectsSelectorContract,
     request,
@@ -88,7 +97,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
   const { credential, workflowId, kind, database, schema } = parsed.data.body
 
-  const authz = await authorizeCredentialUse(request, { credentialId: credential, workflowId })
+  const authz = await authorizeCredentialUse(request, {
+    credentialId: credential,
+    workflowId,
+    callerUserId: auth.userId,
+  })
   if (!authz.ok || !authz.credentialOwnerUserId) {
     return NextResponse.json({ error: authz.error || 'Unauthorized' }, { status: 403 })
   }

@@ -80,6 +80,25 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     useAutoprompt: '_removed_useAutoprompt',
     livecrawl: '_removed_livecrawl',
   },
+  /**
+   * The Snowflake block moved from per-block `host` + `apiKey` fields to a
+   * stored credential, and gave every object field a basic picker paired with
+   * an advanced text input. The old free-text fields held the same object
+   * names the pickers now emit, so each maps onto its picker; the host and
+   * token have no in-block equivalent and are parked.
+   */
+  snowflake: {
+    database: 'databaseSelector',
+    schema: 'schemaSelector',
+    table: 'tableSelector',
+    fileFormat: 'fileFormatSelector',
+    warehouseName: 'warehouseNameSelector',
+    procedureName: 'procedureSelector',
+    warehouse: 'warehouseSelector',
+    role: 'roleSelector',
+    host: '_removed_host',
+    apiKey: '_removed_apiKey',
+  },
   rippling: {
     action: '_removed_action',
     candidateDepartment: '_removed_candidateDepartment',
