@@ -127,6 +127,22 @@ describe('workspace file reference application service', () => {
     })
   })
 
+  it('conceals a canonical file from another workspace before authorization or content access', async () => {
+    mocks.resolveStoredReference.mockResolvedValueOnce({ ...file, workspaceId: 'workspace-2' })
+    mocks.loadContext.mockResolvedValueOnce({ ...context, workspaceId: 'workspace-2' })
+
+    await expect(
+      readSafeWorkspaceFileReference.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', reference: 'files/source.txt', maxBytes: 512 },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.getProvenance).not.toHaveBeenCalled()
+    expect(mocks.fetchBuffer).not.toHaveBeenCalled()
+  })
+
   it('rejects unknown provenance before reading file content', async () => {
     mocks.getProvenance.mockResolvedValueOnce({ status: 'unknown' })
 

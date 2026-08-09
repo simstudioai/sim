@@ -139,6 +139,39 @@ describe('table import application use cases', () => {
       }
     )
     mocks.startUploadedImport.mockResolvedValue({ ...record, status: 'ready' })
+    mocks.createResource.mockResolvedValue({ record, upload: null })
+  })
+
+  it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
+    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
+
+    await expect(
+      createTableImportUseCase.execute({
+        principal: reader,
+        input: {
+          body: {
+            workspaceId: 'workspace-1',
+            source: record.source,
+            target: record.target,
+          },
+        },
+        request,
+      })
+    ).resolves.toEqual({ import: { record, upload: null } })
+
+    expect(mocks.createResource).toHaveBeenCalledWith({
+      body: {
+        workspaceId: 'workspace-1',
+        source: record.source,
+        target: record.target,
+      },
+      userId: 'reader-2',
+      principal: reader,
+      localOrigin: 'http://localhost:3000',
+      resolvedFolderId: undefined,
+      workspaceFile: undefined,
+    })
+    expect(record.createdAt).toBe(createdAt)
   })
 
   it('reads a durable import by workspace role rather than uploader identity', async () => {

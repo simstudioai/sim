@@ -106,17 +106,6 @@ vi.mock('@/lib/copilot/auth/table-delegation', () => ({
       ? (classified.message ?? 'Table operation failed')
       : 'Table operation failed'
   },
-  resolveCopilotTablePrincipal: (_context: unknown, tableId?: string) => ({
-    kind: 'delegated',
-    serviceId: 'copilot',
-    subjectUserId: 'user-1',
-    workspaceId: 'workspace-1',
-    delegationId: 'test-tool',
-    audience: 'sim:tables',
-    issuedAt: new Date(0),
-    expiresAt: new Date(Date.now() + 60_000),
-    resourceScope: tableId ? { tableId } : undefined,
-  }),
 }))
 
 vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({

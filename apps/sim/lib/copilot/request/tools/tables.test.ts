@@ -6,10 +6,19 @@ import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockReadTable, mockReplaceTableRows, mockSpanAddEvent } = vi.hoisted(() => ({
-  mockReadTable: vi.fn(),
-  mockReplaceTableRows: vi.fn(),
-  mockSpanAddEvent: vi.fn(),
+const { mockExecuteCopilotTableUseCase, mockReadTable, mockReplaceTableRows, mockSpanAddEvent } =
+  vi.hoisted(() => ({
+    mockExecuteCopilotTableUseCase: vi.fn(
+      (_context: unknown, useCase: { execute: (args: unknown) => unknown }, input: unknown) =>
+        useCase.execute({ input })
+    ),
+    mockReadTable: vi.fn(),
+    mockReplaceTableRows: vi.fn(),
+    mockSpanAddEvent: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
+  executeCopilotTableUseCase: mockExecuteCopilotTableUseCase,
 }))
 
 vi.mock('@/lib/table/application/tables', () => ({
@@ -125,6 +134,7 @@ describe('maybeWriteOutputToTable', () => {
   })
 
   it('replaces rows through the service with name keys remapped to column ids', async () => {
+    const context = buildContext()
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
       { outputTable: 'tbl_1' },
@@ -137,10 +147,25 @@ describe('maybeWriteOutputToTable', () => {
           ],
         },
       },
-      buildContext()
+      context
     )
 
     expect(result.success).toBe(true)
+    expect(mockExecuteCopilotTableUseCase).toHaveBeenNthCalledWith(
+      1,
+      context,
+      expect.objectContaining({ execute: mockReadTable }),
+      { tableId: 'tbl_1', workspaceId: 'workspace-1' }
+    )
+    expect(mockExecuteCopilotTableUseCase).toHaveBeenNthCalledWith(
+      2,
+      context,
+      expect.objectContaining({ execute: mockReplaceTableRows }),
+      expect.objectContaining({
+        tableId: 'tbl_1',
+        assertedWorkspaceId: 'workspace-1',
+      })
+    )
     expect(mockReplaceTableRows).toHaveBeenCalledTimes(1)
     const [{ input }] = mockReplaceTableRows.mock.calls[0]
     expect(input).toMatchObject({

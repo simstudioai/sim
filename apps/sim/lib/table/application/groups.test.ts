@@ -9,8 +9,10 @@ const mocks = vi.hoisted(() => ({
   addGroup: vi.fn(),
   addOutput: vi.fn(),
   audit: vi.fn(),
+  deleteOutput: vi.fn(),
   resolveContext: vi.fn(),
   resolvePermission: vi.fn(),
+  resolveWorkflow: vi.fn(),
   signal: vi.fn(),
   updateGroup: vi.fn(),
 }))
@@ -44,16 +46,17 @@ vi.mock('@/lib/table/workflow-groups/service', () => ({
   addWorkflowGroup: mocks.addGroup,
   addWorkflowGroupOutput: mocks.addOutput,
   deleteWorkflowGroup: vi.fn(),
-  deleteWorkflowGroupOutput: vi.fn(),
+  deleteWorkflowGroupOutput: mocks.deleteOutput,
   updateWorkflowGroup: mocks.updateGroup,
 }))
 vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
-  resolveWorkflowOutputs: { execute: vi.fn() },
+  resolveWorkflowOutputs: { execute: mocks.resolveWorkflow },
 }))
 
 import {
   addTableGroupOutputUseCase,
   createTableGroupUseCase,
+  deleteTableGroupOutputUseCase,
   updateTableGroupUseCase,
 } from '@/lib/table/application/groups'
 
@@ -133,7 +136,32 @@ describe('table group application use cases', () => {
     })
     mocks.addGroup.mockResolvedValue(table)
     mocks.addOutput.mockResolvedValue(table)
+    mocks.deleteOutput.mockResolvedValue(table)
     mocks.updateGroup.mockResolvedValue(table)
+  })
+
+  it('lets the Workflow application policy reject missing delegated metadata before mutation', async () => {
+    mocks.resolveWorkflow.mockRejectedValue(
+      new Error('Delegated workspace access is no longer valid')
+    )
+
+    await expect(
+      createTableGroupUseCase.execute({
+        principal,
+        input: {
+          tableId: 'table-1',
+          workspaceId: 'workspace-1',
+          group,
+          outputColumns: [{ name: 'result', type: 'string', workflowGroupId: 'group-1' }],
+        },
+      })
+    ).rejects.toThrow('Delegated workspace access is no longer valid')
+
+    expect(mocks.resolveWorkflow).toHaveBeenCalledWith({
+      principal,
+      input: { workflowId: 'workflow-1', assertedWorkspaceId: 'workspace-1' },
+    })
+    expect(mocks.addGroup).not.toHaveBeenCalled()
   })
 
   it('accepts only Workflow-authorized metadata for delegated group creation', async () => {
@@ -210,6 +238,30 @@ describe('table group application use cases', () => {
       }),
       'request-1'
     )
+  })
+
+  it('deletes an output through the canonical mutation with audit and schema effects', async () => {
+    await deleteTableGroupOutputUseCase.execute({
+      principal,
+      input: {
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        groupId: 'group-1',
+        columnName: 'result',
+      },
+    })
+
+    expect(mocks.deleteOutput).toHaveBeenCalledWith(
+      {
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        groupId: 'group-1',
+        columnName: 'result',
+      },
+      'request-1'
+    )
+    expect(mocks.audit).toHaveBeenCalledTimes(1)
+    expect(mocks.signal).toHaveBeenCalledWith('table-1')
   })
 
   it('validates mapping updates against authorized output metadata before mutation', async () => {

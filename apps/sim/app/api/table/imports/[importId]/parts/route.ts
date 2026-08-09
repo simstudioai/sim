@@ -1,39 +1,27 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { createTableImportPartUrlsContract } from '@/lib/api/contracts/table-transfers'
-import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getOwnedTableImportUpload } from '@/lib/table/orchestration/import-resource'
-import { createUploadPartUrls } from '@/lib/uploads/upload-session/service'
-import { orchestrationErrorResponse } from '@/app/api/table/utils'
+import {
+  defineInternalJsonRoute,
+  internalPlainOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { createTableImportPartsUseCase } from '@/lib/table/application/imports'
+import { tableOperations } from '@/lib/table/application/operations'
 
-interface ImportRouteParams {
-  params: Promise<{ importId: string }>
-}
-
-export const POST = withRouteHandler(async (request: NextRequest, context: ImportRouteParams) => {
-  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-  if (!auth.success || !auth.userId) {
-    return NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-  }
-  const parsed = await parseRequest(createTableImportPartUrlsContract, request, context)
-  if (!parsed.success) return parsed.response
-  try {
-    const upload = await getOwnedTableImportUpload({
-      importId: parsed.data.params.importId,
-      workspaceId: parsed.data.query.workspaceId,
-      userId: auth.userId,
-      uploadToken: parsed.data.headers['upload-token'],
-    })
-    const parts = await createUploadPartUrls({
-      session: upload,
-      partNumbers: parsed.data.body.partNumbers,
-      localOrigin: request.nextUrl.origin,
-    })
-    return NextResponse.json({ data: { parts } })
-  } catch (error) {
-    const classified = orchestrationErrorResponse(error)
-    if (classified) return classified
-    throw error
-  }
+export const POST = defineInternalJsonRoute({
+  contract: createTableImportPartUrlsContract,
+  auth: internalSessionAuth,
+  operation: tableOperations.createImportParts,
+  rateLimit: internalRateLimits.none({
+    reason: 'Existing authenticated table import part signing has no request-rate policy',
+  }),
+  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  mapInput: ({ params, query, headers, body }) => ({
+    importId: params.importId,
+    workspaceId: query.workspaceId,
+    uploadToken: headers['upload-token'],
+    partNumbers: body.partNumbers,
+  }),
+  useCase: createTableImportPartsUseCase,
+  present: ({ parts }) => ({ data: { parts } }),
 })

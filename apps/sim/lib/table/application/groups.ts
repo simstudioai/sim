@@ -58,9 +58,6 @@ async function resolveAuthorizedWorkflowForTableGroup(
     }
     return provided
   }
-  if (principal.kind === 'delegated') {
-    throw new OrchestrationError('not_found', 'Workflow not found')
-  }
   return resolveWorkflowOutputs.execute({
     principal,
     input: { workflowId, assertedWorkspaceId: workspaceId },

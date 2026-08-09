@@ -38,7 +38,6 @@ import {
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
 import { getUserSettings } from '@/lib/users/queries'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('TableImportResource')
 
@@ -130,22 +129,6 @@ export async function createAuthorizedTableImportResource(
   return createTableImportResourceCore(params)
 }
 
-/** Legacy internal resource entry point retained until internal JWTs carry signed workspace scope. */
-export async function createTableImportResource(
-  body: V2CreateTableImportBody,
-  userId: string,
-  localOrigin: string,
-  resolvedFolderId?: string | null
-): Promise<CreateTableImportResult> {
-  await assertWorkspaceWrite(userId, body.workspaceId)
-  return createTableImportResourceCore({
-    body,
-    userId,
-    localOrigin,
-    resolvedFolderId,
-  })
-}
-
 export async function startUploadedTableImport(
   upload: UploadSessionRecord
 ): Promise<TableImportResource> {
@@ -197,41 +180,11 @@ export async function getPrincipalTableImportUpload(params: {
   return upload
 }
 
-/** Legacy internal lookup retained until its bearer token can bind a full Principal. */
-export async function getOwnedTableImportUpload(params: {
-  importId: string
-  workspaceId: string
-  userId: string
-  uploadToken: string
-}): Promise<UploadSessionRecord> {
-  const upload = await getOwnedUploadSession({
-    uploadId: params.importId,
-    workspaceId: params.workspaceId,
-    userId: params.userId,
-    purpose: 'table_import',
-    uploadToken: params.uploadToken,
-  })
-  tableImportBodyFromUpload(upload)
-  return upload
-}
-
 export async function abortAuthorizedTableImportUpload(
   upload: UploadSessionRecord,
   principal: Principal
 ): Promise<TableImportResource> {
   assertUploadSessionAuthBinding(upload, principal)
-  const body = tableImportBodyFromUpload(upload)
-  return resourceFromUpload(await abortUploadSession(upload), body)
-}
-
-/** Legacy internal cancellation retained until its bearer token can bind a full Principal. */
-export async function abortTableImportUpload(params: {
-  importId: string
-  workspaceId: string
-  userId: string
-  uploadToken: string
-}): Promise<TableImportResource> {
-  const upload = await getOwnedTableImportUpload(params)
   const body = tableImportBodyFromUpload(upload)
   return resourceFromUpload(await abortUploadSession(upload), body)
 }
@@ -279,28 +232,6 @@ export async function findTableImportResource(params: {
     updatedAt: job.updatedAt,
     completedAt: job.completedAt,
   }
-}
-
-export async function getOwnedTableImport(params: {
-  importId: string
-  workspaceId: string
-  userId: string
-}): Promise<TableImportResource> {
-  const record = await findOwnedTableImport(params)
-  if (!record) throw new OrchestrationError('not_found', 'Table import not found')
-  return record
-}
-
-export async function findOwnedTableImport(params: {
-  importId: string
-  workspaceId: string
-  userId: string
-}): Promise<TableImportResource | null> {
-  const record = await findTableImportResource({
-    importId: params.importId,
-    assertedWorkspaceId: params.workspaceId,
-  })
-  return record?.userId === params.userId ? record : null
 }
 
 export async function cancelTableImportResource(
@@ -596,13 +527,6 @@ async function requireWorkspaceSource(
     throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
   }
   return resolved
-}
-
-async function assertWorkspaceWrite(userId: string, workspaceId: string): Promise<void> {
-  const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
-  if (permission !== 'write' && permission !== 'admin') {
-    throw new OrchestrationError('forbidden', 'Access denied')
-  }
 }
 
 function uploadStatus(upload: UploadSessionRecord): TableImportStatus {

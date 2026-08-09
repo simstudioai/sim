@@ -2,10 +2,8 @@ import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { isPlainRecord } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
-import {
-  messageForCopilotTableError,
-  resolveCopilotTablePrincipal,
-} from '@/lib/copilot/auth/table-delegation'
+import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
+import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -61,10 +59,11 @@ async function replaceTableRowsFromWire(
   | { success: false; error: string }
   | { success: true; table: TableDefinition; insertedCount: number; deletedCount: number }
 > {
-  const principal = resolveCopilotTablePrincipal(context, tableId)
-  const { table } = await readTableUseCase.execute({
-    principal,
-    input: { tableId, workspaceId: principal.workspaceId },
+  const workspaceId = context.workspaceId
+  if (!workspaceId) throw new Error('Table persistence requires a workspace ID')
+  const { table } = await executeCopilotTableUseCase(context, readTableUseCase, {
+    tableId,
+    workspaceId,
   })
   const persistenceProjection = context.resolvedSecretTraceRegistry
     ? projectToolOutputForPersistence(rows, context.resolvedSecretTraceRegistry)
@@ -93,14 +92,11 @@ async function replaceTableRowsFromWire(
       error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
     }
   }
-  const replacement = await replaceTableRows.execute({
-    principal,
-    input: {
-      tableId: table.id,
-      assertedWorkspaceId: principal.workspaceId,
-      rows: projectedRows,
-      secretProvenance: projectedRows.map(createExactEmptyTableRowSecretProvenance),
-    },
+  const replacement = await executeCopilotTableUseCase(context, replaceTableRows, {
+    tableId: table.id,
+    assertedWorkspaceId: workspaceId,
+    rows: projectedRows,
+    secretProvenance: projectedRows.map(createExactEmptyTableRowSecretProvenance),
   })
   if (replacement.insertedCount !== projectedRows.length) {
     throw new Error('Table row replacement inserted an unexpected row count')

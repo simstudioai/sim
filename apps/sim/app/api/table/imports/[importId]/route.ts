@@ -1,76 +1,46 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import {
   cancelTableImportResourceContract,
   getTableImportResourceContract,
 } from '@/lib/api/contracts/table-transfers'
-import { parseRequest } from '@/lib/api/server'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  abortTableImportUpload,
-  cancelTableImportResource,
-  getOwnedTableImport,
-  toV2TableImport,
-} from '@/lib/table/orchestration/import-resource'
-import { orchestrationErrorResponse } from '@/app/api/table/utils'
+  defineInternalJsonRoute,
+  internalPlainOrchestrationErrorPolicy,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { cancelTableImportUseCase, readTableImportUseCase } from '@/lib/table/application/imports'
+import { tableOperations } from '@/lib/table/application/operations'
+import { toV2TableImport } from '@/lib/table/orchestration/import-resource'
 
-interface ImportRouteParams {
-  params: Promise<{ importId: string }>
-}
-
-async function userId(request: NextRequest): Promise<string | NextResponse> {
-  const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-  return auth.success && auth.userId
-    ? auth.userId
-    : NextResponse.json({ error: 'Authentication required' }, { status: 401 })
-}
-
-export const GET = withRouteHandler(async (request: NextRequest, context: ImportRouteParams) => {
-  const user = await userId(request)
-  if (user instanceof NextResponse) return user
-  const parsed = await parseRequest(getTableImportResourceContract, request, context)
-  if (!parsed.success) return parsed.response
-  try {
-    const record = await getOwnedTableImport({
-      importId: parsed.data.params.importId,
-      workspaceId: parsed.data.query.workspaceId,
-      userId: user,
-    })
-    return NextResponse.json({ data: await toV2TableImport(record) })
-  } catch (error) {
-    const classified = orchestrationErrorResponse(error)
-    if (classified) return classified
-    throw error
-  }
+const rateLimit = internalRateLimits.none({
+  reason: 'Existing authenticated table import resource access has no request-rate policy',
 })
 
-export const DELETE = withRouteHandler(async (request: NextRequest, context: ImportRouteParams) => {
-  const user = await userId(request)
-  if (user instanceof NextResponse) return user
-  const parsed = await parseRequest(cancelTableImportResourceContract, request, context)
-  if (!parsed.success) return parsed.response
-  try {
-    const uploadToken = parsed.data.headers['upload-token']
-    const record = uploadToken
-      ? await abortTableImportUpload({
-          importId: parsed.data.params.importId,
-          workspaceId: parsed.data.query.workspaceId,
-          userId: user,
-          uploadToken,
-        })
-      : await cancelTableImportResource(
-          await getOwnedTableImport({
-            importId: parsed.data.params.importId,
-            workspaceId: parsed.data.query.workspaceId,
-            userId: user,
-          })
-        )
-    return NextResponse.json({
-      data: toV2TableImport(record),
-    })
-  } catch (error) {
-    const classified = orchestrationErrorResponse(error)
-    if (classified) return classified
-    throw error
-  }
+export const GET = defineInternalJsonRoute({
+  contract: getTableImportResourceContract,
+  auth: internalSessionAuth,
+  operation: tableOperations.readImport,
+  rateLimit,
+  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  mapInput: ({ params, query }) => ({
+    importId: params.importId,
+    workspaceId: query.workspaceId,
+  }),
+  useCase: readTableImportUseCase,
+  present: ({ import: record }) => ({ data: toV2TableImport(record) }),
+})
+
+export const DELETE = defineInternalJsonRoute({
+  contract: cancelTableImportResourceContract,
+  auth: internalSessionAuth,
+  operation: tableOperations.cancelImport,
+  rateLimit,
+  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  mapInput: ({ params, query, headers }) => ({
+    importId: params.importId,
+    workspaceId: query.workspaceId,
+    uploadToken: headers['upload-token'],
+  }),
+  useCase: cancelTableImportUseCase,
+  present: ({ import: record }) => ({ data: toV2TableImport(record) }),
 })
