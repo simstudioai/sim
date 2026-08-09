@@ -649,7 +649,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
     rows: {
       type: 'string',
       description:
-        'Structured rows as a JSON array. Max 1000 rows and 1 MB of bound data per call - stage the files and use Load Data for bulk ingest.',
+        'Structured rows as a JSON array. For bulk loads, stage the files and use Load Data instead.',
     },
     matchColumns: {
       type: 'string',
