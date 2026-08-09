@@ -125,7 +125,13 @@ function extractUsage(
   return null
 }
 
-/** Normalizes a raw Pi/SDK event object into a {@link PiEvent}. */
+/**
+ * Normalizes a raw Pi/SDK event object into a {@link PiEvent}.
+ *
+ * The cloud backends feed this from a stream the sandbox already reduced to the fields read below
+ * (`cloud/event-filter-source.ts`), so a field added here has to be added there too — otherwise it
+ * arrives only on the local and review paths and the cloud ones silently lose it.
+ */
 export function normalizePiEvent(raw: unknown): PiEvent | null {
   const ev = asRecord(raw)
   if (!ev) return null

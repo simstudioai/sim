@@ -29,6 +29,10 @@ import {
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { runBabysitPi } from '@/executor/handlers/pi/cloud/babysit/backend'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   type BranchPullRequest,
   fetchOpenPrForBranch,
   findOpenPrForBranch,
@@ -466,6 +470,7 @@ async function runCloudAuthoringPi(
 
       // Outside REPO_DIR: a path inside the cloned tree would be staged by `git add -A` into the
       // user's pull request, and the agent holds write/edit/bash on that tree for the whole run.
+      await runner.writeFile(PI_EVENT_FILTER_PATH, PI_EVENT_FILTER_SOURCE)
       if (params.search) {
         await runner.writeFile(PI_SEARCH_EXTENSION_PATH, PI_SEARCH_EXTENSION_SOURCE)
       }

@@ -1,0 +1,53 @@
+import { buildGetWarehouse } from '@/tools/snowflake/sql'
+import type { SnowflakeStatementResponse, SnowflakeWarehouseParams } from '@/tools/snowflake/types'
+import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
+import {
+  buildSnowflakeStatementBody,
+  snowflakeStatementRequest,
+  transformSnowflakeResult,
+} from '@/tools/snowflake/utils'
+import type { ToolConfig } from '@/tools/types'
+
+export const getWarehouseTool: ToolConfig<SnowflakeWarehouseParams, SnowflakeStatementResponse> = {
+  id: 'snowflake_get_warehouse',
+  version: '1.0.0',
+  name: 'Snowflake Get Warehouse',
+  description: 'Get the full details for a Snowflake virtual warehouse.',
+  params: {
+    host: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
+    },
+    apiKey: {
+      type: 'string',
+      required: true,
+      visibility: 'user-only',
+      description: 'Snowflake programmatic access token',
+    },
+    role: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Snowflake role to use for this statement',
+    },
+    statementTimeoutSeconds: {
+      type: 'number',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Statement timeout in seconds; 0 uses Snowflake maximum of 604800 seconds',
+    },
+    warehouseName: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Warehouse name',
+    },
+  },
+  request: snowflakeStatementRequest((params) =>
+    buildSnowflakeStatementBody(params, buildGetWarehouse(params), { maxRows: 1 })
+  ),
+  transformResponse: transformSnowflakeResult(),
+  outputs: SNOWFLAKE_STATEMENT_OUTPUTS,
+}

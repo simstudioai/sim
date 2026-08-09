@@ -70,7 +70,7 @@ export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceLi
       writtenSinceMode: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description:
           'INCLUDE (default) keeps metrics written since Written Since; EXCLUDE keeps the ones not written since then',
       },
@@ -83,13 +83,13 @@ export const listMetricsTool: ToolConfig<DynatraceListMetricsParams, DynatraceLi
       pageSize: {
         type: 'number',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Metrics per page (max 500, default 100)',
       },
       nextPageKey: {
         type: 'string',
         required: false,
-        visibility: 'user-only',
+        visibility: 'user-or-llm',
         description: 'Cursor for the next page. All other filters are ignored when it is set',
       },
     },

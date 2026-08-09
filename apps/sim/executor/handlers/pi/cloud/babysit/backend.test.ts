@@ -655,6 +655,20 @@ describe('runBabysitPiWithOptions', () => {
       changedFiles: ['src/a.ts', 'src/b.ts'],
       diff: 'round-one-diff\nround-two-diff',
     })
+    const filterWrites = runner.writeFile.mock.calls.filter(
+      ([path]: [string]) => path === '/workspace/sim-pi-event-filter.mjs'
+    )
+    expect(filterWrites).toHaveLength(1)
+    expect(filterWrites[0]?.[1]).toContain("case 'message_update'")
+    const firstPiRun = runner.run.mock.calls.findIndex(([command]: [string]) =>
+      command.includes('pi -p --mode json')
+    )
+    const filterWrite = runner.writeFile.mock.calls.findIndex(
+      ([path]: [string]) => path === '/workspace/sim-pi-event-filter.mjs'
+    )
+    expect(runner.writeFile.mock.invocationCallOrder[filterWrite]).toBeLessThan(
+      runner.run.mock.invocationCallOrder[firstPiRun]
+    )
     expect(
       runCalls
         .filter(({ command }) => command.includes('CURRENT_DIGEST='))

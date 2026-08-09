@@ -10,6 +10,21 @@ import {
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Every optional property of the attack detail endpoint. Dynatrace omits them
+ * unless they are requested, so without this default the entry point, payload,
+ * attacker, and exploited vulnerability the tool maps would all be null.
+ */
+const ATTACK_DETAIL_FIELDS = [
+  '+attackTarget',
+  '+request',
+  '+entrypoint',
+  '+vulnerability',
+  '+securityProblem',
+  '+attacker',
+  '+managementZones',
+].join(',')
+
 export const getAttackTool: ToolConfig<DynatraceGetAttackParams, DynatraceGetAttackResponse> = {
   id: 'dynatrace_get_attack',
   name: 'Dynatrace Get Attack',
@@ -43,14 +58,14 @@ export const getAttackTool: ToolConfig<DynatraceGetAttackParams, DynatraceGetAtt
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated optional properties to include: +attackTarget, +request, +entrypoint, +vulnerability, +securityProblem, +attacker, +managementZones',
+        'Comma-separated optional properties to include, each prefixed with +. Defaults to all of them: +attackTarget, +request, +entrypoint, +vulnerability, +securityProblem, +attacker, +managementZones',
     },
   },
 
   request: {
     url: (params) =>
       buildDynatraceUrl(params.environmentUrl, `/attacks/${encodeDynatraceId(params.attackId)}`, {
-        fields: params.fields,
+        fields: params.fields || ATTACK_DETAIL_FIELDS,
       }),
     method: 'GET',
     headers: (params) => dynatraceHeaders(params.apiToken),

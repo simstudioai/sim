@@ -90,6 +90,16 @@ const MUTE_OPERATIONS = [
   'dynatrace_unmute_security_problems',
 ]
 
+/**
+ * Operations that mute. Unmuting is deliberately excluded: Dynatrace accepts
+ * exactly one unmute reason (`AFFECTED`), so the block sends it itself rather
+ * than offering a choice that would only ever be wrong.
+ */
+const MUTE_ONLY_OPERATIONS = ['dynatrace_mute_security_problem', 'dynatrace_mute_security_problems']
+
+/** The only `reason` the Dynatrace unmute endpoints accept. */
+const UNMUTE_REASON = 'AFFECTED'
+
 /** Operations that take the full SLO definition. */
 const SLO_WRITE_OPERATIONS = ['dynatrace_create_slo', 'dynatrace_update_slo']
 
@@ -826,10 +836,9 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
         { label: 'Vulnerable code not in use', id: 'VULNERABLE_CODE_NOT_IN_USE' },
         { label: 'Ignore', id: 'IGNORE' },
         { label: 'Other', id: 'OTHER' },
-        { label: 'Affected (unmute only)', id: 'AFFECTED' },
       ],
       required: true,
-      condition: { field: 'operation', value: MUTE_OPERATIONS },
+      condition: { field: 'operation', value: MUTE_ONLY_OPERATIONS },
       value: () => 'FALSE_POSITIVE',
     },
     {
@@ -1398,6 +1407,18 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
         const toNumber = (value: unknown) =>
           value === undefined || value === null || value === '' ? undefined : Number(value)
 
+        /**
+         * Reads a tri-state filter whose "any" position must send no parameter
+         * at all. The dropdown yields `''`, `'true'`, or `'false'`, but a real
+         * boolean arrives when the field is wired from an upstream block.
+         */
+        const toOptionalBoolean = (value: unknown) => {
+          if (typeof value === 'boolean') return value
+          if (value === 'true') return true
+          if (value === 'false') return false
+          return undefined
+        }
+
         const pagination = {
           pageSize: toNumber(params.pageSize),
           nextPageKey: params.nextPageKey || undefined,
@@ -1598,7 +1619,6 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             }
 
           case 'dynatrace_mute_security_problem':
-          case 'dynatrace_unmute_security_problem':
             return {
               ...baseParams,
               securityProblemId: params.securityProblemId,
@@ -1606,12 +1626,27 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
               comment: params.muteComment || undefined,
             }
 
+          case 'dynatrace_unmute_security_problem':
+            return {
+              ...baseParams,
+              securityProblemId: params.securityProblemId,
+              reason: UNMUTE_REASON,
+              comment: params.muteComment || undefined,
+            }
+
           case 'dynatrace_mute_security_problems':
-          case 'dynatrace_unmute_security_problems':
             return {
               ...baseParams,
               securityProblemIds: params.securityProblemIds,
               reason: params.muteReason,
+              comment: params.muteComment || undefined,
+            }
+
+          case 'dynatrace_unmute_security_problems':
+            return {
+              ...baseParams,
+              securityProblemIds: params.securityProblemIds,
+              reason: UNMUTE_REASON,
               comment: params.muteComment || undefined,
             }
 
@@ -1718,8 +1753,9 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
             return {
               ...baseParams,
               type: params.monitorType || undefined,
-              // '' means "any", so send no filter rather than enabled=false.
-              enabled: params.monitorEnabled ? params.monitorEnabled === 'true' : undefined,
+              // "Any" must send no filter — enabled=false would return only the
+              // disabled monitors, the opposite of what was asked for.
+              enabled: toOptionalBoolean(params.monitorEnabled),
               location: params.monitorLocation || undefined,
               tag: params.monitorTag || undefined,
               managementZone: toNumber(params.monitorManagementZone),
@@ -1859,7 +1895,10 @@ Return ONLY the selector string - no explanations, no surrounding quotes.`,
     updateToken: { type: 'string', description: 'Optimistic-concurrency token' },
     validateOnly: { type: 'boolean', description: 'Validate without saving' },
     monitorType: { type: 'string', description: 'Synthetic monitor type filter' },
-    monitorEnabled: { type: 'boolean', description: 'Only enabled synthetic monitors' },
+    monitorEnabled: {
+      type: 'string',
+      description: 'Synthetic enabled filter: empty for any, "true", or "false"',
+    },
     monitorLocation: { type: 'string', description: 'Synthetic location filter' },
     monitorTag: { type: 'string', description: 'Synthetic monitor tag filter' },
     monitorManagementZone: { type: 'number', description: 'Synthetic management zone ID' },
