@@ -93,19 +93,24 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
   /**
    * The Snowflake block moved from per-block `host` + `apiKey` fields to a
    * stored credential, and gave every object field a basic picker paired with
-   * an advanced text input. The old free-text fields held the same object
-   * names the pickers now emit, so each maps onto its picker; the host and
-   * token have no in-block equivalent and are parked.
+   * an advanced text input.
+   *
+   * The old free-text values map onto the ADVANCED members, not the pickers: a
+   * migrated block has no credential yet, so a picker cannot hydrate a name and
+   * would render an empty control over a non-empty value. `fileFormat` is the
+   * clearest case — legacy values were fully qualified (`DB.SCHEMA.FORMAT`)
+   * while the picker lists bare names, so it could never resolve. The host and
+   * token have no in-block equivalent and are dropped.
    */
   snowflake: {
-    database: 'databaseSelector',
-    schema: 'schemaSelector',
-    table: 'tableSelector',
-    fileFormat: 'fileFormatSelector',
-    warehouseName: 'warehouseNameSelector',
-    procedureName: 'procedureSelector',
-    warehouse: 'warehouseSelector',
-    role: 'roleSelector',
+    database: 'databaseName',
+    schema: 'schemaName',
+    table: 'tableName',
+    fileFormat: 'fileFormatName',
+    warehouseName: 'warehouseNameManual',
+    procedureName: 'procedureNameManual',
+    warehouse: 'warehouseManual',
+    role: 'roleManual',
     host: '_removed_host',
     apiKey: '_removed_apiKey',
   },

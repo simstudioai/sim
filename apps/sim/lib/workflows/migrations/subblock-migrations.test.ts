@@ -62,7 +62,7 @@ describe('migrateSubblockIds', () => {
   })
 
   describe('snowflake block', () => {
-    it('renames the object fields onto their pickers', () => {
+    it('renames the object fields onto their advanced text inputs', () => {
       const input: Record<string, BlockState> = {
         b1: makeBlock({
           type: 'snowflake',
@@ -78,9 +78,11 @@ describe('migrateSubblockIds', () => {
       const { blocks, migrated } = migrateSubblockIds(input)
 
       expect(migrated).toBe(true)
-      expect(blocks.b1.subBlocks.databaseSelector?.value).toBe('ANALYTICS')
-      expect(blocks.b1.subBlocks.schemaSelector?.value).toBe('PUBLIC')
-      expect(blocks.b1.subBlocks.tableSelector?.value).toBe('EVENTS')
+      // The advanced text members, not the pickers: a migrated block has no
+      // credential yet, so a picker could not hydrate the stored name.
+      expect(blocks.b1.subBlocks.databaseName?.value).toBe('ANALYTICS')
+      expect(blocks.b1.subBlocks.schemaName?.value).toBe('PUBLIC')
+      expect(blocks.b1.subBlocks.tableName?.value).toBe('EVENTS')
       expect(blocks.b1.subBlocks.database).toBeUndefined()
     })
 

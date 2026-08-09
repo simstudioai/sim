@@ -403,6 +403,50 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
+  /**
+   * An untouched switch serializes as `null`, and in advanced mode the
+   * serializer emits every advanced sub-block. The generic handler merges
+   * `{...inputs, ...mapParams(inputs)}`, so a null survives unless the params
+   * function explicitly overwrites it with undefined — and the builders'
+   * `!== undefined` tests would then fire, turning a resize into a permanent
+   * `AUTO_RESUME = FALSE` on the warehouse.
+   */
+  it('drops untouched switches instead of emitting their clauses', () => {
+    const mapParams = SnowflakeBlock.tools.config.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+    const merged = (params: Record<string, unknown>) => ({ ...params, ...mapParams(params) })
+
+    const altered = merged({
+      operation: 'alter_warehouse',
+      warehouseSize: '',
+      autoSuspendSeconds: null,
+      autoResume: null,
+    })
+    expect(altered.autoResume).toBeUndefined()
+    expect(() =>
+      buildAlterWarehouse({ ...context, warehouseName: 'COMPUTE_WH', ...altered })
+    ).toThrow(/at least one of/)
+
+    const unloaded = merged({
+      operation: 'unload_data',
+      header: null,
+      overwrite: null,
+      singleFile: null,
+    })
+    expect(unloaded.header).toBeUndefined()
+    expect(unloaded.singleFile).toBeUndefined()
+    expect(
+      buildUnloadData({
+        ...context,
+        database: 'ANALYTICS',
+        schema: 'PUBLIC',
+        stagePath: '@EXPORTS/daily',
+        table: 'EVENTS',
+        ...unloaded,
+      }).statement
+    ).toBe('COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE')
+  })
+
   it('builds warehouse alterations and rejects unsupported settings', () => {
     expect(
       buildAlterWarehouse({

@@ -191,6 +191,16 @@ const sqlSubmissionOperationSet: ReadonlySet<string> = new Set(sqlSubmissionOper
 const maxRowsOperationSet: ReadonlySet<string> = new Set(maxRowsOperations)
 const limitOperationSet: ReadonlySet<string> = new Set(limitOperations)
 
+/**
+ * A switch the user never touched serializes as `null`, and in advanced mode the
+ * serializer emits every advanced sub-block regardless. Builders test optional
+ * booleans with `!== undefined`, so an untouched switch would otherwise emit a
+ * clause the user never asked for — `AUTO_RESUME = FALSE` being the damaging one.
+ */
+function optionalBoolean(value: unknown): boolean | undefined {
+  return typeof value === 'boolean' ? value : undefined
+}
+
 function resolveCopyOnError(value: unknown, threshold: unknown): string | undefined {
   if (value === undefined || value === null || value === '') return undefined
   if (value !== 'SKIP_FILE_NUMBER' && value !== 'SKIP_FILE_PERCENT') return String(value)
@@ -289,7 +299,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
       wandConfig: {
         enabled: true,
         prompt:
-          'Generate one Snowflake SQL statement for the described request. Use positional ? placeholders for any values that will be bound. Return ONLY the SQL statement - no explanations, no extra text.',
+          'Generate one Snowflake SQL statement for the described request. For Execute SQL, use positional ? placeholders for any values that will be bound; for Unload Data, write a complete SELECT with literal values and no placeholders. Return ONLY the SQL statement - no explanations, no extra text.',
         placeholder: 'Describe the query to run...',
         generationType: 'sql-query',
       },
@@ -436,6 +446,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         prompt:
           'Generate a JSON array containing the row column names that uniquely match target records, for example ["tenant_id","id"]. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the columns that identify a row...',
+        generationType: 'json-object',
       },
     },
     {
@@ -912,18 +923,24 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
           case 'load_data':
             result.onError = resolveCopyOnError(params.onError, params.onErrorThreshold)
             result.onErrorThreshold = undefined
+            result.purge = optionalBoolean(params.purge)
+            result.force = optionalBoolean(params.force)
             break
           case 'unload_data':
             result.maxFileSizeBytes = parseOptionalNumberInput(
               params.maxFileSizeBytes,
               'Maximum file size'
             )
+            result.header = optionalBoolean(params.header)
+            result.overwrite = optionalBoolean(params.overwrite)
+            result.singleFile = optionalBoolean(params.singleFile)
             break
           case 'alter_warehouse':
             result.autoSuspendSeconds = parseOptionalNumberInput(
               params.autoSuspendSeconds,
               'Auto-suspend seconds'
             )
+            result.autoResume = optionalBoolean(params.autoResume)
             break
           case 'call_procedure':
             result.procedureArguments = parseOptionalJsonInput(
