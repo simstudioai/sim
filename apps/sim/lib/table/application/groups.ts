@@ -859,6 +859,12 @@ export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
     )
     if (!group)
       throw new OrchestrationError('not_found', `Workflow group "${input.groupId}" not found`)
+    if (group.type === 'enrichment' || !group.workflowId) {
+      throw new OrchestrationError(
+        'validation',
+        `Workflow group "${input.groupId}" is not backed by a workflow`
+      )
+    }
     const resolvedWorkflow = await resolveWorkflowForAuthorizedTableCommand(
       group.workflowId,
       context.workspaceId

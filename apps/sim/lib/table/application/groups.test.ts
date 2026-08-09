@@ -410,6 +410,42 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
   })
 
+  it('rejects adding a workflow output to an enrichment group before resolution or mutation', async () => {
+    mocks.resolveContext.mockResolvedValueOnce({
+      tableId: table.id,
+      table: tableWithGroup({
+        id: 'enrichment-group-1',
+        type: 'enrichment',
+        workflowId: '',
+        enrichmentId: 'company-domain',
+        outputs: [],
+      }),
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+
+    await expect(
+      addWorkflowTableGroupOutput.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          groupId: 'enrichment-group-1',
+          blockId: 'block-2',
+          path: 'score',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mocks.loadWorkflowOutputs).not.toHaveBeenCalled()
+    expect(mocks.addOutput).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
   it('validates enrichment mappings before constructing the group', async () => {
     await expect(
       createTableEnrichmentGroup.execute({
