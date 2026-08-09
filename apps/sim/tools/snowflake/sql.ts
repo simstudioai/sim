@@ -90,26 +90,6 @@ function requireQueryId(queryId: string): string {
   return trimmed
 }
 
-/**
- * Snowflake recommends limiting query text to 1 MB per statement, and that limit explicitly covers
- * values supplied through bindings. Statements above it still execute but are truncated before the
- * metadata store persists them, so they can no longer be retried or inspected.
- *
- * The budget is a byte budget, so it is measured against the UTF-8 encoding rather than the
- * JavaScript string length — a multi-byte string is up to 3x longer on the wire than in code units.
- */
-const MAX_BOUND_VALUE_BYTES = 1_000_000
-
-const BULK_INGEST_HINT = 'stage the data and use snowflake_load_data for bulk ingest'
-
-function assertBoundBytesWithinBudget(boundBytes: number): void {
-  if (boundBytes > MAX_BOUND_VALUE_BYTES) {
-    throw new Error(
-      `Snowflake bound values exceed the ${MAX_BOUND_VALUE_BYTES} byte statement budget; send fewer rows per call or ${BULK_INGEST_HINT}`
-    )
-  }
-}
-
 export function normalizeBindings(
   input?: Record<string, SnowflakeBinding>
 ): Record<string, SnowflakeBinding> | undefined {
@@ -119,7 +99,6 @@ export function normalizeBindings(
   }
   const normalized: Record<string, SnowflakeBinding> = {}
   let hasBindings = false
-  let boundBytes = 0
   for (const position in input) {
     if (!Object.hasOwn(input, position)) continue
     hasBindings = true
@@ -136,27 +115,16 @@ export function normalizeBindings(
     if (typeof binding.value !== 'string') {
       throw new Error(`binding ${position} value must be a string`)
     }
-    boundBytes += Buffer.byteLength(binding.value, 'utf8')
-    assertBoundBytesWithinBudget(boundBytes)
     normalized[position] = { type: binding.type, value: binding.value }
   }
   return hasBindings ? normalized : undefined
 }
 
-/**
- * Structured writes build a single statement holding every row, so the row count is capped well
- * below the byte budget to keep a typical write far away from the 1 MB statement recommendation.
- */
-const MAX_WRITE_ROWS = 1_000
-
 class BindingsBuilder {
   readonly bindings: Record<string, SnowflakeBinding> = {}
   private position = 0
-  private boundBytes = 0
 
   private addBinding(type: SnowflakeBinding['type'], value: string): string {
-    this.boundBytes += Buffer.byteLength(value, 'utf8')
-    assertBoundBytesWithinBudget(this.boundBytes)
     this.position += 1
     const key = String(this.position)
     this.bindings[key] = { type, value }
@@ -195,11 +163,6 @@ class BindingsBuilder {
 
 function validateRows(rows: Array<Record<string, unknown>>): string[] {
   if (!Array.isArray(rows) || rows.length === 0) throw new Error('rows must be a non-empty array')
-  if (rows.length > MAX_WRITE_ROWS) {
-    throw new Error(
-      `rows cannot exceed ${MAX_WRITE_ROWS} per call; send the rows in smaller batches or ${BULK_INGEST_HINT}`
-    )
-  }
   const columns = Object.keys(rows[0] ?? {})
   if (columns.length === 0) throw new Error('rows must contain at least one column')
   const identifierKeys = new Set<string>()
