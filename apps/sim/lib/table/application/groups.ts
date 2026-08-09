@@ -6,17 +6,18 @@ import type { V2AddWorkflowGroupBody } from '@/lib/api/contracts/v2/tables'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
-import type {
-  ColumnDefinition,
-  DeleteWorkflowGroupData,
-  TableDefinition,
-  TableSchema,
-  UpdateWorkflowGroupData,
-  WorkflowGroup,
-  WorkflowGroupDependencies,
-  WorkflowGroupDeploymentMode,
-  WorkflowGroupInputMapping,
-  WorkflowGroupOutput,
+import {
+  type ColumnDefinition,
+  type DeleteWorkflowGroupData,
+  getColumnId,
+  type TableDefinition,
+  type TableSchema,
+  type UpdateWorkflowGroupData,
+  type WorkflowGroup,
+  type WorkflowGroupDependencies,
+  type WorkflowGroupDeploymentMode,
+  type WorkflowGroupInputMapping,
+  type WorkflowGroupOutput,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
@@ -298,6 +299,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
       ...(input.name ? { name: input.name } : {}),
       ...(input.dependencies ? { dependencies: input.dependencies } : {}),
       ...(input.deploymentMode ? { deploymentMode: input.deploymentMode } : {}),
+      autoRun: input.autoRun ?? false,
       outputs,
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)
@@ -678,7 +680,19 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
       const existingByKey = new Map(
         previousGroup.outputs.map((output) => [`${output.blockId}::${output.path}`, output])
       )
-      const taken = new Set(context.table.schema.columns.map((column) => column.name))
+      const requestedKeys = new Set(
+        input.outputs.map((output) => `${output.blockId}::${output.path}`)
+      )
+      const releasedColumnIds = new Set(
+        previousGroup.outputs
+          .filter((output) => !requestedKeys.has(`${output.blockId}::${output.path}`))
+          .map((output) => output.columnName)
+      )
+      const taken = new Set(
+        context.table.schema.columns
+          .filter((column) => !releasedColumnIds.has(getColumnId(column)))
+          .map((column) => column.name)
+      )
       outputs = []
       newOutputColumns = []
       for (const requested of input.outputs) {

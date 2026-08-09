@@ -201,6 +201,7 @@ describe('workflow and enrichment Table application commands', () => {
           id: 'generated-id',
           workflowId: 'workflow-1',
           name: 'Scoring',
+          autoRun: false,
           outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
         }),
         outputColumns: [
@@ -216,6 +217,28 @@ describe('workflow and enrichment Table application commands', () => {
     expect(result.group.id).toBe('generated-id')
     expect(mocks.audit).toHaveBeenCalledTimes(1)
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
+  })
+
+  it('persists disabled auto-run on a newly created workflow group', async () => {
+    const result = await createWorkflowTableGroup.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        workflowId: 'workflow-1',
+        outputs: [{ blockId: 'block-2', path: 'score' }],
+        autoRun: false,
+      },
+    })
+
+    expect(result.group.autoRun).toBe(false)
+    expect(mocks.addGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        group: expect.objectContaining({ autoRun: false }),
+        autoRun: false,
+      }),
+      'request-1'
+    )
   })
 
   it('conceals a cross-workspace workflow before group mutation or effects', async () => {
@@ -293,6 +316,32 @@ describe('workflow and enrichment Table application commands', () => {
     )
     expect(mocks.audit).toHaveBeenCalledTimes(1)
     expect(mocks.signal).toHaveBeenCalledWith(table.id)
+  })
+
+  it('allows a replacement output to reuse the removed output column name', async () => {
+    await updateWorkflowTableGroup.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        outputs: [{ blockId: 'block-2', path: 'score', columnName: 'result' }],
+      },
+    })
+
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outputs: [{ blockId: 'block-2', path: 'score', columnName: 'result' }],
+        newOutputColumns: [
+          expect.objectContaining({
+            name: 'result',
+            type: 'number',
+            workflowGroupId: group.id,
+          }),
+        ],
+      }),
+      'request-1'
+    )
   })
 
   it('propagates a concurrent schema conflict without audit or effects', async () => {
