@@ -54,7 +54,7 @@ export const getSloTool: ToolConfig<DynatraceGetSloParams, DynatraceGetSloRespon
     timeFrame: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description:
         'CURRENT evaluates the SLO over its own timeframe; GTF evaluates over the From/To range',
     },

@@ -13,6 +13,13 @@ import {
 import { ErrorExtractorId } from '@/tools/error-extractors'
 import type { ToolConfig } from '@/tools/types'
 
+/**
+ * Every optional property of the problem detail endpoint. Dynatrace omits them
+ * unless they are requested, so the root cause evidence and impact analysis the
+ * tool maps would otherwise always be null.
+ */
+const PROBLEM_DETAIL_FIELDS = 'evidenceDetails,impactAnalysis,recentComments'
+
 export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetProblemResponse> = {
   id: 'dynatrace_get_problem',
   name: 'Dynatrace Get Problem',
@@ -46,14 +53,14 @@ export const getProblemTool: ToolConfig<DynatraceGetProblemParams, DynatraceGetP
       required: false,
       visibility: 'user-or-llm',
       description:
-        'Comma-separated optional properties to include: evidenceDetails, impactAnalysis, recentComments',
+        'Comma-separated optional properties to include. Defaults to all of them: evidenceDetails, impactAnalysis, recentComments',
     },
   },
 
   request: {
     url: (params) =>
       buildDynatraceUrl(params.environmentUrl, `/problems/${encodeDynatraceId(params.problemId)}`, {
-        fields: params.fields,
+        fields: params.fields || PROBLEM_DETAIL_FIELDS,
       }),
     method: 'GET',
     headers: (params) => dynatraceHeaders(params.apiToken),

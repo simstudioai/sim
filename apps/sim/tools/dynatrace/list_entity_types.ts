@@ -40,13 +40,13 @@ export const listEntityTypesTool: ToolConfig<
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Entity types per page (max 500, default 50)',
     },
     nextPageKey: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for the next page. Page size is ignored when it is set',
     },
   },

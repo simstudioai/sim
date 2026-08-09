@@ -72,19 +72,19 @@ export const listSecurityProblemsTool: ToolConfig<
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort by a field with a + or - prefix, e.g. -riskAssessment.riskScore',
     },
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Security problems per page (max 500, default 100)',
     },
     nextPageKey: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for the next page. All other filters are ignored when it is set',
     },
   },

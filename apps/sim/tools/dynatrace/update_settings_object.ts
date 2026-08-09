@@ -92,12 +92,22 @@ export const updateSettingsObjectTool: ToolConfig<
 
   transformResponse: async (response: Response, params?: DynatraceUpdateSettingsObjectParams) => {
     const data = await readJsonBody(response)
+    const code = (data.code as number) ?? response.status
+
+    // The endpoint answers 207 with a per-object status, so a rejected update
+    // would otherwise be reported as a success.
+    if (code >= 400) {
+      const error = data.error as Record<string, unknown> | undefined
+      throw new Error(
+        `Dynatrace rejected the settings object: ${(error?.message as string) ?? `HTTP ${code}`}`
+      )
+    }
 
     return {
       success: true,
       output: {
         objectId: (data.objectId as string) ?? params?.objectId ?? null,
-        code: (data.code as number) ?? response.status,
+        code,
       },
     }
   },

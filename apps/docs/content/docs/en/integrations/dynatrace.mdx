@@ -123,7 +123,7 @@ Get the full details of a single Dynatrace problem, including root cause, affect
 | `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
 | `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the problems.read scope |
 | `problemId` | string | Yes | ID of the problem \(e.g., -1234567890123456789_1700000000000V2\) |
-| `fields` | string | No | Comma-separated optional properties to include: evidenceDetails, impactAnalysis, recentComments |
+| `fields` | string | No | Comma-separated optional properties to include. Defaults to all of them: evidenceDetails, impactAnalysis, recentComments |
 
 #### Output
 
@@ -581,7 +581,7 @@ Get a single vulnerability with its description, remediation guidance, affected 
 | `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
 | `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the securityProblems.read scope |
 | `securityProblemId` | string | Yes | ID of the security problem |
-| `fields` | string | No | Comma-separated optional properties to include: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts |
+| `fields` | string | No | Comma-separated optional properties to include, each prefixed with +. Defaults to every detail property: +riskAssessment, +managementZones, +codeLevelVulnerabilityDetails, +globalCounts, +filteredCounts, +description, +remediationDescription, +events, +vulnerableComponents, +affectedEntities, +exposedEntities, +reachableDataAssets, +relatedEntities, +relatedContainerImages, +relatedAttacks, +entryPoints |
 | `managementZoneFilter` | string | No | Restrict the counts to management zones, e.g. names\("Production"\) |
 | `from` | string | No | Start of the timeframe as UTC milliseconds, ISO 8601, or a relative expression such as now-24h. Defaults to the last 24 hours |
 
@@ -772,7 +772,7 @@ Get a single attack with its entry point, payload, attacker, and the vulnerabili
 | `environmentUrl` | string | Yes | Dynatrace environment URL \(e.g., https://abc12345.live.dynatrace.com, or https://your-activegate:9999/e/abc12345 for Managed\) |
 | `apiToken` | string | Yes | Dynatrace access token \(dt0c01...\) with the attacks.read scope |
 | `attackId` | string | Yes | ID of the attack |
-| `fields` | string | No | Comma-separated optional properties to include: +attackTarget, +request, +entrypoint, +vulnerability, +securityProblem, +attacker, +managementZones |
+| `fields` | string | No | Comma-separated optional properties to include, each prefixed with +. Defaults to all of them: +attackTarget, +request, +entrypoint, +vulnerability, +securityProblem, +attacker, +managementZones |
 
 #### Output
 

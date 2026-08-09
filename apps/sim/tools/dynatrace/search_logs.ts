@@ -69,7 +69,7 @@ export const searchLogsTool: ToolConfig<DynatraceSearchLogsParams, DynatraceSear
     nextSliceKey: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for the next slice. All other filters are ignored when it is set',
     },
   },
