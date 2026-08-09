@@ -119,7 +119,7 @@ describe('buildPiScript', () => {
 
   it('filters Pi output inside the sandbox without masking pipeline failures', () => {
     const script = buildPiScript()
-    expect(script).toContain('set -o pipefail')
+    expect(script).toMatch(/^\/bin\/bash -o pipefail -c '/)
     expect(script).toContain(`| node ${PI_EVENT_FILTER_PATH}`)
     expect(PI_EVENT_FILTER_PATH.startsWith('/workspace/repo')).toBe(false)
   })

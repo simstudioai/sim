@@ -249,6 +249,10 @@ process.stdin.on('end', () => processLine(buffer))
  * The Pi CLI invocation for the sandbox modes. Every caller receives the compact event stream;
  * options only control which repository resources Pi may load.
  *
+ * Selects `/bin/bash` explicitly because `pipefail` is not portable to `/bin/sh`. Both dedicated
+ * Pi images are Debian-based and provide Bash, so provider default-shell behavior cannot change
+ * whether an upstream Pi failure reaches the caller.
+ *
  * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
  * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
  * a repository must not be able to register tools into a run holding the workspace's keys — but it
@@ -267,9 +271,8 @@ export function buildPiScript(
       ? ' --no-extensions'
       : ''
   const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
-  return `set -o pipefail
-cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH} | node ${PI_EVENT_FILTER_PATH}`
+  return `/bin/bash -o pipefail -c 'cd ${REPO_DIR}
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH} | node ${PI_EVENT_FILTER_PATH}'`
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {
