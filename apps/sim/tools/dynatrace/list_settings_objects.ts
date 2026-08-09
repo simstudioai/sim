@@ -76,19 +76,19 @@ export const listSettingsObjectsTool: ToolConfig<
     sort: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Sort expression, e.g. -modified',
     },
     pageSize: {
       type: 'number',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Objects per page (max 500, default 100)',
     },
     nextPageKey: {
       type: 'string',
       required: false,
-      visibility: 'user-only',
+      visibility: 'user-or-llm',
       description: 'Cursor for the next page. All other filters are ignored when it is set',
     },
   },
