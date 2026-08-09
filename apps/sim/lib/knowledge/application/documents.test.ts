@@ -460,4 +460,31 @@ describe('knowledge document application use cases', () => {
     expect(mocks.deleteDocument).toHaveBeenCalledOnce()
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
+
+  it('audits completed document deletions before propagating infrastructure failure', async () => {
+    const failure = new Error('document store unavailable')
+    mocks.resolveCanonicalDocument.mockImplementation(async ({ documentId }) => ({
+      ...context,
+      documentId,
+      document: { ...document, id: documentId },
+    }))
+    mocks.deleteDocument.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
+
+    await expect(
+      bulkDeleteKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          documentIds: ['document-1', 'document-2'],
+        },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'document-1' })
+    )
+    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+  })
 })

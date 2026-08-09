@@ -10,7 +10,9 @@ import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authoriza
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   ADD_WORKSPACE_FILES_COST_POLICY,
+  type KnowledgeBatchExecutionResult,
   requireBoundedKnowledgeBatch,
+  rethrowKnowledgeBatchTerminalFailure,
 } from '@/lib/knowledge/application/batch-policy'
 import {
   KnowledgeUsageLimitExceededError,
@@ -62,6 +64,10 @@ export interface AddWorkspaceFilesToKnowledgeBaseResult {
   failed: string[]
   cancelled: boolean
 }
+
+interface AddWorkspaceFilesExecutionResult
+  extends AddWorkspaceFilesToKnowledgeBaseResult,
+    KnowledgeBatchExecutionResult {}
 
 interface AddWorkspaceFilesContext extends ActiveKnowledgeBaseContext {
   fileReferences: string[]
@@ -129,7 +135,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       fileReferences,
     }
   },
-  async execute({ principal, input, context }): Promise<AddWorkspaceFilesToKnowledgeBaseResult> {
+  async execute({ principal, input, context }): Promise<AddWorkspaceFilesExecutionResult> {
     const prepared: PreparedWorkspaceFile[] = []
     const failed: string[] = []
     const canonicalFileIds = new Set<string>()
@@ -180,6 +186,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
     }
     const uploadedBy = resolveKnowledgeAttributedUserId(principal, context)
     const added: AddedWorkspaceFileDocument[] = []
+    let terminalFailure: KnowledgeBatchExecutionResult['terminalFailure']
 
     for (const candidate of prepared) {
       if (input.cancellationSignal?.aborted) break
@@ -231,7 +238,8 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
           failed.push(candidate.reference)
           continue
         }
-        throw error
+        terminalFailure = { error }
+        break
       }
     }
 
@@ -241,6 +249,7 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       added,
       failed,
       cancelled: input.cancellationSignal?.aborted ?? false,
+      ...(terminalFailure && { terminalFailure }),
     }
   },
   projectAudit: ({ input, context, result }) =>
@@ -260,29 +269,33 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
       },
     })),
   afterSuccess: ({ principal, context, result }) => {
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
-    for (const document of result.added) {
-      PlatformEvents.knowledgeBaseDocumentsUploaded({
-        knowledgeBaseId: context.knowledgeBaseId,
-        documentsCount: 1,
-        uploadType: 'single',
-        mimeType: document.mimeType,
-        fileSize: document.fileSize,
-      })
-      captureServerEvent(
-        userId,
-        'knowledge_base_document_uploaded',
-        {
-          knowledge_base_id: context.knowledgeBaseId,
-          workspace_id: context.workspaceId,
-          document_count: 1,
-          upload_type: 'single',
-        },
-        {
-          groups: { workspace: context.workspaceId },
-          setOnce: { first_document_uploaded_at: new Date().toISOString() },
-        }
-      )
+    try {
+      const userId = resolveKnowledgeAttributedUserId(principal, context)
+      for (const document of result.added) {
+        PlatformEvents.knowledgeBaseDocumentsUploaded({
+          knowledgeBaseId: context.knowledgeBaseId,
+          documentsCount: 1,
+          uploadType: 'single',
+          mimeType: document.mimeType,
+          fileSize: document.fileSize,
+        })
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_uploaded',
+          {
+            knowledge_base_id: context.knowledgeBaseId,
+            workspace_id: context.workspaceId,
+            document_count: 1,
+            upload_type: 'single',
+          },
+          {
+            groups: { workspace: context.workspaceId },
+            setOnce: { first_document_uploaded_at: new Date().toISOString() },
+          }
+        )
+      }
+    } finally {
+      rethrowKnowledgeBatchTerminalFailure(result)
     }
   },
 })

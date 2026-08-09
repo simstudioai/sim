@@ -12,7 +12,9 @@ import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authoriza
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY,
+  type KnowledgeBatchExecutionResult,
   requireBoundedKnowledgeBatch,
+  rethrowKnowledgeBatchTerminalFailure,
 } from '@/lib/knowledge/application/batch-policy'
 import {
   KnowledgeUsageLimitExceededError,
@@ -141,6 +143,10 @@ export interface BulkDeleteKnowledgeDocumentsResult {
   deletedDocuments: DeletedKnowledgeDocument[]
   cancelled: boolean
 }
+
+interface BulkDeleteKnowledgeDocumentsExecutionResult
+  extends BulkDeleteKnowledgeDocumentsResult,
+    KnowledgeBatchExecutionResult {}
 
 interface BulkDeleteKnowledgeDocumentsContext extends ActiveKnowledgeBaseContext {
   documentIds: string[]
@@ -585,9 +591,14 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       documentIds,
     }
   },
-  async execute({ principal, input, context }): Promise<BulkDeleteKnowledgeDocumentsResult> {
+  async execute({
+    principal,
+    input,
+    context,
+  }): Promise<BulkDeleteKnowledgeDocumentsExecutionResult> {
     const deletedDocuments: DeletedKnowledgeDocument[] = []
     const failed: string[] = []
+    let terminalFailure: KnowledgeBatchExecutionResult['terminalFailure']
 
     for (const documentId of context.documentIds) {
       if (input.cancellationSignal?.aborted) break
@@ -621,7 +632,8 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           failed.push(documentId)
           continue
         }
-        throw error
+        terminalFailure = { error }
+        break
       }
     }
 
@@ -631,6 +643,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       failed,
       deletedDocuments,
       cancelled: input.cancellationSignal?.aborted ?? false,
+      ...(terminalFailure && { terminalFailure }),
     }
   },
   projectAudit: ({ input, context, result }) =>
@@ -650,17 +663,21 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       },
     })),
   afterSuccess: ({ principal, context, result }) => {
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
-    for (const _document of result.deletedDocuments) {
-      captureServerEvent(
-        userId,
-        'knowledge_base_document_deleted',
-        {
-          knowledge_base_id: context.knowledgeBaseId,
-          workspace_id: context.workspaceId,
-        },
-        { groups: { workspace: context.workspaceId } }
-      )
+    try {
+      const userId = resolveKnowledgeAttributedUserId(principal, context)
+      for (const _document of result.deletedDocuments) {
+        captureServerEvent(
+          userId,
+          'knowledge_base_document_deleted',
+          {
+            knowledge_base_id: context.knowledgeBaseId,
+            workspace_id: context.workspaceId,
+          },
+          { groups: { workspace: context.workspaceId } }
+        )
+      }
+    } finally {
+      rethrowKnowledgeBatchTerminalFailure(result)
     }
   },
 })

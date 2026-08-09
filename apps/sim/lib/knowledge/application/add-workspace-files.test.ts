@@ -290,4 +290,53 @@ describe('add workspace files to knowledge base application command', () => {
     expect(mocks.createDocument).toHaveBeenCalledOnce()
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
+
+  it('audits completed documents before propagating a later infrastructure failure', async () => {
+    const failure = new Error('document store unavailable')
+    mocks.resolveFile
+      .mockResolvedValueOnce(workspaceFile)
+      .mockResolvedValueOnce({ ...workspaceFile, id: 'file-2', name: 'second.pdf' })
+    mocks.loadFileContext
+      .mockResolvedValueOnce({
+        fileId: 'file-1',
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'billing-owner-1',
+      })
+      .mockResolvedValueOnce({
+        fileId: 'file-2',
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+        billedAccountUserId: 'billing-owner-1',
+      })
+    mocks.createDocument
+      .mockResolvedValueOnce({
+        id: 'document-1',
+        filename: 'report.pdf',
+        fileUrl: 'https://storage.test/report.pdf',
+        fileSize: 100,
+        mimeType: 'application/pdf',
+      })
+      .mockRejectedValueOnce(failure)
+
+    await expect(
+      addWorkspaceFilesToKnowledgeBase.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          fileReferences: ['files/report.pdf', 'files/second.pdf'],
+        },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'document-1' })
+    )
+    expect(mocks.platformUploaded).toHaveBeenCalledOnce()
+    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+  })
 })

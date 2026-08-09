@@ -17,6 +17,18 @@ export const BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY = {
   execution: 'sequential_best_effort',
 } as const
 
+export interface KnowledgeBatchTerminalFailure {
+  error: unknown
+}
+
+export interface KnowledgeBatchExecutionResult {
+  terminalFailure?: KnowledgeBatchTerminalFailure
+}
+
+export function rethrowKnowledgeBatchTerminalFailure(result: KnowledgeBatchExecutionResult): void {
+  if (result.terminalFailure) throw result.terminalFailure.error
+}
+
 export function requireBoundedKnowledgeBatch(
   items: readonly string[],
   resource: string,

@@ -510,4 +510,30 @@ describe('knowledge base application use cases', () => {
     expect(mocks.deleteRecord).toHaveBeenCalledOnce()
     expect(mocks.recordAudit).toHaveBeenCalledOnce()
   })
+
+  it('audits completed knowledge base deletions before propagating infrastructure failure', async () => {
+    const failure = new Error('knowledge store unavailable')
+    mocks.resolveKnowledgeBase.mockImplementation(async ({ knowledgeBaseId }) => ({
+      ...context,
+      knowledgeBaseId,
+      knowledgeBase: { ...knowledgeBase, id: knowledgeBaseId, name: knowledgeBaseId },
+    }))
+    mocks.deleteRecord.mockResolvedValueOnce(undefined).mockRejectedValueOnce(failure)
+
+    await expect(
+      bulkDeleteKnowledgeBases.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          assertedWorkspaceId: 'workspace-1',
+          knowledgeBaseIds: ['knowledge-1', 'knowledge-2'],
+        },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({ resourceId: 'knowledge-1' })
+    )
+    expect(mocks.knowledgeBaseDeleted).toHaveBeenCalledOnce()
+  })
 })

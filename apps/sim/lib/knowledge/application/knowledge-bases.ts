@@ -15,7 +15,9 @@ import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authoriza
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
   BULK_DELETE_KNOWLEDGE_BASES_COST_POLICY,
+  type KnowledgeBatchExecutionResult,
   requireBoundedKnowledgeBatch,
+  rethrowKnowledgeBatchTerminalFailure,
 } from '@/lib/knowledge/application/batch-policy'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import {
@@ -124,6 +126,10 @@ export interface BulkDeleteKnowledgeBasesResult {
   failed: Array<{ id: string; name: string; reason: string }>
   cancelled: boolean
 }
+
+interface BulkDeleteKnowledgeBasesExecutionResult
+  extends BulkDeleteKnowledgeBasesResult,
+    KnowledgeBatchExecutionResult {}
 
 interface BulkDeleteKnowledgeBasesContext extends KnowledgeWorkspaceContext {
   knowledgeBaseIds: string[]
@@ -437,10 +443,11 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
       knowledgeBaseIds,
     }
   },
-  async execute({ principal, input, context }): Promise<BulkDeleteKnowledgeBasesResult> {
+  async execute({ principal, input, context }): Promise<BulkDeleteKnowledgeBasesExecutionResult> {
     const deleted: BulkDeleteKnowledgeBasesResult['deleted'] = []
     const notFound: string[] = []
     const failed: BulkDeleteKnowledgeBasesResult['failed'] = []
+    let terminalFailure: KnowledgeBatchExecutionResult['terminalFailure']
 
     for (const knowledgeBaseId of context.knowledgeBaseIds) {
       if (input.cancellationSignal?.aborted) break
@@ -474,7 +481,8 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
           })
           continue
         }
-        throw error
+        terminalFailure = { error }
+        break
       }
     }
 
@@ -483,6 +491,7 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
       notFound,
       failed,
       cancelled: input.cancellationSignal?.aborted ?? false,
+      ...(terminalFailure && { terminalFailure }),
     }
   },
   projectAudit: ({ input, result }) =>
@@ -495,8 +504,12 @@ export const bulkDeleteKnowledgeBases = defineAuthorizedKnowledgeUseCase({
       metadata: { source: input.source, knowledgeBaseName: knowledgeBase.name },
     })),
   afterSuccess: ({ result }) => {
-    for (const knowledgeBase of result.deleted) {
-      PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: knowledgeBase.id })
+    try {
+      for (const knowledgeBase of result.deleted) {
+        PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: knowledgeBase.id })
+      }
+    } finally {
+      rethrowKnowledgeBatchTerminalFailure(result)
     }
   },
 })
