@@ -27,7 +27,7 @@ export const deleteConnectorQuerySchema = z.object({
 })
 
 export const connectorDocumentsQuerySchema = z.object({
-  includeExcluded: z.boolean().optional(),
+  includeExcluded: booleanQueryFlagSchema.optional(),
 })
 
 export const connectorDocumentsPatchBodySchema = z.object({

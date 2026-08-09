@@ -345,7 +345,12 @@ describe('migrated internal Knowledge routes', () => {
       counts: { active: 1, excluded: 0 },
     })
     const params = Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' })
-    const listResponse = await listConnectorDocuments(createMockRequest('GET'), { params })
+    const listResponse = await listConnectorDocuments(
+      new NextRequest(
+        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=true'
+      ),
+      { params }
+    )
     await expect(listResponse.json()).resolves.toEqual({
       success: true,
       data: {
@@ -355,6 +360,24 @@ describe('migrated internal Knowledge routes', () => {
         counts: { active: 1, excluded: 0 },
       },
     })
+    expect(mocks.listConnectorDocuments).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ includeExcluded: true }),
+      })
+    )
+
+    const filteredListResponse = await listConnectorDocuments(
+      new NextRequest(
+        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=false'
+      ),
+      { params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }) }
+    )
+    expect(filteredListResponse.status).toBe(200)
+    expect(mocks.listConnectorDocuments).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ includeExcluded: false }),
+      })
+    )
 
     mocks.updateConnectorDocuments.mockResolvedValue({
       operation: 'exclude',
