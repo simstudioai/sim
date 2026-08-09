@@ -431,7 +431,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         prompt:
           'Generate a non-empty JSON array of flat row objects. Every row must have the same keys. Use Load Data instead for bulk ingestion from staged files. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the records to write...',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -446,7 +446,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         prompt:
           'Generate a JSON array containing the row column names that uniquely match target records, for example ["tenant_id","id"]. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the columns that identify a row...',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
@@ -781,7 +781,7 @@ export const SnowflakeBlock: BlockConfig<SnowflakeStatementResponse> = {
         prompt:
           'Generate an ordered JSON array of Snowflake procedure bindings. Each item must contain a supported Snowflake binding type and a string value, for example {"type":"TEXT","value":"daily"}. Return ONLY the JSON array - no explanations, no extra text.',
         placeholder: 'Describe the procedure arguments in order...',
-        generationType: 'json-object',
+        generationType: 'json-array',
       },
     },
     {
