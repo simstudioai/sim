@@ -510,7 +510,6 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
           <WorkflowTypeTag
             type={type}
             typeLabel={canvasPresentation.typeLabel}
-            blockName={canvasPresentation.title}
             Icon={IconComponent}
             iconBgColor={blockConfig.bgColor}
             isIntegration={blockConfig.category === 'tools'}

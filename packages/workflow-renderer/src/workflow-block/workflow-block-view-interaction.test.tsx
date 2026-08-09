@@ -257,7 +257,6 @@ describe('WorkflowTypeTag colors', () => {
         <WorkflowTypeTag
           type='airweave'
           typeLabel='Airweave'
-          blockName='Search Collections'
           Icon={TestIcon}
           iconBgColor='#6366F1'
           isIntegration
@@ -275,7 +274,6 @@ describe('WorkflowTypeTag colors', () => {
         <WorkflowTypeTag
           type='gmail'
           typeLabel='Gmail'
-          blockName='Send Email'
           Icon={TestIcon}
           iconBgColor='#FFFFFF'
           isIntegration
@@ -286,5 +284,25 @@ describe('WorkflowTypeTag colors', () => {
     const lightTag = host.querySelector<HTMLElement>('[data-workflow-brand-tag]')
     expect(lightTag).toHaveStyle({ background: '#FFFFFF' })
     expect(lightTag).toHaveClass('text-[#000000]')
+  })
+
+  /**
+   * The label used to drop out whenever the block's title already said the same
+   * word, so a freshly dropped Wait showed a bare icon and its second copy —
+   * named "Wait 2" — showed "Wait". The tag names the block's kind; it is not a
+   * badge that appears on rename.
+   */
+  it('names the block type even when the title already says it', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() =>
+      root.render(<WorkflowTypeTag type='wait' typeLabel='Wait' Icon={TestIcon} iconBgColor='' />)
+    )
+
+    expect(host.querySelector<HTMLElement>('[data-workflow-type-accent]')).toHaveTextContent('Wait')
   })
 })

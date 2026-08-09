@@ -205,7 +205,6 @@ export function WorkflowTypeIcon({ type, Icon, className, ...props }: WorkflowTy
 export interface WorkflowTypeTagProps {
   type: string
   typeLabel?: string
-  blockName: string
   Icon: ComponentType<{ className?: string }>
   iconBgColor: string
   isIntegration?: boolean
@@ -216,7 +215,6 @@ export interface WorkflowTypeTagProps {
 export function WorkflowTypeTag({
   type,
   typeLabel,
-  blockName,
   Icon,
   iconBgColor,
   isIntegration = false,
@@ -227,7 +225,14 @@ export function WorkflowTypeTag({
     'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
     !isEnabled && 'opacity-50'
   )
-  const label = typeLabel && typeLabel !== blockName ? typeLabel : null
+  /*
+   * The tag names the block's kind, and it says so whether or not the title
+   * happens to repeat it. Dropping the label when the two matched meant a card
+   * changed shape the moment it was renamed — a freshly dropped Wait showed a
+   * bare icon, its second copy showed "Wait" — so the tag read as a badge that
+   * came and went rather than as one fixed part of the header.
+   */
+  const label = typeLabel || null
 
   if (isIntegration) {
     return (
@@ -927,7 +932,6 @@ export function WorkflowBlockView({
             <WorkflowTypeTag
               type={type}
               typeLabel={typeLabel}
-              blockName={name}
               Icon={Icon}
               iconBgColor={iconBgColor}
               isIntegration={isIntegration}
