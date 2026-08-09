@@ -9,6 +9,7 @@ import {
   setEnv,
   workflowAuthzMockFns,
 } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 beforeAll(() => {
@@ -49,6 +50,7 @@ const {
   decryptSecretMock,
   updateWorkflowVariablesApplicationMock,
   updateWorkflowStateApplicationMock,
+  moveWorkflowsBulkApplicationMock,
 } = vi.hoisted(() => ({
   ensureWorkflowAccessMock: vi.fn(),
   ensureWorkspaceAccessMock: vi.fn(),
@@ -70,6 +72,7 @@ const {
   decryptSecretMock: vi.fn(),
   updateWorkflowVariablesApplicationMock: vi.fn(),
   updateWorkflowStateApplicationMock: vi.fn(),
+  moveWorkflowsBulkApplicationMock: vi.fn(),
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
@@ -128,8 +131,10 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
             : {}),
         }
       }
-      case 'workflows.variables.update':
+      case 'workflows.variables.apply_operations':
         return updateWorkflowVariablesApplicationMock(input)
+      case 'workflows.bulk.move':
+        return moveWorkflowsBulkApplicationMock(input)
       case 'workflows.state.update':
         return updateWorkflowStateApplicationMock(input)
       case 'workflows.update': {
@@ -161,7 +166,7 @@ vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
     }
   }),
   messageForCopilotWorkflowError: (error: unknown, fallback = 'Workflow operation failed') =>
-    error instanceof Error ? error.message : fallback,
+    getErrorMessage(error, fallback),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -296,10 +301,7 @@ describe('executeSetGlobalWorkflowVariables', () => {
       },
     })
     setWorkflowVariablesMock.mockResolvedValue(undefined)
-    updateWorkflowVariablesApplicationMock.mockImplementation(async (input) => {
-      await setWorkflowVariablesMock(input.workflowId, input.variables)
-      return { updated: Object.keys(input.variables).length }
-    })
+    updateWorkflowVariablesApplicationMock.mockResolvedValue({ updated: 1 })
   })
 
   it('persists variable changes and notifies clients that workflow state changed', async () => {
@@ -312,22 +314,12 @@ describe('executeSetGlobalWorkflowVariables', () => {
     )
 
     expect(result.success).toBe(true)
-    const [, variables] = setWorkflowVariablesMock.mock.calls[0]
-    expect(Object.values(variables)).toEqual([
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        name: 'threshold',
-        type: 'number',
-        value: 5,
-      }),
-    ])
-    expect(updateWorkflowVariablesApplicationMock).toHaveBeenCalledWith(
-      expect.objectContaining({
-        workflowId: 'workflow-1',
-        operationCount: 1,
-        source: 'copilot',
-      })
-    )
+    expect(updateWorkflowVariablesApplicationMock).toHaveBeenCalledWith({
+      workflowId: 'workflow-1',
+      assertedWorkspaceId: 'workspace-1',
+      operations: [{ operation: 'add', name: 'threshold', type: 'number', value: '5' }],
+    })
+    expect(ensureWorkflowAccessMock).not.toHaveBeenCalled()
   })
 })
 
@@ -359,14 +351,11 @@ describe('lock enforcement', () => {
   })
 
   it('does not move a workflow into a locked target folder', async () => {
-    ensureWorkflowAccessMock.mockResolvedValue({
-      workspaceId: 'workspace-1',
-      workflow: { id: 'workflow-1', name: 'WF', folderId: null },
+    moveWorkflowsBulkApplicationMock.mockResolvedValue({
+      moved: [],
+      failed: ['workflow-1'],
+      folderId: 'locked-folder',
     })
-    verifyFolderWorkspaceMock.mockResolvedValue(true)
-    workflowAuthzMockFns.mockAssertFolderMutable.mockRejectedValueOnce(
-      new Error('Folder is locked')
-    )
 
     const result = await executeMoveWorkflow(
       { workflowIds: ['workflow-1'], folderId: 'locked-folder' },
@@ -375,7 +364,8 @@ describe('lock enforcement', () => {
 
     expect(result.success).toBe(false)
     expect(result.output).toEqual({ moved: [], failed: ['workflow-1'], folderId: 'locked-folder' })
-    expect(performUpdateWorkflowMock).not.toHaveBeenCalled()
+    expect(moveWorkflowsBulkApplicationMock).toHaveBeenCalledOnce()
+    expect(ensureWorkflowAccessMock).not.toHaveBeenCalled()
   })
 })
 

@@ -326,6 +326,28 @@ describe('workflow deployment application use cases', () => {
     )
   })
 
+  it('forwards optional version metadata through the activation command', async () => {
+    await activateWorkflowVersion.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workflowId: 'workflow-1',
+        version: 2,
+        transition: 'activate',
+        requestId: 'request-metadata',
+        analytics: 'human',
+        name: 'Release 2',
+        description: 'Production',
+      },
+    })
+
+    expect(mocks.activate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Release 2',
+        description: 'Production',
+      })
+    )
+  })
+
   it('resolves the previous active version for an implicit rollback', async () => {
     const result = await activateWorkflowVersion.execute({
       principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },

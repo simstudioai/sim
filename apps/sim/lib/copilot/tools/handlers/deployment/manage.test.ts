@@ -8,6 +8,7 @@ import {
   workflowsOrchestrationMock,
   workflowsOrchestrationMockFns,
 } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
 
@@ -21,7 +22,7 @@ const { ensureWorkflowAccessMock, checkNeedsRedeploymentMock, mockExecuteCopilot
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: mockExecuteCopilotWorkflowUseCase,
   messageForCopilotWorkflowError: (error: unknown, fallback: string) =>
-    error instanceof Error ? error.message : fallback,
+    getErrorMessage(error, fallback),
 }))
 
 const performRevertToVersionMock = workflowsOrchestrationMockFns.mockPerformRevertToVersion

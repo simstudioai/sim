@@ -41,6 +41,7 @@ import {
   loadWorkflowDeploymentSnapshot,
   saveWorkflowToNormalizedTables,
   undeployWorkflow,
+  updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
 import { validateWorkflowSchedules } from '@/lib/workflows/schedules'
 import { emitWorkflowUndeployedEvent } from '@/lib/workspace-events/emitter'
@@ -595,6 +596,10 @@ export interface PerformActivateVersionParams {
   workflowId: string
   version: number
   userId: string
+  /** Metadata committed atomically with activation admission. */
+  name?: string | null
+  /** Metadata committed atomically with activation admission. */
+  description?: string | null
   /** Stable identity for one logical activation operation. */
   idempotencyKey?: string
   /** Correlation ID for logging and outbox tracing. */
@@ -613,6 +618,8 @@ export interface PerformActivateVersionResult {
   error?: string
   errorCode?: OrchestrationErrorCode
   warnings?: string[]
+  name?: string | null
+  description?: string | null
 }
 
 export interface PerformRevertToVersionParams {
@@ -640,6 +647,10 @@ export interface PerformRevertToVersionResult {
 /**
  * Admits an existing version through the v2 prepare/activate protocol. Callers
  * that can replay a logical operation must provide a stable `idempotencyKey`.
+ * Optional metadata is committed in the same transaction as a new activation
+ * attempt. A metadata failure rolls back admission; a later preparation failure
+ * is returned as a failure even though the already-admitted attempt and its
+ * metadata remain durable and retryable through the deployment outbox.
  */
 export async function performActivateVersion(
   params: PerformActivateVersionParams
@@ -657,6 +668,8 @@ export async function performActivateVersion(
       id: workflowDeploymentVersion.id,
       state: workflowDeploymentVersion.state,
       isActive: workflowDeploymentVersion.isActive,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
     })
     .from(workflowDeploymentVersion)
     .where(
@@ -672,6 +685,15 @@ export async function performActivateVersion(
   }
 
   if (versionRow.isActive) {
+    const metadata = await updateDeploymentVersionMetadata({
+      workflowId,
+      version,
+      name: params.name,
+      description: params.description,
+    })
+    if (!metadata) {
+      return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+    }
     const [workflowDeployment] = await db
       .select({ deployedAt: workflowTable.deployedAt })
       .from(workflowTable)
@@ -686,6 +708,7 @@ export async function performActivateVersion(
       activeDeployment: stableResult.activeDeployment,
       latestDeploymentAttempt: stableResult.latestDeploymentAttempt,
       warnings: stableResult.warnings,
+      ...metadata,
     }
   }
 
@@ -724,6 +747,8 @@ export async function performActivateVersion(
       actorId,
       actor: params.actor,
       captureAnalytics: params.captureAnalytics,
+      name: params.name,
+      description: params.description,
       requestId,
       idempotencyKey,
     })
@@ -749,6 +774,8 @@ async function performStableVersionActivation(params: {
   actorId: string
   actor?: PrincipalActor
   captureAnalytics?: false
+  name?: string | null
+  description?: string | null
   requestId: string
   idempotencyKey: string
 }): Promise<PerformActivateVersionResult> {
@@ -758,8 +785,11 @@ async function performStableVersionActivation(params: {
     deploymentVersionId: params.deploymentVersionId,
     version: params.version,
     userId: params.userId,
+    name: params.name,
+    description: params.description,
   })
   let outboxEventId: string | undefined
+  let metadata: { name: string | null; description: string | null } | undefined
   const prepared = await prepareWorkflowVersionActivation({
     workflowId: params.workflowId,
     deploymentVersionId: params.deploymentVersionId,
@@ -771,6 +801,15 @@ async function performStableVersionActivation(params: {
       if (!operation.deploymentVersionId || operation.version === null) {
         throw new Error('Prepared activation operation is missing its target version')
       }
+      metadata =
+        (await updateDeploymentVersionMetadata({
+          workflowId: operation.workflowId,
+          version: operation.version,
+          name: params.name,
+          description: params.description,
+          tx,
+        })) ?? undefined
+      if (!metadata) throw new Error('Deployment version disappeared during activation admission')
       outboxEventId = await enqueueWorkflowDeploymentPreparation(tx, {
         protocolVersion: operation.protocolVersion,
         operationId: operation.id,
@@ -795,10 +834,19 @@ async function performStableVersionActivation(params: {
     }
   }
 
+  metadata ??=
+    (await updateDeploymentVersionMetadata({
+      workflowId: params.workflowId,
+      version: params.version,
+    })) ?? undefined
+  if (!metadata) {
+    return { success: false, error: 'Deployment version not found', errorCode: 'not_found' }
+  }
+
   const processResult = await processStableDeploymentPreparationNow(outboxEventId, params.requestId)
   const status = await getWorkflowDeploymentStatus(params.workflowId)
   const inlineFailure = buildInlinePreparationFailure(prepared.operation.id, status)
-  if (inlineFailure) return inlineFailure
+  if (inlineFailure) return { ...inlineFailure, ...metadata }
   const result = buildStableDeploymentResult(status, processResult)
   return {
     success: result.success,
@@ -806,6 +854,7 @@ async function performStableVersionActivation(params: {
     activeDeployment: result.activeDeployment,
     latestDeploymentAttempt: result.latestDeploymentAttempt,
     warnings: result.warnings,
+    ...metadata,
   }
 }
 

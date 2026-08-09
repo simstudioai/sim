@@ -89,25 +89,13 @@ export const PATCH = withRouteHandler(
             transition: 'activate',
             requestId,
             analytics: 'human',
+            name,
+            description,
           },
           request,
         })
 
-        let updatedName: string | null | undefined
-        let updatedDescription: string | null | undefined
         if (name !== undefined || description !== undefined) {
-          const updated = await updateWorkflowVersion.execute({
-            principal,
-            input: {
-              workflowId: id,
-              version: versionNum,
-              name,
-              description,
-            },
-            request,
-          })
-          updatedName = updated.name
-          updatedDescription = updated.description
           logger.info(
             `[${requestId}] Updated deployment version ${version} metadata during activation`,
             { name, description }
@@ -120,8 +108,8 @@ export const PATCH = withRouteHandler(
           warnings: activateResult.warnings,
           activeDeployment: activateResult.activeDeployment ?? null,
           latestDeploymentAttempt: activateResult.latestDeploymentAttempt ?? null,
-          ...(updatedName !== undefined && { name: updatedName }),
-          ...(updatedDescription !== undefined && { description: updatedDescription }),
+          ...(name !== undefined && { name: activateResult.name ?? null }),
+          ...(description !== undefined && { description: activateResult.description ?? null }),
         })
       }
 

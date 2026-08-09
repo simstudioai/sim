@@ -4,6 +4,7 @@ import {
   workflowsUtilsMock,
   workflowsUtilsMockFns,
 } from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -33,7 +34,7 @@ vi.mock('../access', () => ({
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
   executeCopilotWorkflowUseCase: executeWorkflowUseCaseMock,
   messageForCopilotWorkflowError: (error: unknown) =>
-    error instanceof Error ? error.message : 'Workflow operation failed',
+    getErrorMessage(error, 'Workflow operation failed'),
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)

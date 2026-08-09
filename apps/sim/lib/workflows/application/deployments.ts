@@ -49,6 +49,8 @@ export interface ActivateWorkflowVersionInput {
   requestId: string
   idempotencyKey?: string
   analytics: 'human' | 'none'
+  name?: string | null
+  description?: string | null
 }
 
 export interface ReadWorkflowDeploymentStatusInput {
@@ -220,6 +222,8 @@ export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
       ...(input.analytics === 'none' ? { captureAnalytics: false as const } : {}),
       requestId: input.requestId,
       idempotencyKey: input.idempotencyKey,
+      name: input.name,
+      description: input.description,
     })
     if (!result.success) throwDeploymentFailure(result, 'Failed to activate workflow version')
     return {

@@ -15,6 +15,11 @@ const HUMAN_WORKFLOW_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+const COPILOT_WORKFLOW_PRINCIPAL_POLICY = {
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
+} as const
+
 export const workflowOperations = {
   list: defineWorkspaceOperation({
     id: 'workflows.list',
@@ -46,11 +51,41 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
-  updateVariables: defineWorkspaceOperation({
-    id: 'workflows.variables.update',
+  applyVariableOperations: defineWorkspaceOperation({
+    id: 'workflows.variables.apply_operations',
     minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  moveBulk: defineWorkspaceOperation({
+    id: 'workflows.bulk.move',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  createVfsFolders: defineWorkspaceOperation({
+    id: 'workflows.vfs.folders.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  moveVfsItems: defineWorkspaceOperation({
+    id: 'workflows.vfs.move',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  copyVfsItems: defineWorkspaceOperation({
+    id: 'workflows.vfs.copy',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  deleteVfsItems: defineWorkspaceOperation({
+    id: 'workflows.vfs.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   duplicate: defineWorkspaceOperation({
     id: 'workflows.duplicate',

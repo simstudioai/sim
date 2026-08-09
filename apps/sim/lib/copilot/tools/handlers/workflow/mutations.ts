@@ -17,14 +17,15 @@ import {
 } from '@/lib/copilot/vfs/path-utils'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { createWorkflow } from '@/lib/workflows/application/create-workflow'
+import { moveWorkflowsBulk } from '@/lib/workflows/application/move-workflows-bulk'
 import {
   prepareCopilotWorkflowRun,
   readWorkflowDefinition,
 } from '@/lib/workflows/application/read-workflow-definition'
 import { updateWorkflow } from '@/lib/workflows/application/update-workflow'
 import {
+  applyWorkflowVariableOperations,
   updateWorkflowState,
-  updateWorkflowVariables,
 } from '@/lib/workflows/application/update-workflow-content'
 import { listWorkflowFolders } from '@/lib/workflows/application/workflow-folders'
 import {
@@ -486,106 +487,15 @@ export async function executeSetGlobalWorkflowVariables(
     const operations: VariableOperation[] = Array.isArray(params.operations)
       ? params.operations
       : []
-    const { workflow: workflowRecord } = await executeCopilotWorkflowUseCase(
-      context,
-      readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
-    )
-
-    interface WorkflowVariable {
-      id: string
-      workflowId?: string
-      name: string
-      type: string
-      value?: unknown
-    }
-    const currentVarsRecord = (workflowRecord.variables as Record<string, unknown>) || {}
-    const byName: Record<string, WorkflowVariable> = {}
-    Object.values(currentVarsRecord).forEach((v) => {
-      if (v && typeof v === 'object' && 'id' in v && 'name' in v) {
-        const variable = v as WorkflowVariable
-        byName[String(variable.name)] = variable
-      }
-    })
-
-    for (const op of operations) {
-      const key = String(op?.name || '')
-      if (!key) continue
-      const nextType = op?.type || byName[key]?.type || 'plain'
-      const coerceValue = (value: unknown, type: string): unknown => {
-        if (value === undefined) return value
-        if (type === 'number') {
-          const n = Number(value)
-          return Number.isNaN(n) ? value : n
-        }
-        if (type === 'boolean') {
-          const v = String(value).trim().toLowerCase()
-          if (v === 'true') return true
-          if (v === 'false') return false
-          return value
-        }
-        if (type === 'array' || type === 'object') {
-          try {
-            const parsed = JSON.parse(String(value))
-            if (type === 'array' && Array.isArray(parsed)) return parsed
-            if (type === 'object' && parsed && typeof parsed === 'object' && !Array.isArray(parsed))
-              return parsed
-          } catch (error) {
-            logger.warn('Failed to parse JSON value for variable coercion', {
-              error: toError(error).message,
-            })
-          }
-          return value
-        }
-        return value
-      }
-
-      if (op.operation === 'delete') {
-        delete byName[key]
-        continue
-      }
-      const typedValue = coerceValue(op.value, nextType)
-      if (op.operation === 'add') {
-        byName[key] = {
-          id: generateId(),
-          workflowId,
-          name: key,
-          type: nextType,
-          value: typedValue,
-        }
-        continue
-      }
-      if (op.operation === 'edit') {
-        if (!byName[key]) {
-          byName[key] = {
-            id: generateId(),
-            workflowId,
-            name: key,
-            type: nextType,
-            value: typedValue,
-          }
-        } else {
-          byName[key] = {
-            ...byName[key],
-            type: nextType,
-            value: typedValue,
-          }
-        }
-      }
-    }
-
-    const nextVarsRecord = Object.fromEntries(Object.values(byName).map((v) => [String(v.id), v]))
 
     assertWorkflowMutationNotAborted(context)
-    const result = await executeCopilotWorkflowUseCase(context, updateWorkflowVariables, {
+    const result = await executeCopilotWorkflowUseCase(context, applyWorkflowVariableOperations, {
       workflowId,
       assertedWorkspaceId: context.workspaceId,
-      variables: nextVarsRecord,
-      operationCount: operations.length,
-      source: 'copilot',
+      operations,
     })
 
-    return { success: true, output: result }
+    return { success: true, output: { updated: result.updated } }
   } catch (error) {
     return { success: false, error: messageForCopilotWorkflowError(error) }
   }
@@ -633,26 +543,21 @@ export async function executeMoveWorkflow(
     if (!workflowIds || workflowIds.length === 0) {
       return { success: false, error: 'workflowIds is required' }
     }
-
-    const folderId = params.folderId || null
-    const moved: string[] = []
-    const failed: string[] = []
-
-    for (const workflowId of workflowIds) {
-      try {
-        assertWorkflowMutationNotAborted(context)
-        await executeCopilotWorkflowUseCase(context, updateWorkflow, {
-          workflowId,
-          assertedWorkspaceId: context.workspaceId,
-          folderId,
-        })
-        moved.push(workflowId)
-      } catch {
-        failed.push(workflowId)
-      }
+    if (!context.workspaceId) {
+      return { success: false, error: 'Workspace context is required' }
     }
 
-    return { success: moved.length > 0, output: { moved, failed, folderId } }
+    assertWorkflowMutationNotAborted(context)
+    const result = await executeCopilotWorkflowUseCase(context, moveWorkflowsBulk, {
+      workspaceId: context.workspaceId,
+      workflowIds,
+      folderId: params.folderId || null,
+    })
+
+    return {
+      success: result.moved.length > 0,
+      output: { moved: result.moved, failed: result.failed, folderId: result.folderId },
+    }
   } catch (error) {
     return { success: false, error: messageForCopilotWorkflowError(error) }
   }
