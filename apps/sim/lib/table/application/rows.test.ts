@@ -8,21 +8,29 @@ import type { TableDefinition } from '@/lib/table/types'
 const {
   mockReplaceRowsPrimitive,
   mockDeleteRowsByIds,
+  mockAssertRowCapacity,
+  mockNotifyTableRowUsage,
   mockQueryRows,
   mockRecordAudit,
+  mockReplaceRowsWithTx,
   mockResolveContext,
   mockResolvePermission,
   mockSignalRowsChanged,
   mockUpsertRow,
+  mockWithLockedTable,
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
+  mockAssertRowCapacity: vi.fn(),
+  mockNotifyTableRowUsage: vi.fn(),
   mockQueryRows: vi.fn(),
   mockRecordAudit: vi.fn(),
+  mockReplaceRowsWithTx: vi.fn(),
   mockResolveContext: vi.fn(),
   mockResolvePermission: vi.fn(),
   mockSignalRowsChanged: vi.fn(),
   mockUpsertRow: vi.fn(),
+  mockWithLockedTable: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -69,6 +77,24 @@ vi.mock('@/lib/table', () => ({
   upsertRow: mockUpsertRow,
   validateBatchRows: vi.fn(),
   validateRowData: vi.fn(),
+  withLockedTable: mockWithLockedTable,
+}))
+
+vi.mock('@/lib/table/billing', () => ({
+  assertRowCapacity: mockAssertRowCapacity,
+  notifyTableRowUsage: mockNotifyTableRowUsage,
+}))
+
+vi.mock('@/lib/table/column-types', () => ({
+  columnTypeOf: (column: { type: string }) => ({ id: column.type }),
+}))
+
+vi.mock('@/lib/table/rows/secret-provenance', () => ({
+  createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
+}))
+
+vi.mock('@/lib/table/rows/service', () => ({
+  replaceTableRowsWithTx: mockReplaceRowsWithTx,
 }))
 
 vi.mock('@/lib/table/application/context', () => ({
@@ -81,7 +107,9 @@ vi.mock('@/lib/table/events', () => ({
 
 import {
   deleteTableRows,
+  ProjectedWireRowsValidationError,
   queryTableRows,
+  replaceProjectedWireRows,
   replaceTableRows,
   TableRowsValidationError,
   tablePredicateNamesToFilter,
@@ -115,6 +143,167 @@ describe('table predicate translation', () => {
         details: { code: 'INVALID_FILTER' },
       })
     )
+  })
+})
+
+describe('replaceProjectedWireRows application command', () => {
+  const freshTable: TableDefinition = {
+    ...TABLE,
+    schema: {
+      columns: [
+        { id: 'column-fresh', name: 'full_name', type: 'string' },
+        { id: 'column-score', name: 'score', type: 'number' },
+      ],
+    },
+  }
+  const delegatedPrincipal = {
+    kind: 'delegated' as const,
+    serviceId: 'copilot' as const,
+    subjectUserId: 'user-1',
+    workspaceId: TABLE.workspaceId,
+    delegationId: 'copilot-tool:tool-1',
+    audience: 'sim:tables',
+    issuedAt: new Date('2026-01-01'),
+    expiresAt: new Date('2099-01-01'),
+    resourceScope: { tableId: TABLE.id },
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockAssertRowCapacity.mockResolvedValue(10_000)
+    mockWithLockedTable.mockImplementation(
+      async (_tableId: string, run: (table: TableDefinition, trx: unknown) => unknown) =>
+        run(freshTable, { kind: 'transaction' })
+    )
+    mockReplaceRowsWithTx.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
+  })
+
+  it('validates and replaces against the fresh schema held under the table lock', async () => {
+    const result = await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        assertedWorkspaceId: TABLE.workspaceId,
+        sourceRows: [{ full_name: 'Ada' }],
+        projectedRows: [{ full_name: 'Ada' }],
+        requestId: 'request-1',
+      },
+    })
+
+    expect(mockWithLockedTable).toHaveBeenCalledWith(TABLE.id, expect.any(Function), {
+      expectedWorkspaceId: TABLE.workspaceId,
+    })
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      { kind: 'transaction' },
+      {
+        tableId: TABLE.id,
+        workspaceId: TABLE.workspaceId,
+        rows: [{ 'column-fresh': 'Ada' }],
+        userId: 'user-1',
+        secretProvenance: [{ complete: true, columns: {} }],
+      },
+      freshTable,
+      'request-1'
+    )
+    expect(result.table).toBe(freshTable)
+    expect(mockRecordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({
+          operation: 'tables.rows.replace',
+          rowsDeleted: 2,
+          rowsInserted: 1,
+        }),
+      })
+    )
+    expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+    expect(mockNotifyTableRowUsage).toHaveBeenCalledWith({
+      workspaceId: TABLE.workspaceId,
+      currentRowCount: 0,
+      addedRows: 1,
+      limit: 10_000,
+    })
+  })
+
+  it('rejects a projected row that only matched the stale pre-lock schema', async () => {
+    await expect(
+      replaceProjectedWireRows.execute({
+        principal: delegatedPrincipal,
+        input: {
+          tableId: TABLE.id,
+          assertedWorkspaceId: TABLE.workspaceId,
+          sourceRows: [{ name: 'Ada' }],
+          projectedRows: [{ name: 'Ada' }],
+        },
+      })
+    ).rejects.toBeInstanceOf(ProjectedWireRowsValidationError)
+
+    expect(mockReplaceRowsWithTx).not.toHaveBeenCalled()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('rejects delegated table-scope mismatch before opening the mutation lock', async () => {
+    await expect(
+      replaceProjectedWireRows.execute({
+        principal: {
+          ...delegatedPrincipal,
+          resourceScope: { tableId: 'table-other' },
+        },
+        input: {
+          tableId: TABLE.id,
+          sourceRows: [{ full_name: 'Ada' }],
+          projectedRows: [{ full_name: 'Ada' }],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mockWithLockedTable).not.toHaveBeenCalled()
+    expect(mockReplaceRowsWithTx).not.toHaveBeenCalled()
+  })
+
+  it('does not audit or signal when the authoritative replacement is a no-op', async () => {
+    mockReplaceRowsWithTx.mockResolvedValueOnce({ deletedCount: 0, insertedCount: 0 })
+
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'Ada' }],
+        projectedRows: [{ full_name: 'Ada' }],
+      },
+    })
+
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('propagates replacement failures without audit or shared effects', async () => {
+    const failure = new Error('database unavailable')
+    mockReplaceRowsWithTx.mockRejectedValueOnce(failure)
+
+    await expect(
+      replaceProjectedWireRows.execute({
+        principal: delegatedPrincipal,
+        input: {
+          tableId: TABLE.id,
+          sourceRows: [{ full_name: 'Ada' }],
+          projectedRows: [{ full_name: 'Ada' }],
+        },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+    expect(mockNotifyTableRowUsage).not.toHaveBeenCalled()
   })
 })
 

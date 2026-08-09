@@ -10,13 +10,18 @@ import {
   batchInsertRows,
   buildAutoMapping,
   type ColumnDefinition,
+  CSV_ASYNC_IMPORT_THRESHOLD_BYTES,
   CSV_MAX_BATCH_SIZE,
   type CsvHeaderMapping,
   CsvImportValidationError,
   coerceRowsForTable,
   getWorkspaceTableLimits,
+  inferSchemaFromCsv,
+  parseFileRows,
   type RowData,
   replaceTableRows,
+  sanitizeName,
+  TABLE_LIMITS,
   type TableDefinition,
   validateMapping,
 } from '@/lib/table'
@@ -34,6 +39,13 @@ import {
 } from '@/lib/table/jobs/service'
 import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { createTable, deleteTable } from '@/lib/table/service'
+import {
+  fetchWorkspaceFileBuffer,
+  loadActiveWorkspaceFileContext,
+  resolveWorkspaceFileReference,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 
 const logger = createLogger('TableWorkspaceFileImportApplication')
 
@@ -46,26 +58,21 @@ export interface TableWorkspaceFileSource {
   size: number
 }
 
-interface CreateTableFromWorkspaceFileBaseInput {
+const MAX_INLINE_FILE_BYTES = 50 * 1024 * 1024
+
+export interface CreateTableFromWorkspaceFileInput {
   workspaceId: string
-  sourceFile: TableWorkspaceFileSource
-  name: string
-  description: string
+  fileReference: string
+  name?: string
+  description?: string
+  assertNotAborted?: () => void
 }
 
-export type CreateTableFromWorkspaceFileInput = CreateTableFromWorkspaceFileBaseInput &
-  (
-    | { kind: 'background' }
-    | {
-        kind: 'inline'
-        columns: ColumnDefinition[]
-        headerToColumn: Map<string, string>
-        rows: Record<string, unknown>[]
-        assertNotAborted?: () => void
-      }
-  )
-
 export type CreateTableFromWorkspaceFileResult =
+  | {
+      kind: 'empty'
+      sourceFile: TableWorkspaceFileSource
+    }
   | {
       kind: 'background'
       table: TableDefinition
@@ -82,23 +89,14 @@ export type CreateTableFromWorkspaceFileResult =
       sourceFile: TableWorkspaceFileSource
     }
 
-interface ImportWorkspaceFileBaseInput {
+export interface ImportWorkspaceFileInput {
   tableId: string
   assertedWorkspaceId: string
-  sourceFile: TableWorkspaceFileSource
+  fileReference: string
   mode: 'append' | 'replace'
   mapping?: CsvHeaderMapping
+  assertNotAborted?: () => void
 }
-
-export type ImportWorkspaceFileInput = ImportWorkspaceFileBaseInput &
-  (
-    | { kind: 'background' }
-    | {
-        kind: 'inline'
-        loadRows: () => Promise<{ headers: string[]; rows: Record<string, unknown>[] }>
-        assertNotAborted?: () => void
-      }
-  )
 
 export type ImportWorkspaceFileResult =
   | {
@@ -106,6 +104,7 @@ export type ImportWorkspaceFileResult =
       table: TableDefinition
       jobId: string
       mode: 'append' | 'replace'
+      sourceFileName: string
     }
   | {
       kind: 'empty'
@@ -136,14 +135,51 @@ function requestId(): string {
   return generateId().slice(0, 8)
 }
 
-function requireCanonicalSource(
-  source: TableWorkspaceFileSource,
-  workspaceId: string
-): TableWorkspaceFileSource {
-  if (!source.id || !source.key || !source.name || source.workspaceId !== workspaceId) {
+async function resolveSafeSourceFile(
+  workspaceId: string,
+  reference: string
+): Promise<WorkspaceFileRecord> {
+  const file = await resolveWorkspaceFileReference(workspaceId, reference)
+  if (!file) {
+    if (reference.replace(/^\/+/, '').startsWith('uploads/')) {
+      throw new OrchestrationError(
+        'validation',
+        `Cannot import "${reference}": chat uploads are not workspace files. Use materialize_file to save it to a files/... path first, then pass that canonical path.`
+      )
+    }
+    throw new OrchestrationError(
+      'not_found',
+      `File not found: "${reference}". Use glob("files/**") and read the canonical file path metadata to find workspace files.`
+    )
+  }
+  const canonical = await loadActiveWorkspaceFileContext(file.id)
+  if (!canonical || canonical.workspaceId !== workspaceId || file.workspaceId !== workspaceId) {
     throw new OrchestrationError('not_found', 'Workspace file not found')
   }
-  return source
+  const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+    fileId: file.id,
+    key: file.key,
+    context: 'workspace',
+  })
+  if (provenance.status !== 'exact' || provenance.entries.length > 0) {
+    throw new OrchestrationError(
+      'validation',
+      `Cannot import "${reference}": the file cannot be verified as free of resolved secrets.`
+    )
+  }
+  return file
+}
+
+function shouldImportInBackground(file: TableWorkspaceFileSource): boolean {
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  return (
+    (extension === 'csv' || extension === 'tsv') && file.size >= CSV_ASYNC_IMPORT_THRESHOLD_BYTES
+  )
+}
+
+async function loadInlineRows(file: WorkspaceFileRecord) {
+  const content = await fetchWorkspaceFileBuffer(file, { maxBytes: MAX_INLINE_FILE_BYTES })
+  return parseFileRows(content, file.name, file.type)
 }
 
 async function batchInsertAll(params: {
@@ -240,18 +276,26 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: CreateTableFromWorkspaceFileInput }) =>
     resolveTableWorkspaceContext(input.workspaceId),
   async execute({ principal, input, context }): Promise<CreateTableFromWorkspaceFileResult> {
-    const sourceFile = requireCanonicalSource(input.sourceFile, context.workspaceId)
+    const sourceFile = await resolveSafeSourceFile(context.workspaceId, input.fileReference)
     const userId = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     }).attributedUserId
     const limits = await getWorkspaceTableLimits(context.workspaceId)
+    const name =
+      input.name ??
+      sanitizeName(sourceFile.name.replace(/\.[^.]+$/, ''), 'imported_table').slice(
+        0,
+        TABLE_LIMITS.MAX_TABLE_NAME_LENGTH
+      )
+    const description = input.description ?? `Imported from ${sourceFile.name}`
 
-    if (input.kind === 'background') {
+    if (shouldImportInBackground(sourceFile)) {
+      input.assertNotAborted?.()
       const jobId = generateId()
       const table = await createTable(
         {
-          name: input.name,
-          description: input.description,
+          name,
+          description,
           schema: { columns: [{ name: 'column_1', type: 'string' }] },
           workspaceId: context.workspaceId,
           userId,
@@ -286,16 +330,22 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
         }
         throw error
       }
-      return { kind: input.kind, table, jobId, sourceFile }
+      return { kind: 'background', table, jobId, sourceFile }
     }
 
-    const droppedRows = Math.max(0, input.rows.length - limits.maxRowsPerTable)
-    const rows = droppedRows > 0 ? input.rows.slice(0, limits.maxRowsPerTable) : input.rows
+    const { headers, rows: sourceRows } = await loadInlineRows(sourceFile)
+    if (sourceRows.length === 0) {
+      return { kind: 'empty', sourceFile }
+    }
+    const { columns, headerToColumn } = inferSchemaFromCsv(headers, sourceRows)
+    input.assertNotAborted?.()
+    const droppedRows = Math.max(0, sourceRows.length - limits.maxRowsPerTable)
+    const rows = droppedRows > 0 ? sourceRows.slice(0, limits.maxRowsPerTable) : sourceRows
     const table = await createTable(
       {
-        name: input.name,
-        description: input.description,
-        schema: { columns: input.columns },
+        name,
+        description,
+        schema: { columns },
         workspaceId: context.workspaceId,
         userId,
         maxTables: limits.maxTables,
@@ -305,15 +355,15 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
     try {
       const insertedCount = await batchInsertAll({
         table,
-        rows: coerceRowsForTable(rows, table.schema, input.headerToColumn),
+        rows: coerceRowsForTable(rows, table.schema, headerToColumn),
         workspaceId: context.workspaceId,
         userId,
         assertNotAborted: input.assertNotAborted,
       })
       return {
-        kind: input.kind,
+        kind: 'inline',
         table,
-        columns: input.columns,
+        columns,
         insertedCount,
         droppedRows,
         maxRowsPerTable: limits.maxRowsPerTable,
@@ -332,6 +382,7 @@ export const createTableFromWorkspaceFile = defineAuthorizedTableUseCase({
     }
   },
   projectAudit({ result }) {
+    if (result.kind === 'empty') return []
     return {
       action: AuditAction.TABLE_CREATED,
       resourceType: AuditResourceType.TABLE,
@@ -356,12 +407,13 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.assertedWorkspaceId,
     }),
   async execute({ principal, input, context }): Promise<ImportWorkspaceFileResult> {
-    const sourceFile = requireCanonicalSource(input.sourceFile, context.workspaceId)
+    const sourceFile = await resolveSafeSourceFile(context.workspaceId, input.fileReference)
     const userId = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     }).attributedUserId
 
-    if (input.kind === 'background') {
+    if (shouldImportInBackground(sourceFile)) {
+      input.assertNotAborted?.()
       const jobId = generateId()
       const claimed = await markTableJobRunningInWorkspace(
         context.table.id,
@@ -383,7 +435,13 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
         mapping: input.mapping,
         deleteSourceFile: false,
       })
-      return { kind: input.kind, table: context.table, jobId, mode: input.mode }
+      return {
+        kind: 'background',
+        table: context.table,
+        jobId,
+        mode: input.mode,
+        sourceFileName: sourceFile.name,
+      }
     }
 
     const jobId = generateId()
@@ -396,7 +454,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
     if (!claimed)
       throw new OrchestrationError('conflict', 'A job is already in progress for this table')
     return withReleasedTableJobClaim(context.table.id, context.workspaceId, jobId, async () => {
-      const { headers, rows: sourceRows } = await input.loadRows()
+      const { headers, rows: sourceRows } = await loadInlineRows(sourceFile)
       input.assertNotAborted?.()
       if (sourceRows.length === 0) {
         return { kind: 'empty', table: context.table, mode: input.mode }
@@ -433,7 +491,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
           requestId()
         )
         return {
-          kind: input.kind,
+          kind: 'inline',
           table: context.table,
           mode: input.mode,
           matchedColumns: validation.mappedHeaders,
@@ -451,7 +509,7 @@ export const importWorkspaceFileIntoTable = defineAuthorizedTableUseCase({
         assertNotAborted: input.assertNotAborted,
       })
       return {
-        kind: input.kind,
+        kind: 'inline',
         table: context.table,
         mode: input.mode,
         matchedColumns: validation.mappedHeaders,

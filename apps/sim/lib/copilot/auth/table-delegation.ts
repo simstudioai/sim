@@ -15,6 +15,9 @@ export function resolveCopilotTablePrincipal(
   context: CopilotTableDelegationContext | undefined,
   tableId?: string
 ): DelegatedPrincipal {
+  if (tableId !== undefined && !tableId.trim()) {
+    throw new Error('Table delegation requires a non-empty table ID')
+  }
   return createCopilotApplicationPrincipal(requireTrustedCopilotExecutionContext(context), {
     audience: tableDelegationPolicy.audience,
     ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,

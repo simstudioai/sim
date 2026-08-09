@@ -29,6 +29,10 @@ import {
   type TableImportResource,
   tableImportBodyFromUpload,
 } from '@/lib/table/orchestration/import-resource'
+import {
+  getWorkspaceFile,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import {
   assertUploadSessionAuthBinding,
@@ -36,7 +40,6 @@ import {
   createUploadPartUrls,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
-import { readWorkspaceFileContentRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 
 const logger = createLogger('TableImportApplication')
 
@@ -147,6 +150,15 @@ async function resolveImportFolderId(
   })
 }
 
+async function loadAuthorizedTableImportWorkspaceFile(
+  workspaceId: string,
+  fileId: string
+): Promise<WorkspaceFileRecord> {
+  const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return file
+}
+
 export const createTableImportUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.createImport,
   resolveContext: ({ input }: { input: CreateTableImportInput }) =>
@@ -158,15 +170,10 @@ export const createTableImportUseCase = defineAuthorizedTableUseCase({
     const folderId = await resolveImportFolderId(context.workspaceId, input.body)
     const workspaceFile =
       input.body.source.type === 'workspace_file'
-        ? (
-            await readWorkspaceFileContentRecord.execute({
-              principal,
-              input: {
-                fileId: input.body.source.fileId,
-                assertedWorkspaceId: context.workspaceId,
-              },
-            })
-          ).file
+        ? await loadAuthorizedTableImportWorkspaceFile(
+            context.workspaceId,
+            input.body.source.fileId
+          )
         : undefined
     if (input.body.source.type === 'upload' && !request) {
       throw new Error('Table import upload creation requires a request context')

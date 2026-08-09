@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   findResource: vi.fn(),
   getResource: vi.fn(),
   getUpload: vi.fn(),
+  getWorkspaceFile: vi.fn(),
   resolvePermission: vi.fn(),
   resolveTableContext: vi.fn(),
   resolveWorkspaceContext: vi.fn(),
@@ -63,8 +64,8 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
   createUploadPartUrls: mocks.createParts,
 }))
 
-vi.mock('@/lib/workspace-files/application/read-workspace-file-record', () => ({
-  readWorkspaceFileContentRecord: { execute: vi.fn() },
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  getWorkspaceFile: mocks.getWorkspaceFile,
 }))
 
 import {
@@ -109,6 +110,12 @@ const upload = {
   userId: 'uploader-1',
   fileName: 'people.csv',
 }
+const workspaceFile = {
+  id: 'file-1',
+  workspaceId: 'workspace-1',
+  name: 'people.csv',
+  key: 'workspace/workspace-1/people.csv',
+}
 
 describe('table import application use cases', () => {
   beforeEach(() => {
@@ -140,6 +147,7 @@ describe('table import application use cases', () => {
     )
     mocks.startUploadedImport.mockResolvedValue({ ...record, status: 'ready' })
     mocks.createResource.mockResolvedValue({ record, upload: null })
+    mocks.getWorkspaceFile.mockResolvedValue(workspaceFile)
   })
 
   it('creates an import through the domain resource boundary without presenting a v2 DTO', async () => {
@@ -193,6 +201,43 @@ describe('table import application use cases', () => {
       undefined,
       { forUpdate: undefined }
     )
+  })
+
+  it('resolves a workspace-file source canonically inside the authorized import command', async () => {
+    await createTableImportUseCase.execute({
+      principal: reader,
+      input: {
+        body: {
+          workspaceId: 'workspace-1',
+          source: { type: 'workspace_file', fileId: 'file-1' },
+          target: record.target,
+        },
+      },
+    })
+
+    expect(mocks.getWorkspaceFile).toHaveBeenLastCalledWith('workspace-1', 'file-1', {
+      throwOnError: true,
+    })
+    expect(mocks.createResource).toHaveBeenCalledWith(expect.objectContaining({ workspaceFile }))
+  })
+
+  it('conceals a cross-workspace workspace-file id before import mutation', async () => {
+    mocks.getWorkspaceFile.mockResolvedValueOnce(null)
+
+    await expect(
+      createTableImportUseCase.execute({
+        principal: reader,
+        input: {
+          body: {
+            workspaceId: 'workspace-1',
+            source: { type: 'workspace_file', fileId: 'file-other' },
+            target: record.target,
+          },
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.createResource).not.toHaveBeenCalled()
   })
 
   it('lets a workspace key cancel the durable workspace resource', async () => {

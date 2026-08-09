@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { V2AddWorkflowGroupBody } from '@/lib/api/contracts/v2/tables'
@@ -7,18 +7,23 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import type {
+  ColumnDefinition,
   DeleteWorkflowGroupData,
   TableDefinition,
   TableSchema,
   UpdateWorkflowGroupData,
   WorkflowGroup,
+  WorkflowGroupDependencies,
+  WorkflowGroupDeploymentMode,
+  WorkflowGroupInputMapping,
+  WorkflowGroupOutput,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
-import { startTableRun } from '@/lib/table/application/runs'
-import { columnTypeForLeaf } from '@/lib/table/column-naming'
+import { columnTypeForLeaf, deriveOutputColumnName } from '@/lib/table/column-naming'
 import { signalTableSchemaChanged } from '@/lib/table/events'
+import { runWorkflowColumn } from '@/lib/table/workflow-columns'
 import {
   addWorkflowGroup,
   addWorkflowGroupOutput,
@@ -26,8 +31,10 @@ import {
   deleteWorkflowGroupOutput,
   updateWorkflowGroup,
 } from '@/lib/table/workflow-groups/service'
+import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import type { ResolveWorkflowOutputsResult } from '@/lib/workflows/application/resolve-workflow-outputs'
-import { resolveWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import { loadResolvedWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
+import { getEnrichment } from '@/enrichments/registry'
 
 const logger = createLogger('TableGroupApplication')
 
@@ -46,21 +53,92 @@ function groupFromTable(table: TableDefinition, groupId: string): WorkflowGroup 
   return group
 }
 
-async function resolveAuthorizedWorkflowForTableGroup(
-  principal: Principal,
+async function resolveWorkflowForAuthorizedTableCommand(
   workflowId: string,
-  workspaceId: string,
-  provided?: ResolveWorkflowOutputsResult
+  workspaceId: string
 ): Promise<ResolveWorkflowOutputsResult> {
-  if (provided) {
-    if (provided.workflowId !== workflowId) {
-      throw new OrchestrationError('not_found', 'Workflow not found')
-    }
-    return provided
+  const workflowContext = await resolveActiveWorkflowApplicationContext({
+    workflowId,
+    assertedWorkspaceId: workspaceId,
+  })
+  return loadResolvedWorkflowOutputs(workflowContext)
+}
+
+function requireWorkflowOutputs(
+  resolved: ResolveWorkflowOutputsResult,
+  workflowId: string
+): NonNullable<ResolveWorkflowOutputsResult['outputs']> {
+  if (!resolved.outputs) {
+    throw new OrchestrationError('validation', `Workflow has no pickable outputs: ${workflowId}`)
   }
-  return resolveWorkflowOutputs.execute({
-    principal,
-    input: { workflowId, assertedWorkspaceId: workspaceId },
+  return resolved.outputs
+}
+
+function validateRequestedOutputs(
+  requested: Array<{ blockId: string; path: string }>,
+  resolved: ResolveWorkflowOutputsResult,
+  workflowId: string
+): NonNullable<ResolveWorkflowOutputsResult['outputs']> {
+  const outputs = requireWorkflowOutputs(resolved, workflowId)
+  const valid = new Set(outputs.map((output) => `${output.blockId}::${output.path}`))
+  const invalid = requested.filter((output) => !valid.has(`${output.blockId}::${output.path}`))
+  if (invalid.length === 0) return outputs
+
+  const sample = outputs
+    .slice(0, 12)
+    .map((output) => `  - ${output.blockId} (${output.blockName}) → ${output.path}`)
+    .join('\n')
+  const invalidList = invalid.map((output) => `  - ${output.blockId} → ${output.path}`).join('\n')
+  throw new OrchestrationError(
+    'validation',
+    `Invalid output(s) for workflow ${workflowId}:\n${invalidList}\n\nValid options${outputs.length > 12 ? ' (first 12)' : ''}:\n${sample}`
+  )
+}
+
+function workflowOutputColumnType(
+  requestedType: string | undefined,
+  resolvedLeafType: string | undefined
+): ColumnDefinition['type'] {
+  if (requestedType === undefined) return columnTypeForLeaf(resolvedLeafType)
+  const type = columnTypeForLeaf(requestedType)
+  if (type !== requestedType) {
+    throw new OrchestrationError(
+      'validation',
+      `Invalid workflow output column type "${requestedType}"`
+    )
+  }
+  return type
+}
+
+function attributedUserId(
+  principal: Parameters<typeof resolvePrincipalAttribution>[0],
+  billedAccountUserId: string
+): string {
+  return resolvePrincipalAttribution(principal, {
+    workspaceBillingOwnerUserId: billedAccountUserId,
+  }).attributedUserId
+}
+
+function dispatchGroupAutoRun(params: {
+  tableId: string
+  workspaceId: string
+  groupId: string
+  actorUserId: string
+  label: string
+}): void {
+  runDetached(params.label, async () => {
+    await runWorkflowColumn({
+      tableId: params.tableId,
+      workspaceId: params.workspaceId,
+      groupIds: [params.groupId],
+      mode: 'all',
+      requestId: generateRequestId(),
+      triggeredByUserId: params.actorUserId,
+    })
+    logger.info('Started table group auto-run', {
+      tableId: params.tableId,
+      groupId: params.groupId,
+    })
   })
 }
 
@@ -80,7 +158,6 @@ export interface CreateTableGroupInput extends TableGroupInput {
   group: V2AddWorkflowGroupBody['group']
   outputColumns: V2AddWorkflowGroupBody['outputColumns']
   autoRun?: boolean
-  resolvedWorkflow?: ResolveWorkflowOutputsResult
 }
 
 export const createTableGroupUseCase = defineAuthorizedTableUseCase({
@@ -92,12 +169,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
     }),
   async execute({ principal, input, context }) {
     if (input.group.workflowId) {
-      await resolveAuthorizedWorkflowForTableGroup(
-        principal,
-        input.group.workflowId,
-        context.workspaceId,
-        input.resolvedWorkflow
-      )
+      await resolveWorkflowForAuthorizedTableCommand(input.group.workflowId, context.workspaceId)
     }
     const outputNames = new Set(input.group.outputs.map((output) => output.columnName))
     const orphan = input.outputColumns.find((column) => !outputNames.has(column.name))
@@ -108,9 +180,7 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
       )
     }
 
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
+    const actorUserId = attributedUserId(principal, context.billedAccountUserId)
     const groupId = input.group.id ?? generateId()
     const table = await addWorkflowGroup(
       {
@@ -123,11 +193,11 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
         })),
         autoRun: input.autoRun ?? false,
         suppressAutoRunDispatch: true,
-        actorUserId: attribution.attributedUserId,
+        actorUserId,
       },
       generateRequestId()
     )
-    return { table, group: groupFromTable(table, groupId) }
+    return { table, group: groupFromTable(table, groupId), actorUserId }
   },
   projectAudit({ result }) {
     return {
@@ -139,25 +209,281 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
       metadata: { op: 'add_group', groupId: result.group.id },
     }
   },
-  afterSuccess({ principal, input, context, result, request }) {
+  afterSuccess({ input, context, result }) {
     signalTableSchemaChanged(context.table.id)
     if (input.autoRun === true) {
-      runDetached('table-group-create-auto-run', async () => {
-        await startTableRun.execute({
-          principal,
-          input: {
-            kind: 'selection',
-            tableId: context.table.id,
-            assertedWorkspaceId: context.workspaceId,
-            groupIds: [result.group.id],
-            mode: 'all',
-          },
-          request,
-        })
-        logger.info('Started table group auto-run', {
-          tableId: context.table.id,
-          groupId: result.group.id,
-        })
+      dispatchGroupAutoRun({
+        tableId: context.table.id,
+        workspaceId: context.workspaceId,
+        groupId: result.group.id,
+        actorUserId: result.actorUserId,
+        label: 'table-group-create-auto-run',
+      })
+    }
+  },
+})
+
+export interface CreateWorkflowTableGroupInput extends TableGroupInput {
+  workflowId: string
+  outputs: Array<{
+    blockId: string
+    path: string
+    columnName?: string
+    columnType?: string
+  }>
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  deploymentMode?: WorkflowGroupDeploymentMode
+  autoRun?: boolean
+}
+
+/** Creates a workflow-backed group from requested workflow output coordinates. */
+export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
+  operation: tableOperations.createGroup,
+  resolveContext: ({ input }: { input: CreateWorkflowTableGroupInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ principal, input, context }) {
+    if (input.outputs.length === 0) {
+      throw new OrchestrationError('validation', 'At least one workflow output is required')
+    }
+    if (input.outputs.some((output) => !output.blockId || !output.path)) {
+      throw new OrchestrationError(
+        'validation',
+        'Each output entry must include both blockId and path'
+      )
+    }
+
+    const resolvedWorkflow = await resolveWorkflowForAuthorizedTableCommand(
+      input.workflowId,
+      context.workspaceId
+    )
+    const canonicalOutputs = validateRequestedOutputs(
+      input.outputs,
+      resolvedWorkflow,
+      input.workflowId
+    )
+    const leafTypeByKey = new Map(
+      canonicalOutputs.map((output) => [`${output.blockId}::${output.path}`, output.leafType])
+    )
+    const taken = new Set(context.table.schema.columns.map((column) => column.name))
+    const groupId = generateId()
+    const outputs: WorkflowGroupOutput[] = []
+    const outputColumns: ColumnDefinition[] = []
+    for (const requested of input.outputs) {
+      const columnName = requested.columnName ?? deriveOutputColumnName(requested.path, taken)
+      taken.add(columnName)
+      outputs.push({
+        blockId: requested.blockId,
+        path: requested.path,
+        columnName,
+      })
+      outputColumns.push({
+        name: columnName,
+        type: workflowOutputColumnType(
+          requested.columnType,
+          leafTypeByKey.get(`${requested.blockId}::${requested.path}`)
+        ),
+        required: false,
+        unique: false,
+        workflowGroupId: groupId,
+      })
+    }
+
+    const group: WorkflowGroup = {
+      id: groupId,
+      workflowId: input.workflowId,
+      ...(input.name ? { name: input.name } : {}),
+      ...(input.dependencies ? { dependencies: input.dependencies } : {}),
+      ...(input.deploymentMode ? { deploymentMode: input.deploymentMode } : {}),
+      outputs,
+    }
+    const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const table = await addWorkflowGroup(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        group,
+        outputColumns,
+        autoRun: input.autoRun ?? false,
+        suppressAutoRunDispatch: true,
+        actorUserId,
+      },
+      generateRequestId()
+    )
+    return { table, group: groupFromTable(table, groupId), actorUserId }
+  },
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Added workflow group "${result.group.id}" to table "${result.table.name}"`,
+      metadata: { op: 'add_workflow_group', groupId: result.group.id },
+    }
+  },
+  afterSuccess({ input, context, result }) {
+    signalTableSchemaChanged(context.tableId)
+    if (input.autoRun === true) {
+      dispatchGroupAutoRun({
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: result.group.id,
+        actorUserId: result.actorUserId,
+        label: 'table-workflow-group-create-auto-run',
+      })
+    }
+  },
+})
+
+export interface CreateTableEnrichmentGroupInput extends TableGroupInput {
+  enrichmentId: string
+  inputMappings?: Array<{ inputName: string; columnName: string }>
+  outputColumnNames?: Record<string, string>
+  dependencies?: WorkflowGroupDependencies
+  name?: string
+  autoRun?: boolean
+}
+
+/** Creates an enrichment group from the code-defined enrichment registry. */
+export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
+  operation: tableOperations.createGroup,
+  resolveContext: ({ input }: { input: CreateTableEnrichmentGroupInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ principal, input, context }) {
+    const enrichment = getEnrichment(input.enrichmentId)
+    if (!enrichment) {
+      throw new OrchestrationError(
+        'validation',
+        `Unknown enrichment "${input.enrichmentId}". Call list_enrichments to see available ids.`
+      )
+    }
+
+    const enrichmentInputIds = new Set(
+      enrichment.inputs.map((enrichmentInput) => enrichmentInput.id)
+    )
+    const mappingByInput = new Map<string, string>()
+    for (const mapping of input.inputMappings ?? []) {
+      if (!enrichmentInputIds.has(mapping.inputName)) {
+        throw new OrchestrationError(
+          'validation',
+          `Enrichment "${enrichment.name}" has no input "${mapping.inputName}"`
+        )
+      }
+      if (mappingByInput.has(mapping.inputName)) {
+        throw new OrchestrationError(
+          'validation',
+          `Enrichment input "${mapping.inputName}" cannot be mapped more than once`
+        )
+      }
+      mappingByInput.set(mapping.inputName, mapping.columnName)
+    }
+    const enrichmentOutputIds = new Set(enrichment.outputs.map((output) => output.id))
+    for (const outputId of Object.keys(input.outputColumnNames ?? {})) {
+      if (!enrichmentOutputIds.has(outputId)) {
+        throw new OrchestrationError(
+          'validation',
+          `Enrichment "${enrichment.name}" has no output "${outputId}"`
+        )
+      }
+    }
+    const existingColumns = new Set(context.table.schema.columns.map((column) => column.name))
+    for (const enrichmentInput of enrichment.inputs) {
+      const mapped = mappingByInput.get(enrichmentInput.id)
+      if (enrichmentInput.required && !mapped) {
+        throw new OrchestrationError(
+          'validation',
+          `Enrichment "${enrichment.name}" requires input "${enrichmentInput.id}" to be mapped to a column`
+        )
+      }
+      if (mapped && !existingColumns.has(mapped)) {
+        throw new OrchestrationError(
+          'validation',
+          `Mapped column "${mapped}" for input "${enrichmentInput.id}" does not exist on table ${context.tableId}`
+        )
+      }
+    }
+
+    const inputMappings: WorkflowGroupInputMapping[] = enrichment.inputs
+      .filter((enrichmentInput) => mappingByInput.has(enrichmentInput.id))
+      .map((enrichmentInput) => ({
+        inputName: enrichmentInput.id,
+        columnName: mappingByInput.get(enrichmentInput.id) as string,
+      }))
+    const taken = new Set(context.table.schema.columns.map((column) => column.name))
+    const groupId = generateId()
+    const outputs: WorkflowGroupOutput[] = []
+    const outputColumns: ColumnDefinition[] = []
+    for (const output of enrichment.outputs) {
+      const desired = (input.outputColumnNames?.[output.id] ?? '').trim() || output.name
+      const columnName = deriveOutputColumnName(desired, taken)
+      taken.add(columnName)
+      outputs.push({ blockId: '', path: '', outputId: output.id, columnName })
+      outputColumns.push({
+        name: columnName,
+        type: output.type,
+        required: false,
+        unique: false,
+        workflowGroupId: groupId,
+      })
+    }
+
+    const name = input.name ?? enrichment.name
+    const group: WorkflowGroup = {
+      id: groupId,
+      workflowId: '',
+      enrichmentId: input.enrichmentId,
+      name,
+      type: 'enrichment',
+      dependencies: input.dependencies ?? { columns: inputMappings.map((item) => item.columnName) },
+      outputs,
+      inputMappings,
+      autoRun: input.autoRun ?? false,
+    }
+    const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const table = await addWorkflowGroup(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        group,
+        outputColumns,
+        autoRun: input.autoRun ?? false,
+        suppressAutoRunDispatch: true,
+        actorUserId,
+      },
+      generateRequestId()
+    )
+    return { table, group: groupFromTable(table, groupId), actorUserId }
+  },
+  projectAudit({ result }) {
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Added enrichment "${result.group.name ?? result.group.id}" to table "${result.table.name}"`,
+      metadata: {
+        op: 'add_enrichment',
+        groupId: result.group.id,
+        enrichmentId: result.group.enrichmentId,
+      },
+    }
+  },
+  afterSuccess({ input, context, result }) {
+    signalTableSchemaChanged(context.tableId)
+    if (input.autoRun === true) {
+      dispatchGroupAutoRun({
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: result.group.id,
+        actorUserId: result.actorUserId,
+        label: 'table-enrichment-group-create-auto-run',
       })
     }
   },
@@ -168,9 +494,7 @@ export interface UpdateTableGroupInput
     Omit<
       UpdateWorkflowGroupData,
       'tableId' | 'workspaceId' | 'actorUserId' | 'suppressAutoRunDispatch'
-    > {
-  resolvedWorkflow?: ResolveWorkflowOutputsResult
-}
+    > {}
 
 export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.updateGroup,
@@ -193,16 +517,15 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       if (!targetWorkflowId) {
         throw new OrchestrationError('not_found', 'Workflow not found')
       }
-      resolvedWorkflow = await resolveAuthorizedWorkflowForTableGroup(
-        principal,
+      resolvedWorkflow = await resolveWorkflowForAuthorizedTableCommand(
         targetWorkflowId,
-        context.workspaceId,
-        input.resolvedWorkflow
+        context.workspaceId
       )
+      if (input.outputs && input.outputs.length > 0) {
+        validateRequestedOutputs(input.outputs, resolvedWorkflow, targetWorkflowId)
+      }
     }
-    const attribution = resolvePrincipalAttribution(principal, {
-      workspaceBillingOwnerUserId: context.billedAccountUserId,
-    })
+    const actorUserId = attributedUserId(principal, context.billedAccountUserId)
     const hasMappingUpdates = Boolean(input.mappingUpdates && input.mappingUpdates.length > 0)
     if (hasMappingUpdates && !resolvedWorkflow) {
       throw new Error('Workflow metadata is required for workflow group mapping updates')
@@ -231,7 +554,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         tableId: context.table.id,
         workspaceId: context.workspaceId,
         groupId: input.groupId,
-        actorUserId: attribution.attributedUserId,
+        actorUserId,
         suppressAutoRunDispatch: true,
         ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
         ...(input.name !== undefined ? { name: input.name } : {}),
@@ -262,6 +585,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         JSON.stringify(context.table.schema) !== JSON.stringify(table.schema) ||
         JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
       startAutoRun: previousGroup?.autoRun !== true && input.autoRun === true,
+      actorUserId,
     }
   },
   projectAudit({ result }) {
@@ -275,25 +599,190 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       metadata: { op: 'update_group', groupId: result.group.id },
     }
   },
-  afterSuccess({ principal, context, result, request }) {
+  afterSuccess({ context, result }) {
     if (result.changed) signalTableSchemaChanged(context.table.id)
     if (result.startAutoRun) {
-      runDetached('table-group-update-auto-run', async () => {
-        await startTableRun.execute({
-          principal,
-          input: {
-            kind: 'selection',
-            tableId: context.table.id,
-            assertedWorkspaceId: context.workspaceId,
-            groupIds: [result.group.id],
-            mode: 'all',
-          },
-          request,
+      dispatchGroupAutoRun({
+        tableId: context.table.id,
+        workspaceId: context.workspaceId,
+        groupId: result.group.id,
+        actorUserId: result.actorUserId,
+        label: 'table-group-update-auto-run',
+      })
+    }
+  },
+})
+
+export interface UpdateWorkflowTableGroupInput extends TableGroupInput {
+  groupId: string
+  workflowId?: string
+  name?: string
+  dependencies?: WorkflowGroupDependencies
+  outputs?: Array<{
+    blockId: string
+    path: string
+    columnName?: string
+    columnType?: string
+  }>
+  mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  deploymentMode?: WorkflowGroupDeploymentMode
+  autoRun?: boolean
+}
+
+/** Updates a workflow-backed group from output coordinates rather than caller-built columns. */
+export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
+  operation: tableOperations.updateGroup,
+  resolveContext: ({ input }: { input: UpdateWorkflowTableGroupInput }) =>
+    resolveActiveTableContext({
+      tableId: input.tableId,
+      assertedWorkspaceId: input.workspaceId,
+    }),
+  async execute({ principal, input, context }) {
+    const previousGroup = context.table.schema.workflowGroups?.find(
+      (candidate) => candidate.id === input.groupId
+    )
+    if (!previousGroup) {
+      throw new OrchestrationError('not_found', `Workflow group "${input.groupId}" not found`)
+    }
+    if (previousGroup.type === 'enrichment' || !previousGroup.workflowId) {
+      throw new OrchestrationError(
+        'validation',
+        `Workflow group "${input.groupId}" is not backed by a workflow`
+      )
+    }
+
+    const targetWorkflowId = input.workflowId ?? previousGroup.workflowId
+    const workflowMetadataRequired =
+      input.workflowId !== undefined ||
+      input.outputs !== undefined ||
+      (input.mappingUpdates?.length ?? 0) > 0
+    const resolvedWorkflow = workflowMetadataRequired
+      ? await resolveWorkflowForAuthorizedTableCommand(targetWorkflowId, context.workspaceId)
+      : undefined
+    if (input.outputs && resolvedWorkflow) {
+      validateRequestedOutputs(input.outputs, resolvedWorkflow, targetWorkflowId)
+    } else if (input.workflowId && resolvedWorkflow) {
+      validateRequestedOutputs(previousGroup.outputs, resolvedWorkflow, targetWorkflowId)
+    }
+
+    let outputs: WorkflowGroupOutput[] | undefined
+    let newOutputColumns: ColumnDefinition[] | undefined
+    if (input.outputs) {
+      if (!resolvedWorkflow) {
+        throw new Error('Workflow metadata is required to restructure workflow outputs')
+      }
+      const canonicalOutputs = requireWorkflowOutputs(resolvedWorkflow, targetWorkflowId)
+      const leafTypeByKey = new Map(
+        canonicalOutputs.map((output) => [`${output.blockId}::${output.path}`, output.leafType])
+      )
+      const existingByKey = new Map(
+        previousGroup.outputs.map((output) => [`${output.blockId}::${output.path}`, output])
+      )
+      const taken = new Set(context.table.schema.columns.map((column) => column.name))
+      outputs = []
+      newOutputColumns = []
+      for (const requested of input.outputs) {
+        const key = `${requested.blockId}::${requested.path}`
+        const existing = existingByKey.get(key)
+        if (existing) {
+          outputs.push(existing)
+          continue
+        }
+        const requestedName = requested.columnName?.trim()
+        const columnName = requestedName || deriveOutputColumnName(requested.path, taken)
+        if (taken.has(columnName)) {
+          throw new OrchestrationError('validation', `Column "${columnName}" already exists`)
+        }
+        taken.add(columnName)
+        outputs.push({
+          blockId: requested.blockId,
+          path: requested.path,
+          columnName,
         })
-        logger.info('Started table group auto-run', {
-          tableId: context.table.id,
-          groupId: result.group.id,
+        newOutputColumns.push({
+          name: columnName,
+          type: workflowOutputColumnType(requested.columnType, leafTypeByKey.get(key)),
+          required: false,
+          unique: false,
+          workflowGroupId: input.groupId,
         })
+      }
+    }
+
+    const resolvedMappingTypes =
+      input.mappingUpdates && input.mappingUpdates.length > 0 && resolvedWorkflow
+        ? {
+            workflowId: resolvedWorkflow.workflowId,
+            columns: input.mappingUpdates.map((mapping) => {
+              const output = resolvedWorkflow.outputs?.find(
+                (candidate) =>
+                  candidate.blockId === mapping.blockId && candidate.path === mapping.path
+              )
+              if (!output) {
+                throw new OrchestrationError(
+                  'validation',
+                  `Output ${mapping.blockId}::${mapping.path} is not a valid pickable output on workflow ${targetWorkflowId}`
+                )
+              }
+              return { columnName: mapping.columnName, type: columnTypeForLeaf(output.leafType) }
+            }),
+          }
+        : undefined
+    if (input.mappingUpdates?.length && !resolvedMappingTypes) {
+      throw new Error('Workflow metadata is required for workflow group mapping updates')
+    }
+
+    const actorUserId = attributedUserId(principal, context.billedAccountUserId)
+    const table = await updateWorkflowGroup(
+      {
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: input.groupId,
+        actorUserId,
+        suppressAutoRunDispatch: true,
+        ...(input.workflowId !== undefined ? { workflowId: input.workflowId } : {}),
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.dependencies !== undefined ? { dependencies: input.dependencies } : {}),
+        ...(outputs !== undefined ? { outputs } : {}),
+        ...(newOutputColumns !== undefined ? { newOutputColumns } : {}),
+        ...(input.mappingUpdates !== undefined ? { mappingUpdates: input.mappingUpdates } : {}),
+        ...(resolvedMappingTypes ? { resolvedMappingTypes } : {}),
+        ...(input.deploymentMode !== undefined ? { deploymentMode: input.deploymentMode } : {}),
+        ...(input.autoRun !== undefined ? { autoRun: input.autoRun } : {}),
+      },
+      generateRequestId()
+    )
+    const group = groupFromTable(table, input.groupId)
+    return {
+      table,
+      group,
+      changed:
+        JSON.stringify(context.table.schema) !== JSON.stringify(table.schema) ||
+        JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
+      startAutoRun: previousGroup.autoRun !== true && input.autoRun === true,
+      actorUserId,
+    }
+  },
+  projectAudit({ result }) {
+    if (!result.changed) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Updated workflow group "${result.group.id}" in table "${result.table.name}"`,
+      metadata: { op: 'update_workflow_group', groupId: result.group.id },
+    }
+  },
+  afterSuccess({ context, result }) {
+    if (result.changed) signalTableSchemaChanged(context.tableId)
+    if (result.startAutoRun) {
+      dispatchGroupAutoRun({
+        tableId: context.tableId,
+        workspaceId: context.workspaceId,
+        groupId: result.group.id,
+        actorUserId: result.actorUserId,
+        label: 'table-workflow-group-update-auto-run',
       })
     }
   },
@@ -341,10 +830,9 @@ export interface AddTableGroupOutputInput extends TableGroupInput {
   blockId: string
   path: string
   columnName?: string
-  resolvedWorkflow: ResolveWorkflowOutputsResult
 }
 
-export const addTableGroupOutputUseCase = defineAuthorizedTableUseCase({
+export const addWorkflowTableGroupOutput = defineAuthorizedTableUseCase({
   operation: tableOperations.updateGroup,
   resolveContext: ({ input }: { input: AddTableGroupOutputInput }) =>
     resolveActiveTableContext({
@@ -357,13 +845,11 @@ export const addTableGroupOutputUseCase = defineAuthorizedTableUseCase({
     )
     if (!group)
       throw new OrchestrationError('not_found', `Workflow group "${input.groupId}" not found`)
-    if (group.workflowId !== input.resolvedWorkflow.workflowId) {
-      throw new OrchestrationError('not_found', 'Workflow not found')
-    }
-    const outputs = input.resolvedWorkflow.outputs
-    if (!outputs) {
-      throw new OrchestrationError('validation', 'Workflow has no pickable outputs')
-    }
+    const resolvedWorkflow = await resolveWorkflowForAuthorizedTableCommand(
+      group.workflowId,
+      context.workspaceId
+    )
+    const outputs = requireWorkflowOutputs(resolvedWorkflow, group.workflowId)
     const output = outputs.find(
       (candidate) => candidate.blockId === input.blockId && candidate.path === input.path
     )
@@ -385,10 +871,10 @@ export const addTableGroupOutputUseCase = defineAuthorizedTableUseCase({
           workspaceBillingOwnerUserId: context.billedAccountUserId,
         }).attributedUserId,
         resolvedOutput: {
-          workflowId: input.resolvedWorkflow.workflowId,
+          workflowId: resolvedWorkflow.workflowId,
           columnType: columnTypeForLeaf(output.leafType),
           order: outputs.map((candidate, discoveryIndex) => {
-            const distance = input.resolvedWorkflow.executionOrderByBlockId[candidate.blockId]
+            const distance = resolvedWorkflow.executionOrderByBlockId[candidate.blockId]
             return {
               blockId: candidate.blockId,
               path: candidate.path,

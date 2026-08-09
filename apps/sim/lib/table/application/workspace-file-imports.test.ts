@@ -10,11 +10,19 @@ const mocks = vi.hoisted(() => ({
   batchInsert: vi.fn(),
   createTable: vi.fn(),
   deleteTable: vi.fn(),
+  fetchFile: vi.fn(),
+  inferSchema: vi.fn(),
+  loadFileContext: vi.fn(),
   markJob: vi.fn(),
+  parseRows: vi.fn(),
+  provenance: vi.fn(),
   releaseJob: vi.fn(),
-  resolveTableContext: vi.fn(),
+  replaceRows: vi.fn(),
+  resolveFile: vi.fn(),
   resolvePermission: vi.fn(),
+  resolveTableContext: vi.fn(),
   resolveWorkspaceContext: vi.fn(),
+  runDetached: vi.fn(),
   signal: vi.fn(),
   validateMapping: vi.fn(),
   CsvImportValidationError: class extends Error {},
@@ -36,15 +44,20 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@sim/utils/id', () => ({ generateId: () => 'request-id-1234' }))
 vi.mock('@/lib/core/config/env-flags', () => ({ isTriggerDevEnabled: false }))
-vi.mock('@/lib/core/utils/background', () => ({ runDetached: vi.fn() }))
+vi.mock('@/lib/core/utils/background', () => ({ runDetached: mocks.runDetached }))
 vi.mock('@/lib/table', () => ({
   batchInsertRows: mocks.batchInsert,
   buildAutoMapping: vi.fn(() => ({ name: 'name' })),
   coerceRowsForTable: (rows: unknown[]) => rows,
   CsvImportValidationError: mocks.CsvImportValidationError,
+  CSV_ASYNC_IMPORT_THRESHOLD_BYTES: 8 * 1024 * 1024,
   CSV_MAX_BATCH_SIZE: 1000,
   getWorkspaceTableLimits: vi.fn(() => ({ maxRowsPerTable: 100, maxTables: 5 })),
-  replaceTableRows: vi.fn(),
+  inferSchemaFromCsv: mocks.inferSchema,
+  parseFileRows: mocks.parseRows,
+  replaceTableRows: mocks.replaceRows,
+  sanitizeName: (value: string) => value,
+  TABLE_LIMITS: { MAX_TABLE_NAME_LENGTH: 128 },
   validateMapping: mocks.validateMapping,
 }))
 vi.mock('@/lib/table/application/context', () => ({
@@ -64,6 +77,14 @@ vi.mock('@/lib/table/service', () => ({
   createTable: mocks.createTable,
   deleteTable: mocks.deleteTable,
 }))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
+  fetchWorkspaceFileBuffer: mocks.fetchFile,
+  loadActiveWorkspaceFileContext: mocks.loadFileContext,
+  resolveWorkspaceFileReference: mocks.resolveFile,
+}))
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.provenance,
+}))
 
 import {
   createTableFromWorkspaceFile,
@@ -74,7 +95,7 @@ const table: TableDefinition = {
   id: 'table-1',
   name: 'People',
   description: 'Imported',
-  schema: { columns: [{ name: 'name', type: 'string' }] },
+  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
   metadata: null,
   rowCount: 0,
   maxRows: 100,
@@ -84,9 +105,17 @@ const table: TableDefinition = {
   createdAt: new Date('2026-08-01T00:00:00.000Z'),
   updatedAt: new Date('2026-08-01T00:00:00.000Z'),
 }
+const sourceFile = {
+  id: 'file-1',
+  workspaceId: 'workspace-1',
+  key: 'workspace/workspace-1/people.csv',
+  name: 'people.csv',
+  type: 'text/csv',
+  size: 128,
+}
 const principal = {
   kind: 'delegated' as const,
-  serviceId: 'copilot',
+  serviceId: 'copilot' as const,
   subjectUserId: 'user-1',
   workspaceId: 'workspace-1',
   delegationId: 'copilot-tool:tool-1',
@@ -95,25 +124,8 @@ const principal = {
   expiresAt: new Date('2099-08-01T00:00:00.000Z'),
   resourceScope: { tableId: 'table-1' },
 }
-const input = {
-  kind: 'inline' as const,
-  workspaceId: 'workspace-1',
-  sourceFile: {
-    id: 'file-1',
-    workspaceId: 'workspace-1',
-    key: 'workspace/workspace-1/people.csv',
-    name: 'people.csv',
-    type: 'text/csv',
-    size: 128,
-  },
-  name: 'People',
-  description: 'Imported',
-  columns: [{ name: 'name', type: 'string' as const }],
-  headerToColumn: new Map([['name', 'name']]),
-  rows: [{ name: 'Ada' }],
-}
 
-describe('Copilot workspace-file table creation', () => {
+describe('workspace-file Table application commands', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolvePermission.mockResolvedValue('write')
@@ -131,9 +143,21 @@ describe('Copilot workspace-file table creation', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
+    mocks.resolveFile.mockResolvedValue(sourceFile)
+    mocks.loadFileContext.mockResolvedValue(sourceFile)
+    mocks.provenance.mockResolvedValue({ status: 'exact', entries: [] })
+    mocks.fetchFile.mockResolvedValue(Buffer.from('name\nAda'))
+    mocks.parseRows.mockResolvedValue({ headers: ['name'], rows: [{ name: 'Ada' }] })
+    mocks.inferSchema.mockReturnValue({
+      columns: [{ name: 'name', type: 'string' }],
+      headerToColumn: new Map([['name', 'name']]),
+    })
     mocks.createTable.mockResolvedValue(table)
     mocks.deleteTable.mockResolvedValue(undefined)
-    mocks.batchInsert.mockResolvedValue([{ id: 'row-1' }])
+    mocks.batchInsert.mockImplementation(async ({ rows }: { rows: unknown[] }) =>
+      rows.map((_, index) => ({ id: `row-${index}` }))
+    )
+    mocks.replaceRows.mockResolvedValue({ insertedCount: 1, deletedCount: 2 })
     mocks.markJob.mockResolvedValue(true)
     mocks.releaseJob.mockResolvedValue(true)
     mocks.validateMapping.mockReturnValue({
@@ -143,21 +167,44 @@ describe('Copilot workspace-file table creation', () => {
     })
   })
 
-  it('owns table creation, row insertion, audit, and shared effects', async () => {
-    await expect(createTableFromWorkspaceFile.execute({ principal, input })).resolves.toMatchObject(
-      { kind: 'inline', insertedCount: 1, table }
-    )
+  it('owns canonical file resolution, bounded parsing, table creation, audit, and effects', async () => {
+    const result = await createTableFromWorkspaceFile.execute({
+      principal,
+      input: {
+        workspaceId: 'workspace-1',
+        fileReference: 'files/people.csv',
+        name: 'People',
+      },
+    })
 
+    expect(result).toMatchObject({ kind: 'inline', insertedCount: 1, table })
+    expect(mocks.resolveFile).toHaveBeenCalledWith('workspace-1', 'files/people.csv')
+    expect(mocks.fetchFile).toHaveBeenCalledWith(sourceFile, { maxBytes: 50 * 1024 * 1024 })
     expect(mocks.createTable).toHaveBeenCalledWith(
       expect.objectContaining({ workspaceId: 'workspace-1', userId: 'user-1', maxTables: 5 }),
       'request-'
     )
     expect(mocks.batchInsert).toHaveBeenCalledTimes(1)
     expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.signal).toHaveBeenCalledWith('table-1')
+    expect(mocks.signal).toHaveBeenCalledWith(table.id)
   })
 
-  it('rejects HTTP-capable workspace keys before canonical loading or mutation', async () => {
+  it('conceals cross-workspace files before parsing or table mutation', async () => {
+    mocks.resolveFile.mockResolvedValueOnce({ ...sourceFile, workspaceId: 'workspace-other' })
+
+    await expect(
+      createTableFromWorkspaceFile.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.fetchFile).not.toHaveBeenCalled()
+    expect(mocks.createTable).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-delegated upload identities before canonical workspace or file loading', async () => {
     await expect(
       createTableFromWorkspaceFile.execute({
         principal: {
@@ -165,19 +212,53 @@ describe('Copilot workspace-file table creation', () => {
           workspaceId: 'workspace-1',
           keyId: 'workspace-key-1',
         } as never,
-        input,
+        input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.resolveWorkspaceContext).not.toHaveBeenCalled()
-    expect(mocks.createTable).not.toHaveBeenCalled()
+    expect(mocks.resolveFile).not.toHaveBeenCalled()
   })
 
-  it('holds the table job claim across inline file loading and mutation', async () => {
+  it('preserves large-file background admission without buffering inline', async () => {
+    mocks.resolveFile.mockResolvedValueOnce({ ...sourceFile, size: 8 * 1024 * 1024 })
+
+    const result = await createTableFromWorkspaceFile.execute({
+      principal,
+      input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
+    })
+
+    expect(result).toMatchObject({ kind: 'background', table, jobId: 'request-id-1234' })
+    expect(mocks.fetchFile).not.toHaveBeenCalled()
+    expect(mocks.runDetached).toHaveBeenCalledTimes(1)
+    expect(mocks.audit).toHaveBeenCalledTimes(1)
+  })
+
+  it('rolls back a partially-created table and emits no audit or effect on insertion failure', async () => {
+    const failure = new Error('database unavailable')
+    mocks.batchInsert.mockRejectedValueOnce(failure)
+
+    await expect(
+      createTableFromWorkspaceFile.execute({
+        principal,
+        input: { workspaceId: 'workspace-1', fileReference: 'files/people.csv' },
+      })
+    ).rejects.toBe(failure)
+
+    expect(mocks.deleteTable).toHaveBeenCalledWith(table.id, 'request-')
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
+  it('holds the concurrency claim across file loading and inline mutation', async () => {
     const events: string[] = []
     mocks.markJob.mockImplementationOnce(async () => {
       events.push('claim')
       return true
+    })
+    mocks.fetchFile.mockImplementationOnce(async () => {
+      events.push('load')
+      return Buffer.from('name\nAda')
     })
     mocks.batchInsert.mockImplementationOnce(async () => {
       events.push('mutate')
@@ -191,75 +272,84 @@ describe('Copilot workspace-file table creation', () => {
     await importWorkspaceFileIntoTable.execute({
       principal,
       input: {
-        kind: 'inline',
-        tableId: 'table-1',
-        assertedWorkspaceId: 'workspace-1',
-        sourceFile: input.sourceFile,
+        tableId: table.id,
+        assertedWorkspaceId: table.workspaceId,
+        fileReference: 'files/people.csv',
         mode: 'append',
-        loadRows: async () => {
-          events.push('load')
-          return { headers: ['name'], rows: [{ name: 'Ada' }] }
-        },
       },
     })
 
     expect(events).toEqual(['claim', 'load', 'mutate', 'release'])
   })
 
-  it('checks for a user stop after loading and before every inline insert batch', async () => {
-    const assertNotAborted = vi.fn()
+  it('rejects a concurrent import claim before buffering or mutating rows', async () => {
+    mocks.markJob.mockResolvedValueOnce(false)
 
-    await importWorkspaceFileIntoTable.execute({
-      principal,
-      input: {
-        kind: 'inline',
-        tableId: 'table-1',
-        assertedWorkspaceId: 'workspace-1',
-        sourceFile: input.sourceFile,
-        mode: 'append',
-        assertNotAborted,
-        loadRows: async () => ({
-          headers: ['name'],
-          rows: Array.from({ length: 1001 }, (_, index) => ({ name: `Person ${index}` })),
-        }),
-      },
-    })
+    await expect(
+      importWorkspaceFileIntoTable.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          assertedWorkspaceId: table.workspaceId,
+          fileReference: 'files/people.csv',
+          mode: 'append',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
 
-    expect(assertNotAborted).toHaveBeenCalledTimes(3)
-    expect(mocks.batchInsert).toHaveBeenCalledTimes(2)
+    expect(mocks.fetchFile).not.toHaveBeenCalled()
+    expect(mocks.batchInsert).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('classifies mapping failures before mutation so Copilot can correct them', async () => {
-    mocks.validateMapping.mockImplementationOnce(() => {
-      throw new mocks.CsvImportValidationError('Mapping references an unknown column')
+  it('preserves append partial-failure semantics and releases the claim on abort', async () => {
+    mocks.parseRows.mockResolvedValueOnce({
+      headers: ['name'],
+      rows: Array.from({ length: 1001 }, (_, index) => ({ name: `Person ${index}` })),
+    })
+    const stopped = new Error('stopped')
+    let checks = 0
+    const assertNotAborted = vi.fn(() => {
+      checks += 1
+      if (checks === 3) throw stopped
     })
 
     await expect(
       importWorkspaceFileIntoTable.execute({
         principal,
         input: {
-          kind: 'inline',
-          tableId: 'table-1',
-          assertedWorkspaceId: 'workspace-1',
-          sourceFile: input.sourceFile,
+          tableId: table.id,
+          assertedWorkspaceId: table.workspaceId,
+          fileReference: 'files/people.csv',
           mode: 'append',
-          loadRows: async () => ({ headers: ['name'], rows: [{ name: 'Ada' }] }),
+          assertNotAborted,
         },
       })
-    ).rejects.toMatchObject({
-      code: 'validation',
-      message: 'Mapping references an unknown column',
-    })
-    expect(mocks.batchInsert).not.toHaveBeenCalled()
-  })
+    ).rejects.toBe(stopped)
 
-  it('rolls back and propagates unknown insertion failures without audit or effects', async () => {
-    const failure = new Error('database unavailable')
-    mocks.batchInsert.mockRejectedValueOnce(failure)
-
-    await expect(createTableFromWorkspaceFile.execute({ principal, input })).rejects.toBe(failure)
-    expect(mocks.deleteTable).toHaveBeenCalledWith('table-1', 'request-')
+    expect(mocks.batchInsert).toHaveBeenCalledTimes(1)
+    expect(mocks.releaseJob).toHaveBeenCalledWith(table.id, table.workspaceId, 'request-id-1234')
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
+  it('rejects non-empty secret provenance before parsing or mutation', async () => {
+    mocks.provenance.mockResolvedValueOnce({ status: 'exact', entries: [{ name: 'SECRET' }] })
+
+    await expect(
+      importWorkspaceFileIntoTable.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          assertedWorkspaceId: table.workspaceId,
+          fileReference: 'files/people.csv',
+          mode: 'append',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.fetchFile).not.toHaveBeenCalled()
+    expect(mocks.markJob).not.toHaveBeenCalled()
+    expect(mocks.batchInsert).not.toHaveBeenCalled()
   })
 })

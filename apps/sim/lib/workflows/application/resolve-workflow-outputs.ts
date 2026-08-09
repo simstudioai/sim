@@ -1,5 +1,8 @@
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
-import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
+import {
+  type ActiveWorkflowApplicationContext,
+  resolveActiveWorkflowApplicationContext,
+} from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import {
   type FlattenedBlockOutput,
@@ -19,6 +22,28 @@ export interface ResolveWorkflowOutputsResult {
   executionOrderByBlockId: Record<string, number>
 }
 
+/** Loads output metadata after a top-level application command has authorized this workflow context. */
+export async function loadResolvedWorkflowOutputs(
+  context: ActiveWorkflowApplicationContext
+): Promise<ResolveWorkflowOutputsResult> {
+  const normalized = await loadWorkflowFromNormalizedTables(context.workflowId)
+  if (!normalized) {
+    return { workflowId: context.workflowId, outputs: null, executionOrderByBlockId: {} }
+  }
+  const blocks = Object.values(normalized.blocks ?? {}).map((block) => ({
+    id: block.id,
+    type: block.type,
+    name: block.name,
+    triggerMode: (block as { triggerMode?: boolean }).triggerMode,
+    subBlocks: block.subBlocks as Record<string, unknown> | undefined,
+  }))
+  return {
+    workflowId: context.workflowId,
+    outputs: flattenWorkflowOutputs(blocks, normalized.edges ?? []),
+    executionOrderByBlockId: getBlockExecutionOrder(blocks, normalized.edges ?? []),
+  }
+}
+
 export const resolveWorkflowOutputs = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.read,
   resolveContext: ({ input }: { input: ResolveWorkflowOutputsInput }) =>
@@ -27,21 +52,6 @@ export const resolveWorkflowOutputs = defineAuthorizedWorkflowUseCase({
       assertedWorkspaceId: input.assertedWorkspaceId,
     }),
   async execute({ context }): Promise<ResolveWorkflowOutputsResult> {
-    const normalized = await loadWorkflowFromNormalizedTables(context.workflowId)
-    if (!normalized) {
-      return { workflowId: context.workflowId, outputs: null, executionOrderByBlockId: {} }
-    }
-    const blocks = Object.values(normalized.blocks ?? {}).map((block) => ({
-      id: block.id,
-      type: block.type,
-      name: block.name,
-      triggerMode: (block as { triggerMode?: boolean }).triggerMode,
-      subBlocks: block.subBlocks as Record<string, unknown> | undefined,
-    }))
-    return {
-      workflowId: context.workflowId,
-      outputs: flattenWorkflowOutputs(blocks, normalized.edges ?? []),
-      executionOrderByBlockId: getBlockExecutionOrder(blocks, normalized.edges ?? []),
-    }
+    return loadResolvedWorkflowOutputs(context)
   },
 })

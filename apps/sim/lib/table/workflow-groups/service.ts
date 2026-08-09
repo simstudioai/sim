@@ -250,67 +250,22 @@ export async function updateWorkflowGroup(
 ): Promise<TableDefinition> {
   const mappingUpdates = data.mappingUpdates ?? []
 
-  // Phase 1 (no lock): when there are mapping updates, load the workflow once to
-  // resolve each remap's new leaf type. Kept OFF the advisory-lock critical
-  // section so concurrent group edits on the same table don't time out waiting
-  // on this DB load. Best-effort — a resolution failure leaves column types
-  // unchanged (workflow deleted, block removed). The result is applied against
-  // the fresh schema under the lock in phase 2.
+  // Phase 1 (no lock): consume the output types resolved and authorized by the
+  // application command. Resolution stays outside the advisory-lock critical
+  // section so concurrent group edits do not hold the schema lock during the
+  // workflow read. Missing metadata is an application-boundary violation.
   const remapLeafTypeByColumn = new Map<string, ColumnDefinition['type']>()
   // The workflow id the leaf types above were resolved against. Phase 2 only
   // applies the resolved types if the group still points at this workflow under
   // the lock — a concurrent `workflowId` change would make them stale.
   let resolvedForWorkflowId: string | undefined
   if (mappingUpdates.length > 0) {
-    if (data.resolvedMappingTypes) {
-      resolvedForWorkflowId = data.resolvedMappingTypes.workflowId
-      for (const resolved of data.resolvedMappingTypes.columns) {
-        remapLeafTypeByColumn.set(resolved.columnName, resolved.type)
-      }
-    } else {
-      const preTable = await getTableById(data.tableId)
-      if (!preTable || (data.workspaceId && preTable.workspaceId !== data.workspaceId)) {
-        throw new OrchestrationError('not_found', 'Table not found')
-      }
-      try {
-        const preGroup = preTable?.schema.workflowGroups?.find((g) => g.id === data.groupId)
-        const targetWorkflowId = data.workflowId ?? preGroup?.workflowId
-        if (targetWorkflowId) {
-          resolvedForWorkflowId = targetWorkflowId
-          const [
-            { loadWorkflowFromNormalizedTables },
-            { flattenWorkflowOutputs },
-            { columnTypeForLeaf },
-          ] = await Promise.all([
-            import('@/lib/workflows/persistence/utils'),
-            import('@/lib/workflows/blocks/flatten-outputs'),
-            import('@/lib/table/column-naming'),
-          ])
-          const normalized = await loadWorkflowFromNormalizedTables(targetWorkflowId)
-          if (normalized) {
-            const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
-              id: b.id,
-              type: b.type,
-              name: b.name,
-              triggerMode: (b as { triggerMode?: boolean }).triggerMode,
-              subBlocks: b.subBlocks as Record<string, unknown> | undefined,
-            }))
-            const flattened = flattenWorkflowOutputs(blocks, normalized.edges ?? [])
-            const flatByKey = new Map(flattened.map((f) => [`${f.blockId}::${f.path}`, f]))
-            for (const u of mappingUpdates) {
-              const match = flatByKey.get(`${u.blockId}::${u.path}`)
-              if (!match) continue
-              const newType = columnTypeForLeaf(match.leafType)
-              if (newType) remapLeafTypeByColumn.set(u.columnName, newType)
-            }
-          }
-        }
-      } catch (err) {
-        logger.warn(
-          `[${requestId}] Could not resolve new leaf types for remap on group ${data.groupId}; leaving column types unchanged:`,
-          err
-        )
-      }
+    if (!data.resolvedMappingTypes) {
+      throw new Error('Workflow group mapping updates require authorized resolved output types')
+    }
+    resolvedForWorkflowId = data.resolvedMappingTypes.workflowId
+    for (const resolved of data.resolvedMappingTypes.columns) {
+      remapLeafTypeByColumn.set(resolved.columnName, resolved.type)
     }
   }
 
@@ -395,24 +350,22 @@ export async function updateWorkflowGroup(
           })
 
           // Only apply the out-of-lock leaf-type resolution if the group still
-          // points at the workflow we resolved against. If a concurrent writer
-          // changed `workflowId` between phase 1 and now, those types are stale —
-          // leave column types unchanged (best-effort, same as a resolution
-          // failure) rather than stamping types from the old workflow.
+          // points at the workflow we resolved against. A concurrent workflow
+          // remap invalidates the command snapshot and must be retried.
           const finalWorkflowId = data.workflowId ?? group.workflowId
           if (remapLeafTypeById.size > 0 && resolvedForWorkflowId !== finalWorkflowId) {
-            logger.warn(
-              `[${requestId}] Workflow group "${data.groupId}" workflowId changed between leaf-type resolution and apply; leaving remapped column types unchanged.`
+            throw new OrchestrationError(
+              'conflict',
+              `Workflow group "${data.groupId}" changed concurrently; retry the update.`
             )
-          } else {
-            const colById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
-            for (const u of mappingUpdatesNorm) {
-              const newType = remapLeafTypeById.get(u.columnName)
-              if (!newType) continue
-              const oldType = colById.get(u.columnName)?.type
-              if (newType !== oldType) {
-                remappedColumnTypes.set(u.columnName, newType)
-              }
+          }
+          const colById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
+          for (const u of mappingUpdatesNorm) {
+            const newType = remapLeafTypeById.get(u.columnName)
+            if (!newType) continue
+            const oldType = colById.get(u.columnName)?.type
+            if (newType !== oldType) {
+              remappedColumnTypes.set(u.columnName, newType)
             }
           }
         }
