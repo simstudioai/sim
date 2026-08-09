@@ -83,6 +83,17 @@ function asNumber(value: unknown): number {
   return typeof value === 'number' && Number.isFinite(value) ? value : 0
 }
 
+function extractAssistantText(message: Record<string, unknown>): string {
+  if (!Array.isArray(message.content)) return ''
+  return message.content
+    .map((block) => asRecord(block))
+    .filter((block): block is Record<string, unknown> => block !== null)
+    .filter((block) => asString(block.type) === 'text')
+    .map((block) => asString(block.text))
+    .filter(Boolean)
+    .join('\n')
+}
+
 /**
  * Extracts token usage from an event, tolerating the field names Pi and common
  * provider payloads use (`input`/`output`, `inputTokens`/`outputTokens`,
@@ -155,7 +166,8 @@ export function normalizePiEvent(raw: unknown): PiEvent | null {
             message: asString(message.errorMessage) || `Pi request ${stopReason}`,
           }
         }
-        break
+        const text = extractAssistantText(message)
+        return text ? { type: 'final', text } : { type: 'final' }
       }
       return { type: 'final' }
     }

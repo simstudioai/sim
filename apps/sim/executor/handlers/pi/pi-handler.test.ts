@@ -7,6 +7,7 @@ const {
   mockRunLocal,
   mockRunCloud,
   mockRunCloudBranch,
+  mockRunCloudPlan,
   mockRunCloudReview,
   mockResolveKey,
   mockResolveSkills,
@@ -24,6 +25,7 @@ const {
   mockRunLocal: vi.fn(),
   mockRunCloud: vi.fn(),
   mockRunCloudBranch: vi.fn(),
+  mockRunCloudPlan: vi.fn(),
   mockRunCloudReview: vi.fn(),
   mockResolveKey: vi.fn(),
   mockResolveSkills: vi.fn(),
@@ -69,6 +71,7 @@ vi.mock('@/executor/handlers/pi/cloud/authoring/backend', () => ({
   runCloudPi: mockRunCloud,
   runCloudBranchPi: mockRunCloudBranch,
 }))
+vi.mock('@/executor/handlers/pi/cloud/plan/backend', () => ({ runCloudPlanPi: mockRunCloudPlan }))
 vi.mock('@/executor/handlers/pi/cloud/review/backend', () => ({
   runCloudReviewPi: mockRunCloudReview,
 }))
@@ -168,6 +171,9 @@ describe('PiBlockHandler', () => {
       branch: 'feature/existing',
       changedFiles: ['b.ts'],
       diff: 'branch diff',
+    })
+    mockRunCloudPlan.mockResolvedValue({
+      totals: { finalText: '# Plan\nDo it', inputTokens: 3, outputTokens: 4, toolCalls: [] },
     })
     mockRunCloudReview.mockResolvedValue({
       totals: { finalText: 'looks good', inputTokens: 0, outputTokens: 0, toolCalls: [] },
@@ -326,6 +332,63 @@ describe('PiBlockHandler', () => {
     expect(mockAppendMemory).toHaveBeenCalled()
     expect(output.branch).toBe('feature/existing')
     expect(output.content).toBe('updated')
+  })
+
+  it('routes Plan inputs and context to the cloud plan backend', async () => {
+    mockResolveSkills.mockResolvedValue([{ name: 'style', content: 'Keep it small.' }])
+    mockLoadMemory.mockResolvedValue([{ role: 'user', content: 'Earlier context' }])
+
+    const output = (await handler.execute(ctx(), block, {
+      mode: 'cloud_plan',
+      task: 'plan it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+      baseBranch: 'staging',
+      skills: [{ skillId: 'skill-1' }],
+      memoryType: 'conversation',
+      conversationId: 'thread-1',
+    })) as Record<string, unknown>
+
+    expect(mockRunCloudPlan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: 'cloud_plan',
+        task: 'plan it',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        baseBranch: 'staging',
+        skills: [{ name: 'style', content: 'Keep it small.' }],
+        initialMessages: [{ role: 'user', content: 'Earlier context' }],
+      }),
+      expect.anything()
+    )
+    expect(mockRunCloud).not.toHaveBeenCalled()
+    expect(mockRunCloudBranch).not.toHaveBeenCalled()
+    expect(mockRunCloudReview).not.toHaveBeenCalled()
+    expect(mockRunLocal).not.toHaveBeenCalled()
+    expect(mockAppendMemory).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      'plan it',
+      '# Plan\nDo it'
+    )
+    expect(output).toMatchObject({
+      content: '# Plan\nDo it',
+      model: 'claude',
+      tokens: { input: 3, output: 4, total: 7 },
+      cost: { input: 0, output: 0, total: 0 },
+      providerTiming: {
+        startTime: expect.any(String),
+        endTime: expect.any(String),
+        duration: expect.any(Number),
+      },
+    })
+    expect(output).not.toHaveProperty('prUrl')
+    expect(output).not.toHaveProperty('branch')
+    expect(output).not.toHaveProperty('changedFiles')
+    expect(output).not.toHaveProperty('diff')
   })
 
   it('routes cloud_review mode and surfaces review output', async () => {
@@ -592,6 +655,13 @@ describe('PiBlockHandler', () => {
     ).rejects.toThrow(/Create PR requires/)
   })
 
+  it('requires repo + token in Plan', async () => {
+    await expect(
+      handler.execute(ctx(), block, { mode: 'cloud_plan', task: 'x', model: 'claude', owner: 'o' })
+    ).rejects.toThrow(/Plan requires/)
+    expect(mockRunCloudPlan).not.toHaveBeenCalled()
+  })
+
   it('requires a target branch in Update PR', async () => {
     await expect(
       handler.execute(ctx(), block, {
@@ -768,6 +838,26 @@ describe('PiBlockHandler', () => {
       })
     })
 
+    it('passes Plan the key without a host tool, which the sandbox extension handles', async () => {
+      mockParseSearchProvider.mockReturnValue('exa')
+
+      await handler.execute(ctx(), block, {
+        mode: 'cloud_plan',
+        task: 'plan it',
+        model: 'claude',
+        owner: 'o',
+        repo: 'r',
+        githubToken: 'ghp',
+        searchProvider: 'exa',
+      })
+
+      expect(mockBuildSearchTool).not.toHaveBeenCalled()
+      expect(mockRunCloudPlan.mock.calls[0][0].search).toEqual({
+        provider: 'exa',
+        apiKey: 'search-key',
+      })
+    })
+
     it('passes Babysit-enabled Create PR the key without constructing a host search tool', async () => {
       mockParseSearchProvider.mockReturnValue('exa')
 
@@ -875,5 +965,42 @@ describe('PiBlockHandler', () => {
     }
     expect(text).toContain('streamed')
     expect(result.execution.output.content).toBe('streamed')
+  })
+
+  it('streams only the canonical final document for Plan mode', async () => {
+    mockRunCloudPlan.mockImplementation(async (_params, runCtx) => {
+      runCtx.onEvent({ type: 'text', text: 'Inspecting files...' })
+      runCtx.onEvent({ type: 'final', text: '# Final Plan\n\n1. Make the change.' })
+      return {
+        totals: {
+          finalText: '# Final Plan\n\n1. Make the change.',
+          inputTokens: 0,
+          outputTokens: 0,
+          toolCalls: [],
+        },
+      }
+    })
+
+    const result = (await handler.execute(ctx({ stream: true, selectedOutputs: ['blk'] }), block, {
+      mode: 'cloud_plan',
+      task: 'plan it',
+      model: 'claude',
+      owner: 'o',
+      repo: 'r',
+      githubToken: 'ghp',
+    })) as StreamingExecution
+
+    const reader = result.stream.getReader()
+    const decoder = new TextDecoder()
+    let text = ''
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      text += decoder.decode(value)
+    }
+
+    expect(text).toBe('# Final Plan\n\n1. Make the change.')
+    expect(text).not.toContain('Inspecting files...')
+    expect(result.execution.output.content).toBe('# Final Plan\n\n1. Make the change.')
   })
 })
