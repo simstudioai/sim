@@ -601,11 +601,19 @@ async function mutateWorkflows(
       trailingSlash: hasTrailingSlash(destination),
     },
   }
-  const result =
-    verb === 'cp'
-      ? await executeCopilotWorkflowUseCase(context, copyWorkflowVfsItems, input)
-      : await executeCopilotWorkflowUseCase(context, moveWorkflowVfsItems, input)
-  return buildResult(verb, result.outcomes.map(presentWorkflowVfsOutcome))
+  try {
+    const result =
+      verb === 'cp'
+        ? await executeCopilotWorkflowUseCase(context, copyWorkflowVfsItems, input)
+        : await executeCopilotWorkflowUseCase(context, moveWorkflowVfsItems, input)
+    return buildResult(verb, result.outcomes.map(presentWorkflowVfsOutcome))
+  } catch (error) {
+    if (context.abortSignal?.aborted) throw error
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Workflow mutation failed'),
+    }
+  }
 }
 
 async function renameFlatResource(

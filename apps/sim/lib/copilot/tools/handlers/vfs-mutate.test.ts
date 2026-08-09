@@ -3,6 +3,9 @@
  */
 import { dbChainMock, resetDbChainMock, schemaMock, workflowAuthzMockFns } from '@sim/testing'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { workflowOperations } from '@/lib/workflows/application/operations'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
 const mocks = vi.hoisted(() => ({
   ensureWorkspaceAccess: vi.fn(),
@@ -74,41 +77,28 @@ vi.mock('@/lib/copilot/tools/server/files/file-folder-application', () => ({
 
 vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   moveWorkspaceFileItemsOperation: {
-    operation: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
+    operation: fileOperations.move,
     execute: mocks.moveWorkspaceFileItems,
-  },
-}))
-
-vi.mock('@/lib/workspace-files/application/operations', () => ({
-  fileOperations: {
-    move: { id: 'files.move', minimumRole: 'write', workspaceApiKey: 'allow' },
-    rename: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
-    delete: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
-    updateFolder: {
-      id: 'files.folders.update',
-      minimumRole: 'write',
-      workspaceApiKey: 'allow',
-    },
   },
 }))
 
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   updateWorkspaceFileFolderOperation: {
-    operation: { id: 'files.folders.update', minimumRole: 'write', workspaceApiKey: 'allow' },
+    operation: fileOperations.updateFolder,
     execute: mocks.updateWorkspaceFileFolder,
   },
 }))
 
 vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
   deleteWorkspaceFileOperation: {
-    operation: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    operation: fileOperations.delete,
     execute: mocks.deleteWorkspaceFile,
   },
 }))
 
 vi.mock('@/lib/workspace-files/application/archive-workspace-file-items', () => ({
   archiveWorkspaceFileItemsOperation: {
-    operation: { id: 'files.delete', minimumRole: 'write', workspaceApiKey: 'allow' },
+    operation: fileOperations.delete,
     execute: mocks.deleteWorkspaceFile,
   },
 }))
@@ -117,26 +107,26 @@ vi.mock('@/lib/workspace-files/orchestration', () => ({}))
 
 vi.mock('@/lib/workspace-files/application/rename-workspace-file', () => ({
   renameWorkspaceFile: {
-    operation: { id: 'files.rename', minimumRole: 'write', workspaceApiKey: 'allow' },
+    operation: fileOperations.rename,
     execute: mocks.renameWorkspaceFile,
   },
 }))
 
 vi.mock('@/lib/workflows/application/workflow-vfs', () => ({
   moveWorkflowVfsItems: {
-    operation: { id: 'workflows.vfs.move' },
+    operation: workflowOperations.moveVfsItems,
     execute: mocks.moveWorkflowVfs,
   },
   copyWorkflowVfsItems: {
-    operation: { id: 'workflows.vfs.copy' },
+    operation: workflowOperations.copyVfsItems,
     execute: mocks.copyWorkflowVfs,
   },
   createWorkflowVfsFolders: {
-    operation: { id: 'workflows.vfs.folders.create' },
+    operation: workflowOperations.createVfsFolders,
     execute: mocks.createWorkflowVfsFolders,
   },
   deleteWorkflowVfsItems: {
-    operation: { id: 'workflows.vfs.delete' },
+    operation: workflowOperations.deleteVfsItems,
     execute: mocks.deleteWorkflowVfs,
   },
 }))
@@ -148,15 +138,15 @@ vi.mock('@/lib/table/service', () => ({
 
 vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   listKnowledgeBases: {
-    operation: { id: 'knowledge.list' },
+    operation: knowledgeOperations.list,
     execute: mocks.listKnowledgeBases,
   },
   updateKnowledgeBaseOperation: {
-    operation: { id: 'knowledge.update' },
+    operation: knowledgeOperations.update,
     execute: mocks.updateKnowledgeBase,
   },
   deleteKnowledgeBaseOperation: {
-    operation: { id: 'knowledge.delete' },
+    operation: knowledgeOperations.delete,
     execute: mocks.deleteKnowledgeBase,
   },
 }))
@@ -471,6 +461,25 @@ describe('vfs mv/cp', () => {
 
       expect(mocks.moveWorkflowVfs).toHaveBeenCalledOnce()
       expect(result.success).toBe(true)
+    })
+
+    it('preserves safe workflow application validation errors', async () => {
+      mocks.moveWorkflowVfs.mockRejectedValueOnce(
+        new OrchestrationError(
+          'validation',
+          'With multiple sources the destination must be a folder'
+        )
+      )
+
+      const result = await executeVfsMv(
+        { sources: ['workflows/One', 'workflows/Two'], destination: 'workflows/Renamed' },
+        context
+      )
+
+      expect(result).toEqual({
+        success: false,
+        error: 'With multiple sources the destination must be a folder',
+      })
     })
 
     it('surfaces locked-workflow rejections per item', async () => {
