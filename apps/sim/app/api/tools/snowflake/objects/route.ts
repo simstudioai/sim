@@ -141,21 +141,25 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       signal: AbortSignal.any([request.signal, AbortSignal.timeout(SELECTOR_FETCH_TIMEOUT_MS)]),
     })
 
-    // A rejected or expired token must tell the picker to reconnect rather than
-    // read as a Snowflake outage.
-    if (response.status === 401) {
+    // A rejected credential must tell the picker to reconnect rather than read
+    // as an outage or a bad request. 403 belongs here alongside 401: Snowflake
+    // uses it for a network-policy rejection and for a disabled SQL API, which
+    // is why the credential validator also treats it as a credential problem.
+    if (response.status === 401 || response.status === 403) {
       logger.warn('Snowflake rejected the stored credential', { credentialId: credential, kind })
       return NextResponse.json(
         {
-          error: 'Snowflake rejected this credential. Reconnect it and try again.',
+          error:
+            'Snowflake rejected this credential. Check that it has not expired and that a network policy allows Sim to reach the account, then reconnect it.',
           authRequired: true,
         },
         { status: 401 }
       )
     }
 
-    // A 4xx names something wrong with the request (missing object, privilege
-    // gap); only a 5xx or a malformed body is a gateway failure.
+    // A remaining 4xx names something wrong with the request itself (unknown
+    // object, malformed statement); only a 5xx or an unreadable body is a
+    // gateway failure.
     upstreamStatus = response.status
     const result = await readSnowflakeResult(response)
     // A metadata-only statement completes synchronously; a 202 means Snowflake

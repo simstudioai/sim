@@ -213,6 +213,29 @@ function migrateBlockSubblockIds(
 }
 
 /**
+ * Drops any `_removed_*` subblock left behind by an earlier version of this
+ * migration, which renamed retired fields into a dead key instead of deleting
+ * them. Those keys are unreachable from the block config, so secret scrubbing —
+ * which walks the config — can never clear them, and a parked token or PII
+ * would otherwise survive in state, exports, and templates indefinitely.
+ *
+ * Runs for every block, not just those with a rename map: the parked keys no
+ * longer appear in any `SUBBLOCK_ID_MIGRATIONS` entry as an `oldId`, so nothing
+ * else would ever look at them.
+ */
+function dropParkedSubblocks(subBlocks: Record<string, BlockState['subBlocks'][string]>): {
+  subBlocks: Record<string, BlockState['subBlocks'][string]>
+  dropped: boolean
+} {
+  const parked = Object.keys(subBlocks).filter((id) => id.startsWith(REMOVED_SUBBLOCK_ID_PREFIX))
+  if (parked.length === 0) return { subBlocks, dropped: false }
+
+  const result = { ...subBlocks }
+  for (const id of parked) delete result[id]
+  return { subBlocks: result, dropped: true }
+}
+
+/**
  * Applies subblock-ID migrations to every block in a workflow.
  * Returns a new blocks record with migrated subBlocks where needed.
  */
@@ -233,11 +256,19 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
     const renamed = renames
       ? migrateBlockSubblockIds(block.type, block.subBlocks, renames)
       : { subBlocks: block.subBlocks, migrated: false }
-    const renamedBlock = renamed.migrated ? { ...block, subBlocks: renamed.subBlocks } : block
+    const purged = dropParkedSubblocks(renamed.subBlocks)
+    const changedSubBlocks = renamed.migrated || purged.dropped
+    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = renamed.migrated || sanitized.changed
+    const blockMigrated = changedSubBlocks || sanitized.changed
 
     if (blockMigrated) {
+      if (purged.dropped) {
+        logger.info('Dropped parked subblock values left by an earlier migration', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
       if (renamed.migrated) {
         logger.info('Migrated legacy subblock IDs', {
           blockId: block.id,

@@ -113,6 +113,46 @@ describe('migrateSubblockIds', () => {
     })
   })
 
+  /**
+   * An earlier version of this migration renamed retired fields into a
+   * `_removed_*` key instead of deleting them, so deployed workflows still hold
+   * those values. They match no `oldId`, so only a dedicated sweep clears them.
+   */
+  it('drops values parked by an earlier run of the migration', () => {
+    const input: Record<string, BlockState> = {
+      b1: makeBlock({
+        type: 'rippling',
+        subBlocks: {
+          _removed_email: { id: '_removed_email', type: 'short-input', value: 'ada@example.com' },
+          _removed_firstName: { id: '_removed_firstName', type: 'short-input', value: 'Ada' },
+          // Not in rippling's rename map, so it must survive the sweep untouched.
+          credential: { id: 'credential', type: 'oauth-input', value: 'cred-1' },
+        },
+      }),
+      // A block type with no rename map at all must still be swept.
+      b2: makeBlock({
+        type: 'snowflake',
+        subBlocks: {
+          _removed_apiKey: {
+            id: '_removed_apiKey',
+            type: 'short-input',
+            value: 'super-secret-pat',
+          },
+        },
+      }),
+    }
+
+    const { blocks, migrated } = migrateSubblockIds(input)
+
+    expect(migrated).toBe(true)
+    expect(blocks.b1.subBlocks._removed_email).toBeUndefined()
+    expect(blocks.b1.subBlocks._removed_firstName).toBeUndefined()
+    expect(blocks.b1.subBlocks.credential?.value).toBe('cred-1')
+    expect(blocks.b2.subBlocks._removed_apiKey).toBeUndefined()
+    expect(JSON.stringify(blocks)).not.toContain('super-secret-pat')
+    expect(JSON.stringify(blocks)).not.toContain('ada@example.com')
+  })
+
   describe('knowledge block', () => {
     it('should rename knowledgeBaseId to knowledgeBaseSelector', () => {
       const input: Record<string, BlockState> = {
