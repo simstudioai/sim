@@ -130,7 +130,7 @@ vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
 }))
 
 vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
-  executeCopilotWorkflowUseCase: mockExecuteCopilotWorkflowUseCase,
+  executeCopilotResolveWorkflowOutputs: mockExecuteCopilotWorkflowUseCase,
 }))
 
 vi.mock('@sim/platform-authz/workspace', () => ({

@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   createEnrichment: vi.fn(),
   createFromFile: vi.fn(),
   createWorkflowGroup: vi.fn(),
+  deleteTables: vi.fn(),
   importFile: vi.fn(),
   replaceProjectedRows: vi.fn(),
   resolvePrincipal: vi.fn(),
@@ -24,6 +25,9 @@ vi.mock('@/lib/table/application/groups', () => ({
   createWorkflowTableGroup: { execute: mocks.createWorkflowGroup },
   updateWorkflowTableGroup: { execute: mocks.updateWorkflowGroup },
 }))
+vi.mock('@/lib/table/application/copilot-table-lifecycle', () => ({
+  deleteCopilotTables: { execute: mocks.deleteTables },
+}))
 vi.mock('@/lib/table/application/rows', () => ({
   replaceProjectedWireRows: { execute: mocks.replaceProjectedRows },
 }))
@@ -37,6 +41,7 @@ import {
   copilotCreateTableEnrichmentGroupPolicy,
   copilotCreateTableFromWorkspaceFilePolicy,
   copilotCreateWorkflowTableGroupPolicy,
+  copilotDeleteTablesPolicy,
   copilotImportWorkspaceFileIntoTablePolicy,
   copilotReplaceProjectedWireRowsPolicy,
   copilotUpdateWorkflowTableGroupPolicy,
@@ -44,6 +49,7 @@ import {
   executeCopilotCreateTableEnrichmentGroup,
   executeCopilotCreateTableFromWorkspaceFile,
   executeCopilotCreateWorkflowTableGroup,
+  executeCopilotDeleteTables,
   executeCopilotImportWorkspaceFileIntoTable,
   executeCopilotReplaceProjectedWireRows,
   executeCopilotUpdateWorkflowTableGroup,
@@ -94,10 +100,25 @@ describe('fixed Copilot Table application commands', () => {
     expect(mocks.createFromFile).toHaveBeenCalledWith({ principal, input })
   })
 
+  it('uses one workspace-scoped Table command for best-effort multi-table deletion', async () => {
+    mocks.deleteTables.mockResolvedValue({ deleted: ['table-1'], failed: ['table-2'] })
+    const input = { workspaceId: 'workspace-1', tableIds: ['table-1', 'table-2'] }
+
+    await expect(executeCopilotDeleteTables(context, input)).resolves.toEqual({
+      deleted: ['table-1'],
+      failed: ['table-2'],
+    })
+
+    expect(mocks.resolvePrincipal).toHaveBeenCalledWith(context)
+    expect(mocks.deleteTables).toHaveBeenCalledWith({ principal, input })
+    expect(mocks.deleteTables).toHaveBeenCalledTimes(1)
+  })
+
   it('declares inherited request-rate admission and no direct provider cost for every command', () => {
     const policies = [
       copilotReplaceProjectedWireRowsPolicy,
       copilotCreateWorkflowTableGroupPolicy,
+      copilotDeleteTablesPolicy,
       copilotUpdateWorkflowTableGroupPolicy,
       copilotAddWorkflowTableGroupOutputPolicy,
       copilotCreateTableEnrichmentGroupPolicy,

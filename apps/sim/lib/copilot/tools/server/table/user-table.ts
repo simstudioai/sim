@@ -1,11 +1,12 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { executeCopilotWorkflowUseCase } from '@/lib/copilot/application/execute-workflow-use-case'
+import { executeCopilotResolveWorkflowOutputs } from '@/lib/copilot/application/execute-workflow-use-case'
 import {
   executeCopilotAddWorkflowTableGroupOutput,
   executeCopilotCreateTableEnrichmentGroup,
   executeCopilotCreateTableFromWorkspaceFile,
   executeCopilotCreateWorkflowTableGroup,
+  executeCopilotDeleteTables,
   executeCopilotImportWorkspaceFileIntoTable,
   executeCopilotUpdateWorkflowTableGroup,
 } from '@/lib/copilot/application/table-commands'
@@ -46,7 +47,6 @@ import {
 import { cancelTableRuns, startTableRun } from '@/lib/table/application/runs'
 import {
   createTableUseCase,
-  deleteTableUseCase,
   readTableUseCase,
   updateTableUseCase,
 } from '@/lib/table/application/tables'
@@ -66,7 +66,6 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
 } from '@/lib/table/types'
-import { resolveWorkflowOutputs } from '@/lib/workflows/application/resolve-workflow-outputs'
 
 const logger = createLogger('UserTableServerTool')
 
@@ -88,7 +87,7 @@ function resolveAuthorizedWorkflowOutputs(
   workspaceId: string,
   context: ServerToolContext
 ) {
-  return executeCopilotWorkflowUseCase(context, resolveWorkflowOutputs, {
+  return executeCopilotResolveWorkflowOutputs(context, {
     workflowId,
     assertedWorkspaceId: workspaceId,
   })
@@ -267,26 +266,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const deleted: string[] = []
-          const failed: string[] = []
-
-          for (const tableId of tableIds) {
-            try {
-              assertNotAborted()
-              await deleteTableUseCase.execute({
-                principal: tablePrincipal(tableId),
-                input: { tableId, workspaceId },
-              })
-              deleted.push(tableId)
-            } catch (error) {
-              const classified = messageForCopilotTableError(error, '')
-              if (classified === 'Table not found') {
-                failed.push(tableId)
-                continue
-              }
-              throw error
-            }
-          }
+          assertNotAborted()
+          const { deleted, failed } = await executeCopilotDeleteTables(context, {
+            tableIds,
+            workspaceId,
+          })
 
           return {
             success: deleted.length > 0,

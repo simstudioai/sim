@@ -1,6 +1,10 @@
 import type { CopilotTableDelegationContext } from '@/lib/copilot/auth/table-delegation'
 import { resolveCopilotTablePrincipal } from '@/lib/copilot/auth/table-delegation'
 import {
+  type DeleteCopilotTablesInput,
+  deleteCopilotTables,
+} from '@/lib/table/application/copilot-table-lifecycle'
+import {
   type AddTableGroupOutputInput,
   addWorkflowTableGroupOutput,
   type CreateTableEnrichmentGroupInput,
@@ -30,6 +34,21 @@ const NO_DIRECT_PROVIDER_COST_POLICY = {
   kind: 'none',
   reason: 'This command does not invoke a paid provider; table quota and storage limits apply.',
 } as const
+
+export const copilotDeleteTablesPolicy = {
+  rate: INHERITED_COPILOT_RATE_POLICY,
+  cost: NO_DIRECT_PROVIDER_COST_POLICY,
+} as const
+
+export function executeCopilotDeleteTables(
+  context: CopilotTableDelegationContext | undefined,
+  input: DeleteCopilotTablesInput
+) {
+  return deleteCopilotTables.execute({
+    principal: resolveCopilotTablePrincipal(context),
+    input,
+  })
+}
 
 export const copilotReplaceProjectedWireRowsPolicy = {
   rate: INHERITED_COPILOT_RATE_POLICY,

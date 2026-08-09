@@ -41,4 +41,9 @@ describe('Copilot table delegation', () => {
       resolveCopilotTablePrincipal({ ...context, toolCallId: undefined }, 'table-1')
     ).toThrow('tool call ID')
   })
+
+  it('rejects an empty table scope before principal construction', () => {
+    expect(() => resolveCopilotTablePrincipal(context, '')).toThrow('non-empty table ID')
+    expect(() => resolveCopilotTablePrincipal(context, '   ')).toThrow('non-empty table ID')
+  })
 })
