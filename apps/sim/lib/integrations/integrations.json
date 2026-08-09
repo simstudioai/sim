@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-07",
+  "updatedAt": "2026-08-09",
   "integrations": [
     {
       "type": "onepassword",
@@ -5426,6 +5426,213 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["web-scraping"]
+    },
+    {
+      "type": "dynatrace",
+      "slug": "dynatrace",
+      "name": "Dynatrace",
+      "description": "Manage Dynatrace problems, metrics, entities, logs, SLOs, settings, and security",
+      "longDescription": "Integrate Dynatrace into workflows. Investigate and close Davis problems, query metrics and monitored entities, search and ingest logs, push deployment events, manage SLOs and their burn rates, triage and mute Application Security vulnerabilities, review runtime attacks, tag entities, manage settings objects such as maintenance windows and alerting profiles, run synthetic monitors on demand, and read the audit log.",
+      "bgColor": "#FFFFFF",
+      "iconName": "DynatraceIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/dynatrace",
+      "operations": [
+        {
+          "name": "List Problems",
+          "description": "List Davis-detected problems in a Dynatrace environment, filtered by timeframe, problem selector, or entity selector."
+        },
+        {
+          "name": "Get Problem",
+          "description": "Get the full details of a single Dynatrace problem, including root cause, affected entities, and optionally its evidence and impact analysis."
+        },
+        {
+          "name": "Close Problem",
+          "description": "Close a Dynatrace problem and record the closing comment."
+        },
+        {
+          "name": "List Problem Comments",
+          "description": "List the comments recorded on a Dynatrace problem."
+        },
+        {
+          "name": "Add Problem Comment",
+          "description": "Add a comment to a Dynatrace problem."
+        },
+        {
+          "name": "Query Metrics",
+          "description": "Read metric data points from Dynatrace using a metric selector, with optional entity and management-zone scoping."
+        },
+        {
+          "name": "List Metrics",
+          "description": "Discover the metrics available in a Dynatrace environment, filtered by metric selector, free text, or metadata."
+        },
+        {
+          "name": "Get Metric Descriptor",
+          "description": "Get the descriptor of a single Dynatrace metric — its unit, dimensions, supported aggregations, and transformations."
+        },
+        {
+          "name": "Ingest Metrics",
+          "description": "Push custom metric data points into Dynatrace using the metric line protocol, one data point per line."
+        },
+        {
+          "name": "List Entities",
+          "description": "List monitored entities — hosts, services, applications, Kubernetes workloads — matching an entity selector."
+        },
+        {
+          "name": "Get Entity",
+          "description": "Get the properties, tags, management zones, and relationships of a single monitored entity."
+        },
+        {
+          "name": "List Entity Types",
+          "description": "List the monitored entity types available in the environment, with the properties and relationships each supports. Use it to build valid entity selectors."
+        },
+        {
+          "name": "List Events",
+          "description": "List events — deployments, availability changes, alerts, custom annotations — in a Dynatrace environment."
+        },
+        {
+          "name": "Get Event",
+          "description": "Get the full details of a single Dynatrace event."
+        },
+        {
+          "name": "Ingest Event",
+          "description": "Push an event into Dynatrace — a deployment marker, custom annotation, or custom alert — attached to the entities matched by an entity selector."
+        },
+        {
+          "name": "Search Logs",
+          "description": "Search log records in Dynatrace by query and timeframe, for troubleshooting and incident analysis."
+        },
+        {
+          "name": "Ingest Logs",
+          "description": "Push log events into Dynatrace. Accepts a single log event object or an array of them."
+        },
+        {
+          "name": "List SLOs",
+          "description": "List service-level objectives with their current attainment, error budget, and burn rate."
+        },
+        {
+          "name": "Get SLO",
+          "description": "Get a single service-level objective with its evaluated attainment, error budget, and burn rate."
+        },
+        {
+          "name": "List Security Problems",
+          "description": "List vulnerabilities detected by Dynatrace Application Security, filtered by risk level, status, CVE, or technology."
+        },
+        {
+          "name": "Get Security Problem",
+          "description": "Get a single vulnerability with its description, remediation guidance, affected entities, and risk assessment."
+        },
+        {
+          "name": "Mute Security Problem",
+          "description": "Mute a single Dynatrace vulnerability with a reason, for triaging false positives or accepted risk."
+        },
+        {
+          "name": "Unmute Security Problem",
+          "description": "Unmute a single Dynatrace vulnerability, returning it to the active triage queue."
+        },
+        {
+          "name": "Mute Security Problems (Bulk)",
+          "description": "Mute several Dynatrace vulnerabilities at once with a shared reason, for bulk triage."
+        },
+        {
+          "name": "Unmute Security Problems (Bulk)",
+          "description": "Unmute several Dynatrace vulnerabilities at once, returning them to active triage."
+        },
+        {
+          "name": "List Remediation Items",
+          "description": "List the remediation items of a third-party vulnerability — the components to upgrade, their affected entities, and their mute state."
+        },
+        {
+          "name": "List Attacks",
+          "description": "List runtime attacks Dynatrace Application Protection detected — injection attempts, their source, and whether they were blocked."
+        },
+        {
+          "name": "Get Attack",
+          "description": "Get a single attack with its entry point, payload, attacker, and the vulnerability it exploited."
+        },
+        {
+          "name": "List Tags",
+          "description": "List the custom tags applied to the monitored entities an entity selector matches."
+        },
+        {
+          "name": "Add Tags",
+          "description": "Add custom tags to every monitored entity an entity selector matches. Tags drive selectors, management zones, and alerting."
+        },
+        {
+          "name": "Delete Tag",
+          "description": "Remove a custom tag from every monitored entity an entity selector matches. Deletes one key-value pair, or every tag with the key."
+        },
+        {
+          "name": "List Settings Schemas",
+          "description": "List the settings schemas available in the environment. Use it to find the schema ID for a configuration type such as builtin:alerting.profile."
+        },
+        {
+          "name": "List Settings Objects",
+          "description": "List settings objects — the configuration behind maintenance windows, alerting profiles, management zones, and anomaly detection."
+        },
+        {
+          "name": "Get Settings Object",
+          "description": "Get a single settings object with its value and its update token. Read it before updating so the token can guard against a concurrent change."
+        },
+        {
+          "name": "Create Settings Object",
+          "description": "Create a settings object — a maintenance window, alerting profile, management zone, or any other schema-backed configuration."
+        },
+        {
+          "name": "Update Settings Object",
+          "description": "Update an existing settings object. Pass the update token from Get Settings Object to fail rather than overwrite a concurrent change."
+        },
+        {
+          "name": "Delete Settings Object",
+          "description": "Delete a settings object. Dynatrace cannot undo this."
+        },
+        {
+          "name": "List Synthetic Monitors",
+          "description": "List synthetic monitors and their IDs. Use it to find the monitor IDs to feed into an on-demand execution."
+        },
+        {
+          "name": "Execute Synthetic Monitors",
+          "description": "Trigger an on-demand batch execution of synthetic monitors, for gating a deploy on a smoke test. Returns a batch ID to poll."
+        },
+        {
+          "name": "Get Synthetic Batch",
+          "description": "Get the status and failures of an on-demand synthetic batch execution. Poll it after triggering to gate a deploy on the result."
+        },
+        {
+          "name": "Get Problem Comment",
+          "description": "Get a single comment on a Dynatrace problem."
+        },
+        {
+          "name": "Update Problem Comment",
+          "description": "Replace the text of an existing comment on a Dynatrace problem."
+        },
+        {
+          "name": "Delete Problem Comment",
+          "description": "Delete a comment from a Dynatrace problem."
+        },
+        {
+          "name": "Create SLO",
+          "description": "Create a service-level objective from a metric expression, target, and evaluation timeframe."
+        },
+        {
+          "name": "Update SLO",
+          "description": "Update an existing service-level objective. Every field is replaced, so send the complete definition."
+        },
+        {
+          "name": "Delete SLO",
+          "description": "Delete a service-level objective."
+        },
+        {
+          "name": "Get Audit Logs",
+          "description": "Read the Dynatrace audit log — who changed which configuration, when, and whether it succeeded."
+        }
+      ],
+      "operationCount": 47,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "observability",
+      "tags": ["monitoring", "incident-management", "error-tracking"]
     },
     {
       "type": "elasticsearch",
@@ -12625,6 +12832,97 @@
       "tags": ["enrichment", "sales-engagement"]
     },
     {
+      "type": "mintlify",
+      "slug": "mintlify",
+      "name": "Mintlify",
+      "description": "Deploy, edit, search, and measure Mintlify documentation",
+      "longDescription": "Integrate Mintlify into your workflow. Trigger production and preview deployments, run scheduled automations, launch documentation agent jobs, detect AI-sounding prose, search your docs and read page content, ask the docs assistant, and export feedback, conversation, search, view, and visitor analytics.",
+      "bgColor": "#000000",
+      "iconName": "MintlifyIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/mintlify",
+      "operations": [
+        {
+          "name": "Trigger Update",
+          "description": "Queue a deployment update for a Mintlify documentation project from its configured deployment branch. Returns a status ID for tracking progress."
+        },
+        {
+          "name": "Get Update Status",
+          "description": "Get the status of a Mintlify deployment update from its status ID, including logs, commit details, and screenshots."
+        },
+        {
+          "name": "Trigger Preview Deployment",
+          "description": "Create or update a Mintlify preview deployment for a Git branch. Redeploys when a preview already exists for the branch."
+        },
+        {
+          "name": "Trigger Automation",
+          "description": "Run a scheduled Mintlify automation immediately instead of waiting for its next scheduled time. Only automations with a custom schedule can be triggered."
+        },
+        {
+          "name": "Create Agent Job",
+          "description": "Create a background Mintlify agent job that edits your documentation from a prompt. Opens a pull request when the agent successfully edits files."
+        },
+        {
+          "name": "Get Agent Job",
+          "description": "Retrieve the current status and details of a Mintlify agent job, including the pull request link once the agent opens one."
+        },
+        {
+          "name": "Send Agent Message",
+          "description": "Send a follow-up instruction to an existing Mintlify agent job. The message is processed asynchronously."
+        },
+        {
+          "name": "Detect AI-Sounding Prose",
+          "description": "Analyze a documentation page for AI-generated prose and return flagged passages with suggested human rewrites. Consumes one AI credit per checked page."
+        },
+        {
+          "name": "Search Documentation",
+          "description": "Run a semantic and keyword search across a Mintlify documentation site, with optional version, language, tag, and group filters."
+        },
+        {
+          "name": "Get Page Content",
+          "description": "Retrieve the full text content of a Mintlify documentation page by its path. Use it after a search to fetch the complete page."
+        },
+        {
+          "name": "Ask Assistant",
+          "description": "Ask the Mintlify assistant, trained on your documentation, a question and get the assembled answer with its cited sources. Consumes the deployment's assistant credits."
+        },
+        {
+          "name": "Get Feedback",
+          "description": "Export paginated user feedback from a Mintlify documentation project, with optional date-range, source, and status filters."
+        },
+        {
+          "name": "Get Feedback By Page",
+          "description": "Export Mintlify feedback counts aggregated by documentation page path, broken down into thumbs up, thumbs down, and code snippet feedback."
+        },
+        {
+          "name": "Get Assistant Conversations",
+          "description": "Export paginated Mintlify AI assistant conversation history, including the query, response, cited sources, and whether the question was answered."
+        },
+        {
+          "name": "Get Assistant Caller Stats",
+          "description": "Get a breakdown of Mintlify assistant query counts by caller type — web, API, and other — for a date range."
+        },
+        {
+          "name": "Get Search Queries",
+          "description": "Export Mintlify documentation search terms for a date range, ordered by hit count, with click-through rate and the most-clicked result path."
+        },
+        {
+          "name": "Get Page Views",
+          "description": "Export Mintlify per-path and site-wide content view counts for a date range, split by human and AI bot traffic."
+        },
+        {
+          "name": "Get Unique Visitors",
+          "description": "Export Mintlify per-path and site-wide approximate distinct visitor counts for a date range, split by human and AI bot traffic."
+        }
+      ],
+      "operationCount": 18,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "knowledge-base", "automation"]
+    },
+    {
       "type": "mistral_parse_v3",
       "slug": "mistral-parser",
       "name": "Mistral Parser",
@@ -17943,6 +18241,145 @@
       "category": "tools",
       "integrationType": "email",
       "tags": ["messaging", "automation"]
+    },
+    {
+      "type": "snowflake",
+      "slug": "snowflake",
+      "name": "Snowflake",
+      "description": "Query data and manage warehouses and tasks in Snowflake",
+      "longDescription": "Connect with a Snowflake programmatic access token to execute SQL, synchronize structured rows, load and unload staged data, browse databases and schemas, size and control warehouses, run and schedule tasks, review query and load history, inspect schemas, and call stored procedures.",
+      "bgColor": "#FFFFFF",
+      "iconName": "SnowflakeIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/snowflake",
+      "operations": [
+        {
+          "name": "Execute SQL",
+          "description": "Execute one parameterized SQL statement through the Snowflake SQL API."
+        },
+        {
+          "name": "Get Statement",
+          "description": "Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors."
+        },
+        {
+          "name": "Cancel Statement",
+          "description": "Cancel a running Snowflake SQL API statement."
+        },
+        {
+          "name": "Insert Rows",
+          "description": "Insert structured JSON rows using bound values."
+        },
+        {
+          "name": "Update Rows",
+          "description": "Update matching rows with a bound MERGE statement without inserting new rows."
+        },
+        {
+          "name": "Upsert Rows",
+          "description": "Update matching rows and insert unmatched rows with a bound MERGE statement."
+        },
+        {
+          "name": "Delete Rows",
+          "description": "Delete rows matching a required set of bound column filters."
+        },
+        {
+          "name": "Load Data",
+          "description": "Load files from an existing Snowflake stage with COPY INTO."
+        },
+        {
+          "name": "Unload Data",
+          "description": "Export a Snowflake table to files in a stage with COPY INTO."
+        },
+        {
+          "name": "List Databases",
+          "description": "List the databases the credential can access."
+        },
+        {
+          "name": "List Schemas",
+          "description": "List the schemas in a Snowflake database."
+        },
+        {
+          "name": "List Tables",
+          "description": "List the tables in a Snowflake schema."
+        },
+        {
+          "name": "List Warehouses",
+          "description": "List warehouses visible to the active Snowflake role."
+        },
+        {
+          "name": "Get Warehouse",
+          "description": "Get the full details for a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Resume Warehouse",
+          "description": "Resume a Snowflake virtual warehouse if it is suspended."
+        },
+        {
+          "name": "Suspend Warehouse",
+          "description": "Suspend a Snowflake virtual warehouse."
+        },
+        {
+          "name": "Alter Warehouse",
+          "description": "Resize a Snowflake warehouse or change its auto-suspend and auto-resume settings."
+        },
+        {
+          "name": "List Tasks",
+          "description": "List tasks in a Snowflake schema."
+        },
+        {
+          "name": "Get Task",
+          "description": "Describe a Snowflake task."
+        },
+        {
+          "name": "Run Task",
+          "description": "Run a Snowflake task immediately, optionally retrying its last failed graph."
+        },
+        {
+          "name": "Resume Task",
+          "description": "Resume a suspended Snowflake task so its schedule runs again."
+        },
+        {
+          "name": "Suspend Task",
+          "description": "Suspend a Snowflake task so its schedule stops triggering runs."
+        },
+        {
+          "name": "List Task Runs",
+          "description": "Query up to seven days of Snowflake task history, capped at 10000 rows."
+        },
+        {
+          "name": "Get Task Run",
+          "description": "Find one task history record by query ID within Snowflake’s seven-day window and 10000 most recent records after optional filters."
+        },
+        {
+          "name": "Cancel Task Query",
+          "description": "Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped."
+        },
+        {
+          "name": "Get Task Run Output",
+          "description": "Read a task query result with RESULT_SCAN during Snowflake’s 24-hour retention window using the task owner role."
+        },
+        {
+          "name": "List Query History",
+          "description": "List queries that completed in the last seven days, optionally filtered."
+        },
+        {
+          "name": "List Copy History",
+          "description": "List staged-file load results for a table over the last fourteen days."
+        },
+        {
+          "name": "Introspect Schema",
+          "description": "Inspect table and column metadata through Snowflake INFORMATION_SCHEMA views."
+        },
+        {
+          "name": "Call Procedure",
+          "description": "Call a stored procedure with explicitly typed Snowflake bindings."
+        }
+      ],
+      "operationCount": 30,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "databases",
+      "tags": ["data-warehouse", "data-analytics", "cloud"]
     },
     {
       "type": "sportmonks",

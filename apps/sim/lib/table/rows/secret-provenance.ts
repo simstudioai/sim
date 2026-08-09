@@ -666,8 +666,7 @@ export async function isTableSnapshotSafeForModelMount(options: {
         eq(userTableRows.tableId, options.tableId),
         eq(userTableRows.workspaceId, options.workspaceId),
         sql`NOT (
-          (${userTableRows.secretProvenanceVersion} IS NULL
-            AND ${userTableRowSecretProvenance.rowId} IS NULL)
+          ${userTableRows.secretProvenanceVersion} IS NULL
           OR
           (${userTableRows.secretProvenanceVersion} = ${TABLE_ROW_SECRET_PROVENANCE_VERSION}
             AND ${userTableRowSecretProvenance.status} = 'exact'

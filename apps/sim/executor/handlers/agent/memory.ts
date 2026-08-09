@@ -24,7 +24,7 @@ import {
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
@@ -85,7 +85,21 @@ export class Memory {
       throw new Error('Memory content could not be safely projected')
     }
 
-    return messages.map((message) => this.projectMessageForModel(ctx, message))
+    return Promise.all(
+      messages.map(async (message) => {
+        const messageProvenance = filterDurableSecretProvenanceBySourceValues(selectedProvenance, [
+          message,
+        ])
+        const modelRegistry = new ResolvedSecretTraceRegistry(
+          [],
+          ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
+        )
+        if (!(await importDurableSecretProvenance(modelRegistry, messageProvenance, message))) {
+          throw new Error('Memory content could not be safely projected')
+        }
+        return this.projectMessageForModel(modelRegistry, message)
+      })
+    )
   }
 
   private captureMessagesProvenance(
@@ -122,9 +136,6 @@ export class Memory {
     const provenance = ctx.resolvedSecretTraceRegistry
       ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, [message])
       : undefined
-    if (provenance?.status === 'unknown') {
-      throw new Error('Memory content could not be safely projected')
-    }
 
     await this.appendMessage(workspaceId, key, message, provenance)
 
@@ -172,9 +183,6 @@ export class Memory {
     const provenance = ctx.resolvedSecretTraceRegistry
       ? this.captureMessagesProvenance(ctx.resolvedSecretTraceRegistry, messagesToStore)
       : undefined
-    if (provenance?.status === 'unknown') {
-      throw new Error('Memory content could not be safely projected')
-    }
     await this.seedMemoryRecord(workspaceId, key, messagesToStore, provenance)
 
     logger.debug('Seeded memory', {
@@ -204,23 +212,7 @@ export class Memory {
     }
   }
 
-  private projectMessageForModel(ctx: ExecutionContext, message: Message): Message {
-    const controlValues = this.readModelControlValues(message)
-    const controlProjection = projectResolvedSecretModelContent(
-      controlValues,
-      ctx.resolvedSecretTraceRegistry
-    )
-    if (
-      !controlProjection.safe ||
-      !Array.isArray(controlProjection.value) ||
-      controlProjection.value.length !== controlValues.length ||
-      controlProjection.value.some(
-        (value, index) => typeof value !== 'string' || value !== controlValues[index]
-      )
-    ) {
-      throw new Error('Memory content could not be safely projected')
-    }
-
+  private projectMessageForModel(registry: ResolvedSecretTraceRegistry, message: Message): Message {
     const functionArguments = this.readFunctionCallArguments(message.function_call)
     const toolArguments = message.tool_calls?.map((toolCall) => {
       if (!isPlainRecord(toolCall)) {
@@ -228,13 +220,10 @@ export class Memory {
       }
       return this.readFunctionCallArguments(toolCall.function)
     })
-    const contentProjection = projectResolvedSecretModelContent(
-      message.content,
-      ctx.resolvedSecretTraceRegistry
-    )
+    const contentProjection = projectResolvedSecretModelContent(message.content, registry)
     const argumentProjection = projectResolvedSecretModelJsonStrings(
       [functionArguments, ...(toolArguments ?? [])],
-      ctx.resolvedSecretTraceRegistry
+      registry
     )
     if (
       !contentProjection.safe ||
@@ -304,54 +293,6 @@ export class Memory {
       throw new Error('Memory content could not be safely projected')
     }
     return functionCall.arguments
-  }
-
-  private readModelControlValues(message: Message): string[] {
-    if (!isPlainRecord(message)) {
-      throw new Error('Memory content could not be safely projected')
-    }
-    const controls: string[] = []
-    for (const key of ['name', 'tool_call_id'] as const) {
-      if (!(key in message)) continue
-      const value = message[key]
-      if (value !== undefined && value !== null) {
-        if (typeof value !== 'string') {
-          throw new Error('Memory content could not be safely projected')
-        }
-        controls.push(value)
-      }
-    }
-
-    if (message.function_call !== undefined && message.function_call !== null) {
-      if (!isPlainRecord(message.function_call)) {
-        throw new Error('Memory content could not be safely projected')
-      }
-      const name = message.function_call.name
-      if (name !== undefined && name !== null) {
-        if (typeof name !== 'string') {
-          throw new Error('Memory content could not be safely projected')
-        }
-        controls.push(name)
-      }
-    }
-
-    for (const toolCall of message.tool_calls ?? []) {
-      if (!isPlainRecord(toolCall)) {
-        throw new Error('Memory content could not be safely projected')
-      }
-      for (const value of [
-        toolCall.id,
-        isPlainRecord(toolCall.function) ? toolCall.function.name : undefined,
-      ]) {
-        if (value !== undefined && value !== null) {
-          if (typeof value !== 'string') {
-            throw new Error('Memory content could not be safely projected')
-          }
-          controls.push(value)
-        }
-      }
-    }
-    return controls
   }
 
   private requireWorkspaceId(ctx: ExecutionContext): string {

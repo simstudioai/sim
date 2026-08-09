@@ -15,6 +15,7 @@ import {
 } from '@/lib/core/security/input-validation.server'
 import type { CodePlaceholderRuntimeBinding } from '@/lib/execution/code-placeholders'
 import { buildJavaScriptRuntimeBindingsSource } from '@/lib/execution/code-placeholders/javascript-runtime'
+import { MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS } from '@/lib/execution/isolated-vm-limits'
 
 const logger = createLogger('IsolatedVMExecution')
 
@@ -137,8 +138,6 @@ const DISTRIBUTED_MAX_INFLIGHT_PER_OWNER =
 const DISTRIBUTED_LEASE_MIN_TTL_MS = Number.parseInt(env.IVM_DISTRIBUTED_LEASE_MIN_TTL_MS) || 120000
 const MAX_EXECUTIONS_PER_WORKER = Number.parseInt(env.IVM_MAX_EXECUTIONS_PER_WORKER) || 200
 const MAX_BROKER_ARGS_JSON_CHARS = Number.parseInt(env.IVM_MAX_BROKER_ARGS_JSON_CHARS) || 262_144
-const MAX_BROKER_RESULT_JSON_CHARS =
-  Number.parseInt(env.IVM_MAX_BROKER_RESULT_JSON_CHARS) || 16_777_216
 const MAX_BROKERS_PER_EXECUTION = Number.parseInt(env.IVM_MAX_BROKERS_PER_EXECUTION) || 1000
 const DISTRIBUTED_KEY_PREFIX = 'ivm:fair:v1:owner'
 const LEASE_REDIS_DEADLINE_MS = 200
@@ -715,10 +714,10 @@ function handleBrokerMessage(
         sendResponse({ error: 'Broker result is not JSON-serializable' })
         return
       }
-      if (resultJson.length > MAX_BROKER_RESULT_JSON_CHARS) {
+      if (resultJson.length > MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS) {
         logReject('result_too_large', { resultJsonLength: resultJson.length })
         sendResponse({
-          error: `Broker result exceeds maximum size (${MAX_BROKER_RESULT_JSON_CHARS} chars)`,
+          error: `Broker result exceeds maximum size (${MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS} chars)`,
         })
         return
       }

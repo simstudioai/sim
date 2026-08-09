@@ -1,6 +1,5 @@
 import type Anthropic from '@anthropic-ai/sdk'
 import { buildAnthropicMessageContent } from '@/providers/attachments'
-import { projectProviderAttachmentFilenameForModel } from '@/providers/runtime-context'
 import { parseToolArguments } from '@/providers/streaming-tool-loop-shared'
 import type { Message } from '@/providers/types'
 
@@ -111,12 +110,7 @@ export function convertAnthropicRequestHistory({
 
     assertNoPendingToolCalls()
 
-    const content = buildAnthropicMessageContent(
-      message.content,
-      message.files,
-      providerId,
-      projectProviderAttachmentFilenameForModel
-    )
+    const content = buildAnthropicMessageContent(message.content, message.files, providerId)
     if (message.role === 'assistant' && message.tool_calls?.length) {
       const toolUseBlocks = message.tool_calls.map((toolCall) => {
         const block: Anthropic.Messages.ToolUseBlockParam = {

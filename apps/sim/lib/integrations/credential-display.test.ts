@@ -67,6 +67,9 @@ const EXPECTED_COVERAGE: Record<string, string[]> = {
   'salesforce-service-account': ['salesforce'],
   'shopify-service-account': ['shopify'],
   'slack-custom-bot': ['slack'],
+  // Snowflake's catalog entry is api-key (there is no Snowflake OAuth client),
+  // so its credential is offered on the block rather than an integration page.
+  'snowflake-service-account': [],
   'trello-service-account': ['trello'],
   'wealthbox-service-account': ['wealthbox'],
   'webflow-service-account': ['webflow'],

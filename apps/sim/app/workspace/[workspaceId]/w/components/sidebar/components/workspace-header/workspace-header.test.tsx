@@ -61,7 +61,7 @@ import { WorkspaceHeader } from '@/app/workspace/[workspaceId]/w/components/side
 const ACTIVE_BG = 'bg-[var(--surface-active)]'
 
 /**
- * Above `WORKSPACE_SEARCH_THRESHOLD` (3), so the searchable/keyboard list renders.
+ * At `WORKSPACE_SEARCH_THRESHOLD` (6), so the searchable/keyboard list renders.
  * The current workspace is deliberately NOT first: the highlight is seeded to row 0 on
  * open, so a current workspace sitting at row 0 would mask the double-mark this guards.
  */
@@ -69,8 +69,13 @@ const WORKSPACES = [
   { id: 'ws-rvt', name: 'RVT' },
   { id: 'ws-emir', name: "Emir's Workspace" },
   { id: 'ws-acme', name: 'Acme' },
+  { id: 'ws-initech', name: 'Initech' },
+  { id: 'ws-umbrella', name: 'Umbrella' },
   { id: 'ws-globex', name: 'Globex' },
 ] as unknown as Parameters<typeof WorkspaceHeader>[0]['workspaces']
+
+/** Pinning reorders the list; these assertions are about the highlight, not the order. */
+const NO_PINS: ReadonlySet<string> = new Set()
 
 let container: HTMLDivElement
 let root: Root
@@ -86,6 +91,8 @@ function render() {
         activeWorkspace={{ name: "Emir's Workspace" }}
         workspaceId='ws-emir'
         workspaces={WORKSPACES}
+        pinnedWorkspaceIds={NO_PINS}
+        onToggleWorkspacePin={() => {}}
         isWorkspacesLoading={false}
         isCreatingWorkspace={false}
         isWorkspaceMenuOpen

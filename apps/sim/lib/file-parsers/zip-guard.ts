@@ -1,5 +1,10 @@
 import { inflateRawSync } from 'zlib'
 import { createLogger } from '@sim/logger'
+import {
+  MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
+  MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
+  ZipBombError,
+} from '@/lib/file-parsers/ooxml-limits'
 
 const logger = createLogger('ZipBombGuard')
 
@@ -12,8 +17,9 @@ const logger = createLogger('ZipBombGuard')
  * exhausting the worker and crashing the process with an OOM.
  *
  * This guard inspects the ZIP central directory (which records each entry's
- * declared uncompressed size) and rejects archives whose total expanded size or
- * compression ratio exceeds a safe threshold — without decompressing anything.
+ * declared uncompressed size) and rejects archives whose total expanded size,
+ * largest single entry, or compression ratio exceeds a safe threshold — without
+ * decompressing anything.
  */
 
 const LOCAL_FILE_HEADER_SIGNATURE = 0x04034b50
@@ -40,31 +46,32 @@ const DATA_DESCRIPTOR_FLAG = 0x0008
 export interface OoxmlSizeLimits {
   /** Hard ceiling on the summed declared uncompressed size of all entries. */
   maxTotalUncompressedBytes: number
+  /** Hard ceiling on any single entry's declared uncompressed size — the parser materializes an individual part (e.g. `document.xml`) into a DOM, or base64-embeds media, at a footprint many times the part size. */
+  maxEntryUncompressedBytes: number
   /** Maximum allowed expanded:compressed ratio across the whole archive. */
   maxCompressionRatio: number
   /** The ratio check only applies once the expanded size exceeds this floor, so small files are never flagged. */
   ratioCheckFloorBytes: number
 }
 
-const ONE_GIBIBYTE = 1024 * 1024 * 1024
 const ONE_HUNDRED_MEBIBYTES = 100 * 1024 * 1024
 
 /**
- * Defaults sized against the 100 MB compressed-input cap of the parse pipeline.
- * A legitimate Office document stays well under 1 GiB expanded; the bombs
- * described in the threat model expand to multiple gigabytes.
+ * The downstream parsers (mammoth, SheetJS, officeparser) build a full in-memory
+ * DOM/object graph whose peak heap is many times the XML size — measured at
+ * ~900 MB resident for 32 MB of expanded WordprocessingML, and mammoth then
+ * parses a second time for HTML. The old 1 GiB ceiling let a ~3.5 MB archive
+ * expand past what the process could hold and OOM it. The total and per-entry
+ * caps here keep a single parse's peak within a modest container's budget while
+ * still admitting all but pathologically large documents. The size ceilings are
+ * shared with the browser preview guard via {@link ./ooxml-limits}; the ratio
+ * heuristic is server-only.
  */
 export const DEFAULT_OOXML_SIZE_LIMITS: OoxmlSizeLimits = {
-  maxTotalUncompressedBytes: ONE_GIBIBYTE,
+  maxTotalUncompressedBytes: MAX_OOXML_TOTAL_UNCOMPRESSED_BYTES,
+  maxEntryUncompressedBytes: MAX_OOXML_ENTRY_UNCOMPRESSED_BYTES,
   maxCompressionRatio: 150,
   ratioCheckFloorBytes: ONE_HUNDRED_MEBIBYTES,
-}
-
-export class ZipBombError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'ZipBombError'
-  }
 }
 
 /**
@@ -212,11 +219,25 @@ function readCentralDirectoryEntry(
   return { compressionMethod, compressedSize, uncompressedSize, localHeaderOffset }
 }
 
+interface DeclaredSizeStats {
+  /** Summed declared uncompressed size across the contiguous run of records. */
+  total: number
+  /** Largest single entry's declared uncompressed size. */
+  largestEntry: number
+}
+
 /**
- * Sum the declared uncompressed size of every central-directory entry. Returns
- * `null` when the buffer is not a parseable ZIP archive (e.g. legacy binary
- * `.xls`/`.doc`, or a misidentified plaintext file) so the caller can defer to
- * the downstream parser. Stops early once the running total exceeds the limit.
+ * Sum the declared uncompressed size of every central-directory entry and track
+ * the largest single entry. Returns `null` when the buffer is not a parseable
+ * ZIP archive (e.g. legacy binary `.xls`/`.doc`, or a misidentified plaintext
+ * file) so the caller can defer to the downstream parser. Stops early once the
+ * running total, or a single entry, exceeds the corresponding limit.
+ *
+ * The per-entry cap covers every entry, not just `.xml` parts: an OOXML part is
+ * resolved through OPC relationship targets (mammoth's `officeDocument`
+ * relationship, with `word/document.xml` only a fallback), so an arbitrarily
+ * named part is still deserialized into a DOM — a name-based exemption would let
+ * a bomb sail through under a `.bin` target.
  *
  * Like {@link readZipCentralDirectoryStats}, this charges the CONTIGUOUS run of
  * records rather than the EOCD's declared count. JSZip's `readCentralDir` loops
@@ -225,7 +246,10 @@ function readCentralDirectoryEntry(
  * would otherwise hide honestly-large entries from this cap while the parser
  * still expanded them.
  */
-function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): number | null {
+function sumDeclaredUncompressedSize(
+  buffer: Buffer,
+  limits: OoxmlSizeLimits
+): DeclaredSizeStats | null {
   if (buffer.length < EOCD_MIN_SIZE) {
     return null
   }
@@ -241,6 +265,7 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
   }
 
   let total = 0
+  let largestEntry = 0
   let counted = 0
   let cursor = location.offset
   while (
@@ -251,14 +276,18 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
     const extraFieldLength = buffer.readUInt16LE(cursor + 30)
     const commentLength = buffer.readUInt16LE(cursor + 32)
 
-    total += readCentralDirectoryEntry(
+    const entryBytes = readCentralDirectoryEntry(
       buffer,
       cursor,
       fileNameLength,
       extraFieldLength
     ).uncompressedSize
-    if (total > abortAboveBytes) {
-      return total
+    total += entryBytes
+    if (entryBytes > largestEntry) {
+      largestEntry = entryBytes
+    }
+    if (total > limits.maxTotalUncompressedBytes || entryBytes > limits.maxEntryUncompressedBytes) {
+      return { total, largestEntry }
     }
 
     counted += 1
@@ -271,7 +300,7 @@ function sumDeclaredUncompressedSize(buffer: Buffer, abortAboveBytes: number): n
     return null
   }
 
-  return total
+  return { total, largestEntry }
 }
 
 /**
@@ -471,8 +500,8 @@ export function assertOoxmlArchiveWithinLimits(
   buffer: Buffer,
   limits: OoxmlSizeLimits = DEFAULT_OOXML_SIZE_LIMITS
 ): void {
-  const totalUncompressed = sumDeclaredUncompressedSize(buffer, limits.maxTotalUncompressedBytes)
-  if (totalUncompressed === null) {
+  const declared = sumDeclaredUncompressedSize(buffer, limits)
+  if (declared === null) {
     if (isZipShaped(buffer)) {
       logger.warn('Rejected ZIP-shaped archive: central directory could not be parsed', {
         compressedBytes: buffer.length,
@@ -482,6 +511,19 @@ export function assertOoxmlArchiveWithinLimits(
       )
     }
     return
+  }
+
+  const { total: totalUncompressed, largestEntry } = declared
+
+  if (largestEntry > limits.maxEntryUncompressedBytes) {
+    logger.warn('Rejected OOXML archive: a single entry exceeds the per-entry limit', {
+      largestEntry,
+      maxEntryUncompressedBytes: limits.maxEntryUncompressedBytes,
+      compressedBytes: buffer.length,
+    })
+    throw new ZipBombError(
+      `A single entry's decompressed size (${largestEntry} bytes) exceeds the maximum allowed ${limits.maxEntryUncompressedBytes} bytes`
+    )
   }
 
   if (totalUncompressed > limits.maxTotalUncompressedBytes) {

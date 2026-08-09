@@ -131,7 +131,10 @@ interface FileViewerProps {
 
 export function FileViewer(props: FileViewerProps) {
   const { contentSource, workspaceId } = props
-  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId)
+  // A caller-supplied contentSource means the adapter is unused (and its `workspaceId` may be a share token).
+  const imageDimensions = useWorkspaceImageDimensionsAdapter(workspaceId, {
+    enabled: !contentSource,
+  })
   const source = useMemo(
     () => contentSource ?? createWorkspaceFileContentSource(workspaceId, imageDimensions),
     [contentSource, workspaceId, imageDimensions]
@@ -404,7 +407,7 @@ const MediaPreview = memo(function MediaPreview({
       <div className='flex h-full flex-col items-center justify-center gap-4 bg-[var(--surface-1)] p-8'>
         <div className='flex flex-col items-center gap-2 text-center'>
           <Music className='size-[32px] text-[var(--text-muted)]' />
-          <p className='font-medium text-[14px] text-[var(--text-primary)]'>{file.name}</p>
+          <p className='text-[14px] text-[var(--text-primary)]'>{file.name}</p>
         </div>
         {blobUrl && (
           // biome-ignore lint/a11y/useMediaCaption: audio from workspace files

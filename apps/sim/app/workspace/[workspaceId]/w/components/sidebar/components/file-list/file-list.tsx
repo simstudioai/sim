@@ -1,8 +1,8 @@
 'use client'
 
 import { memo, useMemo, useState } from 'react'
-import { cn } from '@sim/emcn'
-import { ChevronRight } from '@sim/emcn/icons'
+import { chipContentIconClass, cn, disclosureChevronClass } from '@sim/emcn'
+import { ChevronRight, File, Folder, FolderOpen } from '@sim/emcn/icons'
 import Link from 'next/link'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import type { WorkspaceFileFolderApi } from '@/hooks/queries/workspace-file-folders'
@@ -42,24 +42,12 @@ function buildFileTree(
 
 const INDENT_PER_LEVEL = 16
 
-/** Width of the folder row's chevron, so a file's icon lines up with a folder's. */
-const CHEVRON_WIDTH = 14
-
-const FILE_ICON = (
-  <svg
-    className='size-[14px] flex-shrink-0 text-[var(--text-icon)]'
-    viewBox='0 0 24 24'
-    fill='none'
-    stroke='currentColor'
-    strokeWidth='2'
-    strokeLinecap='round'
-    strokeLinejoin='round'
-    aria-hidden='true'
-  >
-    <path d='M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z' />
-    <path d='M14 2v4a2 2 0 0 0 2 2h4' />
-  </svg>
-)
+/**
+ * A file row has no chevron, so it indents past where a folder row's would be —
+ * the chevron's own width plus the row's `gap-1` — putting the two rows' icons on
+ * the same x. Keep in step with `disclosureChevronClass` (14px) and the row gap.
+ */
+const CHEVRON_LEADING_WIDTH = 14 + 4
 
 interface FileTreeNodeItemProps {
   node: FileTreeNode
@@ -85,13 +73,13 @@ const FileTreeNodeItem = memo(function FileTreeNodeItem({
       <Link
         href={href}
         className={cn(
-          'group mx-0.5 flex h-[30px] items-center gap-2 rounded-lg text-sm',
+          'group mx-0.5 flex h-[30px] items-center gap-1 rounded-lg text-sm',
           !isActive && 'hover-hover:bg-[var(--surface-hover)]',
           isActive && 'bg-[var(--surface-active)]'
         )}
-        style={{ paddingLeft: `${8 + level * INDENT_PER_LEVEL + CHEVRON_WIDTH}px` }}
+        style={{ paddingLeft: `${8 + level * INDENT_PER_LEVEL + CHEVRON_LEADING_WIDTH}px` }}
       >
-        {FILE_ICON}
+        <File className={chipContentIconClass} aria-hidden='true' />
         <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{node.name}</span>
       </Link>
     )
@@ -109,27 +97,17 @@ const FileTreeNodeItem = memo(function FileTreeNodeItem({
       >
         <ChevronRight
           className={cn(
-            'size-[14px] flex-shrink-0 text-[var(--text-icon)] transition-transform duration-150',
+            disclosureChevronClass,
             isExpanded && hasChildren && 'rotate-90',
             !hasChildren && 'opacity-0'
           )}
-        />
-        <svg
-          className='size-[16px] flex-shrink-0 text-[var(--text-icon)]'
-          viewBox='0 0 24 24'
-          fill='none'
-          stroke='currentColor'
-          strokeWidth='2'
-          strokeLinecap='round'
-          strokeLinejoin='round'
           aria-hidden='true'
-        >
-          {isExpanded && hasChildren ? (
-            <path d='m6 14 1.5-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.54 6a2 2 0 0 1-1.95 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2' />
-          ) : (
-            <path d='M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z' />
-          )}
-        </svg>
+        />
+        {isExpanded && hasChildren ? (
+          <FolderOpen className={chipContentIconClass} aria-hidden='true' />
+        ) : (
+          <Folder className={chipContentIconClass} aria-hidden='true' />
+        )}
         <span className='min-w-0 flex-1 truncate text-left text-[var(--text-body)]'>
           {node.name}
         </span>

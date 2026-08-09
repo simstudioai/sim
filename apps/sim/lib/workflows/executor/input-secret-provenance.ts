@@ -60,20 +60,27 @@ export async function resolveWorkflowInputSecretProvenance(options: {
     inspection.status !== 'verified' ||
     !options.isInternalJwt ||
     !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== 1
+    !options.workspaceId
   ) {
+    return { success: false, error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }
+  }
+
+  if (!inspection.value.complete) {
+    return { success: true, provenance: { version: 1, complete: false, entries: [] } }
+  }
+  if (inspection.value.selections.length !== 1) {
     return { success: false, error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }
   }
 
   const selection = inspection.value.selections[0]
   const provenance = selection?.provenance
-  if (
-    selection?.key !== WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY ||
-    !provenance?.complete ||
-    !options.workspaceId ||
-    provenance.scope?.workspaceId !== options.workspaceId
-  ) {
+  if (selection?.key !== WORKFLOW_EXECUTOR_INPUT_PROVENANCE_KEY || !provenance) {
+    return { success: false, error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }
+  }
+  if (!provenance.complete) {
+    return { success: true, provenance: { version: 1, complete: false, entries: [] } }
+  }
+  if (provenance.scope?.workspaceId !== options.workspaceId) {
     return { success: false, error: INVALID_WORKFLOW_INPUT_PROVENANCE_ERROR }
   }
 

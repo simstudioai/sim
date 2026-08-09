@@ -1275,6 +1275,21 @@ describe('prepareToolExecution', () => {
       expect(toolParams.channel).toBe('#llm-channel')
       expect(toolParams.message).toBe('Hello')
     })
+
+    it('runs the legacy parameter transform once when no secret provenance is attached', () => {
+      const paramsTransform = vi.fn((params: Record<string, unknown>) => ({
+        token: params.apiKey,
+      }))
+
+      const { toolParams } = prepareToolExecution(
+        { params: { apiKey: 'ordinary-key' }, paramsTransform },
+        {},
+        {}
+      )
+
+      expect(toolParams).toEqual({ token: 'ordinary-key' })
+      expect(paramsTransform).toHaveBeenCalledTimes(1)
+    })
   })
 
   describe('_context propagation', () => {

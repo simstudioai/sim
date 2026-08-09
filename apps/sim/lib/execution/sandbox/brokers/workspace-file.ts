@@ -1,4 +1,8 @@
 import { createLogger } from '@sim/logger'
+import {
+  MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS,
+  MAX_SANDBOX_IMAGE_DATA_URI_CHARS,
+} from '@/lib/execution/isolated-vm-limits'
 import type { SandboxBroker } from '@/lib/execution/sandbox/types'
 import {
   fetchWorkspaceFileBuffer,
@@ -40,8 +44,24 @@ export const workspaceFileBroker: SandboxBroker<WorkspaceFileArgs, WorkspaceFile
       throw new Error(`File not found: ${args.fileId}`)
     }
 
-    const buffer = await fetchWorkspaceFileBuffer(record)
     const mime = record.type || 'image/png'
-    return { dataUri: `data:${mime};base64,${buffer.toString('base64')}` }
+    const dataUriPrefix = `data:${mime};base64,`
+    const envelopeChars = JSON.stringify({ dataUri: dataUriPrefix }).length
+    const availableBase64Chars = Math.max(
+      0,
+      Math.min(
+        MAX_SANDBOX_IMAGE_DATA_URI_CHARS - dataUriPrefix.length,
+        MAX_ISOLATED_VM_BROKER_RESULT_JSON_CHARS - envelopeChars
+      )
+    )
+    const maxBytes = Math.floor(availableBase64Chars / 4) * 3
+    const buffer = await fetchWorkspaceFileBuffer(record, { maxBytes })
+    ctx.onWorkspaceFileAccess?.({
+      fileId: record.id,
+      key: record.key,
+      context: record.storageContext ?? 'workspace',
+      contentUpdatedAt: record.contentUpdatedAt ?? record.updatedAt,
+    })
+    return { dataUri: `${dataUriPrefix}${buffer.toString('base64')}` }
   },
 }

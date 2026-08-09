@@ -415,10 +415,6 @@ export const runTaskTool: ToolConfig<BrowserUseRunTaskParams, BrowserUseRunTaskR
         structuredOutput: params.structuredOutput,
       }),
     },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      select: (params) => params.startUrl,
-    },
   },
 
   directExecution: async (params: BrowserUseRunTaskParams): Promise<ToolResponse> => {

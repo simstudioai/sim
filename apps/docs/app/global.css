@@ -373,23 +373,33 @@ aside#nd-sidebar [data-radix-scroll-area-viewport] {
      Safe because the grid columns are explicit (`0px 300px 1fr 268px 0px`), so
      removing the placeholder from flow leaves its track intact. `left`/`width`
      are restated because a fixed box no longer derives them from its grid cell,
-     and `top`/`height` already come from fumadocs' own utility classes. */
+     and `height` already comes from fumadocs' own utility classes.
+
+     Anchoring to `bottom` rather than `top` is what keeps the footer off it: the
+     offset is how far the footer currently reaches into the viewport (published
+     by `FooterOverlapProbe`), so the sidebar keeps its full height and slides up
+     out of view as the footer arrives, the way it did before it was pinned. With
+     no footer on screen the offset is 0 and this resolves back to top: 92px. */
   [data-sidebar-placeholder] {
     position: fixed !important;
     left: var(--sidebar-offset);
     width: var(--fd-sidebar-width);
+    top: auto !important;
+    bottom: var(--docs-footer-overlap, 0px) !important;
   }
 
   /* Sidebar divider line — pinned for the same reason, and so it stays glued to
      the sidebar's right edge. Being fixed takes it out of #nd-docs-layout's grid
      entirely, so it needs no grid placement and cannot skew a content cell; its
-     position comes from `left`/`top` alone. */
+     position comes from `left`/`top`/`bottom` alone. Unlike the sidebar it is
+     shortened rather than slid, so it runs from the navbar down to the footer's
+     top border and the two meet instead of the line stopping short. */
   #nd-docs-layout::before {
     content: "";
     display: block;
     position: fixed;
     top: 92px; /* below navbar */
-    height: calc(100dvh - 92px);
+    bottom: var(--docs-footer-overlap, 0px);
     left: calc(var(--sidebar-offset) + var(--fd-sidebar-width));
     width: 1px;
     background-color: var(--surface-active);

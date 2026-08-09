@@ -165,31 +165,25 @@ describe('resolveAutoModel', () => {
     }
   })
 
-  it('projects active secrets from model-visible signals without changing routing controls', async () => {
+  it('forwards caller-projected signals without rescanning model content or controls', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       {
-        name: 'NUMBER_SECRET',
-        plaintext: '123',
-        encryptedValue: 'encrypted-number-secret',
-      },
-      {
-        name: 'BOOLEAN_SECRET',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-boolean-secret',
+        name: 'LOW_ENTROPY_SECRET',
+        plaintext: 'x',
+        encryptedValue: 'encrypted-low-entropy-secret',
       },
     ])
-    registry.recordResolved('NUMBER_SECRET', '123')
-    registry.recordResolved('BOOLEAN_SECRET', 'true')
+    registry.recordResolved('LOW_ENTROPY_SECRET', 'x')
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
 
     await resolveAutoModel({
       ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
       blockId: 'b1',
       signals: makeSignals({
-        systemPrompt: 'System 123 true',
-        lastMessage: 'Message 123 true',
+        systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
+        lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
         messageCount: 123,
-        toolNames: ['123', 'true'],
+        toolNames: ['x', 'true'],
         hasResponseFormat: true,
         approxInputTokens: 123,
       }),
@@ -198,10 +192,10 @@ describe('resolveAutoModel', () => {
 
     const body = JSON.parse(mockFetchGo.mock.calls[0][1].body as string)
     expect(body.signals).toEqual({
-      systemPrompt: 'System {{NUMBER_SECRET}} {{BOOLEAN_SECRET}}',
-      lastMessage: 'Message {{NUMBER_SECRET}} {{BOOLEAN_SECRET}}',
+      systemPrompt: 'Box eSign {{LOW_ENTROPY_SECRET}}',
+      lastMessage: 'Brex {{LOW_ENTROPY_SECRET}}',
       messageCount: 123,
-      toolNames: ['{{NUMBER_SECRET}}', '{{BOOLEAN_SECRET}}'],
+      toolNames: ['x', 'true'],
       hasMedia: false,
       hasResponseFormat: true,
       approxInputTokens: 123,
@@ -229,9 +223,10 @@ describe('resolveAutoModel', () => {
     expect(body.signals.toolNames).toEqual(['ordinary-tool-name'])
   })
 
-  it('falls back without calling mothership when signal provenance is incomplete', async () => {
+  it('does not gate caller-projected signals on ambient registry completeness', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
+    mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
 
     const result = await resolveAutoModel({
       ctx: { ...ctx, resolvedSecretTraceRegistry: registry },
@@ -240,14 +235,10 @@ describe('resolveAutoModel', () => {
       fallbackModel: 'claude-sonnet-5',
     })
 
-    expect(result).toEqual({
-      model: 'claude-sonnet-5',
-      tier: null,
-      decidedBy: 'fallback',
-      billableRoutingCost: 0,
-    })
-    expect(mockGetMothershipBaseURL).not.toHaveBeenCalled()
-    expect(mockFetchGo).not.toHaveBeenCalled()
+    expect(result.model).toBe('fireworks/glm-5.2')
+    expect(result.tier).toBe('1')
+    expect(mockGetMothershipBaseURL).toHaveBeenCalled()
+    expect(mockFetchGo).toHaveBeenCalled()
   })
 
   it('never crosses media kinds when walking down from a denied tier', async () => {

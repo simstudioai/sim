@@ -312,7 +312,6 @@ export const mistralProvider: ProviderConfig = {
               executionParams,
               {
                 signal: request.abortSignal,
-                toolInput: toolParams,
               }
             )
             const toolCallEndTime = Date.now()

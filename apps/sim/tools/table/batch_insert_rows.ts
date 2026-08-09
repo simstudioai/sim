@@ -36,7 +36,7 @@ export const tableBatchInsertRowsTool: ToolConfig<
 
   request: {
     secretProvenance: {
-      request: (params) => selectTableRowSecretProvenance(params.rows),
+      request: (params) => selectTableRowSecretProvenance(params.rows, 'rows'),
       response: { incomplete: 'propagate' },
     },
     url: (params: TableBatchInsertParams) => `/api/table/${params.tableId}/rows`,

@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from 'react'
 import { toast } from '@sim/emcn'
-import { useQueryClient } from '@tanstack/react-query'
+import { sleep } from '@sim/utils/helpers'
+import { backoffWithJitter } from '@sim/utils/retry'
+import { type QueryClient, useQueryClient } from '@tanstack/react-query'
 import { useParams, useRouter } from 'next/navigation'
 import { requestJson } from '@/lib/api/client/request'
 import { listWorkspaceCredentialsContract } from '@/lib/api/contracts'
@@ -12,6 +14,14 @@ import {
   type OAuthReturnContext,
   readOAuthReturnContext,
 } from '@/lib/credentials/client-state'
+import {
+  hasOAuthCredentialChanged,
+  OAUTH_CHAT_ATTEMPT_MAX_AGE_MS,
+  OAUTH_CHAT_ATTEMPT_PARAM,
+  readOAuthChatAttempt,
+  resolveDesktopOAuthChatAttempt,
+  setOAuthChatAttemptStatus,
+} from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import { oauthConnectionsKeys } from '@/hooks/queries/oauth/oauth-connections'
 import { workspaceCredentialKeys } from '@/hooks/queries/utils/credential-keys'
@@ -43,12 +53,70 @@ async function resolveOAuthMessage(ctx: OAuthReturnContext): Promise<string> {
   }
 }
 
-function dispatchCredentialUpdate(ctx: OAuthReturnContext) {
+function dispatchCredentialUpdate(ctx: { providerId: string; workspaceId: string }) {
   window.dispatchEvent(
     new CustomEvent(OAUTH_CREDENTIAL_UPDATED_EVENT, {
       detail: { providerId: ctx.providerId, workspaceId: ctx.workspaceId },
     })
   )
+}
+
+function clearOAuthChatAttemptParam(): void {
+  const url = new URL(window.location.href)
+  url.searchParams.delete(OAUTH_CHAT_ATTEMPT_PARAM)
+  window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`)
+}
+
+const VERIFY_ATTEMPT_TRIES = 4
+const VERIFY_BACKOFF_BASE_MS = 400
+
+/**
+ * Confirms the credential the chip launched actually landed, then publishes the
+ * result to the row that is waiting on it.
+ *
+ * The read goes through the QueryClient on the key the chips subscribe to, so
+ * one request both decides the verdict and refreshes every mounted row —
+ * `staleTime: 0` forces a live read rather than reusing the cached list the
+ * flow started from.
+ */
+async function verifyOAuthChatAttempt(queryClient: QueryClient, attemptId: string): Promise<void> {
+  const attempt = readOAuthChatAttempt(attemptId)
+  if (!attempt || Date.now() - attempt.requestedAt > OAUTH_CHAT_ATTEMPT_MAX_AGE_MS) return
+
+  if (new URL(window.location.href).searchParams.has('error')) {
+    setOAuthChatAttemptStatus(attempt.id, 'failed')
+    toast.error(`The ${attempt.displayName} connection didn’t finish. Try again.`)
+    return
+  }
+
+  for (let attemptNumber = 0; attemptNumber < VERIFY_ATTEMPT_TRIES; attemptNumber += 1) {
+    try {
+      const credentials = await queryClient.fetchQuery({
+        queryKey: workspaceCredentialKeys.list(attempt.workspaceId, 'oauth'),
+        queryFn: ({ signal }) =>
+          requestJson(listWorkspaceCredentialsContract, {
+            query: { workspaceId: attempt.workspaceId, type: 'oauth' },
+            signal,
+          }).then((data) => data.credentials ?? []),
+        staleTime: 0,
+      })
+
+      if (hasOAuthCredentialChanged(attempt, credentials)) {
+        setOAuthChatAttemptStatus(attempt.id, 'connected')
+        dispatchCredentialUpdate(attempt)
+        toast.success(`${attempt.displayName} connected successfully.`)
+        return
+      }
+    } catch {
+      // A short retry window covers callback hooks committing just after redirect.
+    }
+    if (attemptNumber < VERIFY_ATTEMPT_TRIES - 1) {
+      await sleep(backoffWithJitter(attemptNumber + 1, null, { baseMs: VERIFY_BACKOFF_BASE_MS }))
+    }
+  }
+
+  setOAuthChatAttemptStatus(attempt.id, 'failed')
+  toast.error(`We couldn’t verify the ${attempt.displayName} connection. Try again.`)
 }
 
 /**
@@ -64,13 +132,33 @@ function dispatchCredentialUpdate(ctx: OAuthReturnContext) {
 export function useOAuthReturnRouter() {
   const router = useRouter()
   const params = useParams()
+  const queryClient = useQueryClient()
   const workspaceId = params.workspaceId as string
   const handledRef = useRef(false)
+  const chatAttemptHandledRef = useRef(false)
 
   useEffect(() => {
+    let isChatAttemptReturn = false
+    if (!chatAttemptHandledRef.current) {
+      const attemptId = new URL(window.location.href).searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)
+      if (attemptId) {
+        chatAttemptHandledRef.current = true
+        isChatAttemptReturn = true
+        void verifyOAuthChatAttempt(queryClient, attemptId).finally(clearOAuthChatAttemptParam)
+      }
+    }
+
     if (handledRef.current) return
     const ctx = readOAuthReturnContext()
     if (!ctx) return
+    // A chip return carries its own verdict and toast. Any return context still
+    // sitting here belongs to an earlier, abandoned modal connect — consume it
+    // so it cannot double-toast now or attach to a later completion, the same
+    // discard useDesktopOAuthConnectListener does.
+    if (isChatAttemptReturn) {
+      consumeOAuthReturnContext()
+      return
+    }
     if (Date.now() - ctx.requestedAt > CONTEXT_MAX_AGE_MS) {
       consumeOAuthReturnContext()
       return
@@ -107,7 +195,7 @@ export function useOAuthReturnRouter() {
       router.replace(`${kbUrl}${connectorParam}`)
       return
     }
-  }, [router, workspaceId])
+  }, [queryClient, router, workspaceId])
 }
 
 /**
@@ -178,11 +266,13 @@ export function useDesktopOAuthConnectListener() {
       const rawCtx = readOAuthReturnContext()
       if (rawCtx) consumeOAuthReturnContext()
       const ctx = rawCtx && Date.now() - rawCtx.requestedAt <= CONTEXT_MAX_AGE_MS ? rawCtx : null
+      const chatAttempt = resolveDesktopOAuthChatAttempt(result, result.ok ? 'connected' : 'failed')
 
       if (!result.ok) {
         toast.error('The account connection didn’t finish. Try connecting again.')
         return
       }
+      if (chatAttempt) dispatchCredentialUpdate(chatAttempt)
       if (ctx) {
         void (async () => {
           const message = await resolveOAuthMessage(ctx)

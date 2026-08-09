@@ -505,9 +505,7 @@ export function WorkflowSidebarBody({
         sectionElement: (
           <div className='flex items-center gap-1.5 px-1.5 pt-1.5 pb-1'>
             <TagIcon icon={group.blockIcon} color={group.blockColor} />
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>
-              {group.blockName}
-            </span>
+            <span className='text-[var(--text-secondary)] text-caption'>{group.blockName}</span>
           </div>
         ),
         items: group.paths.map((path) => ({
@@ -794,7 +792,7 @@ export function WorkflowSidebarBody({
               <ArrowLeft className='size-[14px]' />
             </Button>
           )}
-          <h2 className='truncate font-medium text-[var(--text-primary)] text-small'>{title}</h2>
+          <h2 className='truncate text-[var(--text-primary)] text-small'>{title}</h2>
         </div>
         <Button
           variant='ghost'
@@ -1007,7 +1005,7 @@ export function WorkflowSidebarBody({
                   <button
                     type='button'
                     onClick={() => setShowAdvanced((v) => !v)}
-                    className='flex items-center gap-1.5 whitespace-nowrap font-medium text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
+                    className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                   >
                     {showAdvanced ? 'Hide additional fields' : 'Show additional fields'}
                     <ChevronDown

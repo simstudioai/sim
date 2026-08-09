@@ -386,7 +386,7 @@ function WorkflowPreviewBlockInner({ data }: NodeProps<WorkflowPreviewBlockData>
             </div>
           )}
           <span
-            className={`truncate font-medium text-md ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
+            className={`truncate text-md ${!enabled ? 'text-[var(--text-muted)]' : ''}`}
             title={name}
           >
             {name}

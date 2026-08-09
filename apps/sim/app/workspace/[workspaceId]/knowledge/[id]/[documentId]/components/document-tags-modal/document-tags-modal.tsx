@@ -18,7 +18,13 @@ import {
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { formatDate } from '@sim/utils/formatting'
-import { ALL_TAG_SLOTS, type AllTagSlot, MAX_TAG_SLOTS } from '@/lib/knowledge/constants'
+import {
+  ALL_TAG_SLOTS,
+  type AllTagSlot,
+  FIELD_TYPE_LABELS,
+  KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH,
+  MAX_TAG_SLOTS,
+} from '@/lib/knowledge/constants'
 import type { DocumentTag } from '@/lib/knowledge/tags/types'
 import type { DocumentData } from '@/lib/knowledge/types'
 import {
@@ -29,14 +35,6 @@ import { type TagDefinitionInput, useTagDefinitions } from '@/hooks/kb/use-tag-d
 import { useNextAvailableSlotMutation, useUpdateDocumentTags } from '@/hooks/queries/kb/knowledge'
 
 const logger = createLogger('DocumentTagsModal')
-
-/** Field type display labels */
-const FIELD_TYPE_LABELS: Record<string, string> = {
-  text: 'Text',
-  number: 'Number',
-  date: 'Date',
-  boolean: 'Boolean',
-}
 
 /**
  * Gets the appropriate value when changing field types.
@@ -462,6 +460,7 @@ export function DocumentTagsModal({
                             setEditTagForm({ ...editTagForm, displayName: e.target.value })
                           }
                           placeholder='Enter tag name'
+                          maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                           error={tagNameConflict}
                           onKeyDown={(e) => {
                             if (e.key === 'Enter' && canSaveTag) {
@@ -615,6 +614,7 @@ export function DocumentTagsModal({
                         setEditTagForm({ ...editTagForm, displayName: e.target.value })
                       }
                       placeholder='Enter tag name'
+                      maxLength={KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH}
                       error={tagNameConflict}
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && canSaveTag) {

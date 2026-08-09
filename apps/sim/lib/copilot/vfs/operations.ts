@@ -2,6 +2,10 @@ import { createLogger } from '@sim/logger'
 import { truncate } from '@sim/utils/string'
 import micromatch from 'micromatch'
 import {
+  isNonGreppablePlaceholder,
+  type PlaceholderKind,
+} from '@/lib/copilot/vfs/read-placeholders'
+import {
   compileLinearRegex,
   isPlainText,
   type LinearRegex,
@@ -65,18 +69,6 @@ export class WorkspaceFileGrepError extends Error {
 }
 
 /**
- * True when file content is one of `readFileRecord`'s non-text placeholders
- * (binary, unparseable, or over the inline read cap) — these carry no searchable
- * content, so grepping them should report the placeholder instead.
- */
-function isNonGreppablePlaceholder(content: string, totalLines: number): boolean {
-  if (totalLines !== 1) return false
-  return /^\[(File too large|Image too large|Document too large|Could not parse|Binary file|Compiled artifact too large)/.test(
-    content.trim()
-  )
-}
-
-/**
  * Run a single-file content grep over an already-resolved file read result,
  * shared by workspace-file grep (`WorkspaceVFS.grepFile`) and chat-upload grep.
  * Throws {@link WorkspaceFileGrepError} when the file has no searchable text
@@ -86,7 +78,12 @@ function isNonGreppablePlaceholder(content: string, totalLines: number): boolean
  */
 export function grepReadResult(
   path: string,
-  result: { content: string; totalLines: number; attachment?: unknown },
+  result: {
+    content: string
+    totalLines: number
+    placeholder?: PlaceholderKind
+    attachment?: unknown
+  },
   pattern: string,
   readHint: string,
   options?: GrepOptions
@@ -96,7 +93,7 @@ export function grepReadResult(
       `Cannot grep "${path}" — it has no searchable text (image/binary). Use read("${readHint}") to view it.`
     )
   }
-  if (isNonGreppablePlaceholder(result.content, result.totalLines)) {
+  if (isNonGreppablePlaceholder(result)) {
     throw new WorkspaceFileGrepError(result.content)
   }
   return grep(new Map([[path, result.content]]), pattern, undefined, options)
@@ -105,6 +102,7 @@ export function grepReadResult(
 export interface ReadResult {
   content: string
   totalLines: number
+  placeholder?: PlaceholderKind
 }
 
 /**

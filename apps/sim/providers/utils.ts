@@ -50,6 +50,10 @@ import {
   supportsToolUsageControl as supportsToolUsageControlFromDefinitions,
   updateOllamaModels as updateOllamaModelsInDefinitions,
 } from '@/providers/models'
+import {
+  getProviderToolInputProvenance,
+  registerPreparedProviderToolInputProvenance,
+} from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
 import { useProvidersStore } from '@/stores/providers/store'
 import { mergeToolParameters } from '@/tools/merge-params'
@@ -1545,16 +1549,30 @@ export function prepareToolExecution(
   // empty. That is a privilege escalation for `user-only` params: a Function tool
   // scoped to "Selected secrets" with an empty list is an explicit deny, and a
   // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
-  let toolParams = mergeToolParameters(
-    tool.params || {},
-    stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
-  ) as Record<string, any>
+  const modelParams = stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
+  let toolParams = mergeToolParameters(tool.params || {}, modelParams) as Record<string, any>
+  const inputProvenance = getProviderToolInputProvenance(tool)
+  const inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
+  let projectedToolParams = inputProvenance
+    ? (mergeToolParameters(inputProvenance.projectedParams, modelParams) as Record<string, any>)
+    : undefined
 
   if (tool.paramsTransform) {
+    let transformed = false
     try {
       toolParams = tool.paramsTransform(toolParams)
+      transformed = true
     } catch (err) {
       logger.warn('paramsTransform failed, using raw params', { error: err })
+    }
+
+    if (transformed && projectedToolParams && inputRegistry) {
+      try {
+        projectedToolParams = tool.paramsTransform(projectedToolParams)
+      } catch {
+        inputRegistry.markIncomplete()
+        projectedToolParams = undefined
+      }
     }
   }
 
@@ -1589,6 +1607,20 @@ export function prepareToolExecution(
       ? { blockNameMapping: normalizeStringRecord(request.blockNameMapping) }
       : {}),
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
+  }
+
+  if (inputProvenance && inputRegistry) {
+    const inputPaths = [['params']] as const
+    if (projectedToolParams) {
+      inputRegistry.recordTransformedInputProjection(
+        { params: toolParams },
+        { params: projectedToolParams }
+      )
+    }
+    registerPreparedProviderToolInputProvenance(executionParams, {
+      registry: inputRegistry,
+      inputPaths,
+    })
   }
 
   return { toolParams, executionParams }

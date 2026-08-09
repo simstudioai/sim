@@ -442,7 +442,7 @@ describe('projectTraceSpansForSecrets', () => {
     const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -450,11 +450,23 @@ describe('projectTraceSpansForSecrets', () => {
     expect(source[0].output).toEqual({ apiKey: '[REDACTED]' })
   })
 
+  it('keeps content whose only literal occurrence sits inside an unrelated word', async () => {
+    const source = [createSpan({ output: { summary: 'the latest news' } })]
+
+    const result = await enforceTraceSpanSecretInvariant(source, {
+      registry: createRegistry([{ plaintext: 'test', replacement: '{{TOKEN}}' }]),
+      store: STORE,
+    })
+
+    expect(result).toBe(source)
+    expect(result[0].output).toEqual({ summary: 'the latest news' })
+  })
+
   it('names the invariant that forced the structural fallback', async () => {
     const source = [createSpan({ output: { apiKey: '[REDACTED]' } })]
 
     await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -520,7 +532,7 @@ describe('projectTraceSpansForSecrets', () => {
     materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -971,7 +983,8 @@ describe('projectTraceSpansForSecrets', () => {
       kind: 'array' as const,
       size: 1,
     }))
-    const expandedValue = 'a'.repeat(1024)
+    const expandingSecret = 'a7Kq2Xz9Lm4P'
+    const expandedValue = expandingSecret.repeat(1024)
     materializeLargeValueRefMock.mockImplementation(async () => [expandedValue])
     storeLargeValueMock.mockImplementation(
       async (_value: unknown, _json: string, size: number) => ({
@@ -996,7 +1009,7 @@ describe('projectTraceSpansForSecrets', () => {
     const result = await projectTraceSpansForSecrets(
       [createSpan({ input: { ok: true }, output: { items: manifest } })],
       {
-        registry: createRegistry([{ plaintext: 'a', replacement: 'X'.repeat(1024) }]),
+        registry: createRegistry([{ plaintext: expandingSecret, replacement: 'X'.repeat(1024) }]),
         store: STORE,
       }
     )

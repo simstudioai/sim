@@ -4,6 +4,7 @@ import * as React from 'react'
 import { ChevronDown } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipVariants, TRIGGER_BORDER_CLASS } from '../chip/chip'
+import { chipIconSlotClass } from '../chip/chip-chrome'
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -258,10 +259,7 @@ export function ChipSelect({
           <span className='min-w-0 truncate text-[var(--text-body)]'>
             {displayLabel ?? triggerLabel}
           </span>
-          <span
-            aria-hidden
-            className='inline-flex size-[16px] flex-shrink-0 items-center justify-center text-[var(--text-icon)]'
-          >
+          <span aria-hidden className={cn(chipIconSlotClass, 'text-[var(--text-icon)]')}>
             <ChevronDown className='size-[14px]' />
           </span>
         </button>

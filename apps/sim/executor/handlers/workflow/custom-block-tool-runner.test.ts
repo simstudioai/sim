@@ -101,6 +101,7 @@ describe('runCustomBlockTool', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
+    registry.recordResolved('API_KEY', secret)
     mockExecute.mockRejectedValue(new Error(message))
 
     const projected = await runCustomBlockTool(

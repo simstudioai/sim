@@ -1,9 +1,5 @@
 import { toError } from '@sim/utils/errors'
 import { isInternalFileUrl } from '@/lib/uploads/utils/file-utils'
-import {
-  selectModelBoundFileInput,
-  selectPreferredModelBoundFileInput,
-} from '@/lib/uploads/utils/model-input'
 import type { PulseParserInput, PulseParserOutput, PulseParserV2Input } from '@/tools/pulse/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -77,15 +73,6 @@ export const pulseParserTool: ToolConfig<PulseParserInput, PulseParserOutput> = 
   },
 
   request: {
-    modelInput: {
-      mode: 'private-provenance',
-      select: (params) =>
-        selectPreferredModelBoundFileInput({
-          file: params.file && typeof params.file === 'object' ? params.file : params.fileUpload,
-          filePath: params.filePath,
-          prefer: 'path',
-        }),
-    },
     url: '/api/tools/pulse/parse',
     method: 'POST',
     headers: () => {
@@ -292,10 +279,6 @@ export const pulseParserV2Tool: ToolConfig<PulseParserV2Input, PulseParserOutput
     apiKey: pulseParserTool.params.apiKey,
   },
   request: {
-    modelInput: {
-      mode: 'private-provenance',
-      select: (params) => selectModelBoundFileInput(params.file),
-    },
     url: '/api/tools/pulse/parse',
     method: 'POST',
     headers: () => ({

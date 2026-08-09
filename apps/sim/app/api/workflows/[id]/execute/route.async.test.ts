@@ -194,6 +194,7 @@ vi.mock('@sim/utils/id', () => ({
   ),
 }))
 
+import { PERSONAL_KEY_DENIED, WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { storeLargeValue } from '@/lib/execution/payloads/store'
 import { POST } from './route'
 
@@ -360,6 +361,7 @@ function createInternalProvenanceRequest(
     useDraftState?: boolean
     provenance?: typeof WORKFLOW_INPUT_PROVENANCE
     selectionKey?: string
+    bundleComplete?: boolean
     includeHeader?: boolean
     includeField?: boolean
   } = {}
@@ -371,6 +373,7 @@ function createInternalProvenanceRequest(
     useDraftState,
     provenance = WORKFLOW_INPUT_PROVENANCE,
     selectionKey = 'input',
+    bundleComplete = true,
     includeHeader = true,
     includeField = true,
   } = options
@@ -387,8 +390,8 @@ function createInternalProvenanceRequest(
         ? {
             [PRIVATE_SECRET_PROVENANCE_FIELD]: {
               version: 1,
-              complete: true,
-              selections: [{ key: selectionKey, provenance }],
+              complete: bundleComplete,
+              selections: bundleComplete ? [{ key: selectionKey, provenance }] : [],
             },
           }
         : {}),
@@ -496,6 +499,9 @@ describe('workflow execute async route', () => {
       close: vi.fn().mockResolvedValue(undefined),
     })
     loggingSessionMockFns.mockWaitForPostExecution.mockReset().mockResolvedValue(undefined)
+    loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue
+      .mockReset()
+      .mockReturnValue({ version: 1, complete: false, entries: [] })
     mockExecuteWorkflowJob.mockReset().mockResolvedValue({ success: true })
     encryptionMockFns.mockDecryptSecret.mockReset().mockImplementation(async (value: string) => ({
       decrypted: value === 'encrypted-token' ? 'secret-value' : 'other-secret',
@@ -530,6 +536,26 @@ describe('workflow execute async route', () => {
     const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
     expect(executionOptions.trustedInitialResolvedSecretTraceProvenance).toBeUndefined()
     expect(executionOptions.snapshot.input).toEqual({ hello: 'world' })
+  })
+
+  it('runs authenticated incomplete workflow input with incomplete downstream lineage', async () => {
+    configureExecutionCaller(EXECUTION_CALLERS[4])
+
+    const response = await POST(createInternalProvenanceRequest({ bundleComplete: false }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    const executionOptions = mockExecuteWorkflowCore.mock.calls[0]?.[0]
+    expect(executionOptions).toMatchObject({
+      trustedInitialResolvedSecretTraceProvenance: {
+        version: 1,
+        complete: false,
+        entries: [],
+      },
+    })
+    expect(executionOptions.snapshot.input).toEqual({ input: { token: 'secret-value' } })
+    expect(executionOptions.snapshot.input).not.toHaveProperty(PRIVATE_SECRET_PROVENANCE_FIELD)
   })
 
   it.each([
@@ -1766,7 +1792,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'API key is not authorized for this workspace',
+      error: WORKSPACE_KEY_SCOPE_DENIED,
     })
     expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
@@ -1787,7 +1813,7 @@ describe('workflow execute async route', () => {
 
     expect(response.status).toBe(403)
     await expect(response.json()).resolves.toEqual({
-      error: 'Personal API keys are not allowed for this workspace',
+      error: PERSONAL_KEY_DENIED,
     })
     expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalled()
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
@@ -1955,19 +1981,29 @@ describe('workflow execute async route', () => {
     expect(runFromBlock?.sourceSnapshot).not.toHaveProperty('resolvedSecretTraceProvenance')
   })
 
-  it('returns encrypted resolution provenance only to an authenticated internal tool caller', async () => {
+  it('exports exact provenance for the final response body to an authenticated internal caller', async () => {
     const caller = EXECUTION_CALLERS[4]
     configureExecutionCaller(caller)
-    const provenance = {
+    const runProvenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'UNRELATED_SECRET', encryptedValue: 'encrypted-unrelated-secret' }],
+    }
+    const responseProvenance = {
       version: 1,
       complete: true,
       entries: [{ name: 'CHILD_SECRET', encryptedValue: 'encrypted-child-secret' }],
     }
+    loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue.mockReturnValueOnce(
+      responseProvenance
+    )
     mockExecuteWorkflowCore.mockResolvedValueOnce({
       success: true,
       status: 'completed',
       output: { ok: true },
-      executionState: { resolvedSecretTraceProvenance: provenance },
+      executionState: {
+        resolvedSecretTraceProvenance: runProvenance,
+      },
       metadata: {
         duration: 100,
         startTime: '2026-01-01T00:00:00Z',
@@ -1985,8 +2021,48 @@ describe('workflow execute async route', () => {
     )
     await expect(response.json()).resolves.toMatchObject({
       output: { ok: true },
-      __resolvedSecretTraceProvenance: provenance,
+      __resolvedSecretTraceProvenance: responseProvenance,
     })
+    expect(
+      loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({
+        success: true,
+        executionId: 'execution-123',
+        output: { ok: true },
+      })
+    )
+  })
+
+  it('includes a thrown execution error in the exact response-provenance boundary', async () => {
+    const caller = EXECUTION_CALLERS[4]
+    configureExecutionCaller(caller)
+    const responseProvenance = {
+      version: 1,
+      complete: true,
+      entries: [{ name: 'ERROR_SECRET', encryptedValue: 'encrypted-error-secret' }],
+    }
+    loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue.mockReturnValueOnce(
+      responseProvenance
+    )
+    mockExecuteWorkflowCore.mockRejectedValueOnce(new Error('resolved error value'))
+    const request = createCallerExecutionRequest(caller, undefined, 'sync')
+    request.headers.set('x-sim-request-private-tool-metadata', 'resolved-secret-provenance-v1')
+
+    const response = await POST(request, { params: Promise.resolve({ id: 'workflow-1' }) })
+    const body = await response.json()
+
+    expect(response.status).toBe(500)
+    expect(body).toMatchObject({
+      success: false,
+      error: 'resolved error value',
+      __resolvedSecretTraceProvenance: responseProvenance,
+    })
+    expect(
+      loggingSessionMockFns.mockExportResolvedSecretTraceProvenanceForValue
+    ).toHaveBeenCalledWith(
+      expect.objectContaining({ success: false, error: 'resolved error value' })
+    )
   })
 
   it('does not expose private provenance metadata to non-internal callers', async () => {

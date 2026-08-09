@@ -77,14 +77,19 @@ describe('memory write secret provenance', () => {
     expect(result).toEqual({ success: true })
   })
 
-  it('rejects an unavailable verified selection before persistence', () => {
+  it('persists authenticated unavailable selection lineage as unknown', () => {
     const bundle = {
       version: 1 as const,
       complete: true,
       selections: [
         {
           key: 'data',
-          provenance: { version: 1 as const, complete: false, entries: [] },
+          provenance: {
+            version: 1 as const,
+            complete: false,
+            entries: [],
+            scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+          },
         },
       ],
     }
@@ -103,8 +108,32 @@ describe('memory write secret provenance', () => {
       workspaceId: 'workspace-1',
     })
 
-    expect(result.success).toBe(false)
-    if (!result.success) expect(result.response.status).toBe(400)
+    expect(result).toEqual({ success: true, provenance: { status: 'unknown' } })
+  })
+
+  it('persists an authenticated incomplete bundle as unknown', () => {
+    const payload = {
+      [PRIVATE_SECRET_PROVENANCE_FIELD]: {
+        version: 1 as const,
+        complete: false,
+        selections: [],
+      },
+    }
+    const request = new NextRequest('http://localhost/api/memory', {
+      method: 'POST',
+      headers: { [PRIVATE_SECRET_PROVENANCE_HEADER]: PRIVATE_SECRET_PROVENANCE_BUNDLE_V1 },
+      body: JSON.stringify(payload),
+    })
+
+    expect(
+      resolveMemoryWriteSecretProvenance({
+        request,
+        payload,
+        authType: AuthType.INTERNAL_JWT,
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+    ).toEqual({ success: true, provenance: { status: 'unknown' } })
   })
 
   it('accepts exact-empty provenance from the workflow owner in the actor workspace', () => {

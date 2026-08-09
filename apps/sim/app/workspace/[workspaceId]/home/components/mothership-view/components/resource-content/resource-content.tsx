@@ -638,7 +638,7 @@ function EmbeddedWorkflow({ workspaceId, workflowId }: EmbeddedWorkflowProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <WorkflowX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Workflow not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This workflow may have been deleted or moved
           </p>
@@ -699,7 +699,7 @@ function EmbeddedFile({
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FileX className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>File not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>File not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This file may have been deleted or moved
           </p>
@@ -747,7 +747,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <FolderIcon className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Folder not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This folder may have been deleted or moved
           </p>
@@ -758,7 +758,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
 
   return (
     <div className='flex h-full flex-col overflow-y-auto p-6'>
-      <h2 className='mb-4 font-medium text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
+      <h2 className='mb-4 text-[16px] text-[var(--text-primary)]'>{folder.name}</h2>
       {folderWorkflows.length === 0 ? (
         <p className='text-[13px] text-[var(--text-muted)]'>No workflows in this folder</p>
       ) : (
@@ -805,7 +805,7 @@ function EmbeddedLog({ workspaceId, logId, onNotFound }: EmbeddedLogProps) {
       <div className='flex h-full flex-col items-center justify-center gap-3'>
         <Library className='size-[32px] text-[var(--text-icon)]' />
         <div className='flex flex-col items-center gap-1'>
-          <h2 className='font-medium text-[20px] text-[var(--text-primary)]'>Log not found</h2>
+          <h2 className='text-[20px] text-[var(--text-primary)]'>Log not found</h2>
           <p className='text-[var(--text-body)] text-small'>
             This log may have been deleted or is no longer available
           </p>

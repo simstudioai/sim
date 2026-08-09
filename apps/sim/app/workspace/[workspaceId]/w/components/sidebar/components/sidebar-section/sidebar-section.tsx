@@ -1,7 +1,8 @@
 'use client'
 
 import { type ReactNode, useState } from 'react'
-import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
+import { cn, disclosureChevronClass, Expandable, ExpandableContent } from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 
 /**
  * Title-row layout, shared by the toggle and its rail-collapsed counterpart so the
@@ -10,14 +11,6 @@ import { ChevronDown, cn, Expandable, ExpandableContent } from '@sim/emcn'
  * the full width of the rail is clickable rather than just the text and chevron.
  */
 const TITLE_ROW_CLASS = 'flex h-full min-w-0 flex-1 items-center gap-2 px-4'
-
-/**
- * One transition covering both of the chevron's states — the hover fade and the
- * collapse rotation — so the two can never drift apart. 150ms on Tailwind's default
- * `cubic-bezier(0.4, 0, 0.2, 1)` is the same curve the `collapsible-up`/`-down`
- * keyframes use for the body, so the whole section animates as one gesture.
- */
-const CHEVRON_TRANSITION_CLASS = 'transition-[opacity,transform] duration-150'
 
 interface SidebarSectionProps {
   title: string
@@ -93,9 +86,8 @@ export function SidebarSection({
              */}
             <ChevronDown
               className={cn(
-                'size-[14px] flex-shrink-0 text-[var(--text-icon)] opacity-0',
-                CHEVRON_TRANSITION_CLASS,
-                'group-hover/section:opacity-100 group-focus-visible/toggle:opacity-100',
+                disclosureChevronClass,
+                'opacity-0 group-hover/section:opacity-100 group-focus-visible/toggle:opacity-100',
                 !expanded && '-rotate-90'
               )}
             />

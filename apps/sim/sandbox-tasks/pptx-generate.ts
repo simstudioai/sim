@@ -1,3 +1,4 @@
+import { MAX_SANDBOX_IMAGE_DATA_URI_CHARS } from '@/lib/execution/isolated-vm-limits'
 import { workspaceFileBroker } from '@/lib/execution/sandbox/brokers/workspace-file'
 import { defineSandboxTask } from '@/lib/execution/sandbox/define-task'
 import type { SandboxTaskInput } from '@/lib/execution/sandbox/types'
@@ -22,7 +23,7 @@ export const pptxGenerateTask = defineSandboxTask<SandboxTaskInput>({
 
     // ── Image helpers ──────────────────────────────────────────────────────────
     // 6 MB raw ≈ 8 MB base64; reject above this to avoid sandbox OOM.
-    const _MAX_IMG_B64 = 8 * 1024 * 1024;
+    const _MAX_IMG_B64 = ${MAX_SANDBOX_IMAGE_DATA_URI_CHARS};
 
     /**
      * getFileBase64(fileId) — load a workspace file as a data URI string.

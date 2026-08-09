@@ -277,9 +277,7 @@ export function buildToolExecutionContext(
   return {
     ...execContext,
     toolCallId: toolCall.id,
-    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForToolInput(
-      toolCall.params
-    ),
+    resolvedSecretTraceRegistry: execContext.resolvedSecretTraceRegistry?.forkForInputPaths([]),
     ...(toolCall.parentToolCallId ? { parentToolCallId: toolCall.parentToolCallId } : {}),
   }
 }

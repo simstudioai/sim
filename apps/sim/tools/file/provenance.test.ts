@@ -15,7 +15,7 @@ describe('workspace file mutation provenance', () => {
         content: 'causal-content',
         workspaceId: 'workspace-id',
       })
-    ).toEqual([{ key: 'content', value: 'causal-content' }])
+    ).toEqual([{ key: 'content', inputPaths: [['content']] }])
   })
 
   it('tracks file-write content without changing existing filename behavior', () => {
@@ -27,6 +27,6 @@ describe('workspace file mutation provenance', () => {
         content: 'causal-content',
         workspaceId: 'workspace-id',
       })
-    ).toEqual([{ key: 'content', value: 'causal-content' }])
+    ).toEqual([{ key: 'content', inputPaths: [['content']] }])
   })
 })

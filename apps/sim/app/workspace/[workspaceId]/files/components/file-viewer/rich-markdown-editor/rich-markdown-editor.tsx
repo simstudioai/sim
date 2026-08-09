@@ -1204,7 +1204,7 @@ export function LoadedRichMarkdownEditor({
   return (
     <div
       ref={containerRef}
-      className={cn('flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
+      className={cn('relative flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && (
         <EditorBubbleMenu

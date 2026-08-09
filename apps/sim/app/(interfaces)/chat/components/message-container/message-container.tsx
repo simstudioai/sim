@@ -39,9 +39,7 @@ export function ChatMessageContainer({
           {messages.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-10'>
               <div className='space-y-2 text-center'>
-                <h3 className='font-medium text-[var(--text-primary)] text-lg'>
-                  How can I help you today?
-                </h3>
+                <h3 className='text-[var(--text-primary)] text-lg'>How can I help you today?</h3>
                 <p className='text-[var(--text-muted)] text-sm'>
                   {chatConfig?.description || 'Ask me anything.'}
                 </p>

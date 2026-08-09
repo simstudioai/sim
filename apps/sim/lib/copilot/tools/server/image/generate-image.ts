@@ -9,7 +9,6 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import {
   assertOpaqueWorkspaceFileModelSafe,
-  projectServerToolModelInput,
   ServerToolModelInputError,
 } from '@/lib/copilot/tools/server/model-input'
 import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -78,7 +77,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
     }
 
     try {
-      const { prompt } = projectServerToolModelInput({ prompt: params.prompt }, context)
+      const prompt = params.prompt
       const apiKey = getRotatingApiKey('gemini')
       const ai = new GoogleGenAI({ apiKey })
 
@@ -94,7 +93,7 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
           try {
             const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
             if (fileRecord) {
-              await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord, context })
+              await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
               const buffer = await fetchWorkspaceFileBuffer(fileRecord)
               const base64 = buffer.toString('base64')
               const mime = fileRecord.type || 'image/png'

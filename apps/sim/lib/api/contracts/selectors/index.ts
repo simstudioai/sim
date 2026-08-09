@@ -95,6 +95,7 @@ import {
   slackUserSelectorContract,
   slackUsersSelectorContract,
 } from '@/lib/api/contracts/selectors/slack'
+import { snowflakeObjectsSelectorContract } from '@/lib/api/contracts/selectors/snowflake'
 import { trelloBoardsSelectorContract } from '@/lib/api/contracts/selectors/trello'
 import {
   wealthboxItemContract,
@@ -135,6 +136,7 @@ export * from '@/lib/api/contracts/selectors/oauth'
 export * from '@/lib/api/contracts/selectors/pipedrive'
 export * from '@/lib/api/contracts/selectors/sharepoint'
 export * from '@/lib/api/contracts/selectors/slack'
+export * from '@/lib/api/contracts/selectors/snowflake'
 export * from '@/lib/api/contracts/selectors/trello'
 export * from '@/lib/api/contracts/selectors/wealthbox'
 export * from '@/lib/api/contracts/selectors/webflow'
@@ -173,6 +175,7 @@ export const selectorContractsByPath = {
   '/api/tools/zoho_desk/agents': zohoDeskAgentsSelectorContract,
   '/api/tools/zoom/meetings': zoomMeetingsSelectorContract,
   '/api/tools/slack/channels': slackChannelsSelectorContract,
+  '/api/tools/snowflake/objects': snowflakeObjectsSelectorContract,
   '/api/tools/slack/users': slackUsersSelectorContract,
   '/api/tools/slack/users:detail': slackUserSelectorContract,
   '/api/tools/gmail/labels': gmailLabelsSelectorContract,

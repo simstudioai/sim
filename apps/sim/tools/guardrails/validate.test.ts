@@ -67,7 +67,9 @@ describe('guardrailsValidateTool.request.modelInput', () => {
     expect(modelInput?.mode).toBe('private-provenance')
     if (modelInput?.mode !== 'private-provenance') throw new Error('Unexpected model input mode')
 
-    expect(modelInput.select({ input: 'claim', validationType: 'hallucination' })).toBe('claim')
-    expect(modelInput.select({ input: 'private text', validationType: 'pii' })).toBeUndefined()
+    expect(modelInput.inputPaths({ input: 'claim', validationType: 'hallucination' })).toEqual([
+      ['input'],
+    ])
+    expect(modelInput.inputPaths({ input: 'private text', validationType: 'pii' })).toEqual([])
   })
 })

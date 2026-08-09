@@ -1030,14 +1030,17 @@ describe('preValidateCredentialInputs (hosted models)', () => {
     expect(result.errors[0]?.error).toContain('hosted model')
   })
 
-  // Create PR hands the key to the sandbox, so Sim never covers it with a hosted
+  // Sandbox modes hand the key to the sandbox, so Sim never covers it with a hosted
   // key -- stripping it would leave the copilot authoring a block that cannot run.
-  it('preserves apiKey on a Create PR Pi block when the model is hosted', async () => {
-    const result = await preValidateCredentialInputs(piAddOperation('cloud'), CTX)
+  it.each([['cloud'], ['cloud_branch'], ['cloud_plan']])(
+    'preserves apiKey on a Pi block in %s mode when the model is hosted',
+    async (mode) => {
+      const result = await preValidateCredentialInputs(piAddOperation(mode), CTX)
 
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
-    expect(result.errors).toHaveLength(0)
-  })
+      expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
+      expect(result.errors).toHaveLength(0)
+    }
+  )
 
   // Local Dev and Review Code keep the model client in Sim, so the hosted key applies.
   it.each([['local'], ['cloud_review']])(

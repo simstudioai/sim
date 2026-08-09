@@ -21,8 +21,8 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { projectServerToolModelInput } from '@/lib/copilot/tools/server/model-input'
 import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
+import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import {
   createSingleDocument,
   deleteDocument,
@@ -264,7 +264,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const { query: modelQuery } = projectServerToolModelInput({ query: args.query }, context)
+          const modelQuery = args.query
           const { embedding: queryEmbedding, isBYOK: queryEmbeddingIsBYOK } =
             await generateSearchEmbedding(modelQuery, kb.embeddingModel, kb.workspaceId)
           const queryVector = JSON.stringify(queryEmbedding)
@@ -706,6 +706,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'tagDisplayName is required for create_tag operation',
             }
           }
+          if (args.tagDisplayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
+            }
+          }
 
           const writeAccess = await checkKnowledgeBaseWriteAccess(
             args.knowledgeBaseId,
@@ -776,6 +782,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return {
               success: false,
               message: 'At least one of tagDisplayName or tagFieldType is required for update_tag',
+            }
+          }
+          if (
+            updateData.displayName &&
+            updateData.displayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH
+          ) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
             }
           }
 
