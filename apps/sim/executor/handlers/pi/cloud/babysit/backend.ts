@@ -37,6 +37,10 @@ import {
   parseBabysitRound,
 } from '@/executor/handlers/pi/cloud/babysit/round'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
   COMMIT_MSG_PATH,
@@ -47,8 +51,6 @@ import {
   GIT_CONFIG_DIGEST_MARKER,
   MAX_DIFF_BYTES,
   MIN_PI_TIMEOUT_MS,
-  PI_EVENT_FILTER_PATH,
-  PI_EVENT_FILTER_SOURCE,
   PROMPT_PATH,
   PUSH_ERROR_MAX,
   REPO_DIR,

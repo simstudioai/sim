@@ -9,12 +9,14 @@ import {
   PI_SANDBOX_MIN_LIFETIME_MS,
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   buildPiScript,
   CLONE_TIMEOUT_MS,
   FINALIZE_TIMEOUT_MS,
   MIN_PI_TIMEOUT_MS,
-  PI_EVENT_FILTER_PATH,
-  PI_EVENT_FILTER_SOURCE,
   resolvePiTimeoutMs,
 } from '@/executor/handlers/pi/cloud/shared'
 import { normalizePiEvent } from '@/executor/handlers/pi/core/events'
@@ -198,15 +200,12 @@ describe('PI_EVENT_FILTER_SOURCE', () => {
         event.messages.length > 0 &&
         (event.messages[0] as { stopReason?: string }).stopReason === 'stop'
     )
+    // Reduced to the one message `normalizePiEvent` inspects, and to the three fields it reads off
+    // it. The transcript, the thinking block, and the final text all go: the run's text reaches
+    // Sim through the deltas, so carrying it again here would be the whole answer twice.
     expect(completed).toEqual({
       type: 'agent_end',
-      messages: [
-        {
-          role: 'assistant',
-          content: [{ type: 'text', text: 'final answer' }],
-          stopReason: 'stop',
-        },
-      ],
+      messages: [{ role: 'assistant', stopReason: 'stop' }],
     })
     expect(output.some((event) => event.type === 'tool_execution_update')).toBe(false)
   })

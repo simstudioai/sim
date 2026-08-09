@@ -29,6 +29,10 @@ import {
 } from '@/lib/execution/remote-sandbox/pi-lifetime'
 import { runBabysitPi } from '@/executor/handlers/pi/cloud/babysit/backend'
 import {
+  PI_EVENT_FILTER_PATH,
+  PI_EVENT_FILTER_SOURCE,
+} from '@/executor/handlers/pi/cloud/event-filter-source'
+import {
   type BranchPullRequest,
   fetchOpenPrForBranch,
   findOpenPrForBranch,
@@ -43,8 +47,6 @@ import {
   FINALIZE_TIMEOUT_MS,
   GIT_CONFIG_DIGEST_LINE,
   MAX_DIFF_BYTES,
-  PI_EVENT_FILTER_PATH,
-  PI_EVENT_FILTER_SOURCE,
   PREPARE_SCRIPT,
   PROMPT_PATH,
   PUSH_ERR_PATH,
