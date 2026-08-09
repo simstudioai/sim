@@ -3,10 +3,6 @@
  * Used by both client-side signature computation and server-side comparison.
  */
 
-import {
-  normalizeWorkflowEdgeSourceHandle,
-  normalizeWorkflowEdgeTargetHandle,
-} from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { isNonEmptyValue } from '@/lib/workflows/subblocks/visibility'
 import { isSyntheticToolSubBlockId } from '@/lib/workflows/tool-input/synthetic-subblocks'
@@ -51,6 +47,17 @@ export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Parallel fields - duplicated in parallels state and/or subBlocks
   'parallelType', // Duplicated in parallels state
   'distribution', // Parallel distribution (derived during execution)
+
+  /*
+   * Duplicated from the block's own `errorEnabled`. `data` is where the flag
+   * persists (the realtime server `jsonb_set`s it, and load mirrors it back
+   * onto the block), so the same value reaches this comparison twice — and only
+   * some paths populate the copy. Counted here, a block read one way differed
+   * from the identical block read another and the deploy badge flipped between
+   * Live and "Update deployment" as each query landed. The block field is
+   * compared on its own, with `!!`, so absent and `false` agree there.
+   */
+  'errorEnabled',
 ] as const
 
 /**
@@ -309,17 +316,6 @@ interface NormalizedEdge {
 /**
  * Normalizes an edge by extracting only the connection-relevant fields.
  * Treats null and undefined as equivalent (omits the field if null/undefined).
- *
- * Handles are canonicalized here rather than by each caller, because the two
- * places that ask "does this need redeploying?" load their sides differently:
- * the client diffs the live store against the `/deployed` response, while the
- * server diffs the normalized tables against the version's raw jsonb — and only
- * some of those paths pass through `loadWorkflowFromNormalizedTables`. A
- * side-anchored id surviving on one side alone read as every edge being removed
- * and re-added, so the button said "Live" while the modal said "Update
- * deployment" and the badge flipped with whichever query landed last. Both are
- * spellings of one port, so the comparison must not be able to tell them apart.
- *
  * @param edge - The edge object
  * @returns Normalized edge with only connection fields
  */
@@ -328,15 +324,13 @@ export function normalizeEdge(edge: Edge): NormalizedEdge {
     source: edge.source,
     target: edge.target,
   }
-  const sourceHandle = normalizeWorkflowEdgeSourceHandle(edge.sourceHandle)
-  const targetHandle = normalizeWorkflowEdgeTargetHandle(edge.targetHandle)
   // Only include handles if they have a non-null value
   // This treats null and undefined as equivalent (both omitted)
-  if (sourceHandle != null) {
-    normalized.sourceHandle = sourceHandle
+  if (edge.sourceHandle != null) {
+    normalized.sourceHandle = edge.sourceHandle
   }
-  if (targetHandle != null) {
-    normalized.targetHandle = targetHandle
+  if (edge.targetHandle != null) {
+    normalized.targetHandle = edge.targetHandle
   }
   return normalized
 }

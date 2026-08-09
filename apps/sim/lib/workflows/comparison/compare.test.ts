@@ -193,33 +193,6 @@ describe('hasWorkflowChanged', () => {
       expect(hasWorkflowChanged(state1, state2)).toBe(true)
     })
 
-    /**
-     * The two sides of a redeploy check are loaded by different paths, and only
-     * some of them canonicalize handles: the server diffs the normalized tables
-     * against the version's raw jsonb. A side-anchored spelling surviving on one
-     * side alone read as every edge being removed and re-added, so the button
-     * said "Live" while the modal said "Update deployment".
-     */
-    it.concurrent('should treat a side-anchored source handle as its canonical id', () => {
-      const state1 = createWorkflowState({
-        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source-right', target: 'block2' }],
-      })
-      const state2 = createWorkflowState({
-        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
-      })
-      expect(hasWorkflowChanged(state1, state2)).toBe(false)
-    })
-
-    it.concurrent('should still tell two real ports apart', () => {
-      const state1 = createWorkflowState({
-        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'source', target: 'block2' }],
-      })
-      const state2 = createWorkflowState({
-        edges: [{ id: 'edge1', source: 'block1', sourceHandle: 'error', target: 'block2' }],
-      })
-      expect(hasWorkflowChanged(state1, state2)).toBe(true)
-    })
-
     it.concurrent('should ignore edge ID changes', () => {
       const state1 = createWorkflowState({
         edges: [{ id: 'edge-old', source: 'block1', target: 'block2' }],
@@ -354,6 +327,47 @@ describe('hasWorkflowChanged', () => {
       const summary = generateWorkflowDiffSummary(state2, state1)
       expect(summary.hasChanges).toBe(false)
       expect(summary.modifiedBlocks).toEqual([])
+    })
+  })
+
+  /**
+   * `errorEnabled` persists inside the block's `data` jsonb and is mirrored onto
+   * the block as a field on load, so the same flag reaches the comparison twice
+   * — and only some paths populate the copy. Counted through `data`, a block
+   * read one way differed from the identical block read another, which flipped
+   * the deploy badge between Live and "Update deployment" as each query landed.
+   * The top-level field is the one the comparison trusts.
+   */
+  describe('Error Output Flag', () => {
+    /* Spread on after the factory, which returns a fixed block shape. */
+    const withErrorFlag = (errorEnabled: boolean, data: Record<string, unknown>) =>
+      createWorkflowState({
+        blocks: { block1: { ...createBlock('block1', { data }), errorEnabled } },
+      })
+
+    it.concurrent('ignores a stale data mirror when the flag itself matches', () => {
+      expect(
+        hasWorkflowChanged(
+          withErrorFlag(true, { errorEnabled: false }),
+          withErrorFlag(true, { errorEnabled: true })
+        )
+      ).toBe(false)
+    })
+
+    it.concurrent('ignores a data mirror only one side carries', () => {
+      expect(hasWorkflowChanged(withErrorFlag(false, {}), withErrorFlag(false, {}))).toBe(false)
+      expect(
+        hasWorkflowChanged(withErrorFlag(false, {}), withErrorFlag(false, { errorEnabled: false }))
+      ).toBe(false)
+    })
+
+    it.concurrent('still detects the flag being turned on', () => {
+      expect(
+        hasWorkflowChanged(
+          withErrorFlag(true, { errorEnabled: true }),
+          withErrorFlag(false, { errorEnabled: false })
+        )
+      ).toBe(true)
     })
   })
 
