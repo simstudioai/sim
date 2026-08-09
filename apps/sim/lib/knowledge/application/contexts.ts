@@ -1,5 +1,9 @@
+import { db } from '@sim/db'
+import { embedding } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeAuthorizationContext } from '@/lib/knowledge/application/authorization'
+import type { ChunkData } from '@/lib/knowledge/chunks/types'
 import {
   type ActiveKnowledgeConnectorReference,
   getActiveKnowledgeConnectorReference,
@@ -10,7 +14,10 @@ import { getKnowledgeBaseById } from '@/lib/knowledge/service'
 import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import {
+  loadActiveWorkspaceApplicationContext,
+  loadWorkspaceApplicationContext,
+} from '@/lib/workspaces/application/workspace-context'
 
 export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext {
   billedAccountUserId: string
@@ -36,10 +43,22 @@ export interface ActiveKnowledgeConnectorContext extends ActiveKnowledgeBaseCont
   connector: ActiveKnowledgeConnectorReference
 }
 
+export interface ActiveKnowledgeChunkContext extends ActiveKnowledgeDocumentContext {
+  chunkId: string
+  chunk: ChunkData
+}
+
 export async function loadKnowledgeWorkspaceContext(
   workspaceId: string
 ): Promise<KnowledgeWorkspaceContext | null> {
   return loadActiveWorkspaceApplicationContext(workspaceId)
+}
+
+export async function loadKnowledgeWorkspaceAuthorizationContext(
+  workspaceId: string,
+  options: { includeArchived?: boolean } = {}
+): Promise<KnowledgeWorkspaceContext | null> {
+  return loadWorkspaceApplicationContext(workspaceId, options)
 }
 
 export async function resolveKnowledgeWorkspaceContext(input: {
@@ -103,6 +122,28 @@ export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
     ...context,
     documentId: document.id,
     document,
+  }
+}
+
+export async function resolveActiveKnowledgeChunkContext(input: {
+  knowledgeBaseId: string
+  documentId: string
+  chunkId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeChunkContext> {
+  const [chunk] = await db
+    .select()
+    .from(embedding)
+    .where(and(eq(embedding.id, input.chunkId), eq(embedding.documentId, input.documentId)))
+    .limit(1)
+  if (!chunk || chunk.knowledgeBaseId !== input.knowledgeBaseId) {
+    throw new OrchestrationError('not_found', 'Chunk not found')
+  }
+  const context = await resolveCanonicalActiveKnowledgeDocumentContext(input)
+  return {
+    ...context,
+    chunkId: chunk.id,
+    chunk: chunk as ChunkData,
   }
 }
 

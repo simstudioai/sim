@@ -1,15 +1,170 @@
-import type { SessionPrincipal } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  type SessionPrincipal,
+} from '@sim/auth/principal'
+import type { NextRequest } from 'next/server'
 import type { KnowledgeBaseData } from '@/lib/api/contracts/knowledge/base'
+import { type ChunkData, chunkDataSchema } from '@/lib/api/contracts/knowledge/chunks'
+import {
+  type ConnectorData,
+  type ConnectorDetailData,
+  connectorDataSchema,
+  connectorDetailDataSchema,
+} from '@/lib/api/contracts/knowledge/connectors'
+import { type DocumentData, documentDataSchema } from '@/lib/api/contracts/knowledge/documents'
+import { type TagDefinitionData, tagDefinitionDataSchema } from '@/lib/api/contracts/knowledge/tags'
+import { AuthType, type AuthTypeValue } from '@/lib/auth/hybrid'
+import {
+  requireBillingAttributionHeader,
+  resolveBillingAttribution,
+} from '@/lib/billing/core/billing-attribution'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import type {
   CreateKnowledgeBaseInput,
+  InternalKnowledgeBaseResult,
   KnowledgeBaseResult,
 } from '@/lib/knowledge/application/knowledge-bases'
+import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { captureServerEvent } from '@/lib/posthog/server'
+import type { UploadSessionRecord } from '@/lib/uploads/upload-session/service'
+
+export function internalKnowledgeActorUserId(principal: Principal): string {
+  return requirePrincipalSubjectUserId(principal)
+}
+
+export function internalKnowledgeAuthType(principal: Principal): AuthTypeValue {
+  return principal.kind === 'delegated' ? AuthType.INTERNAL_JWT : AuthType.SESSION
+}
+
+export async function resolveInternalKnowledgeBillingAttribution(
+  request: NextRequest,
+  principal: Principal,
+  workspaceId: string
+) {
+  const actorUserId = internalKnowledgeActorUserId(principal)
+  return await (principal.kind === 'delegated'
+    ? requireBillingAttributionHeader(request.headers, { actorUserId, workspaceId })
+    : resolveBillingAttribution({ actorUserId, workspaceId }))
+}
 
 function serializeDate(date: Date | string): string {
   return date instanceof Date ? date.toISOString() : date
+}
+
+function serializeNullableDate(date: Date | string | null): string | null {
+  return date ? serializeDate(date) : null
+}
+
+export function toInternalKnowledgeDocument<
+  T extends {
+    uploadedAt: Date | string
+    processingStartedAt?: Date | string | null
+    processingCompletedAt?: Date | string | null
+    date1?: Date | string | null
+    date2?: Date | string | null
+  },
+>(document: T): DocumentData {
+  return documentDataSchema.parse({
+    ...document,
+    uploadedAt: serializeDate(document.uploadedAt),
+    processingStartedAt: serializeNullableDate(document.processingStartedAt ?? null),
+    processingCompletedAt: serializeNullableDate(document.processingCompletedAt ?? null),
+    date1: serializeNullableDate(document.date1 ?? null),
+    date2: serializeNullableDate(document.date2 ?? null),
+  })
+}
+
+export function toInternalKnowledgeChunk<
+  T extends { createdAt: Date | string; updatedAt: Date | string },
+>(chunk: T): ChunkData {
+  return chunkDataSchema.parse({
+    ...chunk,
+    createdAt: serializeDate(chunk.createdAt),
+    updatedAt: serializeDate(chunk.updatedAt),
+  })
+}
+
+export function toInternalKnowledgeTag<
+  T extends { createdAt: Date | string; updatedAt: Date | string },
+>(tag: T): TagDefinitionData {
+  return tagDefinitionDataSchema.parse({
+    ...tag,
+    createdAt: serializeDate(tag.createdAt),
+    updatedAt: serializeDate(tag.updatedAt),
+  })
+}
+
+export function toInternalKnowledgeConnector<
+  T extends {
+    sourceConfig: unknown
+    createdAt: Date | string
+    updatedAt: Date | string
+    lastSyncAt: Date | string | null
+    nextSyncAt: Date | string | null
+  },
+>(connector: T): ConnectorData {
+  return connectorDataSchema.parse({
+    ...connector,
+    createdAt: serializeDate(connector.createdAt),
+    updatedAt: serializeDate(connector.updatedAt),
+    lastSyncAt: serializeNullableDate(connector.lastSyncAt),
+    nextSyncAt: serializeNullableDate(connector.nextSyncAt),
+  })
+}
+
+export function toInternalKnowledgeConnectorDetail<
+  T extends Parameters<typeof toInternalKnowledgeConnector>[0] & {
+    syncLogs: Array<{
+      startedAt: Date | string
+      completedAt: Date | string | null
+      [key: string]: unknown
+    }>
+  },
+>(connector: T): ConnectorDetailData {
+  return connectorDetailDataSchema.parse({
+    ...toInternalKnowledgeConnector(connector),
+    syncLogs: connector.syncLogs.map((log) => ({
+      ...log,
+      startedAt: serializeDate(log.startedAt),
+      completedAt: serializeNullableDate(log.completedAt),
+    })),
+  })
+}
+
+export function toInternalKnowledgeDocumentUpload(
+  session: UploadSessionRecord,
+  document: CreatedKnowledgeDocument | null
+) {
+  if (!session.knowledgeBaseId) {
+    throw new Error('Knowledge-document upload session is missing its knowledge base')
+  }
+  return {
+    id: session.id,
+    knowledgeBaseId: session.knowledgeBaseId,
+    status: session.status,
+    name: session.fileName,
+    contentType: session.contentType,
+    size: session.fileSize,
+    expiresAt: serializeDate(session.expiresAt),
+    error: session.error,
+    document: document
+      ? {
+          id: document.id,
+          knowledgeBaseId: document.knowledgeBaseId,
+          filename: document.filename,
+          fileSize: document.fileSize,
+          mimeType: document.mimeType,
+          processingStatus: document.processingStatus ?? 'pending',
+          chunkCount: document.chunkCount,
+          tokenCount: document.tokenCount,
+          characterCount: document.characterCount,
+          enabled: document.enabled,
+          createdAt: serializeNullableDate(document.uploadedAt),
+        }
+      : null,
+  }
 }
 
 function toInternalKnowledgeBase(knowledgeBase: KnowledgeBaseWithCounts): KnowledgeBaseData {
@@ -28,6 +183,15 @@ export const internalKnowledgePresenters = {
   },
   create({ knowledgeBase }: KnowledgeBaseResult) {
     return { success: true as const, data: toInternalKnowledgeBase(knowledgeBase) }
+  },
+  read({ knowledgeBase }: InternalKnowledgeBaseResult) {
+    return { success: true as const, data: toInternalKnowledgeBase(knowledgeBase) }
+  },
+  deleted() {
+    return {
+      success: true as const,
+      data: { message: 'Knowledge base deleted successfully' },
+    }
   },
 } as const
 

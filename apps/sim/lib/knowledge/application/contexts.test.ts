@@ -11,6 +11,7 @@ const mocks = vi.hoisted(() => ({
   getTag: vi.fn(),
   getConnector: vi.fn(),
   loadWorkspace: vi.fn(),
+  loadWorkspaceIncludingArchived: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/service', () => ({
@@ -32,6 +33,7 @@ vi.mock('@/lib/knowledge/connectors/service', () => ({
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
   loadActiveWorkspaceApplicationContext: mocks.loadWorkspace,
+  loadWorkspaceApplicationContext: mocks.loadWorkspaceIncludingArchived,
 }))
 
 import {
@@ -40,6 +42,7 @@ import {
   resolveActiveKnowledgeTagContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
   resolveKnowledgeWorkspaceContext,
+  loadKnowledgeWorkspaceAuthorizationContext,
 } from '@/lib/knowledge/application/contexts'
 
 const workspace = {
@@ -55,6 +58,7 @@ describe('knowledge application contexts', () => {
     vi.clearAllMocks()
     mocks.getKnowledgeBase.mockResolvedValue(knowledgeBase)
     mocks.loadWorkspace.mockResolvedValue(workspace)
+    mocks.loadWorkspaceIncludingArchived.mockResolvedValue(workspace)
   })
 
   it('uses the canonical active-workspace loader', async () => {
@@ -62,6 +66,15 @@ describe('knowledge application contexts', () => {
       workspace
     )
     expect(mocks.loadWorkspace).toHaveBeenCalledWith('workspace-1')
+  })
+
+  it('uses the neutral canonical loader when archived workspace authorization is explicit', async () => {
+    await expect(
+      loadKnowledgeWorkspaceAuthorizationContext('workspace-1', { includeArchived: true })
+    ).resolves.toBe(workspace)
+    expect(mocks.loadWorkspaceIncludingArchived).toHaveBeenCalledWith('workspace-1', {
+      includeArchived: true,
+    })
   })
 
   it('conceals an inactive canonical workspace as knowledge-base absence', async () => {

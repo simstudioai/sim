@@ -25,15 +25,30 @@ describe('knowledge operation registry', () => {
       'knowledge.documents.upload',
       'knowledge.documents.delete',
       'knowledge.documents.update',
+      'knowledge.documents.bulk',
+      'knowledge.chunks.list',
+      'knowledge.chunks.read',
+      'knowledge.chunks.create',
+      'knowledge.chunks.update',
+      'knowledge.chunks.delete',
+      'knowledge.chunks.bulk',
       'knowledge.tags.list',
       'knowledge.tags.create',
       'knowledge.tags.update',
       'knowledge.tags.delete',
       'knowledge.tags.read_usage',
+      'knowledge.tags.read_detailed_usage',
+      'knowledge.tags.read_next_slot',
+      'knowledge.tags.save_document_definitions',
+      'knowledge.tags.delete_document_definitions',
+      'knowledge.connectors.list',
+      'knowledge.connectors.read',
       'knowledge.connectors.create',
       'knowledge.connectors.update',
       'knowledge.connectors.delete',
       'knowledge.connectors.sync',
+      'knowledge.connectors.documents.list',
+      'knowledge.connectors.documents.update',
       'knowledge.documents.upload.create',
       'knowledge.documents.upload.parts',
       'knowledge.documents.upload.complete',
@@ -83,6 +98,7 @@ describe('knowledge operation registry', () => {
     expect(knowledgeOperations.listFolders.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.uploadComplete.principalKinds).not.toContain('delegated')
     expect(knowledgeOperations.list.delegatedServices).toEqual(['copilot'])
+    expect(knowledgeOperations.search.delegatedServices).toEqual(['copilot', 'executor'])
     expect(knowledgeOperations.uploadComplete.delegatedServices).toBeUndefined()
   })
 })

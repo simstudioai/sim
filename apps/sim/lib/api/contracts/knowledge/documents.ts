@@ -338,9 +338,17 @@ export const updateKnowledgeDocumentContract = defineRouteContract({
   body: updateDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.union([
+        documentDataSchema,
+        z.object({ documentId: z.string(), status: z.string(), message: z.string() }),
+      ])
+    ),
   },
 })
+export type UpdateKnowledgeDocumentResponseData = z.output<
+  typeof updateKnowledgeDocumentContract.response.schema
+>['data']
 
 export const updateKnowledgeDocumentTagsContract = defineRouteContract({
   method: 'PUT',
@@ -381,6 +389,23 @@ export const upsertKnowledgeDocumentContract = defineRouteContract({
   body: upsertDocumentBodySchema,
   response: {
     mode: 'json',
-    schema: successResponseSchema(documentDataSchema),
+    schema: successResponseSchema(
+      z.object({
+        documentsCreated: z.array(
+          z.object({
+            documentId: z.string(),
+            filename: z.string(),
+            status: z.literal('pending'),
+          })
+        ),
+        isUpdate: z.boolean(),
+        previousDocumentId: z.string().nullable(),
+        processingMethod: z.literal('background'),
+        processingConfig: z.object({
+          maxConcurrentDocuments: z.number(),
+          batchSize: z.number(),
+        }),
+      })
+    ),
   },
 })

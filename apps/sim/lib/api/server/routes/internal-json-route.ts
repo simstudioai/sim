@@ -198,7 +198,7 @@ type InternalJsonRouteOptions<
 > = {
   contract: C
   operation: O
-  mapInput(input: ParsedRequest<C>): I
+  mapInput(input: ParsedRequest<C>, context: { principal: P; request: NextRequest }): I | Promise<I>
   useCase: OperationUseCase<NoInfer<O>, I, R>
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
@@ -211,6 +211,15 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
+  renderResponse?(args: {
+    request: NextRequest
+    principal: P
+    input: NoInfer<I>
+    result: NoInfer<R>
+    body: ContractJsonResponse<C>
+    status: number
+    headers?: HeadersInit
+  }): NextResponse | Promise<NextResponse>
 } & InternalJsonPresenter<C, R>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
@@ -271,7 +280,7 @@ export function defineInternalJsonRoute<
       if (!parsed.success) return parsed.response
 
       try {
-        const input = options.mapInput(parsed.data)
+        const input = await options.mapInput(parsed.data, { principal, request })
         const result = await options.useCase.execute({
           principal,
           input,
@@ -283,10 +292,22 @@ export function defineInternalJsonRoute<
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
         }
-        const validatedBody = responseSchema.schema.parse(body)
+        const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
+        const headers = options.responseHeaders?.({ principal, input, result })
+        if (options.renderResponse) {
+          return options.renderResponse({
+            request,
+            principal,
+            input,
+            result,
+            body: validatedBody,
+            status: successStatus,
+            headers,
+          })
+        }
         return NextResponse.json(validatedBody, {
           status: successStatus,
-          headers: options.responseHeaders?.({ principal, input, result }),
+          headers,
         })
       } catch (error) {
         const response = options.errorPolicy.project(error)

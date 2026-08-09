@@ -9,6 +9,9 @@ export const KNOWLEDGE_DELEGATION_AUDIENCE = 'sim:knowledge'
 export interface KnowledgeAuthorizationContext extends WorkspaceAuthorizationContext {
   knowledgeBaseId?: string
   documentId?: string
+  chunkId?: string
+  tagDefinitionId?: string
+  connectorId?: string
 }
 
 export type KnowledgeAuthorizationOptions = Omit<
@@ -22,8 +25,6 @@ export const knowledgeDelegationPolicy = {
     delegated: Extract<Principal, { kind: 'delegated' }>,
     canonicalContext: KnowledgeAuthorizationContext
   ) {
-    return (
-      delegated.serviceId === 'copilot' && delegated.workspaceId === canonicalContext.workspaceId
-    )
+    return delegated.workspaceId === canonicalContext.workspaceId
   },
 } as const

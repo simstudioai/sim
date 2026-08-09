@@ -3,7 +3,10 @@
  */
 import { dbChainMockFns, resetDbChainMock, schemaMock } from '@sim/testing'
 import { beforeEach, describe, expect, it } from 'vitest'
-import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
+import {
+  loadActiveWorkspaceApplicationContext,
+  loadWorkspaceApplicationContext,
+} from '@/lib/workspaces/application/workspace-context'
 
 describe('loadActiveWorkspaceApplicationContext', () => {
   beforeEach(() => {
@@ -33,6 +36,26 @@ describe('loadActiveWorkspaceApplicationContext', () => {
     dbChainMockFns.limit.mockResolvedValueOnce([])
 
     await expect(loadActiveWorkspaceApplicationContext('workspace-1')).resolves.toBeNull()
+  })
+
+  it('can explicitly include archived workspaces', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      {
+        id: 'workspace-1',
+        organizationId: null,
+        allowPersonalApiKeys: false,
+        billedAccountUserId: 'billing-owner-1',
+      },
+    ])
+
+    await expect(
+      loadWorkspaceApplicationContext('workspace-1', { includeArchived: true })
+    ).resolves.toEqual({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: false,
+      billedAccountUserId: 'billing-owner-1',
+    })
   })
 
   it('propagates database failures', async () => {

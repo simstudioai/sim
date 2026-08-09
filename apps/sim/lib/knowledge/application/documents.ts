@@ -1,7 +1,11 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
+import { db } from '@sim/db'
+import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { and, eq, isNull } from 'drizzle-orm'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import {
@@ -17,15 +21,28 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
+  bulkDocumentOperation,
+  bulkDocumentOperationByFilter,
+  createDocumentRecords,
   createSingleDocument,
   type DocumentData,
+  deleteDocument,
   deleteKnowledgeDocumentInKnowledgeBase,
   getDocuments,
+  getProcessingConfig,
   type ProcessingOptions,
   processDocumentsWithQueue,
   updateDocument,
 } from '@/lib/knowledge/documents/service'
+import type { TagFilterCondition } from '@/lib/knowledge/documents/tag-filter'
 import type { DocumentSortField, SortOrder } from '@/lib/knowledge/documents/types'
+import {
+  performMarkKnowledgeDocumentTimedOut,
+  performRetryKnowledgeDocumentProcessing,
+  performUploadKnowledgeDocument,
+  performUploadKnowledgeDocuments,
+} from '@/lib/knowledge/orchestration/documents'
+import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -40,6 +57,7 @@ export interface ListKnowledgeDocumentsInput {
   offset?: number
   sortBy?: DocumentSortField
   sortOrder?: SortOrder
+  tagFilters?: TagFilterCondition[]
 }
 
 export interface ReadKnowledgeDocumentInput {
@@ -77,6 +95,20 @@ export interface UploadKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
   source?: string
 }
 
+export interface CreateKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmissionInput {
+  documents: KnowledgeDocumentInput[]
+  bulk: boolean
+  processingOptions?: ProcessingOptions
+  source?: 'ui' | 'api' | 'agent'
+  resolveBillingAttribution?(
+    workspaceId: string
+  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveSecretProvenances(input: {
+    userId: string
+    workspaceId: string
+  }): KnowledgeDocumentWriteSecretProvenance[] | undefined
+}
+
 export interface DeleteKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
   source?: string
 }
@@ -84,7 +116,37 @@ export interface DeleteKnowledgeDocumentInput extends ReadKnowledgeDocumentInput
 export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput {
   filename?: string
   enabled?: boolean
+  updates?: Parameters<typeof updateDocument>[1]
+  markFailedDueToTimeout?: boolean
+  retryProcessing?: boolean
+  resolveBillingAttribution?(
+    workspaceId: string
+  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
   source?: string
+}
+
+export interface BulkKnowledgeDocumentsInput extends UploadKnowledgeDocumentAdmissionInput {
+  operation: 'enable' | 'disable' | 'delete'
+  documentIds?: string[]
+  selectAll?: boolean
+  enabledFilter?: 'all' | 'enabled' | 'disabled'
+}
+
+export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdmissionInput {
+  documentId?: string
+  filename: string
+  fileUrl: string
+  fileSize: number
+  mimeType: string
+  documentTagsData?: string
+  processingOptions?: ProcessingOptions
+  resolveBillingAttribution(
+    workspaceId: string
+  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveSecretProvenances(input: {
+    userId: string
+    workspaceId: string
+  }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
@@ -100,7 +162,7 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     if (!Number.isInteger(offset) || offset < 0) {
       throw new OrchestrationError('validation', 'Document offset must be a non-negative integer')
     }
-    return getDocuments(
+    const result = await getDocuments(
       context.knowledgeBaseId,
       {
         enabledFilter: input.enabledFilter === 'all' ? undefined : input.enabledFilter,
@@ -109,9 +171,11 @@ export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         offset,
         sortBy: input.sortBy,
         sortOrder: input.sortOrder,
+        tagFilters: input.tagFilters,
       },
       generateRequestId()
     )
+    return { ...result, workspaceId: context.workspaceId }
   },
 })
 
@@ -120,7 +184,7 @@ export const readKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ReadKnowledgeDocumentInput }) =>
     resolveActiveKnowledgeDocumentContext(input),
   async execute({ context }: { context: ActiveKnowledgeDocumentContext }) {
-    return { document: context.document }
+    return { document: context.document, workspaceId: context.workspaceId }
   },
 })
 
@@ -219,6 +283,224 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   }),
 })
 
+export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.uploadDocument,
+  resolveContext: ({ input }: { input: CreateKnowledgeDocumentsInput }) =>
+    resolveActiveKnowledgeBaseContext(input),
+  async execute({ principal, input, context, request }) {
+    const billingAttribution = input.resolveBillingAttribution
+      ? await input.resolveBillingAttribution(context.workspaceId)
+      : await resolveKnowledgeBillingAttribution(principal, context)
+    const usage = await checkAttributedUsageLimits(billingAttribution)
+    if (usage.isExceeded) {
+      throw new KnowledgeUsageLimitExceededError(
+        usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
+    }
+    const userId = resolveKnowledgeAttributedUserId(principal, context)
+    const secretProvenances = input.resolveSecretProvenances({
+      userId,
+      workspaceId: context.workspaceId,
+    })
+    const knowledgeBase = {
+      id: context.knowledgeBaseId,
+      name: context.knowledgeBase.name,
+      workspaceId: context.workspaceId,
+    }
+    if (input.bulk) {
+      const outcome = await performUploadKnowledgeDocuments({
+        knowledgeBase,
+        documents: input.documents,
+        processingOptions: input.processingOptions,
+        billingAttribution,
+        uploadedBy: userId,
+        secretProvenances,
+        userId,
+        source: input.source ?? 'ui',
+        request,
+      })
+      if (!outcome.success) {
+        if (outcome.errorCode === 'internal') throw new Error('Knowledge document creation failed')
+        throw new OrchestrationError(outcome.errorCode, outcome.error)
+      }
+      const { batchSize, maxConcurrentDocuments } = getProcessingConfig()
+      return {
+        kind: 'bulk' as const,
+        data: {
+          total: outcome.documents.length,
+          documentsCreated: outcome.documents.map((document) => ({
+            documentId: document.documentId,
+            filename: document.filename,
+            status: 'pending' as const,
+          })),
+          processingMethod: 'background',
+          processingConfig: {
+            maxConcurrentDocuments,
+            batchSize,
+            totalBatches: Math.ceil(outcome.documents.length / batchSize),
+          },
+        },
+        workspaceId: context.workspaceId,
+        userId,
+        secretProvenances,
+      }
+    }
+
+    const document = input.documents[0]
+    if (!document) throw new OrchestrationError('validation', 'No documents specified')
+    const outcome = await performUploadKnowledgeDocument({
+      knowledgeBase,
+      document,
+      billingAttribution,
+      uploadedBy: userId,
+      secretProvenance: secretProvenances?.[0],
+      userId,
+      source: input.source ?? 'ui',
+      request,
+    })
+    if (!outcome.success) {
+      if (outcome.errorCode === 'internal') throw new Error('Knowledge document creation failed')
+      throw new OrchestrationError(outcome.errorCode, outcome.error)
+    }
+    return {
+      kind: 'single' as const,
+      data: outcome.document,
+      workspaceId: context.workspaceId,
+      userId,
+      secretProvenances,
+    }
+  },
+})
+
+export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.uploadDocument,
+  resolveContext: ({ input }: { input: UpsertKnowledgeDocumentInput }) =>
+    resolveActiveKnowledgeBaseContext(input),
+  async execute({ principal, input, context }) {
+    const billingAttribution = await input.resolveBillingAttribution(context.workspaceId)
+    const usage = await checkAttributedUsageLimits(billingAttribution)
+    if (usage.isExceeded) {
+      throw new KnowledgeUsageLimitExceededError(
+        usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
+      )
+    }
+    const userId = resolveKnowledgeAttributedUserId(principal, context)
+    const secretProvenances = input.resolveSecretProvenances({
+      userId,
+      workspaceId: context.workspaceId,
+    })
+    let existingDocumentId: string | null = null
+    if (input.documentId) {
+      const [existing] = await db
+        .select({ id: documentTable.id })
+        .from(documentTable)
+        .where(
+          and(
+            eq(documentTable.id, input.documentId),
+            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
+            isNull(documentTable.deletedAt)
+          )
+        )
+        .limit(1)
+      existingDocumentId = existing?.id ?? null
+    } else {
+      const [existing] = await db
+        .select({ id: documentTable.id })
+        .from(documentTable)
+        .where(
+          and(
+            eq(documentTable.filename, input.filename),
+            eq(documentTable.knowledgeBaseId, context.knowledgeBaseId),
+            isNull(documentTable.deletedAt)
+          )
+        )
+        .limit(1)
+      existingDocumentId = existing?.id ?? null
+    }
+    const requestId = generateRequestId()
+    const createdDocuments = await createDocumentRecords(
+      [
+        {
+          filename: input.filename,
+          fileUrl: input.fileUrl,
+          fileSize: input.fileSize,
+          mimeType: input.mimeType,
+          ...(input.documentTagsData ? { documentTagsData: input.documentTagsData } : {}),
+        },
+      ],
+      context.knowledgeBaseId,
+      requestId,
+      userId,
+      secretProvenances
+    )
+    const createdDocument = createdDocuments[0]
+    if (!createdDocument) throw new Error('Knowledge document upsert created no document record')
+    if (existingDocumentId) {
+      try {
+        await deleteDocument(existingDocumentId, requestId)
+      } catch (error) {
+        try {
+          await deleteDocument(createdDocument.documentId, requestId)
+        } catch (rollbackError) {
+          logger.error('Failed to remove replacement after document upsert failure', {
+            knowledgeBaseId: context.knowledgeBaseId,
+            documentId: createdDocument.documentId,
+            rollbackError,
+          })
+        }
+        throw new Error('Failed to replace existing document', { cause: error })
+      }
+    }
+    processDocumentsWithQueue(
+      createdDocuments,
+      context.knowledgeBaseId,
+      input.processingOptions ?? {},
+      requestId,
+      billingAttribution
+    ).catch((error: unknown) => {
+      logger.error('Knowledge document upsert processing pipeline failed', {
+        knowledgeBaseId: context.knowledgeBaseId,
+        documentId: createdDocument.documentId,
+        error,
+      })
+    })
+    const isUpdate = existingDocumentId !== null
+    return {
+      document: createdDocument,
+      isUpdate,
+      previousDocumentId: existingDocumentId,
+      workspaceId: context.workspaceId,
+      userId,
+      secretProvenances,
+    }
+  },
+  projectAudit: ({ input, context, result }) => ({
+    action: result.isUpdate ? AuditAction.DOCUMENT_UPDATED : AuditAction.DOCUMENT_UPLOADED,
+    resourceType: AuditResourceType.DOCUMENT,
+    resourceId: context.knowledgeBaseId,
+    resourceName: input.filename,
+    description: result.isUpdate
+      ? `Upserted (replaced) document "${input.filename}" in knowledge base "${context.knowledgeBaseId}"`
+      : `Upserted (created) document "${input.filename}" in knowledge base "${context.knowledgeBaseId}"`,
+    metadata: {
+      knowledgeBaseName: context.knowledgeBase.name,
+      fileName: input.filename,
+      fileType: input.mimeType,
+      fileSize: input.fileSize,
+      previousDocumentId: result.previousDocumentId,
+      isUpdate: result.isUpdate,
+    },
+  }),
+  afterSuccess: ({ input, context }) => {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId: context.knowledgeBaseId,
+      documentsCount: 1,
+      uploadType: 'single',
+      recipe: input.processingOptions?.recipe,
+    })
+  },
+})
+
 export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.deleteDocument,
   resolveContext: ({ input }: { input: DeleteKnowledgeDocumentInput }) =>
@@ -257,8 +539,31 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.updateDocument,
   resolveContext: ({ input }: { input: UpdateKnowledgeDocumentInput }) =>
     resolveCanonicalActiveKnowledgeDocumentContext(input),
-  async execute({ input, context }) {
-    const updates = { filename: input.filename, enabled: input.enabled }
+  async execute({ principal, input, context }) {
+    if (input.markFailedDueToTimeout || input.retryProcessing) {
+      const outcome = input.markFailedDueToTimeout
+        ? await performMarkKnowledgeDocumentTimedOut({ document: context.document })
+        : await performRetryKnowledgeDocumentProcessing({
+            knowledgeBaseId: context.knowledgeBaseId,
+            document: context.document,
+            billingAttribution: input.resolveBillingAttribution
+              ? await input.resolveBillingAttribution(context.workspaceId)
+              : await resolveKnowledgeBillingAttribution(principal, context),
+          })
+      if (!outcome.success) {
+        if (outcome.errorCode === 'internal') {
+          throw new Error('Knowledge document processing operation failed')
+        }
+        throw new OrchestrationError(outcome.errorCode, outcome.error)
+      }
+      return {
+        kind: 'processing' as const,
+        documentId: context.documentId,
+        status: outcome.status,
+        message: outcome.message,
+      }
+    }
+    const updates = input.updates ?? { filename: input.filename, enabled: input.enabled }
     const updatedFields = Object.keys(updates).filter(
       (key) => updates[key as keyof typeof updates] !== undefined
     )
@@ -266,23 +571,56 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError('validation', 'No updates specified')
     }
     return {
+      kind: 'updated' as const,
       document: await updateDocument(context.documentId, updates, generateRequestId()),
       updatedFields,
     }
   },
-  projectAudit: ({ input, context, result }) => ({
-    action: AuditAction.DOCUMENT_UPDATED,
-    resourceType: AuditResourceType.DOCUMENT,
-    resourceId: result.document.id,
-    resourceName: result.document.filename,
-    description: `Updated document "${result.document.filename}" in knowledge base "${context.knowledgeBase.name}"`,
-    metadata: {
-      source: input.source,
-      knowledgeBaseId: context.knowledgeBaseId,
-      knowledgeBaseName: context.knowledgeBase.name,
-      fileName: result.document.filename,
-      updatedFields: result.updatedFields,
-      ...(input.enabled !== undefined && { enabled: input.enabled }),
-    },
-  }),
+  projectAudit: ({ input, context, result }) => {
+    if (result.kind === 'processing') return []
+    return {
+      action: AuditAction.DOCUMENT_UPDATED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: result.document.id,
+      resourceName: result.document.filename,
+      description: `Updated document "${result.document.filename}" in knowledge base "${context.knowledgeBase.name}"`,
+      metadata: {
+        source: input.source,
+        knowledgeBaseId: context.knowledgeBaseId,
+        knowledgeBaseName: context.knowledgeBase.name,
+        fileName: result.document.filename,
+        updatedFields: result.updatedFields,
+        ...(input.enabled !== undefined && { enabled: input.enabled }),
+      },
+    }
+  },
+})
+
+export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.bulkDocuments,
+  resolveContext: ({ input }: { input: BulkKnowledgeDocumentsInput }) =>
+    resolveActiveKnowledgeBaseContext(input),
+  async execute({ input, context }) {
+    const result = input.selectAll
+      ? await bulkDocumentOperationByFilter(
+          context.knowledgeBaseId,
+          input.operation,
+          input.enabledFilter,
+          generateRequestId()
+        )
+      : input.documentIds?.length
+        ? await bulkDocumentOperation(
+            context.knowledgeBaseId,
+            input.operation,
+            input.documentIds,
+            generateRequestId()
+          )
+        : null
+    if (!result) throw new OrchestrationError('validation', 'No documents specified')
+    return {
+      operation: input.operation,
+      successCount: result.successCount,
+      updatedDocuments: result.updatedDocuments,
+    }
+  },
 })

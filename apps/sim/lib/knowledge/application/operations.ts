@@ -5,9 +5,24 @@ const ALL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
 const HTTP_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'workspace_api_key'] as const
 
 const HUMAN_AND_DELEGATED_PRINCIPAL_KINDS = ['session', 'personal_api_key', 'delegated'] as const
+
+const HUMAN_AND_COPILOT_PRINCIPAL_POLICY = {
+  principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  delegatedServices: ['copilot'],
+} as const
+
+const HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY = {
+  principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+  delegatedServices: ['copilot', 'executor'],
+} as const
 
 export const knowledgeOperations = {
   list: defineWorkspaceOperation({
@@ -44,7 +59,7 @@ export const knowledgeOperations = {
     id: 'knowledge.search',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   listFolders: defineWorkspaceOperation({
     id: 'knowledge.folders.list',
@@ -74,85 +89,175 @@ export const knowledgeOperations = {
     id: 'knowledge.documents.list',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   readDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.read',
     minimumRole: 'read',
     workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   uploadDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.upload',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   deleteDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.delete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    ...ALL_PRINCIPAL_WITH_EXECUTOR_POLICY,
   }),
   updateDocument: defineWorkspaceOperation({
     id: 'knowledge.documents.update',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  bulkDocuments: defineWorkspaceOperation({
+    id: 'knowledge.documents.bulk',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  listChunks: defineWorkspaceOperation({
+    id: 'knowledge.chunks.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  readChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  createChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  updateChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  deleteChunk: defineWorkspaceOperation({
+    id: 'knowledge.chunks.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  bulkChunks: defineWorkspaceOperation({
+    id: 'knowledge.chunks.bulk',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   listTags: defineWorkspaceOperation({
     id: 'knowledge.tags.list',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   createTag: defineWorkspaceOperation({
     id: 'knowledge.tags.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   updateTag: defineWorkspaceOperation({
     id: 'knowledge.tags.update',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   deleteTag: defineWorkspaceOperation({
     id: 'knowledge.tags.delete',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   readTagUsage: defineWorkspaceOperation({
     id: 'knowledge.tags.read_usage',
     minimumRole: 'read',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readDetailedTagUsage: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_detailed_usage',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  readNextTagSlot: defineWorkspaceOperation({
+    id: 'knowledge.tags.read_next_slot',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  saveDocumentTagDefinitions: defineWorkspaceOperation({
+    id: 'knowledge.tags.save_document_definitions',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteDocumentTagDefinitions: defineWorkspaceOperation({
+    id: 'knowledge.tags.delete_document_definitions',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  listConnectors: defineWorkspaceOperation({
+    id: 'knowledge.connectors.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  readConnector: defineWorkspaceOperation({
+    id: 'knowledge.connectors.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
   }),
   createConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.create',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   updateConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.update',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   deleteConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.delete',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   syncConnector: defineWorkspaceOperation({
     id: 'knowledge.connectors.sync',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
-    principalKinds: HUMAN_AND_DELEGATED_PRINCIPAL_KINDS,
+    ...HUMAN_COPILOT_AND_EXECUTOR_PRINCIPAL_POLICY,
+  }),
+  listConnectorDocuments: defineWorkspaceOperation({
+    id: 'knowledge.connectors.documents.list',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
+  updateConnectorDocuments: defineWorkspaceOperation({
+    id: 'knowledge.connectors.documents.update',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
   }),
   uploadCreate: defineWorkspaceOperation({
     id: 'knowledge.documents.upload.create',
@@ -182,6 +287,10 @@ export const knowledgeOperations = {
 
 export const knowledgeSessionOperations = {
   list: Object.freeze({ id: 'knowledge.session.list' as const }),
+  read: Object.freeze({ id: 'knowledge.session.read' as const }),
+  update: Object.freeze({ id: 'knowledge.session.update' as const }),
+  delete: Object.freeze({ id: 'knowledge.session.delete' as const }),
+  restore: Object.freeze({ id: 'knowledge.session.restore' as const }),
 } as const
 
 export type KnowledgeOperation = (typeof knowledgeOperations)[keyof typeof knowledgeOperations]

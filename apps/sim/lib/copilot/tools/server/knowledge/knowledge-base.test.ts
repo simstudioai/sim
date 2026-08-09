@@ -178,7 +178,7 @@ function expectDelegatedPrincipal(call: unknown): void {
       serviceId: 'copilot',
       subjectUserId: 'external-admin',
       workspaceId: 'workspace-paid',
-      delegationId: 'tool-call-1',
+      delegationId: 'copilot-tool:tool-call-1',
       audience: 'sim:knowledge',
       resourceScope: { chatId: 'chat-1', executionId: 'execution-1' },
     },

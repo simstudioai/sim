@@ -52,7 +52,7 @@ describe('knowledge delegation policy', () => {
     expect(principal.audience).not.toBe(knowledgeDelegationPolicy.audience)
   })
 
-  it('rejects executor delegation even when audience and workspace match', () => {
+  it('accepts a correctly scoped executor delegation for executor-enabled operations', () => {
     const principal: DelegatedPrincipal = {
       kind: 'delegated',
       serviceId: 'executor',
@@ -70,6 +70,6 @@ describe('knowledge delegation policy', () => {
         workspaceOrganizationId: null,
         allowPersonalApiKeys: true,
       })
-    ).toBe(false)
+    ).toBe(true)
   })
 })

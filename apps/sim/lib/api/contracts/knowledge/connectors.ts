@@ -117,6 +117,7 @@ export const createKnowledgeConnectorContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: successResponseSchema(connectorDataSchema),
+    status: 201,
   },
 })
 

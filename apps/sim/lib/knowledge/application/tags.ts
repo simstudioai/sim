@@ -5,16 +5,24 @@ import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/au
 import {
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeTagContext,
+  resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import {
+  cleanupUnusedTagDefinitions,
+  createOrUpdateTagDefinitionsBulk,
   createTagDefinition,
+  deleteAllTagDefinitions,
   deleteTagDefinition,
   getDocumentTagDefinitions,
   getNextAvailableSlot,
+  getTagDefinitions,
+  getTagUsage,
   getTagUsageStats,
   updateTagDefinition,
 } from '@/lib/knowledge/tags/service'
+import type { BulkTagDefinitionsData } from '@/lib/knowledge/tags/types'
 import type { TagDefinition, UpdateTagDefinitionData } from '@/lib/knowledge/types'
 
 export interface ListKnowledgeTagsInput {
@@ -23,6 +31,7 @@ export interface ListKnowledgeTagsInput {
 }
 
 export interface CreateKnowledgeTagInput extends ListKnowledgeTagsInput {
+  tagSlot?: string
   displayName: string
   fieldType?: string
   source?: string
@@ -38,6 +47,24 @@ export interface UpdateKnowledgeTagInput {
 export interface DeleteKnowledgeTagInput extends ListKnowledgeTagsInput {
   tagDefinitionId: string
   source?: string
+}
+
+export interface ReadNextKnowledgeTagSlotInput extends ListKnowledgeTagsInput {
+  fieldType: string
+}
+
+export interface KnowledgeDocumentTagDefinitionsInput extends ListKnowledgeTagsInput {
+  documentId: string
+}
+
+export interface SaveKnowledgeDocumentTagDefinitionsInput
+  extends KnowledgeDocumentTagDefinitionsInput {
+  definitions: BulkTagDefinitionsData['definitions']
+}
+
+export interface DeleteKnowledgeDocumentTagDefinitionsInput
+  extends KnowledgeDocumentTagDefinitionsInput {
+  action?: 'cleanup' | 'all'
 }
 
 export const listKnowledgeTags = defineAuthorizedKnowledgeUseCase({
@@ -58,7 +85,11 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
     knowledgeBaseId: string
   }> {
     const fieldType = input.fieldType ?? 'text'
-    const tagSlot = await getNextAvailableSlot(context.knowledgeBaseId, fieldType)
+    if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(fieldType)) {
+      throw new OrchestrationError('validation', 'Invalid field type')
+    }
+    const tagSlot =
+      input.tagSlot ?? (await getNextAvailableSlot(context.knowledgeBaseId, fieldType))
     if (!tagSlot) {
       throw new OrchestrationError(
         'validation',
@@ -163,4 +194,118 @@ export const readKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
   async execute({ context }) {
     return { usage: await getTagUsageStats(context.knowledgeBaseId, generateRequestId()) }
   },
+})
+
+export const readDetailedKnowledgeTagUsage = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.readDetailedTagUsage,
+  resolveContext: ({ input }: { input: ListKnowledgeTagsInput }) =>
+    resolveActiveKnowledgeBaseContext(input),
+  async execute({ context }) {
+    return { usage: await getTagUsage(context.knowledgeBaseId, generateRequestId()) }
+  },
+})
+
+export const readNextKnowledgeTagSlot = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.readNextTagSlot,
+  resolveContext: ({ input }: { input: ReadNextKnowledgeTagSlotInput }) =>
+    resolveActiveKnowledgeBaseContext(input),
+  async execute({ input, context }) {
+    if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(input.fieldType)) {
+      throw new OrchestrationError('validation', 'Invalid field type')
+    }
+    const existingDefinitions = await getTagDefinitions(context.knowledgeBaseId)
+    const usedSlots = existingDefinitions
+      .filter((definition) => definition.fieldType === input.fieldType)
+      .map((definition) => definition.tagSlot)
+    const existingBySlot = new Map(
+      existingDefinitions.map((definition) => [definition.tagSlot, definition])
+    )
+    const nextAvailableSlot = await getNextAvailableSlot(
+      context.knowledgeBaseId,
+      input.fieldType,
+      existingBySlot
+    )
+    return {
+      nextAvailableSlot,
+      fieldType: input.fieldType,
+      usedSlots,
+      totalSlots: 7,
+      availableSlots: nextAvailableSlot ? 7 - usedSlots.length : 0,
+    }
+  },
+})
+
+export const listKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.listTags,
+  resolveContext: ({ input }: { input: KnowledgeDocumentTagDefinitionsInput }) =>
+    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  async execute({ context }) {
+    return { tagDefinitions: await getDocumentTagDefinitions(context.knowledgeBaseId) }
+  },
+})
+
+export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.saveDocumentTagDefinitions,
+  resolveContext: ({ input }: { input: SaveKnowledgeDocumentTagDefinitionsInput }) =>
+    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  async execute({ input, context }) {
+    for (const definition of input.definitions) {
+      if (!(SUPPORTED_FIELD_TYPES as readonly string[]).includes(definition.fieldType)) {
+        throw new OrchestrationError(
+          'validation',
+          `Unsupported field type: ${definition.fieldType}`
+        )
+      }
+    }
+    return createOrUpdateTagDefinitionsBulk(
+      context.knowledgeBaseId,
+      { definitions: input.definitions },
+      generateRequestId()
+    )
+  },
+  projectAudit: ({ context, result }) => ({
+    action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+    resourceType: AuditResourceType.KNOWLEDGE_BASE,
+    resourceId: context.knowledgeBaseId,
+    resourceName: context.knowledgeBase.name,
+    description: `Updated tag definitions in knowledge base "${context.knowledgeBase.name}"`,
+    metadata: {
+      change: 'document_tag_definitions_saved',
+      createdCount: result.created.length,
+      updatedCount: result.updated.length,
+      errorCount: result.errors.length,
+    },
+  }),
+})
+
+export const deleteKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.deleteDocumentTagDefinitions,
+  resolveContext: ({ input }: { input: DeleteKnowledgeDocumentTagDefinitionsInput }) =>
+    resolveCanonicalActiveKnowledgeDocumentContext(input),
+  async execute({ input, context }) {
+    if (input.action === 'cleanup') {
+      return {
+        action: 'cleanup' as const,
+        count: await cleanupUnusedTagDefinitions(context.knowledgeBaseId, generateRequestId()),
+      }
+    }
+    return {
+      action: 'all' as const,
+      count: await deleteAllTagDefinitions(context.knowledgeBaseId, generateRequestId()),
+    }
+  },
+  projectAudit: ({ input, context, result }) => ({
+    action: AuditAction.KNOWLEDGE_BASE_UPDATED,
+    resourceType: AuditResourceType.KNOWLEDGE_BASE,
+    resourceId: context.knowledgeBaseId,
+    resourceName: context.knowledgeBase.name,
+    description:
+      input.action === 'cleanup'
+        ? `Cleaned unused tag definitions in knowledge base "${context.knowledgeBase.name}"`
+        : `Deleted tag definitions in knowledge base "${context.knowledgeBase.name}"`,
+    metadata: {
+      change: result.action === 'cleanup' ? 'tag_definitions_cleaned' : 'tag_definitions_deleted',
+      count: result.count,
+    },
+  }),
 })
