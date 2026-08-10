@@ -1,5 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import {
+  type Principal,
+  requirePrincipalSubjectUserId,
+  resolvePrincipalAttribution,
+} from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import type { ListSortOrder } from '@/lib/api/list-query'
@@ -52,10 +56,6 @@ async function resolveWorkspaceToolContext(
   return { ...workspace, tool }
 }
 
-function humanUserId(principal: Exclude<Principal, { kind: 'workspace_api_key' }>): string {
-  return principal.kind === 'delegated' ? principal.subjectUserId : principal.userId
-}
-
 async function resolveAvailableToolContext(args: {
   principal: Exclude<Principal, { kind: 'workspace_api_key' }>
   workspaceId: string
@@ -64,7 +64,7 @@ async function resolveAvailableToolContext(args: {
   const workspace = await resolveWorkspaceContext(args.workspaceId)
   const tool = await getCustomToolById({
     toolId: args.toolId,
-    userId: humanUserId(args.principal),
+    userId: requirePrincipalSubjectUserId(args.principal),
     workspaceId: workspace.workspaceId,
   })
   if (!tool) throw new OrchestrationError('not_found', 'Custom tool not found')
@@ -116,7 +116,7 @@ export const listAvailableCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
   authorizationOptions,
   async execute({ principal, context }) {
     const tools = await listCustomTools({
-      userId: humanUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
       workspaceId: context.workspaceId,
     })
     return { tools }
@@ -300,7 +300,7 @@ export const updateAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
       const tool = await updateCustomTool({
         workspaceId: context.workspaceId,
         toolId: context.tool.id,
-        userId: humanUserId(principal),
+        userId: requirePrincipalSubjectUserId(principal),
         title,
         schema: input.schema ?? context.tool.schema,
         code: input.code ?? context.tool.code,
@@ -369,7 +369,7 @@ export const deleteAvailableCustomToolUseCase = defineAuthorizedWorkspaceUseCase
     const deleted = await deleteCustomTool({
       workspaceId: context.workspaceId,
       toolId: context.tool.id,
-      userId: humanUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
     })
     if (!deleted) throw new OrchestrationError('not_found', 'Custom tool not found')
     return { tool: context.tool }

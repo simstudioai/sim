@@ -6,6 +6,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { cancelTableImportUseCase, readTableImportUseCase } from '@/lib/table/application/imports'
 import { tableOperations } from '@/lib/table/application/operations'
+import { presentV2TableImport } from '@/app/api/v2/tables/presenters'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -21,7 +22,7 @@ export const GET = defineV2JsonRoute({
     workspaceId: query.workspaceId,
   }),
   useCase: readTableImportUseCase,
-  present: ({ import: tableImport }) => ({ data: tableImport }),
+  present: ({ import: tableImport }) => presentV2TableImport(tableImport),
 })
 
 export const DELETE = defineV2JsonRoute({
@@ -36,5 +37,5 @@ export const DELETE = defineV2JsonRoute({
     uploadToken: headers['upload-token'],
   }),
   useCase: cancelTableImportUseCase,
-  present: ({ import: tableImport }) => ({ data: tableImport }),
+  present: ({ import: tableImport }) => presentV2TableImport(tableImport),
 })

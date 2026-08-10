@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import type { skill } from '@sim/db/schema'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
@@ -42,10 +42,6 @@ async function resolveSkillContext(workspaceId: string, skillId: string): Promis
   return { ...workspace, skill: row }
 }
 
-function humanUserId(principal: Exclude<Principal, { kind: 'workspace_api_key' }>): string {
-  return principal.kind === 'delegated' ? principal.subjectUserId : principal.userId
-}
-
 const authorizationOptions = { delegation: skillDelegationPolicy }
 
 export interface ListSkillsInput {
@@ -82,7 +78,7 @@ export const listAvailableSkillsUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, context }) {
     const skills = await listSkillsForUser({
       workspaceId: context.workspaceId,
-      userId: humanUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
     })
     return { skills }
   },
@@ -156,7 +152,7 @@ export const updateSkillUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, input, context }) {
     const row = await updateSkill({
       workspaceId: context.workspaceId,
-      userId: humanUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
       skillId: context.skill.id,
       name: input.name,
       description: input.description,
@@ -188,7 +184,7 @@ export const deleteSkillUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ principal, context }) {
     const row = await deleteSkillRecord({
       workspaceId: context.workspaceId,
-      userId: humanUserId(principal),
+      userId: requirePrincipalSubjectUserId(principal),
       skillId: context.skill.id,
     })
     return { skill: row }

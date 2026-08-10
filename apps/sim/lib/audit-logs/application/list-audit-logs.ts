@@ -1,13 +1,13 @@
 import { defineAuthorizedAuditLogUseCase } from '@/lib/audit-logs/application/authorized-audit-log-use-case'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-import type { AuditLogFilterParams } from '@/app/api/v1/audit-logs/query'
 import {
+  type AuditLogFilterParams,
   buildFilterConditions,
   buildOrgScopeCondition,
   getOrgWorkspaceIds,
   queryAuditLogs,
-} from '@/app/api/v1/audit-logs/query'
+} from '@/lib/audit-logs/query'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export interface ListAuditLogsInput {
   organizationId: string

@@ -1,6 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { createLogger } from '@sim/logger'
-import type { V2TableExport } from '@/lib/api/contracts/v2/tables'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getTableById, type TableDefinition } from '@/lib/table'
 import type { TableAuthorizationContext } from '@/lib/table/application/authorization'
@@ -16,7 +15,6 @@ import {
   requireTableExport,
   type TableExportRecord,
   tableExportResult,
-  toV2TableExport,
 } from '@/lib/table/orchestration/export-resource'
 import { generatePresignedDownloadUrl } from '@/lib/uploads/core/storage-service'
 
@@ -35,7 +33,7 @@ export interface TableExportResourceInput {
 }
 
 export interface TableExportResult {
-  export: V2TableExport
+  export: TableExportRecord
 }
 
 export interface DownloadTableExportResult {
@@ -46,7 +44,6 @@ export interface DownloadTableExportResult {
 
 interface TableExportContext extends TableAuthorizationContext {
   exportId: string
-  tableId: string
   table: TableDefinition
   record: TableExportRecord
 }
@@ -63,7 +60,6 @@ async function resolveTableExportContext(
   return {
     ...workspace,
     exportId: record.id,
-    tableId: table.id,
     table,
     record,
   }
@@ -85,7 +81,7 @@ export const createTableExportUseCase = defineAuthorizedTableUseCase({
       format: input.format,
       principalKind: principal.kind,
     })
-    return { export: toV2TableExport(record, true) }
+    return { export: record }
   },
   projectAudit: ({ input, context }) => ({
     action: AuditAction.TABLE_EXPORTED,
@@ -102,7 +98,7 @@ export const readTableExportUseCase = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: TableExportResourceInput }) =>
     resolveTableExportContext(input),
   async execute({ context }): Promise<TableExportResult> {
-    return { export: toV2TableExport(context.record) }
+    return { export: context.record }
   },
 })
 
@@ -114,11 +110,11 @@ export const cancelTableExportUseCase = defineAuthorizedTableUseCase({
     const record = await cancelTableExportResource(context.record)
     logger.info('Canceled table export', {
       exportId: record.id,
-      tableId: context.tableId,
+      tableId: context.table.id,
       workspaceId: context.workspaceId,
       principalKind: principal.kind,
     })
-    return { export: toV2TableExport(record) }
+    return { export: record }
   },
 })
 

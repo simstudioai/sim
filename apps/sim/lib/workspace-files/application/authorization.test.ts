@@ -126,6 +126,36 @@ describe('file operation authorization', () => {
     )
   })
 
+  it('admits executor delegation only for explicitly declared file-tool operations', async () => {
+    const principal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'delegation-1',
+      audience: 'sim:workspace-files',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+      resourceScope: { fileId: 'file-1', executionId: 'execution-1' },
+    }
+
+    await authorizeWorkspaceFileAccess(
+      principal,
+      fileOperations.updateContent,
+      authorizationContext
+    )
+    expect(resolvePermission).toHaveBeenCalledTimes(1)
+
+    resolvePermission.mockClear()
+    await expect(
+      authorizeWorkspaceFileAccess(principal, fileOperations.rename, authorizationContext)
+    ).rejects.toMatchObject<Partial<OrchestrationError>>({
+      code: 'forbidden',
+      message: 'Delegated service executor cannot perform operation files.rename',
+    })
+    expect(resolvePermission).not.toHaveBeenCalled()
+  })
+
   it('rejects expired or wrong-file delegations before permission lookup', async () => {
     const base = {
       kind: 'delegated' as const,

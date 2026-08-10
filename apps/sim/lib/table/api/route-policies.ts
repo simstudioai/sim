@@ -1,4 +1,9 @@
-import type { V2ErrorPolicy } from '@/lib/api/server/routes'
+import {
+  createInternalSessionOrExecutorAuth,
+  createV2ResourceConcealmentPolicy,
+  type V2ErrorPolicy,
+} from '@/lib/api/server/routes'
+import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import {
@@ -6,6 +11,14 @@ import {
   v2Error,
   v2ErrorForOrchestration,
 } from '@/app/api/v2/lib/response'
+
+export const internalTableSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
+  audience: TABLE_DELEGATION_AUDIENCE,
+  resourceScope: (params) => {
+    const tableId = typeof params.tableId === 'string' ? params.tableId : undefined
+    return tableId ? { tableId } : undefined
+  },
+})
 
 function renderTableError(error: unknown) {
   if (error instanceof TableOperationError) {
@@ -27,28 +40,16 @@ export const v2TableErrorPolicies = {
   default: {
     render: renderTableError,
   } satisfies V2ErrorPolicy,
-  concealTableAuthorization: {
-    render(error) {
-      const response = renderTableError(error)
-      if (!response) return null
-      if (response.status === 403) return v2Error('NOT_FOUND', 'Table not found')
-      return response
-    },
-  } satisfies V2ErrorPolicy,
-  concealImportAuthorization: {
-    render(error) {
-      const response = renderTableError(error)
-      if (!response) return null
-      if (response.status === 403) return v2Error('NOT_FOUND', 'Table import not found')
-      return response
-    },
-  } satisfies V2ErrorPolicy,
-  concealExportAuthorization: {
-    render(error) {
-      const response = renderTableError(error)
-      if (!response) return null
-      if (response.status === 403) return v2Error('NOT_FOUND', 'Table export not found')
-      return response
-    },
-  } satisfies V2ErrorPolicy,
+  concealTableAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table not found',
+    render: renderTableError,
+  }),
+  concealImportAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table import not found',
+    render: renderTableError,
+  }),
+  concealExportAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table export not found',
+    render: renderTableError,
+  }),
 } as const

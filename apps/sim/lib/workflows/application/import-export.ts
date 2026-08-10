@@ -1,9 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
-import type { V1WorkflowExportPayload } from '@/lib/api/contracts/v1/workflows'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
@@ -16,7 +16,10 @@ import {
   workflowFolderPathForId,
 } from '@/lib/workflows/application/workflow-folders'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
-import { buildWorkflowExportPayload } from '@/lib/workflows/operations/export-workflow'
+import {
+  buildWorkflowExportPayload,
+  type WorkflowExportPayload,
+} from '@/lib/workflows/operations/export-workflow'
 import {
   type ImportedWorkflow,
   importWorkflowIntoWorkspaceTransition,
@@ -40,7 +43,7 @@ export interface ExportWorkflowInput {
 }
 
 export interface ExportWorkflowResult {
-  payload: V1WorkflowExportPayload
+  payload: WorkflowExportPayload
   folderPath: string
 }
 
@@ -104,7 +107,12 @@ export const exportWorkflow = defineAuthorizedWorkflowUseCase({
   async execute({ context }): Promise<ExportWorkflowResult> {
     const payload = await buildWorkflowExportPayload(context.workflow)
     if (!payload) throw new OrchestrationError('not_found', 'Workflow state not found')
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const folderIndex = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'workflow',
+      undefined,
+      { maxRows: MAX_FOLDERS_PER_WORKSPACE }
+    )
     return {
       payload,
       folderPath: workflowFolderPathForId(folderIndex, context.workflow.folderId),

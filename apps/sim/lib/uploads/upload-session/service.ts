@@ -1,4 +1,4 @@
-import type { Principal } from '@sim/auth/principal'
+import type { Principal, WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { db, dbFor } from '@sim/db'
 import { uploadSession } from '@sim/db/schema'
 import { safeCompare } from '@sim/security/compare'
@@ -106,6 +106,14 @@ export interface UploadSessionAuthBinding {
     | { kind: 'session'; userId: string; sessionId: string }
     | { kind: 'personal_api_key'; userId: string; keyId: string }
     | { kind: 'workspace_api_key'; workspaceId: string; keyId: string }
+    | {
+        kind: 'delegated'
+        serviceId: 'executor'
+        subjectUserId: string
+        audience: string
+        workflowId: string
+        executionId?: string
+      }
 }
 
 export interface CreatedUploadSession extends UploadSessionRecord {
@@ -120,6 +128,30 @@ export class UploadSessionError extends OrchestrationError {
     super(code, message)
     this.name = 'UploadSessionError'
   }
+}
+
+function isExecutorWorkflowExecutionPrincipal(
+  principal: Principal
+): principal is WorkflowExecutionDelegatedPrincipal {
+  if (
+    principal.kind !== 'delegated' ||
+    principal.serviceId !== 'executor' ||
+    !('delegationContext' in principal)
+  ) {
+    return false
+  }
+  const context = principal.delegationContext
+  return (
+    typeof context === 'object' &&
+    context !== null &&
+    'kind' in context &&
+    context.kind === 'workflow_execution' &&
+    'workflowId' in context &&
+    typeof context.workflowId === 'string' &&
+    (!('executionId' in context) ||
+      context.executionId === undefined ||
+      typeof context.executionId === 'string')
+  )
 }
 
 interface CreateUploadSessionBaseParams {
@@ -170,7 +202,9 @@ export async function createUploadSession(
     metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
   } else if (params.purpose === 'table_import' && params.principal) {
     if (!workspaceId) throw new Error('table_import upload is missing workspaceId')
-    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId)
+    metadata.authBinding = createUploadSessionAuthBinding(params.principal, workspaceId, {
+      executorDelegationAudience: 'sim:tables',
+    })
   }
   const { storageContext, finalKey } = resolveUploadStorage(params, id)
   const method: UploadTransferMethod =
@@ -369,7 +403,8 @@ export async function getPrincipalKnowledgeDocumentUploadSession(params: {
 
 export function createUploadSessionAuthBinding(
   principal: Principal,
-  workspaceId: string
+  workspaceId: string,
+  options: { executorDelegationAudience?: string } = {}
 ): UploadSessionAuthBinding {
   switch (principal.kind) {
     case 'session':
@@ -397,8 +432,30 @@ export function createUploadSessionAuthBinding(
         workspaceId,
         principal: { kind: principal.kind, workspaceId, keyId: principal.keyId },
       }
-    case 'delegated':
-      throw new UploadSessionError('forbidden', 'Delegated principals cannot create uploads')
+    case 'delegated': {
+      if (
+        options.executorDelegationAudience === undefined ||
+        !isExecutorWorkflowExecutionPrincipal(principal) ||
+        principal.audience !== options.executorDelegationAudience ||
+        principal.workspaceId !== workspaceId
+      ) {
+        throw new UploadSessionError('forbidden', 'Delegated principal cannot create this upload')
+      }
+      return {
+        version: 1,
+        workspaceId,
+        principal: {
+          kind: principal.kind,
+          serviceId: principal.serviceId,
+          subjectUserId: principal.subjectUserId,
+          audience: principal.audience,
+          workflowId: principal.delegationContext.workflowId,
+          ...(principal.delegationContext.executionId
+            ? { executionId: principal.delegationContext.executionId }
+            : {}),
+        },
+      }
+    }
   }
 }
 
@@ -427,9 +484,16 @@ export function assertUploadSessionAuthBinding(
         ? principal.kind === 'personal_api_key' &&
           bound.userId === principal.userId &&
           bound.keyId === principal.keyId
-        : principal.kind === 'workspace_api_key' &&
-          bound.workspaceId === principal.workspaceId &&
-          bound.keyId === principal.keyId)
+        : bound.kind === 'workspace_api_key'
+          ? principal.kind === 'workspace_api_key' &&
+            bound.workspaceId === principal.workspaceId &&
+            bound.keyId === principal.keyId
+          : isExecutorWorkflowExecutionPrincipal(principal) &&
+            principal.workspaceId === session.workspaceId &&
+            principal.subjectUserId === bound.subjectUserId &&
+            principal.audience === bound.audience &&
+            principal.delegationContext.workflowId === bound.workflowId &&
+            principal.delegationContext.executionId === bound.executionId)
   if (!matches) throw uploadNotFound()
 }
 
@@ -1189,6 +1253,15 @@ function isUploadSessionAuthBinding(value: unknown): value is UploadSessionAuthB
   }
   if (principal.kind === 'personal_api_key') {
     return typeof principal.userId === 'string' && typeof principal.keyId === 'string'
+  }
+  if (principal.kind === 'delegated') {
+    return (
+      principal.serviceId === 'executor' &&
+      typeof principal.subjectUserId === 'string' &&
+      typeof principal.audience === 'string' &&
+      typeof principal.workflowId === 'string' &&
+      (principal.executionId === undefined || typeof principal.executionId === 'string')
+    )
   }
   return (
     principal.kind === 'workspace_api_key' &&

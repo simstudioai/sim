@@ -3,6 +3,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { createTableExportUseCase } from '@/lib/table/application/exports'
 import { tableOperations } from '@/lib/table/application/operations'
+import { presentV2TableExport } from '@/app/api/v2/tables/presenters'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,5 +20,5 @@ export const POST = defineV2JsonRoute({
     format: body.format,
   }),
   useCase: createTableExportUseCase,
-  present: ({ export: tableExport }) => ({ data: tableExport }),
+  present: ({ export: tableExport }) => presentV2TableExport(tableExport, true),
 })

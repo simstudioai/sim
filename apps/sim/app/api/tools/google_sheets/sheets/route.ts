@@ -6,8 +6,11 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  refreshAccessTokenIfNeeded,
+  ServiceAccountTokenError,
+} from '@/lib/oauth/credential-service'
 import { getScopesForService } from '@/lib/oauth/utils'
-import { refreshAccessTokenIfNeeded, ServiceAccountTokenError } from '@/app/api/auth/oauth/utils'
 
 export const dynamic = 'force-dynamic'
 

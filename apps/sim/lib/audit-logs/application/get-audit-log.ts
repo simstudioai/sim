@@ -3,8 +3,8 @@ import { auditLog } from '@sim/db/schema'
 import { and, eq } from 'drizzle-orm'
 import { defineAuthorizedAuditLogUseCase } from '@/lib/audit-logs/application/authorized-audit-log-use-case'
 import { auditLogOperations } from '@/lib/audit-logs/application/operations'
+import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/app/api/v1/audit-logs/query'
 
 export interface GetAuditLogInput {
   organizationId: string

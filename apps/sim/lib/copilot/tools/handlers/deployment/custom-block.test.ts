@@ -51,8 +51,12 @@ vi.mock('@/lib/billing', () => ({
   isOrganizationOnEnterprisePlan: isOrganizationOnEnterprisePlanMock,
 }))
 
-vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
-  resolveWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  resolveCopilotWorkspaceFileReference: resolveWorkspaceFileReferenceMock,
+  executeCopilotFileUseCase: vi.fn(
+    async (_context, _useCase, input: { fileId: string; maxBytes: number }) =>
+      readWorkspaceFileContentMock(input)
+  ),
 }))
 vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
   readWorkspaceFileContent: {

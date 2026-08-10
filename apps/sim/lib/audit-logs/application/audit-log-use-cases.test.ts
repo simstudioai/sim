@@ -14,11 +14,11 @@ const mocks = vi.hoisted(() => ({
   recordAudit: vi.fn(),
 }))
 
-vi.mock('@/app/api/v1/audit-logs/auth', () => ({
+vi.mock('@/lib/audit-logs/authorization', () => ({
   resolveEnterpriseAuditAccess: mocks.resolveAccess,
 }))
 
-vi.mock('@/app/api/v1/audit-logs/query', () => ({
+vi.mock('@/lib/audit-logs/query', () => ({
   getOrgWorkspaceIds: mocks.getOrgWorkspaceIds,
   buildOrgScopeCondition: mocks.buildOrgScopeCondition,
   buildFilterConditions: mocks.buildFilterConditions,

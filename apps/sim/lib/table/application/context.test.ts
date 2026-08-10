@@ -4,23 +4,17 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getTableById, select } = vi.hoisted(() => ({
+const { getTableById, loadWorkspace } = vi.hoisted(() => ({
   getTableById: vi.fn(),
-  select: vi.fn(),
+  loadWorkspace: vi.fn(),
 }))
 
-vi.mock('@sim/db', () => ({ db: { select } }))
 vi.mock('@/lib/table', () => ({ getTableById }))
+vi.mock('@/lib/workspaces/application/workspace-context', () => ({
+  loadActiveWorkspaceApplicationContext: loadWorkspace,
+}))
 
 import { resolveActiveTableContext } from '@/lib/table/application/context'
-
-function mockWorkspaceQuery(rows: unknown[]) {
-  const limit = vi.fn().mockResolvedValue(rows)
-  const where = vi.fn(() => ({ limit }))
-  const from = vi.fn(() => ({ where }))
-  select.mockReturnValue({ from })
-  return { from, where, limit }
-}
 
 describe('table application context', () => {
   beforeEach(() => {
@@ -30,18 +24,15 @@ describe('table application context', () => {
       workspaceId: 'workspace-1',
       name: 'Contacts',
     })
+    loadWorkspace.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-user-1',
+    })
   })
 
   it('derives workspace scope from the canonical active table', async () => {
-    mockWorkspaceQuery([
-      {
-        workspaceId: 'workspace-1',
-        workspaceOrganizationId: 'organization-1',
-        allowPersonalApiKeys: true,
-        billedAccountUserId: 'billing-user-1',
-      },
-    ])
-
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-1' })
     ).resolves.toMatchObject({
@@ -50,22 +41,29 @@ describe('table application context', () => {
       billedAccountUserId: 'billing-user-1',
     })
     expect(getTableById).toHaveBeenCalledWith('table-1')
-    expect(select).toHaveBeenCalledTimes(1)
+    expect(loadWorkspace).toHaveBeenCalledWith('workspace-1')
   })
 
   it('conceals an asserted cross-workspace table before workspace resolution', async () => {
     await expect(
       resolveActiveTableContext({ tableId: 'table-1', assertedWorkspaceId: 'workspace-2' })
     ).rejects.toMatchObject({ code: 'not_found', message: 'Table not found' })
-    expect(select).not.toHaveBeenCalled()
+    expect(loadWorkspace).not.toHaveBeenCalled()
   })
 
   it('fails when the canonical workspace is unavailable', async () => {
-    mockWorkspaceQuery([])
+    loadWorkspace.mockResolvedValueOnce(null)
 
     await expect(resolveActiveTableContext({ tableId: 'table-1' })).rejects.toMatchObject({
       code: 'not_found',
       message: 'Workspace not found',
     })
+  })
+
+  it('propagates canonical workspace database failures', async () => {
+    const failure = new Error('workspace database unavailable')
+    loadWorkspace.mockRejectedValueOnce(failure)
+
+    await expect(resolveActiveTableContext({ tableId: 'table-1' })).rejects.toBe(failure)
   })
 })

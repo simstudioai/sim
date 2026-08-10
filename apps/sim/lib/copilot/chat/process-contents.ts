@@ -1,11 +1,11 @@
-import { db, dbReplica } from '@sim/db'
-import { knowledgeBase } from '@sim/db/schema'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { createCopilotChatKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
 import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
@@ -27,6 +27,7 @@ import {
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
@@ -41,7 +42,6 @@ import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/wor
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
 import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -172,7 +172,8 @@ export async function processContextsServer(
           ctx.knowledgeId,
           userId,
           ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId
+          currentWorkspaceId,
+          chatId
         )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
@@ -559,33 +560,23 @@ async function processKnowledgeFromDb(
   knowledgeBaseId: string,
   userId: string | undefined,
   tag: string,
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
-    if (userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
-      if (!accessCheck.hasAccess) {
-        return null
-      }
-      if (currentWorkspaceId && accessCheck.knowledgeBase?.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-    }
-
-    const conditions = [eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)]
-    if (currentWorkspaceId) {
-      conditions.push(eq(knowledgeBase.workspaceId, currentWorkspaceId))
-    }
-    const kbRows = await dbReplica
-      .select({
-        id: knowledgeBase.id,
-        name: knowledgeBase.name,
-      })
-      .from(knowledgeBase)
-      .where(and(...conditions))
-      .limit(1)
-    const kb = kbRows?.[0]
-    if (!kb) return null
+    if (!userId || !currentWorkspaceId) return null
+    const principal = createCopilotChatKnowledgePrincipal({
+      userId,
+      workspaceId: currentWorkspaceId,
+      chatId,
+    })
+    const { knowledgeBase: kb } = await readKnowledgeBase.execute({
+      principal,
+      input: {
+        knowledgeBaseId,
+        assertedWorkspaceId: currentWorkspaceId,
+      },
+    })
 
     return {
       type: 'knowledge',
@@ -836,7 +827,8 @@ export async function resolveActiveResourceContext(
           resourceId,
           userId,
           '@active_resource',
-          workspaceId
+          workspaceId,
+          chatId
         )
         if (!ctx) return null
         return {

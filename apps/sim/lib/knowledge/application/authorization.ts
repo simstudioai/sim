@@ -9,6 +9,9 @@ export const KNOWLEDGE_DELEGATION_AUDIENCE = 'sim:knowledge'
 export interface KnowledgeAuthorizationContext extends WorkspaceAuthorizationContext {
   knowledgeBaseId?: string
   documentId?: string
+  chunkId?: string
+  tagDefinitionId?: string
+  connectorId?: string
 }
 
 export type KnowledgeAuthorizationOptions = Omit<

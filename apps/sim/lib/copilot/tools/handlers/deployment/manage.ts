@@ -1,26 +1,27 @@
-import { db } from '@sim/db'
-import { chat, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { toError } from '@sim/utils/errors'
-import { and, eq, inArray, isNull } from 'drizzle-orm'
+import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
+import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { projectWorkflowStateForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
+import { generateRequestId } from '@/lib/core/utils/request'
 import {
-  performCreateWorkflowMcpServer,
-  performDeleteWorkflowMcpServer,
-  performUpdateWorkflowMcpServer,
-} from '@/lib/mcp/orchestration'
+  createWorkflowMcpDeploymentServer,
+  deleteWorkflowMcpDeploymentServer,
+  listWorkflowMcpDeployments,
+  updateWorkflowMcpDeploymentServer,
+} from '@/lib/mcp/application/workflow-deployments'
+import {
+  activateWorkflowVersion,
+  revertWorkflowVersion,
+  updateWorkflowVersion,
+} from '@/lib/workflows/application/deployments'
+import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
+import { readWorkflowDeploymentOverview } from '@/lib/workflows/application/read-workflow-deployment-overview'
+import { readWorkflowStateReferences } from '@/lib/workflows/application/read-workflow-state-references'
 import { generateWorkflowDiffSummary } from '@/lib/workflows/comparison'
-import {
-  getWorkflowDeploymentSummary,
-  performActivateVersion,
-  performRevertToVersion,
-} from '@/lib/workflows/orchestration'
-import {
-  listWorkflowVersions,
-  updateDeploymentVersionMetadata,
-} from '@/lib/workflows/persistence/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
-import { ensureWorkflowAccess, ensureWorkspaceAccess } from '../access'
 import type {
   CheckDeploymentStatusParams,
   CreateWorkspaceMcpServerParams,
@@ -34,7 +35,7 @@ import type {
   UpdateWorkspaceMcpServerParams,
 } from '../param-types'
 import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
-import { resolveWorkflowStateRef } from './state-refs'
+import { parseWorkflowRef } from './state-refs'
 
 export async function executeCheckDeploymentStatus(
   params: CheckDeploymentStatusParams,
@@ -45,77 +46,58 @@ export async function executeCheckDeploymentStatus(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context)
-    const workspaceId = workflowRecord.workspaceId
-
-    const [apiDeploy, chatDeploy, deploymentSummary] = await Promise.all([
-      db
-        .select({ deployedAt: workflow.deployedAt })
-        .from(workflow)
-        .where(eq(workflow.id, workflowId))
-        .limit(1),
-      db
-        .select({
-          id: chat.id,
-          identifier: chat.identifier,
-          title: chat.title,
-          description: chat.description,
-          authType: chat.authType,
-          allowedEmails: chat.allowedEmails,
-          outputConfigs: chat.outputConfigs,
-          includeThinking: chat.includeThinking,
-          includeToolCalls: chat.includeToolCalls,
-          password: chat.password,
-          customizations: chat.customizations,
-        })
-        .from(chat)
-        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-        .limit(1),
-      getWorkflowDeploymentSummary(workflowId),
-    ])
+    const deployment = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowDeploymentOverview,
+      {
+        workflowId,
+        assertedWorkspaceId: context.workspaceId,
+      }
+    )
+    const workflowRecord = deployment.workflow
 
     /**
      * Deployed means an active version snapshot exists; the legacy
      * `workflow.isDeployed` flag is not consulted so this can never
      * contradict the attached `activeDeployment` summary.
      */
-    const isApiDeployed = deploymentSummary.activeDeployment !== null
-    const needsRedeployment = isApiDeployed ? await checkNeedsRedeployment(workflowId) : false
-    const currentDeploymentAttempt = deploymentSummary.latestDeploymentAttempt?.isCurrent
-      ? deploymentSummary.latestDeploymentAttempt
+    const isApiDeployed = deployment.isDeployed
+    const currentDeploymentAttempt = deployment.latestDeploymentAttempt?.isCurrent
+      ? deployment.latestDeploymentAttempt
       : null
     const apiDetails = {
       isDeployed: isApiDeployed,
-      deployedAt: apiDeploy[0]?.deployedAt || null,
+      deployedAt: workflowRecord.deployedAt || null,
       endpoint: isApiDeployed ? `/api/workflows/${workflowId}/execute` : null,
       apiKey: workflowRecord.workspaceId ? 'Workspace API keys' : 'Personal API keys',
-      needsRedeployment,
-      activeDeployment: deploymentSummary.activeDeployment,
-      latestDeploymentAttempt: deploymentSummary.latestDeploymentAttempt,
+      needsRedeployment: deployment.needsRedeployment,
+      activeDeployment: deployment.activeDeployment,
+      latestDeploymentAttempt: deployment.latestDeploymentAttempt,
       currentDeploymentAttempt,
-      warnings: deploymentSummary.warnings ?? [],
+      warnings: deployment.warnings ?? [],
     }
 
-    const isChatDeployed = !!chatDeploy[0]
+    const chatDeploy = deployment.chatDeployment
+    const isChatDeployed = chatDeploy !== null
     const chatCustomizations =
-      (chatDeploy[0]?.customizations as
+      (chatDeploy?.customizations as
         | { welcomeMessage?: string; primaryColor?: string }
         | undefined) || {}
     const chatDetails = {
       isDeployed: isChatDeployed,
-      chatId: chatDeploy[0]?.id || null,
-      identifier: chatDeploy[0]?.identifier || null,
-      chatUrl: isChatDeployed ? `/chat/${chatDeploy[0]?.identifier}` : null,
-      title: chatDeploy[0]?.title || null,
-      description: chatDeploy[0]?.description || null,
-      authType: chatDeploy[0]?.authType || null,
-      allowedEmails: chatDeploy[0]?.allowedEmails || null,
-      outputConfigs: chatDeploy[0]?.outputConfigs || null,
-      includeThinking: chatDeploy[0]?.includeThinking ?? false,
-      includeToolCalls: chatDeploy[0]?.includeToolCalls ?? false,
+      chatId: chatDeploy?.id || null,
+      identifier: chatDeploy?.identifier || null,
+      chatUrl: isChatDeployed ? `/chat/${chatDeploy?.identifier}` : null,
+      title: chatDeploy?.title || null,
+      description: chatDeploy?.description || null,
+      authType: chatDeploy?.authType || null,
+      allowedEmails: chatDeploy?.allowedEmails || null,
+      outputConfigs: chatDeploy?.outputConfigs || null,
+      includeThinking: chatDeploy?.includeThinking ?? false,
+      includeToolCalls: chatDeploy?.includeToolCalls ?? false,
       welcomeMessage: chatCustomizations.welcomeMessage || null,
       primaryColor: chatCustomizations.primaryColor || null,
-      hasPassword: Boolean(chatDeploy[0]?.password),
+      hasPassword: Boolean(chatDeploy?.password),
     }
 
     const mcpDetails: {
@@ -128,25 +110,15 @@ export async function executeCheckDeploymentStatus(
         parameterSchema: unknown
         toolId: string
       }>
-    } = { isDeployed: false, servers: [] }
-    if (workspaceId) {
-      const servers = await db
-        .select({
-          serverId: workflowMcpServer.id,
-          serverName: workflowMcpServer.name,
-          toolName: workflowMcpTool.toolName,
-          toolDescription: workflowMcpTool.toolDescription,
-          parameterSchema: workflowMcpTool.parameterSchema,
-          toolId: workflowMcpTool.id,
-        })
-        .from(workflowMcpTool)
-        .innerJoin(workflowMcpServer, eq(workflowMcpTool.serverId, workflowMcpServer.id))
-        .where(eq(workflowMcpTool.workflowId, workflowId))
-
-      if (servers.length > 0) {
-        mcpDetails.isDeployed = true
-        mcpDetails.servers = servers
-      }
+      truncated: boolean
+    } = {
+      isDeployed: false,
+      servers: [],
+      truncated: deployment.mcpToolsTruncated,
+    }
+    if (deployment.mcpTools.length > 0) {
+      mcpDetails.isDeployed = true
+      mcpDetails.servers = deployment.mcpTools
     }
 
     const isDeployed = apiDetails.isDeployed || chatDetails.isDeployed || mcpDetails.isDeployed
@@ -155,7 +127,10 @@ export async function executeCheckDeploymentStatus(
       output: { isDeployed, api: apiDetails, chat: chatDetails, mcp: mcpDetails },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to check deployment status'),
+    }
   }
 }
 
@@ -164,61 +139,23 @@ export async function executeListWorkspaceMcpServers(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    let workspaceId = context.workspaceId || params.workspaceId
-    const workflowId = context.workflowId
-
-    if (!workspaceId && workflowId) {
-      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context)
-      workspaceId = workflowRecord.workspaceId ?? undefined
-    }
-
+    const workspaceId = params.workspaceId || context.workspaceId
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context, 'read')
-
-    const servers = await db
-      .select({
-        id: workflowMcpServer.id,
-        name: workflowMcpServer.name,
-        description: workflowMcpServer.description,
-      })
-      .from(workflowMcpServer)
-      .where(
-        and(eq(workflowMcpServer.workspaceId, workspaceId), isNull(workflowMcpServer.deletedAt))
-      )
-
-    const serverIds = servers.map((server) => server.id)
-    const tools =
-      serverIds.length > 0
-        ? await db
-            .select({
-              serverId: workflowMcpTool.serverId,
-              toolName: workflowMcpTool.toolName,
-            })
-            .from(workflowMcpTool)
-            .where(
-              and(inArray(workflowMcpTool.serverId, serverIds), isNull(workflowMcpTool.archivedAt))
-            )
-        : []
-
-    const toolNamesByServer: Record<string, string[]> = {}
-    for (const tool of tools) {
-      if (!toolNamesByServer[tool.serverId]) {
-        toolNamesByServer[tool.serverId] = []
-      }
-      toolNamesByServer[tool.serverId].push(tool.toolName)
+    const result = await executeCopilotMcpServerUseCase(context, listWorkflowMcpDeployments, {
+      workspaceId,
+    })
+    return {
+      success: true,
+      output: {
+        servers: result.servers,
+        count: result.servers.length,
+        truncated: result.truncated,
+      },
     }
-
-    const serversWithToolNames = servers.map((server) => ({
-      ...server,
-      toolCount: toolNamesByServer[server.id]?.length || 0,
-      toolNames: toolNamesByServer[server.id] || [],
-    }))
-
-    return { success: true, output: { servers: serversWithToolNames, count: servers.length } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotApplicationError(error) }
   }
 }
 
@@ -227,39 +164,31 @@ export async function executeCreateWorkspaceMcpServer(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
   try {
-    let workspaceId = context.workspaceId || params.workspaceId
-    const workflowId = context.workflowId
-
-    if (!workspaceId && workflowId) {
-      const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'write')
-      workspaceId = workflowRecord.workspaceId ?? undefined
-    }
-
+    const workspaceId = params.workspaceId || context.workspaceId
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context, 'admin')
 
     const name = params.name?.trim()
     if (!name) {
       return { success: false, error: 'name is required' }
     }
 
-    const result = await performCreateWorkflowMcpServer({
-      workspaceId,
-      userId: context.userId,
-      name,
-      description: params.description,
-      isPublic: params.isPublic,
-      workflowIds: params.workflowIds,
-    })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to create MCP server' }
-    }
+    const result = await executeCopilotMcpServerUseCase(
+      context,
+      createWorkflowMcpDeploymentServer,
+      {
+        workspaceId,
+        name,
+        description: params.description,
+        isPublic: params.isPublic,
+        workflowIds: params.workflowIds,
+      }
+    )
 
-    return { success: true, output: { server: result.server, addedTools: result.addedTools || [] } }
+    return { success: true, output: { server: result.server, addedTools: result.addedTools } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotApplicationError(error) }
   }
 }
 
@@ -290,34 +219,14 @@ export async function executeUpdateWorkspaceMcpServer(
       return { success: false, error: 'At least one of name, description, or isPublic is required' }
     }
 
-    const [existing] = await db
-      .select({
-        id: workflowMcpServer.id,
-        workspaceId: workflowMcpServer.workspaceId,
-      })
-      .from(workflowMcpServer)
-      .where(eq(workflowMcpServer.id, serverId))
-      .limit(1)
-
-    if (!existing) {
-      return { success: false, error: 'MCP server not found' }
-    }
-
-    await ensureWorkspaceAccess(existing.workspaceId, context, 'write')
-
-    const result = await performUpdateWorkflowMcpServer({
+    await executeCopilotMcpServerUseCase(context, updateWorkflowMcpDeploymentServer, {
       serverId,
-      workspaceId: existing.workspaceId,
-      userId: context.userId,
       ...updates,
     })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to update MCP server' }
-    }
 
     return { success: true, output: { serverId, ...updates } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotApplicationError(error) }
   }
 }
 
@@ -331,34 +240,17 @@ export async function executeDeleteWorkspaceMcpServer(
       return { success: false, error: 'serverId is required' }
     }
 
-    const [existing] = await db
-      .select({
-        id: workflowMcpServer.id,
-        name: workflowMcpServer.name,
-        workspaceId: workflowMcpServer.workspaceId,
-      })
-      .from(workflowMcpServer)
-      .where(and(eq(workflowMcpServer.id, serverId), isNull(workflowMcpServer.deletedAt)))
-      .limit(1)
+    const result = await executeCopilotMcpServerUseCase(
+      context,
+      deleteWorkflowMcpDeploymentServer,
+      {
+        serverId,
+      }
+    )
 
-    if (!existing) {
-      return { success: false, error: 'MCP server not found' }
-    }
-
-    await ensureWorkspaceAccess(existing.workspaceId, context, 'admin')
-
-    const result = await performDeleteWorkflowMcpServer({
-      serverId,
-      workspaceId: existing.workspaceId,
-      userId: context.userId,
-    })
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to delete MCP server' }
-    }
-
-    return { success: true, output: { serverId, name: existing.name, deleted: true } }
+    return { success: true, output: { serverId, name: result.server.name, deleted: true } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return { success: false, error: messageForCopilotApplicationError(error) }
   }
 }
 
@@ -371,9 +263,10 @@ export async function executeGetDeploymentLog(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    await ensureWorkflowAccess(workflowId, context)
-
-    const { versions: rows } = await listWorkflowVersions(workflowId)
+    const { versions: rows } = await executeCopilotWorkflowUseCase(context, listWorkflowVersions, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+    })
 
     const versions = rows.map((r) => ({
       id: r.id,
@@ -388,7 +281,10 @@ export async function executeGetDeploymentLog(
 
     return { success: true, output: { workflowId, count: versions.length, versions } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to list deployment versions'),
+    }
   }
 }
 
@@ -421,11 +317,16 @@ export async function executeDiffWorkflows(
       return { success: false, error: 'ref1 and ref2 are required' }
     }
 
-    // resolveWorkflowStateRef enforces read access on the workflow.
-    const [side1, side2] = await Promise.all([
-      resolveWorkflowStateRef(workflowId, params.ref1, context),
-      resolveWorkflowStateRef(workflowId, params.ref2, context),
-    ])
+    const { references } = await executeCopilotWorkflowUseCase(
+      context,
+      readWorkflowStateReferences,
+      {
+        workflowId,
+        assertedWorkspaceId: context.workspaceId,
+        references: [parseWorkflowRef(params.ref1), parseWorkflowRef(params.ref2)],
+      }
+    )
+    const [side1, side2] = references
 
     const projection = { secretless: context.secretActorUserId === null }
     const state1 = projectWorkflowStateForCopilot(side1.state, projection)
@@ -455,7 +356,10 @@ export async function executeDiffWorkflows(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to compare workflow versions'),
+    }
   }
 }
 
@@ -497,17 +401,11 @@ export async function executeLoadDeployment(
       return { success: false, error: target.error }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
-    const result = await performRevertToVersion({
+    const result = await executeCopilotWorkflowUseCase(context, revertWorkflowVersion, {
       workflowId,
+      assertedWorkspaceId: context.workspaceId,
       version: target.version,
-      userId: context.userId,
-      workflow: workflowRecord as Record<string, unknown>,
     })
-
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to load deployment' }
-    }
 
     const label = target.version === 'active' ? 'the live deployment' : `version ${target.version}`
     return {
@@ -519,7 +417,10 @@ export async function executeLoadDeployment(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to load deployment'),
+    }
   }
 }
 
@@ -550,11 +451,12 @@ export async function executePromoteToLive(
       }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(workflowId, context, 'admin')
-    const result = await performActivateVersion({
+    const result = await executeCopilotWorkflowUseCase(context, activateWorkflowVersion, {
       workflowId,
+      assertedWorkspaceId: context.workspaceId,
       version,
-      userId: context.userId,
+      transition: 'activate',
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'promote_to_live'),
     })
 
@@ -591,7 +493,10 @@ export async function executePromoteToLive(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to promote deployment version'),
+    }
   }
 }
 
@@ -622,23 +527,21 @@ export async function executeUpdateDeploymentVersion(
       return { success: false, error: 'Provide a name and/or description to update' }
     }
 
-    await ensureWorkflowAccess(workflowId, context, 'write')
-
-    const updated = await updateDeploymentVersionMetadata({
+    const updated = await executeCopilotWorkflowUseCase(context, updateWorkflowVersion, {
       workflowId,
+      assertedWorkspaceId: context.workspaceId,
       version,
       ...(name !== undefined ? { name: name || null } : {}),
       ...(description !== undefined ? { description: description || null } : {}),
     })
-    if (!updated) {
-      return { success: false, error: `Deployment version ${version} not found` }
-    }
-
     return {
       success: true,
       output: { workflowId, version, name: updated.name, description: updated.description },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to update deployment version'),
+    }
   }
 }

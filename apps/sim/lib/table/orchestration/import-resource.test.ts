@@ -7,7 +7,6 @@ const {
   mockCreateTable,
   mockCreateUploadSession,
   mockDbLimit,
-  mockGetUserEntityPermissions,
   mockGetUserSettings,
   mockGetWorkspaceFile,
   mockGetWorkspaceTableLimits,
@@ -16,7 +15,6 @@ const {
   mockCreateTable: vi.fn(),
   mockCreateUploadSession: vi.fn(),
   mockDbLimit: vi.fn(),
-  mockGetUserEntityPermissions: vi.fn(),
   mockGetUserSettings: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockGetWorkspaceTableLimits: vi.fn(),
@@ -47,16 +45,23 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
   getOwnedUploadSession: vi.fn(),
 }))
 vi.mock('@/lib/users/queries', () => ({ getUserSettings: mockGetUserSettings }))
-vi.mock('@/lib/workspaces/permissions/utils', () => ({
-  getUserEntityPermissions: mockGetUserEntityPermissions,
-}))
 
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
-import { createTableImportResource } from '@/lib/table/orchestration/import-resource'
+import { createAuthorizedTableImportResource } from '@/lib/table/orchestration/import-resource'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 const SOURCE = { type: 'workspace_file' as const, fileId: 'file-1' }
 const TARGET = { type: 'new' as const, name: 'imported_data' }
+const principal = { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+
+function createImport(body: Parameters<typeof createAuthorizedTableImportResource>[0]['body']) {
+  return createAuthorizedTableImportResource({
+    body,
+    userId: 'user-1',
+    principal,
+    localOrigin: 'http://localhost:3000',
+  })
+}
 
 function workspaceFile(size: number) {
   return {
@@ -73,10 +78,9 @@ function workspaceFile(size: number) {
   }
 }
 
-describe('createTableImportResource workspace file size', () => {
+describe('createAuthorizedTableImportResource workspace file size', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetUserEntityPermissions.mockResolvedValue('write')
     mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100, maxRowsPerTable: 10_000 })
     mockCreateTable.mockResolvedValue({ id: 'table-1' })
     mockGetUserSettings.mockResolvedValue({ timezone: 'UTC' })
@@ -106,11 +110,7 @@ describe('createTableImportResource workspace file size', () => {
   it('accepts a workspace CSV at the exact byte limit', async () => {
     mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_MAX_FILE_SIZE_BYTES))
 
-    const result = await createTableImportResource(
-      { workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET },
-      'user-1',
-      'http://localhost:3000'
-    )
+    const result = await createImport({ workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET })
 
     expect(result.upload).toBeNull()
     expect(mockCreateTable).toHaveBeenCalledOnce()
@@ -121,21 +121,16 @@ describe('createTableImportResource workspace file size', () => {
     mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_MAX_FILE_SIZE_BYTES + 1))
 
     await expect(
-      createTableImportResource(
-        { workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET },
-        'user-1',
-        'http://localhost:3000'
-      )
+      createImport({ workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mockCreateTable).not.toHaveBeenCalled()
     expect(mockRunDetached).not.toHaveBeenCalled()
   })
 })
 
-describe('createTableImportResource upload size', () => {
+describe('createAuthorizedTableImportResource upload size', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockGetUserEntityPermissions.mockResolvedValue('write')
     mockCreateUploadSession.mockResolvedValue({
       id: 'import-1',
       userId: 'user-1',
@@ -149,20 +144,16 @@ describe('createTableImportResource upload size', () => {
   })
 
   it('creates an upload session for a CSV at the exact byte limit', async () => {
-    await createTableImportResource(
-      {
-        workspaceId: WORKSPACE_ID,
-        source: {
-          type: 'upload',
-          name: 'data.csv',
-          contentType: 'text/csv',
-          size: CSV_MAX_FILE_SIZE_BYTES,
-        },
-        target: TARGET,
+    await createImport({
+      workspaceId: WORKSPACE_ID,
+      source: {
+        type: 'upload',
+        name: 'data.csv',
+        contentType: 'text/csv',
+        size: CSV_MAX_FILE_SIZE_BYTES,
       },
-      'user-1',
-      'http://localhost:3000'
-    )
+      target: TARGET,
+    })
 
     expect(mockCreateUploadSession).toHaveBeenCalledWith(
       expect.objectContaining({ fileSize: CSV_MAX_FILE_SIZE_BYTES, purpose: 'table_import' })
@@ -171,20 +162,16 @@ describe('createTableImportResource upload size', () => {
 
   it('rejects an upload one byte over the limit before creating a session', async () => {
     await expect(
-      createTableImportResource(
-        {
-          workspaceId: WORKSPACE_ID,
-          source: {
-            type: 'upload',
-            name: 'data.csv',
-            contentType: 'text/csv',
-            size: CSV_MAX_FILE_SIZE_BYTES + 1,
-          },
-          target: TARGET,
+      createImport({
+        workspaceId: WORKSPACE_ID,
+        source: {
+          type: 'upload',
+          name: 'data.csv',
+          contentType: 'text/csv',
+          size: CSV_MAX_FILE_SIZE_BYTES + 1,
         },
-        'user-1',
-        'http://localhost:3000'
-      )
+        target: TARGET,
+      })
     ).rejects.toMatchObject({ code: 'validation' })
     expect(mockCreateUploadSession).not.toHaveBeenCalled()
   })

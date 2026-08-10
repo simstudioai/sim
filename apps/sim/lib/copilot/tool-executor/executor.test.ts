@@ -320,7 +320,13 @@ describe('copilot tool executor fallback', () => {
           chatId: 'chat-1',
           enforceCredentialAccess: true,
         }),
-      })
+      }),
+      {
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
     expect(result).toEqual({ success: true, output: { emails: [] } })
   })
@@ -341,9 +347,11 @@ describe('copilot tool executor fallback', () => {
       }
     )
 
-    expect(executeAppTool).toHaveBeenCalledWith('gmail_read', expect.any(Object), {
-      signal: controller.signal,
-    })
+    expect(executeAppTool).toHaveBeenCalledWith(
+      'gmail_read',
+      expect.any(Object),
+      expect.objectContaining({ signal: controller.signal })
+    )
   })
 
   it('threads billing attribution into _context for dynamic tools (MCP)', async () => {
@@ -417,7 +425,13 @@ describe('copilot tool executor fallback', () => {
         query: 'hello',
         _context: expect.not.objectContaining({ resolvedSecretTraceRegistry: expect.anything() }),
       }),
-      { resolvedSecretTraceRegistry: registry }
+      {
+        resolvedSecretTraceRegistry: registry,
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
     const appParams = executeAppTool.mock.calls[0]?.[1]
     expect(JSON.stringify(appParams)).not.toContain('resolvedSecretTraceRegistry')
@@ -477,7 +491,13 @@ describe('copilot tool executor fallback', () => {
         _context: expect.objectContaining({
           copilotToolExecution: true,
         }),
-      })
+      }),
+      {
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
   })
 
@@ -526,7 +546,13 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: 10_000,
-      })
+      }),
+      {
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
   })
 
@@ -550,7 +576,13 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: 10_000,
-      })
+      }),
+      {
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
   })
 
@@ -574,7 +606,13 @@ describe('copilot tool executor fallback', () => {
       'function_execute',
       expect.objectContaining({
         timeout: DEFAULT_EXECUTION_TIMEOUT_MS,
-      })
+      }),
+      {
+        internalExecutorDelegation: {
+          subjectUserId: 'user-1',
+          workflowId: 'workflow-1',
+        },
+      }
     )
   })
 })

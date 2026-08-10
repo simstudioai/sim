@@ -2,17 +2,25 @@
  * @vitest-environment node
  */
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { TOOL_RESULT_UNAVAILABLE_ERROR } from '@/lib/copilot/request/tools/resolved-secret-result'
 
-const routeExecution = vi.hoisted(() => vi.fn())
+const mocks = vi.hoisted(() => ({
+  loggerError: vi.fn(),
+  routeExecution: vi.fn(),
+}))
 
-vi.mock('@/lib/copilot/tools/server/router', () => ({ routeExecution }))
+vi.mock('@sim/logger', () => ({
+  createLogger: () => ({ error: mocks.loggerError }),
+}))
+
+vi.mock('@/lib/copilot/tools/server/router', () => ({ routeExecution: mocks.routeExecution }))
 
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 
 describe('server tool adapter authority boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    routeExecution.mockResolvedValue({ success: true })
+    mocks.routeExecution.mockResolvedValue({ success: true })
   })
 
   it('overwrites model-supplied workspace scope and forwards trusted delegation context', async () => {
@@ -30,7 +38,7 @@ describe('server tool adapter authority boundary', () => {
       }
     )
 
-    expect(routeExecution).toHaveBeenCalledWith(
+    expect(mocks.routeExecution).toHaveBeenCalledWith(
       'workspace_file',
       expect.objectContaining({ workspaceId: 'workspace-1', operation: 'rename' }),
       expect.objectContaining({
@@ -43,29 +51,33 @@ describe('server tool adapter authority boundary', () => {
     )
   })
 
-  it('propagates the secretless actor policy to server tools', async () => {
-    const userStopController = new AbortController()
+  it('logs unexpected failures in full and returns only a generic system message', async () => {
+    const storageError = new Error('update workspace_files set secret_column = value')
+    mocks.routeExecution.mockRejectedValue(storageError)
 
-    await createServerToolHandler('edit_workflow')(
-      { workflowId: 'workflow-1' },
+    const result = await createServerToolHandler('workspace_file')(
+      {},
       {
-        userId: 'key-creator',
+        userId: 'user-1',
         workflowId: 'workflow-1',
         workspaceId: 'workspace-1',
-        secretActorUserId: null,
-        userStopSignal: userStopController.signal,
+        toolCallId: 'tool-call-1',
+        copilotToolExecution: true,
       }
     )
 
-    expect(routeExecution).toHaveBeenCalledWith(
-      'edit_workflow',
-      { workflowId: 'workflow-1', workspaceId: 'workspace-1' },
-      expect.objectContaining({
-        userId: 'key-creator',
-        workspaceId: 'workspace-1',
-        secretActorUserId: null,
-        userStopSignal: userStopController.signal,
-      })
+    expect(result).toEqual({
+      success: false,
+      error: `[workspace_file] ${TOOL_RESULT_UNAVAILABLE_ERROR}`,
+    })
+    expect(result.error).not.toContain('workspace_files')
+    expect(mocks.loggerError).toHaveBeenCalledWith(
+      'Server tool execution failed',
+      {
+        toolId: 'workspace_file',
+        abortSignalAborted: false,
+      },
+      storageError
     )
   })
 })

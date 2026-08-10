@@ -14,7 +14,8 @@ import {
   sql,
 } from 'drizzle-orm'
 
-export type ListSortOrder = 'asc' | 'desc'
+export const LIST_SORT_ORDERS = ['asc', 'desc'] as const
+export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
 
 /**
  * Runtime half of the v2 list convention declared in

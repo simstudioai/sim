@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import type { ShareAuthType, ShareRecord } from '@/lib/api/contracts/public-shares'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -81,7 +81,7 @@ export const updateWorkspaceFileShare = defineAuthorizedWorkspaceFileUseCase({
     return { ...canonical, file }
   },
   async execute({ principal, input, context }): Promise<UpdateWorkspaceFileShareResult> {
-    const subjectUserId = resolvePrincipalAttribution(principal).attributedUserId
+    const subjectUserId = requirePrincipalSubjectUserId(principal)
 
     const existingShare = await getShareForResource('file', context.fileId)
     if (input.noOpIfInactive && !input.isActive && !existingShare?.isActive) {

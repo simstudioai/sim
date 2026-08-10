@@ -12,6 +12,7 @@ const {
   mockMarkDocumentAsFailedTimeout,
   mockProcessDocumentAsync,
   mockProcessDocumentsWithQueue,
+  mockPlatformUpload,
   mockRecordAudit,
   mockRetryDocumentProcessing,
   mockUpdateDocument,
@@ -24,6 +25,7 @@ const {
   mockMarkDocumentAsFailedTimeout: vi.fn(),
   mockProcessDocumentAsync: vi.fn(),
   mockProcessDocumentsWithQueue: vi.fn(),
+  mockPlatformUpload: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockRetryDocumentProcessing: vi.fn(),
   mockUpdateDocument: vi.fn(),
@@ -39,7 +41,7 @@ vi.mock('@sim/audit', () => ({
   recordAudit: mockRecordAudit,
 }))
 vi.mock('@/lib/core/telemetry', () => ({
-  PlatformEvents: { knowledgeBaseDocumentsUploaded: vi.fn() },
+  PlatformEvents: { knowledgeBaseDocumentsUploaded: mockPlatformUpload },
 }))
 vi.mock('@/lib/knowledge/documents/service', () => ({
   createDocumentRecords: mockCreateDocumentRecords,
@@ -110,7 +112,14 @@ describe('performUploadKnowledgeDocument', () => {
       uploadedBy: 'workspace-owner',
     })
 
-    expect(mockCreateSingleDocument).toHaveBeenCalledWith(FILE, 'kb-1', 'req-1', 'workspace-owner')
+    expect(mockCreateSingleDocument).toHaveBeenCalledWith(
+      FILE,
+      'kb-1',
+      'req-1',
+      'workspace-owner',
+      undefined,
+      undefined
+    )
   })
 
   it('starts no indexing unless the caller asks for it', async () => {
@@ -158,6 +167,21 @@ describe('performUploadKnowledgeDocument', () => {
       (await performUploadKnowledgeDocument({ ...ACTOR, knowledgeBase: KB, document: FILE }))
         .errorCode
     ).toBe('forbidden')
+  })
+
+  it('returns the authoritative upload without legacy audit or product analytics when disabled', async () => {
+    const outcome = await performUploadKnowledgeDocument({
+      ...ACTOR,
+      knowledgeBase: KB,
+      document: FILE,
+      recordSemanticAudit: false,
+      recordProductAnalytics: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true, document: { id: 'doc-1' } })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockPlatformUpload).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 
   it('returns the document already bound to a stateless upload id without duplicating work', async () => {
@@ -219,7 +243,8 @@ describe('performUploadKnowledgeDocument', () => {
       'kb-1',
       'req-1',
       'user-1',
-      'upload-1'
+      'upload-1',
+      undefined
     )
     expect(mockProcessDocumentsWithQueue).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
@@ -260,6 +285,22 @@ describe('performUploadKnowledgeDocuments', () => {
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'validation' })
     expect(mockCreateDocumentRecords).not.toHaveBeenCalled()
+  })
+
+  it('returns the authoritative batch without legacy audit or product analytics when disabled', async () => {
+    const outcome = await performUploadKnowledgeDocuments({
+      ...ACTOR,
+      knowledgeBase: KB,
+      documents: [FILE],
+      recordSemanticAudit: false,
+      recordProductAnalytics: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(outcome.success && outcome.documents[0]).toMatchObject({ documentId: 'doc-1' })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockPlatformUpload).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })
 

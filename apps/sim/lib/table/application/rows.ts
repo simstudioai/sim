@@ -1,7 +1,9 @@
+import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import { isPlainRecord } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type {
   BulkDeleteByIdsResult,
@@ -34,11 +36,14 @@ import {
   upsertRow,
   validateBatchRows,
   validateRowData,
+  withLockedTable,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
 import { resolveActiveTableContext } from '@/lib/table/application/context'
 import { tableOperations } from '@/lib/table/application/operations'
+import { assertRowCapacity, notifyTableRowUsage } from '@/lib/table/billing'
 import { buildIdByName } from '@/lib/table/column-keys'
+import { columnTypeOf } from '@/lib/table/column-types'
 import { TableQueryValidationError } from '@/lib/table/errors'
 import { signalTableRowsChanged } from '@/lib/table/events'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
@@ -49,7 +54,12 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch } from '@/lib/table/rows/service'
+import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
 
 export class TableRowsValidationError extends OrchestrationError {
@@ -70,6 +80,21 @@ interface TableScopedInput {
 
 interface TableResult {
   table: TableDefinition
+}
+
+type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenance>>
+
+async function loadAuthorizedRowsProvenance(
+  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
+  workspaceId: string,
+  rows: TableRow[],
+  include: boolean | undefined
+): Promise<TableRowsProvenance | undefined> {
+  if (!include) return undefined
+  return loadTableRowSecretProvenance(rows, {
+    userId: requirePrincipalSubjectUserId(principal),
+    workspaceId,
+  })
 }
 
 function requestId(input: TableScopedInput): string {
@@ -176,6 +201,7 @@ export interface QueryTableRowsInput extends TableScopedInput {
   limit?: number
   cursor?: string
   includeTotal?: boolean
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface QueryTableRowsResult extends TableResult {
@@ -183,12 +209,13 @@ export interface QueryTableRowsResult extends TableResult {
   rowCount: number
   totalCount: number | null
   nextCursor: string | null
+  secretProvenance?: TableRowsProvenance
 }
 
 export const queryTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.queryRows,
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<QueryTableRowsResult> {
+  async execute({ principal, input, context }): Promise<QueryTableRowsResult> {
     try {
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
@@ -221,7 +248,16 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         },
         requestId(input)
       )
-      return { table: context.table, ...result }
+      return {
+        table: context.table,
+        ...result,
+        secretProvenance: await loadAuthorizedRowsProvenance(
+          principal,
+          context.workspaceId,
+          result.rows,
+          input.includePersistedSecretProvenance
+        ),
+      }
     } catch (error) {
       rethrowQueryValidation(error)
     }
@@ -270,19 +306,30 @@ export const findTableRows = defineAuthorizedTableUseCase({
 
 export interface ReadTableRowInput extends TableScopedInput {
   rowId: string
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface ReadTableRowResult extends TableResult {
   row: TableRow
+  secretProvenance?: TableRowsProvenance
 }
 
 export const readTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<ReadTableRowResult> {
+  async execute({ principal, input, context }): Promise<ReadTableRowResult> {
     const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
-    return { table: context.table, row }
+    return {
+      table: context.table,
+      row,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
 })
 
@@ -428,15 +475,143 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
   },
 })
 
+const PROJECTED_WIRE_ROWS_LIMIT = 10_000
+const PROJECTED_SECRET_COLUMN_TYPE_ERROR =
+  'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.'
+
+export class ProjectedWireRowsValidationError extends TableRowsValidationError {
+  constructor(message: string) {
+    super(message)
+    this.name = 'ProjectedWireRowsValidationError'
+  }
+}
+
+export interface ReplaceProjectedWireRowsInput extends TableScopedInput {
+  sourceRows: Array<Record<string, unknown>>
+  projectedRows: unknown
+}
+
+export interface ReplaceProjectedWireRowsResult extends TableResult, ReplaceRowsResult {}
+
+function projectedRowsForTable(
+  table: TableDefinition,
+  sourceRows: Array<Record<string, unknown>>,
+  value: unknown
+): RowData[] {
+  if (!Array.isArray(value) || !value.every(isPlainRecord)) {
+    throw new ProjectedWireRowsValidationError('Table rows could not be persisted safely')
+  }
+  if (value.length !== sourceRows.length) {
+    throw new ProjectedWireRowsValidationError(
+      'Projected table rows must align one-to-one with source rows'
+    )
+  }
+  if (value.length > PROJECTED_WIRE_ROWS_LIMIT) {
+    throw new ProjectedWireRowsValidationError(
+      `Table row replacement limit exceeded: got ${value.length}, max is ${PROJECTED_WIRE_ROWS_LIMIT}`
+    )
+  }
+
+  const columnsByName = new Map(table.schema.columns.map((column) => [column.name, column]))
+  for (let rowIndex = 0; rowIndex < value.length; rowIndex += 1) {
+    const projected = value[rowIndex]
+    for (const [name, projectedValue] of Object.entries(projected)) {
+      const column = columnsByName.get(name)
+      if (!column || isDeepStrictEqual(sourceRows[rowIndex]?.[name], projectedValue)) continue
+      const type = columnTypeOf(column).id
+      if (type !== 'string' && type !== 'json') {
+        throw new ProjectedWireRowsValidationError(PROJECTED_SECRET_COLUMN_TYPE_ERROR)
+      }
+    }
+
+    if (!Object.keys(projected).some((name) => columnsByName.has(name))) {
+      throw new ProjectedWireRowsValidationError(
+        `Row ${rowIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((column) => column.name).join(', ')})`
+      )
+    }
+  }
+
+  const idByName = buildIdByName(table.schema)
+  return value.map((row) => rowDataNameToId(row as RowData, idByName))
+}
+
+/** Atomically validates name-keyed projected rows against the locked schema and replaces the table. */
+export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
+  operation: tableOperations.replaceRows,
+  resolveContext: ({ input }: { input: ReplaceProjectedWireRowsInput }) =>
+    resolveActiveTableContext(input),
+  async execute({ principal, input, context }): Promise<ReplaceProjectedWireRowsResult> {
+    if (input.sourceRows.length > PROJECTED_WIRE_ROWS_LIMIT) {
+      throw new ProjectedWireRowsValidationError(
+        `Table row replacement limit exceeded: got ${input.sourceRows.length}, max is ${PROJECTED_WIRE_ROWS_LIMIT}`
+      )
+    }
+    const rowLimit = await assertRowCapacity({
+      workspaceId: context.workspaceId,
+      currentRowCount: 0,
+      addedRows: input.sourceRows.length,
+    })
+    const result = await withLockedTable(
+      context.tableId,
+      async (table, trx) => {
+        const rows = projectedRowsForTable(table, input.sourceRows, input.projectedRows)
+        const replacement = await replaceTableRowsWithTx(
+          trx,
+          {
+            tableId: table.id,
+            workspaceId: table.workspaceId,
+            rows,
+            userId: actorUserId(principal, context.billedAccountUserId),
+            secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
+          },
+          table,
+          requestId(input)
+        )
+        return { table, ...replacement }
+      },
+      { expectedWorkspaceId: context.workspaceId }
+    )
+    notifyTableRowUsage({
+      workspaceId: context.workspaceId,
+      currentRowCount: 0,
+      addedRows: result.insertedCount,
+      limit: rowLimit,
+    })
+    return result
+  },
+  projectAudit({ result }) {
+    if (result.deletedCount === 0 && result.insertedCount === 0) return []
+    return {
+      action: AuditAction.TABLE_UPDATED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: result.table.id,
+      resourceName: result.table.name,
+      description: `Replaced rows in table "${result.table.name}"`,
+      metadata: {
+        op: 'replace_projected_rows',
+        rowsDeleted: result.deletedCount,
+        rowsInserted: result.insertedCount,
+      },
+    }
+  },
+  afterSuccess({ context, result }) {
+    if (result.deletedCount > 0 || result.insertedCount > 0) {
+      signalTableRowsChanged(context.tableId)
+    }
+  },
+})
+
 export interface UpdateTableRowInput extends TableScopedInput {
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface UpdateTableRowResult extends TableResult {
   row: TableRow
   changed: boolean
+  secretProvenance?: TableRowsProvenance
 }
 
 export const updateTableRow = defineAuthorizedTableUseCase({
@@ -457,7 +632,17 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       requestId(input)
     )
     if (!row) throw new Error('Unconditional table row update was rejected')
-    return { table: context.table, row, changed: Object.keys(data).length > 0 }
+    return {
+      table: context.table,
+      row,
+      changed: Object.keys(data).length > 0,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context, result }) => {
     if (result.changed) signalTableRowsChanged(context.tableId)

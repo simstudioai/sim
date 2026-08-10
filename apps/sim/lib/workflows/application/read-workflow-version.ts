@@ -6,13 +6,18 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import { getWorkflowDeploymentVersion } from '@/lib/workflows/persistence/utils'
+import type { WorkflowState } from '@/stores/workflows/workflow/types'
 
 const logger = createLogger('ReadWorkflowVersion')
+
+function isWorkflowState(value: unknown): value is WorkflowState {
+  return typeof value === 'object' && value !== null
+}
 
 export interface ReadWorkflowVersionInput {
   workflowId: string
   assertedWorkspaceId?: string
-  version: number
+  version: number | 'active'
 }
 
 export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
@@ -33,12 +38,16 @@ export const readWorkflowVersion = defineAuthorizedWorkflowUseCase({
     if (!version?.state) {
       throw new OrchestrationError('not_found', 'Deployment version not found')
     }
+    const state = version.state
+    if (!isWorkflowState(state)) {
+      throw new Error('Deployment version contains invalid workflow state')
+    }
     logger.info('Read workflow version', {
       workspaceId: context.workspaceId,
       workflowId: context.workflowId,
       version: input.version,
       principalKind: principal.kind,
     })
-    return { version }
+    return { version: { ...version, state } }
   },
 })

@@ -122,7 +122,34 @@ describe('table operation authorization', () => {
     )
   })
 
-  it('rejects wrong-audience, expired, cross-workspace, and wrong-table delegations before lookup', async () => {
+  it('requires delegated scope to match the context in both directions', async () => {
+    const unscopedPrincipal = {
+      kind: 'delegated' as const,
+      serviceId: 'executor' as const,
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'execution-1',
+      audience: 'sim:tables',
+      issuedAt: new Date(Date.now() - 1_000),
+      expiresAt: new Date(Date.now() + 60_000),
+    }
+    const workspaceContext = { ...authorizationContext, tableId: undefined }
+
+    await authorizeTableOperation(unscopedPrincipal, tableOperations.readImport, workspaceContext)
+
+    await expect(
+      authorizeTableOperation(
+        { ...unscopedPrincipal, resourceScope: { tableId: 'table-1' } },
+        tableOperations.readImport,
+        workspaceContext
+      )
+    ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
+    await expect(
+      authorizeTableOperation(unscopedPrincipal, tableOperations.read, authorizationContext)
+    ).rejects.toMatchObject<Partial<OrchestrationError>>({ code: 'forbidden' })
+  })
+
+  it('rejects wrong-audience, expired, cross-workspace, unscoped, and wrong-table delegations before lookup', async () => {
     const base = {
       kind: 'delegated' as const,
       serviceId: 'copilot' as const,
@@ -149,6 +176,10 @@ describe('table operation authorization', () => {
       workspaceId: 'workspace-2',
       expiresAt: new Date(Date.now() + 60_000),
       resourceScope: { tableId: 'table-1' },
+    })
+    await expectForbidden({
+      ...base,
+      expiresAt: new Date(Date.now() + 60_000),
     })
     await expectForbidden({
       ...base,

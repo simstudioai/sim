@@ -1,11 +1,7 @@
-import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
-import { isPlainRecord } from '@sim/utils/object'
 import { parse as csvParse } from 'csv-parse/sync'
-import {
-  messageForCopilotTableError,
-  resolveCopilotTablePrincipal,
-} from '@/lib/copilot/auth/table-delegation'
+import { executeCopilotReplaceProjectedWireRows } from '@/lib/copilot/application/table-commands'
+import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { CopilotTableOutcome } from '@/lib/copilot/generated/trace-attribute-values-v1'
 import { TraceAttr } from '@/lib/copilot/generated/trace-attributes-v1'
@@ -18,40 +14,17 @@ import {
   projectToolOutputForPersistence,
 } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
-import type { RowData, TableDefinition } from '@/lib/table'
-import { replaceTableRows } from '@/lib/table/application/rows'
-import { readTableUseCase } from '@/lib/table/application/tables'
-import { columnTypeOf } from '@/lib/table/column-types'
-import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import type { TableDefinition } from '@/lib/table'
+import { ProjectedWireRowsValidationError } from '@/lib/table/application/rows'
 
 const logger = createLogger('CopilotToolResultTables')
 
 const MAX_OUTPUT_TABLE_ROWS = 10_000
-const TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR =
-  'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.'
-
-function hasUnsupportedProjectedCell(
-  table: TableDefinition,
-  sourceRows: Array<Record<string, unknown>>,
-  projectedRows: Array<Record<string, unknown>>
-): boolean {
-  const columnsByName = new Map(table.schema.columns.map((column) => [column.name, column]))
-  for (let rowIndex = 0; rowIndex < projectedRows.length; rowIndex += 1) {
-    for (const [name, projectedValue] of Object.entries(projectedRows[rowIndex])) {
-      const column = columnsByName.get(name)
-      if (!column || isDeepStrictEqual(sourceRows[rowIndex]?.[name], projectedValue)) continue
-      const type = columnTypeOf(column).id
-      if (type !== 'string' && type !== 'json') return true
-    }
-  }
-  return false
-}
-
 /**
  * Replaces a table's rows with wire rows keyed by column name. Translates the
- * keys to stable column ids (unknown keys are dropped, matching every other
- * name-translating boundary) and delegates to `replaceTableRows`, which owns
- * locking, validation, plan row limits, batching, and rowCount maintenance.
+ * projected values through one authorized application command. That command
+ * validates and translates against the table schema it holds under the schema
+ * lock before performing the atomic replacement.
  */
 async function replaceTableRowsFromWire(
   tableId: string,
@@ -61,53 +34,34 @@ async function replaceTableRowsFromWire(
   | { success: false; error: string }
   | { success: true; table: TableDefinition; insertedCount: number; deletedCount: number }
 > {
-  const principal = resolveCopilotTablePrincipal(context, tableId)
-  const { table } = await readTableUseCase.execute({
-    principal,
-    input: { tableId, workspaceId: principal.workspaceId },
-  })
+  const workspaceId = context.workspaceId
+  if (!workspaceId) throw new Error('Table persistence requires a workspace ID')
   const persistenceProjection = context.resolvedSecretTraceRegistry
     ? projectToolOutputForPersistence(rows, context.resolvedSecretTraceRegistry)
     : { safe: true as const, value: rows }
   if (!persistenceProjection.safe) {
     return { success: false, error: persistenceProjection.error }
   }
-  if (
-    !Array.isArray(persistenceProjection.value) ||
-    !persistenceProjection.value.every(isPlainRecord)
-  ) {
-    return { success: false, error: 'Table rows could not be persisted safely' }
-  }
-  if (hasUnsupportedProjectedCell(table, rows, persistenceProjection.value)) {
-    return { success: false, error: TABLE_SECRET_PROJECTION_UNSUPPORTED_ERROR }
-  }
-
-  const projectedRows = persistenceProjection.value.map((row) => row as RowData)
-  const columnNames = new Set(table.schema.columns.map((column) => column.name))
-  const emptyIndex = projectedRows.findIndex(
-    (row) => !Object.keys(row).some((name) => columnNames.has(name))
-  )
-  if (emptyIndex !== -1) {
-    return {
-      success: false,
-      error: `Row ${emptyIndex + 1} has no keys matching columns on table "${table.name}" (columns: ${table.schema.columns.map((c) => c.name).join(', ')})`,
+  let replacement: Awaited<ReturnType<typeof executeCopilotReplaceProjectedWireRows>>
+  try {
+    replacement = await executeCopilotReplaceProjectedWireRows(context, {
+      tableId,
+      assertedWorkspaceId: workspaceId,
+      sourceRows: rows,
+      projectedRows: persistenceProjection.value,
+    })
+  } catch (error) {
+    if (error instanceof ProjectedWireRowsValidationError) {
+      return { success: false, error: error.message }
     }
+    throw error
   }
-  const replacement = await replaceTableRows.execute({
-    principal,
-    input: {
-      tableId: table.id,
-      assertedWorkspaceId: principal.workspaceId,
-      rows: projectedRows,
-      secretProvenance: projectedRows.map(createExactEmptyTableRowSecretProvenance),
-    },
-  })
-  if (replacement.insertedCount !== projectedRows.length) {
+  if (replacement.insertedCount !== rows.length) {
     throw new Error('Table row replacement inserted an unexpected row count')
   }
   return {
     success: true,
-    table,
+    table: replacement.table,
     insertedCount: replacement.insertedCount,
     deletedCount: replacement.deletedCount,
   }

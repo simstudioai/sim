@@ -133,14 +133,23 @@ export async function executeTool(
   if (!canUseRegisteredHandler) {
     const appParams = buildAppToolParams(normalizedParams, context)
     const signal = context.abortSignal ?? context.userStopSignal
-    const executionOptions = {
+    const options = {
       ...(signal ? { signal } : {}),
       ...(context.resolvedSecretTraceRegistry
         ? { resolvedSecretTraceRegistry: context.resolvedSecretTraceRegistry }
         : {}),
+      ...(context.workflowId
+        ? {
+            internalExecutorDelegation: {
+              subjectUserId: context.userId,
+              workflowId: context.workflowId,
+              ...(context.executionId ? { executionId: context.executionId } : {}),
+            },
+          }
+        : {}),
     }
-    return Object.keys(executionOptions).length > 0
-      ? executeAppTool(toolId, appParams, executionOptions)
+    return Object.keys(options).length > 0
+      ? executeAppTool(toolId, appParams, options)
       : executeAppTool(toolId, appParams)
   }
 

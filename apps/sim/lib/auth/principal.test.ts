@@ -2,11 +2,54 @@
  * @vitest-environment node
  */
 import {
+  PrincipalSubjectUserRequiredError,
+  requirePrincipalSubjectUserId,
   resolvePrincipalAttribution,
   resolvePrincipalAuditAttribution,
   toPrincipalActor,
 } from '@sim/auth/principal'
 import { describe, expect, it } from 'vitest'
+
+describe('principal subject users', () => {
+  it('resolves the human subject represented by user-backed principals', () => {
+    expect(
+      requirePrincipalSubjectUserId({
+        kind: 'session',
+        userId: 'session-user',
+        sessionId: 'session-1',
+      })
+    ).toBe('session-user')
+    expect(
+      requirePrincipalSubjectUserId({
+        kind: 'personal_api_key',
+        userId: 'key-user',
+        keyId: 'key-1',
+      })
+    ).toBe('key-user')
+    expect(
+      requirePrincipalSubjectUserId({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'delegated-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'delegation-1',
+        audience: 'sim:test',
+        issuedAt: new Date('2026-01-01T00:00:00Z'),
+        expiresAt: new Date('2026-01-01T00:05:00Z'),
+      })
+    ).toBe('delegated-user')
+  })
+
+  it('fails fast instead of fabricating a workspace-key subject', () => {
+    expect(() =>
+      requirePrincipalSubjectUserId({
+        kind: 'workspace_api_key',
+        keyId: 'key-1',
+        workspaceId: 'workspace-1',
+      })
+    ).toThrow(PrincipalSubjectUserRequiredError)
+  })
+})
 
 describe('principal actors', () => {
   it('maps every principal to an audit actor without billing-owner substitution', () => {

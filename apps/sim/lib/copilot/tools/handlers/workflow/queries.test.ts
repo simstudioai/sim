@@ -1,62 +1,26 @@
-import {
-  workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
+import { getErrorMessage } from '@sim/utils/errors'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { ExecutionContext } from '@/lib/copilot/request/types'
 
-const {
-  ensureWorkflowAccessMock,
-  getEffectiveBlockOutputPathsMock,
-  hasTriggerCapabilityMock,
-  getBlockMock,
-  listCustomToolsMock,
-  listWorkspaceCustomToolsMock,
-  discoverMcpToolsMock,
-} = vi.hoisted(() => ({
-  ensureWorkflowAccessMock: vi.fn(),
-  getEffectiveBlockOutputPathsMock: vi.fn(),
-  hasTriggerCapabilityMock: vi.fn(),
-  getBlockMock: vi.fn(),
-  listCustomToolsMock: vi.fn(),
-  listWorkspaceCustomToolsMock: vi.fn(),
-  discoverMcpToolsMock: vi.fn(),
+const { executeCustomToolUseCaseMock, executeMcpServerUseCaseMock, executeWorkflowUseCaseMock } =
+  vi.hoisted(() => ({
+    executeCustomToolUseCaseMock: vi.fn(),
+    executeMcpServerUseCaseMock: vi.fn(),
+    executeWorkflowUseCaseMock: vi.fn(),
+  }))
+
+vi.mock('@/lib/copilot/application/execute-custom-tool-use-case', () => ({
+  executeCopilotCustomToolUseCase: executeCustomToolUseCaseMock,
 }))
 
-const loadWorkflowFromNormalizedTablesMock =
-  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
-const getWorkflowByIdMock = workflowsUtilsMockFns.mockGetWorkflowById
-
-vi.mock('../access', () => ({
-  ensureWorkflowAccess: ensureWorkflowAccessMock,
-  ensureWorkspaceAccess: vi.fn(),
-  getDefaultWorkspaceId: vi.fn(),
+vi.mock('@/lib/copilot/application/execute-mcp-server-use-case', () => ({
+  executeCopilotMcpServerUseCase: executeMcpServerUseCaseMock,
 }))
 
-vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
-
-vi.mock('@/lib/workflows/blocks/block-outputs', () => ({
-  getEffectiveBlockOutputPaths: getEffectiveBlockOutputPathsMock,
-}))
-
-vi.mock('@/lib/workflows/triggers/trigger-utils', () => ({
-  hasTriggerCapability: hasTriggerCapabilityMock,
-}))
-
-vi.mock('@/blocks/registry', () => ({
-  getBlock: getBlockMock,
-}))
-
-vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/lib/workflows/custom-tools/operations', () => ({
-  listCustomTools: listCustomToolsMock,
-  listWorkspaceCustomTools: listWorkspaceCustomToolsMock,
-}))
-
-vi.mock('@/lib/mcp/service', () => ({
-  mcpService: { discoverTools: discoverMcpToolsMock },
+vi.mock('@/lib/copilot/application/execute-workflow-use-case', () => ({
+  executeCopilotWorkflowUseCase: executeWorkflowUseCaseMock,
+  messageForCopilotWorkflowError: (error: unknown) =>
+    getErrorMessage(error, 'Workflow operation failed'),
 }))
 
 import { executeGetBlockOutputs, executeGetWorkflowData } from './queries'
@@ -64,44 +28,10 @@ import { executeGetBlockOutputs, executeGetWorkflowData } from './queries'
 describe('executeGetBlockOutputs', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    ensureWorkflowAccessMock.mockResolvedValue({
-      workflow: { id: 'wf-1', userId: 'user-1', workspaceId: 'ws-1' },
-      workspaceId: 'ws-1',
-    })
-    getWorkflowByIdMock.mockResolvedValue({ variables: {} })
-    getBlockMock.mockReturnValue({ category: 'core' })
-    hasTriggerCapabilityMock.mockReturnValue(false)
-    getEffectiveBlockOutputPathsMock.mockReturnValue(['content'])
   })
 
   it('returns display outputs and block-relative outputs for chat deployment', async () => {
-    loadWorkflowFromNormalizedTablesMock.mockResolvedValue({
-      blocks: {
-        'agent-1': {
-          type: 'agent',
-          name: 'Support Agent',
-          subBlocks: {},
-        },
-        'loop-1': {
-          type: 'loop',
-          name: 'Items Loop',
-        },
-      },
-      loops: {
-        'loop-1': {
-          loopType: 'forEach',
-        },
-      },
-      parallels: {},
-    })
-
-    const result = await executeGetBlockOutputs({ blockIds: ['agent-1', 'loop-1'] }, {
-      workflowId: 'wf-1',
-      userId: 'user-1',
-    } as any)
-
-    expect(result.success).toBe(true)
-    expect(result.output).toEqual({
+    const applicationResult = {
       blocks: [
         {
           blockId: 'agent-1',
@@ -125,28 +55,58 @@ describe('executeGetBlockOutputs', () => {
         },
       ],
       variables: [],
-    })
+    }
+    executeWorkflowUseCaseMock.mockResolvedValue(applicationResult)
+
+    const result = await executeGetBlockOutputs({ blockIds: ['agent-1', 'loop-1'] }, {
+      workflowId: 'wf-1',
+      workspaceId: 'ws-1',
+      userId: 'user-1',
+      toolCallId: 'tool-1',
+      copilotToolExecution: true,
+    } as ExecutionContext)
+
+    expect(result.success).toBe(true)
+    expect(result.output).toEqual(applicationResult)
+    expect(executeWorkflowUseCaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ workflowId: 'wf-1', workspaceId: 'ws-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.copilot.block_outputs.read' }),
+      }),
+      {
+        workflowId: 'wf-1',
+        assertedWorkspaceId: 'ws-1',
+        blockIds: ['agent-1', 'loop-1'],
+      }
+    )
   })
 
   it('lists only workspace custom tools for a credentialless context', async () => {
-    listWorkspaceCustomToolsMock.mockResolvedValue([
-      {
-        id: 'tool-workspace',
-        title: 'Workspace tool',
-        schema: { function: { name: 'workspace_tool', description: 'Shared', parameters: {} } },
-      },
-    ])
+    executeCustomToolUseCaseMock.mockResolvedValue({
+      tools: [
+        {
+          id: 'tool-workspace',
+          title: 'Workspace tool',
+          schema: { function: { name: 'workspace_tool', description: 'Shared', parameters: {} } },
+        },
+      ],
+    })
 
     const result = await executeGetWorkflowData({ workflowId: 'wf-1', data_type: 'custom_tools' }, {
       workflowId: 'wf-1',
       userId: 'user-1',
       workspaceId: 'ws-1',
       secretActorUserId: null,
-    } as any)
+    } as ExecutionContext)
 
     expect(result.success).toBe(true)
-    expect(listWorkspaceCustomToolsMock).toHaveBeenCalledWith({ workspaceId: 'ws-1' })
-    expect(listCustomToolsMock).not.toHaveBeenCalled()
+    expect(executeCustomToolUseCaseMock).toHaveBeenCalledWith(
+      expect.objectContaining({ secretActorUserId: null, workspaceId: 'ws-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'custom_tools.list' }),
+      }),
+      { workspaceId: 'ws-1' }
+    )
     expect(result.output).toEqual({
       customTools: [
         {
@@ -166,12 +126,12 @@ describe('executeGetBlockOutputs', () => {
       userId: 'key-creator',
       workspaceId: 'ws-1',
       secretActorUserId: null,
-    } as any)
+    } as ExecutionContext)
 
     expect(result).toEqual({
       success: false,
       error: 'MCP tools are not available without credential access.',
     })
-    expect(discoverMcpToolsMock).not.toHaveBeenCalled()
+    expect(executeMcpServerUseCaseMock).not.toHaveBeenCalled()
   })
 })

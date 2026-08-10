@@ -46,6 +46,7 @@ vi.mock('@/lib/workflows/operations/export-workflow', () => ({
   buildWorkflowExportPayload: mocks.buildExport,
 }))
 
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { exportWorkflow, importWorkflow } from '@/lib/workflows/application/import-export'
 import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
 
@@ -183,7 +184,9 @@ describe('workflow import and export application operations', () => {
 
     expect(mocks.resolveWorkflow).toHaveBeenCalledWith({ workflowId: 'workflow-1' })
     expect(mocks.buildExport).toHaveBeenCalledWith(workflowRecord)
-    expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow')
+    expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     expect(mocks.folderLock).not.toHaveBeenCalled()
     expect(result).toEqual({ payload: exportPayload, folderPath: '/Reports' })
     expect(mocks.recordAudit).toHaveBeenCalledWith(

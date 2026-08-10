@@ -945,6 +945,11 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Workflow-authorized column types for mapping updates. */
+  resolvedMappingTypes?: {
+    workflowId: string
+    columns: Array<{ columnName: string; type: ColumnDefinition['type'] }>
+  }
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
   /** Change which workflow state the group runs against. Omit to leave unchanged. */

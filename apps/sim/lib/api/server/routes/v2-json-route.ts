@@ -110,7 +110,19 @@ export const v2OrchestrationErrorPolicy = {
   },
 } satisfies V2ErrorPolicy
 
-export async function admitV2Request(
+async function enforceV2PreAuthIpLimit(request: NextRequest): Promise<NextResponse | null> {
+  const ip = getClientIp(request)
+  const abuseLimit = await rateLimiter.checkRateLimitDirect(
+    `v2:preauth:ip:${ip}`,
+    V2_PREAUTH_IP_LIMIT,
+    { failClosed: true }
+  )
+  return abuseLimit.allowed
+    ? null
+    : v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens })
+}
+
+async function admitAuthenticatedV2Request(
   request: NextRequest,
   operation: ApplicationOperation,
   authPolicy: typeof v2ApiKeyAuth,
@@ -118,19 +130,6 @@ export async function admitV2Request(
 ): Promise<
   { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
 > {
-  const ip = getClientIp(request)
-  const abuseLimit = await rateLimiter.checkRateLimitDirect(
-    `v2:preauth:ip:${ip}`,
-    V2_PREAUTH_IP_LIMIT,
-    { failClosed: true }
-  )
-  if (!abuseLimit.allowed) {
-    return {
-      success: false,
-      response: v2RateLimitError({ ...abuseLimit, limit: V2_PREAUTH_IP_LIMIT.maxTokens }),
-    }
-  }
-
   let auth: V2ApiKeyAuthContext
   try {
     auth = await authPolicy.authenticate(request)
@@ -151,6 +150,33 @@ export async function admitV2Request(
 
   const limited = await rateLimitPolicy.enforce(request, auth, operation)
   return limited ? { success: false, response: limited } : { success: true, auth }
+}
+
+export async function admitV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy
+): Promise<
+  { success: true; auth: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
+> {
+  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  if (preAuthResponse) return { success: false, response: preAuthResponse }
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
+}
+
+export async function admitOptionalV2Request(
+  request: NextRequest,
+  operation: ApplicationOperation,
+  authPolicy: typeof v2ApiKeyAuth,
+  rateLimitPolicy: V2RateLimitPolicy
+): Promise<
+  { success: true; auth?: V2ApiKeyAuthContext } | { success: false; response: NextResponse }
+> {
+  const preAuthResponse = await enforceV2PreAuthIpLimit(request)
+  if (preAuthResponse) return { success: false, response: preAuthResponse }
+  if (!request.headers.has('x-api-key')) return { success: true }
+  return admitAuthenticatedV2Request(request, operation, authPolicy, rateLimitPolicy)
 }
 
 interface V2JsonRouteOptions<C extends JsonApiRouteContract, O extends ApplicationOperation, I, R>

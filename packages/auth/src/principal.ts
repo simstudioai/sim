@@ -39,6 +39,28 @@ export interface DelegatedPrincipal {
   }
 }
 
+export type DelegatedServiceId = DelegatedPrincipal['serviceId']
+
+export class PrincipalSubjectUserRequiredError extends Error {
+  constructor(principalKind: Principal['kind']) {
+    super(`Principal kind ${principalKind} does not represent a human subject`)
+    this.name = 'PrincipalSubjectUserRequiredError'
+  }
+}
+
+/** Resolves the real human subject represented by a principal or fails fast. */
+export function requirePrincipalSubjectUserId(principal: Principal): string {
+  switch (principal.kind) {
+    case 'session':
+    case 'personal_api_key':
+      return principal.userId
+    case 'delegated':
+      return principal.subjectUserId
+    case 'workspace_api_key':
+      throw new PrincipalSubjectUserRequiredError(principal.kind)
+  }
+}
+
 export interface WorkflowExecutionDelegationContext {
   kind: 'workflow_execution'
   workflowId: string

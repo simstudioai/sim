@@ -22,7 +22,7 @@ export const createTableImportResourceContract = defineRouteContract({
   method: 'POST',
   path: '/api/table/imports',
   body: v2CreateTableImportBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2CreateTableImportDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2CreateTableImportDataSchema), status: 201 },
 })
 
 export const getTableImportResourceContract = defineRouteContract({
@@ -66,7 +66,7 @@ export const createTableExportResourceContract = defineRouteContract({
   path: '/api/table/[tableId]/exports',
   params: tableIdParamsSchema,
   body: exportTableAsyncBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2TableExportSchema), status: 201 },
 })
 
 export const getTableExportResourceContract = defineRouteContract({

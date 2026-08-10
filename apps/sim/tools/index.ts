@@ -5,6 +5,7 @@ import { isPlainRecord } from '@sim/utils/object'
 import { backoffWithJitter, parseRetryAfter } from '@sim/utils/retry'
 import { getBYOKKey } from '@/lib/api-key/byok'
 import {
+  type GenerateInternalDelegationTokenInput,
   generateInternalToken,
   type InternalSandboxProfile,
   type InternalTokenClaims,
@@ -62,6 +63,7 @@ import { assertPermissionsAllowed } from '@/ee/access-control/utils/permission-c
 import { isCustomTool, isMcpTool } from '@/executor/constants'
 import { resolveSkillContent } from '@/executor/handlers/agent/skills-resolver'
 import type { ExecutionContext, UserFile } from '@/executor/types'
+import { buildExecutorDelegationHeaders } from '@/executor/utils/http'
 import { resolveEnvVarReferences } from '@/executor/utils/reference-validation'
 import {
   projectResolvedSecretDiagnosticContent,
@@ -176,6 +178,28 @@ function resolveToolScope(
       | undefined,
     billingAttribution: (executionContext?.metadata.billingAttribution ??
       ctx?.billingAttribution) as BillingAttributionSnapshot | undefined,
+  }
+}
+
+function resolveInternalExecutorDelegation(
+  tool: ToolConfig,
+  executionContext: ExecutionContext | undefined,
+  supplied: GenerateInternalDelegationTokenInput | undefined
+): GenerateInternalDelegationTokenInput | undefined {
+  if (tool.request.internalAuth !== 'executor_delegation') return undefined
+  if (supplied) {
+    if (!supplied.subjectUserId || !supplied.workflowId) {
+      throw new Error('Executor delegation requires an authenticated user and workflow')
+    }
+    return supplied
+  }
+  if (!executionContext?.userId || !executionContext.workflowId) {
+    throw new Error('Executor delegation requires a trusted workflow execution context')
+  }
+  return {
+    subjectUserId: executionContext.userId,
+    workflowId: executionContext.workflowId,
+    ...(executionContext.executionId ? { executionId: executionContext.executionId } : {}),
   }
 }
 
@@ -1147,6 +1171,8 @@ export interface ExecuteToolOptions {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
   /** Trusted base image claim for an internal Function execution. */
   internalSandboxProfile?: InternalSandboxProfile
+  /** Trusted executor identity supplied by a server adapter without entering model parameters. */
+  internalExecutorDelegation?: GenerateInternalDelegationTokenInput
 }
 
 interface PrivateToolResponseMetadataResult {
@@ -1518,6 +1544,7 @@ async function executeToolImplementation(
     signal,
     resolvedSecretTraceRegistry: explicitResolvedSecretTraceRegistry,
     internalSandboxProfile,
+    internalExecutorDelegation: suppliedInternalExecutorDelegation,
   } = options
   const resolvedSecretTraceRegistry =
     explicitResolvedSecretTraceRegistry ?? executionContext?.resolvedSecretTraceRegistry
@@ -1648,6 +1675,12 @@ async function executeToolImplementation(
     if (!tool) {
       throw new Error(`Tool not found: ${toolId}`)
     }
+
+    const internalExecutorDelegation = resolveInternalExecutorDelegation(
+      tool,
+      executionContext,
+      suppliedInternalExecutorDelegation
+    )
 
     await normalizeCopilotFileParams(tool, contextParams, scope)
     normalizeCopilotCredentialParams(contextParams)
@@ -1938,7 +1971,8 @@ async function executeToolImplementation(
               privateToolMetadataType,
               privateToolMetadataPolicy?.incomplete,
               resolvedSecretTraceRegistry,
-              internalSandboxProfile
+              internalSandboxProfile,
+              internalExecutorDelegation
             ),
           {
             requestId,
@@ -1966,7 +2000,8 @@ async function executeToolImplementation(
                   privateToolMetadataType,
                   privateToolMetadataPolicy?.incomplete,
                   resolvedSecretTraceRegistry,
-                  internalSandboxProfile
+                  internalSandboxProfile,
+                  internalExecutorDelegation
                 )
             },
           }
@@ -1979,7 +2014,8 @@ async function executeToolImplementation(
           privateToolMetadataType,
           privateToolMetadataPolicy?.incomplete,
           resolvedSecretTraceRegistry,
-          internalSandboxProfile
+          internalSandboxProfile,
+          internalExecutorDelegation
         )
 
     // Apply post-processing if available and not skipped
@@ -2213,14 +2249,19 @@ async function addInternalAuthIfNeeded(
   requestId: string,
   context: string,
   userId?: string,
-  claims?: InternalTokenClaims
+  claims?: InternalTokenClaims,
+  executorDelegation?: GenerateInternalDelegationTokenInput
 ): Promise<void> {
   if (typeof window === 'undefined') {
     if (isInternalRoute) {
       try {
-        const internalToken = claims
-          ? await generateInternalToken(userId, claims)
-          : await generateInternalToken(userId)
+        const internalToken = executorDelegation
+          ? (await buildExecutorDelegationHeaders(executorDelegation)).Authorization.slice(
+              'Bearer '.length
+            )
+          : claims
+            ? await generateInternalToken(userId, claims)
+            : await generateInternalToken(userId)
         if (headers instanceof Headers) {
           headers.set('Authorization', `Bearer ${internalToken}`)
         } else {
@@ -2229,6 +2270,7 @@ async function addInternalAuthIfNeeded(
         logger.info(`[${requestId}] Added internal auth token for ${context}`)
       } catch (error) {
         logger.error(`[${requestId}] Failed to generate internal token for ${context}:`, error)
+        if (executorDelegation) throw error
       }
     } else {
       logger.info(`[${requestId}] Skipping internal auth token for external URL: ${context}`)
@@ -2306,7 +2348,8 @@ async function executeToolRequest(
   privateToolMetadataType?: PrivateToolMetadataType,
   privateToolMetadataIncomplete: 'reject' | 'propagate' = 'reject',
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry,
-  internalSandboxProfile?: InternalSandboxProfile
+  internalSandboxProfile?: InternalSandboxProfile,
+  internalExecutorDelegation?: GenerateInternalDelegationTokenInput
 ): Promise<ToolResponse> {
   const requestId = generateRequestId()
   const structuralOnlyToolLogs =
@@ -2368,7 +2411,8 @@ async function executeToolRequest(
       requestId,
       toolId,
       params._context?.userId,
-      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined
+      internalSandboxProfile ? { sandboxProfile: internalSandboxProfile } : undefined,
+      internalExecutorDelegation
     )
     if (isInternalRoute && params._context?.billingAttribution) {
       headers.set(

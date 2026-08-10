@@ -8,6 +8,7 @@ import {
   type KeysetKey,
   keysetAfter,
   keysetColumns,
+  type ListSortOrder,
   listOrderBy,
   numberKey,
   searchFilter,
@@ -20,7 +21,7 @@ import { listAccessibleWorkspaceRowsForUser } from '@/lib/workspaces/utils'
 type WorkflowListScope = 'active' | 'archived' | 'all'
 
 export type WorkflowSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt' | 'runCount'
-export type WorkflowSortOrder = 'asc' | 'desc'
+export type WorkflowSortOrder = ListSortOrder
 
 export interface WorkspaceWorkflowListRow {
   id: string

@@ -55,6 +55,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DELETE, GET, PATCH } from '@/app/api/v2/files/[fileId]/route'
 
@@ -172,9 +173,7 @@ describe('v2 single-file routes', () => {
   })
 
   it('conceals description authorization failures', async () => {
-    mocks.describeFile.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.describeFile.mockRejectedValue(new InsufficientWorkspacePermissionsError())
 
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
@@ -214,9 +213,7 @@ describe('v2 single-file routes', () => {
     )
     expect(conflict.status).toBe(409)
 
-    mocks.rename.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.rename.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
     const concealed = await PATCH(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
         method: 'PATCH',

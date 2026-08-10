@@ -22,7 +22,7 @@ import {
   removeMcpToolsForWorkflow,
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { deliverOutboxServerEvent } from '@/lib/posthog/server'
 import {
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
@@ -647,7 +647,7 @@ async function emitPostActivationSideEffects(params: {
     if (params.payload.captureAnalytics !== false) {
       const workspaceId = (params.workflow.workspaceId as string) || ''
       const isVersionActivation = params.operation.action === 'activate'
-      captureServerEvent(
+      await deliverOutboxServerEvent(
         params.payload.userId,
         isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
         {
@@ -656,6 +656,7 @@ async function emitPostActivationSideEffects(params: {
           ...(isVersionActivation ? { version: params.payload.version } : {}),
         },
         {
+          insertId: params.context.eventId,
           groups: workspaceId ? { workspace: workspaceId } : undefined,
           ...(isVersionActivation
             ? {}

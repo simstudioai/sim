@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
 import { and, type Column, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import { listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -58,7 +58,7 @@ export async function listVisibleWorkspaceCredentials(params: {
   /** Case-insensitive substring match on the credential display name. */
   search?: string
   sortBy?: V2CredentialSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }): Promise<VisibleWorkspaceCredential[]> {
   const {
     workspaceId,
@@ -140,7 +140,7 @@ export async function listWorkspacePrincipalCredentials(params: {
   providerId?: string
   search?: string
   sortBy?: V2CredentialSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }): Promise<VisibleWorkspaceCredential[]> {
   const {
     workspaceId,

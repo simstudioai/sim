@@ -55,6 +55,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { GET, PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
@@ -142,9 +143,7 @@ describe('GET /api/v2/files/[fileId]/content', () => {
   })
 
   it('conceals content authorization failures', async () => {
-    mocks.download.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.download.mockRejectedValue(new InsufficientWorkspacePermissionsError())
 
     const response = await callGet()
 
@@ -173,9 +172,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
   })
 
   it('performs authenticated admission before parsing a large or malformed body', async () => {
-    mocks.admit.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.admit.mockRejectedValue(new InsufficientWorkspacePermissionsError())
 
     const response = await callPut('{not-json')
 

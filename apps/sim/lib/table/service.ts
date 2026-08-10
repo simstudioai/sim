@@ -14,8 +14,8 @@ import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
 import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import {
   type CursorKey,
   encodeKeyset,
@@ -291,7 +291,7 @@ interface ListTablesOptions {
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy?: V2TableSortBy
-  sortOrder?: V2SortOrder
+  sortOrder?: ListSortOrder
 }
 
 /**
@@ -338,6 +338,25 @@ export async function listTables(
   return hydrateTableRows(tables)
 }
 
+/** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */
+export async function findActiveTablesByExactName(
+  workspaceId: string,
+  name: string
+): Promise<TableDefinition[]> {
+  const rows = await db
+    .select(TABLE_ROW_SELECT)
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        eq(userTableDefinitions.name, name),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .limit(2)
+  return hydrateTableRows(rows)
+}
+
 /**
  * Attaches each table's latest job fields and its order-corrected schema. The
  * `rowCount` subtracts rows a pending delete has already claimed, so a table
@@ -377,7 +396,7 @@ export interface QueryTablesOptions {
   /** Case-insensitive substring match on the table name. */
   search?: string
   sortBy: V2TableSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
   limit: number
   /** Keyset values from a cursor, in the sort's key order. */
   after?: CursorKey[]
@@ -785,7 +804,7 @@ export async function renameTable(
   tableId: string,
   newName: string,
   requestId: string,
-  options?: { expectedWorkspaceId?: string }
+  options?: { expectedWorkspaceId?: string; skipNotify?: boolean }
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -819,7 +838,7 @@ export async function renameTable(
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
 
     // Live tables list: a rename changes the list result, so everyone viewing refetches.
-    if (workspaceId) await notifyWorkspaceTablesChanged(workspaceId)
+    if (workspaceId && !options?.skipNotify) await notifyWorkspaceTablesChanged(workspaceId)
 
     return { id: tableId, name: newName }
   } catch (error: unknown) {

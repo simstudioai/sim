@@ -65,6 +65,7 @@ vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
   },
 }))
 
+import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DELETE, PUT } from '@/app/api/v2/files/[fileId]/share/route'
 
@@ -187,7 +188,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   })
 
   it('conceals forbidden updates as not found', async () => {
-    mocks.updateShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
+    mocks.updateShare.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
 
     const response = await callPut({ workspaceId: WORKSPACE_ID })
 

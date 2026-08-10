@@ -4,8 +4,6 @@ import { db } from '@sim/db'
 import {
   chat as chatTable,
   folder as folderTable,
-  knowledgeBaseTagDefinitions,
-  knowledgeConnector,
   mcpServers as mcpServersTable,
   skill as skillTable,
   workflowDeploymentVersion,
@@ -62,11 +60,7 @@ import {
   canonicalWorkspaceFilePath,
   encodeVfsPathSegments,
 } from '@/lib/copilot/vfs/path-utils'
-import type {
-  DeploymentData,
-  KbTagDefinitionSummary,
-  VfsServiceAccountAuth,
-} from '@/lib/copilot/vfs/serializers'
+import type { DeploymentData, VfsServiceAccountAuth } from '@/lib/copilot/vfs/serializers'
 import {
   describeServiceAccountForOAuthProvider,
   serializeApiKeyIntegrations,
@@ -117,9 +111,12 @@ import {
   isOAuthServiceDeploymentAvailable,
 } from '@/lib/integrations/availability.server'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
+import { listKnowledgeConnectors } from '@/lib/knowledge/application/connectors'
 import { listKnowledgeDocuments } from '@/lib/knowledge/application/documents'
-import { listKnowledgeBases } from '@/lib/knowledge/application/knowledge-bases'
-import { getKnowledgeBases as getLegacyKnowledgeBases } from '@/lib/knowledge/service'
+import {
+  listArchivedKnowledgeBases,
+  listKnowledgeBaseCatalog,
+} from '@/lib/knowledge/application/knowledge-bases'
 import { validateMermaidSource } from '@/lib/mermaid/validate'
 import { isBlockTypeAccessControlExempt } from '@/lib/permission-groups/block-access'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
@@ -133,6 +130,7 @@ import {
   getWorkspaceCustomTool,
   listCustomToolSummaries,
 } from '@/lib/workflows/custom-tools/operations'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders, listWorkflows } from '@/lib/workflows/utils'
@@ -145,7 +143,6 @@ import {
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'
@@ -856,7 +853,7 @@ export class WorkspaceVFS {
             this.files.set('WORKSPACE.md', buildWorkspaceMd(workspaceMdData))
             this.files.set('WORKSPACE_CONTEXT.md', buildWorkspaceContextMd(workspaceMdData))
 
-            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId, userId))
+            await timed('recently_deleted', this.materializeRecentlyDeleted(workspaceId))
 
             // Per-viewer gating happens HERE, not in the shared builder: files
             // owned by blocks hidden for this viewer are skipped at stamp time.
@@ -1067,6 +1064,13 @@ export class WorkspaceVFS {
       throw new Error('Workspace file reads require a trusted Copilot principal')
     }
     return this.filePrincipal
+  }
+
+  private requireKnowledgePrincipal(): Principal {
+    if (!this.knowledgePrincipal) {
+      throw new Error('Workspace Knowledge reads require a trusted Copilot principal')
+    }
+    return this.knowledgePrincipal
   }
 
   /**
@@ -1752,18 +1756,13 @@ export class WorkspaceVFS {
   private async materializeKnowledgeBases(
     workspaceId: string
   ): Promise<WorkspaceMdData['knowledgeBases']> {
-    if (!this.knowledgePrincipal) {
-      throw new Error('Workspace VFS knowledge materialization requires a trusted principal')
-    }
-    const { knowledgeBases } = await listKnowledgeBases.execute({
-      principal: this.knowledgePrincipal,
+    const { knowledgeBases } = await listKnowledgeBaseCatalog.execute({
+      principal: this.requireKnowledgePrincipal(),
       input: { workspaceId },
     })
     const kbs = knowledgeBases.map(({ knowledgeBase }) => knowledgeBase)
 
-    const tagDefinitionsByKb = await this.loadKbTagDefinitions(kbs.map((kb) => kb.id))
-
-    for (const kb of kbs) {
+    for (const { knowledgeBase: kb, tagDefinitions } of knowledgeBases) {
       const safeName = sanitizeName(kb.name)
       const prefix = `knowledgebases/${safeName}/`
 
@@ -1780,7 +1779,11 @@ export class WorkspaceVFS {
           updatedAt: kb.updatedAt,
           documentCount: kb.docCount,
           connectorTypes: kb.connectorTypes,
-          tagDefinitions: tagDefinitionsByKb.get(kb.id),
+          tagDefinitions: tagDefinitions.map((definition) => ({
+            tagName: definition.displayName,
+            tagSlot: definition.tagSlot,
+            fieldType: definition.fieldType,
+          })),
         })
       )
 
@@ -1789,9 +1792,6 @@ export class WorkspaceVFS {
       // a read/glob, only when the artifact is read or grepped.
       if (kb.docCount > 0) {
         this.registerLazy(`${prefix}documents.json`, async () => {
-          if (!this.knowledgePrincipal) {
-            throw new Error('Workspace VFS knowledge document read requires a trusted principal')
-          }
           if (kb.docCount > MAX_VFS_KNOWLEDGE_DOCUMENTS) {
             throw new Error(
               `Knowledge base ${kb.id} has more than ${MAX_VFS_KNOWLEDGE_DOCUMENTS} documents; documents.json cannot be materialized`
@@ -1802,7 +1802,7 @@ export class WorkspaceVFS {
           let offset = 0
           while (true) {
             const page = await listKnowledgeDocuments.execute({
-              principal: this.knowledgePrincipal,
+              principal: this.requireKnowledgePrincipal(),
               input: {
                 knowledgeBaseId: kb.id,
                 assertedWorkspaceId: workspaceId,
@@ -1836,28 +1836,10 @@ export class WorkspaceVFS {
 
       if (kb.connectorTypes.length > 0) {
         this.registerLazy(`${prefix}connectors.json`, async () => {
-          const connectorRows = await db
-            .select({
-              id: knowledgeConnector.id,
-              connectorType: knowledgeConnector.connectorType,
-              status: knowledgeConnector.status,
-              syncMode: knowledgeConnector.syncMode,
-              syncIntervalMinutes: knowledgeConnector.syncIntervalMinutes,
-              lastSyncAt: knowledgeConnector.lastSyncAt,
-              lastSyncError: knowledgeConnector.lastSyncError,
-              lastSyncDocCount: knowledgeConnector.lastSyncDocCount,
-              nextSyncAt: knowledgeConnector.nextSyncAt,
-              consecutiveFailures: knowledgeConnector.consecutiveFailures,
-              createdAt: knowledgeConnector.createdAt,
-            })
-            .from(knowledgeConnector)
-            .where(
-              and(
-                eq(knowledgeConnector.knowledgeBaseId, kb.id),
-                isNull(knowledgeConnector.archivedAt),
-                isNull(knowledgeConnector.deletedAt)
-              )
-            )
+          const { connectors: connectorRows } = await listKnowledgeConnectors.execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { knowledgeBaseId: kb.id, assertedWorkspaceId: workspaceId },
+          })
           return connectorRows.length > 0 ? serializeConnectors(connectorRows) : null
         })
       }
@@ -1869,61 +1851,6 @@ export class WorkspaceVFS {
       description: kb.description,
       connectorTypes: kb.connectorTypes.length > 0 ? kb.connectorTypes : undefined,
     }))
-  }
-
-  /**
-   * Load tag definitions for the given knowledge bases in a single query, grouped by
-   * KB id and ordered by tag slot. Surfaced inline in each KB's meta.json so the agent
-   * knows which tags exist (and their slot binding) when editing a knowledge-tag filter.
-   *
-   * @remarks
-   * Tag definitions are an optional enrichment, so a query failure degrades to a meta.json
-   * without them rather than rejecting. This materializer runs inside the top-level
-   * `Promise.all`, whose rejection would fail the entire workspace VFS build and leave the
-   * agent unable to read any file.
-   */
-  private async loadKbTagDefinitions(
-    kbIds: string[]
-  ): Promise<Map<string, KbTagDefinitionSummary[]>> {
-    const byKb = new Map<string, KbTagDefinitionSummary[]>()
-    if (kbIds.length === 0) return byKb
-
-    let rows: Array<{
-      knowledgeBaseId: string
-      tagSlot: string
-      displayName: string
-      fieldType: string
-    }>
-    try {
-      rows = await db
-        .select({
-          knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
-          tagSlot: knowledgeBaseTagDefinitions.tagSlot,
-          displayName: knowledgeBaseTagDefinitions.displayName,
-          fieldType: knowledgeBaseTagDefinitions.fieldType,
-        })
-        .from(knowledgeBaseTagDefinitions)
-        .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, kbIds))
-        .orderBy(knowledgeBaseTagDefinitions.tagSlot)
-    } catch (err) {
-      logger.warn('Failed to load knowledge base tag definitions', {
-        error: toError(err).message,
-      })
-      return byKb
-    }
-
-    for (const row of rows) {
-      const entry = {
-        tagName: row.displayName,
-        tagSlot: row.tagSlot,
-        fieldType: row.fieldType,
-      }
-      const existing = byKb.get(row.knowledgeBaseId)
-      if (existing) existing.push(entry)
-      else byKb.set(row.knowledgeBaseId, [entry])
-    }
-
-    return byKb
   }
 
   /**
@@ -2336,7 +2263,7 @@ export class WorkspaceVFS {
       return []
     }
   }
-  private async materializeRecentlyDeleted(workspaceId: string, userId: string): Promise<void> {
+  private async materializeRecentlyDeleted(workspaceId: string): Promise<void> {
     try {
       const [
         archivedWorkflows,
@@ -2374,7 +2301,12 @@ export class WorkspaceVFS {
             input: { workspaceId, scope: 'archived' },
           })
           .then(({ folders }) => folders),
-        getLegacyKnowledgeBases(userId, workspaceId, 'archived'),
+        listArchivedKnowledgeBases
+          .execute({
+            principal: this.requireKnowledgePrincipal(),
+            input: { workspaceId },
+          })
+          .then(({ knowledgeBases }) => knowledgeBases),
       ])
 
       for (const wf of archivedWorkflows) {

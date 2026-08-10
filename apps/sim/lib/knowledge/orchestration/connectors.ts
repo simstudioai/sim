@@ -98,6 +98,10 @@ export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperatio
    * because credential lookup is scoped to the requesting identity.
    */
   resolveAccessToken: (credentialId: string) => Promise<string | null>
+  /** False only when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformConnectorResult = KnowledgeOrchestrationResult<{
@@ -302,39 +306,43 @@ export async function performCreateKnowledgeConnector(
 
   logger.info(`[${requestId}] Created connector ${connectorId} for KB ${kb.id}`)
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_added',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: workspaceId,
-      connector_type: connectorType,
-      sync_interval_minutes: syncIntervalMinutes,
-    },
-    {
-      groups: { workspace: workspaceId },
-      setOnce: { first_connector_added_at: new Date().toISOString() },
-    }
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_added',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: workspaceId,
+        connector_type: connectorType,
+        sync_interval_minutes: syncIntervalMinutes,
+      },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_connector_added_at: new Date().toISOString() },
+      }
+    )
+  }
 
-  recordAudit({
-    workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.CONNECTOR_CREATED,
-    resourceType: AuditResourceType.CONNECTOR,
-    resourceId: connectorId,
-    resourceName: connectorType,
-    description: `Created ${connectorType} connector for knowledge base "${kb.name}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: kb.id,
-      knowledgeBaseName: kb.name,
-      connectorType,
-      syncIntervalMinutes,
-      authMode: connectorConfig.auth.mode,
-    },
-    ...(request ? { request } : {}),
-  })
+  if (params.recordSemanticAudit !== false) {
+    recordAudit({
+      workspaceId,
+      ...auditActorFields(params),
+      action: AuditAction.CONNECTOR_CREATED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: connectorType,
+      description: `Created ${connectorType} connector for knowledge base "${kb.name}"`,
+      metadata: {
+        source,
+        knowledgeBaseId: kb.id,
+        knowledgeBaseName: kb.name,
+        connectorType,
+        syncIntervalMinutes,
+        authMode: connectorConfig.auth.mode,
+      },
+      ...(request ? { request } : {}),
+    })
+  }
 
   const dispatchSync = await loadDispatchSync()
   dispatchSync(connectorId, { billingAttribution, requestId }).catch((error) => {
@@ -368,6 +376,8 @@ export interface PerformUpdateKnowledgeConnectorParams extends KnowledgeOperatio
     connector: KnowledgeConnectorRow,
     sourceConfig: Record<string, unknown>
   ) => Promise<SourceConfigRejection | null>
+  /** False only when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
 }
 
 /** Loads an active connector scoped to its knowledge base. */
@@ -480,27 +490,29 @@ export async function performUpdateKnowledgeConnector(
     return classifyKnowledgeFailure(error, requestId, `Update connector ${connectorId}`)
   }
 
-  recordAudit({
-    workspaceId: kb.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.CONNECTOR_UPDATED,
-    resourceType: AuditResourceType.CONNECTOR,
-    resourceId: connectorId,
-    resourceName: updated.connectorType,
-    description: `Updated connector for knowledge base "${kb.name}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: kb.id,
-      knowledgeBaseName: kb.name,
-      connectorType: updated.connectorType,
-      updatedFields,
-      ...(updates.syncIntervalMinutes !== undefined && {
-        syncIntervalMinutes: updates.syncIntervalMinutes,
-      }),
-      ...(updates.status !== undefined && { newStatus: updates.status }),
-    },
-    ...(request ? { request } : {}),
-  })
+  if (params.recordSemanticAudit !== false) {
+    recordAudit({
+      workspaceId: kb.workspaceId,
+      ...auditActorFields(params),
+      action: AuditAction.CONNECTOR_UPDATED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: updated.connectorType,
+      description: `Updated connector for knowledge base "${kb.name}"`,
+      metadata: {
+        source,
+        knowledgeBaseId: kb.id,
+        knowledgeBaseName: kb.name,
+        connectorType: updated.connectorType,
+        updatedFields,
+        ...(updates.syncIntervalMinutes !== undefined && {
+          syncIntervalMinutes: updates.syncIntervalMinutes,
+        }),
+        ...(updates.status !== undefined && { newStatus: updates.status }),
+      },
+      ...(request ? { request } : {}),
+    })
+  }
 
   return { success: true, connector: withoutSecret(updated) }
 }
@@ -513,6 +525,10 @@ export interface PerformDeleteKnowledgeConnectorParams extends KnowledgeOperatio
    * them, which turns them into ordinary standalone knowledge base entries.
    */
   deleteDocuments?: boolean
+  /** False only when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 /** What actually happened to the connector's documents, for the caller to report. */
@@ -609,37 +625,41 @@ export async function performDeleteKnowledgeConnector(
     `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
   )
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_removed',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: kb.workspaceId ?? '',
-      connector_type: existing.connectorType,
-      documents_deleted: deleteDocuments ? docCount : 0,
-    },
-    kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_removed',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: kb.workspaceId ?? '',
+        connector_type: existing.connectorType,
+        documents_deleted: deleteDocuments ? docCount : 0,
+      },
+      kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
+    )
+  }
 
-  recordAudit({
-    workspaceId: kb.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.CONNECTOR_DELETED,
-    resourceType: AuditResourceType.CONNECTOR,
-    resourceId: connectorId,
-    resourceName: existing.connectorType,
-    description: `Deleted connector from knowledge base "${kb.name}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: kb.id,
-      knowledgeBaseName: kb.name,
-      connectorType: existing.connectorType,
-      deleteDocuments,
-      documentsDeleted: deleteDocuments ? docCount : 0,
-      documentsKept: deleteDocuments ? 0 : docCount,
-    },
-    ...(request ? { request } : {}),
-  })
+  if (params.recordSemanticAudit !== false) {
+    recordAudit({
+      workspaceId: kb.workspaceId,
+      ...auditActorFields(params),
+      action: AuditAction.CONNECTOR_DELETED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: existing.connectorType,
+      description: `Deleted connector from knowledge base "${kb.name}"`,
+      metadata: {
+        source,
+        knowledgeBaseId: kb.id,
+        knowledgeBaseName: kb.name,
+        connectorType: existing.connectorType,
+        deleteDocuments,
+        documentsDeleted: deleteDocuments ? docCount : 0,
+        documentsKept: deleteDocuments ? 0 : docCount,
+      },
+      ...(request ? { request } : {}),
+    })
+  }
 
   return {
     success: true,
@@ -658,6 +678,10 @@ export interface PerformSyncKnowledgeConnectorParams extends KnowledgeOperationC
   resolveBillingAttribution: () => Promise<BillingAttributionSnapshot>
   /** Re-fetch and re-index every already-synced document, not only changed ones. */
   rehydrate?: boolean
+  /** False only when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformSyncKnowledgeConnectorResult = KnowledgeOrchestrationResult
@@ -693,35 +717,39 @@ export async function performSyncKnowledgeConnector(
     `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
   )
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_synced',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: kb.workspaceId ?? '',
-      connector_type: connector.connectorType,
-    },
-    kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_synced',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: kb.workspaceId ?? '',
+        connector_type: connector.connectorType,
+      },
+      kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
+    )
+  }
 
-  recordAudit({
-    workspaceId: kb.workspaceId,
-    ...auditActorFields(params),
-    action: AuditAction.CONNECTOR_SYNCED,
-    resourceType: AuditResourceType.CONNECTOR,
-    resourceId: connectorId,
-    resourceName: connector.connectorType,
-    description: `Triggered manual sync for connector on knowledge base "${kb.name}"`,
-    metadata: {
-      source,
-      knowledgeBaseId: kb.id,
-      knowledgeBaseName: kb.name,
-      connectorType: connector.connectorType,
-      connectorStatus: connector.status,
-      syncType: rehydrate ? 'manual-rehydrate' : 'manual',
-    },
-    ...(request ? { request } : {}),
-  })
+  if (params.recordSemanticAudit !== false) {
+    recordAudit({
+      workspaceId: kb.workspaceId,
+      ...auditActorFields(params),
+      action: AuditAction.CONNECTOR_SYNCED,
+      resourceType: AuditResourceType.CONNECTOR,
+      resourceId: connectorId,
+      resourceName: connector.connectorType,
+      description: `Triggered manual sync for connector on knowledge base "${kb.name}"`,
+      metadata: {
+        source,
+        knowledgeBaseId: kb.id,
+        knowledgeBaseName: kb.name,
+        connectorType: connector.connectorType,
+        connectorStatus: connector.status,
+        syncType: rehydrate ? 'manual-rehydrate' : 'manual',
+      },
+      ...(request ? { request } : {}),
+    })
+  }
 
   const dispatchSync = await loadDispatchSync()
   dispatchSync(connectorId, { billingAttribution, requestId, rehydrate }).catch((error) => {

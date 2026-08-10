@@ -613,13 +613,15 @@ export async function updateDeploymentVersionMetadata(params: {
   version: number
   name?: string | null
   description?: string | null
+  tx?: DbOrTx
 }): Promise<{ name: string | null; description: string | null } | null> {
+  const executor = params.tx ?? db
   const updateData: { name?: string | null; description?: string | null } = {}
   if (params.name !== undefined) updateData.name = params.name
   if (params.description !== undefined) updateData.description = params.description
 
   if (Object.keys(updateData).length === 0) {
-    const [row] = await db
+    const [row] = await executor
       .select({
         name: workflowDeploymentVersion.name,
         description: workflowDeploymentVersion.description,
@@ -635,7 +637,7 @@ export async function updateDeploymentVersionMetadata(params: {
     return row ?? null
   }
 
-  const [updated] = await db
+  const [updated] = await executor
     .update(workflowDeploymentVersion)
     .set(updateData)
     .where(
@@ -907,7 +909,7 @@ export async function findPreviousDeploymentVersion(
  */
 export async function getWorkflowDeploymentVersion(
   workflowId: string,
-  version: number
+  version: number | 'active'
 ): Promise<{
   id: string
   version: number
@@ -917,6 +919,10 @@ export async function getWorkflowDeploymentVersion(
   createdAt: Date
   state: unknown
 } | null> {
+  const versionPredicate =
+    version === 'active'
+      ? eq(workflowDeploymentVersion.isActive, true)
+      : eq(workflowDeploymentVersion.version, version)
   const [row] = await db
     .select({
       id: workflowDeploymentVersion.id,
@@ -928,12 +934,7 @@ export async function getWorkflowDeploymentVersion(
       state: workflowDeploymentVersion.state,
     })
     .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.version, version)
-      )
-    )
+    .where(and(eq(workflowDeploymentVersion.workflowId, workflowId), versionPredicate))
     .limit(1)
 
   return row ?? null

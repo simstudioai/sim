@@ -17,7 +17,7 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, type SQL, sql } from 'drizzle-orm'
 import type { ShareRecord } from '@/lib/api/contracts/public-shares'
 import type { V2FileSortBy } from '@/lib/api/contracts/v2/files'
-import type { V2SortOrder } from '@/lib/api/contracts/v2/shared'
+import type { ListSortOrder } from '@/lib/api/list-query'
 import {
   type CursorKey,
   encodeKeyset,
@@ -1213,7 +1213,7 @@ export interface QueryWorkspaceFilesOptions {
   /** Case-insensitive substring match on the file name. */
   search?: string
   sortBy: V2FileSortBy
-  sortOrder: V2SortOrder
+  sortOrder: ListSortOrder
   limit: number
   /** Keyset values from a cursor, in the sort's key order. */
   after?: CursorKey[]

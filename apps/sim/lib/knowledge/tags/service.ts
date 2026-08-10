@@ -9,6 +9,7 @@ import {
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { getSlotsForFieldType, SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
 import type { BulkTagDefinitionsData, DocumentTagDefinition } from '@/lib/knowledge/tags/types'
@@ -43,9 +44,12 @@ const TAG_MUTATION_STATEMENT_TIMEOUT_MS = 120_000
 const TAG_MUTATION_LOCK_TIMEOUT_MS = 5_000
 const TAG_MUTATION_IDLE_TIMEOUT_MS = 30_000
 
-export class KnowledgeTagProvenanceConflictError extends Error {
+export class KnowledgeTagProvenanceConflictError extends OrchestrationError {
   constructor() {
-    super('Tag definitions cannot be deleted while resolved-secret document provenance is present')
+    super(
+      'conflict',
+      'Tag definitions cannot be deleted while resolved-secret document provenance is present'
+    )
     this.name = 'KnowledgeTagProvenanceConflictError'
   }
 }

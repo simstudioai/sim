@@ -14,6 +14,8 @@ const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
       audit: vi.fn(),
       deploy: vi.fn(),
       findPrevious: vi.fn(),
+      notifyReverted: vi.fn(),
+      revert: vi.fn(),
       resolveContext: vi.fn(),
       resolvePermission: vi.fn(),
       undeploy: vi.fn(),
@@ -22,7 +24,10 @@ const { MockWorkflowLockedError, mocks } = vi.hoisted(() => {
 })
 
 vi.mock('@sim/audit', () => ({
-  AuditAction: { WORKFLOW_UNDEPLOYED: 'workflow.undeployed' },
+  AuditAction: {
+    WORKFLOW_DEPLOYMENT_REVERTED: 'workflow.deployment_reverted',
+    WORKFLOW_UNDEPLOYED: 'workflow.undeployed',
+  },
   AuditResourceType: { WORKFLOW: 'workflow' },
   recordAudit: mocks.audit,
 }))
@@ -50,15 +55,26 @@ vi.mock('@/lib/workflows/orchestration', () => ({
   performActivateVersion: mocks.activate,
   performFullDeploy: mocks.deploy,
   performFullUndeploy: mocks.undeploy,
+  performRevertToVersion: mocks.revert,
 }))
 
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   findPreviousDeploymentVersion: mocks.findPrevious,
+  updateDeploymentVersionMetadata: vi.fn(),
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkflowReverted: mocks.notifyReverted,
+}))
+
+vi.mock('@/lib/workflows/deployment-status', () => ({
+  checkNeedsRedeployment: vi.fn(),
 }))
 
 import {
   activateWorkflowVersion,
   deployWorkflow,
+  revertWorkflowVersion,
   undeployWorkflow,
 } from '@/lib/workflows/application/deployments'
 
@@ -124,6 +140,7 @@ describe('workflow deployment application use cases', () => {
       warnings: [],
     })
     mocks.findPrevious.mockResolvedValue({ ok: true, version: 3 })
+    mocks.revert.mockResolvedValue({ success: true, lastSaved: 12345 })
   })
 
   it.each(adminPrincipals)(
@@ -145,7 +162,7 @@ describe('workflow deployment application use cases', () => {
           workflowId: 'workflow-1',
           userId: actorUserId,
           actorId: actorUserId,
-          captureAnalytics: false,
+          ...(principal.kind === 'delegated' ? { captureAnalytics: false } : {}),
           versionName: 'Version 4',
           versionDescription: 'Production release',
           requestId: 'request-1',
@@ -163,6 +180,32 @@ describe('workflow deployment application use cases', () => {
           kind: 'workspace_api_key',
           workspaceId: 'workspace-1',
           keyId: 'workspace-key',
+        },
+        input: { workflowId: 'workflow-1', requestId: 'request-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.resolveContext).not.toHaveBeenCalled()
+    expect(mocks.deploy).not.toHaveBeenCalled()
+  })
+
+  it('rejects executor deployment transitions before canonical lookup', async () => {
+    await expect(
+      deployWorkflow.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'executor',
+          subjectUserId: 'user-1',
+          workspaceId: 'workspace-1',
+          delegationId: 'executor-1',
+          audience: 'sim:workflows',
+          issuedAt: new Date('2026-08-08T00:00:00Z'),
+          expiresAt: new Date('2999-08-08T00:00:00Z'),
+          delegationContext: {
+            kind: 'workflow_execution',
+            workflowId: 'workflow-1',
+            executionId: 'execution-1',
+          },
         },
         input: { workflowId: 'workflow-1', requestId: 'request-1' },
       })
@@ -211,7 +254,35 @@ describe('workflow deployment application use cases', () => {
     )
   })
 
-  it('activates an explicit version with analytics disabled in orchestration', async () => {
+  it('projects revert audit and notification exactly once outside legacy orchestration', async () => {
+    await revertWorkflowVersion.execute({
+      principal: adminPrincipals[2].principal,
+      input: { workflowId: 'workflow-1', version: 3 },
+    })
+
+    expect(mocks.revert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'workflow-1',
+        version: 3,
+        userId: 'delegated-user',
+        captureAnalytics: false,
+        projectLegacyAudit: false,
+        notifyRealtime: false,
+      })
+    )
+    expect(mocks.audit).toHaveBeenCalledOnce()
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        action: 'workflow.deployment_reverted',
+        resourceId: 'workflow-1',
+        metadata: expect.objectContaining({ targetVersion: '3' }),
+      })
+    )
+    expect(mocks.notifyReverted).toHaveBeenCalledOnce()
+    expect(mocks.notifyReverted).toHaveBeenCalledWith('workflow-1', 12345)
+  })
+
+  it('keeps human activation analytics enabled for durable post-activation capture', async () => {
     await activateWorkflowVersion.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
       input: {
@@ -230,9 +301,29 @@ describe('workflow deployment application use cases', () => {
         version: 2,
         userId: 'user-1',
         actorId: 'user-1',
-        captureAnalytics: false,
         requestId: 'request-3',
         idempotencyKey: 'activation-1',
+      })
+    )
+  })
+
+  it('forwards optional version metadata through the activation command', async () => {
+    await activateWorkflowVersion.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        workflowId: 'workflow-1',
+        version: 2,
+        transition: 'activate',
+        requestId: 'request-metadata',
+        name: 'Release 2',
+        description: 'Production',
+      },
+    })
+
+    expect(mocks.activate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'Release 2',
+        description: 'Production',
       })
     )
   })
@@ -240,7 +331,11 @@ describe('workflow deployment application use cases', () => {
   it('resolves the previous active version for an implicit rollback', async () => {
     const result = await activateWorkflowVersion.execute({
       principal: { kind: 'personal_api_key', userId: 'key-user', keyId: 'personal-key' },
-      input: { workflowId: 'workflow-1', transition: 'rollback', requestId: 'request-4' },
+      input: {
+        workflowId: 'workflow-1',
+        transition: 'rollback',
+        requestId: 'request-4',
+      },
     })
 
     expect(mocks.findPrevious).toHaveBeenCalledWith('workflow-1')

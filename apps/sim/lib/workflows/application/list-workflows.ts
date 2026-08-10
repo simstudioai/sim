@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import type { CursorKey } from '@/lib/api/list-query'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
@@ -31,7 +32,12 @@ export const listWorkflows = defineAuthorizedWorkflowUseCase({
   resolveContext: ({ input }: { input: ListWorkflowsInput }) =>
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }) {
-    const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
+    const folderIndex = await loadActiveFolderPathIndex(
+      context.workspaceId,
+      'workflow',
+      undefined,
+      { maxRows: MAX_FOLDERS_PER_WORKSPACE }
+    )
     const folderId =
       input.folderPath === undefined
         ? undefined

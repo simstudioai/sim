@@ -4,6 +4,10 @@ import {
   completeKnowledgeDocumentUploadContract,
   createKnowledgeDocumentUploadContract,
   createKnowledgeDocumentUploadPartUrlsContract,
+  type KnowledgeDocumentUploadMetadataBody,
+  type KnowledgeDocumentUploadPartUrl,
+  type KnowledgeDocumentUploadSummary,
+  type KnowledgeDocumentUploadTransfer,
 } from '@/lib/api/contracts/knowledge/upload-sessions'
 import {
   abortInternalFileUploadContract,
@@ -13,11 +17,6 @@ import {
   createInternalFileUploadPartUrlsContract,
   type InternalFileUploadSession,
 } from '@/lib/api/contracts/upload-sessions'
-import type {
-  V2KnowledgeDocumentSummary,
-  V2KnowledgeDocumentUploadMetadata,
-} from '@/lib/api/contracts/v2/knowledge'
-import type { V2UploadPartUrl, V2UploadTransfer } from '@/lib/api/contracts/v2/uploads'
 import type { UploadProgressEvent } from '@/lib/uploads/client/types'
 import { uploadFileSession } from '@/lib/uploads/client/upload-session'
 import { getFileContentType } from '@/lib/uploads/utils/file-utils'
@@ -55,7 +54,7 @@ type InternalUploadResult<Purpose extends InternalUploadPurpose> = NonNullable<
 
 export type UploadInternalFileSessionParams = InternalUploadCommonParams & InternalUploadContext
 
-interface UploadKnowledgeDocumentSessionParams extends V2KnowledgeDocumentUploadMetadata {
+interface UploadKnowledgeDocumentSessionParams extends KnowledgeDocumentUploadMetadataBody {
   workspaceId: string
   knowledgeBaseId: string
   file: File
@@ -65,10 +64,10 @@ interface UploadKnowledgeDocumentSessionParams extends V2KnowledgeDocumentUpload
 
 interface RunCreatedUploadParams<T> {
   file: File
-  transfer: V2UploadTransfer
+  transfer: KnowledgeDocumentUploadTransfer
   signal?: AbortSignal
   onProgress?: (event: UploadProgressEvent) => void
-  getPartUrls: (partNumbers: number[]) => Promise<V2UploadPartUrl[]>
+  getPartUrls: (partNumbers: number[]) => Promise<KnowledgeDocumentUploadPartUrl[]>
   complete: () => Promise<T>
   abort: () => Promise<void>
 }
@@ -182,7 +181,7 @@ function internalUploadBody(params: UploadInternalFileSessionParams): CreateInte
 
 export async function uploadKnowledgeDocumentSession(
   params: UploadKnowledgeDocumentSessionParams
-): Promise<V2KnowledgeDocumentSummary> {
+): Promise<KnowledgeDocumentUploadSummary> {
   const { workspaceId, knowledgeBaseId, file, signal, onProgress, ...metadata } = params
   const created = await requestJson(createKnowledgeDocumentUploadContract, {
     params: { id: knowledgeBaseId },

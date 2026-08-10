@@ -1,12 +1,8 @@
 import { type Principal, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
-import type {
-  V2CreateTableImportBody,
-  V2CreateTableImportData,
-  V2TableImport,
-} from '@/lib/api/contracts/v2/tables'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { withFolderTreeLock } from '@/lib/folders/locks'
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex, resolveFolderPathFromIndex } from '@/lib/folders/queries'
@@ -22,6 +18,8 @@ import {
 import { tableOperations } from '@/lib/table/application/operations'
 import {
   abortAuthorizedTableImportUpload,
+  type CreateTableImportRequest,
+  type CreateTableImportResult as CreateTableImportResourceResult,
   cancelTableImportResource,
   createAuthorizedTableImportResource,
   findTableImportResource,
@@ -30,9 +28,11 @@ import {
   startUploadedTableImport,
   type TableImportResource,
   tableImportBodyFromUpload,
-  toV2CreateTableImport,
-  toV2TableImport,
 } from '@/lib/table/orchestration/import-resource'
+import {
+  getWorkspaceFile,
+  type WorkspaceFileRecord,
+} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import {
   assertUploadSessionAuthBinding,
@@ -40,12 +40,11 @@ import {
   createUploadPartUrls,
   type UploadSessionRecord,
 } from '@/lib/uploads/upload-session/service'
-import { readWorkspaceFileContentRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 
 const logger = createLogger('TableImportApplication')
 
 export interface CreateTableImportInput {
-  body: V2CreateTableImportBody
+  body: CreateTableImportRequest
 }
 
 export interface TableImportResourceInput {
@@ -66,11 +65,11 @@ export interface CancelTableImportInput extends TableImportResourceInput {
 }
 
 export interface CreateTableImportResult {
-  import: V2CreateTableImportData
+  import: CreateTableImportResourceResult
 }
 
 export interface TableImportResult {
-  import: V2TableImport
+  import: TableImportResource
 }
 
 export interface CreateTableImportPartsResult {
@@ -89,10 +88,11 @@ interface TableImportUploadContext extends TableAuthorizationContext {
 
 async function resolveCreateTableImportContext(input: CreateTableImportInput) {
   if (input.body.target.type === 'existing') {
-    return resolveActiveTableContext({
+    const { tableId: _tableId, ...context } = await resolveActiveTableContext({
       tableId: input.body.target.tableId,
       assertedWorkspaceId: input.body.workspaceId,
     })
+    return context
   }
   return resolveTableWorkspaceContext(input.body.workspaceId)
 }
@@ -108,7 +108,6 @@ async function resolveTableImportContext(
   return {
     ...workspace,
     importId: record.id,
-    ...(record.tableId ? { tableId: record.tableId } : {}),
     record,
   }
 }
@@ -128,19 +127,20 @@ async function resolveTableImportUploadContext(
   return {
     ...workspace,
     importId: upload.id,
-    ...(body.target.type === 'existing' ? { tableId: body.target.tableId } : {}),
     upload,
   }
 }
 
 async function resolveImportFolderId(
   workspaceId: string,
-  body: V2CreateTableImportBody
+  body: CreateTableImportRequest
 ): Promise<string | null | undefined> {
   if (body.target.type !== 'new') return undefined
   const path = body.target.folderPath ?? ROOT_FOLDER_PATH
   return withFolderTreeLock(workspaceId, 'table', async (tx) => {
-    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx)
+    const index = await loadActiveFolderPathIndex(workspaceId, 'table', tx, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
     const folderId = resolveFolderPathFromIndex(index, path)
     if (folderId === undefined) {
       throw new OrchestrationError('not_found', 'Folder not found')
@@ -149,34 +149,30 @@ async function resolveImportFolderId(
   })
 }
 
+async function loadAuthorizedTableImportWorkspaceFile(
+  workspaceId: string,
+  fileId: string
+): Promise<WorkspaceFileRecord> {
+  const file = await getWorkspaceFile(workspaceId, fileId, { throwOnError: true })
+  if (!file) throw new OrchestrationError('not_found', 'File not found')
+  return file
+}
+
 export const createTableImportUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.createImport,
   resolveContext: ({ input }: { input: CreateTableImportInput }) =>
     resolveCreateTableImportContext(input),
   async execute({ principal, input, context, request }): Promise<CreateTableImportResult> {
-    if (principal.kind === 'delegated') {
-      throw new OrchestrationError(
-        'forbidden',
-        input.body.source.type === 'upload'
-          ? 'Delegated principals cannot initiate table import uploads'
-          : 'Delegated principals cannot initiate workspace-file table imports'
-      )
-    }
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
     })
     const folderId = await resolveImportFolderId(context.workspaceId, input.body)
     const workspaceFile =
       input.body.source.type === 'workspace_file'
-        ? (
-            await readWorkspaceFileContentRecord.execute({
-              principal,
-              input: {
-                fileId: input.body.source.fileId,
-                assertedWorkspaceId: context.workspaceId,
-              },
-            })
-          ).file
+        ? await loadAuthorizedTableImportWorkspaceFile(
+            context.workspaceId,
+            input.body.source.fileId
+          )
         : undefined
     if (input.body.source.type === 'upload' && !request) {
       throw new Error('Table import upload creation requires a request context')
@@ -196,7 +192,7 @@ export const createTableImportUseCase = defineAuthorizedTableUseCase({
       targetType: input.body.target.type,
       principalKind: principal.kind,
     })
-    return { import: toV2CreateTableImport(created) }
+    return { import: created }
   },
 })
 
@@ -205,7 +201,7 @@ export const readTableImportUseCase = defineAuthorizedTableUseCase({
   resolveContext: ({ input }: { input: TableImportResourceInput }) =>
     resolveTableImportContext(input),
   async execute({ context }): Promise<TableImportResult> {
-    return { import: toV2TableImport(context.record) }
+    return { import: context.record }
   },
 })
 
@@ -239,7 +235,7 @@ export const completeTableImportUseCase = defineAuthorizedTableUseCase({
       importId: context.upload.id,
       assertedWorkspaceId: context.workspaceId,
     })
-    if (existing) return { import: toV2TableImport(existing) }
+    if (existing) return { import: existing }
 
     const completed = await completeUploadSession({
       session: context.upload,
@@ -258,7 +254,7 @@ export const completeTableImportUseCase = defineAuthorizedTableUseCase({
       tableId: started.tableId,
       principalKind: principal.kind,
     })
-    return { import: toV2TableImport(started) }
+    return { import: started }
   },
 })
 
@@ -289,6 +285,6 @@ export const cancelTableImportUseCase = defineAuthorizedTableUseCase({
       tableId: record.tableId,
       principalKind: principal.kind,
     })
-    return { import: toV2TableImport(record) }
+    return { import: record }
   },
 })

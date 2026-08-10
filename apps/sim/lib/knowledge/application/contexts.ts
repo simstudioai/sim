@@ -1,12 +1,23 @@
 import { db } from '@sim/db'
-import { workspace } from '@sim/db/schema'
-import { and, eq, isNull } from 'drizzle-orm'
+import { embedding } from '@sim/db/schema'
+import { and, eq } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { KnowledgeAuthorizationContext } from '@/lib/knowledge/application/authorization'
+import type { ChunkData } from '@/lib/knowledge/chunks/types'
+import {
+  type ActiveKnowledgeConnectorReference,
+  getActiveKnowledgeConnectorReference,
+} from '@/lib/knowledge/connectors/service'
 import type { ActiveKnowledgeDocument } from '@/lib/knowledge/documents/service'
-import { getKnowledgeDocument } from '@/lib/knowledge/documents/service'
+import { getKnowledgeDocument, getKnowledgeDocumentById } from '@/lib/knowledge/documents/service'
 import { getKnowledgeBaseById } from '@/lib/knowledge/service'
+import { getTagDefinitionById } from '@/lib/knowledge/tags/service'
+import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
+import {
+  loadActiveWorkspaceApplicationContext,
+  loadWorkspaceApplicationContext,
+} from '@/lib/workspaces/application/workspace-context'
 
 export interface KnowledgeWorkspaceContext extends KnowledgeAuthorizationContext {
   billedAccountUserId: string
@@ -22,20 +33,32 @@ export interface ActiveKnowledgeDocumentContext extends ActiveKnowledgeBaseConte
   document: ActiveKnowledgeDocument
 }
 
+export interface ActiveKnowledgeTagContext extends ActiveKnowledgeBaseContext {
+  tagDefinitionId: string
+  tagDefinition: DocumentTagDefinition
+}
+
+export interface ActiveKnowledgeConnectorContext extends ActiveKnowledgeBaseContext {
+  connectorId: string
+  connector: ActiveKnowledgeConnectorReference
+}
+
+export interface ActiveKnowledgeChunkContext extends ActiveKnowledgeDocumentContext {
+  chunkId: string
+  chunk: ChunkData
+}
+
 export async function loadKnowledgeWorkspaceContext(
   workspaceId: string
 ): Promise<KnowledgeWorkspaceContext | null> {
-  const [row] = await db
-    .select({
-      workspaceId: workspace.id,
-      workspaceOrganizationId: workspace.organizationId,
-      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
-      billedAccountUserId: workspace.billedAccountUserId,
-    })
-    .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
-    .limit(1)
-  return row ?? null
+  return loadActiveWorkspaceApplicationContext(workspaceId)
+}
+
+export async function loadKnowledgeWorkspaceAuthorizationContext(
+  workspaceId: string,
+  options: { includeArchived?: boolean } = {}
+): Promise<KnowledgeWorkspaceContext | null> {
+  return loadWorkspaceApplicationContext(workspaceId, options)
 }
 
 export async function resolveKnowledgeWorkspaceContext(input: {
@@ -79,5 +102,93 @@ export async function resolveActiveKnowledgeDocumentContext(input: {
     ...context,
     documentId: document.id,
     document,
+  }
+}
+
+export async function resolveCanonicalActiveKnowledgeDocumentContext(input: {
+  knowledgeBaseId: string
+  documentId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeDocumentContext> {
+  const document = await getKnowledgeDocumentById(input.documentId)
+  if (!document || document.knowledgeBaseId !== input.knowledgeBaseId) {
+    throw new OrchestrationError('not_found', 'Document not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: document.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    documentId: document.id,
+    document,
+  }
+}
+
+export async function resolveActiveKnowledgeChunkContext(input: {
+  knowledgeBaseId: string
+  documentId: string
+  chunkId: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeChunkContext> {
+  const [chunk] = await db
+    .select()
+    .from(embedding)
+    .where(and(eq(embedding.id, input.chunkId), eq(embedding.documentId, input.documentId)))
+    .limit(1)
+  if (!chunk || chunk.knowledgeBaseId !== input.knowledgeBaseId) {
+    throw new OrchestrationError('not_found', 'Chunk not found')
+  }
+  const context = await resolveCanonicalActiveKnowledgeDocumentContext(input)
+  return {
+    ...context,
+    chunkId: chunk.id,
+    chunk: chunk as ChunkData,
+  }
+}
+
+export async function resolveActiveKnowledgeTagContext(input: {
+  tagDefinitionId: string
+  knowledgeBaseId?: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeTagContext> {
+  const tagDefinition = await getTagDefinitionById(input.tagDefinitionId)
+  if (
+    !tagDefinition ||
+    (input.knowledgeBaseId && tagDefinition.knowledgeBaseId !== input.knowledgeBaseId)
+  ) {
+    throw new OrchestrationError('not_found', 'Tag definition not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: tagDefinition.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    tagDefinitionId: tagDefinition.id,
+    tagDefinition,
+  }
+}
+
+export async function resolveActiveKnowledgeConnectorContext(input: {
+  connectorId: string
+  knowledgeBaseId?: string
+  assertedWorkspaceId?: string
+}): Promise<ActiveKnowledgeConnectorContext> {
+  const connector = await getActiveKnowledgeConnectorReference(input.connectorId)
+  if (
+    !connector ||
+    (input.knowledgeBaseId && connector.knowledgeBaseId !== input.knowledgeBaseId)
+  ) {
+    throw new OrchestrationError('not_found', 'Connector not found')
+  }
+  const context = await resolveActiveKnowledgeBaseContext({
+    knowledgeBaseId: connector.knowledgeBaseId,
+    assertedWorkspaceId: input.assertedWorkspaceId,
+  })
+  return {
+    ...context,
+    connectorId: connector.id,
+    connector,
   }
 }

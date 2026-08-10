@@ -7,9 +7,10 @@ export interface ActiveWorkspaceApplicationContext extends WorkspaceAuthorizatio
   billedAccountUserId: string
 }
 
-/** Loads the active canonical workspace state required by application authorization. */
-export async function loadActiveWorkspaceApplicationContext(
-  workspaceId: string
+/** Loads canonical workspace state required by application authorization. */
+export async function loadWorkspaceApplicationContext(
+  workspaceId: string,
+  options: { includeArchived?: boolean } = {}
 ): Promise<ActiveWorkspaceApplicationContext | null> {
   const [row] = await db
     .select({
@@ -19,7 +20,12 @@ export async function loadActiveWorkspaceApplicationContext(
       billedAccountUserId: workspace.billedAccountUserId,
     })
     .from(workspace)
-    .where(and(eq(workspace.id, workspaceId), isNull(workspace.archivedAt)))
+    .where(
+      and(
+        eq(workspace.id, workspaceId),
+        options.includeArchived ? undefined : isNull(workspace.archivedAt)
+      )
+    )
     .limit(1)
 
   if (!row) return null
@@ -29,4 +35,11 @@ export async function loadActiveWorkspaceApplicationContext(
     allowPersonalApiKeys: row.allowPersonalApiKeys,
     billedAccountUserId: row.billedAccountUserId,
   }
+}
+
+/** Loads active canonical workspace state required by application authorization. */
+export async function loadActiveWorkspaceApplicationContext(
+  workspaceId: string
+): Promise<ActiveWorkspaceApplicationContext | null> {
+  return loadWorkspaceApplicationContext(workspaceId)
 }

@@ -17,12 +17,12 @@ import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-cont
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
-import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   getServiceAccountToken,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import {
   assertPermissionsAllowed,
   IntegrationNotAllowedError,

@@ -3,6 +3,7 @@
  */
 import type { Principal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 
 const mocks = vi.hoisted(() => ({
   resolveContext: vi.fn(),
@@ -119,10 +120,29 @@ describe('workflow folder application operations', () => {
         workspaceId: 'ws-1',
         userId: principal.kind === 'workspace_api_key' ? 'owner-1' : 'user-1',
         path: '/Reports',
+        maxFolderRows: MAX_FOLDERS_PER_WORKSPACE,
       })
       expect(mocks.recordAudit).toHaveBeenCalledOnce()
     }
   )
+
+  it('bounds both the path index and listed folder rows', async () => {
+    mocks.listRows.mockResolvedValueOnce([folder])
+
+    await listWorkflowFolders.execute({
+      principal: principals[0],
+      input: { workspaceId: 'ws-1', sortBy: 'name', sortOrder: 'asc' },
+    })
+
+    expect(mocks.loadIndex).toHaveBeenCalledWith('ws-1', 'workflow', undefined, {
+      maxRows: MAX_FOLDERS_PER_WORKSPACE,
+    })
+    expect(mocks.listRows).toHaveBeenCalledWith(
+      'ws-1',
+      'workflow',
+      expect.objectContaining({ maxRows: MAX_FOLDERS_PER_WORKSPACE })
+    )
+  })
 
   it('rejects a workspace key outside the canonical workspace before mutation', async () => {
     await expect(

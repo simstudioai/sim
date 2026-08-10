@@ -112,6 +112,24 @@ describe('performDeleteKnowledgeConnector', () => {
     expect(outcome).toMatchObject({ success: false, errorCode: 'not_found' })
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
+
+  it('returns authoritative delete counts without legacy audit or analytics when disabled', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    queueTableRows(document, [{ id: 'doc-1', fileUrl: '/a.txt' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'conn-1' }])
+
+    const outcome = await performDeleteKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      recordSemanticAudit: false,
+      recordProductAnalytics: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true, documentsKept: 1 })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
+  })
 })
 
 describe('performUpdateKnowledgeConnector', () => {
@@ -207,6 +225,24 @@ describe('performUpdateKnowledgeConnector', () => {
       expect.objectContaining({ consecutiveFailures: 0, lastSyncError: null })
     )
   })
+
+  it('leaves semantic audit to an authorized application caller when requested', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([{ id: 'conn-1', connectorType: 'notion' }])
+    dbChainMockFns.returning.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'paused' },
+    ])
+
+    const outcome = await performUpdateKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      updates: { status: 'paused' },
+      recordSemanticAudit: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
 })
 
 describe('performSyncKnowledgeConnector', () => {
@@ -294,5 +330,25 @@ describe('performSyncKnowledgeConnector', () => {
     })
 
     expect(outcome).toMatchObject({ success: false, errorCode: 'conflict' })
+  })
+
+  it('dispatches while leaving semantic audit and product analytics to the application surface', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { id: 'conn-1', connectorType: 'notion', status: 'active' },
+    ])
+
+    const outcome = await performSyncKnowledgeConnector({
+      ...ACTOR,
+      knowledgeBase: KB,
+      connectorId: 'conn-1',
+      resolveBillingAttribution,
+      recordSemanticAudit: false,
+      recordProductAnalytics: false,
+    })
+
+    expect(outcome).toMatchObject({ success: true })
+    expect(mockDispatchSync).toHaveBeenCalledOnce()
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+    expect(mockCaptureServerEvent).not.toHaveBeenCalled()
   })
 })

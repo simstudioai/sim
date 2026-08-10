@@ -6,26 +6,25 @@ import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table'
 
-const { mockReadTable, mockReplaceTableRows, mockSpanAddEvent } = vi.hoisted(() => ({
-  mockReadTable: vi.fn(),
-  mockReplaceTableRows: vi.fn(),
-  mockSpanAddEvent: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  executeReplace: vi.fn(),
+  spanAddEvent: vi.fn(),
 }))
 
-vi.mock('@/lib/table/application/tables', () => ({
-  readTableUseCase: { execute: mockReadTable },
+vi.mock('@/lib/copilot/application/table-commands', () => ({
+  executeCopilotReplaceProjectedWireRows: mocks.executeReplace,
 }))
-
-vi.mock('@/lib/table/application/rows', () => ({
-  replaceTableRows: { execute: mockReplaceTableRows },
-}))
-
 vi.mock('@/lib/copilot/request/otel', () => ({
   withCopilotSpan: (
     _name: string,
     _attrs: Record<string, unknown> | undefined,
-    fn: (span: unknown) => Promise<unknown>
-  ) => fn({ setAttribute: vi.fn(), setAttributes: vi.fn(), addEvent: mockSpanAddEvent }),
+    run: (span: unknown) => Promise<unknown>
+  ) =>
+    run({
+      setAttribute: vi.fn(),
+      setAttributes: vi.fn(),
+      addEvent: mocks.spanAddEvent,
+    }),
 }))
 
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
@@ -35,7 +34,23 @@ import {
   maybeWriteReadCsvToTable,
 } from '@/lib/copilot/request/tools/tables'
 import type { ExecutionContext } from '@/lib/copilot/request/types'
+import { ProjectedWireRowsValidationError } from '@/lib/table/application/rows'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+
+const table: TableDefinition = {
+  id: 'table-1',
+  name: 'People',
+  description: null,
+  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
+  metadata: null,
+  rowCount: 0,
+  maxRows: 100,
+  workspaceId: 'workspace-1',
+  createdBy: 'user-1',
+  archivedAt: null,
+  createdAt: new Date('2026-08-01T00:00:00.000Z'),
+  updatedAt: new Date('2026-08-01T00:00:00.000Z'),
+}
 
 const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
   vi
@@ -43,37 +58,10 @@ const tableLogger = vi.mocked(loggerMock.createLogger).mock.results[
     .mock.calls.findIndex(([name]) => name === 'CopilotToolResultTables')
 ]?.value
 
-function buildTable(overrides: Partial<TableDefinition> = {}): TableDefinition {
-  return {
-    id: 'tbl_1',
-    name: 'People',
-    description: null,
-    schema: {
-      columns: [
-        { id: 'col_name', name: 'name', type: 'string' },
-        { id: 'col_age', name: 'age', type: 'number' },
-        { id: 'col_status', name: 'status', type: 'string' },
-        { id: 'col_active', name: 'active', type: 'boolean' },
-        { id: 'col_metadata', name: 'metadata', type: 'json' },
-      ],
-    },
-    metadata: null,
-    rowCount: 0,
-    maxRows: 100,
-    workspaceId: 'workspace-1',
-    createdBy: 'user-1',
-    locks: { schemaLocked: false, insertLocked: false, updateLocked: false, deleteLocked: false },
-    archivedAt: null,
-    createdAt: new Date('2024-01-01'),
-    updatedAt: new Date('2024-01-01'),
-    ...overrides,
-  } as TableDefinition
-}
-
 function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionContext {
   return {
     userId: 'user-1',
-    workflowId: 'wf-1',
+    workflowId: 'workflow-1',
     workspaceId: 'workspace-1',
     userPermission: 'write',
     copilotToolExecution: true,
@@ -83,23 +71,161 @@ function buildContext(overrides: Partial<ExecutionContext> = {}): ExecutionConte
   }
 }
 
-describe('maybeWriteOutputToTable', () => {
+describe('automatic Copilot tool-output table persistence', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockReadTable.mockResolvedValue({ table: buildTable(), folderPath: '/' })
-    mockReplaceTableRows.mockImplementation(async ({ input }: { input: { rows: unknown[] } }) => ({
-      deletedCount: 0,
-      insertedCount: input.rows.length,
-    }))
+    mocks.executeReplace.mockImplementation(
+      async (_context: ExecutionContext, input: { sourceRows: unknown[] }) => ({
+        table,
+        deletedCount: 0,
+        insertedCount: input.sourceRows.length,
+      })
+    )
   })
 
-  it('rejects a table from another workspace without touching it', async () => {
-    mockReadTable.mockRejectedValue(new Error('Table not found'))
+  it('maps tool rows into one authorized schema-locked replacement command', async () => {
+    const context = buildContext()
+    const rows = [
+      { name: 'Ada', age: 30 },
+      { name: 'Grace', age: 40 },
+    ]
 
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'Alice' }] } },
+      { outputTable: 'table-1' },
+      { success: true, output: { result: rows } },
+      context
+    )
+
+    expect(result).toEqual({
+      success: true,
+      output: {
+        message: 'Wrote 2 rows to table table-1',
+        tableId: 'table-1',
+        rowCount: 2,
+      },
+    })
+    expect(mocks.executeReplace).toHaveBeenCalledTimes(1)
+    expect(mocks.executeReplace).toHaveBeenCalledWith(context, {
+      tableId: 'table-1',
+      assertedWorkspaceId: 'workspace-1',
+      sourceRows: rows,
+      projectedRows: rows,
+    })
+  })
+
+  it('projects active secrets before handing rows to the application command', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' },
+    ])
+    registry.recordResolved('OUTPUT_SECRET', 'secret-value')
+    const runtimeRows = [{ name: 'secret-value', status: 'literal' }]
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: runtimeRows } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result.success).toBe(true)
+    expect(mocks.executeReplace).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        sourceRows: runtimeRows,
+        projectedRows: [{ name: '{{OUTPUT_SECRET}}', status: 'literal' }],
+      })
+    )
+    expect(runtimeRows).toEqual([{ name: 'secret-value', status: 'literal' }])
+
+    const projectedRows = mocks.executeReplace.mock.calls[0][1].projectedRows
+    const laterRead = projectToolResultForCopilot(
+      { success: true, output: { data: { rows: projectedRows } } },
+      new ResolvedSecretTraceRegistry()
+    )
+    expect(laterRead.output).toEqual({ data: { rows: projectedRows } })
+  })
+
+  it('rejects unavailable secret provenance before the application command', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    registry.markIncomplete()
+
+    await expect(
+      maybeWriteOutputToTable(
+        FunctionExecute.id,
+        { outputTable: 'table-1' },
+        { success: true, output: { result: [{ name: 'unknown' }] } },
+        buildContext({ resolvedSecretTraceRegistry: registry })
+      )
+    ).resolves.toEqual({
+      success: false,
+      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+    })
+    expect(mocks.executeReplace).not.toHaveBeenCalled()
+  })
+
+  it('preserves typed application validation for a correctable tool error', async () => {
+    mocks.executeReplace.mockRejectedValueOnce(
+      new ProjectedWireRowsValidationError('Row 1 has no keys matching table columns')
+    )
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ wrong: true }] } },
+      buildContext()
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Row 1 has no keys matching table columns',
+    })
+  })
+
+  it('conceals unknown application failures in results, logs, and trace events', async () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' },
+    ])
+    registry.recordResolved('SECRET', 'secret-value')
+    mocks.executeReplace.mockRejectedValueOnce(new Error('database duplicate: secret-value'))
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ name: 'secret-value' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(result).toEqual({
+      success: false,
+      error: 'Failed to write to table: Table operation failed',
+    })
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).toContain('Table operation failed')
+    expect(JSON.stringify(tableLogger?.warn.mock.calls)).not.toContain('secret-value')
+    expect(JSON.stringify(mocks.spanAddEvent.mock.calls)).toContain('Table operation failed')
+    expect(JSON.stringify(mocks.spanAddEvent.mock.calls)).not.toContain('secret-value')
+  })
+
+  it('rejects read-only Copilot execution before any application command', async () => {
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ name: 'Ada' }] } },
+      buildContext({ userPermission: 'read' })
+    )
+
+    expect(result.success).toBe(false)
+    expect(result.error).toContain('requires write access')
+    expect(mocks.executeReplace).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the authoritative inserted count is inconsistent', async () => {
+    mocks.executeReplace.mockResolvedValueOnce({ table, deletedCount: 1, insertedCount: 1 })
+
+    const result = await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ name: 'Ada' }, { name: 'Grace' }] } },
       buildContext()
     )
 
@@ -107,224 +233,76 @@ describe('maybeWriteOutputToTable', () => {
       success: false,
       error: 'Failed to write to table: Table operation failed',
     })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+  })
+})
+
+describe('automatic Copilot file-read table persistence', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.executeReplace.mockImplementation(
+      async (_context: ExecutionContext, input: { sourceRows: unknown[] }) => ({
+        table,
+        deletedCount: 1,
+        insertedCount: input.sourceRows.length,
+      })
+    )
   })
 
-  it('denies a read-only principal without touching the table', async () => {
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'Alice' }] } },
-      buildContext({ userPermission: 'read' })
+  it('keeps CSV parsing and presentation in the adapter and performs one application command', async () => {
+    const context = buildContext()
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'table-1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name,age\nAda,30\nGrace,40' } },
+      context
     )
 
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('requires write access')
-    expect(mockReadTable).not.toHaveBeenCalled()
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('replaces rows through the service with name keys remapped to column ids', async () => {
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      {
-        success: true,
-        output: {
-          result: [
-            { name: 'Alice', age: 30 },
-            { name: 'Bob', age: 40 },
-          ],
-        },
+    expect(result).toEqual({
+      success: true,
+      output: {
+        message: 'Imported 2 rows from "files/people.csv" into table "People"',
+        tableId: 'table-1',
+        tableName: 'People',
+        rowCount: 2,
       },
-      buildContext()
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockReplaceTableRows).toHaveBeenCalledTimes(1)
-    const [{ input }] = mockReplaceTableRows.mock.calls[0]
-    expect(input).toMatchObject({
-      tableId: 'tbl_1',
+    })
+    expect(mocks.executeReplace).toHaveBeenCalledTimes(1)
+    expect(mocks.executeReplace).toHaveBeenCalledWith(context, {
+      tableId: 'table-1',
       assertedWorkspaceId: 'workspace-1',
-      rows: [
-        { name: 'Alice', age: 30 },
-        { name: 'Bob', age: 40 },
+      sourceRows: [
+        { name: 'Ada', age: '30' },
+        { name: 'Grace', age: '40' },
+      ],
+      projectedRows: [
+        { name: 'Ada', age: '30' },
+        { name: 'Grace', age: '40' },
       ],
     })
   })
 
-  it('projects activated secrets before persistence without rewriting sibling literals', async () => {
-    const parentRegistry = new ResolvedSecretTraceRegistry([
-      {
-        name: 'OUTPUT_SECRET',
-        plaintext: 'secret-value',
-        encryptedValue: 'encrypted-output-secret',
-      },
-      {
-        name: 'UNRELATED',
-        plaintext: 'true',
-        encryptedValue: 'encrypted-unrelated',
-      },
-    ])
-    parentRegistry.recordResolved('UNRELATED', 'true')
-    const toolRegistry = parentRegistry.forkForToolInput({ code: 'return {{OUTPUT_SECRET}}' })
-    toolRegistry.recordResolved('OUTPUT_SECRET', 'secret-value')
-    const runtimeRows = [{ name: 'secret-value', age: '123', status: 'true' }]
-
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: runtimeRows } },
-      buildContext({ resolvedSecretTraceRegistry: toolRegistry })
-    )
-
-    expect(result.success).toBe(true)
-    const persistedRows = mockReplaceTableRows.mock.calls[0][0].input.rows
-    expect(persistedRows).toEqual([{ name: '{{OUTPUT_SECRET}}', age: '123', status: 'true' }])
-    expect(runtimeRows).toEqual([{ name: 'secret-value', age: '123', status: 'true' }])
-
-    const modelFacing = projectToolResultForCopilot(
-      { success: true, output: { data: { rows: persistedRows } } },
-      toolRegistry
-    )
-    expect(modelFacing.output).toEqual({
-      data: {
-        rows: [{ name: '{{OUTPUT_SECRET}}', age: '123', status: 'true' }],
-      },
-    })
-
-    const laterRead = projectToolResultForCopilot(
-      { success: true, output: { data: { rows: persistedRows } } },
-      new ResolvedSecretTraceRegistry()
-    )
-    expect(laterRead.output).toEqual({ data: { rows: persistedRows } })
-  })
-
-  it('does not write when table persistence provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'unknown' }] } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
+  it('keeps JSON shape validation in the adapter', async () => {
+    const result = await maybeWriteReadCsvToTable(
+      ReadTool.id,
+      { outputTable: 'table-1', path: 'files/people.json' },
+      { success: true, output: { content: '{"name":"Ada"}' } },
+      buildContext()
     )
 
     expect(result).toEqual({
       success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
+      error: 'JSON file must contain an array of objects for table import',
     })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
+    expect(mocks.executeReplace).not.toHaveBeenCalled()
   })
 
-  it('preserves legacy table writes when execution provenance is unavailable', async () => {
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'unknown' }] } },
-      buildContext({ resolvedSecretTraceRegistry: undefined })
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockReplaceTableRows).toHaveBeenCalledWith(
-      expect.objectContaining({ input: expect.objectContaining({ rows: [{ name: 'unknown' }] }) })
-    )
-  })
-
-  it('fails fast when no row keys match the table columns', async () => {
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ wrong: 1 }, { keys: 2 }] } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Row 1 has no keys matching columns')
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('fails fast when only some rows match instead of writing empty rows', async () => {
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'Alice' }, { wrong: 'x' }] } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Row 2 has no keys matching columns')
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('surfaces service validation failures as tool errors', async () => {
-    mockReplaceTableRows.mockRejectedValue(new Error('Row 1: name is required'))
-
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ age: 30 }] } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Table operation failed')
-  })
-
-  it('fails fast when authoritative inserted count differs from the requested rows', async () => {
-    mockReplaceTableRows.mockResolvedValue({ deletedCount: 1, insertedCount: 1 })
-
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'Alice' }, { name: 'Bob' }] } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Table operation failed')
-  })
-
-  it('keeps raw errors for terminal projection but projects application logs and OTel events', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
-    registry.recordResolved('SECRET', 'secret-value')
-    mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
-
-    const result = await maybeWriteOutputToTable(
-      FunctionExecute.id,
-      { outputTable: 'tbl_1' },
-      { success: true, output: { result: [{ name: 'secret-value' }] } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(result.error).not.toContain('secret-value')
-    expect(JSON.stringify(tableLogger?.warn.mock.calls)).toContain('Table operation failed')
-    expect(JSON.stringify(tableLogger?.warn.mock.calls)).not.toContain('secret-value')
-    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).toContain('Table operation failed')
-    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).not.toContain('secret-value')
-  })
-})
-
-describe('maybeWriteReadCsvToTable', () => {
-  beforeEach(() => {
-    vi.clearAllMocks()
-    mockReadTable.mockResolvedValue({ table: buildTable(), folderPath: '/' })
-    mockReplaceTableRows.mockImplementation(async ({ input }: { input: { rows: unknown[] } }) => ({
-      deletedCount: 0,
-      insertedCount: input.rows.length,
-    }))
-  })
-
-  it('rejects a table from another workspace without touching it', async () => {
-    mockReadTable.mockRejectedValue(new Error('Table not found'))
+  it('preserves safe unknown-error projection for CSV persistence', async () => {
+    mocks.executeReplace.mockRejectedValueOnce(new Error('database unavailable'))
 
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age\nAlice,30' } },
+      { outputTable: 'table-1', path: 'files/people.csv' },
+      { success: true, output: { content: 'name\nAda' } },
       buildContext()
     )
 
@@ -332,189 +310,5 @@ describe('maybeWriteReadCsvToTable', () => {
       success: false,
       error: 'Failed to import into table: Table operation failed',
     })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('denies a read-only principal without touching the table', async () => {
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age\nAlice,30' } },
-      buildContext({ userPermission: 'read' })
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('requires write access')
-    expect(mockReadTable).not.toHaveBeenCalled()
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('denies outputTable in query-only mode even when the principal can write', async () => {
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age\nAlice,30' } },
-      buildContext({ userPermission: 'admin', queryOnly: true })
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('query-only')
-    expect(mockGetTableById).not.toHaveBeenCalled()
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('imports CSV content through the service with id-keyed rows', async () => {
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age\nAlice,30\nBob,40' } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(true)
-    const [{ input }] = mockReplaceTableRows.mock.calls[0]
-    expect(input.rows).toEqual([
-      { name: 'Alice', age: '30' },
-      { name: 'Bob', age: '40' },
-    ])
-  })
-
-  it('projects active secret literals into string-compatible CSV columns', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
-    registry.recordResolved('NUMBER', '123')
-    registry.recordResolved('BOOLEAN', 'true')
-
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,status\n123,true' } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockReplaceTableRows).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          rows: [
-            {
-              name: '{{NUMBER}}',
-              status: '{{BOOLEAN}}',
-            },
-          ],
-        }),
-      })
-    )
-  })
-
-  it('rejects active secret literals in number and boolean columns before mutation', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
-      { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'encrypted-boolean' },
-    ])
-    registry.recordResolved('NUMBER', '123')
-    registry.recordResolved('BOOLEAN', 'true')
-
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age,active\nAlice,123,true' } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(result).toEqual({
-      success: false,
-      error:
-        'Tool output could not be persisted safely because a resolved secret is incompatible with the target column type.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-    expect(JSON.stringify(result)).not.toContain('123')
-    expect(JSON.stringify(result)).not.toContain('true')
-  })
-
-  it('does not import CSV rows when persistence provenance is incomplete', async () => {
-    const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
-
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name\nAlice' } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(result).toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('preserves legacy CSV imports when execution provenance is unavailable', async () => {
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name,age,active\nlegacy-value,123,true' } },
-      buildContext({ resolvedSecretTraceRegistry: undefined })
-    )
-
-    expect(result.success).toBe(true)
-    expect(mockReplaceTableRows).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: expect.objectContaining({
-          rows: [{ name: 'legacy-value', age: '123', active: 'true' }],
-        }),
-      })
-    )
-  })
-
-  it('fails fast when the file headers match no table columns', async () => {
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'wrong,headers\n1,2' } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Row 1 has no keys matching columns')
-    expect(mockReplaceTableRows).not.toHaveBeenCalled()
-  })
-
-  it('surfaces service validation failures as tool errors', async () => {
-    mockReplaceTableRows.mockRejectedValue(new Error('Row 1: name is required'))
-
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'age\n30' } },
-      buildContext()
-    )
-
-    expect(result.success).toBe(false)
-    expect(result.error).toContain('Table operation failed')
-  })
-
-  it('projects active secret literals in CSV-import log and OTel errors', async () => {
-    const registry = new ResolvedSecretTraceRegistry([
-      { name: 'SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret-value' },
-    ])
-    registry.recordResolved('SECRET', 'secret-value')
-    mockReplaceTableRows.mockRejectedValue(new Error('Duplicate value "secret-value"'))
-
-    const result = await maybeWriteReadCsvToTable(
-      ReadTool.id,
-      { outputTable: 'tbl_1', path: 'files/people.csv' },
-      { success: true, output: { content: 'name\nsecret-value' } },
-      buildContext({ resolvedSecretTraceRegistry: registry })
-    )
-
-    expect(result.error).not.toContain('secret-value')
-    expect(JSON.stringify(tableLogger?.warn.mock.calls)).toContain('Table operation failed')
-    expect(JSON.stringify(tableLogger?.warn.mock.calls)).not.toContain('secret-value')
-    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).toContain('Table operation failed')
-    expect(JSON.stringify(mockSpanAddEvent.mock.calls)).not.toContain('secret-value')
   })
 })
