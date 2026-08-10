@@ -1,5 +1,6 @@
 import type { ComponentType } from 'react'
 import { toSearchToken } from '@/lib/search/tokens'
+import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
 /**
  * Every result group the palette can render. This is also the canonical order:
@@ -9,6 +10,10 @@ import { toSearchToken } from '@/lib/search/tokens'
  */
 export const SEARCH_SECTIONS = [
   'actions',
+  'blocks',
+  'triggers',
+  'tools',
+  'toolOperations',
   'pages',
   'workflows',
   'workspaces',
@@ -23,6 +28,12 @@ export const SEARCH_SECTIONS = [
 
 /** A single search-modal result group. */
 export type SearchSection = (typeof SEARCH_SECTIONS)[number]
+
+/**
+ * Canvas building-block sections. They render between the page's action group
+ * and the Sim group; off the canvas they carry no items and render nothing.
+ */
+export const CANVAS_SECTIONS = ['blocks', 'triggers', 'tools', 'toolOperations'] as const
 
 export interface IntegrationSearchItem {
   id: string
@@ -122,27 +133,7 @@ export interface ActionItem {
   run: () => void
 }
 
-export type ActionGroupLabel =
-  | 'Platform'
-  | 'Workflow Actions'
-  | 'Table Actions'
-  | 'File Actions'
-  | 'Knowledge Base Actions'
-  | 'Logs Actions'
-  | 'Scheduled Task Actions'
-
-const PAGE_CONTEXT_GROUP_LABELS: Record<PageActionContext, ActionGroupLabel> = {
-  workflow: 'Workflow Actions',
-  tables: 'Table Actions',
-  tableDetail: 'Table Actions',
-  files: 'File Actions',
-  fileDetail: 'File Actions',
-  knowledge: 'Knowledge Base Actions',
-  knowledgeBase: 'Knowledge Base Actions',
-  logs: 'Logs Actions',
-  logsDashboard: 'Logs Actions',
-  scheduledTasks: 'Scheduled Task Actions',
-}
+export type ActionGroupLabel = 'Sim' | 'Actions'
 
 /**
  * The page's own entity section, hoisted directly under its action group in
@@ -159,14 +150,9 @@ export const PAGE_CONTEXT_HOISTED_SECTION: Partial<Record<PageActionContext, Sea
   logsDashboard: 'logs',
 }
 
-/** Heading for a page's contributed action group. */
-export function getPageActionGroupLabel(context: PageActionContext): ActionGroupLabel {
-  return PAGE_CONTEXT_GROUP_LABELS[context]
-}
-
 /** Presentation group for an action without changing its stable result identity. */
 export function getActionGroupLabel(action: ActionItem): ActionGroupLabel {
-  return action.context === 'global' ? 'Platform' : PAGE_CONTEXT_GROUP_LABELS[action.context]
+  return action.context === 'global' ? 'Sim' : 'Actions'
 }
 
 export interface SearchModalProps {
@@ -204,12 +190,18 @@ export interface CommandItemProps {
   workflowType?: string
   /** Primary text of the row. */
   label: string
+  /** De-emphasized lead-in before the label (e.g. a tool operation's service). */
+  labelPrefix?: string
   /** Right-aligned trailing metadata. */
   meta?: string
 }
 
 export const SECTION_LABELS: Record<SearchSection, string> = {
-  actions: 'Platform',
+  actions: 'Sim',
+  blocks: 'Blocks',
+  triggers: 'Triggers',
+  tools: 'Tools',
+  toolOperations: 'Tool operations',
   pages: 'Pages',
   workflows: 'Workflows',
   workspaces: 'Workspaces',
@@ -224,6 +216,8 @@ export const SECTION_LABELS: Record<SearchSection, string> = {
 
 export type SearchEntry =
   | { section: 'actions'; score: number; item: ActionItem }
+  | { section: 'blocks' | 'tools' | 'triggers'; score: number; item: SearchBlockItem }
+  | { section: 'toolOperations'; score: number; item: SearchToolOperationItem }
   | { section: 'connectedAccounts' | 'integrations'; score: number; item: IntegrationSearchItem }
   | { section: 'chats'; score: number; item: TaskItem }
   | { section: 'workflows'; score: number; item: WorkflowItem }
@@ -235,6 +229,10 @@ export type SearchEntry =
 
 export interface SearchEntryHandlers {
   onSelectAction: (item: ActionItem) => void
+  onSelectBlock: (item: SearchBlockItem) => void
+  onSelectTool: (item: SearchBlockItem) => void
+  onSelectTrigger: (item: SearchBlockItem) => void
+  onSelectToolOperation: (item: SearchToolOperationItem) => void
   onSelectConnectedAccount: (item: IntegrationSearchItem) => void
   onSelectIntegration: (item: IntegrationSearchItem) => void
   onSelectChat: (item: TaskItem) => void
@@ -452,6 +450,13 @@ const NAME_MATCH_TIER = 1_000_000
 const SECTION_MATCH_TIER = 2_000_000
 
 /**
+ * Rank offset for a page row whose name IS the query. Typing "logs" means the
+ * Logs page itself first, then its contents (the section lifted into
+ * {@link SECTION_MATCH_TIER}) beneath it.
+ */
+export const PAGE_MATCH_TIER = 3_000_000
+
+/**
  * Ranks an item by its name first, falling back to secondary text (ids, aliases,
  * option labels) only when the name doesn't match — a name match always wins, so
  * an exact name hit isn't diluted by a long secondary string ("Agent" beats
@@ -568,7 +573,7 @@ export function scoreActions(
   actions: ActionItem[],
   search: string,
   maxResults = Number.POSITIVE_INFINITY,
-  groupLabel: ActionGroupLabel = 'Platform'
+  groupLabel: ActionGroupLabel = 'Sim'
 ): Array<{ item: ActionItem; score: number }> {
   return scoreItemsForSection(
     groupLabel,

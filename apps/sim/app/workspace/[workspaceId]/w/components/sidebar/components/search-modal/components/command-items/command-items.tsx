@@ -92,6 +92,7 @@ export const MemoizedCommandItem = memo(
     showColoredIcon,
     workflowType,
     label,
+    labelPrefix,
     meta,
   }: CommandItemProps) {
     const workflowAccent = workflowType ? getMappedWorkflowTypeAccent(workflowType) : null
@@ -121,8 +122,11 @@ export const MemoizedCommandItem = memo(
             />
           </div>
         )}
-        <span className='truncate text-[var(--text-body)]'>{label}</span>
-        {meta && <ItemMeta meta={meta} />}
+        <span className='truncate text-[var(--text-body)]'>
+          {labelPrefix && <span className='text-[var(--text-subtle)]'>{labelPrefix} </span>}
+          {label}
+        </span>
+        {meta ? <ItemMeta meta={meta} /> : null}
       </Command.Item>
     )
   },
@@ -133,6 +137,7 @@ export const MemoizedCommandItem = memo(
     prev.showColoredIcon === next.showColoredIcon &&
     prev.workflowType === next.workflowType &&
     prev.label === next.label &&
+    prev.labelPrefix === next.labelPrefix &&
     prev.meta === next.meta
 )
 

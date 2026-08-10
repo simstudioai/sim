@@ -565,6 +565,7 @@ export interface PostHogEventMap {
     result_type:
       | 'block'
       | 'tool'
+      | 'trigger'
       | 'tool_operation'
       | 'connected_account'
       | 'integration'

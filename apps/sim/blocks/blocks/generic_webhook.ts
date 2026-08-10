@@ -4,7 +4,7 @@ import { getTrigger } from '@/triggers'
 
 export const GenericWebhookBlock: BlockConfig = {
   type: 'generic_webhook',
-  name: 'Webhook Trigger',
+  name: 'Webhook',
   description: 'Receive webhooks from any service by configuring a custom webhook.',
   category: 'triggers',
   icon: Webhook,

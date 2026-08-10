@@ -140,7 +140,7 @@ export const useSearchModalStore = create<SearchModalState>()(
 
         const allTriggers = getTriggersForSidebar()
         const filteredTriggers = filterBlocks(allTriggers) as typeof allTriggers
-        const priorityOrder = ['Start', 'Schedule', 'Webhook Trigger']
+        const priorityOrder = ['Start', 'Schedule', 'Webhook']
 
         const sortedTriggers = [...filteredTriggers].sort(
           (a: (typeof filteredTriggers)[number], b: (typeof filteredTriggers)[number]) => {

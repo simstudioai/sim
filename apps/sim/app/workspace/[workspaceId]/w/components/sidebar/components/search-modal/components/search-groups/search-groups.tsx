@@ -100,6 +100,56 @@ function renderSearchEntry(
           shortcut={entry.item.shortcut}
         />
       )
+    case 'blocks':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectBlock(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          workflowType={entry.item.type}
+          label={entry.item.name}
+        />
+      )
+    case 'tools':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectTool(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+        />
+      )
+    case 'triggers':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.name} ${key}`}
+          onSelect={() => handlers.onSelectTrigger(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          label={entry.item.name}
+        />
+      )
+    case 'toolOperations':
+      return (
+        <MemoizedCommandItem
+          key={key}
+          value={`${entry.item.searchValue} ${key}`}
+          onSelect={() => handlers.onSelectToolOperation(entry.item)}
+          icon={entry.item.icon}
+          bgColor={entry.item.bgColor}
+          showColoredIcon
+          labelPrefix={entry.item.serviceName}
+          label={entry.item.name}
+        />
+      )
     case 'connectedAccounts':
       return (
         <MemoizedCommandItem

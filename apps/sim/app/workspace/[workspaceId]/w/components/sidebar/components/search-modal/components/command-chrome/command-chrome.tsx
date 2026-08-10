@@ -1,6 +1,11 @@
 'use client'
 
-import { type ComponentPropsWithoutRef, forwardRef, type KeyboardEvent } from 'react'
+import {
+  type ComponentPropsWithoutRef,
+  forwardRef,
+  type KeyboardEvent,
+  type ReactNode,
+} from 'react'
 import { cn } from '@sim/emcn'
 import { Command } from 'cmdk'
 import { Search } from 'lucide-react'
@@ -11,6 +16,8 @@ type CommandListProps = ComponentPropsWithoutRef<typeof Command.List>
 interface CommandSearchProps extends Omit<CommandInputProps, 'className'> {
   surface: 'canvas' | 'palette'
   cycleResultsOnTab?: boolean
+  /** Trailing slot after the input (e.g. a mode hint). Non-interactive. */
+  endAdornment?: ReactNode
 }
 
 interface CommandFadedListProps extends CommandListProps {
@@ -39,7 +46,10 @@ const LIST_FADE_CLASSNAME = {
 
 /** Borderless search field layered over a fading command-result list. */
 export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
-  function CommandSearch({ surface, cycleResultsOnTab = false, onKeyDown, ...props }, ref) {
+  function CommandSearch(
+    { surface, cycleResultsOnTab = false, endAdornment, onKeyDown, ...props },
+    ref
+  ) {
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
       onKeyDown?.(event)
       if (!cycleResultsOnTab || event.defaultPrevented || event.key !== 'Tab') return
@@ -68,6 +78,7 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
           onKeyDown={handleKeyDown}
           {...props}
         />
+        {endAdornment}
       </div>
     )
   }

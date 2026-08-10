@@ -1,6 +1,14 @@
 'use client'
 
-import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  type KeyboardEvent as ReactKeyboardEvent,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react'
 import { cn, Library } from '@sim/emcn'
 import {
   Calendar,
@@ -33,11 +41,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
-import { getMothershipHandoffHref } from '@/app/workspace/[workspaceId]/home/search-params'
+import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   CommandFadedList,
@@ -61,11 +68,12 @@ import type {
   WorkspaceItem,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import {
+  CANVAS_SECTIONS,
   getActionGroupLabel,
   getGlobalSearchResults,
-  getPageActionGroupLabel,
   MAX_RESULTS_PER_GROUP,
   PAGE_CONTEXT_HOISTED_SECTION,
+  PAGE_MATCH_TIER,
   SEARCH_SECTIONS,
   SECTION_LABELS,
   scoreActions,
@@ -76,8 +84,11 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
+import { useSearchModalStore } from '@/stores/modals/search/store'
+import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
 
@@ -105,6 +116,7 @@ export function SearchModal({
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
+  const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
   const [mounted, setMounted] = useState(false)
@@ -123,6 +135,8 @@ export function SearchModal({
   useEffect(() => {
     setMounted(true)
   }, [])
+
+  const { blocks, tools, triggers, toolOperations } = useSearchModalStore((state) => state.data)
 
   const openHelpModal = useCallback(() => {
     window.dispatchEvent(new CustomEvent('open-help-modal'))
@@ -209,7 +223,6 @@ export function SearchModal({
    */
   const actions = useMemo((): ActionItem[] => {
     const list: ActionItem[] = []
-    const onCanvas = pageContext === 'workflow'
     const invoke = (id: string) => () => invokeCommand(id)
 
     list.push(
@@ -262,15 +275,13 @@ export function SearchModal({
         run: () => routerRef.current.push(`/workspace/${workspaceId}/home`),
       })
     }
-    /* On the canvas these three join the Workflow Actions group; everywhere
-       else they are platform verbs. */
     if (canEdit && onCreateWorkflow) {
       list.push({
         id: 'create-workflow',
         name: 'Create workflow',
         keywords: 'new add build',
         icon: Plus,
-        context: onCanvas ? 'workflow' : 'global',
+        context: 'global',
         run: onCreateWorkflow,
       })
     }
@@ -280,7 +291,7 @@ export function SearchModal({
         name: 'Create folder',
         keywords: 'new add group',
         icon: FolderPlus,
-        context: onCanvas ? 'workflow' : 'global',
+        context: 'global',
         run: onCreateFolder,
       })
     }
@@ -290,7 +301,7 @@ export function SearchModal({
         name: 'Import workflow',
         keywords: 'upload add',
         icon: Upload,
-        context: onCanvas ? 'workflow' : 'global',
+        context: 'global',
         run: onImportWorkflow,
       })
     }
@@ -551,10 +562,15 @@ export function SearchModal({
   ])
 
   const [search, setSearch] = useState('')
+  /** Tab-toggled ask mode: Enter hands the typed query to Sim as a new chat. */
+  const [askMode, setAskMode] = useState(false)
   const [prevOpen, setPrevOpen] = useState(open)
   if (open !== prevOpen) {
     setPrevOpen(open)
-    if (open) setSearch('')
+    if (open) {
+      setSearch('')
+      setAskMode(false)
+    }
   }
 
   useEffect(() => {
@@ -599,6 +615,20 @@ export function SearchModal({
     })
   }, [])
 
+  /**
+   * Tab flips between searching and asking Sim, keeping the typed text. On the
+   * way back the ask row unmounts while cmdk still remembers it as selected,
+   * so Home re-anchors the selection once the result rows are back.
+   */
+  const handleSearchKeyDown = useCallback((event: ReactKeyboardEvent<HTMLInputElement>) => {
+    if (event.key !== 'Tab' || !isChatEnabled) return
+    event.preventDefault()
+    setAskMode((mode) => !mode)
+    requestAnimationFrame(() => {
+      inputRef.current?.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
+    })
+  }, [])
+
   useEffect(() => {
     if (!open) return
 
@@ -612,6 +642,57 @@ export function SearchModal({
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
   }, [open])
+
+  const handleBlockSelect = useCallback(
+    (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
+      const enableTriggerMode =
+        type === 'trigger' && block.config ? hasTriggerCapability(block.config) : false
+      window.dispatchEvent(
+        new CustomEvent('add-block-from-toolbar', {
+          detail: { type: block.type, enableTriggerMode },
+        })
+      )
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: type,
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleToolOperationSelect = useCallback(
+    (op: SearchToolOperationItem) => {
+      window.dispatchEvent(
+        new CustomEvent('add-block-from-toolbar', {
+          detail: { type: op.blockType, presetOperation: op.operationId },
+        })
+      )
+      captureEvent(posthogRef.current, 'search_result_selected', {
+        result_type: 'tool_operation',
+        query_length: deferredSearchRef.current.length,
+        workspace_id: workspaceId,
+      })
+      onOpenChangeRef.current(false)
+    },
+    [workspaceId]
+  )
+
+  const handleBlockSelectAsBlock = useCallback(
+    (block: SearchBlockItem) => handleBlockSelect(block, 'block'),
+    [handleBlockSelect]
+  )
+
+  const handleBlockSelectAsTool = useCallback(
+    (tool: SearchBlockItem) => handleBlockSelect(tool, 'tool'),
+    [handleBlockSelect]
+  )
+
+  const handleBlockSelectAsTrigger = useCallback(
+    (trigger: SearchBlockItem) => handleBlockSelect(trigger, 'trigger'),
+    [handleBlockSelect]
+  )
 
   const handleWorkflowSelect = useCallback(
     (workflow: WorkflowItem) => {
@@ -780,13 +861,15 @@ export function SearchModal({
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
     if (!sentToMountedHome) {
-      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
+      /* Same mechanism as the integrations "Explore" showcase: seed the chat
+         input on the freshly mounted home surface (integration names chip). */
+      if (!storeCuratedPrompt(query)) {
         logger.warn('Failed to persist command palette query for a new chat', {
           workspaceId,
         })
         return
       }
-      routerRef.current.push(getMothershipHandoffHref(workspaceId))
+      routerRef.current.push(homeHref)
     }
 
     onOpenChangeRef.current(false)
@@ -797,6 +880,22 @@ export function SearchModal({
       workspace_id: workspaceId,
     })
   }, [workspaceId])
+
+  /** Enter in ask mode: hand the query to Sim, or just open a new chat when empty. */
+  const handleAskSim = useCallback(() => {
+    if (deferredSearchRef.current.trim()) {
+      handleNewChatFromQuery()
+      return
+    }
+    routerRef.current.push(`/workspace/${workspaceId}/home`)
+    onOpenChangeRef.current(false)
+    captureEvent(posthogRef.current, 'search_result_selected', {
+      result_type: 'action',
+      action_id: 'new-chat',
+      query_length: 0,
+      workspace_id: workspaceId,
+    })
+  }, [workspaceId, handleNewChatFromQuery])
 
   const handleOverlayClick = useCallback(() => {
     onOpenChangeRef.current(false)
@@ -820,7 +919,7 @@ export function SearchModal({
       query
         ? scoreActions(items, deferredSearch, MAX_RESULTS_PER_GROUP, groupLabel)
         : items.map((item) => ({ item, score: 0 }))
-    const pageGroupLabel = pageContext ? getPageActionGroupLabel(pageContext) : null
+    const pageGroupLabel = pageContext ? ('Actions' as const) : null
     const rankedActions = [
       ...(pageGroupLabel
         ? rankActionGroup(
@@ -829,17 +928,57 @@ export function SearchModal({
           )
         : []),
       ...rankActionGroup(
-        availableActions.filter((action) => getActionGroupLabel(action) === 'Platform'),
-        'Platform'
+        availableActions.filter((action) => getActionGroupLabel(action) === 'Sim'),
+        'Sim'
       ),
     ]
 
+    const onCanvas = pageContext === 'workflow'
+    const availableBlocks = onCanvas
+      ? blocks.filter(
+          (block) => !block.sourceWorkflowId || block.sourceWorkflowId !== currentWorkflowId
+        )
+      : []
+    const availableTools = onCanvas
+      ? tools.filter(
+          (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
+        )
+      : []
+
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
+      blocks: rank(
+        'blocks',
+        availableBlocks,
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'blocks', item, score })),
+      triggers: rank(
+        'triggers',
+        onCanvas
+          ? triggers.map((trigger) => ({ ...trigger, name: `${trigger.name} Trigger` }))
+          : [],
+        (item) => item.name,
+        (item) => `${toSearchToken(item.name)} ${item.id}`
+      ).map(({ item, score }) => ({ section: 'triggers', item, score })),
+      tools: rank(
+        'tools',
+        availableTools,
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'tools', item, score })),
+      toolOperations: rank(
+        'toolOperations',
+        onCanvas ? toolOperations : [],
+        (item) => item.name,
+        (item) => item.searchValue
+      ).map(({ item, score }) => ({ section: 'toolOperations', item, score })),
+      /* An exact page-name query surfaces the page itself above its lifted
+         contents — typing "logs" opens with the Logs page, then the logs. */
       pages: rank('pages', pages, (item) => item.name).map(({ item, score }) => ({
         section: 'pages',
         item,
-        score,
+        score: item.name.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
       })),
       workflows: rank(
         'workflows',
@@ -875,10 +1014,15 @@ export function SearchModal({
         item,
         score,
       })),
-      connectedAccounts: rank('connectedAccounts', connectedAccounts, (item) => item.name).map(
-        ({ item, score }) => ({ section: 'connectedAccounts', item, score })
-      ),
-      integrations: rank('integrations', integrations, (item) => item.name).map(
+      /* On the canvas the blocks/tools sections already cover integration
+         intent — the catalog and connected accounts stay off; the Integrations
+         page row under Pages still navigates there. */
+      connectedAccounts: rank(
+        'connectedAccounts',
+        onCanvas ? [] : connectedAccounts,
+        (item) => item.name
+      ).map(({ item, score }) => ({ section: 'connectedAccounts', item, score })),
+      integrations: rank('integrations', onCanvas ? [] : integrations, (item) => item.name).map(
         ({ item, score }) => ({ section: 'integrations', item, score })
       ),
       chats: rank('chats', chats, (item) => item.name).map(({ item, score }) => ({
@@ -891,6 +1035,11 @@ export function SearchModal({
     deferredSearch,
     actions,
     pageContext,
+    blocks,
+    tools,
+    triggers,
+    toolOperations,
+    currentWorkflowId,
     integrations,
     connectedAccounts,
     chats,
@@ -923,8 +1072,7 @@ export function SearchModal({
     () => (isSearching ? getGlobalSearchResults(entriesBySection, orderedSections) : []),
     [orderedSections, entriesBySection, isSearching]
   )
-  const showNewChatFallback = isSearching && searchResults.length === 0 && isChatEnabled
-  const newChatFallbackLabel = `New Chat: ${searchQuery}`
+  const askSimLabel = searchQuery ? `Ask Sim: ${searchQuery}` : 'Start a new chat'
   const sectionGroups = useMemo(() => {
     const actionEntriesByLabel = (label: ActionGroupLabel) =>
       entriesBySection.actions.filter(
@@ -935,9 +1083,10 @@ export function SearchModal({
       heading: SECTION_LABELS[section],
       entries: entriesBySection[section],
     })
-    const pageGroupLabel = pageContext ? getPageActionGroupLabel(pageContext) : null
+    const pageGroupLabel = pageContext ? ('Actions' as const) : null
     const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
 
+    const canvasSections = new Set<SearchSection>(CANVAS_SECTIONS)
     return [
       ...(pageGroupLabel
         ? [
@@ -951,18 +1100,23 @@ export function SearchModal({
       ...(hoisted ? [entityGroup(hoisted)] : []),
       {
         key: 'platform-actions',
-        heading: 'Platform',
-        entries: actionEntriesByLabel('Platform'),
+        heading: 'Sim',
+        entries: actionEntriesByLabel('Sim'),
       },
-      ...SEARCH_SECTIONS.filter((section) => section !== 'actions' && section !== hoisted).map(
-        entityGroup
-      ),
+      ...CANVAS_SECTIONS.map(entityGroup),
+      ...SEARCH_SECTIONS.filter(
+        (section) => section !== 'actions' && section !== hoisted && !canvasSections.has(section)
+      ).map(entityGroup),
     ]
   }, [entriesBySection, pageContext])
 
   const entryHandlers = useMemo(
     (): SearchEntryHandlers => ({
       onSelectAction: handleActionSelect,
+      onSelectBlock: handleBlockSelectAsBlock,
+      onSelectTool: handleBlockSelectAsTool,
+      onSelectTrigger: handleBlockSelectAsTrigger,
+      onSelectToolOperation: handleToolOperationSelect,
       onSelectConnectedAccount: handleConnectedAccountSelect,
       onSelectIntegration: handleIntegrationSelect,
       onSelectChat: handleChatSelect,
@@ -976,6 +1130,10 @@ export function SearchModal({
     }),
     [
       handleActionSelect,
+      handleBlockSelectAsBlock,
+      handleBlockSelectAsTool,
+      handleBlockSelectAsTrigger,
+      handleToolOperationSelect,
       handleConnectedAccountSelect,
       handleIntegrationSelect,
       handleChatSelect,
@@ -1022,7 +1180,7 @@ export function SearchModal({
             label='Search'
             shouldFilter={false}
             loop
-            value={showNewChatFallback ? newChatFallbackLabel : undefined}
+            value={askMode ? askSimLabel : undefined}
           >
             <div className='relative'>
               <CommandFadedList
@@ -1038,12 +1196,12 @@ export function SearchModal({
                   No results found.
                 </Command.Empty>
 
-                {showNewChatFallback ? (
+                {askMode ? (
                   <MemoizedActionItem
-                    value={newChatFallbackLabel}
-                    onSelect={handleNewChatFromQuery}
+                    value={askSimLabel}
+                    onSelect={handleAskSim}
                     icon={Home}
-                    name={newChatFallbackLabel}
+                    name={askSimLabel}
                   />
                 ) : isSearching ? (
                   <SearchEntryGroup
@@ -1066,11 +1224,19 @@ export function SearchModal({
               <CommandSearch
                 ref={inputRef}
                 surface='palette'
-                cycleResultsOnTab
+                cycleResultsOnTab={!isChatEnabled}
                 autoFocus
-                aria-label='Search anything'
+                aria-label={askMode ? 'Ask Sim' : 'Search anything'}
                 onValueChange={handleSearchChange}
-                placeholder='Search anything...'
+                onKeyDown={handleSearchKeyDown}
+                placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}
+                endAdornment={
+                  isChatEnabled ? (
+                    <span className='flex-shrink-0 whitespace-nowrap text-[var(--text-subtle)] text-xs'>
+                      {askMode ? '⇥ Search' : '⇥ Ask Sim'}
+                    </span>
+                  ) : undefined
+                }
               />
             </div>
           </Command>

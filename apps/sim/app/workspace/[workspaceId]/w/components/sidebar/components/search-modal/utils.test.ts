@@ -8,7 +8,6 @@ import {
   fuzzyMatch,
   getActionGroupLabel,
   getGlobalSearchResults,
-  getPageActionGroupLabel,
   MAX_RESULTS_PER_GROUP,
   type SearchEntry,
   scoreActions,
@@ -24,30 +23,11 @@ describe('getActionGroupLabel', () => {
     run: () => {},
   }
 
-  it('separates page actions from platform actions', () => {
-    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Workflow Actions')
-    expect(getActionGroupLabel({ ...action, context: 'global' })).toBe('Platform')
-  })
-
-  it('groups page actions under their module name', () => {
-    expect(getActionGroupLabel({ ...action, context: 'tables' })).toBe('Table Actions')
-    expect(getActionGroupLabel({ ...action, context: 'tableDetail' })).toBe('Table Actions')
-    expect(getActionGroupLabel({ ...action, context: 'files' })).toBe('File Actions')
-    expect(getActionGroupLabel({ ...action, context: 'fileDetail' })).toBe('File Actions')
-    expect(getActionGroupLabel({ ...action, context: 'knowledge' })).toBe('Knowledge Base Actions')
-    expect(getActionGroupLabel({ ...action, context: 'knowledgeBase' })).toBe(
-      'Knowledge Base Actions'
-    )
-    expect(getActionGroupLabel({ ...action, context: 'logs' })).toBe('Logs Actions')
-    expect(getActionGroupLabel({ ...action, context: 'logsDashboard' })).toBe('Logs Actions')
-    expect(getActionGroupLabel({ ...action, context: 'scheduledTasks' })).toBe(
-      'Scheduled Task Actions'
-    )
-  })
-
-  it('resolves the same module labels for page contexts directly', () => {
-    expect(getPageActionGroupLabel('tables')).toBe('Table Actions')
-    expect(getPageActionGroupLabel('knowledgeBase')).toBe('Knowledge Base Actions')
+  it('separates page actions from Sim actions', () => {
+    expect(getActionGroupLabel({ ...action, context: 'workflow' })).toBe('Actions')
+    expect(getActionGroupLabel({ ...action, context: 'tables' })).toBe('Actions')
+    expect(getActionGroupLabel({ ...action, context: 'logsDashboard' })).toBe('Actions')
+    expect(getActionGroupLabel({ ...action, context: 'global' })).toBe('Sim')
   })
 
   it('lets an action group label surface actions whose names do not match', () => {
@@ -57,10 +37,8 @@ describe('getActionGroupLabel', () => {
       context: 'workflow' as const,
     }
 
-    expect(scoreActions([workflowAction], 'workflow actions', 50, 'Workflow Actions')).toHaveLength(
-      1
-    )
-    expect(scoreActions([workflowAction], 'platform', 50, 'Workflow Actions')).toHaveLength(0)
+    expect(scoreActions([workflowAction], 'actions', 50, 'Actions')).toHaveLength(1)
+    expect(scoreActions([workflowAction], 'platform', 50, 'Actions')).toHaveLength(0)
   })
 })
 
