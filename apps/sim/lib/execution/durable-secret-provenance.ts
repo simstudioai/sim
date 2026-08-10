@@ -1,6 +1,11 @@
 import { createHash } from 'node:crypto'
 import type { DurableSecretProvenanceEntry } from '@sim/db/schema'
 import {
+  type DurableSecretProvenanceSurface,
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
+import {
   isPrivateSecretProvenanceBundleV1,
   type PrivateSecretProvenanceBundleV1,
 } from '@/lib/execution/model-input-provenance'
@@ -191,19 +196,34 @@ export function filterDurableSecretProvenanceBySourceValues(
   return entries ? { status: 'exact', entries } : { status: 'unknown' }
 }
 
-/** Imports durable entries into a model-bound registry, preserving source-scope anonymity. */
+/**
+ * Imports durable entries into a model-bound registry, preserving source-scope anonymity.
+ *
+ * `surface` selects the enforcement policy for provenance nobody recorded. Omitting it enforces,
+ * which is the right default for a caller that has not been reviewed against
+ * {@link isDurableSecretProvenanceEnforced} yet.
+ */
 export async function importDurableSecretProvenance(
   registry: ResolvedSecretTraceRegistry,
   provenance: DurableSecretProvenance,
-  value?: unknown
+  value?: unknown,
+  surface?: DurableSecretProvenanceSurface
 ): Promise<boolean> {
   if (provenance.status === 'unknown') {
-    registry.markIncomplete()
+    if (surface && !isDurableSecretProvenanceEnforced(surface)) {
+      reportUnrecordedDurableProvenance({ surface, cause: 'durable-provenance-unknown' })
+      return true
+    }
+    registry.markIncomplete('durable-provenance-unknown')
     return false
   }
   const entries = normalizeDurableSecretProvenanceEntries(provenance.entries)
   if (!entries) {
-    registry.markIncomplete()
+    /**
+     * Malformed is not unrecorded: a sidecar that exists but cannot be parsed is a fault, and no
+     * enforcement policy relaxes it.
+     */
+    registry.markIncomplete('durable-provenance-malformed')
     return false
   }
 

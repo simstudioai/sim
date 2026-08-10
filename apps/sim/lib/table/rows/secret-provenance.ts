@@ -6,6 +6,10 @@ import {
   userTableRows,
 } from '@sim/db/schema'
 import { and, asc, eq, gt, inArray, type SQL, sql } from 'drizzle-orm'
+import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
 import type { DbExecutor, DbTransaction } from '@/lib/table/planner'
 import type { RowData, TableRowSecretProvenanceWrite } from '@/lib/table/types'
 import {
@@ -768,6 +772,7 @@ export async function loadTableRowSecretProvenance(
   const currentById = new Map(currentRows.map((row) => [row.id, row]))
   const storedEntries: StoredTableRowSecretProvenanceEntry[] = []
 
+  let unrecordedRowCount = 0
   for (const rowId of rowIds) {
     const current = currentById.get(rowId)
     const crossing = crossingById.get(rowId)
@@ -780,7 +785,16 @@ export async function loadTableRowSecretProvenance(
       current.sidecarStatus !== 'exact' ||
       !current.sidecarIsCurrent
     ) {
-      return { version: 1, complete: false, entries: [], scope }
+      /**
+       * One such row would otherwise void the whole page, and a page is what a `query_rows` block
+       * hands downstream — so a single row nobody recorded provenance for latched every run that
+       * read the table. Unenforced, the row contributes nothing, exactly like the legacy row above.
+       */
+      if (isDurableSecretProvenanceEnforced('table-row')) {
+        return { version: 1, complete: false, entries: [], scope }
+      }
+      unrecordedRowCount += 1
+      continue
     }
     const parsed = normalizeStoredEntries(current.sidecarEntries)
     if (!parsed) return { version: 1, complete: false, entries: [], scope }
@@ -792,6 +806,15 @@ export async function loadTableRowSecretProvenance(
     if (storedEntries.length > MAX_PROVENANCE_ENTRIES_PER_RESPONSE) {
       return { version: 1, complete: false, entries: [], scope }
     }
+  }
+
+  if (unrecordedRowCount > 0) {
+    reportUnrecordedDurableProvenance({
+      surface: 'table-row',
+      cause: 'row-sidecar-not-exact',
+      affectedCount: unrecordedRowCount,
+      ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+    })
   }
 
   const entries = aggregateStoredEntries(storedEntries, scope)
