@@ -4,6 +4,32 @@ import { isHosted } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
+/**
+ * Social mark display size. Every `static/*-icon.png` is 40×40, so 20px is a
+ * clean 2x source — email clients do no responsive image selection, so the
+ * asset must be authored at 2x and pinned here. This is deliberately NOT the
+ * platform's 14px UI-icon size: these are brand marks in an image, not
+ * `--text-icon` glyphs, and 14px renders them illegibly.
+ */
+const SOCIAL_ICON_SIZE = 20
+
+/** Gap between social marks. Halved on each side, so the row reads evenly. */
+const SOCIAL_ICON_GAP = 8
+
+/**
+ * `display: block` removes the 2–3px gap Outlook adds under inline images;
+ * `border: 0` prevents the blue link border older Outlook draws around a linked
+ * image.
+ */
+const socialIconStyle = { display: 'block' as const, border: 0 }
+
+const SOCIAL_LINKS = [
+  { path: 'x', label: 'X', icon: 'x-icon.png' },
+  { path: 'linkedin', label: 'LinkedIn', icon: 'linkedin-icon.png' },
+  { path: 'github', label: 'GitHub', icon: 'github-icon.png' },
+  { path: 'slack', label: 'Slack', icon: 'slack-icon.png' },
+] as const
+
 interface EmailFooterProps {
   baseUrl?: string
   messageId?: string
@@ -31,16 +57,6 @@ export function EmailFooter({
   const isWhitelabeled = brand.isWhitelabeled
 
   const footerLinkStyle = baseStyles.footerLink
-
-  /**
-   * Social icons are linked images. `display: block` removes the 2–3px gap
-   * Outlook adds under inline images, and `border: 0` prevents the blue link
-   * border older Outlook versions draw around linked images.
-   */
-  const socialIconStyle = {
-    display: 'block' as const,
-    border: 0,
-  }
 
   return (
     <Section
@@ -75,50 +91,26 @@ export function EmailFooter({
                     <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                       <tbody>
                         <tr>
-                          <td align='left' style={{ padding: '0 8px 0 0' }}>
-                            <Link href={`${baseUrl}/x`} rel='noopener noreferrer'>
-                              <Img
-                                src={`${baseUrl}/static/x-icon.png`}
-                                width='20'
-                                height='20'
-                                alt='X'
-                                style={socialIconStyle}
-                              />
-                            </Link>
-                          </td>
-                          <td align='left' style={{ padding: '0 8px' }}>
-                            <Link href={`${baseUrl}/linkedin`} rel='noopener noreferrer'>
-                              <Img
-                                src={`${baseUrl}/static/linkedin-icon.png`}
-                                width='20'
-                                height='20'
-                                alt='LinkedIn'
-                                style={socialIconStyle}
-                              />
-                            </Link>
-                          </td>
-                          <td align='left' style={{ padding: '0 8px' }}>
-                            <Link href={`${baseUrl}/github`} rel='noopener noreferrer'>
-                              <Img
-                                src={`${baseUrl}/static/github-icon.png`}
-                                width='20'
-                                height='20'
-                                alt='GitHub'
-                                style={socialIconStyle}
-                              />
-                            </Link>
-                          </td>
-                          <td align='left' style={{ padding: '0 8px' }}>
-                            <Link href={`${baseUrl}/slack`} rel='noopener noreferrer'>
-                              <Img
-                                src={`${baseUrl}/static/slack-icon.png`}
-                                width='20'
-                                height='20'
-                                alt='Slack'
-                                style={socialIconStyle}
-                              />
-                            </Link>
-                          </td>
+                          {SOCIAL_LINKS.map(({ path, label, icon }, index) => (
+                            <td
+                              key={path}
+                              align='left'
+                              style={{
+                                paddingLeft: index === 0 ? 0 : SOCIAL_ICON_GAP,
+                                paddingRight: SOCIAL_ICON_GAP,
+                              }}
+                            >
+                              <Link href={`${baseUrl}/${path}`} rel='noopener noreferrer'>
+                                <Img
+                                  src={`${baseUrl}/static/${icon}`}
+                                  width={SOCIAL_ICON_SIZE}
+                                  height={SOCIAL_ICON_SIZE}
+                                  alt={label}
+                                  style={socialIconStyle}
+                                />
+                              </Link>
+                            </td>
+                          ))}
                         </tr>
                       </tbody>
                     </table>
@@ -167,6 +159,11 @@ export function EmailFooter({
               </td>
               <td style={baseStyles.footerText}>
                 Questions?{' '}
+                {/*
+                  A raw anchor, not `<Link>`: react-email's Link hardcodes
+                  target="_blank", which on a mailto: opens a blank tab beside
+                  the compose window in most webmail clients.
+                */}
                 <a href={`mailto:${brand.supportEmail}`} style={footerLinkStyle}>
                   {brand.supportEmail}
                 </a>
@@ -210,24 +207,24 @@ export function EmailFooter({
                 &nbsp;
               </td>
               <td style={baseStyles.footerText}>
-                <a href={`${baseUrl}/privacy`} style={footerLinkStyle} rel='noopener noreferrer'>
+                <Link href={`${baseUrl}/privacy`} style={footerLinkStyle} rel='noopener noreferrer'>
                   Privacy Policy
-                </a>{' '}
+                </Link>{' '}
                 •{' '}
-                <a href={`${baseUrl}/terms`} style={footerLinkStyle} rel='noopener noreferrer'>
+                <Link href={`${baseUrl}/terms`} style={footerLinkStyle} rel='noopener noreferrer'>
                   Terms of Service
-                </a>
+                </Link>
                 {showUnsubscribe && (
                   <>
                     {' '}
                     •{' '}
-                    <a
+                    <Link
                       href={`${baseUrl}/unsubscribe?token={{UNSUBSCRIBE_TOKEN}}&email={{UNSUBSCRIBE_EMAIL}}`}
                       style={footerLinkStyle}
                       rel='noopener noreferrer'
                     >
                       Unsubscribe
-                    </a>
+                    </Link>
                   </>
                 )}
               </td>

@@ -58,8 +58,15 @@ export const colors = buildColors()
  * client default and the only deviation, and it is still a real platform token.
  */
 export const typography = {
+  /**
+   * Mirrors the platform face and its fallback chain
+   * (`apps/sim/app/_styles/fonts/season/season.ts`). This matters more than the
+   * `<Font>` webfont in `EmailLayout` — Gmail and Outlook strip `@font-face`
+   * entirely, so for most recipients the fallback chain IS the rendered font.
+   * It previously listed Apple system faces the platform never uses.
+   */
   fontFamily:
-    "'Season Sans', -apple-system, 'SF Pro Display', 'SF Pro Text', 'Helvetica', sans-serif",
+    "'Season Sans', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
   fontSize: {
     /** `text-caption` */
     caption: '12px',
@@ -103,8 +110,6 @@ export const spacing = {
   gutter: 40,
   sectionGap: 20,
   paragraphGap: 12,
-  /** Logo width in pixels */
-  logoWidth: 90,
 }
 
 export const baseStyles = {
