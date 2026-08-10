@@ -256,8 +256,14 @@ export async function importDurableSecretProvenance(
     }
     const imported =
       value === undefined
-        ? await registry.importProvenance(envelope, { trusted: true })
-        : await registry.importProvenanceForValue(envelope, value, { trusted: true })
+        ? await registry.importProvenance(envelope, {
+            trusted: true,
+            origin: 'durableProvenance.envelope',
+          })
+        : await registry.importProvenanceForValue(envelope, value, {
+            trusted: true,
+            origin: 'durableProvenance.valueEnvelope',
+          })
     complete = imported && complete
   }
   return complete && !registry.isPermanentlyIncomplete()

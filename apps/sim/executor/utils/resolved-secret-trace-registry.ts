@@ -80,6 +80,12 @@ const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessRea
 ])
 
 /**
+ * Origins are caller-supplied strings rather than a closed union, so they carry an explicit bound;
+ * one run reaching this many distinct importers already tells the whole story.
+ */
+const MAX_RETAINED_ORIGINS = 8
+
+/**
  * Why a registry can no longer vouch for what it projects, readable at the point a projection is
  * refused rather than only when the guard trips.
  *
@@ -90,6 +96,8 @@ const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessRea
 export interface ResolvedSecretIncompletenessDiagnostics {
   /** Distinct reasons in first-occurrence order, so the first is what originally cost completeness. */
   readonly reasons: readonly ResolvedSecretIncompletenessReason[]
+  /** Callers that imported an untrustworthy bundle, in first-occurrence order. */
+  readonly origins: readonly string[]
   readonly incompleteInputPathCount: number
   /** Present so a refusal record joins to the mark-time record that shares these counts. */
   readonly activeEntryCount: number
@@ -177,9 +185,23 @@ type PreparedProvenanceFilterResult =
   | { complete: true; filter: PreparedProvenanceFilter }
   | { complete: false; candidateEntries: ReadonlyMap<string, ActiveSecretEntry> }
 
+/** Extra attribution for a latch: which registry it propagated from, and which importer caused it. */
+interface MarkIncompleteContext {
+  source?: ResolvedSecretTraceRegistry
+  origin?: string
+}
+
 export interface ImportResolvedSecretTraceProvenanceOptions {
   trusted: boolean
   anonymous?: boolean
+  /**
+   * Stable dotted identifier for the caller, e.g. `workflowHandler.childCrossing`.
+   *
+   * A bundle that arrives already incomplete condemns the whole run, and the reason alone cannot
+   * say which of the many importers accepted it. Recording the caller is what turns
+   * `source-provenance-incomplete` from a symptom into an address.
+   */
+  origin?: string
 }
 
 export interface ExportResolvedSecretTraceProvenanceForValueOptions {
@@ -627,6 +649,8 @@ export class ResolvedSecretTraceRegistry {
   private readonly incompleteInputPaths = new Map<string, string[]>()
   /** Insertion-ordered; see {@link ResolvedSecretIncompletenessDiagnostics}. */
   private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
+  /** Import callers that cost this registry its completeness; bounded by {@link MAX_RETAINED_ORIGINS}. */
+  private readonly incompletenessOrigins = new Set<string>()
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
@@ -681,7 +705,7 @@ export class ResolvedSecretTraceRegistry {
     }
     this.copyResolvedInputPathsTo(fork)
     this.copyIncompleteInputPathsTo(fork)
-    if (!this.complete) fork.markIncomplete('inherited-incomplete-source', this)
+    if (!this.complete) fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
   }
 
@@ -692,12 +716,12 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
     if (!this.complete) {
-      fork.markIncomplete('inherited-incomplete-source', this)
+      fork.markIncomplete('inherited-incomplete-source', { source: this })
       return fork
     }
 
     if (this.hasIncompleteInputPathOverlapping(paths)) {
-      fork.markIncomplete('inherited-incomplete-input-path', this)
+      fork.markIncomplete('inherited-incomplete-input-path', { source: this })
       return fork
     }
 
@@ -721,7 +745,8 @@ export class ResolvedSecretTraceRegistry {
         fork.addActiveEntry({ ...entry }, { propagated: true })
       }
     }
-    if (this.isPermanentlyIncomplete()) fork.markIncomplete('inherited-incomplete-source', this)
+    if (this.isPermanentlyIncomplete())
+      fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
   }
 
@@ -733,7 +758,7 @@ export class ResolvedSecretTraceRegistry {
     }
 
     if (!child.isComplete()) {
-      this.markIncomplete('inherited-incomplete-source', child)
+      this.markIncomplete('inherited-incomplete-source', { source: child })
       return
     }
 
@@ -1100,12 +1125,12 @@ export class ResolvedSecretTraceRegistry {
     options: ImportResolvedSecretTraceProvenanceOptions
   ): Promise<boolean> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markIncomplete('untrusted-provenance')
+      this.markIncomplete('untrusted-provenance', { origin: options.origin })
       return false
     }
 
     if (!provenance.complete) {
-      this.markIncomplete('source-provenance-incomplete')
+      this.markIncomplete('source-provenance-incomplete', { origin: options.origin })
     }
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
@@ -1128,7 +1153,7 @@ export class ResolvedSecretTraceRegistry {
         importedAll = false
         decryptFailures += 1
         firstDecryptError ??= getErrorMessage(error, 'Unknown error')
-        this.markIncomplete('entry-decrypt-failed')
+        this.markIncomplete('entry-decrypt-failed', { origin: options.origin })
       }
     }
 
@@ -1156,7 +1181,7 @@ export class ResolvedSecretTraceRegistry {
   async importProvenanceForValue(
     provenance: unknown,
     value: unknown,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<boolean> {
     const result = await this.importProvenanceForValueInternal(provenance, value, options)
     return result.success
@@ -1167,7 +1192,7 @@ export class ResolvedSecretTraceRegistry {
     provenance: unknown,
     value: unknown,
     inputPath: ResolvedSecretInputPath | undefined,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     return this.importProvenanceForValueInternal(provenance, value, {
       ...options,
@@ -1178,28 +1203,39 @@ export class ResolvedSecretTraceRegistry {
   private async importProvenanceForValueInternal(
     provenance: unknown,
     value: unknown,
-    options: { trusted: boolean; inputPath?: ResolvedSecretInputPath }
+    options: { trusted: boolean; inputPath?: ResolvedSecretInputPath; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted')
+      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted', options.origin)
       return { success: false, matched: false }
     }
 
     const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
-    const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
+    const sourceImported = await sourceRegistry.importProvenance(provenance, {
+      trusted: true,
+      origin: options.origin,
+    })
     const filteredProvenance = sourceRegistry.exportProvenanceForValue(value)
     if (!sourceImported) {
-      this.markInputPathIncomplete(options.inputPath, 'value-provenance-import-failed')
+      this.markInputPathIncomplete(
+        options.inputPath,
+        'value-provenance-import-failed',
+        options.origin
+      )
       return { success: false, matched: false }
     }
     if (!filteredProvenance.complete) {
       this.markInputPathIncomplete(
         options.inputPath,
-        provenance.complete ? 'value-provenance-filter-incomplete' : 'source-provenance-incomplete'
+        provenance.complete ? 'value-provenance-filter-incomplete' : 'source-provenance-incomplete',
+        options.origin
       )
       return { success: true, matched: false }
     }
-    const filteredImported = await this.importProvenance(filteredProvenance, { trusted: true })
+    const filteredImported = await this.importProvenance(filteredProvenance, {
+      trusted: true,
+      origin: options.origin,
+    })
     if (options.inputPath && options.inputPath.length > 0 && filteredProvenance.complete) {
       const sameScope = scopesMatch(filteredProvenance.scope, this.scope)
       this.bindResolvedInputPathEntries(
@@ -1228,7 +1264,7 @@ export class ResolvedSecretTraceRegistry {
   async importCrossingProvenance(
     provenance: unknown,
     crossingValue: unknown,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<boolean> {
     return this.importProvenanceForValue(provenance, crossingValue, options)
   }
@@ -1351,6 +1387,7 @@ export class ResolvedSecretTraceRegistry {
     if (!this.isPermanentlyIncomplete()) return undefined
     return {
       reasons: [...this.incompletenessReasons],
+      origins: [...this.incompletenessOrigins],
       incompleteInputPathCount: this.incompleteInputPaths.size,
       activeEntryCount: this.activeEntries.size,
       ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
@@ -1362,12 +1399,19 @@ export class ResolvedSecretTraceRegistry {
     this.incompletenessReasons.add(reason)
   }
 
+  /** Retains the importing caller, keeping the earliest once the bound is reached. */
+  private recordIncompletenessOrigin(origin: string): void {
+    if (this.incompletenessOrigins.size >= MAX_RETAINED_ORIGINS) return
+    this.incompletenessOrigins.add(origin)
+  }
+
   /**
    * Carries a source registry's reasons into a fork or merge target, so a refusal downstream still
    * names the guard that originally tripped rather than only the propagation that reached it.
    */
   private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
     for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
+    for (const origin of source.incompletenessOrigins) this.recordIncompletenessOrigin(origin)
   }
 
   isPermanentlyIncomplete(): boolean {
@@ -1376,16 +1420,18 @@ export class ResolvedSecretTraceRegistry {
 
   markIncomplete(
     reason: ResolvedSecretIncompletenessReason = 'unspecified',
-    source?: ResolvedSecretTraceRegistry
+    context: MarkIncompleteContext = {}
   ): void {
-    if (source) this.inheritIncompletenessReasonsFrom(source)
+    if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
     this.recordIncompletenessReason(reason)
+    if (context.origin) this.recordIncompletenessOrigin(context.origin)
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
     if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
     const details = {
       reason,
+      ...(context.origin ? { origin: context.origin } : {}),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
       incompleteInputPathCount: this.incompleteInputPaths.size,
@@ -1824,13 +1870,15 @@ export class ResolvedSecretTraceRegistry {
 
   private markInputPathIncomplete(
     path: ResolvedSecretInputPath | undefined,
-    reason: ResolvedSecretIncompletenessReason = 'unspecified'
+    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    origin?: string
   ): void {
     if (!path || path.length === 0) {
-      this.markIncomplete(reason)
+      this.markIncomplete(reason, { origin })
       return
     }
     this.recordIncompletenessReason(reason)
+    if (origin) this.recordIncompletenessOrigin(origin)
     const key = inputPathKey(path)
     if (this.incompleteInputPaths.has(key)) return
     this.incompleteInputPaths.set(key, [...path])
@@ -1838,6 +1886,7 @@ export class ResolvedSecretTraceRegistry {
     if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
     const details = {
       reason,
+      ...(origin ? { origin } : {}),
       inputPath: path.join('.'),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,

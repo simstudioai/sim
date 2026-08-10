@@ -208,7 +208,10 @@ describe('POST /api/providers', () => {
     )
 
     expect(res.status).toBe(200)
-    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, { trusted: true })
+    expect(mockImportProvenance).toHaveBeenCalledWith(provenance, {
+      trusted: true,
+      origin: 'providersRoute.requestProvenance',
+    })
   })
 
   it('projects legacy private prompt provenance on the provider-facing copy', async () => {

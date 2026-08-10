@@ -544,7 +544,7 @@ async function executeWorkflowCoreImpl(
     if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
       await resolvedSecretTraceRegistry.importProvenance(
         options.trustedInitialResolvedSecretTraceProvenance,
-        { trusted: true }
+        { trusted: true, origin: 'executionCore.initialProvenance' }
       )
     }
     loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)

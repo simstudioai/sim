@@ -256,7 +256,13 @@ export async function createTableRowSecretProvenanceFromEncryptedExecution(
     return createUnknownTableRowSecretProvenance()
   }
   const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-  if (!(await registry.importProvenance(provenance, { trusted: true })) || !registry.isComplete()) {
+  if (
+    !(await registry.importProvenance(provenance, {
+      trusted: true,
+      origin: 'tableRow.encryptedExecution',
+    })) ||
+    !registry.isComplete()
+  ) {
     return createUnknownTableRowSecretProvenance()
   }
   return createTableRowSecretProvenanceFromRegistry(data, registry)

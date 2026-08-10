@@ -272,7 +272,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       const provenanceReady =
         await providerRuntimeContext.resolvedSecretTraceRegistry.importProvenance(
           provenanceInspection.value,
-          { trusted: true }
+          { trusted: true, origin: 'providersRoute.requestProvenance' }
         )
       if (!provenanceReady || !providerRuntimeContext.resolvedSecretTraceRegistry.isComplete()) {
         return NextResponse.json(

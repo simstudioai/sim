@@ -1213,7 +1213,8 @@ function consumeResolvedSecretNames(
 
 async function consumeResolvedSecretProvenance(
   payload: unknown,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<boolean> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) return false
 
@@ -1228,6 +1229,7 @@ async function consumeResolvedSecretProvenance(
   const targetRegistry = registry.forkForToolCall()
   const imported = await targetRegistry.importCrossingProvenance(provenance, response, {
     trusted: true,
+    origin: `tool.${toolId}`,
   })
   if (!imported) return false
   registry.mergeToolCallRegistry(targetRegistry)
@@ -1275,7 +1277,8 @@ async function consumePrivateToolPayloadMetadata(
   headers: Headers,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<PrivateToolMetadataConsumption> {
   if (!requestedType) return 'verified'
 
@@ -1334,7 +1337,7 @@ async function consumePrivateToolPayloadMetadata(
     ) {
       if (!consumeResolvedSecretNames(record, params, registry)) return 'invalid'
     } else {
-      if (!(await consumeResolvedSecretProvenance(record, registry))) return 'invalid'
+      if (!(await consumeResolvedSecretProvenance(record, registry, toolId))) return 'invalid'
     }
   } catch {
     return 'invalid'
@@ -1349,7 +1352,8 @@ async function consumePrivateToolResponseMetadata(
   response: Response,
   requestedType: PrivateToolMetadataType | undefined,
   params: Record<string, any>,
-  registry?: ResolvedSecretTraceRegistry
+  registry: ResolvedSecretTraceRegistry | undefined,
+  toolId: string
 ): Promise<PrivateToolResponseMetadataResult> {
   if (!requestedType) return { response }
 
@@ -1373,7 +1377,8 @@ async function consumePrivateToolResponseMetadata(
     response.headers,
     requestedType,
     params,
-    registry
+    registry,
+    toolId
   )
   if (consumption === 'invalid') {
     return { response: rebuildSafePrivateToolResponse(response) }
@@ -2577,7 +2582,8 @@ async function executeToolRequest(
       response,
       privateToolMetadataType,
       params,
-      resolvedSecretTraceRegistry
+      resolvedSecretTraceRegistry,
+      toolId
     )
     response = privateMetadata.response
 
@@ -3003,7 +3009,8 @@ async function executeMcpTool(
         response,
         privateToolMetadataType,
         params,
-        resolvedSecretTraceRegistry
+        resolvedSecretTraceRegistry,
+        toolId
       )
     ).response
 

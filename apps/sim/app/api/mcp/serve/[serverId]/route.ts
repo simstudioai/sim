@@ -215,7 +215,10 @@ async function projectWorkflowToolOutput(
   }
 
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  const imported = await registry.importProvenance(provenance, { trusted: true })
+  const imported = await registry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'mcpServe.workflowCrossing',
+  })
   if (!imported || !registry.isComplete()) {
     throw new Error('MCP workflow execution provenance could not be restored')
   }

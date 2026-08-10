@@ -293,7 +293,7 @@ describe('MothershipBlockHandler', () => {
         content: 'raw secret remains functional',
         __resolvedSecretTraceProvenance: undefined,
       }),
-      { trusted: true }
+      { trusted: true, origin: 'mothership.payloadCrossing' }
     )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(result).toMatchObject({ content: 'raw secret remains functional' })
@@ -519,7 +519,7 @@ describe('MothershipBlockHandler', () => {
         error: 'secret-backed failure',
         __resolvedSecretTraceProvenance: undefined,
       }),
-      { trusted: true }
+      { trusted: true, origin: 'mothership.payloadCrossing' }
     )
     expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
     expect(context.errorResolvedSecretTraceRegistry).not.toBe(context.resolvedSecretTraceRegistry)
@@ -557,7 +557,7 @@ describe('MothershipBlockHandler', () => {
         error: 'secret-backed failure',
         __resolvedSecretTraceProvenance: undefined,
       }),
-      { trusted: true }
+      { trusted: true, origin: 'mothership.payloadCrossing' }
     )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(context.errorResolvedSecretTraceRegistry).toBeDefined()
@@ -601,7 +601,7 @@ describe('MothershipBlockHandler', () => {
         content: 'unchanged',
         __resolvedSecretTraceProvenance: undefined,
       }),
-      { trusted: true }
+      { trusted: true, origin: 'mothership.payloadCrossing' }
     )
     expect(registry.markIncomplete).not.toHaveBeenCalled()
     expect(JSON.stringify(result.execution.output)).not.toContain('__resolvedSecretTraceProvenance')

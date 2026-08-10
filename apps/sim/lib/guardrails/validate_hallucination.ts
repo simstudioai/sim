@@ -143,6 +143,7 @@ async function queryKnowledgeBase(
       functionalResponse = { ...payload }
       delete functionalResponse[RESOLVED_SECRET_PROVENANCE_FIELD]
       const imported = await resultRegistry.importProvenance(inspection.value, {
+        origin: 'guardrails.hallucinationResult',
         trusted: true,
       })
       if (!imported || !resultRegistry.isComplete()) {
