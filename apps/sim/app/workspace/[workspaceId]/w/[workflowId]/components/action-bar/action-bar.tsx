@@ -53,10 +53,15 @@ const ACTION_BUTTON_STYLES = [
  * as bars bunched in some places and spread in others. One element spanning the
  * row has one gradient, and therefore one phase.
  *
+ * Stops are measured along the 105° axis, not horizontally, so both carry a
+ * `sin(105°)` factor: an 8px bar on an 11px period reads as roughly 8.3px of
+ * fill to 3.1px of gap. Widen the first stop toward the second to close the
+ * gap further; equal stops would fill solid.
+ *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
 const RUNNING_HATCH =
-  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_5.8px,transparent_5.8px_11.6px)]'
+  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_8px,transparent_8px_11px)]'
 
 /** Left edge of the hatch: clears the run/stop button, which stays live mid-run. */
 const RUNNING_HATCH_INSET_SWELL = 'left-[42px]'
