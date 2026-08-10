@@ -29,16 +29,16 @@ import { __resetCoalesceLocallyForTests } from '@/lib/concurrency/singleflight'
 import { ZOOM_SERVICE_ACCOUNT_PROVIDER_ID } from '@/lib/credentials/client-credential-accounts/descriptors'
 import { refreshOAuthToken } from '@/lib/oauth'
 import {
-  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
-  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
-  SLACK_CUSTOM_BOT_PROVIDER_ID,
-} from '@/lib/oauth/types'
-import {
   getCredential,
   refreshAccessTokenIfNeeded,
   refreshTokenIfNeeded,
   resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import {
+  ATLASSIAN_SERVICE_ACCOUNT_PROVIDER_ID,
+  GOOGLE_SERVICE_ACCOUNT_PROVIDER_ID,
+  SLACK_CUSTOM_BOT_PROVIDER_ID,
+} from '@/lib/oauth/types'
 
 const mockDb = db as any
 const mockRefreshOAuthToken = refreshOAuthToken as any

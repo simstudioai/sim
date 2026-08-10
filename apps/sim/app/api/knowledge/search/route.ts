@@ -12,7 +12,7 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import { prepareKnowledgeModelInputProvenance } from '@/lib/knowledge/model-input-provenance'
-import { createKnowledgeRegistryResponse } from '@/app/api/knowledge/secret-provenance'
+import { finalizeKnowledgeRegistryResponse } from '@/app/api/knowledge/secret-provenance'
 
 export const POST = defineInternalJsonRoute({
   contract: internalKnowledgeSearchContract,
@@ -70,11 +70,11 @@ export const POST = defineInternalJsonRoute({
       ...(result.cost ? { cost: result.cost } : {}),
     },
   }),
-  renderResponse: ({ request, principal, result, body }) => {
+  finalizeResponse: ({ request, principal, result, body }) => {
     if (!result.resultSecretRegistry) {
       throw new Error('Internal Knowledge search did not produce a provenance registry')
     }
-    return createKnowledgeRegistryResponse({
+    return finalizeKnowledgeRegistryResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       body,

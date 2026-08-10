@@ -1,6 +1,9 @@
 import { triggerKnowledgeConnectorSyncContract } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
-import { resolveInternalKnowledgeBillingAttribution } from '@/lib/knowledge/api/internal-route'
+import {
+  internalKnowledgeAnalytics,
+  resolveInternalKnowledgeBillingAttribution,
+} from '@/lib/knowledge/api/internal-route'
 import {
   internalKnowledgeErrorPolicies,
   internalKnowledgeSessionOrExecutorAuth,
@@ -25,5 +28,6 @@ export const POST = defineInternalJsonRoute({
     source: 'ui' as const,
   }),
   useCase: syncKnowledgeConnector,
+  onSuccess: internalKnowledgeAnalytics.connectorSynced,
   present: () => ({ success: true as const, message: 'Sync triggered' }),
 })

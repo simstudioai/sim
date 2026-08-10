@@ -4,6 +4,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
+  internalKnowledgeAnalytics,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeConnector,
 } from '@/lib/knowledge/api/internal-route'
@@ -53,6 +54,7 @@ export const POST = defineInternalJsonRoute({
     source: 'ui' as const,
   }),
   useCase: createKnowledgeConnector,
+  onSuccess: internalKnowledgeAnalytics.connectorAdded,
   present: ({ connector }) => ({
     success: true as const,
     data: toInternalKnowledgeConnector(connector),

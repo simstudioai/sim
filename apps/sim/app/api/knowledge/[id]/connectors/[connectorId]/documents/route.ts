@@ -25,6 +25,8 @@ export const GET = defineInternalJsonRoute({
     knowledgeBaseId: params.id,
     connectorId: params.connectorId,
     includeExcluded: query.includeExcluded,
+    limit: query.limit,
+    offset: query.offset,
   }),
   useCase: listKnowledgeConnectorDocuments,
   present: ({ documents, counts }) => ({

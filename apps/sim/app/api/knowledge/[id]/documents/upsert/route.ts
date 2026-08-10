@@ -2,6 +2,7 @@ import { upsertKnowledgeDocumentContract } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
+  internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
   resolveInternalKnowledgeBillingAttribution,
 } from '@/lib/knowledge/api/internal-route'
@@ -12,7 +13,7 @@ import {
 import { upsertKnowledgeDocument } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
-  createKnowledgeProvenanceResponse,
+  finalizeKnowledgeProvenanceResponse,
   resolveKnowledgeDocumentWriteSecretProvenance,
 } from '@/app/api/knowledge/secret-provenance'
 
@@ -58,6 +59,7 @@ export const POST = defineInternalJsonRoute({
     },
   }),
   useCase: upsertKnowledgeDocument,
+  onSuccess: internalKnowledgeAnalytics.documentUpserted,
   present: ({ document, isUpdate, previousDocumentId, processingConfig }) => ({
     success: true as const,
     data: {
@@ -74,8 +76,8 @@ export const POST = defineInternalJsonRoute({
       processingConfig,
     },
   }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgeProvenanceResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgeProvenanceResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: result.userId,

@@ -31,6 +31,12 @@ export const knowledgeOperations = {
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
   }),
+  listArchived: defineWorkspaceOperation({
+    id: 'knowledge.list_archived',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...HUMAN_AND_COPILOT_PRINCIPAL_POLICY,
+  }),
   read: defineWorkspaceOperation({
     id: 'knowledge.read',
     minimumRole: 'read',

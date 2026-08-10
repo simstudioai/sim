@@ -6,6 +6,7 @@ import {
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
   internalKnowledgeActorUserId,
+  internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeDocument,
@@ -21,7 +22,7 @@ import {
 } from '@/lib/knowledge/application/documents'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
-import { createKnowledgePersistedResponse } from '@/app/api/knowledge/secret-provenance'
+import { finalizeKnowledgePersistedResponse } from '@/app/api/knowledge/secret-provenance'
 
 export const GET = defineInternalJsonRoute({
   contract: getKnowledgeDocumentContract,
@@ -40,8 +41,8 @@ export const GET = defineInternalJsonRoute({
     success: true as const,
     data: toInternalKnowledgeDocument(document),
   }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgePersistedResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeActorUserId(principal),
@@ -106,6 +107,7 @@ export const DELETE = defineInternalJsonRoute({
     source: 'ui',
   }),
   useCase: deleteKnowledgeDocument,
+  onSuccess: internalKnowledgeAnalytics.documentDeleted,
   present: () => ({
     success: true as const,
     data: { success: true, message: 'Document deleted successfully' },

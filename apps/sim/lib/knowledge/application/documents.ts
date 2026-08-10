@@ -6,7 +6,6 @@ import { and, eq, isNull } from 'drizzle-orm'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -29,6 +28,7 @@ import {
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import {
   bulkDocumentOperation,
   bulkDocumentOperationByFilter,
@@ -52,7 +52,6 @@ import {
   performUploadKnowledgeDocuments,
 } from '@/lib/knowledge/orchestration/documents'
 import type { KnowledgeDocumentWriteSecretProvenance } from '@/lib/knowledge/secret-provenance'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
@@ -327,6 +326,15 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: CreateKnowledgeDocumentsInput }) =>
     resolveActiveKnowledgeBaseContext(input),
   async execute({ principal, input, context, request }) {
+    if (input.documents.length === 0) {
+      throw new OrchestrationError('validation', 'No documents specified')
+    }
+    if (input.documents.length > MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE) {
+      throw new OrchestrationError(
+        'validation',
+        `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
+      )
+    }
     const billingAttribution = input.resolveBillingAttribution
       ? await input.resolveBillingAttribution(context.workspaceId)
       : await resolveKnowledgeBillingAttribution(principal, context)
@@ -357,6 +365,8 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         userId,
         source: input.source ?? 'ui',
         request,
+        recordSemanticAudit: false,
+        recordProductAnalytics: false,
       })
       if (!outcome.success) {
         if (outcome.errorCode === 'internal') throw new Error('Knowledge document creation failed')
@@ -380,6 +390,7 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           },
         },
         workspaceId: context.workspaceId,
+        knowledgeBaseId: context.knowledgeBaseId,
         userId,
         secretProvenances,
       }
@@ -396,6 +407,8 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       userId,
       source: input.source ?? 'ui',
       request,
+      recordSemanticAudit: false,
+      recordProductAnalytics: false,
     })
     if (!outcome.success) {
       if (outcome.errorCode === 'internal') throw new Error('Knowledge document creation failed')
@@ -407,6 +420,38 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       workspaceId: context.workspaceId,
       userId,
       secretProvenances,
+    }
+  },
+  projectAudit: ({ input, context, result }) => {
+    if (result.kind === 'bulk') {
+      return {
+        action: AuditAction.DOCUMENT_UPLOADED,
+        resourceType: AuditResourceType.DOCUMENT,
+        resourceId: context.knowledgeBaseId,
+        resourceName: `${result.data.total} document(s)`,
+        description: `Uploaded ${result.data.total} document(s) to knowledge base "${context.knowledgeBase.name}"`,
+        metadata: {
+          source: input.source,
+          knowledgeBaseId: context.knowledgeBaseId,
+          knowledgeBaseName: context.knowledgeBase.name,
+          fileCount: result.data.total,
+        },
+      }
+    }
+    return {
+      action: AuditAction.DOCUMENT_UPLOADED,
+      resourceType: AuditResourceType.DOCUMENT,
+      resourceId: result.data.id,
+      resourceName: result.data.filename,
+      description: `Uploaded document "${result.data.filename}" to knowledge base "${context.knowledgeBase.name}"`,
+      metadata: {
+        source: input.source,
+        knowledgeBaseId: context.knowledgeBaseId,
+        knowledgeBaseName: context.knowledgeBase.name,
+        fileName: result.data.filename,
+        fileType: result.data.mimeType,
+        fileSize: result.data.fileSize,
+      },
     }
   },
 })
@@ -507,6 +552,7 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     const { maxConcurrentDocuments, batchSize } = getProcessingConfig()
     return {
       document: createdDocument,
+      knowledgeBaseId: context.knowledgeBaseId,
       isUpdate,
       previousDocumentId: existingDocumentId,
       processingConfig: { maxConcurrentDocuments, batchSize },
@@ -532,14 +578,6 @@ export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
       isUpdate: result.isUpdate,
     },
   }),
-  afterSuccess: ({ input, context }) => {
-    PlatformEvents.knowledgeBaseDocumentsUploaded({
-      knowledgeBaseId: context.knowledgeBaseId,
-      documentsCount: 1,
-      uploadType: 'single',
-      recipe: input.processingOptions?.recipe,
-    })
-  },
 })
 
 export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
@@ -554,6 +592,8 @@ export const deleteKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     )
     return {
       id: context.documentId,
+      knowledgeBaseId: context.knowledgeBaseId,
+      workspaceId: context.workspaceId,
       filename: context.document.filename,
       fileSize: context.document.fileSize,
       mimeType: context.document.mimeType,
@@ -664,24 +704,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         mimeType: document.mimeType,
       },
     })),
-  afterSuccess: ({ principal, context, result }) => {
-    try {
-      const userId = resolveKnowledgeAttributedUserId(principal, context)
-      for (const _document of result.deletedDocuments) {
-        captureServerEvent(
-          userId,
-          'knowledge_base_document_deleted',
-          {
-            knowledge_base_id: context.knowledgeBaseId,
-            workspace_id: context.workspaceId,
-          },
-          { groups: { workspace: context.workspaceId } }
-        )
-      }
-    } finally {
-      rethrowKnowledgeBatchTerminalFailure(result)
-    }
-  },
+  afterSuccess: ({ result }) => rethrowKnowledgeBatchTerminalFailure(result),
 })
 
 export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({

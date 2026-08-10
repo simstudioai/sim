@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { authMockFns, createMockRequest } from '@sim/testing'
-import { NextRequest, NextResponse } from 'next/server'
+import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -102,9 +102,9 @@ vi.mock('@/lib/knowledge/application/upload-sessions', () => ({
 }))
 
 vi.mock('@/app/api/knowledge/secret-provenance', () => ({
-  createKnowledgePersistedResponse: mocks.persistedResponse,
-  createKnowledgeProvenanceResponse: mocks.provenanceResponse,
-  createKnowledgeRegistryResponse: mocks.registryResponse,
+  finalizeKnowledgePersistedResponse: mocks.persistedResponse,
+  finalizeKnowledgeProvenanceResponse: mocks.provenanceResponse,
+  finalizeKnowledgeRegistryResponse: mocks.registryResponse,
   resolveKnowledgeDocumentWriteSecretProvenance: mocks.resolveDocumentProvenance,
 }))
 
@@ -175,9 +175,9 @@ describe('migrated internal Knowledge routes', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authMockFns.mockGetSession.mockResolvedValue(session)
-    mocks.persistedResponse.mockImplementation(({ body }) => NextResponse.json(body))
-    mocks.provenanceResponse.mockImplementation(({ body }) => NextResponse.json(body))
-    mocks.registryResponse.mockImplementation(({ body }) => NextResponse.json(body))
+    mocks.persistedResponse.mockResolvedValue({})
+    mocks.provenanceResponse.mockResolvedValue({})
+    mocks.registryResponse.mockReturnValue({})
     mocks.resolveDocumentProvenance.mockReturnValue({ success: true })
   })
 
@@ -301,6 +301,7 @@ describe('migrated internal Knowledge routes', () => {
   it('keeps document upsert admission behind auth and preserves its response', async () => {
     mocks.upsertDocument.mockResolvedValue({
       document: { documentId: 'document-2', filename: 'new.txt' },
+      knowledgeBaseId: 'knowledge-1',
       isUpdate: false,
       previousDocumentId: null,
       processingConfig: { maxConcurrentDocuments: 5, batchSize: 10 },
@@ -327,6 +328,54 @@ describe('migrated internal Knowledge routes', () => {
         processingMethod: 'background',
       }),
     })
+    expect(mocks.platformUpload).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseId: 'knowledge-1', documentsCount: 1 })
+    )
+  })
+
+  it('runs internal document analytics only after application success', async () => {
+    mocks.createDocuments.mockResolvedValue({
+      kind: 'single',
+      data: document,
+      workspaceId: 'workspace-1',
+      userId: 'user-1',
+    })
+    const request = createMockRequest('POST', {
+      bulk: false,
+      filename: document.filename,
+      fileUrl: document.fileUrl,
+      fileSize: document.fileSize,
+      mimeType: document.mimeType,
+    })
+
+    const response = await createDocuments(request, {
+      params: Promise.resolve({ id: 'knowledge-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.platformUpload).toHaveBeenCalledOnce()
+    expect(mocks.capture).toHaveBeenCalledOnce()
+    expect(mocks.createDocuments.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.platformUpload.mock.invocationCallOrder[0]
+    )
+  })
+
+  it('rejects oversized document-create arrays at the contract boundary', async () => {
+    const response = await createDocuments(
+      createMockRequest('POST', {
+        bulk: true,
+        documents: Array.from({ length: 101 }, (_, index) => ({
+          filename: `document-${index}.txt`,
+          fileUrl: `https://example.com/document-${index}.txt`,
+          fileSize: 1,
+          mimeType: 'text/plain',
+        })),
+      }),
+      { params: Promise.resolve({ id: 'knowledge-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.createDocuments).not.toHaveBeenCalled()
   })
 
   it('preserves connector-document list and mutation envelopes', async () => {
@@ -348,7 +397,7 @@ describe('migrated internal Knowledge routes', () => {
     const params = Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' })
     const listResponse = await listConnectorDocuments(
       new NextRequest(
-        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=true'
+        'http://localhost/api/knowledge/knowledge-1/connectors/connector-1/documents?includeExcluded=true&limit=25&offset=50'
       ),
       { params }
     )
@@ -363,7 +412,7 @@ describe('migrated internal Knowledge routes', () => {
     })
     expect(mocks.listConnectorDocuments).toHaveBeenLastCalledWith(
       expect.objectContaining({
-        input: expect.objectContaining({ includeExcluded: true }),
+        input: expect.objectContaining({ includeExcluded: true, limit: 25, offset: 50 }),
       })
     )
 
@@ -393,6 +442,19 @@ describe('migrated internal Knowledge routes', () => {
       success: true,
       data: { excludedCount: 1, documentIds: ['document-1'] },
     })
+  })
+
+  it('rejects oversized connector-document mutations at the contract boundary', async () => {
+    const response = await updateConnectorDocuments(
+      createMockRequest('PATCH', {
+        operation: 'exclude',
+        documentIds: Array.from({ length: 101 }, (_, index) => `document-${index}`),
+      }),
+      { params: Promise.resolve({ id: 'knowledge-1', connectorId: 'connector-1' }) }
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.updateConnectorDocuments).not.toHaveBeenCalled()
   })
 
   it('preserves search cost shape and sanitizes infrastructure errors', async () => {

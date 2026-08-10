@@ -95,7 +95,7 @@ async function buildAtlassianServiceAccountSecret(
     ...(validation.emailAddress ? { label: validation.emailAddress } : {}),
   }
   // `atlassianAccountId` stays at the blob's top level: `getAtlassianServiceAccountSecret`
-  // in `app/api/auth/oauth/utils.ts` reads it there on every existing credential.
+  // in `lib/oauth/credential-service.ts` reads it there on every existing credential.
   const blob = JSON.stringify({
     type: ATLASSIAN_SERVICE_ACCOUNT_SECRET_TYPE,
     apiToken,

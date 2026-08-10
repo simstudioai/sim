@@ -5,6 +5,7 @@ import {
 } from '@/lib/api/contracts/knowledge'
 import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/routes'
 import {
+  internalKnowledgeAnalytics,
   toInternalKnowledgeConnector,
   toInternalKnowledgeConnectorDetail,
 } from '@/lib/knowledge/api/internal-route'
@@ -74,5 +75,6 @@ export const DELETE = defineInternalJsonRoute({
     source: 'ui' as const,
   }),
   useCase: deleteKnowledgeConnector,
+  onSuccess: internalKnowledgeAnalytics.connectorRemoved,
   present: () => ({ success: true as const }),
 })

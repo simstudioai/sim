@@ -235,7 +235,9 @@ describe('performDeleteKnowledgeBase', () => {
     })
 
     expect(outcome.success).toBe(true)
-    expect(mockDeleteKnowledgeBase).toHaveBeenCalledWith('kb-1', 'req-1')
+    expect(mockDeleteKnowledgeBase).toHaveBeenCalledWith('kb-1', 'req-1', {
+      assertedWorkspaceId: undefined,
+    })
     expect(mockRecordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ actorId: 'user-1', resourceId: 'kb-1' })
     )

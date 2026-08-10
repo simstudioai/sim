@@ -15,7 +15,7 @@ import {
 import { privateSecretProvenanceBundleSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
-import { getFieldTypeForSlot } from '@/lib/knowledge/constants'
+import { getFieldTypeForSlot, MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE } from '@/lib/knowledge/constants'
 import { getOperatorsForFieldType, isValidFilterValue } from '@/lib/knowledge/filters/types'
 
 export const documentTagFilterSchema = z
@@ -129,7 +129,13 @@ export const createDocumentBodySchema = z.object({
 })
 
 export const bulkCreateDocumentsBodySchema = z.object({
-  documents: z.array(createDocumentBodySchema),
+  documents: z
+    .array(createDocumentBodySchema)
+    .min(1, 'At least one document is required')
+    .max(
+      MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE,
+      `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
+    ),
   processingOptions: z
     .object({
       recipe: z.string().optional(),

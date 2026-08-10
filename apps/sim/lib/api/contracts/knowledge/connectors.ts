@@ -6,6 +6,11 @@ import {
 } from '@/lib/api/contracts/knowledge/shared'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import {
+  DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+} from '@/lib/knowledge/constants'
 
 export const createConnectorBodySchema = z.object({
   connectorType: z.string().min(1),
@@ -28,11 +33,22 @@ export const deleteConnectorQuerySchema = z.object({
 
 export const connectorDocumentsQuerySchema = z.object({
   includeExcluded: booleanQueryFlagSchema.optional(),
+  limit: z.coerce
+    .number()
+    .int()
+    .min(1)
+    .max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE)
+    .optional()
+    .default(DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE),
+  offset: z.coerce.number().int().min(0).optional().default(0),
 })
 
 export const connectorDocumentsPatchBodySchema = z.object({
   operation: z.enum(['restore', 'exclude']),
-  documentIds: z.array(z.string()).min(1),
+  documentIds: z
+    .array(z.string().min(1))
+    .min(1)
+    .max(MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS),
 })
 
 export const connectorDataSchema = z

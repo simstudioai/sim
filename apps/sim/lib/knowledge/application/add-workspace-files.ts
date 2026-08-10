@@ -4,7 +4,6 @@ import { createLogger } from '@sim/logger'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { knowledgeDelegationPolicy } from '@/lib/knowledge/application/authorization'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
@@ -29,7 +28,6 @@ import {
   type DocumentData,
   processDocumentsWithQueue,
 } from '@/lib/knowledge/documents/service'
-import { captureServerEvent } from '@/lib/posthog/server'
 import { StorageService } from '@/lib/uploads'
 import {
   loadActiveWorkspaceFileContext,
@@ -268,34 +266,5 @@ export const addWorkspaceFilesToKnowledgeBase = defineAuthorizedKnowledgeUseCase
         fileSize: document.fileSize,
       },
     })),
-  afterSuccess: ({ principal, context, result }) => {
-    try {
-      const userId = resolveKnowledgeAttributedUserId(principal, context)
-      for (const document of result.added) {
-        PlatformEvents.knowledgeBaseDocumentsUploaded({
-          knowledgeBaseId: context.knowledgeBaseId,
-          documentsCount: 1,
-          uploadType: 'single',
-          mimeType: document.mimeType,
-          fileSize: document.fileSize,
-        })
-        captureServerEvent(
-          userId,
-          'knowledge_base_document_uploaded',
-          {
-            knowledge_base_id: context.knowledgeBaseId,
-            workspace_id: context.workspaceId,
-            document_count: 1,
-            upload_type: 'single',
-          },
-          {
-            groups: { workspace: context.workspaceId },
-            setOnce: { first_document_uploaded_at: new Date().toISOString() },
-          }
-        )
-      }
-    } finally {
-      rethrowKnowledgeBatchTerminalFailure(result)
-    }
-  },
+  afterSuccess: ({ result }) => rethrowKnowledgeBatchTerminalFailure(result),
 })

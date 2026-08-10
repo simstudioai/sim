@@ -1,6 +1,9 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal, SessionPrincipal } from '@sim/auth/principal'
+import { db } from '@sim/db'
+import { knowledgeBaseTagDefinitions } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
+import { inArray } from 'drizzle-orm'
 import {
   authorizeWorkspaceOperation,
   type OperationUseCase,
@@ -75,6 +78,23 @@ export interface KnowledgeBaseResult {
 
 export interface ListKnowledgeBasesResult {
   knowledgeBases: KnowledgeBaseResult[]
+}
+
+export interface ListArchivedKnowledgeBasesResult {
+  knowledgeBases: KnowledgeBaseWithCounts[]
+}
+
+export interface KnowledgeBaseCatalogTagDefinition {
+  knowledgeBaseId: string
+  tagSlot: string
+  displayName: string
+  fieldType: string
+}
+
+export interface ListKnowledgeBaseCatalogResult {
+  knowledgeBases: Array<
+    KnowledgeBaseResult & { tagDefinitions: KnowledgeBaseCatalogTagDefinition[] }
+  >
 }
 
 export interface CreateKnowledgeBaseInput {
@@ -334,6 +354,52 @@ export const listKnowledgeBases = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: ListKnowledgeBasesInput }) =>
     resolveKnowledgeWorkspaceContext(input),
   execute: executeListKnowledgeBases,
+})
+
+export const listKnowledgeBaseCatalog = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.list,
+  resolveContext: ({ input }: { input: ListKnowledgeBasesInput }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ input, context }): Promise<ListKnowledgeBaseCatalogResult> {
+    const result = await executeListKnowledgeBases({ input, context })
+    const knowledgeBaseIds = result.knowledgeBases.map(({ knowledgeBase }) => knowledgeBase.id)
+    const tagDefinitions =
+      knowledgeBaseIds.length === 0
+        ? []
+        : await db
+            .select({
+              knowledgeBaseId: knowledgeBaseTagDefinitions.knowledgeBaseId,
+              tagSlot: knowledgeBaseTagDefinitions.tagSlot,
+              displayName: knowledgeBaseTagDefinitions.displayName,
+              fieldType: knowledgeBaseTagDefinitions.fieldType,
+            })
+            .from(knowledgeBaseTagDefinitions)
+            .where(inArray(knowledgeBaseTagDefinitions.knowledgeBaseId, knowledgeBaseIds))
+            .orderBy(knowledgeBaseTagDefinitions.tagSlot)
+    const tagsByKnowledgeBase = new Map<string, KnowledgeBaseCatalogTagDefinition[]>()
+    for (const definition of tagDefinitions) {
+      const existing = tagsByKnowledgeBase.get(definition.knowledgeBaseId)
+      if (existing) existing.push(definition)
+      else tagsByKnowledgeBase.set(definition.knowledgeBaseId, [definition])
+    }
+    return {
+      knowledgeBases: result.knowledgeBases.map((entry) => ({
+        ...entry,
+        tagDefinitions: tagsByKnowledgeBase.get(entry.knowledgeBase.id) ?? [],
+      })),
+    }
+  },
+})
+
+export const listArchivedKnowledgeBases = defineAuthorizedKnowledgeUseCase({
+  operation: knowledgeOperations.listArchived,
+  resolveContext: ({ input }: { input: { workspaceId: string } }) =>
+    resolveKnowledgeWorkspaceContext(input),
+  async execute({ context }): Promise<ListArchivedKnowledgeBasesResult> {
+    return {
+      knowledgeBases: await getWorkspaceKnowledgeBases(context.workspaceId, 'archived'),
+    }
+  },
 })
 
 export const listInternalKnowledgeBases = {

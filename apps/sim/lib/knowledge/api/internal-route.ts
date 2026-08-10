@@ -226,4 +226,164 @@ export const internalKnowledgeAnalytics = {
       }
     )
   },
+  documentsUploaded({
+    principal,
+    input,
+    result,
+  }: {
+    principal: Principal
+    input: { processingOptions?: { recipe?: string } }
+    result:
+      | {
+          kind: 'single'
+          workspaceId: string
+          data: { knowledgeBaseId: string; mimeType: string; fileSize: number }
+        }
+      | { kind: 'bulk'; workspaceId: string; data: { total: number }; knowledgeBaseId?: string }
+  }): void {
+    const userId = internalKnowledgeActorUserId(principal)
+    const documentCount = result.kind === 'bulk' ? result.data.total : 1
+    const knowledgeBaseId =
+      result.kind === 'single' ? result.data.knowledgeBaseId : result.knowledgeBaseId
+    if (!knowledgeBaseId) {
+      throw new Error('Bulk document result is missing its knowledge base analytics scope')
+    }
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId,
+      documentsCount: documentCount,
+      uploadType: result.kind,
+      ...(result.kind === 'single'
+        ? { mimeType: result.data.mimeType, fileSize: result.data.fileSize }
+        : { recipe: input.processingOptions?.recipe }),
+    })
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_uploaded',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: result.workspaceId,
+        document_count: documentCount,
+        upload_type: result.kind,
+      },
+      {
+        groups: { workspace: result.workspaceId },
+        setOnce: { first_document_uploaded_at: new Date().toISOString() },
+      }
+    )
+  },
+  documentUpserted({
+    input,
+    result,
+  }: {
+    principal: Principal
+    input: { processingOptions?: { recipe?: string } }
+    result: { knowledgeBaseId: string }
+  }): void {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId: result.knowledgeBaseId,
+      documentsCount: 1,
+      uploadType: 'single',
+      recipe: input.processingOptions?.recipe,
+    })
+  },
+  documentDeleted({
+    principal,
+    result,
+  }: {
+    principal: Principal
+    result: { knowledgeBaseId: string; workspaceId?: string }
+  }): void {
+    const workspaceId = result.workspaceId
+    if (!workspaceId) throw new Error('Deleted document result is missing its workspace scope')
+    captureServerEvent(
+      internalKnowledgeActorUserId(principal),
+      'knowledge_base_document_deleted',
+      { knowledge_base_id: result.knowledgeBaseId, workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
+  },
+  connectorAdded({
+    principal,
+    result: { connector, workspaceId },
+  }: {
+    principal: Principal
+    input: unknown
+    result: {
+      workspaceId: string
+      connector: {
+        knowledgeBaseId: string
+        connectorType: string
+        syncIntervalMinutes: number
+      }
+    }
+  }): void {
+    captureServerEvent(
+      internalKnowledgeActorUserId(principal),
+      'knowledge_base_connector_added',
+      {
+        knowledge_base_id: connector.knowledgeBaseId,
+        workspace_id: workspaceId,
+        connector_type: connector.connectorType,
+        sync_interval_minutes: connector.syncIntervalMinutes,
+      },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_connector_added_at: new Date().toISOString() },
+      }
+    )
+  },
+  connectorRemoved({
+    principal,
+    result,
+  }: {
+    principal: Principal
+    input: unknown
+    result: {
+      knowledgeBaseId: string
+      connectorType: string
+      documentsDeleted: number
+      workspaceId?: string
+    }
+  }): void {
+    if (!result.workspaceId) {
+      throw new Error('Deleted connector result is missing its workspace analytics scope')
+    }
+    captureServerEvent(
+      internalKnowledgeActorUserId(principal),
+      'knowledge_base_connector_removed',
+      {
+        knowledge_base_id: result.knowledgeBaseId,
+        workspace_id: result.workspaceId,
+        connector_type: result.connectorType,
+        documents_deleted: result.documentsDeleted,
+      },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+  connectorSynced({
+    principal,
+    result,
+  }: {
+    principal: Principal
+    input: unknown
+    result: {
+      knowledgeBaseId: string
+      connectorType: string
+      workspaceId?: string
+    }
+  }): void {
+    if (!result.workspaceId) {
+      throw new Error('Synced connector result is missing its workspace analytics scope')
+    }
+    captureServerEvent(
+      internalKnowledgeActorUserId(principal),
+      'knowledge_base_connector_synced',
+      {
+        knowledge_base_id: result.knowledgeBaseId,
+        workspace_id: result.workspaceId,
+        connector_type: result.connectorType,
+      },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
 } as const

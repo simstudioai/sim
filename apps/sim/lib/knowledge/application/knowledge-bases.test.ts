@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -90,7 +91,9 @@ import {
   bulkDeleteKnowledgeBases,
   createKnowledgeBase,
   deleteInternalKnowledgeBase,
+  listArchivedKnowledgeBases,
   listInternalKnowledgeBases,
+  listKnowledgeBaseCatalog,
   readInternalKnowledgeBase,
   readKnowledgeBase,
   restoreInternalKnowledgeBase,
@@ -140,6 +143,7 @@ describe('knowledge base application use cases', () => {
     })
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
+    mocks.listRecords.mockResolvedValue([])
     mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
@@ -181,6 +185,70 @@ describe('knowledge base application use cases', () => {
       { forUpdate: undefined }
     )
     expect(mocks.listInternalRecords).toHaveBeenCalledWith('user-1', 'workspace-1', 'archived')
+  })
+
+  it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {
+    mocks.listRecords.mockResolvedValueOnce([knowledgeBase])
+    dbChainMockFns.orderBy.mockResolvedValueOnce([
+      {
+        knowledgeBaseId: 'knowledge-1',
+        tagSlot: 'tag1',
+        displayName: 'Department',
+        fieldType: 'text',
+      },
+    ])
+
+    const result = await listKnowledgeBaseCatalog.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'user-1',
+        workspaceId: 'workspace-1',
+        delegationId: 'vfs-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.listRecords.mock.invocationCallOrder[0]
+    )
+    expect(result.knowledgeBases).toEqual([
+      expect.objectContaining({
+        knowledgeBase,
+        tagDefinitions: [
+          {
+            knowledgeBaseId: 'knowledge-1',
+            tagSlot: 'tag1',
+            displayName: 'Department',
+            fieldType: 'text',
+          },
+        ],
+      }),
+    ])
+  })
+
+  it('rejects an archived Knowledge list bound to another trusted workspace before reading', async () => {
+    await expect(
+      listArchivedKnowledgeBases.execute({
+        principal: {
+          kind: 'delegated',
+          serviceId: 'copilot',
+          subjectUserId: 'dual-workspace-user',
+          workspaceId: 'workspace-b',
+          delegationId: 'vfs-1',
+          audience: 'sim:knowledge',
+          issuedAt: new Date(),
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        input: { workspaceId: 'workspace-1' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.listRecords).not.toHaveBeenCalled()
   })
 
   it('rejects a workspace listing before reading when current access is insufficient', async () => {

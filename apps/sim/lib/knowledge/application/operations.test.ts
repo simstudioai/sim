@@ -11,6 +11,7 @@ describe('knowledge operation registry', () => {
     const ids = Object.values(knowledgeOperations).map((operation) => operation.id)
     expect(ids).toEqual([
       'knowledge.list',
+      'knowledge.list_archived',
       'knowledge.read',
       'knowledge.create',
       'knowledge.update',

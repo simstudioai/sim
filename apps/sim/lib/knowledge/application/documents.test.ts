@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
   deleteDocument: vi.fn(),
   updateDocument: vi.fn(),
   processQueue: vi.fn(),
+  getProcessingConfig: vi.fn(),
+  performSingleUpload: vi.fn(),
+  performBulkUpload: vi.fn(),
+  markTimedOut: vi.fn(),
+  retryProcessing: vi.fn(),
   recordAudit: vi.fn(),
   captureServerEvent: vi.fn(),
 }))
@@ -59,6 +64,14 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   deleteKnowledgeDocumentInKnowledgeBase: mocks.deleteDocument,
   updateDocument: mocks.updateDocument,
   processDocumentsWithQueue: mocks.processQueue,
+  getProcessingConfig: mocks.getProcessingConfig,
+}))
+
+vi.mock('@/lib/knowledge/orchestration/documents', () => ({
+  performUploadKnowledgeDocument: mocks.performSingleUpload,
+  performUploadKnowledgeDocuments: mocks.performBulkUpload,
+  performMarkKnowledgeDocumentTimedOut: mocks.markTimedOut,
+  performRetryKnowledgeDocumentProcessing: mocks.retryProcessing,
 }))
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServerEvent }))
@@ -66,6 +79,7 @@ vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.captureServer
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   bulkDeleteKnowledgeDocuments,
+  createKnowledgeDocuments,
   deleteKnowledgeDocument,
   listKnowledgeDocuments,
   updateKnowledgeDocument,
@@ -119,6 +133,19 @@ describe('knowledge document application use cases', () => {
     mocks.createDocument.mockResolvedValue(document)
     mocks.updateDocument.mockResolvedValue(document)
     mocks.processQueue.mockResolvedValue(undefined)
+    mocks.getProcessingConfig.mockReturnValue({ batchSize: 10, maxConcurrentDocuments: 2 })
+    mocks.performBulkUpload.mockResolvedValue({
+      success: true,
+      documents: [
+        {
+          documentId: document.id,
+          filename: document.filename,
+          fileUrl: document.fileUrl,
+          fileSize: document.fileSize,
+          mimeType: document.mimeType,
+        },
+      ],
+    })
     mocks.getDocuments.mockResolvedValue({
       documents: [],
       pagination: { total: 0, limit: 50, offset: 0, hasMore: false },
@@ -348,6 +375,79 @@ describe('knowledge document application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
+  it('bounds bulk document creation before billing or orchestration', async () => {
+    await expect(
+      createKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          knowledgeBaseId: 'knowledge-1',
+          assertedWorkspaceId: 'workspace-1',
+          documents: Array.from({ length: 101 }, (_, index) => ({
+            filename: `document-${index}.txt`,
+            fileUrl: `/document-${index}.txt`,
+            fileSize: 1,
+            mimeType: 'text/plain',
+          })),
+          bulk: true,
+          resolveSecretProvenances: () => undefined,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.checkUsage).not.toHaveBeenCalled()
+    expect(mocks.performBulkUpload).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('disables legacy analytics and projects delegated audit for bulk creation', async () => {
+    await createKnowledgeDocuments.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'shared-user',
+        workspaceId: 'workspace-1',
+        delegationId: 'tool-call-1',
+        audience: 'sim:knowledge',
+        issuedAt: new Date(),
+        expiresAt: new Date(Date.now() + 60_000),
+      },
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-1',
+        documents: [
+          {
+            filename: document.filename,
+            fileUrl: document.fileUrl,
+            fileSize: document.fileSize,
+            mimeType: document.mimeType,
+          },
+        ],
+        bulk: true,
+        source: 'agent',
+        resolveSecretProvenances: () => undefined,
+      },
+    })
+
+    expect(mocks.performBulkUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'shared-user',
+        recordSemanticAudit: false,
+        recordProductAnalytics: false,
+      })
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workspaceId: 'workspace-1',
+        action: 'document.uploaded',
+        metadata: expect.objectContaining({
+          operation: 'knowledge.documents.upload',
+          actor: expect.objectContaining({ kind: 'delegated', serviceId: 'copilot' }),
+        }),
+      })
+    )
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
+  })
+
   it('bounds best-effort document deletion before canonical knowledge loading', async () => {
     await expect(
       bulkDeleteKnowledgeDocuments.execute({
@@ -399,7 +499,7 @@ describe('knowledge document application use cases', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('returns partial document outcomes and audits only completed deletions', async () => {
+  it('returns partial document outcomes and keeps product analytics out of the application', async () => {
     mocks.resolveCanonicalDocument.mockImplementation(async ({ documentId }) => ({
       ...context,
       documentId,
@@ -432,7 +532,7 @@ describe('knowledge document application use cases', () => {
         metadata: expect.objectContaining({ operation: 'knowledge.documents.bulk_delete' }),
       })
     )
-    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('stops between document deletions while auditing completed items', async () => {
@@ -485,6 +585,6 @@ describe('knowledge document application use cases', () => {
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ resourceId: 'document-1' })
     )
-    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 })

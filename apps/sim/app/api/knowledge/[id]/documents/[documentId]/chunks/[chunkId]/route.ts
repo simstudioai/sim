@@ -23,7 +23,7 @@ import {
 } from '@/lib/knowledge/application/chunks'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
-  createKnowledgePersistedResponse,
+  finalizeKnowledgePersistedResponse,
   resolveKnowledgeWriteSecretProvenance,
 } from '@/app/api/knowledge/secret-provenance'
 
@@ -61,8 +61,8 @@ export const GET = defineInternalJsonRoute({
   }),
   useCase: readKnowledgeChunk,
   present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgePersistedResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeActorUserId(principal),
@@ -98,8 +98,8 @@ export const PUT = defineInternalJsonRoute({
   }),
   useCase: updateKnowledgeChunk,
   present: ({ chunk }) => ({ success: true as const, data: toInternalKnowledgeChunk(chunk) }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgePersistedResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeActorUserId(principal),

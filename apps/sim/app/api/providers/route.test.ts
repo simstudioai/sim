@@ -49,7 +49,7 @@ vi.mock('@/providers/model-input-provenance', () => ({
   collectProviderModelInputProvenanceValues: mockCollectProviderModelInputProvenanceValues,
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getServiceAccountToken: vi.fn(),
   refreshTokenIfNeeded: vi.fn(),
   resolveOAuthAccountId: vi.fn(),

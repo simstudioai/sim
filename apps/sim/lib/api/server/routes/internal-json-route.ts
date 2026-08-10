@@ -179,6 +179,16 @@ export interface InternalAuthPolicy<P extends Principal> {
   ): Promise<P>
 }
 
+export interface InternalJsonResponseFinalization {
+  bodyFields?: Readonly<Record<string, unknown>>
+  headers?: HeadersInit
+}
+
+type InternalJsonParseOptions = Pick<
+  ParseRequestOptions,
+  'maxBodyBytes' | 'validationErrorResponse'
+>
+
 type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
   ContractJsonResponse<C>,
 ]
@@ -203,7 +213,7 @@ type InternalJsonRouteOptions<
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
-  parseOptions?: ParseRequestOptions
+  parseOptions?: InternalJsonParseOptions
   beforeParse?(args: {
     request: NextRequest
     principal: P
@@ -211,15 +221,13 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
-  renderResponse?(args: {
+  finalizeResponse?(args: {
     request: NextRequest
     principal: P
     input: NoInfer<I>
     result: NoInfer<R>
     body: ContractJsonResponse<C>
-    status: number
-    headers?: HeadersInit
-  }): NextResponse | Promise<NextResponse>
+  }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
 } & InternalJsonPresenter<C, R>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
@@ -227,6 +235,34 @@ function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextR
     status: descriptor.status,
     headers: descriptor.headers,
   })
+}
+
+function appendFinalizedBodyFields(
+  body: unknown,
+  bodyFields?: Readonly<Record<string, unknown>>
+): unknown {
+  if (!bodyFields || Object.keys(bodyFields).length === 0) return body
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('Internal JSON response metadata requires an object response body')
+  }
+  for (const key of Object.keys(bodyFields)) {
+    if (Object.hasOwn(body, key)) {
+      throw new Error(`Internal JSON response metadata cannot replace contract field "${key}"`)
+    }
+  }
+  return { ...body, ...bodyFields }
+}
+
+function appendFinalizedHeaders(base: HeadersInit | undefined, additions?: HeadersInit): Headers {
+  const headers = new Headers(base)
+  if (!additions) return headers
+  new Headers(additions).forEach((value, key) => {
+    if (headers.has(key)) {
+      throw new Error(`Internal JSON response finalizer cannot replace header "${key}"`)
+    }
+    headers.set(key, value)
+  })
+  return headers
 }
 
 export function defineInternalJsonRoute<
@@ -294,21 +330,22 @@ export function defineInternalJsonRoute<
         }
         const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
         const headers = options.responseHeaders?.({ principal, input, result })
-        if (options.renderResponse) {
-          return options.renderResponse({
-            request,
-            principal,
-            input,
-            result,
-            body: validatedBody,
+        const finalization = options.finalizeResponse
+          ? await options.finalizeResponse({
+              request,
+              principal,
+              input,
+              result,
+              body: validatedBody,
+            })
+          : undefined
+        return NextResponse.json(
+          appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
+          {
             status: successStatus,
-            headers,
-          })
-        }
-        return NextResponse.json(validatedBody, {
-          status: successStatus,
-          headers,
-        })
+            headers: appendFinalizedHeaders(headers, finalization?.headers),
+          }
+        )
       } catch (error) {
         const response = options.errorPolicy.project(error)
         if (response) return createJsonErrorResponse(response)

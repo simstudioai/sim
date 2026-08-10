@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { db } from '@sim/db'
 import { document, knowledgeConnector, knowledgeConnectorSyncLog } from '@sim/db/schema'
-import { and, desc, eq, inArray, isNull } from 'drizzle-orm'
+import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm'
 import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -16,6 +16,11 @@ import {
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
+  DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS,
+  MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE,
+} from '@/lib/knowledge/constants'
+import {
   getKnowledgeConnector,
   type KnowledgeConnectorRow,
   performCreateKnowledgeConnector,
@@ -28,6 +33,7 @@ import type {
   KnowledgeOperationSource,
   KnowledgeOrchestrationResult,
 } from '@/lib/knowledge/orchestration/shared'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 
 interface KnowledgeConnectorApplicationInput {
   assertedWorkspaceId?: string
@@ -75,6 +81,8 @@ export interface SyncKnowledgeConnectorInput extends KnowledgeConnectorApplicati
 
 export interface ListKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
   includeExcluded?: boolean
+  limit?: number
+  offset?: number
 }
 
 export interface UpdateKnowledgeConnectorDocumentsInput extends ReadKnowledgeConnectorInput {
@@ -109,7 +117,6 @@ async function resolveConnectorCredentialAccessToken(input: {
 }): Promise<string | null> {
   const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
   if (!identity) return null
-  const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
   return refreshAccessTokenIfNeeded(
     input.credentialId,
     identity.kind === 'oauth' ? identity.userId : input.actingUserId,
@@ -159,7 +166,6 @@ async function validateConnectorSourceConfig(input: {
         errorCode: 'validation',
       }
     }
-    const { refreshAccessTokenIfNeeded } = await import('@/app/api/auth/oauth/utils')
     accessToken = await refreshAccessTokenIfNeeded(
       input.connector.credentialId,
       identity.kind === 'oauth' ? identity.userId : input.actingUserId,
@@ -244,9 +250,10 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       requestId,
       request,
       recordSemanticAudit: false,
+      recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
-    return { connector: outcome.connector }
+    return { connector: outcome.connector, workspaceId: context.workspaceId }
   },
   projectAudit: ({ input, context, result }) => ({
     action: AuditAction.CONNECTOR_CREATED,
@@ -329,10 +336,14 @@ export const deleteKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       requestId: generateRequestId(),
       request,
       recordSemanticAudit: false,
+      recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector deletion failed')
     return {
+      knowledgeBaseId: context.knowledgeBaseId,
+      workspaceId: context.workspaceId,
       connectorId: context.connectorId,
+      connectorType: context.connector.connectorType,
       documentsDeleted: outcome.documentsDeleted,
       documentsKept: outcome.documentsKept,
     }
@@ -370,9 +381,15 @@ export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       requestId: generateRequestId(),
       request,
       recordSemanticAudit: false,
+      recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector sync failed')
-    return { connectorId: context.connectorId }
+    return {
+      knowledgeBaseId: context.knowledgeBaseId,
+      workspaceId: context.workspaceId,
+      connectorId: context.connectorId,
+      connectorType: context.connector.connectorType,
+    }
   },
   projectAudit: ({ input, context, result }) => ({
     action: AuditAction.CONNECTOR_SYNCED,
@@ -407,35 +424,54 @@ export const listKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCase(
   resolveContext: ({ input }: { input: ListKnowledgeConnectorDocumentsInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ input, context }) {
-    const activeDocuments = await db
+    const limit = input.limit ?? DEFAULT_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
+    const offset = input.offset ?? 0
+    if (
+      !Number.isInteger(limit) ||
+      limit < 1 ||
+      limit > MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE
+    ) {
+      throw new OrchestrationError(
+        'validation',
+        `Connector document limit must be between 1 and ${MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_PAGE_SIZE}`
+      )
+    }
+    if (!Number.isInteger(offset) || offset < 0) {
+      throw new OrchestrationError(
+        'validation',
+        'Connector document offset must be a non-negative integer'
+      )
+    }
+    const baseConditions = [
+      eq(document.connectorId, context.connectorId),
+      isNull(document.archivedAt),
+      isNull(document.deletedAt),
+    ] as const
+    const [[activeCount], excludedCountRows] = await Promise.all([
+      db
+        .select({ value: count() })
+        .from(document)
+        .where(and(...baseConditions, eq(document.userExcluded, false))),
+      input.includeExcluded
+        ? db
+            .select({ value: count() })
+            .from(document)
+            .where(and(...baseConditions, eq(document.userExcluded, true)))
+        : Promise.resolve([{ value: 0 }]),
+    ])
+    const excludedCount = excludedCountRows[0]
+    const documents = await db
       .select(connectorDocumentSelection)
       .from(document)
       .where(
-        and(
-          eq(document.connectorId, context.connectorId),
-          eq(document.userExcluded, false),
-          isNull(document.archivedAt),
-          isNull(document.deletedAt)
-        )
+        and(...baseConditions, input.includeExcluded ? undefined : eq(document.userExcluded, false))
       )
-      .orderBy(document.filename)
-    const excludedDocuments = input.includeExcluded
-      ? await db
-          .select(connectorDocumentSelection)
-          .from(document)
-          .where(
-            and(
-              eq(document.connectorId, context.connectorId),
-              eq(document.userExcluded, true),
-              isNull(document.archivedAt),
-              isNull(document.deletedAt)
-            )
-          )
-          .orderBy(document.filename)
-      : []
+      .orderBy(asc(document.userExcluded), asc(document.filename))
+      .limit(limit)
+      .offset(offset)
     return {
-      documents: [...activeDocuments, ...excludedDocuments],
-      counts: { active: activeDocuments.length, excluded: excludedDocuments.length },
+      documents,
+      counts: { active: activeCount?.value ?? 0, excluded: excludedCount?.value ?? 0 },
     }
   },
 })
@@ -445,6 +481,16 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
   resolveContext: ({ input }: { input: UpdateKnowledgeConnectorDocumentsInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ input, context }) {
+    if (input.documentIds.length === 0) {
+      throw new OrchestrationError('validation', 'At least one connector document is required')
+    }
+    if (input.documentIds.length > MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS) {
+      throw new OrchestrationError(
+        'validation',
+        `At most ${MAX_KNOWLEDGE_CONNECTOR_DOCUMENT_MUTATION_ITEMS} connector documents may be updated at once`
+      )
+    }
+    const documentIds = [...new Set(input.documentIds)]
     const restoring = input.operation === 'restore'
     const updated = await db
       .update(document)
@@ -452,7 +498,7 @@ export const updateKnowledgeConnectorDocuments = defineAuthorizedKnowledgeUseCas
       .where(
         and(
           eq(document.connectorId, context.connectorId),
-          inArray(document.id, input.documentIds),
+          inArray(document.id, documentIds),
           eq(document.userExcluded, !restoring),
           isNull(document.archivedAt),
           isNull(document.deletedAt)

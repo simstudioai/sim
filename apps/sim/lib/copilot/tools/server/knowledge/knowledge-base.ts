@@ -91,6 +91,114 @@ function captureKnowledgeBaseCreated(
   )
 }
 
+function captureKnowledgeDocumentsUploaded(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  documents: readonly { mimeType: string; fileSize: number }[]
+): void {
+  for (const document of documents) {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId,
+      documentsCount: 1,
+      uploadType: 'single',
+      mimeType: document.mimeType,
+      fileSize: document.fileSize,
+    })
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_uploaded',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: workspaceId,
+        document_count: 1,
+        upload_type: 'single',
+      },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_document_uploaded_at: new Date().toISOString() },
+      }
+    )
+  }
+}
+
+function captureKnowledgeDocumentsDeleted(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  count: number
+): void {
+  for (let index = 0; index < count; index += 1) {
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_deleted',
+      { knowledge_base_id: knowledgeBaseId, workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
+  }
+}
+
+function captureKnowledgeConnectorAdded(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType: string,
+  syncIntervalMinutes: number
+): void {
+  captureServerEvent(
+    userId,
+    'knowledge_base_connector_added',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      workspace_id: workspaceId,
+      connector_type: connectorType,
+      sync_interval_minutes: syncIntervalMinutes,
+    },
+    {
+      groups: { workspace: workspaceId },
+      setOnce: { first_connector_added_at: new Date().toISOString() },
+    }
+  )
+}
+
+function captureKnowledgeConnectorRemoved(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType: string,
+  documentsDeleted: number
+): void {
+  captureServerEvent(
+    userId,
+    'knowledge_base_connector_removed',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      workspace_id: workspaceId,
+      connector_type: connectorType,
+      documents_deleted: documentsDeleted,
+    },
+    { groups: { workspace: workspaceId } }
+  )
+}
+
+function captureKnowledgeConnectorSynced(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType: string
+): void {
+  captureServerEvent(
+    userId,
+    'knowledge_base_connector_synced',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      workspace_id: workspaceId,
+      connector_type: connectorType,
+    },
+    { groups: { workspace: workspaceId } }
+  )
+}
+
 function applicationFailureFallback(operation: string): string | null {
   switch (operation) {
     case 'update_document':
@@ -322,6 +430,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               source: 'agent',
             }
           )
+          captureKnowledgeDocumentsUploaded(
+            context.userId,
+            workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.added
+          )
           assertNotAborted()
 
           const added = outcome.added.map(({ documentId, filename }) => ({
@@ -458,23 +572,26 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          const { deleted, failed } = await executeCopilotKnowledgeUseCase(
-            context,
-            bulkDeleteKnowledgeDocuments,
-            {
+          const { knowledgeBaseId, deleted, deletedDocuments, failed } =
+            await executeCopilotKnowledgeUseCase(context, bulkDeleteKnowledgeDocuments, {
               knowledgeBaseId: args.knowledgeBaseId,
               documentIds: docIds,
               assertedWorkspaceId: workspaceId,
               cancellationSignal: context.userStopSignal,
               source: 'agent',
-            }
+            })
+          captureKnowledgeDocumentsDeleted(
+            context.userId,
+            workspaceId,
+            knowledgeBaseId,
+            deletedDocuments.length
           )
           assertNotAborted()
 
           return {
             success: deleted.length > 0,
             message: `Deleted ${deleted.length} document(s)${failed.length > 0 ? `, ${failed.length} failed` : ''}`,
-            data: { knowledgeBaseId: args.knowledgeBaseId, deleted, failed },
+            data: { knowledgeBaseId, deleted, failed },
           }
         }
 
@@ -734,10 +851,8 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          const { connector } = await executeCopilotKnowledgeUseCase(
-            context,
-            createKnowledgeConnector,
-            {
+          const { connector, workspaceId: canonicalWorkspaceId } =
+            await executeCopilotKnowledgeUseCase(context, createKnowledgeConnector, {
               knowledgeBaseId: args.knowledgeBaseId,
               assertedWorkspaceId: workspaceId,
               connectorType: args.connectorType,
@@ -745,10 +860,16 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               apiKey: args.apiKey,
               sourceConfig,
               syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
-              resolveBillingAttribution: async (canonicalWorkspaceId) =>
-                requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
+              resolveBillingAttribution: async (billingWorkspaceId) =>
+                requireKnowledgeBillingAttribution(context, billingWorkspaceId),
               source: 'agent',
-            }
+            })
+          captureKnowledgeConnectorAdded(
+            context.userId,
+            canonicalWorkspaceId,
+            connector.knowledgeBaseId,
+            connector.connectorType,
+            connector.syncIntervalMinutes
           )
           return {
             success: true,
@@ -757,7 +878,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               id: connector.id,
               connectorType: connector.connectorType,
               status: connector.status,
-              knowledgeBaseId: args.knowledgeBaseId,
+              knowledgeBaseId: connector.knowledgeBaseId,
             },
           }
         }
@@ -806,6 +927,13 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             assertedWorkspaceId: workspaceId,
             source: 'agent',
           })
+          captureKnowledgeConnectorRemoved(
+            context.userId,
+            outcome.workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.connectorType,
+            outcome.documentsDeleted
+          )
 
           // Report what the delete actually did. The documents are kept — this
           // used to claim they had been removed, which was never true on this
@@ -831,13 +959,19 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          await executeCopilotKnowledgeUseCase(context, syncKnowledgeConnector, {
+          const outcome = await executeCopilotKnowledgeUseCase(context, syncKnowledgeConnector, {
             connectorId: args.connectorId,
             assertedWorkspaceId: workspaceId,
             resolveBillingAttribution: async (canonicalWorkspaceId) =>
               requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
             source: 'agent',
           })
+          captureKnowledgeConnectorSynced(
+            context.userId,
+            outcome.workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.connectorType
+          )
 
           return {
             success: true,

@@ -212,7 +212,7 @@ describe('add workspace files to knowledge base application command', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('returns partial outcomes and emits audit and effects only for successful items', async () => {
+  it('returns partial outcomes and keeps product analytics out of the application', async () => {
     mocks.resolveFile
       .mockResolvedValueOnce(workspaceFile)
       .mockRejectedValueOnce(new OrchestrationError('not_found', 'File not found'))
@@ -241,8 +241,8 @@ describe('add workspace files to knowledge base application command', () => {
         }),
       })
     )
-    expect(mocks.platformUploaded).toHaveBeenCalledOnce()
-    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+    expect(mocks.platformUploaded).not.toHaveBeenCalled()
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('stops between document creations while auditing completed items', async () => {
@@ -336,7 +336,7 @@ describe('add workspace files to knowledge base application command', () => {
     expect(mocks.recordAudit).toHaveBeenCalledWith(
       expect.objectContaining({ resourceId: 'document-1' })
     )
-    expect(mocks.platformUploaded).toHaveBeenCalledOnce()
-    expect(mocks.captureServerEvent).toHaveBeenCalledOnce()
+    expect(mocks.platformUploaded).not.toHaveBeenCalled()
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 })

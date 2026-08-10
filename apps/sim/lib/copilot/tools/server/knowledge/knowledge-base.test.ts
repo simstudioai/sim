@@ -194,6 +194,22 @@ const CONTEXT = {
   copilotToolExecution: true,
 } satisfies ServerToolContext
 
+const BILLED_CONTEXT = {
+  ...CONTEXT,
+  billingAttribution: {
+    actorUserId: 'external-admin',
+    workspaceId: 'workspace-paid',
+    billedAccountUserId: 'workspace-owner',
+    organizationId: null,
+    billingEntity: { type: 'user' as const, id: 'workspace-owner' },
+    billingPeriod: {
+      start: '2026-08-01T00:00:00.000Z',
+      end: '2026-09-01T00:00:00.000Z',
+    },
+    payerSubscription: null,
+  },
+} satisfies ServerToolContext
+
 function expectDelegatedPrincipal(call: unknown): void {
   expect(call).toMatchObject({
     principal: {
@@ -245,6 +261,30 @@ describe('knowledge_base trusted application delegation', () => {
       knowledgeBases: [{ id: KNOWLEDGE_BASE.id, name: KNOWLEDGE_BASE.name }],
       topK: 5,
       totalResults: 0,
+    })
+    mockCreateKnowledgeConnector.mockResolvedValue({
+      connector: {
+        id: 'connector-1',
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        status: 'active',
+        syncIntervalMinutes: 1440,
+      },
+      workspaceId: 'workspace-paid',
+    })
+    mockDeleteKnowledgeConnector.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      workspaceId: 'workspace-paid',
+      connectorId: 'connector-1',
+      connectorType: 'notion',
+      documentsDeleted: 0,
+      documentsKept: 2,
+    })
+    mockSyncKnowledgeConnector.mockResolvedValue({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      workspaceId: 'workspace-paid',
+      connectorId: 'connector-1',
+      connectorType: 'notion',
     })
   })
 
@@ -439,7 +479,14 @@ describe('knowledge_base trusted application delegation', () => {
       knowledgeBaseId: KNOWLEDGE_BASE.id,
       deleted: ['document-1'],
       failed: ['missing'],
-      deletedDocuments: [],
+      deletedDocuments: [
+        {
+          id: 'document-1',
+          filename: 'guide.pdf',
+          fileSize: 42,
+          mimeType: 'application/pdf',
+        },
+      ],
     })
 
     const result = await knowledgeBaseServerTool.execute(
@@ -456,7 +503,40 @@ describe('knowledge_base trusted application delegation', () => {
     })
     expectDelegatedPrincipal(mockBulkDeleteKnowledgeDocuments.mock.calls[0][0])
     expect(mockBulkDeleteKnowledgeDocuments).toHaveBeenCalledOnce()
+    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+      'external-admin',
+      'knowledge_base_document_deleted',
+      expect.objectContaining({ knowledge_base_id: KNOWLEDGE_BASE.id }),
+      expect.any(Object)
+    )
   })
+
+  it.each([
+    [
+      'add_connector',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        connectorType: 'notion',
+        credentialId: 'credential-1',
+      },
+      'knowledge_base_connector_added',
+    ],
+    ['delete_connector', { connectorId: 'connector-1' }, 'knowledge_base_connector_removed'],
+    ['sync_connector', { connectorId: 'connector-1' }, 'knowledge_base_connector_synced'],
+  ])(
+    'records %s product analytics only after application success',
+    async (operation, args, event) => {
+      const result = await knowledgeBaseServerTool.execute({ operation, args }, BILLED_CONTEXT)
+
+      expect(result.success).toBe(true)
+      expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+        'external-admin',
+        event,
+        expect.objectContaining({ workspace_id: 'workspace-paid' }),
+        expect.any(Object)
+      )
+    }
+  )
 
   it('delegates document updates with only the trusted workspace assertion', async () => {
     mockUpdateKnowledgeDocument.mockResolvedValueOnce({ document: {}, updatedFields: ['filename'] })
@@ -501,6 +581,35 @@ describe('knowledge_base trusted application delegation', () => {
       message: 'Failed to update connector',
     })
     expect(result.message).not.toContain('private-db')
+  })
+
+  it.each([
+    [
+      'update_document',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        documentId: 'document-1',
+        filename: 'renamed.pdf',
+      },
+      mockUpdateKnowledgeDocument,
+    ],
+    [
+      'update_tag',
+      {
+        knowledgeBaseId: KNOWLEDGE_BASE.id,
+        tagDefinitionId: 'tag-1',
+        displayName: 'Renamed',
+      },
+      mockUpdateKnowledgeTag,
+    ],
+  ])('does not expose %s infrastructure details to the model', async (operation, args, useCase) => {
+    useCase.mockRejectedValueOnce(new Error('database password=private'))
+
+    const result = await knowledgeBaseServerTool.execute({ operation, args }, CONTEXT)
+
+    expect(result.success).toBe(false)
+    expect(result.message).not.toContain('database')
+    expect(result.message).not.toContain('private')
   })
 
   it('preserves caller-actionable connector failure messages', async () => {
@@ -616,6 +725,15 @@ describe('knowledge_base add_file delegation', () => {
       source: 'agent',
     })
     expect(mockAddWorkspaceFiles).toHaveBeenCalledOnce()
+    expect(mockKnowledgeBaseDocumentsUploaded).toHaveBeenCalledWith(
+      expect.objectContaining({ knowledgeBaseId: KNOWLEDGE_BASE.id, documentsCount: 1 })
+    )
+    expect(mockCaptureServerEvent).toHaveBeenCalledWith(
+      'external-admin',
+      'knowledge_base_document_uploaded',
+      expect.objectContaining({ knowledge_base_id: KNOWLEDGE_BASE.id }),
+      expect.any(Object)
+    )
   })
 
   it('preserves explicit partial failures returned by the application command', async () => {

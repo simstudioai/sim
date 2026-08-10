@@ -2,7 +2,9 @@
  * @vitest-environment node
  */
 
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { document } from '@sim/db/schema'
+import { dbChainMockFns, queueTableRows, resetDbChainMock } from '@sim/testing'
+import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   resolveKnowledgeBase: vi.fn(),
@@ -56,7 +58,7 @@ vi.mock('@/lib/credentials/access', () => ({
   resolveCredentialTokenIdentity: mocks.resolveTokenIdentity,
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: mocks.refreshToken,
 }))
 
@@ -72,8 +74,10 @@ vi.mock('@/connectors/registry.server', () => ({
 import {
   createKnowledgeConnector,
   deleteKnowledgeConnector,
+  listKnowledgeConnectorDocuments,
   syncKnowledgeConnector,
   updateKnowledgeConnector,
+  updateKnowledgeConnectorDocuments,
 } from '@/lib/knowledge/application/connectors'
 
 const crossWorkspaceContext = {
@@ -111,6 +115,7 @@ const delegatedPrincipal = {
 describe('knowledge connector application use cases', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    resetDbChainMock()
     mocks.resolvePermission.mockResolvedValue('write')
     mocks.resolveKnowledgeBase.mockResolvedValue(crossWorkspaceContext)
     mocks.resolveConnector.mockResolvedValue(connectorContext)
@@ -118,6 +123,8 @@ describe('knowledge connector application use cases', () => {
     mocks.refreshToken.mockResolvedValue('access-token')
     mocks.validateConnectorConfig.mockResolvedValue({ valid: true })
   })
+
+  afterAll(resetDbChainMock)
 
   it.each([
     [
@@ -295,5 +302,175 @@ describe('knowledge connector application use cases', () => {
       expect.any(String)
     )
     expect(mocks.validateConnectorConfig).toHaveBeenCalledWith('access-token', { space: 'ENG' })
+  })
+
+  it.each([
+    [
+      'create',
+      createKnowledgeConnector,
+      mocks.createConnector,
+      {
+        knowledgeBaseId: 'knowledge-a',
+        assertedWorkspaceId: 'workspace-a',
+        connectorType: 'confluence',
+        credentialId: 'credential-1',
+        sourceConfig: {},
+        syncIntervalMinutes: 1440,
+        resolveBillingAttribution: mocks.resolveBilling,
+      },
+      {
+        success: true,
+        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+      },
+    ],
+    [
+      'delete',
+      deleteKnowledgeConnector,
+      mocks.deleteConnector,
+      { connectorId: 'connector-b', assertedWorkspaceId: 'workspace-a' },
+      { success: true, documentsDeleted: 0, documentsKept: 1 },
+    ],
+    [
+      'sync',
+      syncKnowledgeConnector,
+      mocks.syncConnector,
+      {
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        resolveBillingAttribution: mocks.resolveBilling,
+      },
+      { success: true },
+    ],
+  ])(
+    'disables legacy semantic audit and product analytics for %s',
+    async (_name, useCase, orchestration, input, outcome) => {
+      const sameWorkspaceContext = {
+        ...connectorContext,
+        workspaceId: 'workspace-a',
+        knowledgeBaseId: 'knowledge-a',
+        knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+        connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+      }
+      mocks.resolveKnowledgeBase.mockResolvedValueOnce(sameWorkspaceContext)
+      mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+      orchestration.mockResolvedValueOnce(outcome)
+
+      await useCase.execute({ principal: delegatedPrincipal, input })
+
+      expect(orchestration).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recordSemanticAudit: false,
+          recordProductAnalytics: false,
+        })
+      )
+      expect(mocks.recordAudit).toHaveBeenCalledOnce()
+    }
+  )
+
+  it('paginates connector documents while returning authoritative total counts', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    queueTableRows(document, [{ value: 5 }])
+    queueTableRows(document, [{ value: 2 }])
+    queueTableRows(document, [
+      { id: 'document-3', filename: 'c.txt', userExcluded: false },
+      { id: 'document-4', filename: 'd.txt', userExcluded: true },
+    ])
+
+    const result = await listKnowledgeConnectorDocuments.execute({
+      principal: delegatedPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-a',
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        includeExcluded: true,
+        limit: 2,
+        offset: 2,
+      },
+    })
+
+    expect(result).toEqual({
+      documents: [
+        { id: 'document-3', filename: 'c.txt', userExcluded: false },
+        { id: 'document-4', filename: 'd.txt', userExcluded: true },
+      ],
+      counts: { active: 5, excluded: 2 },
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(2)
+    expect(dbChainMockFns.offset).toHaveBeenCalledWith(2)
+  })
+
+  it('caps connector document mutations before persistence', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+
+    await expect(
+      updateKnowledgeConnectorDocuments.execute({
+        principal: delegatedPrincipal,
+        input: {
+          knowledgeBaseId: 'knowledge-a',
+          connectorId: 'connector-b',
+          assertedWorkspaceId: 'workspace-a',
+          operation: 'exclude',
+          documentIds: Array.from({ length: 101 }, (_, index) => `document-${index}`),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('deduplicates connector document IDs before mutation and audit', async () => {
+    const sameWorkspaceContext = {
+      ...connectorContext,
+      workspaceId: 'workspace-a',
+      knowledgeBaseId: 'knowledge-a',
+      knowledgeBase: { id: 'knowledge-a', name: 'Workspace A docs' },
+      connector: { ...connectorContext.connector, knowledgeBaseId: 'knowledge-a' },
+    }
+    mocks.resolveConnector.mockResolvedValueOnce(sameWorkspaceContext)
+    dbChainMockFns.returning.mockResolvedValueOnce([{ id: 'document-1' }, { id: 'document-2' }])
+
+    const result = await updateKnowledgeConnectorDocuments.execute({
+      principal: delegatedPrincipal,
+      input: {
+        knowledgeBaseId: 'knowledge-a',
+        connectorId: 'connector-b',
+        assertedWorkspaceId: 'workspace-a',
+        operation: 'exclude',
+        documentIds: ['document-1', 'document-1', 'document-2'],
+      },
+    })
+
+    expect(result.documentIds).toEqual(['document-1', 'document-2'])
+    const where = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+    expect(where).toEqual(
+      expect.objectContaining({
+        conditions: expect.arrayContaining([
+          expect.objectContaining({
+            type: 'inArray',
+            values: ['document-1', 'document-2'],
+          }),
+        ]),
+      })
+    )
+    expect(mocks.recordAudit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        metadata: expect.objectContaining({ documentIds: ['document-1', 'document-2'] }),
+      })
+    )
   })
 })

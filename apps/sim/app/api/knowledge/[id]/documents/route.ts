@@ -8,6 +8,7 @@ import { defineInternalJsonRoute, internalRateLimits } from '@/lib/api/server/ro
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import {
   internalKnowledgeActorUserId,
+  internalKnowledgeAnalytics,
   internalKnowledgeAuthType,
   resolveInternalKnowledgeBillingAttribution,
   toInternalKnowledgeDocument,
@@ -24,8 +25,8 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { createKnowledgeDocumentSourceValue } from '@/lib/knowledge/secret-provenance'
 import {
-  createKnowledgePersistedResponse,
-  createKnowledgeProvenanceResponse,
+  finalizeKnowledgePersistedResponse,
+  finalizeKnowledgeProvenanceResponse,
   resolveKnowledgeDocumentWriteSecretProvenance,
 } from '@/app/api/knowledge/secret-provenance'
 
@@ -63,8 +64,8 @@ export const GET = defineInternalJsonRoute({
       pagination,
     },
   }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgePersistedResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgePersistedResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: internalKnowledgeActorUserId(principal),
@@ -113,12 +114,13 @@ export const POST = defineInternalJsonRoute({
     }
   },
   useCase: createKnowledgeDocuments,
+  onSuccess: internalKnowledgeAnalytics.documentsUploaded,
   present: (result) => ({
     success: true as const,
     data: result.kind === 'bulk' ? result.data : toInternalKnowledgeDocument(result.data),
   }),
-  renderResponse: ({ request, principal, result, body }) =>
-    createKnowledgeProvenanceResponse({
+  finalizeResponse: ({ request, principal, result, body }) =>
+    finalizeKnowledgeProvenanceResponse({
       request,
       authType: internalKnowledgeAuthType(principal),
       userId: result.userId,

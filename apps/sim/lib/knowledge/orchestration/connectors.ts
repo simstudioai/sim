@@ -100,6 +100,8 @@ export interface PerformCreateKnowledgeConnectorParams extends KnowledgeOperatio
   resolveAccessToken: (credentialId: string) => Promise<string | null>
   /** False only when an authorized application use case projects the semantic audit. */
   recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformConnectorResult = KnowledgeOrchestrationResult<{
@@ -304,20 +306,22 @@ export async function performCreateKnowledgeConnector(
 
   logger.info(`[${requestId}] Created connector ${connectorId} for KB ${kb.id}`)
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_added',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: workspaceId,
-      connector_type: connectorType,
-      sync_interval_minutes: syncIntervalMinutes,
-    },
-    {
-      groups: { workspace: workspaceId },
-      setOnce: { first_connector_added_at: new Date().toISOString() },
-    }
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_added',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: workspaceId,
+        connector_type: connectorType,
+        sync_interval_minutes: syncIntervalMinutes,
+      },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_connector_added_at: new Date().toISOString() },
+      }
+    )
+  }
 
   if (params.recordSemanticAudit !== false) {
     recordAudit({
@@ -523,6 +527,8 @@ export interface PerformDeleteKnowledgeConnectorParams extends KnowledgeOperatio
   deleteDocuments?: boolean
   /** False only when an authorized application use case projects the semantic audit. */
   recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 /** What actually happened to the connector's documents, for the caller to report. */
@@ -619,17 +625,19 @@ export async function performDeleteKnowledgeConnector(
     `[${requestId}] Deleted connector ${connectorId}${deleteDocuments ? ` and ${docCount} documents` : `, kept ${docCount} documents`}`
   )
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_removed',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: kb.workspaceId ?? '',
-      connector_type: existing.connectorType,
-      documents_deleted: deleteDocuments ? docCount : 0,
-    },
-    kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_removed',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: kb.workspaceId ?? '',
+        connector_type: existing.connectorType,
+        documents_deleted: deleteDocuments ? docCount : 0,
+      },
+      kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
+    )
+  }
 
   if (params.recordSemanticAudit !== false) {
     recordAudit({
@@ -672,6 +680,8 @@ export interface PerformSyncKnowledgeConnectorParams extends KnowledgeOperationC
   rehydrate?: boolean
   /** False only when an authorized application use case projects the semantic audit. */
   recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformSyncKnowledgeConnectorResult = KnowledgeOrchestrationResult
@@ -707,16 +717,18 @@ export async function performSyncKnowledgeConnector(
     `[${requestId}] Manual sync${rehydrate ? ' (full rehydrate)' : ''} triggered for connector ${connectorId}`
   )
 
-  captureServerEvent(
-    params.userId,
-    'knowledge_base_connector_synced',
-    {
-      knowledge_base_id: kb.id,
-      workspace_id: kb.workspaceId ?? '',
-      connector_type: connector.connectorType,
-    },
-    kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
-  )
+  if (params.recordProductAnalytics !== false) {
+    captureServerEvent(
+      params.userId,
+      'knowledge_base_connector_synced',
+      {
+        knowledge_base_id: kb.id,
+        workspace_id: kb.workspaceId ?? '',
+        connector_type: connector.connectorType,
+      },
+      kb.workspaceId ? { groups: { workspace: kb.workspaceId } } : undefined
+    )
+  }
 
   if (params.recordSemanticAudit !== false) {
     recordAudit({
