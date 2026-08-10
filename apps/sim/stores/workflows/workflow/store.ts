@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
@@ -147,6 +148,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
           horizontalHandles?: boolean
           advancedMode?: boolean
           errorEnabled?: boolean
+          retry?: BlockRetryConfig
           triggerMode?: boolean
           height?: number
           data?: Record<string, any>
@@ -173,6 +175,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             horizontalHandles: block.horizontalHandles ?? true,
             advancedMode: block.advancedMode ?? false,
             errorEnabled: block.errorEnabled ?? false,
+            retry: block.retry,
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,
@@ -797,6 +800,25 @@ export const useWorkflowStore = create<WorkflowStore>()(
               [id]: {
                 ...block,
                 errorEnabled,
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
+        get().updateLastSaved()
+      },
+
+      setBlockRetry: (id: string, retry: BlockRetryConfig) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) return state
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                retry,
               },
             },
             edges: [...state.edges],
