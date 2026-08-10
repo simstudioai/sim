@@ -43,20 +43,6 @@ export const POST = defineV2JsonRoute({
       latestDeploymentAttempt: result.latestDeploymentAttempt ?? null,
     },
   }),
-  onSuccess: ({ principal, result }) => {
-    if (principal.kind !== 'personal_api_key') {
-      throw new Error('Admin deployment unexpectedly admitted a workspace API key')
-    }
-    captureServerEvent(
-      principal.userId,
-      'workflow_deployed',
-      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
-      {
-        groups: { workspace: result.workspaceId },
-        setOnce: { first_workflow_deployed_at: new Date().toISOString() },
-      }
-    )
-  },
 })
 
 export const DELETE = defineV2JsonRoute({

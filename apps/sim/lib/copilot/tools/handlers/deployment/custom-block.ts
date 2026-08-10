@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateShortId } from '@sim/utils/id'
 import { isAllowedCustomBlockIconUrl } from '@/lib/api/contracts/custom-blocks'
@@ -29,6 +30,7 @@ import type { DeployCustomBlockParams } from '../param-types'
 const MAX_ICON_BYTES = 5 * 1024 * 1024
 const MAX_INPUT_ENTRIES = 50
 const MAX_OUTPUT_ENTRIES = 50
+const logger = createLogger('CopilotCustomBlockDeployment')
 
 /**
  * Resolve the agent-supplied icon reference to a publicly servable URL. A VFS
@@ -139,7 +141,7 @@ export async function executeDeployCustomBlock(
     } catch (error) {
       const message = toError(error).message
       if (message.includes('not found')) {
-        return { success: false, error: message }
+        return { success: false, error: 'Workflow not found' }
       }
       return {
         success: false,
@@ -301,6 +303,7 @@ export async function executeDeployCustomBlock(
     if (error instanceof CustomBlockValidationError) {
       return { success: false, error: error.message }
     }
-    return { success: false, error: toError(error).message }
+    logger.error('Custom block deployment failed', { error })
+    return { success: false, error: 'Custom block deployment failed due to a system error' }
   }
 }

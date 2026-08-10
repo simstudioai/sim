@@ -1,53 +1,31 @@
-import { createLogger } from '@sim/logger'
-import type { NextRequest } from 'next/server'
 import { listDeploymentVersionsContract } from '@/lib/api/contracts/deployments'
-import { parseRequest } from '@/lib/api/server'
-import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
-import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { createInternalWorkflowErrorPolicy } from '@/lib/workflows/api'
 import { listWorkflowVersions } from '@/lib/workflows/application/list-workflow-versions'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-
-const logger = createLogger('WorkflowDeploymentsListAPI')
+import { workflowOperations } from '@/lib/workflows/application/operations'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const principal = await internalSessionAuth.authenticate()
-      const parsed = await parseRequest(listDeploymentVersionsContract, request, context)
-      if (!parsed.success) return parsed.response
-      const { id } = parsed.data.params
-
-      const { versions: rows } = await listWorkflowVersions.execute({
-        principal,
-        input: { workflowId: id },
-        request,
-      })
-      const versions = rows.map(({ deployedByName, ...version }) => ({
-        ...version,
-        deployedBy: deployedByName,
-      }))
-
-      return createSuccessResponse({ versions })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
-      }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(`[${requestId}] Error listing workflow deployments`, { error })
-      return createErrorResponse('Failed to list deployments', 500)
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: listDeploymentVersionsContract,
+  operation: workflowOperations.listVersions,
+  useCase: listWorkflowVersions,
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Authenticated workspace UI version lists retain their existing admission policy.',
+  }),
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to list deployments'),
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  present: ({ versions }) => ({
+    versions: versions.map(({ deployedByName, ...version }) => ({
+      ...version,
+      createdAt: version.createdAt.toISOString(),
+      deployedBy: deployedByName,
+    })),
+  }),
+})

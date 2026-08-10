@@ -9,6 +9,8 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/api/server/routes', () => ({
+  createInternalSessionOrExecutorAuth: vi.fn(() => ({ kind: 'internal-workflow' })),
+  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-workflow' })),
   defineV2JsonRoute: mocks.defineRoute,
   v2ApiKeyAuth: { kind: 'v2-api-key' },
   v2RateLimits: { publicApi: { kind: 'public-api' } },
@@ -78,21 +80,9 @@ describe('/api/v2/workflows/[id]/deploy route definitions', () => {
     expect(v2DeployWorkflowContract.response.schema.parse(body)).toEqual(body)
   })
 
-  it('keeps product analytics on the v2 adapter', async () => {
-    const result = { workflowId: 'workflow-1', workspaceId: 'workspace-1' }
-    await Reflect.get(
-      POST,
-      'onSuccess'
-    )({
-      principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
-      result,
-    })
-    expect(mocks.capture).toHaveBeenCalledWith(
-      'user-1',
-      'workflow_deployed',
-      { workflow_id: 'workflow-1', workspace_id: 'workspace-1' },
-      expect.objectContaining({ groups: { workspace: 'workspace-1' } })
-    )
+  it('defers deploy analytics to durable activation', () => {
+    expect(Reflect.get(POST, 'onSuccess')).toBeUndefined()
+    expect(mocks.capture).not.toHaveBeenCalled()
   })
 
   it('keeps undeploy on the authorized operation and declared response schema', () => {

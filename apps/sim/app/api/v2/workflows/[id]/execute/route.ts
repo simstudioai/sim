@@ -11,7 +11,7 @@ import {
 } from '@/lib/api/contracts/v2/workflows'
 import { parseRequest } from '@/lib/api/server'
 import {
-  admitV2Request,
+  admitOptionalV2Request,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
   v2RateLimits,
@@ -112,14 +112,15 @@ export const POST = withRouteHandler(
     let isPublicApiAccess = false
     let apiKeyPrincipal: V2ApiKeyPrincipal | undefined
 
-    if (req.headers.has('x-api-key')) {
-      const admission = await admitV2Request(
-        req,
-        workflowOperations.execute,
-        v2ApiKeyAuth,
-        v2RateLimits.publicApi
-      )
-      if (!admission.success) return admission.response
+    const admission = await admitOptionalV2Request(
+      req,
+      workflowOperations.execute,
+      v2ApiKeyAuth,
+      v2RateLimits.publicApi
+    )
+    if (!admission.success) return admission.response
+
+    if (admission.auth) {
       apiKeyPrincipal = admission.auth.principal
       userId = admission.auth.rolloutUserId
     } else {

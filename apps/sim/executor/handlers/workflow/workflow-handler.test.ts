@@ -43,6 +43,7 @@ const {
   mockSetExecutionDeadlineAt,
   mockSetTraceLargeValueAccess,
   mockDispose,
+  mockBuildExecutorDelegationHeaders,
   executorOptions,
   loggingSessionArgs,
 } = vi.hoisted(() => ({
@@ -62,6 +63,7 @@ const {
   mockSetExecutionDeadlineAt: vi.fn(),
   mockSetTraceLargeValueAccess: vi.fn(),
   mockDispose: vi.fn(),
+  mockBuildExecutorDelegationHeaders: vi.fn(),
   executorOptions: [] as Array<Record<string, any>>,
   loggingSessionArgs: [] as Array<any[]>,
 }))
@@ -182,7 +184,7 @@ vi.mock('@/lib/auth/internal', () => ({
 }))
 
 vi.mock('@/executor/utils/http', () => ({
-  buildAuthHeaders: vi.fn().mockResolvedValue({ 'Content-Type': 'application/json' }),
+  buildExecutorDelegationHeaders: mockBuildExecutorDelegationHeaders,
   buildAPIUrl: vi.fn((path: string) => new URL(path, 'http://localhost:3000')),
   extractAPIErrorMessage: vi.fn(async (response: Response) => {
     const defaultMessage = `API request failed with status ${response.status}`
@@ -226,6 +228,7 @@ describe('WorkflowBlockHandler', () => {
 
     mockContext = {
       workflowId: 'parent-workflow-id',
+      userId: 'user-1',
       blockStates: new Map(),
       blockLogs: [],
       metadata: { duration: 0 },
@@ -250,6 +253,10 @@ describe('WorkflowBlockHandler', () => {
     mockSafeStart.mockResolvedValue(true)
     mockAdmitCustomBlockChildExecution.mockResolvedValue(undefined)
     mockBuildTraceSpans.mockReturnValue({ traceSpans: [], totalDuration: 0 })
+    mockBuildExecutorDelegationHeaders.mockResolvedValue({
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer executor-token',
+    })
 
     // Setup default fetch mock
     mockFetch.mockResolvedValue({
@@ -342,7 +349,11 @@ describe('WorkflowBlockHandler', () => {
     const inputs = { workflowId: 'child-workflow-id' }
 
     it('should fail a cross-workspace child in the draft loader path', async () => {
-      const ctx = { ...mockContext, workspaceId: 'workspace-parent' }
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-parent',
+        executionId: 'parent-execution-id',
+      }
 
       mockFetch.mockResolvedValueOnce({
         ok: true,
@@ -361,6 +372,11 @@ describe('WorkflowBlockHandler', () => {
       )
       expect(mockCreateSnapshot).not.toHaveBeenCalled()
       expect(mockExecutorExecute).not.toHaveBeenCalled()
+      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow-id',
+        executionId: 'parent-execution-id',
+      })
     })
 
     it('should fail a cross-workspace child in the deployed loader path', async () => {
@@ -554,6 +570,10 @@ describe('WorkflowBlockHandler', () => {
 
       await handler.execute(ctx, customBlock, {})
 
+      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith({
+        subjectUserId: 'owner-9',
+        workflowId: 'source-workflow-id',
+      })
       expect(mockResolveBillingAttribution).toHaveBeenCalledWith({
         actorUserId: 'owner-9',
         workspaceId: 'workspace-source',
@@ -991,7 +1011,7 @@ describe('WorkflowBlockHandler', () => {
         text: () => Promise.resolve(''),
       })
 
-      const result = await (handler as any).loadChildWorkflow(workflowId)
+      const result = await (handler as any).loadChildWorkflow(workflowId, {})
 
       expect(result).toBeNull()
     })
@@ -1010,7 +1030,7 @@ describe('WorkflowBlockHandler', () => {
           }),
       })
 
-      await expect((handler as any).loadChildWorkflow(workflowId)).rejects.toThrow(
+      await expect((handler as any).loadChildWorkflow(workflowId, {})).rejects.toThrow(
         'Child workflow invalid-workflow has invalid state'
       )
     })

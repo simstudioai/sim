@@ -4,6 +4,10 @@ const ALL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const COPILOT_PRINCIPAL_POLICY = {
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
+} as const
 
 const ALL_PRINCIPAL_WITH_EXECUTOR_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
@@ -66,6 +70,18 @@ export const knowledgeOperations = {
     minimumRole: 'write',
     workspaceApiKey: 'allow',
     ...ALL_PRINCIPAL_POLICY,
+  }),
+  renameByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.rename',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteByVfsPath: defineWorkspaceOperation({
+    id: 'knowledge.vfs.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
   }),
   search: defineWorkspaceOperation({
     id: 'knowledge.search',

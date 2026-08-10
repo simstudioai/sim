@@ -126,6 +126,7 @@ import { findWorkspaceFileRecord } from '@/lib/uploads/contexts/workspace/worksp
 import type { WorkspaceFileSecretProvenanceEnvelope } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { listCustomBlocksWithInputsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
 import { getCustomToolById } from '@/lib/workflows/custom-tools/operations'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { loadWorkflowFromNormalizedTables } from '@/lib/workflows/persistence/utils'
 import { sanitizeForCopilot } from '@/lib/workflows/sanitization/json-sanitizer'
 import { getSkillById } from '@/lib/workflows/skills/operations'
@@ -139,7 +140,6 @@ import {
   getWorkspaceWithOwner,
   hasWorkspaceAdminAccess,
 } from '@/lib/workspaces/permissions/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { buildCustomBlockConfig, isCustomBlockType } from '@/blocks/custom/build-config'
 import { BLOCK_REGISTRY } from '@/blocks/registry-maps'
 import type { BlockConfig, BlockIcon } from '@/blocks/types'

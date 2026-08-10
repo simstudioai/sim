@@ -4,6 +4,10 @@ const ALL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const COPILOT_PRINCIPAL_POLICY = {
+  principalKinds: ['delegated'],
+  delegatedServices: ['copilot'],
+} as const
 
 const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
@@ -76,6 +80,18 @@ export const tableOperations = {
   create: writeOperation('tables.create'),
   update: writeOperation('tables.update'),
   delete: writeOperation('tables.delete'),
+  renameByVfsPath: defineWorkspaceOperation({
+    id: 'tables.vfs.rename',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
+  deleteByVfsPath: defineWorkspaceOperation({
+    id: 'tables.vfs.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_PRINCIPAL_POLICY,
+  }),
   listFolders: readOperation('tables.folders.list'),
   createFolder: writeOperation('tables.folders.create'),
   updateFolder: writeOperation('tables.folders.update'),

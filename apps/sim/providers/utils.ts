@@ -77,12 +77,22 @@ function isDefaultWorkflowDescription(
  * Fetches workflow metadata (name and description) from the API
  */
 async function fetchWorkflowMetadata(
-  workflowId: string
+  workflowId: string,
+  executionContext: WorkflowToolExecutionContext | undefined
 ): Promise<{ name: string; description: string | null } | null> {
   try {
-    const { buildAuthHeaders, buildAPIUrl } = await import('@/executor/utils/http')
+    if (!executionContext?.userId) {
+      throw new Error('Workflow metadata enrichment requires a trusted execution subject')
+    }
+    const { buildAPIUrl, buildExecutorDelegationHeaders } = await import('@/executor/utils/http')
 
-    const headers = await buildAuthHeaders()
+    const headers = await buildExecutorDelegationHeaders({
+      subjectUserId: executionContext.userId,
+      workflowId,
+      ...(executionContext.workflowId === workflowId && executionContext.executionId
+        ? { executionId: executionContext.executionId }
+        : {}),
+    })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -787,7 +797,10 @@ export async function transformBlockTool(
   if (toolId === 'workflow_executor' && resolvedResourceParams.workflowId) {
     uniqueToolId = `${toolConfig.id}_${resolvedResourceParams.workflowId}`
 
-    const workflowMetadata = await fetchWorkflowMetadata(resolvedResourceParams.workflowId)
+    const workflowMetadata = await fetchWorkflowMetadata(
+      resolvedResourceParams.workflowId,
+      enrichmentContext
+    )
     if (workflowMetadata) {
       toolName = workflowMetadata.name || toolConfig.name
       if (

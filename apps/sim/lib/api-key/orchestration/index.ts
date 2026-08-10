@@ -15,6 +15,8 @@ export interface PerformCreateWorkspaceApiKeyParams {
   source?: string
   actorName?: string | null
   actorEmail?: string | null
+  projectLegacyAudit?: boolean
+  captureAnalytics?: boolean
 }
 
 export interface PerformCreateWorkspaceApiKeyResult {
@@ -39,12 +41,14 @@ export async function performCreateWorkspaceApiKey(
       name: params.name,
     })
 
-    try {
-      PlatformEvents.apiKeyGenerated({
-        userId: params.userId,
-        keyName: params.name,
-      })
-    } catch {}
+    if (params.captureAnalytics !== false) {
+      try {
+        PlatformEvents.apiKeyGenerated({
+          userId: params.userId,
+          keyName: params.name,
+        })
+      } catch {}
+    }
 
     logger.info('Created workspace API key', {
       workspaceId: params.workspaceId,
@@ -52,22 +56,23 @@ export async function performCreateWorkspaceApiKey(
       name: params.name,
     })
 
-    recordAudit({
-      workspaceId: params.workspaceId,
-      actorId: params.userId,
-      actorName: params.actorName ?? undefined,
-      actorEmail: params.actorEmail ?? undefined,
-      action: AuditAction.API_KEY_CREATED,
-      resourceType: AuditResourceType.API_KEY,
-      resourceId: key.id,
-      resourceName: params.name,
-      description: `Created API key "${params.name}"`,
-      metadata: {
-        keyName: params.name,
-        keyType: 'workspace',
-        source: params.source ?? 'settings',
-      },
-    })
+    if (params.projectLegacyAudit !== false)
+      recordAudit({
+        workspaceId: params.workspaceId,
+        actorId: params.userId,
+        actorName: params.actorName ?? undefined,
+        actorEmail: params.actorEmail ?? undefined,
+        action: AuditAction.API_KEY_CREATED,
+        resourceType: AuditResourceType.API_KEY,
+        resourceId: key.id,
+        resourceName: params.name,
+        description: `Created API key "${params.name}"`,
+        metadata: {
+          keyName: params.name,
+          keyType: 'workspace',
+          source: params.source ?? 'settings',
+        },
+      })
 
     return { success: true, key }
   } catch (error) {

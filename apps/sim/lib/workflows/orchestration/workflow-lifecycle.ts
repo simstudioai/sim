@@ -8,6 +8,7 @@ import { generateId } from '@sim/utils/id'
 import { and, eq, isNull, min, ne } from 'drizzle-orm'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
+import type { DbOrTx } from '@/lib/db/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { buildDefaultWorkflowArtifacts } from '@/lib/workflows/defaults'
 import { archiveWorkflow, restoreWorkflow } from '@/lib/workflows/lifecycle'
@@ -63,6 +64,7 @@ export interface PerformUpdateWorkflowParams {
   locked?: boolean
   forkSyncExcluded?: boolean
   requestId?: string
+  tx?: DbOrTx
 }
 
 export interface PerformUpdateWorkflowResult {
@@ -92,6 +94,8 @@ export interface PerformDeleteWorkflowParams {
   skipLastWorkflowGuard?: boolean
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  /** Legacy lifecycle notification; application commands project their own semantic event. */
+  notifySocket?: boolean
 }
 
 export interface PerformDeleteWorkflowResult {
@@ -169,7 +173,9 @@ async function workflowNameExistsInFolder(params: {
   name: string
   folderId?: string | null
   excludeWorkflowId?: string
+  tx?: DbOrTx
 }): Promise<boolean> {
+  const executor = params.tx ?? db
   const conditions = [
     eq(workflow.workspaceId, params.workspaceId),
     isNull(workflow.archivedAt),
@@ -186,12 +192,33 @@ async function workflowNameExistsInFolder(params: {
     conditions.push(isNull(workflow.folderId))
   }
 
-  const [duplicateWorkflow] = await db
+  const [duplicateWorkflow] = await executor
     .select({ id: workflow.id })
     .from(workflow)
     .where(and(...conditions))
     .limit(1)
   return Boolean(duplicateWorkflow)
+}
+
+async function isWorkflowFolderInWorkspace(
+  folderId: string | null | undefined,
+  workspaceId: string,
+  executor: DbOrTx = db
+): Promise<boolean> {
+  if (!folderId) return true
+  const [row] = await executor
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, folderId),
+        eq(folderTable.workspaceId, workspaceId),
+        eq(folderTable.resourceType, 'workflow'),
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .limit(1)
+  return Boolean(row)
 }
 
 export async function performCreateWorkflowTransition(
@@ -304,6 +331,7 @@ export async function performCreateWorkflow(
 export async function updateWorkflowRecord(
   params: PerformUpdateWorkflowParams
 ): Promise<PerformUpdateWorkflowResult> {
+  const executor = params.tx ?? db
   const requestId = params.requestId ?? generateRequestId()
   const targetName = params.name ?? params.currentName
   const targetFolderId =
@@ -311,7 +339,7 @@ export async function updateWorkflowRecord(
 
   if (
     params.folderId !== undefined &&
-    !(await isFolderInWorkspace(targetFolderId, params.workspaceId))
+    !(await isWorkflowFolderInWorkspace(targetFolderId, params.workspaceId, executor))
   ) {
     return { success: false, error: 'Target folder not found', errorCode: 'validation' }
   }
@@ -322,6 +350,7 @@ export async function updateWorkflowRecord(
       name: targetName,
       folderId: targetFolderId,
       excludeWorkflowId: params.workflowId,
+      tx: executor,
     })
     if (duplicate) {
       return {
@@ -340,7 +369,7 @@ export async function updateWorkflowRecord(
   if (params.locked !== undefined) updateData.locked = params.locked
   if (params.forkSyncExcluded !== undefined) updateData.forkSyncExcluded = params.forkSyncExcluded
 
-  const [updatedWorkflow] = await db
+  const [updatedWorkflow] = await executor
     .update(workflow)
     .set(updateData)
     .where(
@@ -478,7 +507,10 @@ export async function deleteWorkflowRecord(
     }
   }
 
-  const archiveResult = await archiveWorkflow(workflowId, { requestId })
+  const archiveResult = await archiveWorkflow(workflowId, {
+    requestId,
+    notifySocket: params.notifySocket,
+  })
   if (!archiveResult.workflow) {
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }

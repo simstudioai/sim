@@ -98,6 +98,7 @@ import {
   hydrateUserFilesWithBase64,
 } from '@/lib/uploads/utils/user-file-base64.server'
 import { getCustomBlockRowsForWorkspace } from '@/lib/workflows/custom-blocks/operations'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import { enqueueWorkflowExecution } from '@/lib/workflows/executor/enqueue-execution'
 import { executeWorkflow } from '@/lib/workflows/executor/execute-workflow'
 import { executeWorkflowCore } from '@/lib/workflows/executor/execution-core'
@@ -139,7 +140,6 @@ import {
 } from '@/lib/workflows/streaming/streaming'
 import { createHttpResponseFromBlock, workflowHasResponseBlock } from '@/lib/workflows/utils'
 import { getWorkspaceBillingSettings } from '@/lib/workspaces/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 import { withCustomBlockOverlay } from '@/blocks/custom/server-overlay'
 import {
   PublicApiNotAllowedError,

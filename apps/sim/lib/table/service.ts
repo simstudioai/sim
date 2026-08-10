@@ -338,6 +338,25 @@ export async function listTables(
   return hydrateTableRows(tables)
 }
 
+/** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */
+export async function findActiveTablesByExactName(
+  workspaceId: string,
+  name: string
+): Promise<TableDefinition[]> {
+  const rows = await db
+    .select(TABLE_ROW_SELECT)
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        eq(userTableDefinitions.name, name),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .limit(2)
+  return hydrateTableRows(rows)
+}
+
 /**
  * Attaches each table's latest job fields and its order-corrected schema. The
  * `rowCount` subtracts rows a pending delete has already claimed, so a table
@@ -785,7 +804,7 @@ export async function renameTable(
   tableId: string,
   newName: string,
   requestId: string,
-  options?: { expectedWorkspaceId?: string }
+  options?: { expectedWorkspaceId?: string; skipNotify?: boolean }
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
@@ -819,7 +838,7 @@ export async function renameTable(
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
 
     // Live tables list: a rename changes the list result, so everyone viewing refetches.
-    if (workspaceId) await notifyWorkspaceTablesChanged(workspaceId)
+    if (workspaceId && !options?.skipNotify) await notifyWorkspaceTablesChanged(workspaceId)
 
     return { id: tableId, name: newName }
   } catch (error: unknown) {

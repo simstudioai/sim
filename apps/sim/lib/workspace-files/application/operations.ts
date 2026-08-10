@@ -74,6 +74,27 @@ export const fileOperations = {
     workspaceApiKey: 'allow',
     ...ALL_FILE_TOOL_PRINCIPAL_POLICY,
   }),
+  createVfsFolders: defineWorkspaceOperation({
+    id: 'files.vfs.folders.create',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  relocateVfsItems: defineWorkspaceOperation({
+    id: 'files.vfs.relocate',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
+  deleteVfsItems: defineWorkspaceOperation({
+    id: 'files.vfs.delete',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    principalKinds: ['delegated'],
+    delegatedServices: ['copilot'],
+  }),
   delete: defineWorkspaceOperation({
     id: 'files.delete',
     minimumRole: 'write',

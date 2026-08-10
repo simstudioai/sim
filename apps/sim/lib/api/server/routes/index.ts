@@ -16,6 +16,7 @@ export {
 export { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
 export { defineV2BodyLifecycleRoute } from '@/lib/api/server/routes/v2-body-lifecycle-route'
 export {
+  admitOptionalV2Request,
   admitV2Request,
   defineV2JsonRoute,
   type V2ErrorPolicy,
