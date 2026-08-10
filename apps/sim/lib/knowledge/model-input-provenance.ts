@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { prepareCopilotEnvironmentContext } from '@/lib/copilot/environment-context'
 import { inspectModelInputProvenanceRequest } from '@/lib/execution/model-input-provenance'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import {
   isResolvedSecretTraceProvenanceV1,
   ResolvedSecretTraceRegistry,
@@ -91,8 +92,13 @@ export function runWithKnowledgeModelInputProvenance<T>(
 
 /** Rejects opaque bytes/URLs that cannot be selectively projected before an external model call. */
 export function assertKnowledgeOpaqueModelInputSafe(): void {
-  if (knowledgeModelInputContext.getStore()?.opaqueInputSafe === false) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+  const context = knowledgeModelInputContext.getStore()
+  if (context?.opaqueInputSafe === false) {
+    refuseResolvedSecretProjection({
+      site: 'knowledge.opaqueModelInputSafety',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry: context.registry,
+    })
   }
 }
 
@@ -100,7 +106,11 @@ export function assertKnowledgeOpaqueModelInputSafe(): void {
 export function getKnowledgeOpaqueModelInputRegistry(): ResolvedSecretTraceRegistry {
   const context = knowledgeModelInputContext.getStore()
   if (!context?.opaqueInputSafe) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.opaqueModelInputRegistry',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry: context?.registry,
+    })
   }
   return context.registry ?? new ResolvedSecretTraceRegistry()
 }
@@ -112,7 +122,11 @@ export function projectKnowledgeModelInput(value: string): string {
 
   const projection = projectResolvedSecretModelContent(value, registry)
   if (!projection.safe || typeof projection.value !== 'string') {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.modelInput',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry,
+    })
   }
   return projection.value
 }
@@ -128,7 +142,11 @@ export function projectKnowledgeModelInputs(values: readonly string[]): string[]
     !Array.isArray(projection.value) ||
     !projection.value.every((value) => typeof value === 'string')
   ) {
-    throw new Error(MODEL_INPUT_PROJECTION_ERROR)
+    refuseResolvedSecretProjection({
+      site: 'knowledge.modelInputs',
+      message: MODEL_INPUT_PROJECTION_ERROR,
+      registry,
+    })
   }
   return projection.value
 }
