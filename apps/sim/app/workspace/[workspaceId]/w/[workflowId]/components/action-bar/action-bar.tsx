@@ -45,35 +45,22 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The hatch a filled sweep slot paints: narrow uprights leaning right, so a
- * filling run reads as one continuous `////` band.
+ * The running hatch: narrow uprights leaning right, painted ONCE across the row.
  *
- * Repeating, not one bar per slot. A single bar left the rest of its 24px button
- * empty, so the marks inherited the button grid's rhythm and sat ~19px apart —
- * the row read as isolated ticks rather than a loader. The pitch instead divides
- * the row's own rhythm: slot + `gap-[2px]` is 26px, so a 13px horizontal pitch
- * puts exactly two bars in every slot and stays in phase across the gaps,
- * including the 40px end slots. Bars land every 13px with a uniform 6px between
- * them, whatever the run's length.
+ * Per-slot backgrounds cannot do this. Each button starts its own gradient at
+ * its own origin, so the phase resets at every slot — and the end slots are 40px
+ * against the others' 24px, so the resets are not even uniform. The row came out
+ * as bars bunched in some places and spread in others. One element spanning the
+ * row has one gradient, and therefore one phase.
  *
- * Stops are measured along the 105° axis, not horizontally, so they carry the
- * `sin(105°)` factor: a 7px bar on a 13px pitch is 6.76px on a 12.56px period.
- * `bg-clip-content` with symmetric padding sets the height without touching the
- * slot's size, so the swell measured around it does not move. `--surface-2` is
- * untouched.
- *
- * Each variant is spelled out: Tailwind's JIT reads literal class strings.
+ * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
-const RUNNING_SWEEP_FILL = [
-  '!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
-  'hover-hover:!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
-  '!bg-clip-content !py-[4px] !rounded-none',
-].join(' ')
+const RUNNING_HATCH =
+  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_5.8px,transparent_5.8px_11.6px)]'
 
-const RUNNING_SWEEP_FILL_STATIC = [
-  'motion-reduce:!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
-  'motion-reduce:!bg-clip-content motion-reduce:!py-[4px] motion-reduce:!rounded-none',
-].join(' ')
+/** Left edge of the hatch: clears the run/stop button, which stays live mid-run. */
+const RUNNING_HATCH_INSET_SWELL = 'left-[42px]'
+const RUNNING_HATCH_INSET_PLAIN = 'left-[26px]'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -291,7 +278,6 @@ export const ActionBar = memo(
     const getActionButtonStyles = (actionId: ActionId) => {
       const runningSweepIndex = runningSweepActionIds.indexOf(actionId)
       const isRunningSweepSlot = isSweeping && runningSweepIndex >= 0
-      const isRunningSweepFilled = isRunningSweepSlot && runningSweepIndex < runningSweepFilledCount
 
       return cn(
         actionButtonStyles,
@@ -328,11 +314,11 @@ export const ActionBar = memo(
                 ]
               : 'hover-hover:!bg-transparent dark:hover-hover:!bg-transparent',
           ],
+        /* The hatch is painted across the row, not per slot — a slot only clears
+           itself out of its way. */
         isRunningSweepSlot && [
           '!opacity-100 [&_svg]:!opacity-0',
-          isRunningSweepFilled ? RUNNING_SWEEP_FILL : '!bg-transparent hover-hover:!bg-transparent',
-          RUNNING_SWEEP_FILL_STATIC,
-          'motion-reduce:transition-none',
+          '!bg-transparent hover-hover:!bg-transparent',
         ],
         /* `!` is required: these buttons are also `disabled` when locked, and
            the emcn Button base carries `disabled:opacity-70`, which outranks a
@@ -379,13 +365,38 @@ export const ActionBar = memo(
       >
         <div
           className={cn(
-            'flex flex-row items-center gap-[2px]',
+            'relative flex flex-row items-center gap-[2px]',
             isSwell && [
               'pointer-events-none h-full opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
               'group-data-[action-menu-ready]:pointer-events-auto group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100',
             ]
           )}
         >
+          {/*
+            Painted behind the row rather than into each slot, so the hatch has a
+            single gradient and a single phase. The run/stop button keeps an
+            opaque fill while running, which masks the hatch growing underneath
+            it; every other slot is transparent mid-sweep, so it shows through.
+          */}
+          {isSweeping && (
+            <span
+              aria-hidden='true'
+              className={cn(
+                'pointer-events-none absolute inset-y-[4px] right-0 overflow-hidden',
+                isSwell ? RUNNING_HATCH_INSET_SWELL : RUNNING_HATCH_INSET_PLAIN
+              )}
+            >
+              <span
+                className={cn(
+                  'block h-full transition-[width] duration-150 ease-linear motion-reduce:transition-none',
+                  RUNNING_HATCH
+                )}
+                style={{
+                  width: `${(runningSweepFilledCount / runningSweepActionIds.length) * 100}%`,
+                }}
+              />
+            </span>
+          )}
           {!isNoteBlock && (!isInsideSubflow || isWorkflowRunning) && (
             <Tooltip.Root preferAbove>
               <Tooltip.Trigger asChild>
