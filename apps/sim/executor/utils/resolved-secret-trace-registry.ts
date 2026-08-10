@@ -1,7 +1,10 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import {
   createResolvedSecretMatcher,
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
@@ -9,6 +12,98 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-matcher'
 import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
+
+const logger = createLogger('ResolvedSecretTraceRegistry')
+
+/**
+ * Why a registry stopped being able to vouch for what it projects.
+ *
+ * Incompleteness is one-way and fails every later model projection in the run, surfacing to the
+ * user as a single opaque sentence. Recording which guard tripped is the only way to tell a
+ * genuine containment from a matcher that merely could not decide — the reasons are static
+ * literals and the logged path is block/field names, never a resolved value.
+ */
+export type ResolvedSecretIncompletenessReason =
+  | 'untrusted-provenance'
+  | 'source-provenance-incomplete'
+  | 'entry-decrypt-failed'
+  | 'unverified-resolved-entry'
+  | 'projection-mismatch'
+  | 'unresolved-placeholder'
+  | 'provenance-capacity-exceeded'
+  | 'restored-checkpoint-unavailable'
+  | 'constructed-incomplete'
+  | 'inherited-incomplete-source'
+  | 'inherited-incomplete-input-path'
+  | 'tool-call-scope-mismatch'
+  | 'value-provenance-untrusted'
+  | 'value-provenance-import-failed'
+  | 'value-provenance-filter-incomplete'
+  | 'durable-provenance-unknown'
+  | 'durable-provenance-malformed'
+  | 'unspecified'
+
+/**
+ * Reasons that mean something went wrong, rather than that provenance was never on offer.
+ *
+ * These log at error: each is a guard tripping on a path that should have succeeded, none is
+ * reachable on a healthy run, and error is the only level surviving every default the logger falls
+ * back to — production, test, and a self-hosted chart that sets no `LOG_LEVEL`.
+ *
+ * Everything absent from this set logs at warn, which is the deliberate default. Incompleteness is
+ * also the *designed* state wherever there is no catalog to vouch with, and those paths are hot — a
+ * webhook execution builds an incomplete registry on every run before replacing it. Defaulting to
+ * warn keeps a by-design state, an upstream bundle that already declared itself incomplete, a fork
+ * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
+ * reason from flooding the error stream. A reason added later without thought stays quiet.
+ */
+const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'untrusted-provenance',
+  'entry-decrypt-failed',
+  'unverified-resolved-entry',
+  'projection-mismatch',
+  'unresolved-placeholder',
+  'provenance-capacity-exceeded',
+  'tool-call-scope-mismatch',
+  'value-provenance-untrusted',
+  'value-provenance-import-failed',
+  'durable-provenance-malformed',
+])
+
+/**
+ * Incompleteness that is a construction choice rather than an event: `createIncomplete…` states
+ * outright that no trusted catalog was available. It carries nothing a reader could act on and sits
+ * on hot paths, so it is not reported at all.
+ */
+const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'constructed-incomplete',
+])
+
+/**
+ * Origins are caller-supplied strings rather than a closed union, so they carry an explicit bound;
+ * one run reaching this many distinct importers already tells the whole story.
+ */
+const MAX_RETAINED_ORIGINS = 8
+
+/**
+ * Why a registry can no longer vouch for what it projects, readable at the point a projection is
+ * refused rather than only when the guard trips.
+ *
+ * A refusal is often many frames — and sometimes a whole process — away from the guard that caused
+ * it, and the one-way latch means the causing call has long since returned. Without this, a run
+ * that inherits an already-incomplete registry can refuse with nothing recorded anywhere.
+ */
+export interface ResolvedSecretIncompletenessDiagnostics {
+  /** Distinct reasons in first-occurrence order, so the first is what originally cost completeness. */
+  readonly reasons: readonly ResolvedSecretIncompletenessReason[]
+  /** Callers that imported an untrustworthy bundle, in first-occurrence order. */
+  readonly origins: readonly string[]
+  readonly incompleteInputPathCount: number
+  /** Present so a refusal record joins to the mark-time record that shares these counts. */
+  readonly activeEntryCount: number
+  /** Correlates a refusal with the guard that caused it; never carries user or secret material. */
+  readonly scopeWorkspaceId?: string
+}
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
@@ -78,17 +173,35 @@ interface ResolvedInputPathState {
 interface PreparedProvenanceFilter {
   candidatesByScanLiteral: ReadonlyMap<string, readonly ActiveSecretEntry[]>
   candidatesByAlias: ReadonlyMap<string, readonly ActiveSecretEntry[]>
-  candidateEntryKeys: ReadonlySet<string>
+  candidateEntries: ReadonlyMap<string, ActiveSecretEntry>
   matcher?: ResolvedSecretMatcher
 }
 
+/**
+ * Carries the candidate entries on both arms, because they are the answer whenever narrowing is
+ * unavailable — including when the matcher itself could not be built.
+ */
 type PreparedProvenanceFilterResult =
   | { complete: true; filter: PreparedProvenanceFilter }
-  | { complete: false }
+  | { complete: false; candidateEntries: ReadonlyMap<string, ActiveSecretEntry> }
+
+/** Extra attribution for a latch: which registry it propagated from, and which importer caused it. */
+interface MarkIncompleteContext {
+  source?: ResolvedSecretTraceRegistry
+  origin?: string
+}
 
 export interface ImportResolvedSecretTraceProvenanceOptions {
   trusted: boolean
   anonymous?: boolean
+  /**
+   * Stable dotted identifier for the caller, e.g. `workflowHandler.childCrossing`.
+   *
+   * A bundle that arrives already incomplete condemns the whole run, and the reason alone cannot
+   * say which of the many importers accepted it. Recording the caller is what turns
+   * `source-provenance-incomplete` from a symptom into an address.
+   */
+  origin?: string
 }
 
 export interface ExportResolvedSecretTraceProvenanceForValueOptions {
@@ -534,6 +647,10 @@ export class ResolvedSecretTraceRegistry {
   private readonly propagatedEntryKeys = new Set<string>()
   private readonly resolvedInputPaths = new Map<string, ResolvedInputPathState>()
   private readonly incompleteInputPaths = new Map<string, string[]>()
+  /** Insertion-ordered; see {@link ResolvedSecretIncompletenessDiagnostics}. */
+  private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
+  /** Import callers that cost this registry its completeness; bounded by {@link MAX_RETAINED_ORIGINS}. */
+  private readonly incompletenessOrigins = new Set<string>()
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
@@ -544,15 +661,23 @@ export class ResolvedSecretTraceRegistry {
   }
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
+  /**
+   * A staged registry filters one value and is then discarded. Its caller re-reports whatever
+   * fault it hits against the real input path, so its own summary lines would restate that with
+   * strictly less context. Entry-level detail still logs — the caller cannot reconstruct it.
+   */
+  private readonly staged: boolean
 
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
-    scope?: ResolvedSecretTraceScopeV1
+    scope?: ResolvedSecretTraceScopeV1,
+    options: { staged?: boolean } = {}
   ) {
+    this.staged = options.staged === true
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
     this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
     if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
-      this.markIncomplete()
+      this.markIncomplete('provenance-capacity-exceeded')
     }
     let catalogEntriesSeen = 0
     for (const entry of catalogEntries) {
@@ -580,7 +705,7 @@ export class ResolvedSecretTraceRegistry {
     }
     this.copyResolvedInputPathsTo(fork)
     this.copyIncompleteInputPathsTo(fork)
-    if (!this.complete) fork.markIncomplete()
+    if (!this.complete) fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
   }
 
@@ -591,12 +716,12 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
     if (!this.complete) {
-      fork.markIncomplete()
+      fork.markIncomplete('inherited-incomplete-source', { source: this })
       return fork
     }
 
     if (this.hasIncompleteInputPathOverlapping(paths)) {
-      fork.markIncomplete()
+      fork.markIncomplete('inherited-incomplete-input-path', { source: this })
       return fork
     }
 
@@ -620,14 +745,20 @@ export class ResolvedSecretTraceRegistry {
         fork.addActiveEntry({ ...entry }, { propagated: true })
       }
     }
-    if (this.isPermanentlyIncomplete()) fork.markIncomplete()
+    if (this.isPermanentlyIncomplete())
+      fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
   }
 
   /** Merges one settled tool-call registry into the turn-scoped registry. */
   mergeToolCallRegistry(child: ResolvedSecretTraceRegistry): void {
-    if (!scopesMatch(this.scope, child.scope) || !child.isComplete()) {
-      this.markIncomplete()
+    if (!scopesMatch(this.scope, child.scope)) {
+      this.markIncomplete('tool-call-scope-mismatch')
+      return
+    }
+
+    if (!child.isComplete()) {
+      this.markIncomplete('inherited-incomplete-source', { source: child })
       return
     }
 
@@ -649,7 +780,7 @@ export class ResolvedSecretTraceRegistry {
     if (resolvedValue.length === 0) return false
     const entry = this.getVerifiedResolvedEntry(name, resolvedValue)
     if (!entry) {
-      this.markIncomplete()
+      this.markIncomplete('unverified-resolved-entry')
       return false
     }
 
@@ -669,7 +800,7 @@ export class ResolvedSecretTraceRegistry {
 
     const entry = this.getVerifiedResolvedEntry(name, resolvedValue)
     if (!entry) {
-      this.markInputPathIncomplete(path)
+      this.markInputPathIncomplete(path, 'unverified-resolved-entry')
       return false
     }
 
@@ -790,7 +921,7 @@ export class ResolvedSecretTraceRegistry {
         typeof projectedValue === 'string' &&
         state.projectedValue !== projectedValue
       ) {
-        this.markInputPathIncomplete(path)
+        this.markInputPathIncomplete(path, 'projection-mismatch')
         return
       }
       for (const entryKey of entryKeys) state.entryKeys.add(entryKey)
@@ -846,7 +977,7 @@ export class ResolvedSecretTraceRegistry {
         if (current.raw !== null && typeof current.raw === 'object') {
           const standaloneName = canonicalPlaceholderName(current.projected as string)
           if (!standaloneName || !entryKeysByName.has(standaloneName)) {
-            this.markInputPathIncomplete(current.path)
+            this.markInputPathIncomplete(current.path, 'unresolved-placeholder')
             return
           }
           recordProjectedMarkerAcrossRawLeaves(
@@ -994,16 +1125,18 @@ export class ResolvedSecretTraceRegistry {
     options: ImportResolvedSecretTraceProvenanceOptions
   ): Promise<boolean> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markIncomplete()
+      this.markIncomplete('untrusted-provenance', { origin: options.origin })
       return false
     }
 
     if (!provenance.complete) {
-      this.markIncomplete()
+      this.markIncomplete('source-provenance-incomplete', { origin: options.origin })
     }
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
     let importedAll = true
+    let decryptFailures = 0
+    let firstDecryptError: string | undefined
     for (const entry of provenance.entries) {
       try {
         const { decrypted } = await decryptSecret(entry.encryptedValue)
@@ -1016,10 +1149,25 @@ export class ResolvedSecretTraceRegistry {
           },
           { propagated: true }
         )
-      } catch {
+      } catch (error) {
         importedAll = false
-        this.markIncomplete()
+        decryptFailures += 1
+        firstDecryptError ??= getErrorMessage(error, 'Unknown error')
+        this.markIncomplete('entry-decrypt-failed', { origin: options.origin })
       }
+    }
+
+    /**
+     * Summarised rather than logged per entry: one rotated or corrupt key fails every entry in the
+     * bundle, and a bundle may carry up to MAX_PROVENANCE_ENTRIES of them.
+     */
+    if (decryptFailures > 0) {
+      logger.error('Provenance entries could not be decrypted', {
+        error: firstDecryptError,
+        failedEntryCount: decryptFailures,
+        totalEntryCount: provenance.entries.length,
+        scopeWorkspaceId: this.scope?.workspaceId,
+      })
     }
 
     return importedAll
@@ -1033,7 +1181,7 @@ export class ResolvedSecretTraceRegistry {
   async importProvenanceForValue(
     provenance: unknown,
     value: unknown,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<boolean> {
     const result = await this.importProvenanceForValueInternal(provenance, value, options)
     return result.success
@@ -1044,7 +1192,7 @@ export class ResolvedSecretTraceRegistry {
     provenance: unknown,
     value: unknown,
     inputPath: ResolvedSecretInputPath | undefined,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     return this.importProvenanceForValueInternal(provenance, value, {
       ...options,
@@ -1055,25 +1203,39 @@ export class ResolvedSecretTraceRegistry {
   private async importProvenanceForValueInternal(
     provenance: unknown,
     value: unknown,
-    options: { trusted: boolean; inputPath?: ResolvedSecretInputPath }
+    options: { trusted: boolean; inputPath?: ResolvedSecretInputPath; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markInputPathIncomplete(options.inputPath)
+      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted', options.origin)
       return { success: false, matched: false }
     }
 
-    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
+    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
+    const sourceImported = await sourceRegistry.importProvenance(provenance, {
+      trusted: true,
+      origin: options.origin,
+    })
     const filteredProvenance = sourceRegistry.exportProvenanceForValue(value)
     if (!sourceImported) {
-      this.markInputPathIncomplete(options.inputPath)
+      this.markInputPathIncomplete(
+        options.inputPath,
+        'value-provenance-import-failed',
+        options.origin
+      )
       return { success: false, matched: false }
     }
     if (!filteredProvenance.complete) {
-      this.markInputPathIncomplete(options.inputPath)
+      this.markInputPathIncomplete(
+        options.inputPath,
+        provenance.complete ? 'value-provenance-filter-incomplete' : 'source-provenance-incomplete',
+        options.origin
+      )
       return { success: true, matched: false }
     }
-    const filteredImported = await this.importProvenance(filteredProvenance, { trusted: true })
+    const filteredImported = await this.importProvenance(filteredProvenance, {
+      trusted: true,
+      origin: options.origin,
+    })
     if (options.inputPath && options.inputPath.length > 0 && filteredProvenance.complete) {
       const sameScope = scopesMatch(filteredProvenance.scope, this.scope)
       this.bindResolvedInputPathEntries(
@@ -1102,7 +1264,7 @@ export class ResolvedSecretTraceRegistry {
   async importCrossingProvenance(
     provenance: unknown,
     crossingValue: unknown,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<boolean> {
     return this.importProvenanceForValue(provenance, crossingValue, options)
   }
@@ -1178,7 +1340,12 @@ export class ResolvedSecretTraceRegistry {
   private buildMatches(entries: Iterable<ActiveSecretEntry>): readonly ResolvedSecretTraceMatch[] {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     for (const entry of entries) {
-      if (entry.plaintext.length === 0) continue
+      /**
+       * Dropped here too, not only inside the matcher, so a literal that will never be substituted
+       * also never counts toward the matcher capacity bound or appears to a snapshot reader as
+       * something this registry protects.
+       */
+      if (entry.plaintext.length === 0 || isNonIdentifyingSecretLiteral(entry.plaintext)) continue
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       candidates.push(entry)
       candidatesByPlaintext.set(entry.plaintext, candidates)
@@ -1210,14 +1377,68 @@ export class ResolvedSecretTraceRegistry {
     return this.complete && this.incompleteInputPaths.size === 0 && this.pendingActivations === 0
   }
 
+  /**
+   * Reports why this registry is incomplete, for a caller that is about to refuse a projection.
+   *
+   * Returns undefined while the registry can still vouch, so a caller cannot accidentally report a
+   * cause for a projection that succeeded.
+   */
+  getIncompletenessDiagnostics(): ResolvedSecretIncompletenessDiagnostics | undefined {
+    if (!this.isPermanentlyIncomplete()) return undefined
+    return {
+      reasons: [...this.incompletenessReasons],
+      origins: [...this.incompletenessOrigins],
+      incompleteInputPathCount: this.incompleteInputPaths.size,
+      activeEntryCount: this.activeEntries.size,
+      ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
+    }
+  }
+
+  /** Retains a reason for later refusal reporting; the reason type bounds the set at its size. */
+  private recordIncompletenessReason(reason: ResolvedSecretIncompletenessReason): void {
+    this.incompletenessReasons.add(reason)
+  }
+
+  /** Retains the importing caller, keeping the earliest once the bound is reached. */
+  private recordIncompletenessOrigin(origin: string): void {
+    if (this.incompletenessOrigins.size >= MAX_RETAINED_ORIGINS) return
+    this.incompletenessOrigins.add(origin)
+  }
+
+  /**
+   * Carries a source registry's reasons into a fork or merge target, so a refusal downstream still
+   * names the guard that originally tripped rather than only the propagation that reached it.
+   */
+  private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
+    for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
+    for (const origin of source.incompletenessOrigins) this.recordIncompletenessOrigin(origin)
+  }
+
   isPermanentlyIncomplete(): boolean {
     return !this.complete || this.incompleteInputPaths.size > 0
   }
 
-  markIncomplete(): void {
+  markIncomplete(
+    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    context: MarkIncompleteContext = {}
+  ): void {
+    if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
+    this.recordIncompletenessReason(reason)
+    if (context.origin) this.recordIncompletenessOrigin(context.origin)
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
+    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+    const details = {
+      reason,
+      ...(context.origin ? { origin: context.origin } : {}),
+      scopeWorkspaceId: this.scope?.workspaceId,
+      activeEntryCount: this.activeEntries.size,
+      incompleteInputPathCount: this.incompleteInputPaths.size,
+    }
+    const message = 'Resolved secret registry marked incomplete'
+    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
+    else logger.warn(message, details)
   }
 
   /**
@@ -1333,16 +1554,21 @@ export class ResolvedSecretTraceRegistry {
   }
 
   private prepareProvenanceFilter(
-    candidateEntries: Iterable<ActiveSecretEntry>
+    sourceEntries: Iterable<ActiveSecretEntry>
   ): PreparedProvenanceFilterResult {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
-    const sortedCandidateEntries = [...candidateEntries].sort(
+    const sortedCandidateEntries = [...sourceEntries].sort(
       (left, right) =>
         compareStrings(left.name, right.name) ||
         compareStrings(left.encryptedValue, right.encryptedValue)
     )
     for (const entry of sortedCandidateEntries) {
-      if (entry.plaintext.length === 0) continue
+      /**
+       * Excluded from scan literals as well as from the matcher, so such a value is never recorded
+       * into durable provenance as something a later read must redact. A named entry still joins
+       * the alias loop below — `__var_NAME` identifies the variable even when its value does not.
+       */
+      if (entry.plaintext.length === 0 || isNonIdentifyingSecretLiteral(entry.plaintext)) continue
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       const entryKey = activeEntryKey(entry)
       if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
@@ -1352,7 +1578,7 @@ export class ResolvedSecretTraceRegistry {
     }
 
     const candidatesByScanLiteral = new Map<string, ActiveSecretEntry[]>()
-    const candidateEntryKeys = new Set<string>()
+    const candidateEntries = new Map<string, ActiveSecretEntry>()
     const addScanLiteral = (literal: string, entry: ActiveSecretEntry): void => {
       if (literal.length === 0) return
       const candidates = candidatesByScanLiteral.get(literal) ?? []
@@ -1361,7 +1587,7 @@ export class ResolvedSecretTraceRegistry {
         candidates.push(entry)
         candidatesByScanLiteral.set(literal, candidates)
       }
-      candidateEntryKeys.add(entryKey)
+      candidateEntries.set(entryKey, entry)
     }
     for (const candidates of candidatesByPlaintext.values()) {
       for (const entry of candidates) {
@@ -1380,7 +1606,7 @@ export class ResolvedSecretTraceRegistry {
         candidates.push(entry)
         candidatesByAlias.set(alias, candidates)
       }
-      candidateEntryKeys.add(entryKey)
+      candidateEntries.set(entryKey, entry)
     }
 
     let matcher: ResolvedSecretMatcher | undefined
@@ -1388,8 +1614,12 @@ export class ResolvedSecretTraceRegistry {
       matcher = createResolvedSecretMatcher(
         [...candidatesByScanLiteral.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
       )
-    } catch {
-      return { complete: false }
+    } catch (error) {
+      logger.error('Provenance filter matcher could not be built', {
+        error: getErrorMessage(error, 'Unknown error'),
+        candidateCount: candidatesByScanLiteral.size,
+      })
+      return { complete: false, candidateEntries }
     }
 
     return {
@@ -1397,10 +1627,47 @@ export class ResolvedSecretTraceRegistry {
       filter: {
         candidatesByScanLiteral,
         candidatesByAlias,
-        candidateEntryKeys,
+        candidateEntries,
         ...(matcher ? { matcher } : {}),
       },
     }
+  }
+
+  /** Builds the envelope for one selected entry set; only this registry's own state can void it. */
+  private provenanceForSelectedEntries(
+    entries: ReadonlyMap<string, ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    const complete = !this.isPermanentlyIncomplete()
+    return {
+      version: 1,
+      complete,
+      entries: complete
+        ? this.buildProvenanceEntries([...entries.values()], options.anonymous)
+        : [],
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    }
+  }
+
+  /**
+   * Answers a value the bounded scan could not read in full by keeping every candidate entry.
+   *
+   * Narrowing exists to stop content that provably carries no secret from being over-redacted; it
+   * is not what makes an envelope trustworthy. The candidates are already the trusted answer to
+   * "which secrets could this value carry", so an unreadable value — an offloaded large-value ref
+   * the scan cannot see through, a payload past the traversal bound, a hostile accessor — degrades
+   * to no narrowing rather than to unknown provenance.
+   *
+   * Reporting unknown here is what let a size threshold behave like a permanent fault: the flag
+   * travels onto the producing block's state, and every model boundary that later consumes that
+   * output refuses, with nothing telling the author the cause was payload volume rather than a
+   * secret. Over-approximating costs extra redaction; it can never under-redact.
+   */
+  private unnarrowedProvenance(
+    candidateEntries: ReadonlyMap<string, ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    return this.provenanceForSelectedEntries(candidateEntries, options)
   }
 
   private exportProvenanceForValueWithPreparedFilter(
@@ -1417,37 +1684,22 @@ export class ResolvedSecretTraceRegistry {
     options: ExportResolvedSecretTraceProvenanceForValueOptions
   ): ResolvedSecretTraceProvenanceV1 {
     if (!prepared.complete) {
-      return {
-        version: 1,
-        complete: false,
-        entries: [],
-        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-      }
+      return this.unnarrowedProvenance(prepared.candidateEntries, options)
     }
 
-    const { candidatesByScanLiteral, candidatesByAlias, candidateEntryKeys, matcher } =
+    const { candidatesByScanLiteral, candidatesByAlias, candidateEntries, matcher } =
       prepared.filter
     const matchedEntries = new Map<string, ActiveSecretEntry>()
     const pendingValues: unknown[] = []
     try {
       for (const value of values) {
         if (pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) {
-          return {
-            version: 1,
-            complete: false,
-            entries: [],
-            ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-          }
+          return this.unnarrowedProvenance(candidateEntries, options)
         }
         pendingValues.push(value)
       }
     } catch {
-      return {
-        version: 1,
-        complete: false,
-        entries: [],
-        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-      }
+      return this.unnarrowedProvenance(candidateEntries, options)
     }
     const visited = new WeakSet<object>()
     let scannedNodes = 0
@@ -1495,7 +1747,7 @@ export class ResolvedSecretTraceRegistry {
       if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
       scannedNodes++
       if (!scanString(key)) return false
-      if (matchedEntries.size >= candidateEntryKeys.size) return true
+      if (matchedEntries.size >= candidateEntries.size) return true
 
       if ('value' in descriptor) {
         if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
@@ -1506,7 +1758,7 @@ export class ResolvedSecretTraceRegistry {
       return true
     }
 
-    while (pendingValues.length > 0 && matchedEntries.size < candidateEntryKeys.size) {
+    while (pendingValues.length > 0 && matchedEntries.size < candidateEntries.size) {
       const current = pendingValues.pop()
       scannedNodes++
       if (scannedNodes > MAX_PROVENANCE_FILTER_NODES) {
@@ -1542,9 +1794,9 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidateEntryKeys.size) break
+          if (matchedEntries.size >= candidateEntries.size) break
         }
-        if (!scanComplete || matchedEntries.size >= candidateEntryKeys.size) break
+        if (!scanComplete || matchedEntries.size >= candidateEntries.size) break
 
         for (const key in current as Record<string, unknown>) {
           enumeratedProperties++
@@ -1559,7 +1811,7 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidateEntryKeys.size) break
+          if (matchedEntries.size >= candidateEntries.size) break
         }
         if (!scanComplete) break
       } catch {
@@ -1568,16 +1820,9 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const complete = !this.isPermanentlyIncomplete() && scanComplete
-    const entries = complete
-      ? this.buildProvenanceEntries([...matchedEntries.values()], options.anonymous)
-      : []
-    return {
-      version: 1,
-      complete,
-      entries,
-      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-    }
+    return scanComplete
+      ? this.provenanceForSelectedEntries(matchedEntries, options)
+      : this.unnarrowedProvenance(candidateEntries, options)
   }
 
   private collectInputPathEntryKeys(paths: readonly ResolvedSecretInputPath[]): Set<string> {
@@ -1623,25 +1868,45 @@ export class ResolvedSecretTraceRegistry {
     )
   }
 
-  private markInputPathIncomplete(path: ResolvedSecretInputPath | undefined): void {
+  private markInputPathIncomplete(
+    path: ResolvedSecretInputPath | undefined,
+    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    origin?: string
+  ): void {
     if (!path || path.length === 0) {
-      this.markIncomplete()
+      this.markIncomplete(reason, { origin })
       return
     }
+    this.recordIncompletenessReason(reason)
+    if (origin) this.recordIncompletenessOrigin(origin)
     const key = inputPathKey(path)
     if (this.incompleteInputPaths.has(key)) return
     this.incompleteInputPaths.set(key, [...path])
     this.modelEgressRevision += 1
+    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+    const details = {
+      reason,
+      ...(origin ? { origin } : {}),
+      inputPath: path.join('.'),
+      scopeWorkspaceId: this.scope?.workspaceId,
+      activeEntryCount: this.activeEntries.size,
+    }
+    const message = 'Resolved secret input path marked incomplete'
+    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
+    else logger.warn(message, details)
   }
 
   private copyIncompleteInputPathsTo(
     target: ResolvedSecretTraceRegistry,
     roots?: readonly ResolvedSecretInputPath[]
   ): void {
+    let copied = false
     for (const [key, path] of this.incompleteInputPaths) {
       if (roots && !roots.some((root) => inputPathsOverlap(path, root))) continue
       target.incompleteInputPaths.set(key, [...path])
+      copied = true
     }
+    if (copied) target.inheritIncompletenessReasonsFrom(this)
   }
 
   private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {
@@ -1672,7 +1937,7 @@ export class ResolvedSecretTraceRegistry {
         entryBytes >
         MAX_SERIALIZED_PROVENANCE_BYTES
     ) {
-      this.markIncomplete()
+      this.markIncomplete('provenance-capacity-exceeded')
       return
     }
     this.activeEntries.set(key, entry)
@@ -1733,7 +1998,7 @@ export async function createResolvedSecretTraceRegistry(
     options.restoreTrusted === true &&
     options.restoredCheckpointVersion !== undefined
   ) {
-    registry.markIncomplete()
+    registry.markIncomplete('restored-checkpoint-unavailable')
   }
 
   return registry
@@ -1744,6 +2009,6 @@ export function createIncompleteResolvedSecretTraceRegistry(
   scope?: ResolvedSecretTraceScopeV1
 ): ResolvedSecretTraceRegistry {
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  registry.markIncomplete()
+  registry.markIncomplete('constructed-incomplete')
   return registry
 }

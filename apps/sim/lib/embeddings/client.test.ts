@@ -1,8 +1,23 @@
 /**
  * @vitest-environment node
  */
+import { resetEnvMock, setEnv } from '@sim/testing'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { embed } from '@/lib/embeddings/client'
+import {
+  EmbeddingAPIError,
+  embed,
+  embedKnowledgeForDeployment,
+  embedOpenRouter,
+  isTransientEmbeddingError,
+} from '@/lib/embeddings/client'
+
+const { mockGetBYOKKey } = vi.hoisted(() => ({
+  mockGetBYOKKey: vi.fn(),
+}))
+
+vi.mock('@/lib/api-key/byok', () => ({
+  getBYOKKey: mockGetBYOKKey,
+}))
 
 /**
  * Exercises the orchestrator end-to-end against a mocked transport: batching,
@@ -35,11 +50,25 @@ let fetchMock: ReturnType<typeof vi.fn>
 beforeEach(() => {
   fetchMock = vi.fn()
   global.fetch = fetchMock as unknown as typeof fetch
+  mockGetBYOKKey.mockResolvedValue(null)
+  setEnv({
+    AZURE_OPENAI_API_KEY: undefined,
+    AZURE_OPENAI_ENDPOINT: undefined,
+    AZURE_OPENAI_API_VERSION: undefined,
+    GEMINI_API_KEY: undefined,
+    OPENAI_API_KEY: undefined,
+    OPENAI_API_KEY_1: undefined,
+    OPENAI_API_KEY_2: undefined,
+    OPENAI_API_KEY_3: undefined,
+    OPENROUTER_API_KEY: undefined,
+  })
 })
 
 afterEach(() => {
   global.fetch = originalFetch
+  vi.useRealTimers()
   vi.restoreAllMocks()
+  resetEnvMock()
 })
 
 describe('embed', () => {
@@ -258,6 +287,26 @@ describe('embed', () => {
     })
 
     expect(result.isBYOK).toBe(true)
+    expect(result.billableTokens).toBe(0)
+  })
+
+  it('uses OpenRouter as an explicit transport for an OpenAI catalog model', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embed(['hello'], {
+      model: 'text-embedding-3-large',
+      transport: 'openrouter',
+      apiKey: 'or-test',
+      dimensions: 1024,
+      projectInputs: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      model: 'openai/text-embedding-3-large',
+      dimensions: 1024,
+    })
   })
 
   /**
@@ -382,5 +431,299 @@ describe('embed', () => {
       expect(fetchMock).toHaveBeenCalledTimes(2)
       expect(projectInputs).toHaveBeenCalledTimes(1)
     })
+  })
+})
+
+describe('embedOpenRouter', () => {
+  it('uses a dynamic model and reports the returned native dimensions', async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(
+        openAIBody(
+          [
+            [1, 2, 3],
+            [4, 5, 6],
+          ],
+          7
+        )
+      )
+    )
+
+    const result = await embedOpenRouter(['alpha', 'beta'], {
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-test',
+      maxInputTokens: 32768,
+      projectInputs: null,
+    })
+
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      input: ['alpha', 'beta'],
+      model: 'qwen/qwen3-embedding-8b',
+    })
+    expect(result).toMatchObject({
+      embeddings: [
+        [1, 2, 3],
+        [4, 5, 6],
+      ],
+      dimensions: 3,
+      totalTokens: 7,
+      billableTokens: 0,
+      isBYOK: true,
+      modelName: 'openrouter/qwen/qwen3-embedding-8b',
+    })
+  })
+
+  it('fails when OpenRouter returns the wrong number of vectors', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await expect(
+      embedOpenRouter(['alpha', 'beta'], {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        maxInputTokens: 32768,
+        projectInputs: null,
+      })
+    ).rejects.toThrow('returned 1 embeddings for 2 inputs')
+  })
+
+  it('fails when OpenRouter returns inconsistent vector dimensions', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2], [3]])))
+
+    await expect(
+      embedOpenRouter(['alpha', 'beta'], {
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+        apiKey: 'or-test',
+        maxInputTokens: 32768,
+        projectInputs: null,
+      })
+    ).rejects.toThrow('inconsistent dimensions')
+  })
+
+  it('truncates inputs to the selected model context length', async () => {
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embedOpenRouter(['alpha beta gamma'], {
+      model: 'openrouter/thenlper/gte-base',
+      apiKey: 'or-test',
+      maxInputTokens: 1,
+      projectInputs: null,
+    })
+
+    const [, init] = fetchMock.mock.calls[0]
+    const body = JSON.parse((init as RequestInit).body as string)
+    expect(body.input).toHaveLength(1)
+    expect(body.input[0]).not.toBe('alpha beta gamma')
+  })
+
+  it('splits dynamic models at the provider item limit and recombines in order', async () => {
+    fetchMock.mockImplementation(async (_url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const inputs = body.input as string[]
+      return jsonResponse(
+        openAIBody(
+          inputs.map((input) => [Number(input.slice(1))]),
+          inputs.length
+        )
+      )
+    })
+    const inputs = Array.from({ length: 2049 }, (_, index) => `i${index}`)
+
+    const result = await embedOpenRouter(inputs, {
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      apiKey: 'or-test',
+      maxInputTokens: 32768,
+      projectInputs: null,
+    })
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+    expect(
+      fetchMock.mock.calls
+        .map(([, init]) => JSON.parse((init as RequestInit).body as string).input.length)
+        .sort((a, b) => a - b)
+    ).toEqual([1, 2048])
+    expect(result.embeddings).toHaveLength(2049)
+    expect(result.embeddings[0]).toEqual([0])
+    expect(result.embeddings[2048]).toEqual([2048])
+  })
+})
+
+describe('knowledge embedding transport fallback', () => {
+  const options = {
+    model: 'text-embedding-3-small',
+    taskType: 'document' as const,
+    dimensions: 1536,
+    projectInputs: null,
+  }
+
+  it('uses OpenRouter when it is the only configured self-hosted transport', async () => {
+    setEnv({ OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]], 3)))
+
+    const result = await embedKnowledgeForDeployment(['hello'], options, false)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(JSON.parse((init as RequestInit).body as string)).toMatchObject({
+      model: 'openai/text-embedding-3-small',
+      dimensions: 1536,
+    })
+    expect(result).toMatchObject({
+      embeddings: [[1, 2]],
+      billableTokens: 3,
+      isBYOK: false,
+      modelName: 'text-embedding-3-small',
+      dimensions: 1536,
+    })
+  })
+
+  it('keeps the original OpenAI path when OpenRouter is not configured', async () => {
+    setEnv({ OPENAI_API_KEY: 'openai-test' })
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embedKnowledgeForDeployment(['hello'], options, false)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/embeddings')
+  })
+
+  it('uses Azure before OpenAI and OpenRouter when all are configured', async () => {
+    setEnv({
+      AZURE_OPENAI_API_KEY: 'azure-test',
+      AZURE_OPENAI_ENDPOINT: 'https://example.openai.azure.com',
+      AZURE_OPENAI_API_VERSION: '2024-10-21',
+      KB_OPENAI_MODEL_NAME: 'kb-embedding-deployment',
+      OPENAI_API_KEY: 'openai-test',
+      OPENROUTER_API_KEY: 'or-test',
+    })
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    const result = await embedKnowledgeForDeployment(['hello'], options, false)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://example.openai.azure.com/openai/deployments/kb-embedding-deployment/embeddings?api-version=2024-10-21'
+    )
+    expect(result.modelName).toBe('kb-embedding-deployment')
+  })
+
+  it('uses a workspace OpenAI key before OpenRouter', async () => {
+    setEnv({ OPENROUTER_API_KEY: 'or-test' })
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    const result = await embedKnowledgeForDeployment(
+      ['hello'],
+      { ...options, workspaceId: 'workspace-1' },
+      false
+    )
+
+    expect(mockGetBYOKKey).toHaveBeenCalledWith('workspace-1', 'openai')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    const [url, init] = fetchMock.mock.calls[0]
+    expect(url).toBe('https://api.openai.com/v1/embeddings')
+    expect((init as RequestInit).headers).toMatchObject({
+      Authorization: 'Bearer workspace-openai-test',
+    })
+    expect(result.isBYOK).toBe(true)
+  })
+
+  it('does not use OpenRouter for non-OpenAI knowledge models', async () => {
+    setEnv({ GEMINI_API_KEY: 'gemini-test', OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockResolvedValue(jsonResponse({ embeddings: [{ values: [1, 2] }] }))
+
+    await embedKnowledgeForDeployment(
+      ['hello'],
+      { ...options, model: 'gemini-embedding-001' },
+      false
+    )
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toContain('generativelanguage.googleapis.com')
+  })
+
+  it('ignores OpenRouter on hosted deployments', async () => {
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockResolvedValue(jsonResponse(openAIBody([[1, 2]])))
+
+    await embedKnowledgeForDeployment(['hello'], options, true)
+
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toBe('https://api.openai.com/v1/embeddings')
+  })
+
+  it('does not fall back after a fatal provider error', async () => {
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    fetchMock.mockResolvedValue(jsonResponse({ error: 'invalid key' }, 401))
+
+    await expect(embedKnowledgeForDeployment(['hello'], options, false)).rejects.toThrow(
+      /Embedding API failed: 401/
+    )
+    expect(fetchMock).toHaveBeenCalledOnce()
+  })
+
+  it('falls back after transient retries and projects inputs only once', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    const projectInputs = vi.fn(() => ['projected'])
+    fetchMock.mockImplementation(async (url) =>
+      url === 'https://api.openai.com/v1/embeddings'
+        ? jsonResponse({ error: 'unavailable' }, 503)
+        : jsonResponse(openAIBody([[7, 8]], 2))
+    )
+
+    const pending = embedKnowledgeForDeployment(['secret'], { ...options, projectInputs }, false)
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    expect(fetchMock).toHaveBeenCalledTimes(5)
+    expect(fetchMock.mock.calls.slice(0, 4).every(([url]) => url.includes('api.openai.com'))).toBe(
+      true
+    )
+    expect(fetchMock.mock.calls[4][0]).toBe('https://openrouter.ai/api/v1/embeddings')
+    expect(projectInputs).toHaveBeenCalledOnce()
+    expect(result.embeddings).toEqual([[7, 8]])
+  })
+
+  it('falls back only the failed batch and retains successful provider work', async () => {
+    vi.useFakeTimers()
+    setEnv({ OPENAI_API_KEY: 'openai-test', OPENROUTER_API_KEY: 'or-test' })
+    mockGetBYOKKey.mockResolvedValue({ apiKey: 'workspace-openai-test', isBYOK: true })
+    const firstInput = `first ${'word '.repeat(5000)}`
+    const secondInput = `second ${'word '.repeat(5000)}`
+    fetchMock.mockImplementation(async (url, init) => {
+      const body = JSON.parse((init as RequestInit).body as string)
+      const input = body.input[0] as string
+      if (url === 'https://api.openai.com/v1/embeddings' && input.startsWith('second')) {
+        return jsonResponse({ error: 'unavailable' }, 503)
+      }
+      return jsonResponse(openAIBody([[input.startsWith('first') ? 1 : 2]], 3))
+    })
+
+    const pending = embedKnowledgeForDeployment(
+      [firstInput, secondInput],
+      { ...options, workspaceId: 'workspace-1' },
+      false
+    )
+    await vi.runAllTimersAsync()
+    const result = await pending
+
+    const openRouterInputs = fetchMock.mock.calls
+      .filter(([url]) => url === 'https://openrouter.ai/api/v1/embeddings')
+      .flatMap(([, init]) => JSON.parse((init as RequestInit).body as string).input as string[])
+    expect(openRouterInputs).toEqual([secondInput])
+    expect(fetchMock).toHaveBeenCalledTimes(6)
+    expect(result.embeddings).toEqual([[1], [2]])
+    expect(result.totalTokens).toBe(6)
+    expect(result.billableTokens).toBe(3)
+    expect(result.isBYOK).toBe(false)
+  })
+
+  it('classifies only transient embedding failures for failover', () => {
+    expect(isTransientEmbeddingError(new EmbeddingAPIError('unavailable', 503))).toBe(true)
+    expect(isTransientEmbeddingError(new EmbeddingAPIError('rate limited', 429))).toBe(true)
+    expect(isTransientEmbeddingError(new EmbeddingAPIError('invalid key', 401))).toBe(false)
+    expect(isTransientEmbeddingError(new DOMException('timed out', 'AbortError'))).toBe(true)
   })
 })

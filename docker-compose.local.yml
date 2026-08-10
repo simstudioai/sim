@@ -23,6 +23,7 @@ services:
       - INTERNAL_API_SECRET=${INTERNAL_API_SECRET:-dev-internal-api-secret-min-32-chars}
       - REDIS_URL=${REDIS_URL:-redis://redis:6379}
       - COPILOT_API_KEY=${COPILOT_API_KEY:-}
+      - MSHIP_SYSPROMPT_OVERRIDE=${MSHIP_SYSPROMPT_OVERRIDE:-}
       - NEXT_PUBLIC_CHAT_DISABLED=${NEXT_PUBLIC_CHAT_DISABLED:-}
       - SIM_AGENT_API_URL=${SIM_AGENT_API_URL:-}
       - OLLAMA_URL=${OLLAMA_URL:-http://localhost:11434}

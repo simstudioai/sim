@@ -1,30 +1,29 @@
 /**
  * @vitest-environment node
  */
-import { EnvScript } from 'next-runtime-env'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { PublicEnvScript } from '@/app/_shell/public-env-script'
 
 /**
- * Guards the loading strategy, not the markup. A plain `<script>` rendered from
- * the root layout lands after the `<script async>` chunk tags Next emits at the
- * top of the document, so a chunk can execute - and hydration can begin - before
- * `window.__ENV` is populated. Delegating to `<EnvScript>` keeps the
- * `beforeInteractive` guarantee that `next-runtime-env` applies by default.
+ * Guards the one property that matters: the emitted tag assigns `window.__ENV`
+ * itself. Next's `beforeInteractive` strategy instead pushes the assignment onto
+ * `self.__next_s`, a queue `appBootstrap` reads exactly once and abandons when it
+ * is empty - so whenever the bootstrap chunk runs before the parser reaches this
+ * tag, the assignment is discarded and `window.__ENV` is never defined for that
+ * document. See the component's TSDoc for the full ordering argument.
  */
 describe('PublicEnvScript', () => {
-  it('delegates to next-runtime-env EnvScript rather than emitting a raw script tag', () => {
-    const element = PublicEnvScript()
+  it('emits a script that assigns window.__ENV directly', () => {
+    const markup = renderToStaticMarkup(<PublicEnvScript />)
 
-    expect(element.type).toBe(EnvScript)
-    expect(element.type).not.toBe('script')
+    expect(markup).toContain("window['__ENV'] =")
   })
 
-  it('does not opt out of the beforeInteractive strategy', () => {
-    const { disableNextScript, nextScriptProps } = PublicEnvScript().props
+  it('does not defer the assignment into the __next_s queue', () => {
+    const markup = renderToStaticMarkup(<PublicEnvScript />)
 
-    expect(disableNextScript).toBeUndefined()
-    expect(nextScriptProps?.strategy ?? 'beforeInteractive').toBe('beforeInteractive')
+    expect(markup).not.toContain('__next_s')
   })
 
   it('passes only NEXT_PUBLIC_ variables through to the browser', () => {

@@ -715,7 +715,7 @@ export const Terminal = memo(function Terminal() {
 
   const {
     filters,
-    sortConfig,
+    sortDirection,
     toggleBlock,
     toggleStatus,
     toggleSort,
@@ -1328,10 +1328,10 @@ export const Terminal = memo(function Terminal() {
                           aria-label='Sort by timestamp'
                           className='!p-1.5 -m-1.5'
                         >
-                          {sortConfig.direction === 'desc' ? (
-                            <ArrowDown className='h-3.5 w-3.5' />
+                          {sortDirection === 'desc' ? (
+                            <ArrowDown className='size-3.5' />
                           ) : (
-                            <ArrowUp className='h-3.5 w-3.5' />
+                            <ArrowUp className='size-3.5' />
                           )}
                         </Button>
                       </Tooltip.Trigger>

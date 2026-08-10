@@ -4,8 +4,9 @@ import type {
 } from '@/tools/snowflake/types'
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
+  getSnowflakeBaseUrl,
   getSnowflakeHeaders,
-  normalizeSnowflakeHost,
+  snowflakeAuthParamFields,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
 import type { ToolConfig } from '@/tools/types'
@@ -39,18 +40,7 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
       'Check a running or completed statement and retrieve exactly one result partition. Canceled or failed statements are returned as errors.',
     version: '1.0.0',
     params: {
-      host: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-      },
-      apiKey: {
-        type: 'string',
-        required: true,
-        visibility: 'user-only',
-        description: 'Snowflake programmatic access token',
-      },
+      ...snowflakeAuthParamFields,
       statementHandle: {
         type: 'string',
         required: true,
@@ -74,7 +64,7 @@ export const getStatementTool: ToolConfig<SnowflakeGetStatementParams, Snowflake
     request: {
       url: (params) => {
         const partition = partitionNumber(params.partition)
-        return `${normalizeSnowflakeHost(params.host)}/api/v2/statements/${encodeURIComponent(params.statementHandle.trim())}?partition=${partition}`
+        return `${getSnowflakeBaseUrl(params)}/api/v2/statements/${encodeURIComponent(params.statementHandle.trim())}?partition=${partition}`
       },
       method: 'GET',
       headers: getSnowflakeHeaders,

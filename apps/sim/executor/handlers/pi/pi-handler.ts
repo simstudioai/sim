@@ -16,10 +16,12 @@ import {
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
 import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
 import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
+  PiCloudPlanRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
@@ -51,6 +53,7 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -104,6 +107,7 @@ function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (
     value === 'cloud' ||
     value === 'cloud_branch' ||
+    value === 'cloud_plan' ||
     value === 'cloud_review' ||
     value === 'local'
   ) {
@@ -169,7 +173,12 @@ export class PiBlockHandler implements BlockHandler {
       [['task']]
     )
     if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
-      throw new Error('Pi input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'pi.taskModelInput',
+        message: 'Pi input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'task',
+      })
     }
     const task = taskProjection.value.task
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
@@ -280,8 +289,21 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
+      const label =
+        mode === 'cloud_branch' ? 'Update PR' : mode === 'cloud_plan' ? 'Plan' : 'Create PR'
       throw new Error(`${label} requires repository owner, name, and a GitHub token`)
+    }
+
+    if (mode === 'cloud_plan') {
+      const params: PiCloudPlanRunParams = {
+        ...contextualBase,
+        mode: 'cloud_plan',
+        owner,
+        repo,
+        githubToken,
+        baseBranch: asOptString(inputs.baseBranch),
+      }
+      return this.runPi(ctx, block, runCloudPlanPi, params, memoryConfig)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
     // through a variable reference, an API trigger payload, or a legacy serialized
@@ -367,8 +389,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Cloud authoring gets no host tool: it registers a sandbox extension instead, so a spec built
-   * here could never execute.
+   * Sandbox modes get no host tool: they register a sandbox extension instead, so a spec built here
+   * could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -407,7 +429,7 @@ export class PiBlockHandler implements BlockHandler {
       apiKey: asOptString(rawSearchApiKey),
     })
     const credentials = { provider, apiKey }
-    if (mode === 'cloud' || mode === 'cloud_branch') return credentials
+    if (mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan') return credentials
 
     const searchInputProjection = projectResolvedModelInput(
       ctx.resolvedSecretTraceRegistry,
@@ -415,7 +437,12 @@ export class PiBlockHandler implements BlockHandler {
       [['searchApiKey']]
     )
     if (!searchInputProjection.complete) {
-      throw new Error('Pi search input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'pi.searchApiKeyInput',
+        message: 'Pi search input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'searchApiKey',
+      })
     }
     const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
       ? apiKey
@@ -442,6 +469,7 @@ export class PiBlockHandler implements BlockHandler {
 
   private buildOutput(
     result: PiRunResult,
+    mode: PiRunParams['mode'],
     model: string,
     isBYOK: boolean,
     startTime: number,
@@ -452,8 +480,12 @@ export class PiBlockHandler implements BlockHandler {
     return {
       content: totals.finalText,
       model,
-      changedFiles: result.changedFiles ?? [],
-      diff: result.diff ?? '',
+      ...(mode === 'cloud_plan'
+        ? {}
+        : {
+            changedFiles: result.changedFiles ?? [],
+            diff: result.diff ?? '',
+          }),
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
       ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
@@ -508,6 +540,7 @@ export class PiBlockHandler implements BlockHandler {
           try {
             const result = await backend(params, {
               onEvent: (event) => {
+                if (params.mode === 'cloud_plan') return
                 const text = streamTextForEvent(event)
                 if (text) controller.enqueue(encoder.encode(text))
               },
@@ -517,9 +550,19 @@ export class PiBlockHandler implements BlockHandler {
               controller.error(new Error(result.totals.errorMessage))
               return
             }
+            if (params.mode === 'cloud_plan' && result.totals.finalText) {
+              controller.enqueue(encoder.encode(result.totals.finalText))
+            }
             Object.assign(
               output,
-              this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+              this.buildOutput(
+                result,
+                params.mode,
+                params.model,
+                params.isBYOK,
+                startTime,
+                startTimeISO
+              )
             )
             if (memoryConfig) {
               await appendPiMemory(
@@ -561,6 +604,13 @@ export class PiBlockHandler implements BlockHandler {
         result.memoryText ?? result.totals.finalText
       )
     }
-    return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+    return this.buildOutput(
+      result,
+      params.mode,
+      params.model,
+      params.isBYOK,
+      startTime,
+      startTimeISO
+    )
   }
 }

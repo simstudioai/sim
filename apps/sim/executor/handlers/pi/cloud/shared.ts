@@ -7,6 +7,7 @@
 
 import { getMaxExecutionTimeout } from '@/lib/core/execution-limits'
 import { resolvePiSandboxLifetimeMs } from '@/lib/execution/remote-sandbox/pi-lifetime'
+import { PI_EVENT_FILTER_PATH } from '@/executor/handlers/pi/cloud/event-filter-source'
 import { scrubPiSecrets } from '@/executor/handlers/pi/core/redaction'
 
 export const REPO_DIR = '/workspace/repo'
@@ -34,10 +35,10 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * reaped the sandbox and surface as an opaque SDK error.
  *
  * The reserve matters as much as the cap. The sandbox clock starts at create,
- * and three commands bracket the agent turn: the clone before it, then the
- * commit and the push after it, the last two sharing
- * {@link FINALIZE_TIMEOUT_MS}. Capping at the bare lifetime would mean the
- * sandbox always died first, taking the agent's finished work with it unpushed.
+ * and authoring has three commands around the agent turn: the clone before it,
+ * then the commit and push after it, the last two sharing
+ * {@link FINALIZE_TIMEOUT_MS}. Plan has no finalize phase and sets that reserve
+ * to zero. Capping at the bare lifetime would mean the sandbox died first.
  *
  * Takes the lifetime as an argument rather than reading the provider ceiling
  * itself, because that ceiling is no longer the only lifetime a run can get: a
@@ -53,10 +54,17 @@ export const MIN_PI_TIMEOUT_MS = 60 * 1000
  * through `ttlMinutes`. Reserving the surrounding commands keeps the agent turn
  * inside the lifetime the selected provider actually received.
  */
-export function resolvePiTimeoutMs(lifetimeMs = resolvePiSandboxLifetimeMs()): number {
+export function resolvePiTimeoutMs(
+  lifetimeMs = resolvePiSandboxLifetimeMs(),
+  options?: { finalizePhases?: number }
+): number {
+  const finalizePhases = options?.finalizePhases ?? 2
   return Math.min(
     getMaxExecutionTimeout(),
-    Math.max(lifetimeMs - CLONE_TIMEOUT_MS - 2 * FINALIZE_TIMEOUT_MS, MIN_PI_TIMEOUT_MS)
+    Math.max(
+      lifetimeMs - CLONE_TIMEOUT_MS - finalizePhases * FINALIZE_TIMEOUT_MS,
+      MIN_PI_TIMEOUT_MS
+    )
   )
 }
 
@@ -128,11 +136,19 @@ export const PUSH_SCRIPT = `cd ${REPO_DIR}
 /usr/bin/git -c core.hooksPath=/dev/null -c credential.helper= -c core.fsmonitor= push "https://x-access-token:$GITHUB_TOKEN@github.com/$REPO_OWNER/$REPO_NAME.git" "HEAD:refs/heads/$BRANCH" >/dev/null 2>${PUSH_ERR_PATH} && echo "__PUSHED__=1"`
 
 /**
- * The Pi CLI invocation for the sandbox modes. With no options it emits exactly what Create PR
- * always did.
+ * The Pi CLI invocation for the sandbox modes, piped through the sandbox event filter. The command
+ * names {@link PI_EVENT_FILTER_PATH}, so every caller must have written `PI_EVENT_FILTER_SOURCE`
+ * there first — skipping that write does not fall back to the raw stream, it fails the run on the
+ * missing module.
  *
- * With one, `--no-extensions` drops any extension the cloned repository ships while leaving the
- * explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
+ * Selects `/bin/bash` explicitly because `pipefail` is not portable to `/bin/sh`, and without it
+ * the pipeline reports the filter's exit code rather than Pi's, so an upstream crash would read as
+ * a clean run. Both dedicated Pi images are Debian-based and provide Bash, so provider
+ * default-shell behavior cannot change whether an upstream Pi failure reaches the caller.
+ *
+ * With no options the repository resources Pi loads are exactly what Create PR always had. With an
+ * `extensionPath`, `--no-extensions` drops any extension the cloned repository ships while leaving
+ * the explicit `-e` path loaded, so the loaded set is exactly Sim's own extension. That is deliberate —
  * a repository must not be able to register tools into a run holding the workspace's keys — but it
  * does mean enabling search also stops loading a repository's own Pi extensions, which is why the
  * flag is not passed on Create PR's no-search path. Babysit supplies
@@ -149,8 +165,8 @@ export function buildPiScript(
       ? ' --no-extensions'
       : ''
   const extensionArgs = extensionPath ? ` -e ${extensionPath}` : ''
-  return `cd ${REPO_DIR}
-pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH}`
+  return `/bin/bash -o pipefail -c 'cd ${REPO_DIR}
+pi -p --mode json --provider "$PI_PROVIDER" --model "$PI_MODEL" --thinking "$PI_THINKING"${repositoryArgs}${extensionArgs} < ${PROMPT_PATH} | node ${PI_EVENT_FILTER_PATH}'`
 }
 
 export function raceAbort<T>(promise: Promise<T>, signal?: AbortSignal): Promise<T> {

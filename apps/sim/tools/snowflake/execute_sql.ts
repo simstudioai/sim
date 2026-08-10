@@ -7,6 +7,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -38,18 +39,7 @@ export const executeSqlTool: ToolConfig<SnowflakeExecuteSqlParams, SnowflakeStat
   name: 'Snowflake Execute SQL',
   description: 'Execute one parameterized SQL statement through the Snowflake SQL API.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

@@ -24,6 +24,7 @@ import {
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
@@ -80,7 +81,12 @@ export class RouterBlockHandler implements BlockHandler {
       promptModelInputPaths
     )
     if (!modelInputProjection.complete) {
-      throw new Error('Router model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'router.promptModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'prompt',
+      })
     }
     const targetBlocks = this.getTargetBlocks(ctx, block)
 
@@ -251,11 +257,21 @@ export class RouterBlockHandler implements BlockHandler {
       modelInputPaths
     )
     if (!modelInputProjection.complete) {
-      throw new Error('Router model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'router.contextModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'context,routes',
+      })
     }
     const projectedRoutes = this.parseRoutes(modelInputProjection.value.routes)
     if (projectedRoutes.length !== routes.length) {
-      throw new Error('Router model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'router.routeArity',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'routes',
+      })
     }
     const modelRoutes = routes.map((route, index) => ({
       ...route,

@@ -63,6 +63,7 @@ import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
 import { stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
@@ -94,6 +95,11 @@ import { getToolAsync } from '@/tools/utils.server'
 
 const logger = createLogger('AgentBlockHandler')
 const MODEL_SAFE_RESPONSE_FORMAT_NAME = 'response_schema'
+const AGENT_MODEL_INPUT_REFUSAL = 'Agent model input could not be safely projected'
+const AGENT_TOOL_INPUT_REFUSAL = 'Agent tool input could not be safely projected'
+const AGENT_PRIVATE_SELECTOR_REFUSAL = 'Agent private selector could not be safely projected'
+const toAgentToolInputSafetyError = (message: string) => new AgentToolInputSafetyError(message)
+
 const AGENT_RAW_PROVIDER_ERROR_INPUT_PATHS: readonly ResolvedSecretInputPath[] = [
   ['model'],
   ['temperature'],
@@ -237,7 +243,13 @@ export class AgentBlockHandler implements BlockHandler {
       const privateAgentSelectors = this.getPrivateAgentSelectorInputPaths(ctx, inputs, [])
       privateAgentSelectorInputPaths.push(...privateAgentSelectors.inputPaths)
       if (!privateAgentSelectors.complete) {
-        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorProvenance',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'responseFormat,tools,skills',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       const responseFormatProjection = this.projectResponseFormatForModel(
         ctx,
@@ -267,7 +279,11 @@ export class AgentBlockHandler implements BlockHandler {
         coreModelInputPaths
       )
       if (!modelInputProjection.complete) {
-        throw new Error('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.coreModelInput',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+        })
       }
       const modelInputs: AgentInputs = {
         ...filteredInputs,
@@ -652,7 +668,12 @@ export class AgentBlockHandler implements BlockHandler {
 
     const projection = registry.projectResolvedInputSelection({ tools: inputTools })
     if (!projection.complete || !Array.isArray(projection.value.tools)) {
-      throw new Error('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.toolInputProvenanceProjection',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools',
+      })
     }
     return projection.value.tools as ToolInput[]
   }
@@ -795,7 +816,12 @@ export class AgentBlockHandler implements BlockHandler {
 
     const provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
     if (!provenance.complete) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.structuralInputProvenance',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry,
+        createError: toAgentToolInputSafetyError,
+      })
     }
     if (provenance.entries.length > 0) {
       throw new AgentToolInputSafetyError(errorMessage)
@@ -891,14 +917,26 @@ export class AgentBlockHandler implements BlockHandler {
       return null
     }
     if (!modelSchema?.function) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolModelSchemaMissing',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const parametersProjection = projectModelSchemaAnnotations(
       schema.function.parameters,
       modelSchema.function.parameters
     )
     if (!parametersProjection.safe) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolSchemaAnnotations',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const rawDescription = schema.function.description
     const projectedDescription = modelSchema.function.description
@@ -906,7 +944,13 @@ export class AgentBlockHandler implements BlockHandler {
       (rawDescription === undefined && projectedDescription !== undefined) ||
       (rawDescription !== undefined && projectedDescription === undefined)
     ) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.customToolDescriptionArity',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
 
     const modelParameters = parametersProjection.value as ToolSchema
@@ -1081,18 +1125,36 @@ export class AgentBlockHandler implements BlockHandler {
     const { serverId, toolName, serverName, ...userProvidedParams } = tool.params || {}
     const projectedSchema = projectedTool?.schema ?? tool.schema
     if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.mcpToolSchemaShape',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const schemaProjection = projectModelSchemaAnnotations(tool.schema, projectedSchema)
     if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.mcpToolSchemaAnnotations',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const projectedServerName =
       typeof projectedTool?.params?.serverName === 'string'
         ? projectedTool.params.serverName
         : serverName
     if (schemaProjection.value.type !== 'object') {
-      throw new AgentToolInputSafetyError('Agent tool input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.mcpToolSchemaType',
+        message: AGENT_TOOL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'tools',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const schema: McpToolSchema = { ...schemaProjection.value, type: 'object' }
     const schemaDescription =
@@ -1407,7 +1469,12 @@ export class AgentBlockHandler implements BlockHandler {
             .pop()
           if (latestUserFromInput) {
             if (!latestRawUserFromInput) {
-              throw new Error('Agent model input could not be safely projected')
+              refuseResolvedSecretProjection({
+                site: 'agent.memoryUserMessageArity',
+                message: AGENT_MODEL_INPUT_REFUSAL,
+                registry: ctx.resolvedSecretTraceRegistry,
+                inputPath: 'messages',
+              })
             }
             const userMessageInThisRun = memoryMessages.some(
               (m) => m.role === 'user' && m.executionId === ctx.executionId
@@ -1499,7 +1566,12 @@ export class AgentBlockHandler implements BlockHandler {
     }
     const projectedFiles = normalizeFileInput(projectedFilesInput)
     if (!projectedFiles || projectedFiles.length !== normalizedFiles.length) {
-      throw new Error('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.fileInputArity',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'files',
+      })
     }
 
     if (!messages || messages.length === 0) {
@@ -1525,7 +1597,12 @@ export class AgentBlockHandler implements BlockHandler {
 
       const projectedFile = projectedFiles[index]
       if (!isPlainRecord(projectedFile) || typeof projectedFile.name !== 'string') {
-        throw new Error('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.fileInputShape',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'files',
+        })
       }
       const rawName = isPlainRecord(file) ? file.name : undefined
       if (typeof rawName === 'string' && projectedFile.name !== rawName) {
@@ -1826,15 +1903,20 @@ export class AgentBlockHandler implements BlockHandler {
     const displayInputPaths = privateRoots.has('responseFormat')
       ? [...privateInputPaths, ['responseFormat']]
       : privateInputPaths
-    const displayProjection = sourceRegistry
-      .forkForInputPaths(displayInputPaths)
-      .projectResolvedInputSelection({
-        responseFormat: inputs.responseFormat,
-        tools: inputs.tools,
-        skills: inputs.skills,
-      })
+    const displayRegistry = sourceRegistry.forkForInputPaths(displayInputPaths)
+    const displayProjection = displayRegistry.projectResolvedInputSelection({
+      responseFormat: inputs.responseFormat,
+      tools: inputs.tools,
+      skills: inputs.skills,
+    })
     if (!displayProjection.complete) {
-      throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.privateSelectorDisplayProjection',
+        message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+        registry: displayRegistry,
+        inputPath: 'responseFormat,tools,skills',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     if (privateRoots.has('responseFormat')) {
       inputs.responseFormat = displayProjection.value
@@ -1842,13 +1924,25 @@ export class AgentBlockHandler implements BlockHandler {
     }
     if (privateRoots.has('tools')) {
       if (!Array.isArray(displayProjection.value.tools)) {
-        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorToolsShape',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: displayRegistry,
+          inputPath: 'tools',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       inputs.tools = displayProjection.value.tools as ToolInput[]
     }
     if (privateRoots.has('skills')) {
       if (!Array.isArray(displayProjection.value.skills)) {
-        throw new AgentToolInputSafetyError('Agent private selector could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.privateSelectorSkillsShape',
+          message: AGENT_PRIVATE_SELECTOR_REFUSAL,
+          registry: displayRegistry,
+          inputPath: 'skills',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       inputs.skills = displayProjection.value.skills as AgentInputs['skills']
     }
@@ -1921,7 +2015,13 @@ export class AgentBlockHandler implements BlockHandler {
     }
     const projection = registry.projectResolvedInputSelection({ responseFormat })
     if (!projection.complete) {
-      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatProjection',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const projectedResponseFormat = projection.value.responseFormat
 
@@ -1930,20 +2030,36 @@ export class AgentBlockHandler implements BlockHandler {
         return { value: responseFormat, inputPaths: annotationInputPaths }
       }
       if (typeof projectedResponseFormat !== 'string') {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatStringType',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       try {
         const rawParsed = JSON.parse(responseFormat)
         const projectedParsed = JSON.parse(projectedResponseFormat)
         if (!isPlainRecord(rawParsed) || !isPlainRecord(projectedParsed)) {
-          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          refuseResolvedSecretProjection({
+            site: 'agent.responseFormatJsonShape',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry,
+            inputPath: 'responseFormat',
+            createError: toAgentToolInputSafetyError,
+          })
         }
         const privateNameInputPaths =
           Object.hasOwn(rawParsed, 'name') && !Object.is(rawParsed.name, projectedParsed.name)
             ? ([['responseFormat']] as const)
             : []
         onPrivateNameInputPaths(privateNameInputPaths)
-        const modelSafeResponseFormat = this.projectResponseFormatObject(rawParsed, projectedParsed)
+        const modelSafeResponseFormat = this.projectResponseFormatObject(
+          rawParsed,
+          projectedParsed,
+          registry
+        )
         const parsedIsWrapper =
           Object.hasOwn(rawParsed, 'schema') || Object.hasOwn(rawParsed, 'name')
         const parsedSchema = parsedIsWrapper ? rawParsed.schema : rawParsed
@@ -1963,13 +2079,25 @@ export class AgentBlockHandler implements BlockHandler {
         }
       } catch (error) {
         if (error instanceof AgentToolInputSafetyError) throw error
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatJsonParse',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
       }
     }
 
     if (!isPlainRecord(responseFormat)) {
       if (!Object.is(responseFormat, projectedResponseFormat)) {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatScalarIdentity',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       return {
         value: responseFormat,
@@ -1989,23 +2117,40 @@ export class AgentBlockHandler implements BlockHandler {
       'Agent structural model inputs cannot contain secret references'
     )
     return {
-      value: this.projectResponseFormatObject(responseFormat, projectedResponseFormat),
+      value: this.projectResponseFormatObject(responseFormat, projectedResponseFormat, registry),
       inputPaths: annotationInputPaths,
     }
   }
 
+  /**
+   * Takes the registry from its caller so a refusal here reports the run that failed; without it
+   * the refusal would deduplicate process-wide and name no cause.
+   */
   private projectResponseFormatObject(
     rawValue: Record<string, unknown>,
-    projectedValue: unknown
+    projectedValue: unknown,
+    registry: ResolvedSecretTraceRegistry
   ): Record<string, unknown> {
     if (!isPlainRecord(projectedValue)) {
-      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatObjectShape',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     const isWrapper = Object.hasOwn(rawValue, 'schema') || Object.hasOwn(rawValue, 'name')
     if (!isWrapper) {
       const schemaProjection = projectModelSchemaAnnotations(rawValue, projectedValue)
       if (!schemaProjection.safe || !isPlainRecord(schemaProjection.value)) {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatSchemaAnnotations',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       return schemaProjection.value
     }
@@ -2015,16 +2160,34 @@ export class AgentBlockHandler implements BlockHandler {
       rawKeys.length !== Object.keys(projectedValue).length ||
       rawKeys.some((key) => !Object.hasOwn(projectedValue, key))
     ) {
-      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatWrapperKeys',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     for (const key of rawKeys) {
       if (key !== 'schema' && key !== 'name' && !Object.is(rawValue[key], projectedValue[key])) {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.responseFormatWrapperValues',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry,
+          inputPath: 'responseFormat',
+          createError: toAgentToolInputSafetyError,
+        })
       }
     }
     const schemaProjection = projectModelSchemaAnnotations(rawValue.schema, projectedValue.schema)
     if (!schemaProjection.safe) {
-      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.responseFormatWrapperSchemaAnnotations',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry,
+        inputPath: 'responseFormat',
+        createError: toAgentToolInputSafetyError,
+      })
     }
     return {
       ...rawValue,
@@ -2076,7 +2239,13 @@ export class AgentBlockHandler implements BlockHandler {
       inputPaths
     )
     if (!projection.complete) {
-      throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'agent.fileNameProjection',
+        message: AGENT_MODEL_INPUT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'files,messages',
+        createError: toAgentToolInputSafetyError,
+      })
     }
 
     let projectedFiles = projection.value.files
@@ -2091,23 +2260,47 @@ export class AgentBlockHandler implements BlockHandler {
         files: inputs.files,
       })
       if (!serializedProjection.complete) {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.serializedFilesProjection',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'files',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       const projectedSerializedFiles = serializedProjection.value.files
       if (!Object.is(inputs.files, projectedSerializedFiles)) {
         if (typeof projectedSerializedFiles !== 'string') {
-          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          refuseResolvedSecretProjection({
+            site: 'agent.serializedFilesType',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'files',
+            createError: toAgentToolInputSafetyError,
+          })
         }
         const rawFiles = normalizeFileInput(inputs.files)
         const projectedFileRecords = normalizeFileInput(projectedSerializedFiles)
         if (!rawFiles || !projectedFileRecords || rawFiles.length !== projectedFileRecords.length) {
-          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          refuseResolvedSecretProjection({
+            site: 'agent.serializedFilesArity',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'files',
+            createError: toAgentToolInputSafetyError,
+          })
         }
 
         projectedFiles = rawFiles.map((rawFile, index) => {
           const projectedFile = projectedFileRecords[index]
           if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) {
-            throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+            refuseResolvedSecretProjection({
+              site: 'agent.serializedFileShape',
+              message: AGENT_MODEL_INPUT_REFUSAL,
+              registry: ctx.resolvedSecretTraceRegistry,
+              inputPath: 'files',
+              createError: toAgentToolInputSafetyError,
+            })
           }
           if (!Object.is(rawFile.base64, projectedFile.base64)) {
             throw new AgentToolInputSafetyError(
@@ -2116,7 +2309,13 @@ export class AgentBlockHandler implements BlockHandler {
           }
           if (rawFile.name === undefined) return rawFile
           if (typeof projectedFile.name !== 'string') {
-            throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+            refuseResolvedSecretProjection({
+              site: 'agent.serializedFileName',
+              message: AGENT_MODEL_INPUT_REFUSAL,
+              registry: ctx.resolvedSecretTraceRegistry,
+              inputPath: 'files,name',
+              createError: toAgentToolInputSafetyError,
+            })
           }
           return { ...rawFile, name: projectedFile.name }
         })
@@ -2137,7 +2336,13 @@ export class AgentBlockHandler implements BlockHandler {
       const projectedFiles = isPlainRecord(projectedMessage) ? projectedMessage.files : undefined
       if (!Array.isArray(rawFiles) || !Array.isArray(projectedFiles)) continue
       if (rawFiles.length !== projectedFiles.length) {
-        throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'agent.messageFilesArity',
+          message: AGENT_MODEL_INPUT_REFUSAL,
+          registry: ctx.resolvedSecretTraceRegistry,
+          inputPath: 'messages,files',
+          createError: toAgentToolInputSafetyError,
+        })
       }
       for (let fileIndex = 0; fileIndex < rawFiles.length; fileIndex++) {
         const rawFile = rawFiles[fileIndex]
@@ -2145,7 +2350,13 @@ export class AgentBlockHandler implements BlockHandler {
         if (!isPlainRecord(rawFile) || !isPlainRecord(projectedFile)) continue
         if (rawFile.name === undefined) continue
         if (typeof projectedFile.name !== 'string') {
-          throw new AgentToolInputSafetyError('Agent model input could not be safely projected')
+          refuseResolvedSecretProjection({
+            site: 'agent.messageFileName',
+            message: AGENT_MODEL_INPUT_REFUSAL,
+            registry: ctx.resolvedSecretTraceRegistry,
+            inputPath: 'messages,files,name',
+            createError: toAgentToolInputSafetyError,
+          })
         }
         if (Object.is(rawFile.name, projectedFile.name)) continue
         projectedNameByFile.set(rawFile, {

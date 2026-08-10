@@ -224,6 +224,7 @@
     "smartlead",
     "smtp",
     "snowflake",
+    "snowflake-service-account",
     "sportmonks",
     "sqs",
     "square",

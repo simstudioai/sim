@@ -339,6 +339,13 @@ export const POST = withRouteHandler(async (req: NextRequest) => {
         '\n\nIMPORTANT: Return ONLY the raw JSON object. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with { and end with }.'
     }
 
+    // Separate from json-object: that reinforcement demands braces, which would
+    // fight a field whose contract is an array.
+    if (generationType === 'json-array') {
+      finalSystemPrompt +=
+        '\n\nIMPORTANT: Return ONLY the raw JSON array. Do NOT wrap it in markdown code blocks (no ```json or ```). Do NOT include any explanation or text before or after the JSON. The response must start with [ and end with ].'
+    }
+
     const messages: ChatMessage[] = [{ role: 'system', content: finalSystemPrompt }]
 
     messages.push(...history.filter((msg) => msg.role !== 'system'))

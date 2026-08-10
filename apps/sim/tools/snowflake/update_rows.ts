@@ -3,6 +3,7 @@ import type { SnowflakeStatementResponse, SnowflakeUpdateRowsParams } from '@/to
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -38,18 +39,7 @@ export const updateRowsTool: ToolConfig<SnowflakeUpdateRowsParams, SnowflakeStat
   name: 'Snowflake Update Rows',
   description: 'Update matching rows with a bound MERGE statement without inserting new rows.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

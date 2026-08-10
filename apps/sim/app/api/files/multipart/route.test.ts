@@ -52,19 +52,19 @@ vi.mock('@/lib/uploads/providers/blob/client', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
-  generateExecutionAttachmentKey: mockGenerateExecutionAttachmentKey,
+  generateUniqueExecutionFileKey: mockGenerateUniqueExecutionFileKey,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => permissionsMock)
 
 const {
   mockCheckStorageQuota,
-  mockGenerateExecutionAttachmentKey,
+  mockGenerateUniqueExecutionFileKey,
   mockInitiateS3MultipartUpload,
   mockResolveStorageBillingContext,
 } = vi.hoisted(() => ({
   mockCheckStorageQuota: vi.fn(),
-  mockGenerateExecutionAttachmentKey: vi.fn(),
+  mockGenerateUniqueExecutionFileKey: vi.fn(),
   mockInitiateS3MultipartUpload: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
 }))
@@ -250,7 +250,7 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
     mockCheckStorageQuota.mockResolvedValue({ allowed: true })
     mockInitiateS3MultipartUpload.mockResolvedValue({ uploadId: 'up-1', key: 'k/file.bin' })
-    mockGenerateExecutionAttachmentKey.mockImplementation(
+    mockGenerateUniqueExecutionFileKey.mockImplementation(
       (
         context: { workspaceId: string; workflowId: string; executionId: string },
         fileName: string
@@ -311,7 +311,7 @@ describe('POST /api/files/multipart action=initiate quota enforcement', () => {
   })
 
   it('allocates distinct multipart keys for duplicate execution attachment names', async () => {
-    mockGenerateExecutionAttachmentKey
+    mockGenerateUniqueExecutionFileKey
       .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/one-output.bin')
       .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/two-output.bin')
     mockInitiateS3MultipartUpload.mockImplementation(async ({ customKey }) => ({

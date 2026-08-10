@@ -569,7 +569,7 @@ describe('maybeWriteReadCsvToTable', () => {
               col_status: {
                 version: 1,
                 complete: true,
-                entries: [{ name: 'BOOLEAN', encryptedValue: 'encrypted-boolean' }],
+                entries: [],
                 scope: { userId: 'user-1', workspaceId: 'workspace-1' },
               },
             },
@@ -634,7 +634,7 @@ describe('maybeWriteReadCsvToTable', () => {
     )
   })
 
-  it('preserves numeric and boolean cells while recording their provenance', async () => {
+  it('preserves numeric and boolean cells, recording provenance only for the identifying one', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [
         { name: 'NUMBER', plaintext: '123', encryptedValue: 'encrypted-number' },
@@ -666,9 +666,7 @@ describe('maybeWriteReadCsvToTable', () => {
               col_age: expect.objectContaining({
                 entries: [{ name: 'NUMBER', encryptedValue: 'encrypted-number' }],
               }),
-              col_active: expect.objectContaining({
-                entries: [{ name: 'BOOLEAN', encryptedValue: 'encrypted-boolean' }],
-              }),
+              col_active: expect.objectContaining({ entries: [] }),
             }),
           }),
         ],

@@ -155,15 +155,20 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Only the app image needs the paid 8-core/32 GB runner: next build
-          # exhausts the free 16 GB one (exit 137). The others build in <5 min.
-          # bs_runner mirrors that per-image sizing on Blacksmith — a single
-          # pinned tier put every image on 8 vCPU, where the non-app builds idle
-          # at 12-15% CPU and under 10% memory.
+          # Only the app image needs a large runner: next build exhausts the free
+          # 16 GB one (exit 137). The others build in <5 min and idle at 12-15%
+          # CPU on 8 vCPU, so they stay on the smaller tiers.
+          #
+          # 16 vCPU on Blacksmith because this build is the critical path to a
+          # deploy — nothing ships until the image is pushed — and its two
+          # dominant steps both scale with cores (`bun install` ~300-400s, `next
+          # build` ~260s). The same `next build` runs on 16 vCPU in the separate
+          # Build App verification job, which does not gate anything; this one
+          # was doing comparable work on half the cores.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
-            bs_runner: blacksmith-8vcpu-ubuntu-2404
+            bs_runner: blacksmith-16vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ecr_repo_secret: ECR_MIGRATIONS
             gh_runner: ubuntu-latest
@@ -278,7 +283,7 @@ jobs:
             ghcr_image: ghcr.io/simstudioai/simstudio
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
-            bs_runner: blacksmith-8vcpu-ubuntu-2404
+            bs_runner: blacksmith-16vcpu-ubuntu-2404
           - dockerfile: ./docker/db.Dockerfile
             ghcr_image: ghcr.io/simstudioai/migrations
             ecr_repo_secret: ECR_MIGRATIONS

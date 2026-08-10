@@ -3,7 +3,9 @@
  */
 import { describe, expect, it, vi } from 'vitest'
 import {
+  createResolvedSecretMatcher,
   isResolvedSecretModelContentUnchanged,
+  projectResolvedSecretContent,
   projectResolvedSecretDiagnosticError,
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonContent,
@@ -175,7 +177,7 @@ describe('projectResolvedSecretModelContent', () => {
     })
   })
 
-  it('projects exact typed primitive secrets without rewriting unrelated primitives', () => {
+  it('projects exact typed numeric secrets, leaving booleans and null identifying nothing', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
@@ -200,17 +202,17 @@ describe('projectResolvedSecretModelContent', () => {
     ).toEqual({
       safe: true,
       value: {
-        strings: ['{{NUMBER}}', '{{BOOLEAN}}', '{{NULL}}'],
+        strings: ['{{NUMBER}}', 'true', 'null'],
         number: '{{NUMBER}}',
-        boolean: '{{BOOLEAN}}',
-        nothing: '{{NULL}}',
+        boolean: true,
+        nothing: null,
         unrelatedNumber: 1234,
         unrelatedBoolean: false,
       },
     })
   })
 
-  it.each(['123', 'true'])('keeps projected JSON argument strings valid (%s)', (secret) => {
+  it.each(['123'])('keeps projected JSON argument strings valid (%s)', (secret) => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
     ])
@@ -228,6 +230,26 @@ describe('projectResolvedSecretModelContent', () => {
       secret: '{{TOKEN}}',
       converted: '{{TOKEN}}',
       nested: ['{{TOKEN}}'],
+    })
+  })
+
+  it('leaves a boolean-valued secret in a JSON argument string untouched', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'true', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'true')
+
+    const projection = projectResolvedSecretModelJsonStrings(
+      [JSON.stringify({ secret: 'true', converted: true, nested: [true] })],
+      registry
+    )
+
+    expect(projection.safe).toBe(true)
+    if (!projection.safe || !Array.isArray(projection.value)) return
+    expect(JSON.parse(projection.value[0] as string)).toEqual({
+      secret: 'true',
+      converted: true,
+      nested: [true],
     })
   })
 
@@ -462,5 +484,48 @@ describe('projectResolvedSecretDiagnosticError', () => {
       errorType: 'error',
       hasStack: true,
     })
+  })
+})
+
+describe('literals too small to identify anything', () => {
+  const matcher = createResolvedSecretMatcher(
+    [
+      { plaintext: 'false', replacement: '{{BANNER_ENABLED}}' },
+      { plaintext: 'xoxb-real-secret-value', replacement: '{{SLACK_TOKEN}}' },
+    ],
+    { preserveNamedProvenanceLabels: true, mode: 'render' }
+  )!
+
+  const project = (value: unknown) =>
+    projectResolvedSecretContent(value, matcher, 1_000_000, { projectPrimitiveLiterals: true })
+
+  /** A `*_ENABLED` variable holding `false` once rewrote 2,000 boolean cells in one table read. */
+  it('leaves a typed boolean cell alone', () => {
+    expect(project({ had_error: false, ok: true, missing: null })).toEqual({
+      safe: true,
+      value: { had_error: false, ok: true, missing: null },
+    })
+  })
+
+  it('leaves a delimited occurrence inside surrounding text alone', () => {
+    expect(project({ url: 'https://x?fromUser=false&sort=count' })).toEqual({
+      safe: true,
+      value: { url: 'https://x?fromUser=false&sort=count' },
+    })
+  })
+
+  it('still substitutes a real secret sharing the same matcher', () => {
+    expect(project({ token: 'xoxb-real-secret-value', flag: false })).toEqual({
+      safe: true,
+      value: { token: '{{SLACK_TOKEN}}', flag: false },
+    })
+  })
+
+  it('builds no matcher at all when every literal is non-identifying', () => {
+    expect(
+      createResolvedSecretMatcher([{ plaintext: 'true', replacement: '{{FLAG}}' }], {
+        mode: 'render',
+      })
+    ).toBeUndefined()
   })
 })

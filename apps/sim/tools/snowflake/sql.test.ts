@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { SnowflakeBlock } from '@/blocks/blocks/snowflake'
 import {
+  buildAlterWarehouse,
   buildCallProcedure,
   buildCancelTaskRun,
   buildDeleteRows,
@@ -10,13 +11,21 @@ import {
   buildGetWarehouse,
   buildInsertRows,
   buildIntrospectSchema,
+  buildListCopyHistory,
+  buildListDatabases,
+  buildListQueryHistory,
+  buildListSchemas,
+  buildListTables,
   buildListTaskRuns,
   buildListTasks,
   buildListWarehouses,
   buildLoadData,
+  buildResumeTask,
   buildResumeWarehouse,
   buildRunTask,
+  buildSuspendTask,
   buildSuspendWarehouse,
+  buildUnloadData,
   buildUpdateRows,
   buildUpsertRows,
   identifier,
@@ -24,9 +33,14 @@ import {
   qualifiedIdentifier,
 } from '@/tools/snowflake/sql'
 
-const context = { host: 'acme.snowflakecomputing.com', apiKey: 'secret' }
+const context = { oauthCredential: 'cred-1' }
 const table = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', table: 'EVENTS' }
 const queryId = '01b71944-0301-b428-0000-69f706bf0001'
+
+/** ISO instants inside the history retention windows, so assertions never age out. */
+const historyStart = new Date(Date.now() - 2 * 86_400_000).toISOString()
+const historyEnd = new Date(Date.now() - 86_400_000).toISOString()
+const copyStart = new Date(Date.now() - 3 * 86_400_000).toISOString()
 
 /** The separator the row-shape and match-key encodings join on; legal inside a quoted identifier. */
 const SEPARATOR = String.fromCharCode(0)
@@ -363,6 +377,218 @@ describe('Snowflake SQL builders', () => {
     )
   })
 
+  it('bounds every object listing and scopes it to the requested container', () => {
+    expect(buildListDatabases({ ...context, limit: 25 }).statement).toBe('SHOW DATABASES LIMIT 25')
+    expect(buildListDatabases({ ...context, nameLike: "AN'X%" }).statement).toBe(
+      "SHOW DATABASES LIKE 'AN''X%' LIMIT 1000"
+    )
+    expect(buildListSchemas({ ...context, database: 'ANALYTICS', limit: 5 }).statement).toBe(
+      'SHOW SCHEMAS IN DATABASE ANALYTICS LIMIT 5'
+    )
+    expect(
+      buildListTables({ ...context, database: 'ANALYTICS', schema: 'PUBLIC', nameLike: 'E%' })
+        .statement
+    ).toBe("SHOW TABLES LIKE 'E%' IN SCHEMA ANALYTICS.PUBLIC LIMIT 1000")
+    expect(() => buildListTables({ ...context, database: 'A; DROP', schema: 'PUBLIC' })).toThrow(
+      /Invalid Snowflake identifier/
+    )
+  })
+
+  it('builds task state changes and rejects unqualifiable names', () => {
+    const task = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', taskName: 'DAILY_LOAD' }
+    expect(buildResumeTask(task).statement).toBe('ALTER TASK ANALYTICS.PUBLIC.DAILY_LOAD RESUME')
+    expect(buildSuspendTask(task).statement).toBe('ALTER TASK ANALYTICS.PUBLIC.DAILY_LOAD SUSPEND')
+    expect(() => buildResumeTask({ ...task, taskName: 'A RESUME; DROP' })).toThrow(
+      /Invalid Snowflake identifier/
+    )
+  })
+
+  /**
+   * An untouched switch serializes as `null`, and in advanced mode the
+   * serializer emits every advanced sub-block. The generic handler merges
+   * `{...inputs, ...mapParams(inputs)}`, so a null survives unless the params
+   * function explicitly overwrites it with undefined — and the builders'
+   * `!== undefined` tests would then fire, turning a resize into a permanent
+   * `AUTO_RESUME = FALSE` on the warehouse.
+   */
+  it('drops untouched switches instead of emitting their clauses', () => {
+    const mapParams = SnowflakeBlock.tools.config.params
+    if (!mapParams) throw new Error('Snowflake block must map tool parameters')
+    const merged = (params: Record<string, unknown>) => ({ ...params, ...mapParams(params) })
+
+    const altered = merged({
+      operation: 'alter_warehouse',
+      warehouseSize: '',
+      autoSuspendSeconds: null,
+      autoResume: null,
+    })
+    expect(altered.autoResume).toBeUndefined()
+    expect(() =>
+      buildAlterWarehouse({ ...context, warehouseName: 'COMPUTE_WH', ...altered })
+    ).toThrow(/at least one of/)
+
+    const unloaded = merged({
+      operation: 'unload_data',
+      header: null,
+      overwrite: null,
+      singleFile: null,
+    })
+    expect(unloaded.header).toBeUndefined()
+    expect(unloaded.singleFile).toBeUndefined()
+    expect(
+      buildUnloadData({
+        ...context,
+        database: 'ANALYTICS',
+        schema: 'PUBLIC',
+        stagePath: '@EXPORTS/daily',
+        table: 'EVENTS',
+        ...unloaded,
+      }).statement
+    ).toBe('COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE')
+  })
+
+  it('builds warehouse alterations and rejects unsupported settings', () => {
+    expect(
+      buildAlterWarehouse({
+        ...context,
+        warehouseName: 'ETL_WH',
+        warehouseSize: 'xlarge',
+        autoSuspendSeconds: 0,
+        autoResume: false,
+      }).statement
+    ).toBe(
+      'ALTER WAREHOUSE ETL_WH SET WAREHOUSE_SIZE = XLARGE AUTO_SUSPEND = 0 AUTO_RESUME = FALSE'
+    )
+    // Every documented spelling of a size normalizes to the bare keyword.
+    for (const spelling of ['2X-LARGE', "'2X-LARGE'", 'X2LARGE', 'xxlarge']) {
+      expect(
+        buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH', warehouseSize: spelling })
+          .statement
+      ).toBe('ALTER WAREHOUSE ETL_WH SET WAREHOUSE_SIZE = XXLARGE')
+    }
+    expect(() =>
+      buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH', warehouseSize: 'HUGE' })
+    ).toThrow(/warehouseSize must be one of/)
+    expect(() =>
+      buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH', autoSuspendSeconds: -1 })
+    ).toThrow(/autoSuspendSeconds/)
+    // Snowflake documents no upper bound, so a long idle window must be allowed.
+    expect(
+      buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH', autoSuspendSeconds: 900_000 })
+        .statement
+    ).toBe('ALTER WAREHOUSE ETL_WH SET AUTO_SUSPEND = 900000')
+    expect(() => buildAlterWarehouse({ ...context, warehouseName: 'ETL_WH' })).toThrow(
+      /at least one of/
+    )
+  })
+
+  /**
+   * The source is a table name, never an inline query. An inlined query sits
+   * directly before the copy-option slot, so anything escaping its parentheses
+   * becomes a copy clause — a guard for that has to match Snowflake's tokenizer
+   * exactly, and three versions of one were each defeated. `qualifiedIdentifier`
+   * removes the class instead of re-guarding it.
+   */
+  it('unloads a table and orders the COPY INTO clauses', () => {
+    const base = {
+      ...context,
+      database: 'ANALYTICS',
+      schema: 'PUBLIC',
+      stagePath: '@EXPORTS/daily',
+    }
+    expect(
+      buildUnloadData({
+        ...base,
+        table: 'EVENTS',
+        fileFormat: 'ANALYTICS.PUBLIC.CSV_FORMAT',
+        header: true,
+        overwrite: false,
+        singleFile: true,
+        maxFileSizeBytes: 16_777_216,
+      }).statement
+    ).toBe(
+      // OVERWRITE/SINGLE/MAX_FILE_SIZE are all copyOptions members, so their
+      // order among themselves is free; HEADER must stay last.
+      "COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS FILE_FORMAT = (FORMAT_NAME = 'ANALYTICS.PUBLIC.CSV_FORMAT') OVERWRITE = FALSE SINGLE = TRUE MAX_FILE_SIZE = 16777216 HEADER = TRUE"
+    )
+    // OVERWRITE is always emitted so the option can never be left to a default.
+    expect(buildUnloadData({ ...base, table: 'EVENTS' }).statement).toBe(
+      'COPY INTO @EXPORTS/daily FROM ANALYTICS.PUBLIC.EVENTS OVERWRITE = FALSE'
+    )
+    expect(() => buildUnloadData({ ...base, table: '' })).toThrow(/table is required/)
+    // No SQL text can reach the statement, so no breakout is expressible.
+    expect(() =>
+      buildUnloadData({ ...base, table: 'EVENTS) OVERWRITE = TRUE FILE_FORMAT = (TYPE = CSV' })
+    ).toThrow(/Invalid Snowflake identifier/)
+    expect(() =>
+      buildUnloadData({ ...base, table: 'EVENTS', maxFileSizeBytes: 5_368_709_121 })
+    ).toThrow(/maxFileSizeBytes/)
+  })
+
+  it('emits history filters as literals so none can be silently dropped', () => {
+    expect(
+      buildListQueryHistory({
+        ...context,
+        limit: 50,
+        userName: 'analyst_svc',
+        startTime: historyStart,
+        endTime: historyEnd,
+        errorOnly: true,
+      })
+    ).toEqual({
+      statement: `SELECT * FROM TABLE(SNOWFLAKE.INFORMATION_SCHEMA.QUERY_HISTORY_BY_USER(RESULT_LIMIT => 50, USER_NAME => 'ANALYST_SVC', END_TIME_RANGE_START => TO_TIMESTAMP_LTZ('${historyStart}'), END_TIME_RANGE_END => TO_TIMESTAMP_LTZ('${historyEnd}'))) WHERE UPPER(EXECUTION_STATUS) IN ('FAILED_WITH_ERROR', 'FAILED_WITH_INCIDENT') ORDER BY END_TIME DESC`,
+    })
+    expect(buildListQueryHistory({ ...context, warehouseName: 'ETL_WH' }).statement).toContain(
+      "SNOWFLAKE.INFORMATION_SCHEMA.QUERY_HISTORY_BY_WAREHOUSE(RESULT_LIMIT => 1000, WAREHOUSE_NAME => 'ETL_WH')"
+    )
+    expect(buildListQueryHistory({ ...context }).statement).toContain(
+      'SNOWFLAKE.INFORMATION_SCHEMA.QUERY_HISTORY(RESULT_LIMIT => 1000)'
+    )
+    expect(() => buildListQueryHistory({ ...context, userName: 'A', warehouseName: 'B' })).toThrow(
+      /by user or by warehouse/
+    )
+    expect(() => buildListQueryHistory({ ...context, startTime: 'yesterday' })).toThrow(
+      /ISO-8601 timestamp within the last 7 days/
+    )
+    // The retention window is enforced, not just advertised in the message.
+    expect(() => buildListQueryHistory({ ...context, startTime: '2020-01-01T00:00:00Z' })).toThrow(
+      /within the last 7 days/
+    )
+  })
+
+  it('requires a start time for copy history and bounds it outside the table function', () => {
+    expect(
+      buildListCopyHistory({
+        ...context,
+        database: 'ANALYTICS',
+        schema: 'PUBLIC',
+        table: 'EVENTS',
+        startTime: copyStart,
+        limit: 20,
+      }).statement
+    ).toBe(
+      `SELECT * FROM TABLE(ANALYTICS.INFORMATION_SCHEMA.COPY_HISTORY(TABLE_NAME => 'ANALYTICS.PUBLIC.EVENTS', START_TIME => TO_TIMESTAMP_LTZ('${copyStart}'))) ORDER BY LAST_LOAD_TIME DESC LIMIT 20`
+    )
+    expect(() =>
+      buildListCopyHistory({
+        ...context,
+        database: 'ANALYTICS',
+        schema: 'PUBLIC',
+        table: 'EVENTS',
+        startTime: 'last tuesday',
+      })
+    ).toThrow(/ISO-8601 timestamp within the last 14 days/)
+    expect(() =>
+      buildListCopyHistory({
+        ...context,
+        database: 'ANALYTICS',
+        schema: 'PUBLIC',
+        table: 'EVENTS',
+        startTime: '2020-01-01T00:00:00Z',
+      })
+    ).toThrow(/within the last 14 days/)
+  })
+
   it('builds task definition and execution statements', () => {
     const task = { ...context, database: 'ANALYTICS', schema: 'PUBLIC', taskName: 'DAILY_LOAD' }
     expect(buildListTasks({ ...task, limit: 25, nameLike: 'DAILY%' }).statement).toBe(
@@ -378,7 +604,7 @@ describe('Snowflake SQL builders', () => {
     const history = buildListTaskRuns({
       ...context,
       taskName: 'DAILY_LOAD',
-      startTime: '2026-08-01T00:00:00Z',
+      startTime: historyStart,
       errorOnly: true,
       limit: 50,
     })
@@ -388,7 +614,7 @@ describe('Snowflake SQL builders', () => {
       ...context,
       queryId,
       taskName: 'DAILY_LOAD',
-      startTime: '2026-08-01T00:00:00Z',
+      startTime: historyStart,
     })
     expect(run.statement).toContain('TASK_NAME => ?')
     expect(run.statement).toContain('WHERE QUERY_ID = ?')
@@ -406,14 +632,14 @@ describe('Snowflake SQL builders', () => {
      */
     const window = buildListTaskRuns({
       ...context,
-      startTime: '2026-08-01T00:00:00Z',
-      endTime: '2026-08-02T00:00:00Z',
+      startTime: historyStart,
+      endTime: historyEnd,
     })
     expect(window.statement).toContain(
-      "SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ('2026-08-01T00:00:00Z')"
+      `SCHEDULED_TIME_RANGE_START => TO_TIMESTAMP_LTZ('${historyStart}')`
     )
     expect(window.statement).toContain(
-      "SCHEDULED_TIME_RANGE_END => TO_TIMESTAMP_LTZ('2026-08-02T00:00:00Z')"
+      `SCHEDULED_TIME_RANGE_END => TO_TIMESTAMP_LTZ('${historyEnd}')`
     )
     expect(window.statement).not.toContain('TO_TIMESTAMP_LTZ(?)')
     expect(window.bindings).toEqual({})

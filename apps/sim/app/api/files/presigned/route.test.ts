@@ -24,7 +24,7 @@ const {
   mockIsUsingCloudStorageUploads,
   mockGetUserEntityPermissions,
   mockGenerateWorkspaceFileKey,
-  mockGenerateExecutionAttachmentKey,
+  mockGenerateUniqueExecutionFileKey,
   mockInsertFileMetadata,
   mockCheckStorageQuotaForBillingContext,
   mockDecrementStorageUsageForBillingContext,
@@ -52,7 +52,7 @@ const {
   mockGenerateWorkspaceFileKey: vi.fn(
     (workspaceId: string, fileName: string) => `workspace/${workspaceId}/${fileName}`
   ),
-  mockGenerateExecutionAttachmentKey: vi.fn(
+  mockGenerateUniqueExecutionFileKey: vi.fn(
     (ctx: { workspaceId: string; workflowId: string; executionId: string }, fileName: string) =>
       `execution/${ctx.workspaceId}/${ctx.workflowId}/${ctx.executionId}/attachment-${fileName}`
   ),
@@ -110,7 +110,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/execution/utils', () => ({
-  generateExecutionAttachmentKey: mockGenerateExecutionAttachmentKey,
+  generateUniqueExecutionFileKey: mockGenerateUniqueExecutionFileKey,
 }))
 
 vi.mock('@/lib/uploads/server/metadata', () => ({
@@ -752,7 +752,7 @@ describe('/api/files/presigned', () => {
   describe('execution uploads', () => {
     it('allocates distinct create-only keys for duplicate attachment names', async () => {
       setupFileApiMocks({ cloudEnabled: true, storageProvider: 's3' })
-      mockGenerateExecutionAttachmentKey
+      mockGenerateUniqueExecutionFileKey
         .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/one-output.txt')
         .mockReturnValueOnce('execution/ws-1/wf-1/exec-1/two-output.txt')
 

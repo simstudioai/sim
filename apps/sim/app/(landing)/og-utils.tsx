@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { ImageResponse } from 'next/og'
 import { SimLogoFull } from '@/app/(landing)/components/og-sim-logo'
 
@@ -18,28 +20,37 @@ function getTitleFontSize(title: string): number {
   return TITLE_FONT_SIZE.large
 }
 
-async function loadGoogleFont(
-  font: string,
-  weights: string,
-  text: string
-): Promise<ArrayBuffer | null> {
-  try {
-    const url = `https://fonts.googleapis.com/css2?family=${font}:wght@${weights}&text=${encodeURIComponent(text)}`
-    const css = await (await fetch(url)).text()
-    const resource = css.match(/src: url\(([^)]+)\) format\('(opentype|truetype|woff2?)'\)/)
+/**
+ * Geist, read from the repo rather than fetched from Google Fonts.
+ *
+ * Satori requires at least one font and throws if it gets none, so a fetch that
+ * returned nothing took the whole build down with "No fonts are loaded" on
+ * whichever page happened to be rendering. That was not a rare race: six routes
+ * build an OG image, `integrations/[slug]` alone is 237 pages, and each render
+ * fetched two weights subsetted by `&text=` — a per-page URL no cache can reuse.
+ * Several hundred uncacheable requests to one host, from one CI egress IP, in
+ * parallel across build workers.
+ *
+ * Read once at module scope, per Next's `ImageResponse` guidance. `.ttf`
+ * because Satori accepts only ttf/otf/woff — the sibling `.woff2` the app
+ * serves to browsers cannot be reused here.
+ *
+ * These live under `public/` so they need no `outputFileTracingIncludes` entry:
+ * `docker/app.Dockerfile` copies that directory into the runner, which the
+ * `force-dynamic` share-token card needs since it renders per request.
+ *
+ * `process.cwd()` is the app directory in every environment this runs in, not
+ * just dev and build. The container starts at the monorepo root, but Next's
+ * generated standalone `server.js` opens with `process.chdir(__dirname)`, and
+ * that file ships beside `public/` — which is also why `content/` is read this
+ * way at runtime.
+ */
+const FONT_DIR = join(process.cwd(), 'public', 'brand', 'fonts')
 
-    if (resource) {
-      const response = await fetch(resource[1])
-      if (response.status === 200) {
-        return await response.arrayBuffer()
-      }
-    }
-  } catch {
-    return null
-  }
-
-  return null
-}
+const [geistRegular, geistMedium] = await Promise.all([
+  readFile(join(FONT_DIR, 'Geist-Regular.ttf')),
+  readFile(join(FONT_DIR, 'Geist-Medium.ttf')),
+])
 
 interface LandingOgImageProps {
   eyebrow: string
@@ -57,12 +68,6 @@ export async function createLandingOgImage({
   pills = [],
   domainLabel = 'sim.ai',
 }: LandingOgImageProps) {
-  const text = `${eyebrow}${title}${subtitle}${pills.join('')}${domainLabel}`
-  const [regularFontData, mediumFontData] = await Promise.all([
-    loadGoogleFont('Geist', '400', text),
-    loadGoogleFont('Geist', '500', text),
-  ])
-
   return new ImageResponse(
     <div
       style={{
@@ -160,26 +165,8 @@ export async function createLandingOgImage({
     {
       ...size,
       fonts: [
-        ...(regularFontData
-          ? [
-              {
-                name: 'Geist',
-                data: regularFontData,
-                style: 'normal' as const,
-                weight: 400 as const,
-              },
-            ]
-          : []),
-        ...(mediumFontData
-          ? [
-              {
-                name: 'Geist',
-                data: mediumFontData,
-                style: 'normal' as const,
-                weight: 500 as const,
-              },
-            ]
-          : []),
+        { name: 'Geist', data: geistRegular, style: 'normal' as const, weight: 400 as const },
+        { name: 'Geist', data: geistMedium, style: 'normal' as const, weight: 500 as const },
       ],
     }
   )

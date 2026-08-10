@@ -9,6 +9,7 @@ import {
   envField,
   inspectCapability,
   inspectOAuthClientCapability,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   LLM_KEY_POOLS,
   OCR_CAPABILITY,
   requireCapability,
@@ -111,6 +112,43 @@ describe('env capabilities', () => {
   })
 
   describe('fallback capabilities', () => {
+    it('resolves configured knowledge embedding transports in fallback order', () => {
+      expect(
+        inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
+          OPENROUTER_API_KEY: 'openrouter-key',
+        }).providerIds
+      ).toEqual(['openrouter'])
+
+      expect(
+        inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
+          AZURE_OPENAI_API_KEY: 'azure-key',
+          AZURE_OPENAI_ENDPOINT: 'https://azure.example.com',
+          AZURE_OPENAI_API_VERSION: '2024-10-21',
+          OPENAI_API_KEY_1: 'openai-key',
+          OPENROUTER_API_KEY: 'openrouter-key',
+        }).providerIds
+      ).toEqual(['azure-openai', 'openai', 'openrouter'])
+    })
+
+    it('reports partially configured Azure knowledge embeddings', () => {
+      const inspection = inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, {
+        AZURE_OPENAI_API_KEY: 'azure-key',
+      })
+
+      expect(inspection).toMatchObject({
+        configured: false,
+        providerIds: [],
+        error: expect.any(EnvCapabilityConfigurationError),
+      })
+      expect(inspection.providers[0]).toMatchObject({
+        state: 'partial',
+        missingFields: expect.arrayContaining([
+          'AZURE_OPENAI_ENDPOINT',
+          'AZURE_OPENAI_API_VERSION',
+        ]),
+      })
+    })
+
     it('resolves every ready email provider subset in declaration order', () => {
       for (let mask = 0; mask < 1 << EMAIL_PROVIDER_ORDER.length; mask += 1) {
         const expected = EMAIL_PROVIDER_ORDER.filter((_, index) => (mask & (1 << index)) !== 0)
@@ -249,6 +287,27 @@ describe('env capabilities', () => {
       await expect(rejection).rejects.toThrow(/All Email providers failed: resend, ses/)
       await expect(rejection).rejects.toMatchObject({ errors: [resendError, sesError] })
       expect(onFailure.mock.calls.map(([providerId]) => providerId)).toEqual(['resend', 'ses'])
+    })
+
+    it('stops fallback immediately when the error predicate rejects an error', async () => {
+      const fatal = new Error('invalid credentials')
+      const first = { send: vi.fn().mockRejectedValue(fatal) }
+      const second = { send: vi.fn().mockResolvedValue('should not run') }
+      const fallback = wireFallback({
+        definition: EMAIL_CAPABILITY,
+        values: { RESEND_API_KEY: 're_test', AWS_SES_REGION: 'us-east-1' },
+        factories: {
+          resend: () => first,
+          ses: () => second,
+          smtp: () => null,
+          azure: () => null,
+          gmail: () => null,
+        },
+        shouldFallback: () => false,
+      })
+
+      await expect(fallback.execute((provider) => provider.send())).rejects.toBe(fatal)
+      expect(second.send).not.toHaveBeenCalled()
     })
 
     it('fails immediately when a ready provider has no runtime implementation', () => {

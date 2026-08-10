@@ -4,14 +4,19 @@
  * `@/lib/embeddings/providers`.
  */
 
-export type EmbeddingProviderKind = 'openai' | 'azure-openai' | 'gemini' | 'cohere' | 'mistral'
+export type EmbeddingProviderKind =
+  | 'openai'
+  | 'azure-openai'
+  | 'openrouter'
+  | 'gemini'
+  | 'cohere'
+  | 'mistral'
 
 /**
- * Providers a catalog model can belong to. Azure OpenAI is excluded because it
- * is a transport override for OpenAI models rather than a provider users pick:
- * no model is ever catalogued under it, and it resolves its own credentials.
+ * Providers a catalog model can belong to. Azure OpenAI and OpenRouter are
+ * transports for OpenAI models, so no model is catalogued under either one.
  */
-export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai'>
+export type EmbeddingCatalogProvider = Exclude<EmbeddingProviderKind, 'azure-openai' | 'openrouter'>
 
 /** Provider id for `estimateTokenCount` so token counts match the embedding provider's tokenization. */
 export type TokenizerProviderId = 'openai' | 'google' | 'cohere' | 'mistral'
@@ -75,6 +80,8 @@ export type EmbeddingAdapterFactory<Ctx extends EmbeddingAdapterContext = Embedd
 export interface EmbedOptions {
   /** Catalog model id. Defaults to the platform default when omitted. */
   model?: string
+  /** Transport override for catalog models exposed through another provider. */
+  transport?: 'openrouter'
   /** Workspace used to look up a BYOK key before falling back to platform keys. */
   workspaceId?: string | null
   taskType?: EmbeddingTaskType
@@ -101,7 +108,9 @@ export interface EmbedOptions {
 export interface EmbedResult {
   embeddings: number[][]
   totalTokens: number
-  /** True when a workspace-owned key was used, meaning Sim does not bill for it. */
+  /** Tokens processed with a Sim-funded key and therefore eligible for billing. */
+  billableTokens: number
+  /** True when every successful embedding used a caller- or workspace-owned key. */
   isBYOK: boolean
   /** Model name as sent to the provider. */
   modelName: string
@@ -109,4 +118,14 @@ export interface EmbedResult {
   pricingId: string
   /** Dimensionality of the returned vectors. */
   dimensions: number
+}
+
+export interface OpenRouterEmbedOptions {
+  apiKey: string
+  model?: string
+  /** Per-input ceiling reported by OpenRouter's embedding model catalog. */
+  maxInputTokens: number
+  /** Forwarded when a caller explicitly requests a provider-supported reduction. */
+  dimensions?: number
+  projectInputs: ((values: readonly string[]) => string[]) | null
 }

@@ -3,8 +3,8 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
-  generateExecutionAttachmentKey,
-  generateExecutionFileKey,
+  generateLargeValuePayloadKey,
+  generateUniqueExecutionFileKey,
 } from '@/lib/uploads/contexts/execution/utils'
 
 const context = {
@@ -14,25 +14,20 @@ const context = {
 }
 
 describe('execution storage keys', () => {
-  it('retains deterministic keys for internal execution artifacts', () => {
-    expect(generateExecutionFileKey(context, 'result.json')).toBe(
-      'execution/workspace-1/workflow-1/execution-1/result.json'
-    )
-    expect(generateExecutionFileKey(context, 'result.json')).toBe(
-      'execution/workspace-1/workflow-1/execution-1/result.json'
-    )
+  it('retains deterministic keys for large-value payloads', () => {
+    const key = 'execution/workspace-1/workflow-1/execution-1/large-value-lv_abc123.json'
+
+    expect(generateLargeValuePayloadKey(context, 'lv_abc123')).toBe(key)
+    expect(generateLargeValuePayloadKey(context, 'lv_abc123')).toBe(key)
   })
 
-  it('allocates unique create-only keys for duplicate browser attachment names', () => {
-    const first = generateExecutionAttachmentKey(context, 'report final.pdf')
-    const second = generateExecutionAttachmentKey(context, 'report final.pdf')
+  it('allocates unique keys for duplicate file names, keeping the name as the final segment', () => {
+    const first = generateUniqueExecutionFileKey(context, 'report final.pdf')
+    const second = generateUniqueExecutionFileKey(context, 'report final.pdf')
+    const shape = /^execution\/workspace-1\/workflow-1\/execution-1\/[0-9a-f-]+\/report-final\.pdf$/
 
-    expect(first).toMatch(
-      /^execution\/workspace-1\/workflow-1\/execution-1\/[0-9a-f-]+-report-final\.pdf$/
-    )
-    expect(second).toMatch(
-      /^execution\/workspace-1\/workflow-1\/execution-1\/[0-9a-f-]+-report-final\.pdf$/
-    )
+    expect(first).toMatch(shape)
+    expect(second).toMatch(shape)
     expect(first).not.toBe(second)
   })
 })

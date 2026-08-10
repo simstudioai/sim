@@ -34,7 +34,7 @@ Put state in the URL **only** when it is *all* of: shareable, deep-linkable, boo
 ## Anti-patterns (forbidden)
 
 - Direct `useSearchParams().get(...)` or `new URLSearchParams(window.location.search)` to **read** state.
-- Hand-built query strings + `router.replace`/`router.push` to **mutate** state.
+- Hand-built query strings + `router.replace`/`router.push` to **mutate** state. **If the target path equals the current path, it is a query mutation, not a navigation** — even when written as a full path template. Re-serializing the path by hand is lossy by construction: it drops every param the template forgets. Use the nuqs setter (`setParams({ key: null }, { history: 'replace', scroll: false })`) — `null` always removes the key, and only the params you name are touched. Both options are already nuqs defaults (see "Conventions"); write them explicitly because a group whose shared options set `history: 'push'` (e.g. `filesUrlKeys`) would otherwise push a back-stack entry for a strip.
 - `window.history.replaceState`/`pushState` to mutate a param.
 - Duplicating URL state into a store and syncing it with effects / `popstate` listeners.
 - High-frequency or large state in the URL (cursor, pan/zoom, un-debounced keystrokes, big JSON blobs).
@@ -44,7 +44,7 @@ These reads/mutations are **not** anti-patterns and stay as-is:
 
 - **Outbound URL builders** — `new URLSearchParams({...})` to construct a `href`, a download endpoint, an external WebSocket/API URL, or a `window.open(_, '_blank')` destination.
 - **Route navigations** — `router.push('/path/[id]?folderId=x')` that changes the route *path*, not just the current query. A nuqs setter only mutates the query on the current path; cross-path navigation stays on `router`.
-- **Read-once auth / redirect signals** — `token`, `callbackUrl`, `redirect`, `error`, `invite_flow`, `upgraded`, `redirect_workflow`, etc. These are navigation signals consumed once (often read-then-strip), not synced view-state. Leave them on `useSearchParams`.
+- **Read-once auth / redirect signals** — `token`, `callbackUrl`, `redirect`, `error`, `invite_flow`, `new` (invite signup flow), `upgraded`, `redirect_workflow`, etc. These are navigation signals consumed once (often read-then-strip), not synced view-state. Leave them on `useSearchParams`. Key names are per-surface: files' `new` is a genuine nuqs param (`files/search-params.ts`), while invite's `new` is a one-shot signup signal.
 
 ## Per-feature `search-params.ts` — single source of truth
 
@@ -128,7 +128,22 @@ If a client param must be re-read server-side after a change, set `shallow: fals
 
 ## Suspense boundary
 
-`useQueryState`/`useQueryStates` read `useSearchParams` internally, so any client component using them must sit under a `<Suspense>` boundary (Next.js requirement). Wrap the page entry with a real-chrome fallback so a suspend never flashes a blank frame — see `apps/sim/app/workspace/[workspaceId]/files/page.tsx`.
+`useQueryState`/`useQueryStates` read `useSearchParams` internally, so any client component using them must sit under a `<Suspense>` boundary (Next.js requirement). Wrap the page entry with a real-chrome fallback so a suspend never flashes a blank frame.
+
+**Never `fallback={null}` on a page entry.** The route's co-located `loading.tsx` default export *is* the correct fallback — one skeleton serves both the route-level navigation transition (which Next renders automatically) and the in-page suspend (which this boundary renders). If the segment has no `loading.tsx`, add one; the route transition needs it anyway. Import it absolutely (`sim-imports.md`):
+
+```typescript
+import { KnowledgeBase } from '@/app/workspace/[workspaceId]/knowledge/[id]/base'
+import KnowledgeBaseLoading from '@/app/workspace/[workspaceId]/knowledge/[id]/loading'
+
+<Suspense fallback={<KnowledgeBaseLoading />}>
+  <KnowledgeBase id={id} knowledgeBaseName={kbName || 'Knowledge Base'} />
+</Suspense>
+```
+
+Reference: `apps/sim/app/workspace/[workspaceId]/knowledge/[id]/page.tsx`.
+
+This applies to **page entries**. An inner `<Suspense>` wrapping a `lazy()` component is the exception: there `fallback={null}` is correct, precisely so the suspend resolves at the nearest boundary instead of flashing the whole route — see `sim-imports.md`, "Code-splitting through barrels".
 
 ## Debounced text inputs
 

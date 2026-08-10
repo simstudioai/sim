@@ -88,11 +88,14 @@ export default function LoginPage({
   googleAvailable,
   microsoftAvailable,
   isProduction,
+  registrationDisabled,
 }: {
   githubAvailable: boolean
   googleAvailable: boolean
   microsoftAvailable: boolean
   isProduction: boolean
+  /** DISABLE_REGISTRATION. Hides the signup cross-link, which `/signup` blocks. */
+  registrationDisabled: boolean
 }) {
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -436,7 +439,7 @@ export default function LoginPage({
           </SocialLoginButtons>
         )}
 
-        {emailEnabled && (
+        {emailEnabled && !registrationDisabled && (
           <AuthNavPrompt prompt="Don't have an account?" href={signupHref} linkLabel='Sign up' />
         )}
 

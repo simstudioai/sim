@@ -1,8 +1,9 @@
 import type { NavMenu } from '@/app/(landing)/components/navbar/components/nav-menu-chip/types'
 
 /**
- * The Platform menu - Sim's modules. Six items in a three-column grid. Each
- * description names the outcome the module unlocks for your agents.
+ * The Platform menu - Sim's modules. Five items in a three-column grid, so the
+ * bottom-right cell is empty. Each description names the outcome the module
+ * unlocks for your agents.
  */
 export const PLATFORM_MENU: NavMenu = {
   label: 'Platform',

@@ -2,7 +2,7 @@
  * The seam between the Pi handler and its execution environments. The handler
  * resolves shared credentials and mode-specific context, then hands a
  * {@link PiRunParams} to one backend ({@link PiBackendRun}) selected by `mode`.
- * Authoring modes receive skills. Create PR may then compose the internal Babysit
+ * Contextual modes receive skills and memory. Create PR may then compose the internal Babysit
  * continuation without exposing pull-request content to conversation memory.
  * Backends own environment-specific execution and report progress through
  * {@link PiRunContext.onEvent}.
@@ -61,8 +61,8 @@ export interface PiSearchConfig {
   provider: PiSearchProvider
   apiKey: string
   /**
-   * Host-side tool for the two SDK modes. Absent for `cloud`, which has no host in the loop and
-   * registers a sandbox extension instead, so a spec built there could never execute.
+   * Host-side tool for the SDK modes. Absent for sandbox modes, which register a sandbox extension
+   * instead, so a spec built there could never execute.
    */
   tool?: PiToolSpec
 }
@@ -105,6 +105,15 @@ export interface PiCloudRunParams extends PiContextualRunParams {
   prTitle?: string
   prBody?: string
   babysit?: PiCloudBabysitOptions
+}
+
+/** Parameters for a cloud (E2B) Pi run that inspects a disposable checkout and returns a plan. */
+export interface PiCloudPlanRunParams extends PiContextualRunParams {
+  mode: 'cloud_plan'
+  owner: string
+  repo: string
+  githubToken: string
+  baseBranch?: string
 }
 
 /** Optional post-creation Babysit configuration for Create PR. */
@@ -155,6 +164,7 @@ export interface PiBabysitContinuationParams extends PiContextualRunParams {
 export type PiRunParams =
   | PiLocalRunParams
   | PiCloudRunParams
+  | PiCloudPlanRunParams
   | PiCloudBranchRunParams
   | PiCloudReviewRunParams
 

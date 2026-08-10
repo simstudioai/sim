@@ -4,20 +4,37 @@
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEmbed } = vi.hoisted(() => ({
-  mockEmbed: vi.fn(),
+const { mockEmbed, mockEmbedOpenRouter, mockGetOpenRouterEmbeddingModelMetadata } = vi.hoisted(
+  () => ({
+    mockEmbed: vi.fn(),
+    mockEmbedOpenRouter: vi.fn(),
+    mockGetOpenRouterEmbeddingModelMetadata: vi.fn(),
+  })
+)
+
+vi.mock('@/lib/embeddings/openrouter-model-catalog.server', () => ({
+  getOpenRouterEmbeddingModelMetadata: mockGetOpenRouterEmbeddingModelMetadata,
+  OpenRouterEmbeddingModelNotFoundError: class OpenRouterEmbeddingModelNotFoundError extends Error {
+    constructor(model: string) {
+      super(`Unsupported OpenRouter embedding model: ${model}`)
+      this.name = 'OpenRouterEmbeddingModelNotFoundError'
+    }
+  },
 }))
 
 vi.mock('@/lib/embeddings', async () => {
   const catalog = await import('@/lib/embeddings/catalog')
   return {
     embed: mockEmbed,
+    embedOpenRouter: mockEmbedOpenRouter,
+    DEFAULT_OPENROUTER_EMBEDDING_MODEL: 'openrouter/openai/text-embedding-3-small',
     findEmbeddingModelInfo: catalog.findEmbeddingModelInfo,
     getModelsForProvider: catalog.getModelsForProvider,
     resolveDimensions: catalog.resolveDimensions,
   }
 })
 
+import { OpenRouterEmbeddingModelNotFoundError } from '@/lib/embeddings/openrouter-model-catalog.server'
 import { POST } from '@/app/api/tools/embeddings/route'
 
 const baseBody = {
@@ -34,6 +51,10 @@ function post(body: Record<string, unknown>) {
 describe('POST /api/tools/embeddings', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetOpenRouterEmbeddingModelMetadata.mockResolvedValue({
+      id: 'openrouter/qwen/qwen3-embedding-8b',
+      maxInputTokens: 32768,
+    })
     hybridAuthMockFns.mockCheckInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -46,6 +67,15 @@ describe('POST /api/tools/embeddings', () => {
       modelName: 'text-embedding-3-small',
       pricingId: 'text-embedding-3-small',
       dimensions: 1536,
+    })
+    mockEmbedOpenRouter.mockResolvedValue({
+      embeddings: [[0.1, 0.2]],
+      totalTokens: 3,
+      billableTokens: 0,
+      isBYOK: true,
+      modelName: 'openrouter/qwen/qwen3-embedding-8b',
+      pricingId: 'openrouter/qwen/qwen3-embedding-8b',
+      dimensions: 2,
     })
   })
 
@@ -115,6 +145,82 @@ describe('POST /api/tools/embeddings', () => {
       ['hello world'],
       expect.objectContaining({ dimensions: 512 })
     )
+  })
+
+  it('routes OpenRouter through its transport with an explicit key', async () => {
+    const response = await post({
+      provider: 'openrouter',
+      model: 'openrouter/qwen/qwen3-embedding-8b',
+      input: 'hello world',
+      apiKey: 'or-test',
+    })
+
+    expect(response.status).toBe(200)
+    expect(mockEmbedOpenRouter).toHaveBeenCalledWith(
+      ['hello world'],
+      expect.objectContaining({
+        apiKey: 'or-test',
+        maxInputTokens: 32768,
+        model: 'openrouter/qwen/qwen3-embedding-8b',
+      })
+    )
+    expect(mockEmbed).not.toHaveBeenCalled()
+    expect((await response.json()).provider).toBe('openrouter')
+  })
+
+  it('rejects OpenRouter without an explicit key', async () => {
+    const response = await post({
+      provider: 'openrouter',
+      model: 'openrouter/openai/text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('apiKey')
+    expect(mockEmbed).not.toHaveBeenCalled()
+    expect(mockEmbedOpenRouter).not.toHaveBeenCalled()
+  })
+
+  it('rejects an invalid OpenRouter model id', async () => {
+    const response = await post({
+      provider: 'openrouter',
+      model: 'openrouter/not-qualified',
+      input: 'hello world',
+      apiKey: 'or-test',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('Invalid OpenRouter embedding model')
+    expect(mockEmbedOpenRouter).not.toHaveBeenCalled()
+  })
+
+  it('rejects a qualified model that is absent from OpenRouter', async () => {
+    mockGetOpenRouterEmbeddingModelMetadata.mockRejectedValue(
+      new OpenRouterEmbeddingModelNotFoundError('openrouter/example/missing')
+    )
+
+    const response = await post({
+      provider: 'openrouter',
+      model: 'openrouter/example/missing',
+      input: 'hello world',
+      apiKey: 'or-test',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('Unsupported OpenRouter embedding model')
+    expect(mockEmbedOpenRouter).not.toHaveBeenCalled()
+  })
+
+  it('keeps API keys required for non-OpenRouter providers', async () => {
+    const response = await post({
+      provider: 'openai',
+      model: 'text-embedding-3-small',
+      input: 'hello world',
+    })
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('apiKey')
+    expect(mockEmbed).not.toHaveBeenCalled()
   })
 
   it('surfaces a provider failure as 502', async () => {

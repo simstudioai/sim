@@ -1,6 +1,7 @@
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import {
   getResolvedSecretMatchPolicy,
+  isNonIdentifyingSecretLiteral,
   type ResolvedSecretMatchPolicy,
   satisfiesResolvedSecretMatchPolicy,
 } from '@/executor/utils/resolved-secret-match-policy'
@@ -457,7 +458,12 @@ export function createResolvedSecretMatcher(
   const replacementByPlaintext = new Map<string, string>()
 
   for (const match of matches) {
-    if (!match.plaintext) continue
+    /**
+     * Dropped before any construction-time check runs, so no later stage can be talked into
+     * treating one of these as protectable — including the wide-match-set checks below, which
+     * deliberately ignore the narrow policy.
+     */
+    if (!match.plaintext || isNonIdentifyingSecretLiteral(match.plaintext)) continue
     const current = replacementByPlaintext.get(match.plaintext)
     if (current === undefined || compareStrings(match.replacement, current) < 0) {
       replacementByPlaintext.set(match.plaintext, match.replacement)

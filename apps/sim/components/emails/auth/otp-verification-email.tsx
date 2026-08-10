@@ -37,7 +37,7 @@ export function OTPVerificationEmail({
 
   return (
     <EmailLayout preview={getSubjectByType(type, brand.name, chatTitle)} showUnsubscribe={false}>
-      <Text style={baseStyles.paragraph}>Your verification code:</Text>
+      <Text style={baseStyles.greeting}>Your verification code:</Text>
 
       <Section style={baseStyles.codeContainer}>
         <Text style={baseStyles.code}>{otp}</Text>
@@ -45,10 +45,9 @@ export function OTPVerificationEmail({
 
       <Text style={baseStyles.paragraph}>This code will expire in 15 minutes.</Text>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Do not share this code with anyone. If you didn't request this code, you can safely ignore
         this email.
       </Text>

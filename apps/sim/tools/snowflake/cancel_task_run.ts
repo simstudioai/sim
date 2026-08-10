@@ -6,6 +6,7 @@ import type {
 import { SNOWFLAKE_STATEMENT_OUTPUTS } from '@/tools/snowflake/types'
 import {
   buildSnowflakeStatementBody,
+  snowflakeAuthParamFields,
   snowflakeStatementRequest,
   transformSnowflakeResult,
 } from '@/tools/snowflake/utils'
@@ -21,18 +22,7 @@ export const cancelTaskRunTool: ToolConfig<
   description:
     'Cancel one running task query by query ID with SYSTEM$CANCEL_QUERY. Task runs already in flight are unaffected and must be cancelled individually; a cancelled child marks the task graph run failed, so downstream tasks are skipped.',
   params: {
-    host: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake account host, for example myorg-myaccount.snowflakecomputing.com',
-    },
-    apiKey: {
-      type: 'string',
-      required: true,
-      visibility: 'user-only',
-      description: 'Snowflake programmatic access token',
-    },
+    ...snowflakeAuthParamFields,
     role: {
       type: 'string',
       required: false,

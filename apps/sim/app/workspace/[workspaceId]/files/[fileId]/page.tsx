@@ -1,6 +1,7 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
-import { Files } from '../files'
+import { Files } from '@/app/workspace/[workspaceId]/files/files'
+import FilesLoading from '@/app/workspace/[workspaceId]/files/loading'
 
 export const metadata: Metadata = {
   title: 'Files',
@@ -9,7 +10,7 @@ export const metadata: Metadata = {
 
 export default function FilesFilePage() {
   return (
-    <Suspense fallback={null}>
+    <Suspense fallback={<FilesLoading />}>
       <Files />
     </Suspense>
   )

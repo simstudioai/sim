@@ -14,6 +14,10 @@ describe('env capability status', () => {
     expect(status.features.jobs).toMatchObject({ state: 'default', providerId: 'database' })
     expect(status.features.cache).toMatchObject({ state: 'default', providerId: 'database' })
     expect(status.features.knowledge).toMatchObject({ state: 'default', providerId: 'local' })
+    expect(status.features['knowledge-embeddings']).toMatchObject({
+      state: 'missing',
+      providerIds: [],
+    })
     expect(status.features.llm).toMatchObject({
       state: 'missing',
       configuredPoolCount: 0,
@@ -58,6 +62,20 @@ describe('env capability status', () => {
     })
     expect(JSON.stringify(status)).not.toContain('secret-resend-key')
     expect(JSON.stringify(status)).not.toContain('secret-private-key')
+  })
+
+  it('reports configured knowledge embedding transports without exposing keys', () => {
+    const status = buildEnvCapabilityStatus({
+      OPENAI_API_KEY: 'secret-openai-key',
+      OPENROUTER_API_KEY: 'secret-openrouter-key',
+    })
+
+    expect(status.features['knowledge-embeddings']).toMatchObject({
+      state: 'configured',
+      providerIds: ['openai', 'openrouter'],
+    })
+    expect(JSON.stringify(status)).not.toContain('secret-openai-key')
+    expect(JSON.stringify(status)).not.toContain('secret-openrouter-key')
   })
 
   it('reports selected Daytona and cloud storage providers', () => {

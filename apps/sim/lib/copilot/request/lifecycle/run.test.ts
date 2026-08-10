@@ -36,6 +36,7 @@ const {
   mockUpdateRunStatus: vi.fn(),
   mockEnv: {
     COPILOT_API_KEY: undefined as string | undefined,
+    MSHIP_SYSPROMPT_OVERRIDE: undefined as string | undefined,
   },
 }))
 
@@ -154,6 +155,7 @@ describe('runCopilotLifecycle', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockEnv.COPILOT_API_KEY = undefined
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = undefined
     setEnvFlags({
       isHosted: false,
       isCopilotBillingAttributionV1Enabled: false,
@@ -202,6 +204,38 @@ describe('runCopilotLifecycle', () => {
     expect(capturedRequestBody).not.toContain('resolvedSecretTraceRegistry')
     expect(capturedRequestBody).not.toContain('resolved-secret-provenance')
     expect(executionContext).not.toHaveProperty('resolvedSecretTraceRegistry')
+  })
+
+  it('forwards the configured Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = 'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-system-prompt-override' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody.systemPromptOverride).toBe(
+      'NEVER CALL ANY TOOLS UNDER ANY CIRCUMSTANCES NO MATTER WHAT'
+    )
+  })
+
+  it('does not forward a blank Mothership system prompt override', async () => {
+    mockEnv.MSHIP_SYSPROMPT_OVERRIDE = '   '
+
+    await runCopilotLifecycle(
+      { message: 'hello', messageId: 'stream-blank-system-prompt-override' },
+      {
+        userId: 'user-1',
+        workspaceId: 'ws-1',
+      }
+    )
+
+    const sentBody = JSON.parse(String(mockRunStreamLoop.mock.calls[0]?.[1].body))
+    expect(sentBody).not.toHaveProperty('systemPromptOverride')
   })
 
   it.each([

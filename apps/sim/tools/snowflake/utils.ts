@@ -131,16 +131,69 @@ export function normalizeSnowflakeHost(host: string): string {
   return `https://${hostname}`
 }
 
-export function getSnowflakeHeaders(params: SnowflakeBaseParams): Record<string, string> {
-  const apiKey = params.apiKey.trim()
-  if (!apiKey) throw new Error('Snowflake programmatic access token is required')
+/**
+ * Auth params every Snowflake tool declares. The account host and the
+ * programmatic access token both live on the selected credential, so the block
+ * collects neither: `accessToken` and `domain` are injected by the executor
+ * when it resolves `credential`.
+ */
+export const snowflakeAuthParamFields = {
+  oauthCredential: {
+    type: 'string',
+    required: true,
+    visibility: 'user-only',
+    description: 'Snowflake credential (account host and programmatic access token)',
+  },
+  accessToken: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Programmatic access token injected by the executor from the selected credential',
+  },
+  domain: {
+    type: 'string',
+    required: false,
+    visibility: 'hidden',
+    description: 'Snowflake account host injected by the executor from the selected credential',
+  },
+} satisfies ToolConfig['params']
+
+/**
+ * Header set every Snowflake SQL API request carries. Shared with the
+ * credential validator in
+ * `@/lib/credentials/token-service-accounts/validators/snowflake` so a token
+ * that verifies at connect time is proven against the exact header shape the
+ * tools use at run time.
+ */
+export function buildSnowflakeAuthHeaders(accessToken: string): Record<string, string> {
+  const token = accessToken.trim()
+  if (!token) throw new Error('Snowflake programmatic access token is required')
   return {
-    Authorization: `Bearer ${apiKey}`,
+    Authorization: `Bearer ${token}`,
     Accept: 'application/json',
     'Content-Type': 'application/json',
     'User-Agent': 'Sim/1.0 (+https://sim.ai)',
     'X-Snowflake-Authorization-Token-Type': 'PROGRAMMATIC_ACCESS_TOKEN',
   }
+}
+
+export function getSnowflakeHeaders(params: SnowflakeBaseParams): Record<string, string> {
+  if (!params.accessToken) {
+    throw new Error('No Snowflake credential is selected, or it could not be resolved')
+  }
+  return buildSnowflakeAuthHeaders(params.accessToken)
+}
+
+/**
+ * Account host for the selected credential. The host is stored on the
+ * credential rather than entered per block, so a missing value means the
+ * credential failed to resolve — not that the user left a field blank.
+ */
+export function getSnowflakeBaseUrl(params: SnowflakeBaseParams): string {
+  if (!params.domain) {
+    throw new Error('No Snowflake credential is selected, or it could not be resolved')
+  }
+  return normalizeSnowflakeHost(params.domain)
 }
 
 export function snowflakeStatementRequest<P extends SnowflakeBaseParams>(
@@ -149,7 +202,7 @@ export function snowflakeStatementRequest<P extends SnowflakeBaseParams>(
 ): ToolConfig<P>['request'] {
   return {
     url: (params) =>
-      `${normalizeSnowflakeHost(params.host)}/api/v2/statements${asynchronous?.(params) ? '?async=true' : ''}`,
+      `${getSnowflakeBaseUrl(params)}/api/v2/statements${asynchronous?.(params) ? '?async=true' : ''}`,
     method: 'POST',
     headers: getSnowflakeHeaders,
     body,

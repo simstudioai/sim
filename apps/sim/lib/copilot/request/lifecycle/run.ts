@@ -69,6 +69,7 @@ import {
   isHosted,
 } from '@/lib/core/config/env-flags'
 import { filterModelSafeWorkspaceFileAttachments } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('CopilotLifecycle')
@@ -81,9 +82,11 @@ const MOTHERSHIP_CODE_TOOL_ROUTES = new Set([
   '/api/mothership/execute',
 ])
 
+const COPILOT_MODEL_CONTENT_PROJECTION_ERROR = 'Copilot model input could not be safely projected'
+
 class CopilotModelContentProjectionError extends Error {
   constructor() {
-    super('Copilot model input could not be safely projected')
+    super(COPILOT_MODEL_CONTENT_PROJECTION_ERROR)
     this.name = 'CopilotModelContentProjectionError'
   }
 }
@@ -96,7 +99,14 @@ async function omitUnsafeInitialCopilotAttachments(
   for (const key of ['attachments', 'fileAttachments'] as const) {
     if (!Object.hasOwn(projected, key)) continue
     const attachments = projected[key]
-    if (!Array.isArray(attachments)) throw new CopilotModelContentProjectionError()
+    if (!Array.isArray(attachments)) {
+      refuseResolvedSecretProjection({
+        site: 'copilot.initialAttachmentsShape',
+        message: COPILOT_MODEL_CONTENT_PROJECTION_ERROR,
+        inputPath: key,
+        createError: () => new CopilotModelContentProjectionError(),
+      })
+    }
 
     let safeAttachments: unknown[]
     try {
@@ -106,7 +116,12 @@ async function omitUnsafeInitialCopilotAttachments(
         attachmentCount: attachments.length,
         error: toError(error).message,
       })
-      throw new CopilotModelContentProjectionError()
+      refuseResolvedSecretProjection({
+        site: 'copilot.initialAttachmentsProvenance',
+        message: COPILOT_MODEL_CONTENT_PROJECTION_ERROR,
+        inputPath: key,
+        createError: () => new CopilotModelContentProjectionError(),
+      })
     }
 
     if (safeAttachments.length === attachments.length) continue
@@ -757,6 +772,11 @@ async function runCheckpointLoop(
   const callerOnEvent = options.onEvent
   const mothershipBaseURL = await getMothershipBaseURL({ userId: options.userId })
   const lifecycleWorkspaceId = nonBlankString(options.workspaceId)
+  const systemPromptOverride = env.MSHIP_SYSPROMPT_OVERRIDE
+
+  if (typeof systemPromptOverride === 'string' && systemPromptOverride.trim() !== '') {
+    payload = { ...payload, systemPromptOverride }
+  }
 
   // Go's auth middleware re-validates every Sim -> Go request by reading
   // workspaceId from the JSON body and forwarding it to Sim's validate route,
