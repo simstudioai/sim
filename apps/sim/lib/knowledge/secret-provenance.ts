@@ -409,7 +409,7 @@ export async function loadKnowledgeDocumentSecretRegistry(
       tracked: row.secretProvenanceVersion === 1 || currentSourceFileProvenance !== undefined,
     }
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  if (!(await importDurableSecretProvenance(registry, provenance))) {
+  if (!(await importDurableSecretProvenance(registry, provenance, undefined, 'knowledge'))) {
     throw new Error('Knowledge document secret provenance is unavailable')
   }
   return { registry, provenance, tracked: true }
@@ -503,7 +503,9 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       readBoundKnowledgeDocumentSecretProvenance({ ...row, source }),
       source
     )
-    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
+    if (
+      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
+    ) {
       return false
     }
   }
@@ -515,7 +517,9 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       return false
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (!(await importDurableSecretProvenance(options.registry, provenance, item.value))) {
+    if (
+      !(await importDurableSecretProvenance(options.registry, provenance, item.value, 'knowledge'))
+    ) {
       return false
     }
   }
@@ -567,7 +571,14 @@ export async function importKnowledgeSearchResultSecretProvenance(options: {
       return { imported: false, documentMetadata: {} }
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)
-    if (!(await importDurableSecretProvenance(options.registry, provenance, result.content))) {
+    if (
+      !(await importDurableSecretProvenance(
+        options.registry,
+        provenance,
+        result.content,
+        'knowledge'
+      ))
+    ) {
       return { imported: false, documentMetadata: {} }
     }
   }
