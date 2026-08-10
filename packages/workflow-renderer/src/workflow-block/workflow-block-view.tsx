@@ -651,9 +651,16 @@ export function WorkflowBlockView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: Boolean(usesSelectedVisuals || isRunning || isWorkflowRunning),
+    /*
+     * A run pins the executing card's bar open — not every card's. Pinning them
+     * all turned the canvas into a wall of open swells, and suspending their
+     * hover on top of it made the "hover a non-running card" treatment below
+     * unreachable, so those cards could neither retract nor respond. The block
+     * that is actually running keeps both.
+     */
+    forceOpen: Boolean(usesSelectedVisuals || isRunning),
     maxWidth: ACTION_MENU_MAX_WIDTH_PX,
-    suspendInteraction: isRunning || isWorkflowRunning,
+    suspendInteraction: isRunning,
   })
   /* Blocks that can emit an error always carry the row; `response` terminates
      the flow and has no error branch. */

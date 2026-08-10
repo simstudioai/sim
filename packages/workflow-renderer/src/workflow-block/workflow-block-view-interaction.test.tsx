@@ -25,7 +25,8 @@ function createView(
   isRunning: boolean,
   isEnabled = true,
   isLocked = false,
-  isExecutionHighlighted = false
+  isExecutionHighlighted = false,
+  isWorkflowRunning = false
 ) {
   return (
     <ReactFlowProvider>
@@ -38,6 +39,7 @@ function createView(
         hasRing={false}
         ringStyles=''
         isRunning={isRunning}
+        isWorkflowRunning={isWorkflowRunning}
         isExecutionHighlighted={isExecutionHighlighted}
         Icon={TestIcon}
         iconBgColor='var(--surface-2)'
@@ -114,6 +116,25 @@ describe('WorkflowBlockView action menu', () => {
     const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
     expect(actionMenuRoot).not.toHaveAttribute('data-node-selected')
     expect(actionMenuRoot).toHaveAttribute('data-action-menu-ready')
+  })
+
+  /**
+   * A run pins the executing card's bar open, not every card's. Pinning them all
+   * turned the canvas into a wall of open swells, and suspending their hover on
+   * top of it left them unable to retract or respond.
+   */
+  it('leaves a bystander card retracted while another block runs', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(false, true, false, false, true)))
+    flushAnimationFrames()
+
+    const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
+    expect(actionMenuRoot).not.toHaveAttribute('data-action-menu-ready')
   })
 
   it('uses the selected graphite treatment for a block in the active handoff', () => {

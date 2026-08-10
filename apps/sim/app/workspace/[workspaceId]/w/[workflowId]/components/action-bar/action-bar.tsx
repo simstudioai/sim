@@ -44,6 +44,29 @@ const ACTION_BUTTON_STYLES = [
   'transition-[background-color,color,opacity,transform] duration-150 active:scale-[0.96]',
 ].join(' ')
 
+/**
+ * The mark a filled sweep slot paints: a slanted band across the slot rather
+ * than the slot itself.
+ *
+ * Drawn as a hard-stop gradient rather than a `clip-path` because the two end
+ * slots already carry one for the swell silhouette, and a second would have to
+ * win a specificity race against it. The stops keep `--surface-2` exactly — only
+ * the shape changes.
+ *
+ * Every variant is spelled out: Tailwind's JIT reads literal class strings, so a
+ * `hover-hover:${FILL}` built at runtime compiles to no CSS at all. The hover
+ * and motion-reduce entries also clear the base `hover-hover:bg-*` COLOR, which
+ * a background-image cannot override and which would otherwise fill the slot
+ * back in behind the band.
+ */
+const RUNNING_SWEEP_FILL = [
+  '!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]',
+  'hover-hover:!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]',
+].join(' ')
+
+const RUNNING_SWEEP_FILL_STATIC =
+  'motion-reduce:!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]'
+
 const ICON_SIZE = 'size-[14px]'
 
 type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' | 'color'
@@ -299,10 +322,9 @@ export const ActionBar = memo(
           ],
         isRunningSweepSlot && [
           '!opacity-100 [&_svg]:!opacity-0',
-          isRunningSweepFilled
-            ? '!bg-[var(--surface-2)] hover-hover:!bg-[var(--surface-2)]'
-            : '!bg-transparent hover-hover:!bg-transparent',
-          'motion-reduce:!bg-[var(--surface-2)] motion-reduce:transition-none',
+          isRunningSweepFilled ? RUNNING_SWEEP_FILL : '!bg-transparent hover-hover:!bg-transparent',
+          RUNNING_SWEEP_FILL_STATIC,
+          'motion-reduce:transition-none',
         ],
         /* `!` is required: these buttons are also `disabled` when locked, and
            the emcn Button base carries `disabled:opacity-70`, which outranks a

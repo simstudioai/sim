@@ -447,8 +447,15 @@ export function SubflowNodeView({
     onBlurCapture: handleActionMenuBlur,
   } = useActionMenuSwell({
     enabled: showActionMenu,
-    forceOpen: isExecutionHighlighted || isRunning || isWorkflowRunning,
-    suspendInteraction: isRunning || isWorkflowRunning,
+    /*
+     * A run pins the executing card's bar open — not every card's. Pinning them
+     * all turned the canvas into a wall of open swells, and suspending their
+     * hover on top of it made the "hover a non-running card" treatment below
+     * unreachable, so those cards could neither retract nor respond. The block
+     * that is actually running keeps both.
+     */
+    forceOpen: isExecutionHighlighted || isRunning,
+    suspendInteraction: isRunning,
     suppressNestedNodeHover: true,
   })
 
