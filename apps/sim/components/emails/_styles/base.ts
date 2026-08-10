@@ -275,7 +275,12 @@ export const baseStyles = {
     margin: '0 0 8px 0',
   },
 
-  /** Info box list content */
+  /**
+   * Info box body copy.
+   *
+   * `margin: 0` — so multi-row content must be ONE `Text` with `<br />` between
+   * rows, never several `Text` nodes, which would stack flush with no gap.
+   */
   infoBoxList: {
     fontSize: typography.fontSize.md,
     lineHeight: '1.6',

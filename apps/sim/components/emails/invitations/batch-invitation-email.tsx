@@ -1,3 +1,4 @@
+import { Fragment } from 'react'
 import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
@@ -80,11 +81,14 @@ export function BatchInvitationEmail({
             Workspace access ({workspaceInvitations.length} workspace
             {workspaceInvitations.length !== 1 ? 's' : ''})
           </Text>
-          {workspaceInvitations.map((ws) => (
-            <Text key={ws.workspaceId} style={baseStyles.infoBoxList}>
-              {ws.workspaceName} — {getPermissionLabel(ws.permission)}
-            </Text>
-          ))}
+          <Text style={baseStyles.infoBoxList}>
+            {workspaceInvitations.map((ws, index) => (
+              <Fragment key={ws.workspaceId}>
+                {index > 0 && <br />}
+                {ws.workspaceName} — {getPermissionLabel(ws.permission)}
+              </Fragment>
+            ))}
+          </Text>
         </Section>
       )}
 
