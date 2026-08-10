@@ -1,13 +1,4 @@
 import { type JSX, type MouseEvent, memo, useCallback, useMemo, useRef, useState } from 'react'
-import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
-import {
-  ArrowLeftRight,
-  ArrowUp,
-  Check,
-  Clipboard,
-  SquareArrowUpRight,
-  TriangleAlert,
-} from '@sim/emcn/icons'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import type { FilterRule, SortRule } from '@/lib/table/query-builder/constants'
@@ -40,6 +31,7 @@ import {
   SkillInput,
   SliderInput,
   SortBuilder,
+  SubBlockFieldHeader,
   Switch,
   Table,
   TableSelector,
@@ -244,169 +236,50 @@ const renderLabel = (
   if (!config.title) return null
 
   const required = isFieldRequired(config, subBlockValues)
-  const showWand = wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
-  const showCanonicalToggle = !!canonicalToggle && !wandState?.isPreview
-  const showCopy = copyState?.showCopyButton && !wandState?.isPreview
-  const showExternalLink = externalLink?.show && !wandState?.isPreview
   const canonicalToggleDisabledResolved = canonicalToggleIsDisabled ?? canonicalToggle?.disabled
 
   return (
-    <div className='flex items-center justify-between gap-1.5 pl-0.5'>
-      <Label className='flex items-baseline gap-1.5 whitespace-nowrap'>
-        {config.title}
-        {required && <span className='ml-0.5'>*</span>}
-        {labelSuffix}
-        {config.type === 'code' &&
-          config.language === 'json' &&
-          !isValidJson &&
-          !wandState?.isStreaming && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
-                  <TriangleAlert className='size-3 flex-shrink-0 cursor-pointer text-destructive' />
-                </span>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>Invalid JSON</p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-      </Label>
-      <div className='flex min-w-0 flex-1 items-center justify-end gap-1.5'>
-        {showCopy && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                onClick={copyState.onCopy}
-                className='-my-1 flex size-5 items-center justify-center'
-                aria-label='Copy value'
-              >
-                {copyState.copied ? (
-                  <Check className='size-3 text-green-500' />
-                ) : (
-                  <Clipboard className='size-3 text-muted-foreground' />
-                )}
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>{copyState.copied ? 'Copied!' : 'Copy'}</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-        {showWand && (
-          <>
-            {!wandState.isSearchActive ? (
-              <Button
-                variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
-                onClick={wandState.onSearchClick}
-              >
-                Generate
-              </Button>
-            ) : (
-              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
-                <Input
-                  ref={wandState.searchInputRef}
-                  value={wandState.isStreaming ? 'Generating...' : wandState.searchQuery}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    wandState.onSearchChange(e.target.value)
-                  }
-                  onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                    // Only close if clicking outside the input container (not on the submit button)
-                    const relatedTarget = e.relatedTarget as HTMLElement | null
-                    if (relatedTarget?.closest('button')) return
-                    wandState.onSearchBlur()
-                  }}
-                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (
-                      e.key === 'Enter' &&
-                      wandState.searchQuery.trim() &&
-                      !wandState.isStreaming
-                    ) {
-                      wandState.onSearchSubmit()
-                    } else if (e.key === 'Escape') {
-                      wandState.onSearchCancel()
-                    }
-                  }}
-                  disabled={wandState.isStreaming}
-                  className={cn(
-                    'h-5 min-w-[80px] flex-1 text-xs',
-                    wandState.isStreaming && 'text-muted-foreground'
-                  )}
-                  placeholder='Generate with AI...'
-                />
-                <Button
-                  variant='primary'
-                  disabled={!wandState.searchQuery.trim() || wandState.isStreaming}
-                  onMouseDown={(e: React.MouseEvent) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  onClick={(e: React.MouseEvent) => {
-                    e.stopPropagation()
-                    wandState.onSearchSubmit()
-                  }}
-                  className='size-[20px] flex-shrink-0 p-0'
-                >
-                  <ArrowUp className='size-[12px]' />
-                </Button>
-              </div>
-            )}
-          </>
-        )}
-        {showExternalLink && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0'
-                onClick={externalLink?.onClick}
-                aria-label={externalLink?.tooltip}
-              >
-                <SquareArrowUpRight className='!h-[12px] !w-[12px] text-[var(--text-secondary)]' />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>{externalLink?.tooltip}</p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-        {showCanonicalToggle && (
-          <Tooltip.Root>
-            <Tooltip.Trigger asChild>
-              <button
-                type='button'
-                className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                onClick={canonicalToggle?.onToggle}
-                disabled={canonicalToggleDisabledResolved}
-                aria-label={
-                  canonicalToggle?.mode === 'advanced'
-                    ? 'Switch to selector'
-                    : 'Switch to manual ID'
-                }
-              >
-                <ArrowLeftRight
-                  className={cn(
-                    '!h-[12px] !w-[12px]',
-                    canonicalToggle?.mode === 'advanced'
-                      ? 'text-[var(--text-primary)]'
-                      : 'text-[var(--text-secondary)]'
-                  )}
-                />
-              </button>
-            </Tooltip.Trigger>
-            <Tooltip.Content side='top'>
-              <p>
-                {canonicalToggle?.mode === 'advanced'
-                  ? 'Switch to selector'
-                  : 'Switch to manual ID'}
-              </p>
-            </Tooltip.Content>
-          </Tooltip.Root>
-        )}
-      </div>
-    </div>
+    <SubBlockFieldHeader
+      title={config.title}
+      required={required}
+      invalidJson={
+        config.type === 'code' &&
+        config.language === 'json' &&
+        !isValidJson &&
+        !wandState?.isStreaming
+      }
+      labelSuffix={labelSuffix}
+      wandAction={
+        wandState?.isWandEnabled && !wandState.isPreview && !wandState.disabled
+          ? {
+              isSearchActive: wandState.isSearchActive,
+              searchQuery: wandState.searchQuery,
+              isStreaming: wandState.isStreaming,
+              onSearchClick: wandState.onSearchClick,
+              onSearchBlur: wandState.onSearchBlur,
+              onSearchChange: wandState.onSearchChange,
+              onSearchSubmit: wandState.onSearchSubmit,
+              onSearchCancel: wandState.onSearchCancel,
+              searchInputRef: wandState.searchInputRef,
+            }
+          : undefined
+      }
+      canonicalAction={
+        canonicalToggle && !wandState?.isPreview
+          ? { ...canonicalToggle, disabled: canonicalToggleDisabledResolved }
+          : undefined
+      }
+      copyAction={
+        copyState?.showCopyButton && !wandState?.isPreview
+          ? { copied: copyState.copied, onCopy: copyState.onCopy }
+          : undefined
+      }
+      externalLinkAction={
+        externalLink?.show && !wandState?.isPreview
+          ? { onClick: externalLink.onClick, tooltip: externalLink.tooltip }
+          : undefined
+      }
+    />
   )
 }
 
@@ -1183,7 +1056,7 @@ function SubBlockComponent({
       onMouseDown={handleMouseDown}
       data-workflow-search-subblock-id={config.id}
       data-workflow-search-canonical-id={config.canonicalParamId ?? config.id}
-      className='subblock-content flex flex-col gap-2.5'
+      className='subblock-content flex flex-col gap-1.5'
     >
       {renderLabel(
         config,

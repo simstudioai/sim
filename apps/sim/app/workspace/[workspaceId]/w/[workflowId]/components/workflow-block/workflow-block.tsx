@@ -23,6 +23,7 @@ import {
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
+import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
@@ -880,8 +881,10 @@ export const WorkflowBlock = memo(function WorkflowBlock({
    * store subscription only re-renders on real changes.
    */
   const editorBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const panelActiveTab = usePanelStore((state) => state.activeTab)
-  const editorOpenBlockId = panelActiveTab === 'editor' ? editorBlockId : null
+  const { panelActiveTab, isPanelOpen } = usePanelStore(
+    useShallow((state) => ({ panelActiveTab: state.activeTab, isPanelOpen: state.isOpen }))
+  )
+  const editorOpenBlockId = isPanelOpen && panelActiveTab === 'editor' ? editorBlockId : null
   const highlightedHandleKey = useReactFlowStore(
     useCallback(
       (state) => {

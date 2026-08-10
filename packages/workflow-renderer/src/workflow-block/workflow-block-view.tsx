@@ -224,11 +224,12 @@ export function WorkflowTypeTag({
   isEnabled = true,
 }: WorkflowTypeTagProps) {
   const typeAccent = getWorkflowTypeAccent(type)
+  const label = typeLabel && typeLabel !== blockName ? typeLabel : null
   const sharedClassName = cn(
     'flex-shrink-0 justify-center transition-opacity duration-150 [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
+    !label && 'size-5 p-0',
     !isEnabled && 'opacity-50'
   )
-  const label = typeLabel && typeLabel !== blockName ? typeLabel : null
 
   if (isIntegration) {
     return (

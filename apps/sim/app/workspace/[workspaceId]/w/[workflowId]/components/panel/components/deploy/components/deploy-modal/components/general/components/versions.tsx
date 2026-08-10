@@ -183,8 +183,11 @@ export function Versions({
 
   if (versions.length === 0) {
     return (
-      <div className='flex h-[120px] items-center justify-center rounded-sm border border-[var(--border)] text-[var(--text-placeholder)] text-small'>
-        No deployments yet
+      <div className='flex h-[120px] flex-col items-center justify-center gap-1 rounded-sm border border-[var(--border)] bg-[var(--surface-1)] px-6 text-center'>
+        <p className='font-medium text-[var(--text-secondary)] text-small'>No versions yet</p>
+        <p className='text-[var(--text-muted)] text-small'>
+          Your deployment history will appear here.
+        </p>
       </div>
     )
   }

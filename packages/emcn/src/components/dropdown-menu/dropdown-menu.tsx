@@ -26,6 +26,7 @@ import { Check, ChevronRight, Circle, Search } from '../../icons'
 import { cn } from '../../lib/cn'
 import { chipFieldSurfaceClass } from '../chip/chip-chrome'
 import { InsideModalContext } from '../modal/modal'
+import { thinScrollbarClass } from '../scrollbar/scrollbar'
 
 const ANIMATION_CLASSES =
   'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 data-[state=closed]:animate-out data-[state=open]:animate-in motion-reduce:animate-none'
@@ -94,8 +95,10 @@ function withEllipsizedLabel(children: React.ReactNode): React.ReactNode {
  * object next to the surfaces it opens over, so match the convention rather than
  * making the two corners strictly concentric.
  */
-const CONTENT_BASE_CLASSES =
-  'z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+export const DROPDOWN_MENU_SURFACE_CLASSES =
+  'rounded-xl border border-[var(--border)] bg-[var(--bg)] p-1.5 text-[var(--text-body)] shadow-sm'
+
+const CONTENT_BASE_CLASSES = `z-[var(--z-popover)] max-h-[240px] min-w-[8rem] origin-[--radix-dropdown-menu-content-transform-origin] overflow-y-auto overflow-x-hidden overscroll-none ${thinScrollbarClass} ${DROPDOWN_MENU_SURFACE_CLASSES}`
 
 /**
  * Menu root. Inside a `ModalContent` (Radix modal dialog) the menu is forced
@@ -214,7 +217,7 @@ const DropdownMenuContent = React.forwardRef<
 ))
 DropdownMenuContent.displayName = DropdownMenuPrimitive.Content.displayName
 
-const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
+export const DROPDOWN_MENU_ITEM_BASE_CLASSES = `relative flex ${MENU_ROW_HEIGHT_CLASS} min-w-0 cursor-pointer select-none items-center gap-2 ${MENU_ROW_RADIUS_CLASS} px-2 text-[var(--text-body)] text-small outline-none transition-colors focus:bg-[var(--surface-active)] data-[disabled]:pointer-events-none data-[disabled]:opacity-50 ${MENU_ROW_SINGLE_LINE_CLASS} [&_svg]:pointer-events-none [&_svg]:size-[14px] [&_svg]:shrink-0 [&_svg]:text-[var(--text-icon)]`
 
 const DropdownMenuItem = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Item>,

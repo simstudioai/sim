@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 import {
   MAX_CHAT_HEIGHT,
   MAX_CHAT_WIDTH,
@@ -197,15 +198,14 @@ export function useFloatResize({
       const sidebarWidth = Number.parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
       )
-      const panelWidth = Number.parseInt(
-        getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-      )
+      const panelWidth = getVisiblePanelWidth()
+      const headerHeight = getVisibleWorkflowHeaderHeight()
       const terminalHeight = Number.parseInt(
         getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
       )
 
       if (direction === 'top' || direction === 'top-left' || direction === 'top-right') {
-        const minTop = CONTENT_WINDOW_GAP
+        const minTop = headerHeight + CONTENT_WINDOW_GAP
         const maxUpwardDelta = initial.y - minTop
         if (deltaY < -maxUpwardDelta) {
           deltaY = -maxUpwardDelta
@@ -308,7 +308,7 @@ export function useFloatResize({
 
       const minX = sidebarWidth
       const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - constrainedWidth
-      const minY = CONTENT_WINDOW_GAP
+      const minY = headerHeight + CONTENT_WINDOW_GAP
       const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - constrainedHeight
 
       const finalX = Math.max(minX, Math.min(maxX, newX))

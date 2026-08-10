@@ -786,6 +786,30 @@ export const useWorkflowStore = create<WorkflowStore>()(
         }
       },
 
+      updateBlockDescription: (id: string, description: string) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) return state
+
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                data: {
+                  ...block.data,
+                  description,
+                },
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+            parallels: { ...state.parallels },
+          }
+        })
+        get().updateLastSaved()
+      },
+
       setBlockErrorEnabled: (id: string, errorEnabled: boolean) => {
         set((state) => {
           const block = state.blocks[id]

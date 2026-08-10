@@ -11,6 +11,7 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
+  thinScrollbarClass,
 } from '@sim/emcn'
 import { ArrowDown, ArrowUp, Download, MoreHorizontal, Palette, Trash } from '@sim/emcn/icons'
 import { formatDuration } from '@sim/utils/formatting'
@@ -638,7 +639,7 @@ const TerminalLogsPane = memo(function TerminalLogsPane({
   const virtualItems = virtualizer.getVirtualItems()
 
   return (
-    <div ref={scrollRef} className='h-full overflow-y-auto'>
+    <div ref={scrollRef} className={clsx('h-full overflow-y-auto', thinScrollbarClass)}>
       <div className='relative w-full' style={{ height: virtualizer.getTotalSize() }}>
         {virtualItems.map((virtualItem) => (
           <div

@@ -53,7 +53,9 @@ export const chipContentGap = 'gap-1.5'
  * current-location label or a non-navigable breadcrumb) reuse it directly to
  * match a chip's shape without inheriting its hover.
  */
-export const chipGeometryClass = `h-[30px] items-center ${chipContentGap} rounded-lg px-2 text-left text-sm`
+export const chipGeometryWithoutRadiusClass = `h-[30px] items-center ${chipContentGap} px-2 text-left text-sm`
+/** Standalone chip geometry, including the canonical 8px control radius. */
+export const chipGeometryClass = `${chipGeometryWithoutRadiusClass} rounded-lg`
 /** Chip-content icon (non-inverse): 16px, non-shrinking, `--text-icon`. Inverse chip variants override the color to `currentColor`. */
 export const chipContentIconClass = 'size-[16px] flex-shrink-0 text-[var(--text-icon)]'
 /** Chip-content label (non-inverse): truncating `--text-body` at `text-sm`. Inverse chip variants override the color to `currentColor`. */

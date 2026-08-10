@@ -230,6 +230,9 @@ export function useCollaborativeWorkflow() {
             case BLOCK_OPERATIONS.UPDATE_NAME:
               useWorkflowStore.getState().updateBlockName(payload.id, payload.name)
               break
+            case BLOCK_OPERATIONS.UPDATE_DESCRIPTION:
+              useWorkflowStore.getState().updateBlockDescription(payload.id, payload.description)
+              break
             case BLOCK_OPERATIONS.UPDATE_ADVANCED_MODE:
               useWorkflowStore.getState().setBlockAdvancedMode(payload.id, payload.advancedMode)
               break
@@ -1148,6 +1151,26 @@ export function useCollaborativeWorkflow() {
       return { success: true }
     },
     [executeQueuedOperation, addToQueue, activeWorkflowId, session?.user?.id]
+  )
+
+  const collaborativeUpdateBlockDescription = useCallback(
+    (id: string, description: string) => {
+      const blocks = useWorkflowStore.getState().blocks
+      if (isBlockProtected(id, blocks)) {
+        logger.error('Cannot update description for locked block')
+        toast({ message: 'Cannot edit locked blocks' })
+        return false
+      }
+
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_DESCRIPTION,
+        OPERATION_TARGETS.BLOCK,
+        { id, description },
+        () => useWorkflowStore.getState().updateBlockDescription(id, description)
+      )
+      return true
+    },
+    [executeQueuedOperation]
   )
 
   const collaborativeBatchToggleBlockEnabled = useCallback(
@@ -2268,6 +2291,7 @@ export function useCollaborativeWorkflow() {
     // Collaborative operations
     collaborativeBatchUpdatePositions,
     collaborativeUpdateBlockName,
+    collaborativeUpdateBlockDescription,
     collaborativeBatchToggleBlockEnabled,
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,

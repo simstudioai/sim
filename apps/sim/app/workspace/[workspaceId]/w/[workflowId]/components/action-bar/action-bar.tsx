@@ -1,11 +1,13 @@
-import { memo, useCallback, useMemo } from 'react'
+import { memo, useCallback, useState } from 'react'
 import {
   Button,
   cn,
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
   Duplicate,
   PlayOutline,
@@ -14,12 +16,22 @@ import {
   toast,
 } from '@sim/emcn'
 import {
+  Ban,
+  BookOpen,
+  Circle,
+  Lock,
+  LogOut,
+  MoreHorizontal,
+  Palette,
+  Square,
+  Unlock,
+} from '@sim/emcn/icons'
+import {
   DEFAULT_NOTE_COLOR,
   isNoteColor,
   NOTE_COLOR_OPTIONS,
   type NoteColor,
 } from '@sim/workflow-renderer'
-import { Ban, Circle, Lock, LogOut, Palette, Square, Unlock } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -41,18 +53,47 @@ const ACTION_BUTTON_STYLES = [
   'transition-[background-color,color,opacity,transform] duration-150 active:scale-[0.96]',
 ].join(' ')
 
+const INLINE_ACTION_BUTTON_STYLES = [
+  'size-[28px] shrink-0 justify-start overflow-hidden rounded-md bg-transparent px-1.5 py-0 text-[var(--text-icon)]',
+  'group-hover/inline-action:w-[var(--inline-action-width)] group-hover/inline-action:bg-[var(--surface-5)] group-hover/inline-action:text-[var(--text-primary)]',
+  'group-focus-within/inline-action:w-[var(--inline-action-width)] group-focus-within/inline-action:bg-[var(--surface-5)] group-focus-within/inline-action:text-[var(--text-primary)]',
+  'transition-[width,background-color,color,transform] duration-150 [transition-timing-function:cubic-bezier(0.2,0,0,1)] active:scale-[0.96] motion-reduce:transition-none',
+].join(' ')
+
 const ICON_SIZE = 'size-[14px]'
+const INLINE_ICON_SIZE = 'size-[16px] shrink-0'
 
 type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' | 'color'
 
-function RunningActionIcon() {
+const INLINE_ACTION_WIDTH_STYLES: Record<ActionId, string> = {
+  run: '[--inline-action-width:64px]',
+  enabled: '[--inline-action-width:86px]',
+  lock: '[--inline-action-width:82px]',
+  duplicate: '[--inline-action-width:100px]',
+  remove: '[--inline-action-width:104px]',
+  delete: '[--inline-action-width:78px]',
+  color: '[--inline-action-width:72px]',
+}
+
+function InlineActionLabel({ children }: { children: string }) {
+  return (
+    <span className='-translate-x-1 ml-1.5 shrink-0 whitespace-nowrap font-medium text-small leading-none opacity-0 transition-[opacity,transform] duration-100 [transition-timing-function:cubic-bezier(0.2,0,0,1)] group-focus-within/inline-action:translate-x-0 group-focus-within/inline-action:opacity-100 group-hover/inline-action:translate-x-0 group-hover/inline-action:opacity-100 motion-reduce:transition-none'>
+      {children}
+    </span>
+  )
+}
+
+function RunningActionIcon({ inline = false }: { inline?: boolean }) {
   return (
     <span
-      className='relative grid size-[14px] translate-x-[8px] translate-y-px place-items-center'
+      className={cn(
+        'relative grid place-items-center',
+        inline ? 'size-[16px]' : 'size-[14px] translate-x-[8px] translate-y-px'
+      )}
       aria-hidden='true'
     >
       <span className='col-start-1 row-start-1 opacity-100 transition-opacity duration-100 group-hover/run:opacity-0 group-focus-visible/run:opacity-0 motion-safe:animate-spin motion-reduce:transition-none'>
-        <svg className='size-[14px]' viewBox='0 0 24 24' fill='none'>
+        <svg className={inline ? 'size-[16px]' : 'size-[14px]'} viewBox='0 0 24 24' fill='none'>
           <circle cx='12' cy='12' r='10' stroke='currentColor' strokeWidth='2' opacity='0.25' />
           <circle
             cx='12'
@@ -83,7 +124,7 @@ interface ActionBarProps {
   /** Whether the action bar is disabled */
   disabled?: boolean
   /** Places the actions inside the workflow card's border swell. */
-  variant?: 'floating' | 'swell'
+  variant?: 'floating' | 'swell' | 'inline'
   /** Whether this block is currently executing. */
   isRunning?: boolean
   /** Whether any block in the current workflow is executing. */
@@ -92,6 +133,8 @@ interface ActionBarProps {
   onNoteColorChange?: (color: NoteColor) => void
   /** Keeps the note and its swell selected while the portalled color menu is open. */
   onNoteColorMenuOpen?: () => void
+  /** Opens documentation for the selected block from the inline editor menu. */
+  onOpenDocs?: () => void
 }
 
 /**
@@ -111,6 +154,7 @@ export const ActionBar = memo(
     noteColor = DEFAULT_NOTE_COLOR,
     onNoteColorChange,
     onNoteColorMenuOpen,
+    onOpenDocs,
   }: ActionBarProps) {
     const {
       collaborativeBatchAddBlocks,
@@ -172,6 +216,7 @@ export const ActionBar = memo(
     const isResponseBlock = blockType === 'response'
     const isNoteBlock = blockType === 'note'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
+    const cantEnable = !isEnabled && isParentDisabled
 
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
     const incomingEdges = edges.filter((edge) => edge.target === blockId)
@@ -191,30 +236,29 @@ export const ActionBar = memo(
     const canRunFromBlock =
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
     const isSwell = variant === 'swell'
+    const isInline = variant === 'inline'
     const firstActionId: ActionId = isNoteBlock
       ? 'color'
       : !isInsideSubflow || isWorkflowRunning
         ? 'run'
         : 'enabled'
-    const runningSweepActionIds = useMemo<ActionId[]>(
-      () => [
-        ...(!isNoteBlock ? (['enabled'] as const) : []),
-        ...(userPermissions.canAdmin ? (['lock'] as const) : []),
-        ...(!isStartBlock && !isResponseBlock ? (['duplicate'] as const) : []),
-        ...(!isStartBlock && isInsideSubflow ? (['remove'] as const) : []),
-        'delete',
-      ],
-      [isInsideSubflow, isNoteBlock, isResponseBlock, isStartBlock, userPermissions.canAdmin]
-    )
+    const runningSweepActionIds: ActionId[] = [
+      ...(!isNoteBlock ? (['enabled'] as const) : []),
+      ...(userPermissions.canAdmin ? (['lock'] as const) : []),
+      ...(!isStartBlock && !isResponseBlock ? (['duplicate'] as const) : []),
+      ...(!isInline && !isStartBlock && isInsideSubflow ? (['remove'] as const) : []),
+      'delete',
+    ]
     const runningSweepFilledCount = useRunningActionSweep(isRunning, runningSweepActionIds.length)
-    /*
+    const [isInlineMenuOpen, setIsInlineMenuOpen] = useState(false)
+    /**
      * Icon treatment follows the swell's own fill, published by the card view
      * as `data-node-selected`. Keying off React Flow's raw `selected` would
      * diverge: an executing block keeps the success ring, so the swell stays
      * gray (or retracts) while `selected` is still true.
      */
     const actionButtonStyles = cn(
-      ACTION_BUTTON_STYLES,
+      isInline ? INLINE_ACTION_BUTTON_STYLES : ACTION_BUTTON_STYLES,
       isSwell && [
         'group-data-[node-selected]:text-[var(--surface-2)]',
         'hover-hover:group-data-[node-selected]:bg-[var(--surface-2)]',
@@ -242,6 +286,13 @@ export const ActionBar = memo(
 
       return cn(
         actionButtonStyles,
+        isInline && INLINE_ACTION_WIDTH_STYLES[actionId],
+        isInline &&
+          actionId === 'run' && [
+            'border border-transparent',
+            'group-hover/inline-action:border-[var(--border)] group-hover/inline-action:!bg-transparent',
+            'group-focus-within/inline-action:border-[var(--border)] group-focus-within/inline-action:!bg-transparent',
+          ],
         !isWorkflowRunning &&
           ((actionId === 'enabled' && !isEnabled) || (actionId === 'lock' && isLocked)) && [
             'bg-[var(--text-secondary)] text-[var(--text-inverse)]',
@@ -249,10 +300,11 @@ export const ActionBar = memo(
         actionId === 'run' &&
           isRunning && [
             '!bg-[var(--text-secondary)] !text-[var(--text-inverse)]',
+            'dark:!bg-[var(--surface-4)] dark:!text-[var(--text-primary)]',
             'hover-hover:!bg-[var(--white)] hover-hover:!text-[var(--surface-inverted)]',
-            'dark:hover-hover:!bg-[var(--surface-4)] dark:hover-hover:!text-[var(--text-primary)]',
+            'dark:hover-hover:!bg-[var(--white)] dark:hover-hover:!text-[var(--surface-inverted)]',
             'focus-visible:!bg-[var(--white)] focus-visible:!text-[var(--surface-inverted)]',
-            'dark:focus-visible:!bg-[var(--surface-4)] dark:focus-visible:!text-[var(--text-primary)]',
+            'dark:focus-visible:!bg-[var(--white)] dark:focus-visible:!text-[var(--surface-inverted)]',
           ],
         isSwell &&
           actionId === firstActionId &&
@@ -311,23 +363,28 @@ export const ActionBar = memo(
       <div
         data-workflow-action-bar-swell={isSwell ? '' : undefined}
         className={cn(
-          'absolute rounded-lg',
+          'rounded-lg',
           isSwell
             ? [
+                'absolute',
                 // Above RF handles (`z-30`) so icons stay clickable when a top edge crosses.
                 '-top-[28px] right-[24px] z-[40] h-[28px] w-fit overflow-hidden px-[0.2rem] py-0.5',
                 'pointer-events-auto',
               ]
-            : [
-                '-top-[40px] pointer-events-auto right-0 flex flex-row items-center gap-[2px] p-[3px]',
-                'border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]',
-                'opacity-0 transition-opacity duration-[150ms] group-hover:opacity-100',
-              ]
+            : isInline
+              ? 'relative w-fit'
+              : [
+                  'absolute',
+                  '-top-[40px] pointer-events-auto right-0 flex flex-row items-center gap-[2px] p-[3px]',
+                  'border-[1.5px] border-[var(--border-1)] bg-[var(--surface-2)]',
+                  'opacity-0 transition-opacity duration-[150ms] group-hover:opacity-100',
+                ]
         )}
       >
         <div
           className={cn(
-            'flex flex-row items-center gap-[2px]',
+            'flex flex-row items-center',
+            isInline ? 'gap-1' : 'gap-[2px]',
             isSwell && [
               'pointer-events-none h-full opacity-0 transition-opacity duration-[30ms] [transition-timing-function:cubic-bezier(0.23,1,0.32,1)]',
               'group-data-[action-menu-ready]:pointer-events-auto group-data-[action-menu-ready]:opacity-100 group-data-[action-menu-ready]:duration-100',
@@ -337,7 +394,7 @@ export const ActionBar = memo(
           {!isNoteBlock && (!isInsideSubflow || isWorkflowRunning) && (
             <Tooltip.Root preferAbove>
               <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
+                <span className={cn('inline-flex', isInline && 'group/inline-action')}>
                   <Button
                     variant='ghost'
                     aria-label={isWorkflowRunning ? 'Stop workflow' : 'Run block'}
@@ -359,42 +416,50 @@ export const ActionBar = memo(
                   >
                     {isWorkflowRunning ? (
                       isRunning ? (
-                        <RunningActionIcon />
+                        <RunningActionIcon inline={isInline} />
                       ) : (
                         <Square
-                          className='size-[11px] fill-current'
+                          className={cn(
+                            'shrink-0 fill-current',
+                            isInline ? 'size-[14px]' : 'size-[11px]'
+                          )}
                           aria-hidden='true'
                           strokeWidth={0}
                         />
                       )
                     ) : (
-                      <PlayOutline className={ICON_SIZE} />
+                      <PlayOutline className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                    )}
+                    {isInline && (
+                      <InlineActionLabel>{isWorkflowRunning ? 'Stop' : 'Play'}</InlineActionLabel>
                     )}
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                {(() => {
-                  if (isWorkflowRunning) return 'Stop'
-                  if (isLocked || isParentLocked) return 'Block is locked'
-                  if (disabled) return getTooltipMessage('Run')
-                  if (isExecuting) return 'Running...'
-                  if (!dependenciesSatisfied) return 'Run previous blocks first'
-                  return 'Run'
-                })()}
-              </Tooltip.Content>
+              {!isInline && (
+                <Tooltip.Content side='top'>
+                  {(() => {
+                    if (isWorkflowRunning) return 'Stop'
+                    if (isLocked || isParentLocked) return 'Block is locked'
+                    if (disabled) return getTooltipMessage('Run')
+                    if (isExecuting) return 'Running...'
+                    if (!dependenciesSatisfied) return 'Run previous blocks first'
+                    return 'Run'
+                  })()}
+                </Tooltip.Content>
+              )}
             </Tooltip.Root>
           )}
 
-          {!isNoteBlock && (
+          {!isNoteBlock && !isInline && (
             <Tooltip.Root preferAbove>
               <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
+                <span className={cn('inline-flex', isInline && 'group/inline-action')}>
                   <Button
                     variant='ghost'
+                    aria-label={isEnabled ? 'Disable block' : 'Enable block'}
                     onClick={(e) => {
                       e.stopPropagation()
-                      const cantEnable = !isEnabled && isParentDisabled
                       if (!disabled && !isLocked && !isParentLocked && !cantEnable) {
                         collaborativeBatchToggleBlockEnabled([blockId])
                       }
@@ -409,14 +474,17 @@ export const ActionBar = memo(
                     }
                   >
                     {isEnabled ? (
-                      <Circle className={ICON_SIZE} />
+                      <Circle className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
                     ) : (
-                      <Ban className={ICON_SIZE} />
+                      <Ban className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                    )}
+                    {isInline && (
+                      <InlineActionLabel>{isEnabled ? 'Disable' : 'Enable'}</InlineActionLabel>
                     )}
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              {!isWorkflowRunning && (
+              {!isInline && (
                 <Tooltip.Content side='top'>
                   {isLocked || isParentLocked
                     ? 'Block is locked'
@@ -454,7 +522,7 @@ export const ActionBar = memo(
                     </Button>
                   </DropdownMenuTrigger>
                 </Tooltip.Trigger>
-                {!isWorkflowRunning && <Tooltip.Content side='top'>Color</Tooltip.Content>}
+                <Tooltip.Content side='top'>Color</Tooltip.Content>
               </Tooltip.Root>
               <DropdownMenuContent
                 align='center'
@@ -491,12 +559,13 @@ export const ActionBar = memo(
             </DropdownMenu>
           )}
 
-          {userPermissions.canAdmin && (
+          {userPermissions.canAdmin && !isInline && (
             <Tooltip.Root preferAbove>
               <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
+                <span className={cn('inline-flex', isInline && 'group/inline-action')}>
                   <Button
                     variant='ghost'
+                    aria-label={isLocked ? 'Unlock block' : 'Lock block'}
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!disabled && !(isLocked && isParentLocked)) {
@@ -506,11 +575,18 @@ export const ActionBar = memo(
                     className={getActionButtonStyles('lock')}
                     disabled={isWorkflowRunning || disabled || (isLocked && isParentLocked)}
                   >
-                    {isLocked ? <Lock className={ICON_SIZE} /> : <Unlock className={ICON_SIZE} />}
+                    {isLocked ? (
+                      <Lock className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                    ) : (
+                      <Unlock className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                    )}
+                    {isInline && (
+                      <InlineActionLabel>{isLocked ? 'Unlock' : 'Lock'}</InlineActionLabel>
+                    )}
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              {!isWorkflowRunning && (
+              {!isInline && (
                 <Tooltip.Content side='top'>
                   {isLocked && isParentLocked
                     ? 'Parent container is locked'
@@ -522,12 +598,13 @@ export const ActionBar = memo(
             </Tooltip.Root>
           )}
 
-          {!isStartBlock && !isResponseBlock && (
+          {!isStartBlock && !isResponseBlock && !isInline && (
             <Tooltip.Root preferAbove>
               <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
+                <span className={cn('inline-flex', isInline && 'group/inline-action')}>
                   <Button
                     variant='ghost'
+                    aria-label='Duplicate block'
                     onClick={(e) => {
                       e.stopPropagation()
                       if (!disabled && !isLocked && !isParentLocked) {
@@ -537,11 +614,12 @@ export const ActionBar = memo(
                     className={getActionButtonStyles('duplicate')}
                     disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
                   >
-                    <Duplicate className={ICON_SIZE} />
+                    <Duplicate className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                    {isInline && <InlineActionLabel>Duplicate</InlineActionLabel>}
                   </Button>
                 </span>
               </Tooltip.Trigger>
-              {!isWorkflowRunning && (
+              {!isInline && (
                 <Tooltip.Content side='top'>
                   {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Duplicate')}
                 </Tooltip.Content>
@@ -549,69 +627,132 @@ export const ActionBar = memo(
             </Tooltip.Root>
           )}
 
-          {!isStartBlock && parentId && (parentType === 'loop' || parentType === 'parallel') && (
-            <Tooltip.Root preferAbove>
-              <Tooltip.Trigger asChild>
-                <span className='inline-flex'>
-                  <Button
-                    variant='ghost'
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (!disabled && userPermissions.canEdit && !isLocked && !isParentLocked) {
-                        window.dispatchEvent(
-                          new CustomEvent('remove-from-subflow', {
-                            detail: { blockIds: [blockId] },
-                          })
-                        )
+          {!isInline &&
+            !isStartBlock &&
+            parentId &&
+            (parentType === 'loop' || parentType === 'parallel') && (
+              <Tooltip.Root preferAbove>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>
+                    <Button
+                      variant='ghost'
+                      aria-label='Remove block from subflow'
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        if (!disabled && userPermissions.canEdit && !isLocked && !isParentLocked) {
+                          window.dispatchEvent(
+                            new CustomEvent('remove-from-subflow', {
+                              detail: { blockIds: [blockId] },
+                            })
+                          )
+                        }
+                      }}
+                      className={getActionButtonStyles('remove')}
+                      disabled={
+                        isWorkflowRunning ||
+                        disabled ||
+                        !userPermissions.canEdit ||
+                        isLocked ||
+                        isParentLocked
                       }
-                    }}
-                    className={getActionButtonStyles('remove')}
-                    disabled={
-                      isWorkflowRunning ||
-                      disabled ||
-                      !userPermissions.canEdit ||
-                      isLocked ||
-                      isParentLocked
-                    }
-                  >
-                    <LogOut className={ICON_SIZE} />
-                  </Button>
-                </span>
-              </Tooltip.Trigger>
-              {!isWorkflowRunning && (
+                    >
+                      <LogOut className={ICON_SIZE} />
+                    </Button>
+                  </span>
+                </Tooltip.Trigger>
                 <Tooltip.Content side='top'>
                   {isLocked || isParentLocked
                     ? 'Block is locked'
                     : getTooltipMessage('Remove from Subflow')}
                 </Tooltip.Content>
-              )}
-            </Tooltip.Root>
-          )}
+              </Tooltip.Root>
+            )}
 
-          <Tooltip.Root preferAbove>
-            <Tooltip.Trigger asChild>
-              <span className='inline-flex'>
-                <Button
-                  variant='ghost'
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    if (!disabled && !isLocked && !isParentLocked) {
-                      collaborativeBatchRemoveBlocks([blockId])
-                    }
-                  }}
-                  className={getActionButtonStyles('delete')}
+          {isInline && (
+            <DropdownMenu onOpenChange={setIsInlineMenuOpen}>
+              <Tooltip.Root>
+                <Tooltip.Trigger asChild>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant='ghost'
+                      className='size-[28px] rounded-md p-0 text-[var(--text-icon)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                      aria-label='Block actions'
+                    >
+                      <MoreHorizontal className={INLINE_ICON_SIZE} />
+                    </Button>
+                  </DropdownMenuTrigger>
+                </Tooltip.Trigger>
+                {!isInlineMenuOpen && <Tooltip.Content side='top'>Block actions</Tooltip.Content>}
+              </Tooltip.Root>
+              <DropdownMenuContent align='end' side='bottom'>
+                <DropdownMenuItem
+                  onSelect={() => collaborativeBatchToggleBlockEnabled([blockId])}
+                  disabled={
+                    isWorkflowRunning || disabled || isLocked || isParentLocked || cantEnable
+                  }
+                >
+                  {isEnabled ? <Circle /> : <Ban />}
+                  {isEnabled ? 'Disable' : 'Enable'}
+                </DropdownMenuItem>
+                {userPermissions.canAdmin && (
+                  <DropdownMenuItem
+                    onSelect={() => collaborativeBatchToggleLocked([blockId])}
+                    disabled={isWorkflowRunning || disabled || (isLocked && isParentLocked)}
+                  >
+                    {isLocked ? <Unlock /> : <Lock />}
+                    {isLocked ? 'Unlock' : 'Lock'}
+                  </DropdownMenuItem>
+                )}
+                {!isStartBlock && !isResponseBlock && (
+                  <DropdownMenuItem
+                    onSelect={handleDuplicateBlock}
+                    disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
+                  >
+                    <Duplicate />
+                    Duplicate
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuItem
+                  onSelect={() => collaborativeBatchRemoveBlocks([blockId])}
                   disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
                 >
-                  <Trash className={ICON_SIZE} />
-                </Button>
-              </span>
-            </Tooltip.Trigger>
-            {!isWorkflowRunning && (
+                  <Trash />
+                  Delete
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onSelect={onOpenDocs} disabled={!onOpenDocs}>
+                  <BookOpen />
+                  Docs
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
+
+          {!isInline && (
+            <Tooltip.Root preferAbove>
+              <Tooltip.Trigger asChild>
+                <span className='inline-flex'>
+                  <Button
+                    variant='ghost'
+                    aria-label='Delete block'
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      if (!disabled && !isLocked && !isParentLocked) {
+                        collaborativeBatchRemoveBlocks([blockId])
+                      }
+                    }}
+                    className={getActionButtonStyles('delete')}
+                    disabled={isWorkflowRunning || disabled || isLocked || isParentLocked}
+                  >
+                    <Trash className={ICON_SIZE} />
+                  </Button>
+                </span>
+              </Tooltip.Trigger>
               <Tooltip.Content side='top'>
                 {isLocked || isParentLocked ? 'Block is locked' : getTooltipMessage('Delete')}
               </Tooltip.Content>
-            )}
-          </Tooltip.Root>
+            </Tooltip.Root>
+          )}
         </div>
       </div>
     )
@@ -634,7 +775,8 @@ export const ActionBar = memo(
       prevProps.isWorkflowRunning === nextProps.isWorkflowRunning &&
       prevProps.noteColor === nextProps.noteColor &&
       prevProps.onNoteColorChange === nextProps.onNoteColorChange &&
-      prevProps.onNoteColorMenuOpen === nextProps.onNoteColorMenuOpen
+      prevProps.onNoteColorMenuOpen === nextProps.onNoteColorMenuOpen &&
+      prevProps.onOpenDocs === nextProps.onOpenDocs
     )
   }
 )

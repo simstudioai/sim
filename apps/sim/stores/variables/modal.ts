@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
+import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 import type { VariablesModalStore, VariablesPosition } from '@/stores/variables/types'
 
 /**
@@ -32,17 +33,17 @@ const calculateDefaultPosition = (): VariablesPosition => {
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getVisiblePanelWidth()
+  const headerHeight = getVisibleWorkflowHeaderHeight()
   const terminalHeight = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
   )
 
   const availableWidth = window.innerWidth - sidebarWidth - CONTENT_WINDOW_GAP - panelWidth
-  const availableHeight = window.innerHeight - CONTENT_WINDOW_GAP * 2 - terminalHeight
+  const availableHeight =
+    window.innerHeight - headerHeight - CONTENT_WINDOW_GAP * 2 - terminalHeight
   const x = sidebarWidth + (availableWidth - DEFAULT_WIDTH) / 2
-  const y = CONTENT_WINDOW_GAP + (availableHeight - DEFAULT_HEIGHT) / 2
+  const y = headerHeight + CONTENT_WINDOW_GAP + (availableHeight - DEFAULT_HEIGHT) / 2
   return { x, y }
 }
 
@@ -59,16 +60,15 @@ const constrainPosition = (
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getVisiblePanelWidth()
+  const headerHeight = getVisibleWorkflowHeaderHeight()
   const terminalHeight = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
   )
 
   const minX = sidebarWidth
   const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
-  const minY = CONTENT_WINDOW_GAP
+  const minY = headerHeight + CONTENT_WINDOW_GAP
   const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
   return {

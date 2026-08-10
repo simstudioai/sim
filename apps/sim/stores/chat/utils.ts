@@ -1,3 +1,4 @@
+import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 import type { ChatPosition } from './types'
 
 /**
@@ -29,12 +30,10 @@ const calculateDefaultPosition = (): ChatPosition => {
     return { x: 100, y: 100 }
   }
 
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getVisiblePanelWidth()
 
   const x = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - 32 - DEFAULT_WIDTH
-  const y = CONTENT_WINDOW_GAP + 32
+  const y = getVisibleWorkflowHeaderHeight() + CONTENT_WINDOW_GAP
 
   return { x, y }
 }
@@ -62,16 +61,15 @@ export const constrainChatPosition = (
   const sidebarWidth = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--sidebar-width') || '0'
   )
-  const panelWidth = Number.parseInt(
-    getComputedStyle(document.documentElement).getPropertyValue('--panel-width') || '0'
-  )
+  const panelWidth = getVisiblePanelWidth()
+  const headerHeight = getVisibleWorkflowHeaderHeight()
   const terminalHeight = Number.parseInt(
     getComputedStyle(document.documentElement).getPropertyValue('--terminal-height') || '0'
   )
 
   const minX = sidebarWidth
   const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
-  const minY = CONTENT_WINDOW_GAP
+  const minY = headerHeight + CONTENT_WINDOW_GAP
   const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
   return {

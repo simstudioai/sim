@@ -281,7 +281,7 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
   }
 
   return (
-    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
+    <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
       <PopoverAnchor asChild>
         <div
           className={cn('pointer-events-none', className)}
@@ -296,12 +296,12 @@ export const EnvVarDropdown: React.FC<EnvVarDropdownProps> = ({
         />
       </PopoverAnchor>
       <PopoverContent
+        appearance='dropdown'
         maxHeight={maxHeight !== 'none' ? 192 : 400}
         className='min-w-[280px]'
         side={side}
         align='start'
         collisionPadding={6}
-        style={{ zIndex: 100000000 }}
         onOpenAutoFocus={(e) => e.preventDefault()}
         onCloseAutoFocus={(e) => e.preventDefault()}
       >

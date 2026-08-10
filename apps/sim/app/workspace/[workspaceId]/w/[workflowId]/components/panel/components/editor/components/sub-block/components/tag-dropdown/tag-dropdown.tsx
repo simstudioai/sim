@@ -12,6 +12,7 @@ import {
   usePopoverContext,
 } from '@sim/emcn'
 import { Repeat, Split } from '@sim/emcn/icons'
+import { WorkflowTypeTag } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -161,8 +162,6 @@ export const getTagSearchTerm = (text: string, cursorPosition: number): string =
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
-  LOOP: '#2FB3FF',
-  PARALLEL: '#FEE12B',
 } as const
 
 /**
@@ -475,7 +474,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
+          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
         </PopoverItem>
       )}
 
@@ -523,9 +522,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           >
             <span className='flex-1 truncate'>{child.display}</span>
             {childType && childType !== 'any' && (
-              <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-                {childType}
-              </span>
+              <span className='ml-auto text-[var(--text-muted)] text-micro'>{childType}</span>
             )}
           </PopoverItem>
         )
@@ -558,7 +555,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
           >
             <span className='flex-1 truncate'>{nestedChild.display}</span>
-            <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
+            <span className='ml-auto text-[var(--text-muted)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
       })}
@@ -722,9 +719,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
     >
       <span className='flex-1 truncate'>{nestedTag.display}</span>
       {tagDescription && tagDescription !== 'any' && (
-        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-          {tagDescription}
-        </span>
+        <span className='ml-auto text-[var(--text-muted)] text-micro'>{tagDescription}</span>
       )}
     </PopoverItem>
   )
@@ -792,9 +787,7 @@ const VariableTagItem: React.FC<{
         {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
       </span>
       {variableInfo && (
-        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-          {variableInfo.type}
-        </span>
+        <span className='ml-auto text-[var(--text-muted)] text-micro'>{variableInfo.type}</span>
       )}
     </PopoverItem>
   )
@@ -812,7 +805,9 @@ const BlockRootTagItem: React.FC<{
   itemRefs: React.RefObject<Map<string, HTMLElement>>
   group: BlockTagGroup
   tagIcon: string | React.ComponentType<{ className?: string }>
-  blockColor: string
+  blockType: string
+  brandColor: string
+  isIntegration: boolean
   blockName: string
 }> = ({
   rootTag,
@@ -823,7 +818,9 @@ const BlockRootTagItem: React.FC<{
   itemRefs,
   group,
   tagIcon,
-  blockColor,
+  blockType,
+  brandColor,
+  isIntegration,
   blockName,
 }) => {
   const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
@@ -844,8 +841,18 @@ const BlockRootTagItem: React.FC<{
         }
       }}
     >
-      <TagIcon icon={tagIcon} color={blockColor} />
-      <span className='flex-1 truncate'>{blockName}</span>
+      {typeof tagIcon === 'string' ? (
+        <TagIcon icon={tagIcon} color={BLOCK_COLORS.DEFAULT} />
+      ) : (
+        <WorkflowTypeTag
+          type={blockType}
+          blockName={blockName}
+          Icon={tagIcon}
+          iconBgColor={brandColor}
+          isIntegration={isIntegration}
+        />
+      )}
+      <span className='flex-1 truncate font-medium'>{blockName}</span>
     </PopoverItem>
   )
 }
@@ -1678,7 +1685,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   return (
     <NestedNavigationContext.Provider value={nestedNavigationValue}>
-      <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
+      <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
         <PopoverContextCapture contextRef={popoverContextRef} />
         <PopoverAnchor asChild>
           <div
@@ -1707,6 +1714,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           }}
         />
         <PopoverContent
+          appearance='dropdown'
           maxHeight={240}
           className='min-w-[280px]'
           side={side}
@@ -1718,7 +1726,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <PopoverScrollArea ref={scrollAreaRef}>
             <TagDropdownBackButton setSelectedIndex={setSelectedIndex} />
             {flatTagList.length === 0 ? (
-              <div className='px-1.5 py-2 text-[color-mix(in_srgb,var(--white)_60%,transparent)] text-caption'>
+              <div className='px-1.5 py-2 text-[var(--text-muted)] text-caption'>
                 No matching tags found
               </div>
             ) : (
@@ -1754,13 +1762,6 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
                 {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
                   const blockConfig = getBlock(group.blockType)
-                  let blockColor = blockConfig?.bgColor || BLOCK_COLORS.DEFAULT
-
-                  if (group.blockType === 'loop') {
-                    blockColor = BLOCK_COLORS.LOOP
-                  } else if (group.blockType === 'parallel') {
-                    blockColor = BLOCK_COLORS.PARALLEL
-                  }
 
                   let tagIcon: string | React.ComponentType<{ className?: string }> =
                     group.blockName.charAt(0).toUpperCase()
@@ -1789,7 +1790,9 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         itemRefs={itemRefs}
                         group={group}
                         tagIcon={tagIcon}
-                        blockColor={blockColor}
+                        blockType={group.blockType}
+                        brandColor={blockConfig?.bgColor ?? ''}
+                        isIntegration={blockConfig?.category === 'tools'}
                         blockName={group.blockName}
                       />
                       {group.nestedTags.map((nestedTag) => {

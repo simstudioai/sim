@@ -32,7 +32,63 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 const logger = createLogger('WorkflowControls')
 
 /**
- * Floating controls for canvas mode, undo/redo, and fit-to-view.
+ * Header controls for navigating workflow history.
+ */
+export const WorkflowHistoryControls = memo(function WorkflowHistoryControls() {
+  const { undo, redo } = useCollaborativeWorkflow()
+  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const { data: session } = useSession()
+  const userId = session?.user?.id
+  const historyKey = activeWorkflowId && userId ? `${activeWorkflowId}:${userId}` : ''
+  const stack = useUndoRedoStore((state) => (historyKey ? state.stacks[historyKey] : undefined))
+  const canUndo = (stack?.undo.length ?? 0) > 0
+  const canRedo = (stack?.redo.length ?? 0) > 0
+
+  return (
+    <div
+      className='flex flex-shrink-0 items-center gap-0.5'
+      role='group'
+      aria-label='Workflow history'
+    >
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='ghost'
+            className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+            onClick={undo}
+            disabled={!canUndo}
+            aria-label='Undo'
+          >
+            <Undo className='size-[16px]' />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
+        </Tooltip.Content>
+      </Tooltip.Root>
+
+      <Tooltip.Root>
+        <Tooltip.Trigger asChild>
+          <Button
+            variant='ghost'
+            className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+            onClick={redo}
+            disabled={!canRedo}
+            aria-label='Redo'
+          >
+            <Redo className='size-[16px]' />
+          </Button>
+        </Tooltip.Trigger>
+        <Tooltip.Content side='bottom'>
+          <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
+        </Tooltip.Content>
+      </Tooltip.Root>
+    </div>
+  )
+})
+
+/**
+ * Floating controls for canvas mode and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
@@ -40,17 +96,8 @@ export const WorkflowControls = memo(function WorkflowControls() {
   const { mode, setMode } = useCanvasModeStore(
     useShallow((s) => ({ mode: s.mode, setMode: s.setMode }))
   )
-  const { undo, redo } = useCollaborativeWorkflow()
   const showWorkflowControls = useShowActionBar()
   const updateSetting = useUpdateGeneralSetting()
-  const activeWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
-  const { data: session } = useSession()
-  const userId = session?.user?.id || 'unknown'
-  const stacks = useUndoRedoStore((s) => s.stacks)
-  const key = activeWorkflowId && userId ? `${activeWorkflowId}:${userId}` : ''
-  const stack = (key && stacks[key]) || { undo: [], redo: [] }
-  const canUndo = stack.undo.length > 0
-  const canRedo = stack.redo.length > 0
 
   const handleFitToView = useCallback(() => {
     fitViewToBounds({ padding: 0.1, duration: 300 })
@@ -141,40 +188,6 @@ export const WorkflowControls = memo(function WorkflowControls() {
             </PopoverItem>
           </PopoverContent>
         </Popover>
-
-        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
-              onClick={undo}
-              disabled={!canUndo}
-            >
-              <Undo className='size-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘Z'>Undo</Tooltip.Shortcut>
-          </Tooltip.Content>
-        </Tooltip.Root>
-
-        <Tooltip.Root>
-          <Tooltip.Trigger asChild>
-            <Button
-              variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
-              onClick={redo}
-              disabled={!canRedo}
-            >
-              <Redo className='size-[16px]' />
-            </Button>
-          </Tooltip.Trigger>
-          <Tooltip.Content side='top'>
-            <Tooltip.Shortcut keys='⌘⇧Z'>Redo</Tooltip.Shortcut>
-          </Tooltip.Content>
-        </Tooltip.Root>
 
         <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
 

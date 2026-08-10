@@ -624,18 +624,12 @@ export function NoteBlockView({
                     !isEnabled && 'opacity-50'
                   )}
                 >
-                  <OverflowSpan
-                    value={name ?? ''}
-                    className='truncate text-current text-md'
-                  />
+                  <OverflowSpan value={name ?? ''} className='truncate text-current text-md' />
                 </button>
               ) : (
                 <OverflowSpan
                   value={name ?? ''}
-                  className={cn(
-                    'truncate text-current text-md',
-                    !isEnabled && 'opacity-50'
-                  )}
+                  className={cn('truncate text-current text-md', !isEnabled && 'opacity-50')}
                 />
               )}
             </div>

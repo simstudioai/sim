@@ -5,6 +5,7 @@ import {
   Badge,
   Button,
   ChipConfirmModal,
+  ChipSwitch,
   Loader,
   Modal,
   ModalBody,
@@ -14,8 +15,6 @@ import {
   ModalHeader,
   ModalTabs,
   ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   Tooltip,
   toast,
 } from '@sim/emcn'
@@ -133,6 +132,12 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
+  const deployTabs = [
+    { value: 'general' as const, label: 'General' },
+    ...(!permissionConfig.hideDeployApi ? [{ value: 'api' as const, label: 'API' }] : []),
+    ...(!permissionConfig.hideDeployMcp ? [{ value: 'mcp' as const, label: 'MCP' }] : []),
+    ...(!permissionConfig.hideDeployChatbot ? [{ value: 'chat' as const, label: 'Chat' }] : []),
+  ]
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -508,25 +513,20 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Workflow Deployment</ModalHeader>
+          <ModalHeader>Deploy workflow</ModalHeader>
 
           <ModalTabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as TabView)}
             className='flex min-h-0 flex-1 flex-col'
           >
-            <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
-              {!permissionConfig.hideDeployApi && (
-                <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
-              )}
-              {!permissionConfig.hideDeployMcp && (
-                <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
-              )}
-              {!permissionConfig.hideDeployChatbot && (
-                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
-              )}
-            </ModalTabsList>
+            <ChipSwitch<TabView>
+              value={activeTab}
+              onChange={setActiveTab}
+              options={deployTabs}
+              aria-label='Deployment section'
+              className='mt-3 ml-4 self-start'
+            />
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalDescription className='sr-only'>

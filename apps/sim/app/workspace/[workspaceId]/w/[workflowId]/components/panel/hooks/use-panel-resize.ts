@@ -1,6 +1,17 @@
+import { type KeyboardEvent, useEffect, useState } from 'react'
 import { useDragResize } from '@/hooks/use-drag-resize'
-import { CONTENT_WINDOW_GAP, PANEL_WIDTH } from '@/stores/constants'
+import { PANEL_WIDTH } from '@/stores/constants'
 import { usePanelStore } from '@/stores/panel'
+
+const PANEL_RESIZE_STEP = 16
+
+function getPanelMaxWidth(): number {
+  return Math.max(PANEL_WIDTH.MIN, window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE)
+}
+
+function clampPanelWidth(width: number, maxWidth: number): number {
+  return Math.min(Math.max(width, PANEL_WIDTH.MIN), maxWidth)
+}
 
 /**
  * Computes the clamped panel width for a pointer position. The maximum is
@@ -8,33 +19,81 @@ import { usePanelStore } from '@/stores/panel'
  * and force the panel below {@link PANEL_WIDTH.MIN}.
  */
 function computePanelWidth(ev: PointerEvent): number {
-  const maxWidth = Math.max(PANEL_WIDTH.MIN, window.innerWidth * PANEL_WIDTH.MAX_PERCENTAGE)
-  const newWidth = window.innerWidth - CONTENT_WINDOW_GAP - ev.clientX
-  return Math.min(Math.max(newWidth, PANEL_WIDTH.MIN), maxWidth)
+  const maxWidth = getPanelMaxWidth()
+  const panelRight =
+    document.querySelector<HTMLElement>('.panel-container')?.getBoundingClientRect().right ??
+    window.innerWidth
+  const newWidth = panelRight - ev.clientX
+  return clampPanelWidth(newWidth, maxWidth)
 }
 
-/** The `.panel-container` element sizes itself from `--panel-width`. */
-function getPanelContainer(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('.panel-container')
+/** The docked canvas shell and panel both size themselves from `--panel-width`. */
+function getPanelResizeTarget(): HTMLElement | null {
+  return document.querySelector<HTMLElement>('.workflow-canvas-shell')
 }
 
 /**
  * Handles panel drag-resize with zero React renders during the drag. The
- * `--panel-width` variable is written to `.panel-container` (a scoped style
- * recalc) rather than `:root` (a whole-document recalc), and the final width
+ * `--panel-width` variable is written to `.workflow-canvas-shell` (a scoped style
+ * recalc shared by the canvas and panel) rather than `:root`, and the final width
  * is committed to the store (one re-render + one localStorage write) when the
  * drag ends.
  *
  * @returns Pointer-down handler for the resize handle
  */
 export function usePanelResize() {
+  const panelWidth = usePanelStore((s) => s.panelWidth)
   const setPanelWidth = usePanelStore((s) => s.setPanelWidth)
+  const [maxPanelWidth, setMaxPanelWidth] = useState<number | null>(null)
 
-  return useDragResize({
+  useEffect(() => {
+    const updateMaxPanelWidth = () => {
+      const nextMaxPanelWidth = getPanelMaxWidth()
+      setMaxPanelWidth(nextMaxPanelWidth)
+
+      const currentWidth = usePanelStore.getState().panelWidth
+      if (currentWidth > nextMaxPanelWidth) {
+        setPanelWidth(nextMaxPanelWidth)
+      }
+    }
+
+    updateMaxPanelWidth()
+    window.addEventListener('resize', updateMaxPanelWidth)
+    return () => window.removeEventListener('resize', updateMaxPanelWidth)
+  }, [setPanelWidth])
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    const currentMaxPanelWidth = maxPanelWidth ?? getPanelMaxWidth()
+    let nextWidth: number
+
+    switch (event.key) {
+      case 'ArrowLeft':
+        nextWidth = panelWidth + PANEL_RESIZE_STEP
+        break
+      case 'ArrowRight':
+        nextWidth = panelWidth - PANEL_RESIZE_STEP
+        break
+      case 'Home':
+        nextWidth = PANEL_WIDTH.MIN
+        break
+      case 'End':
+        nextWidth = currentMaxPanelWidth
+        break
+      default:
+        return
+    }
+
+    event.preventDefault()
+    setPanelWidth(clampPanelWidth(nextWidth, currentMaxPanelWidth))
+  }
+
+  const { handlePointerDown } = useDragResize({
     cursor: 'ew-resize',
     cssVar: '--panel-width',
-    getTarget: getPanelContainer,
+    getTarget: getPanelResizeTarget,
     compute: computePanelWidth,
     commit: setPanelWidth,
   })
+
+  return { handleKeyDown, handlePointerDown, maxPanelWidth, panelWidth }
 }

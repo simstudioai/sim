@@ -253,8 +253,13 @@ export function GeneralDeploy({
                 </Tooltip.Root>
               </>
             ) : (
-              <div className='flex h-full items-center justify-center text-[var(--text-placeholder)] text-small'>
-                Deploy your workflow to see a preview
+              <div className='flex h-full flex-col items-center justify-center gap-1 bg-[var(--surface-1)] px-6 text-center'>
+                <p className='font-medium text-[var(--text-secondary)] text-small'>
+                  No live version
+                </p>
+                <p className='max-w-[320px] text-[var(--text-muted)] text-small'>
+                  Deploy this workflow to create a live preview and version history.
+                </p>
               </div>
             )}
           </div>

@@ -263,6 +263,12 @@ describe('checkRolePermission', () => {
       { operation: 'update', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-position', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-name', adminAllowed: true, writeAllowed: true, readAllowed: false },
+      {
+        operation: 'update-description',
+        adminAllowed: true,
+        writeAllowed: true,
+        readAllowed: false,
+      },
       { operation: 'toggle-enabled', adminAllowed: true, writeAllowed: true, readAllowed: false },
       { operation: 'update-parent', adminAllowed: true, writeAllowed: true, readAllowed: false },
       {

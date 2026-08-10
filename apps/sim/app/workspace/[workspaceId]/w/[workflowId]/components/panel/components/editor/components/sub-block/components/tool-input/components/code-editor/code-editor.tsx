@@ -4,7 +4,6 @@ import {
   CODE_LINE_HEIGHT_PX,
   Code,
   calculateGutterWidth,
-  chipFieldSurfaceClass,
   cn,
   getCodeEditorProps,
   highlight,
@@ -179,12 +178,11 @@ export function CodeEditor({
 
   return (
     <Code.Container
-      className={cn(chipFieldSurfaceClass, error && 'border-[var(--text-error)]', className)}
+      appearance='field'
+      className={cn(error && 'border-[var(--text-error)]', className)}
       style={minHeight ? { minHeight } : undefined}
     >
-      <Code.Gutter width={gutterWidth} className='rounded-l-lg bg-transparent dark:bg-transparent'>
-        {renderLineNumbers()}
-      </Code.Gutter>
+      <Code.Gutter width={gutterWidth}>{renderLineNumbers()}</Code.Gutter>
 
       <Code.Content paddingLeft={`${gutterWidth}px`} editorRef={editorRef}>
         <Code.Placeholder gutterWidth={gutterWidth} show={value.length === 0 && !!placeholder}>

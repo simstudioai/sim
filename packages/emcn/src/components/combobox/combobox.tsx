@@ -17,6 +17,10 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import {
+  DROPDOWN_MENU_ITEM_BASE_CLASSES,
+  DROPDOWN_MENU_SURFACE_CLASSES,
+} from '../dropdown-menu/dropdown-menu'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
@@ -148,6 +152,8 @@ export interface ComboboxProps
   maxHeight?: number
   /** Empty state message when no options match the search */
   emptyMessage?: string
+  /** Use canonical chip trigger and dropdown-menu surface chrome. */
+  appearance?: 'default' | 'chip'
 }
 
 /**
@@ -190,6 +196,7 @@ const Combobox = memo(
         groups,
         maxHeight = 192,
         emptyMessage,
+        appearance = 'default',
         ...props
       },
       ref
@@ -615,6 +622,7 @@ const Combobox = memo(
                         (overlayContent || SelectedIcon) && 'text-transparent caret-foreground',
                         SelectedIcon && !overlayContent && 'pl-7',
                         open && 'focus-visible:border-[var(--border-1)]',
+                        appearance === 'chip' && 'pr-8 font-normal',
                         className
                       )}
                       placeholder={placeholder}
@@ -630,6 +638,7 @@ const Combobox = memo(
                       <div
                         className={cn(
                           'pointer-events-none absolute top-0 right-[42px] bottom-0 left-0 flex items-center bg-transparent px-2 py-1.5 font-sans text-sm',
+                          appearance === 'chip' && 'right-[28px] font-normal',
                           disabled && 'opacity-50'
                         )}
                       >
@@ -637,7 +646,14 @@ const Combobox = memo(
                           overlayContent
                         ) : (
                           <>
-                            {SelectedIcon && <SelectedIcon className='mr-2 size-3 flex-shrink-0' />}
+                            {SelectedIcon && (
+                              <SelectedIcon
+                                className={cn(
+                                  'mr-2 size-3 flex-shrink-0',
+                                  appearance === 'chip' && 'size-[16px] text-[var(--text-icon)]'
+                                )}
+                              />
+                            )}
                             <span className='truncate text-[var(--text-primary)]'>
                               {selectedOption?.label}
                             </span>
@@ -648,12 +664,17 @@ const Combobox = memo(
                     <button
                       type='button'
                       aria-label={open ? 'Close options' : 'Open options'}
-                      className='-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0'
+                      className={cn(
+                        '-translate-y-1/2 absolute top-1/2 right-[4px] z-10 flex size-6 cursor-pointer items-center justify-center border-0 bg-transparent p-0',
+                        appearance === 'chip' && 'right-1'
+                      )}
                       onMouseDown={handleChevronClick}
                     >
                       <ChevronDown
                         className={cn(
                           'size-4 opacity-50 transition-transform',
+                          appearance === 'chip' &&
+                            'h-[6px] w-[10px] text-[var(--text-icon)] opacity-100',
                           open && 'rotate-180'
                         )}
                       />
@@ -689,6 +710,8 @@ const Combobox = memo(
                     <ChevronDown
                       className={cn(
                         'ml-2 size-4 flex-shrink-0 opacity-50 transition-transform',
+                        appearance === 'chip' &&
+                          'h-[6px] w-[10px] text-[var(--text-icon)] opacity-100',
                         open && 'rotate-180'
                       )}
                     />
@@ -705,9 +728,11 @@ const Combobox = memo(
             <PopoverContent
               side='bottom'
               align={align}
-              sideOffset={4}
+              sideOffset={appearance === 'chip' ? 6 : 4}
               className={cn(
-                'rounded-md border border-[var(--border-1)] p-0',
+                appearance === 'chip'
+                  ? DROPDOWN_MENU_SURFACE_CLASSES
+                  : 'rounded-md border border-[var(--border-1)] p-0',
                 dropdownWidth === 'trigger' && 'w-[var(--radix-popover-trigger-width)]'
               )}
               style={
@@ -765,7 +790,7 @@ const Combobox = memo(
                 </div>
               )}
               <PopoverScrollArea
-                className='!flex-none p-1'
+                className={cn('!flex-none', appearance === 'chip' ? 'p-0' : 'p-1')}
                 style={{ maxHeight: `${maxHeight}px` }}
                 onWheelCapture={(e) => {
                   const target = e.currentTarget
@@ -839,8 +864,11 @@ const Combobox = memo(
                                   !option.disabled && setHighlightedIndex(globalIndex)
                                 }
                                 className={cn(
-                                  'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
-                                  size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+                                  appearance === 'chip'
+                                    ? DROPDOWN_MENU_ITEM_BASE_CLASSES
+                                    : 'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
+                                  appearance !== 'chip' &&
+                                    (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
                                   'hover-hover:bg-[var(--surface-active)]',
                                   (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
@@ -851,7 +879,14 @@ const Combobox = memo(
                                   : OptionIcon && (
                                       <OptionIcon className='size-[14px] flex-shrink-0' />
                                     )}
-                                <span className='flex-1 truncate text-[var(--text-primary)]'>
+                                <span
+                                  className={cn(
+                                    'flex-1 truncate',
+                                    appearance === 'chip'
+                                      ? 'text-[var(--text-body)]'
+                                      : 'text-[var(--text-primary)]'
+                                  )}
+                                >
                                   {option.label}
                                 </span>
                                 {option.suffixElement}
@@ -879,13 +914,23 @@ const Combobox = memo(
                           }}
                           onMouseEnter={() => setHighlightedIndex(-1)}
                           className={cn(
-                            'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
-                            size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+                            appearance === 'chip'
+                              ? DROPDOWN_MENU_ITEM_BASE_CLASSES
+                              : 'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
+                            appearance !== 'chip' &&
+                              (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
                             'hover-hover:bg-[var(--surface-active)]',
                             !multiSelectValues?.length && 'bg-[var(--surface-active)]'
                           )}
                         >
-                          <span className='flex-1 truncate text-[var(--text-primary)]'>
+                          <span
+                            className={cn(
+                              'flex-1 truncate',
+                              appearance === 'chip'
+                                ? 'text-[var(--text-body)]'
+                                : 'text-[var(--text-primary)]'
+                            )}
+                          >
                             {allOptionLabel}
                           </span>
                         </div>
@@ -913,8 +958,11 @@ const Combobox = memo(
                             }}
                             onMouseEnter={() => !option.disabled && setHighlightedIndex(index)}
                             className={cn(
-                              'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
-                              size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
+                              appearance === 'chip'
+                                ? DROPDOWN_MENU_ITEM_BASE_CLASSES
+                                : 'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
+                              appearance !== 'chip' &&
+                                (size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm'),
                               'hover-hover:bg-[var(--surface-active)]',
                               (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
                               option.disabled && 'cursor-not-allowed opacity-50'
@@ -923,7 +971,14 @@ const Combobox = memo(
                             {option.iconElement
                               ? option.iconElement
                               : OptionIcon && <OptionIcon className='size-[14px] flex-shrink-0' />}
-                            <span className='flex-1 truncate text-[var(--text-primary)]'>
+                            <span
+                              className={cn(
+                                'flex-1 truncate',
+                                appearance === 'chip'
+                                  ? 'text-[var(--text-body)]'
+                                  : 'text-[var(--text-primary)]'
+                              )}
+                            >
                               {option.label}
                             </span>
                             {option.suffixElement}

@@ -27,6 +27,8 @@ export interface ChipSwitchProps<T extends string = string> {
   value: T
   /** Invoked with the next selection when a segment is clicked. */
   onChange: (value: T) => void
+  /** Disables every segment in the switch. */
+  disabled?: boolean
   /** Optional accessible label for the radio group. */
   'aria-label'?: string
   /** Extra classes merged onto the outer container. */
@@ -54,6 +56,7 @@ export function ChipSwitch<T extends string>({
   options,
   value,
   onChange,
+  disabled = false,
   'aria-label': ariaLabel,
   className,
 }: ChipSwitchProps<T>) {
@@ -61,6 +64,7 @@ export function ChipSwitch<T extends string>({
     <div
       role='radiogroup'
       aria-label={ariaLabel}
+      aria-disabled={disabled}
       className={cn(
         'inline-flex items-center rounded-[10px] bg-[var(--surface-5)] p-[2px] dark:bg-[var(--surface-4)]',
         className
@@ -76,6 +80,7 @@ export function ChipSwitch<T extends string>({
             role='radio'
             aria-checked={isActive}
             data-state={isActive ? 'on' : 'off'}
+            disabled={disabled}
             onClick={() => onChange(option.value)}
             className={cn(
               chipVariants({

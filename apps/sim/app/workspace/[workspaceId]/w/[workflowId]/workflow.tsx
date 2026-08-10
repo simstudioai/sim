@@ -14,7 +14,7 @@ import ReactFlow, {
   useReactFlow,
 } from 'reactflow'
 import 'reactflow/dist/style.css'
-import { toast } from '@sim/emcn'
+import { cn, toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { SubflowNodeData } from '@sim/workflow-renderer'
@@ -4052,6 +4052,14 @@ const WorkflowContent = React.memo(
       }
     }, [closeConnectionBlockSelector, pendingConnect])
 
+    const handleClosePanelEditor = useCallback(() => {
+      setSelectedEdges(new Map())
+      setDisplayNodes((currentNodes) =>
+        currentNodes.map((node) => (node.selected ? { ...node, selected: false } : node))
+      )
+      usePanelEditorStore.getState().clearCurrentBlock()
+    }, [])
+
     const handleCanvasPointerDownCapture = () => {
       if (pendingConnect) {
         hasPointerDownSinceSelectorOpenedRef.current = true
@@ -4620,12 +4628,22 @@ const WorkflowContent = React.memo(
     }, [blocksStructureHash, embedded, isWorkflowReady, scheduleEmbeddedFit])
 
     return (
-      <div className='flex h-full w-full overflow-hidden'>
+      <div className='relative flex h-full w-full overflow-hidden'>
+        {!embedded && (
+          <div
+            aria-hidden='true'
+            className='pointer-events-none absolute inset-x-0 top-0 z-10 h-[40px] border-[var(--border)] border-b bg-[var(--bg)]'
+          />
+        )}
+
         <div className='flex min-w-0 flex-1 flex-col'>
           <div
             ref={canvasContainerRef}
             onPointerDownCapture={handleCanvasPointerDownCapture}
-            className='relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none'
+            className={cn(
+              'workflow-canvas-shell relative flex-1 overflow-hidden [--connection-line-stroke:var(--workflow-edge)] data-[connection-line=error]:[--connection-line-stroke:var(--text-error)] data-[connection-line=selected]:[--connection-line-stroke:var(--text-secondary)] data-[connection-active=true]:[&_.react-flow__handle.source]:pointer-events-none',
+              !embedded && 'pr-[var(--panel-width)]'
+            )}
           >
             {!isWorkflowReady && (
               <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
@@ -4825,6 +4843,8 @@ const WorkflowContent = React.memo(
               </>
             )}
 
+            {!embedded && <Panel onCloseEditor={handleClosePanelEditor} />}
+
             {!embedded && <WorkflowSearchReplace />}
 
             {!embedded && isWorkflowReady && isWorkflowEmpty && effectivePermissions.canEdit && (
@@ -4836,8 +4856,6 @@ const WorkflowContent = React.memo(
 
           <Terminal />
         </div>
-
-        {!embedded && <Panel />}
 
         {!embedded && oauthModal && (
           <ConnectOAuthModal

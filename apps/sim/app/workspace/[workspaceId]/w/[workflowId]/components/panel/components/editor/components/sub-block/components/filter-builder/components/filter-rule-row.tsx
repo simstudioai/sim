@@ -2,17 +2,16 @@ import { useRef } from 'react'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  CollapsibleCard,
   type ComboboxOption,
-  cn,
-  handleKeyboardActivation,
-  Input,
   Label,
   Trash,
 } from '@sim/emcn'
 import { Plus } from '@sim/emcn/icons'
 import type { FilterRule } from '@/lib/table/query-builder/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import {
   getActiveWorkflowSearchHighlight,
@@ -102,62 +101,23 @@ export function FilterRuleRow({
       label,
     })
 
-  const renderHeader = () => (
-    <div
-      role='group'
-      aria-label={`Condition ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => onToggleCollapse(rule.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => onToggleCollapse(rule.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {rule.collapsed && rule.column
-            ? formatDisplayText(getColumnLabel(rule.column), {
-                workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
-              })
-            : `Condition ${index + 1}`}
-        </span>
-        {rule.collapsed && rule.column && (
-          <Badge variant='type' size='sm'>
-            {formatDisplayText(getOperatorLabel(rule.operator), {
-              workflowSearchHighlight: getLabelHighlight(
-                'operator',
-                getOperatorLabel(rule.operator)
-              ),
-            })}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button variant='ghost' onClick={onAdd} disabled={isReadOnly} className='h-auto p-0'>
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Condition</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={() => onRemove(rule.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Condition</span>
-        </Button>
-      </div>
-    </div>
-  )
-
   const renderValueInput = () => (
     <div className='relative'>
-      <Input
+      <ReferenceTextInput
         ref={valueInputRef}
+        overlayRef={overlayRef}
+        overlayContent={
+          <div className='min-w-fit whitespace-pre'>
+            {formatDisplayText(
+              rule.value,
+              accessiblePrefixes
+                ? { accessiblePrefixes, workflowSearchHighlight }
+                : { highlightAll: true, workflowSearchHighlight }
+            )}
+          </div>
+        }
+        interactiveOverlay={isReadOnly}
+        inputClassName='allow-scroll'
         value={rule.value}
         onChange={handlers.onChange}
         onKeyDown={handlers.onKeyDown}
@@ -175,24 +135,8 @@ export function FilterRuleRow({
         disabled={isReadOnly}
         autoComplete='off'
         placeholder='Enter value'
-        className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+        className='w-full'
       />
-      <div
-        ref={overlayRef}
-        className={cn(
-          'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
-          !isReadOnly && 'pointer-events-none'
-        )}
-      >
-        <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-          {formatDisplayText(
-            rule.value,
-            accessiblePrefixes
-              ? { accessiblePrefixes, workflowSearchHighlight }
-              : { highlightAll: true, workflowSearchHighlight }
-          )}
-        </div>
-      </div>
       {fieldState.showTags && (
         <TagDropdown
           visible={fieldState.showTags}
@@ -209,11 +153,11 @@ export function FilterRuleRow({
   )
 
   const renderContent = () => (
-    <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+    <>
       {index > 0 && (
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Logic</Label>
-          <Combobox
+          <ChipCombobox
             options={logicalOptions}
             value={rule.logicalOperator}
             onChange={(v) => onUpdate(rule.id, 'logicalOperator', v as 'and' | 'or')}
@@ -236,7 +180,7 @@ export function FilterRuleRow({
 
       <div className='flex flex-col gap-1.5'>
         <Label className='text-small'>Column</Label>
-        <Combobox
+        <ChipCombobox
           options={columns}
           value={rule.column}
           onChange={(v) => onUpdate(rule.id, 'column', v)}
@@ -256,7 +200,7 @@ export function FilterRuleRow({
 
       <div className='flex flex-col gap-1.5'>
         <Label className='text-small'>Operator</Label>
-        <Combobox
+        <ChipCombobox
           options={comparisonOptions}
           value={rule.operator}
           onChange={(v) => onUpdate(rule.id, 'operator', v)}
@@ -281,19 +225,57 @@ export function FilterRuleRow({
         <Label className='text-small'>Value</Label>
         {renderValueInput()}
       </div>
-    </div>
+    </>
   )
 
   return (
-    <div
+    <CollapsibleCard
       data-filter-id={rule.id}
-      className={cn(
-        'rounded-sm border border-[var(--border-1)]',
-        rule.collapsed ? 'overflow-hidden' : 'overflow-visible'
-      )}
+      title={
+        rule.collapsed && rule.column
+          ? formatDisplayText(getColumnLabel(rule.column), {
+              workflowSearchHighlight: getLabelHighlight('column', getColumnLabel(rule.column)),
+            })
+          : `Condition ${index + 1}`
+      }
+      badge={
+        rule.collapsed && rule.column ? (
+          <Badge variant='type' size='sm'>
+            {formatDisplayText(getOperatorLabel(rule.operator), {
+              workflowSearchHighlight: getLabelHighlight(
+                'operator',
+                getOperatorLabel(rule.operator)
+              ),
+            })}
+          </Badge>
+        ) : undefined
+      }
+      actions={
+        <>
+          <Button
+            variant='quiet'
+            size='icon'
+            onClick={onAdd}
+            disabled={isReadOnly}
+            aria-label='Add condition'
+          >
+            <Plus className='size-[14px]' />
+          </Button>
+          <Button
+            variant='quiet'
+            size='icon'
+            onClick={() => onRemove(rule.id)}
+            disabled={isReadOnly}
+            aria-label='Delete condition'
+          >
+            <Trash className='size-[14px] text-[var(--text-error)]' />
+          </Button>
+        </>
+      }
+      collapsed={rule.collapsed ?? false}
+      onToggleCollapse={() => onToggleCollapse(rule.id)}
     >
-      {renderHeader()}
-      {!rule.collapsed && renderContent()}
-    </div>
+      {renderContent()}
+    </CollapsibleCard>
   )
 }

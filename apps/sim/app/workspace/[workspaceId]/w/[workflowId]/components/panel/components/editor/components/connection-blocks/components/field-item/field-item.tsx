@@ -1,10 +1,9 @@
 'use client'
 
 import { useCallback } from 'react'
-import { Badge, handleKeyboardActivation } from '@sim/emcn'
+import { Badge, cn, handleKeyboardActivation } from '@sim/emcn'
 import { ChevronDown } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import clsx from 'clsx'
 import type { ConnectedBlock } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/hooks/use-block-connections'
 import { normalizeName } from '@/executor/constants'
 
@@ -28,6 +27,7 @@ interface FieldItemProps {
   hasChildren?: boolean
   isExpanded?: boolean
   onToggleExpand?: (path: string) => void
+  onSelectReference: (reference: string) => void
 }
 
 /**
@@ -41,6 +41,7 @@ export function FieldItem({
   hasChildren,
   isExpanded,
   onToggleExpand,
+  onSelectReference,
 }: FieldItemProps) {
   const handleDragStart = useCallback(
     (e: React.DragEvent) => {
@@ -70,29 +71,30 @@ export function FieldItem({
   const handleClick = useCallback(() => {
     if (hasChildren) {
       onToggleExpand?.(path)
+      return
     }
-  }, [hasChildren, onToggleExpand, path])
+    onSelectReference(`<${normalizeName(connection.name)}.${path}>`)
+  }, [connection.name, hasChildren, onSelectReference, onToggleExpand, path])
 
   return (
     <div
       role='treeitem'
       aria-expanded={hasChildren ? isExpanded : undefined}
-      tabIndex={hasChildren ? 0 : undefined}
+      tabIndex={0}
       draggable
       onDragStart={handleDragStart}
       onClick={handleClick}
       onKeyDown={(event) => {
-        if (!hasChildren) return
         handleKeyboardActivation(event, handleClick)
       }}
-      className={clsx(
+      className={cn(
         'group flex h-[26px] cursor-grab items-center gap-2 rounded-lg px-1.5 text-sm hover-hover:bg-[var(--surface-6)] active:cursor-grabbing dark:hover-hover:bg-[var(--surface-5)]',
-        hasChildren && 'cursor-pointer'
+        hasChildren ? 'cursor-pointer' : 'cursor-copy'
       )}
     >
       <span
-        className={clsx(
-          'min-w-0 flex-1 truncate',
+        className={cn(
+          'min-w-0 flex-1 truncate font-medium',
           'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]'
         )}
       >
@@ -103,8 +105,8 @@ export function FieldItem({
       </Badge>
       {hasChildren && (
         <ChevronDown
-          className={clsx(
-            'size-[14px] flex-shrink-0 transition-transform duration-100',
+          className={cn(
+            'size-3.5 flex-shrink-0 transition-transform duration-100',
             'text-[var(--text-secondary)] group-hover:text-[var(--text-primary)]',
             isExpanded && 'rotate-180'
           )}

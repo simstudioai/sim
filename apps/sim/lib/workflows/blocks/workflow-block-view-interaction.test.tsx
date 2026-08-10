@@ -245,6 +245,29 @@ describe('WorkflowTypeTag colors', () => {
     )
   })
 
+  it('uses square geometry for icon-only workflow type tags', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() =>
+      root.render(
+        <WorkflowTypeTag
+          type='table'
+          blockName='Fetch Inbox'
+          Icon={TestIcon}
+          iconBgColor='#10B981'
+        />
+      )
+    )
+
+    const tag = host.querySelector<HTMLElement>('[data-workflow-type-accent="table"]')
+    expect(tag).toHaveClass('size-5', 'p-0')
+    expect(tag?.querySelector('svg')).toHaveClass('size-[14px]')
+  })
+
   it('uses the provider background with a contrasting shared icon and label color', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)

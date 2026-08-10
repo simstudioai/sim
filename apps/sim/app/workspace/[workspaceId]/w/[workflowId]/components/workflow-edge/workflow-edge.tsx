@@ -36,7 +36,9 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
   const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const isTargetActive = useIsBlockActive(target)
   const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const activeTab = usePanelStore((state) => state.activeTab)
+  const { activeTab, isPanelOpen } = usePanelStore(
+    useShallow((state) => ({ activeTab: state.activeTab, isPanelOpen: state.isOpen }))
+  )
 
   /**
    * Match the block ring: darken edges when an endpoint is canvas-selected or
@@ -56,6 +58,7 @@ const WorkflowEdgeComponent = (props: WorkflowEdgeProps) => {
       (data as { isConnectedToSelection?: boolean } | undefined)?.isConnectedToSelection
   )
   const isConnectedToEditor =
+    isPanelOpen &&
     activeTab === 'editor' &&
     currentBlockId !== null &&
     (currentBlockId === source || currentBlockId === target)
