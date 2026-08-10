@@ -85,7 +85,10 @@ export async function resolveWorkflowInputSecretProvenance(options: {
   }
 
   const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
-  const imported = await sourceRegistry.importProvenance(provenance, { trusted: true })
+  const imported = await sourceRegistry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'executionInput.secretProvenance',
+  })
   const inputProvenance = sourceRegistry.exportProvenanceForValue(options.input)
   if (
     !imported ||

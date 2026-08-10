@@ -195,6 +195,35 @@ describe('refuseResolvedSecretProjection', () => {
     expect(refusalRecords()).toHaveLength(3)
   })
 
+  it('names the importer that condemned the run, through the fork and merge that hid it', async () => {
+    const parent = new ResolvedSecretTraceRegistry([], scope)
+    const fork = parent.forkForToolCall()
+    await fork.importCrossingProvenance(
+      { version: 1, complete: false, entries: [], scope },
+      { rows: [] },
+      { trusted: true, origin: 'tool.table_query_rows' }
+    )
+    parent.mergeToolCallRegistry(fork)
+    mockLogger.error.mockClear()
+    mockLogger.warn.mockClear()
+
+    expect(() =>
+      refuseResolvedSecretProjection({
+        site: 'router.contextModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: parent,
+        inputPath: 'context,routes',
+      })
+    ).toThrow()
+
+    expect(refusalRecords()[0][1]).toEqual(
+      expect.objectContaining({
+        reason: 'source-provenance-incomplete',
+        origins: ['tool.table_query_rows'],
+      })
+    )
+  })
+
   it('records no secret material', () => {
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'API_KEY', plaintext: 'super-secret-value', encryptedValue: 'encrypted' }],

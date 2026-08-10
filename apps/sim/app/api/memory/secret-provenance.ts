@@ -137,7 +137,7 @@ export async function createMemoryResponse(options: {
             status: sidecar?.status ?? null,
             entries: sidecar?.entries,
           })
-          await importDurableSecretProvenance(registry, provenance, record.data)
+          await importDurableSecretProvenance(registry, provenance, record.data, 'memory')
         }
       }
     }

@@ -450,7 +450,7 @@ describe('workspace file secret provenance', () => {
         ],
         scope: { userId: 'user-1' },
       },
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.envelope' }
     )
 
     queueTableRows(workspaceFiles, [
@@ -488,7 +488,7 @@ describe('workspace file secret provenance', () => {
         ],
         scope: { userId: 'user-1' },
       },
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.envelope' }
     )
 
     queueTableRows(workspaceFiles, [
@@ -523,7 +523,7 @@ describe('workspace file secret provenance', () => {
         entries: [{ encryptedValue: 'anonymous-encrypted' }],
         scope: { userId: 'user-1' },
       },
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.envelope' }
     )
 
     queueTableRows(workspaceFiles, [
@@ -583,7 +583,7 @@ describe('workspace file secret provenance', () => {
         ],
         scope: { userId: 'user-1' },
       },
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.envelope' }
     )
   })
 
@@ -669,7 +669,7 @@ describe('workspace file secret provenance', () => {
         scope: { userId: 'user-1' },
       },
       'derived text',
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.valueEnvelope' }
     )
   })
 

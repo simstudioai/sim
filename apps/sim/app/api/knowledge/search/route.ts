@@ -604,7 +604,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         !(await importDurableSecretProvenance(
           resultSecretRegistry,
           metadata.provenance,
-          renderedMetadata
+          renderedMetadata,
+          'knowledge'
         ))
       ) {
         resultSecretRegistry.markIncomplete()

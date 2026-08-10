@@ -288,6 +288,7 @@ async function projectWorkflowMcpModelContent(
 ): Promise<unknown> {
   const registry = new ResolvedSecretTraceRegistry([], scope)
   const imported = await registry.importCrossingProvenance(privateProvenance, value, {
+    origin: 'mcpServe.workflowCrossing',
     trusted: true,
   })
   if (!imported || !registry.isComplete()) {

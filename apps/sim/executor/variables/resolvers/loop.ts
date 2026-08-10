@@ -283,7 +283,7 @@ export class LoopResolver implements Resolver {
       provenance,
       resolvedValue,
       context.inputPath,
-      { trusted: true }
+      { trusted: true, origin: 'loopResolver.itemCrossing' }
     )
     if (imported.matched) context.onResolvedSecretReference?.()
     return resolvedValue

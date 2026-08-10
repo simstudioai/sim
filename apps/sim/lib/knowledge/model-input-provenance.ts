@@ -65,6 +65,7 @@ export async function prepareKnowledgeModelInputProvenance(options: {
   }
 
   const imported = await registry.importProvenanceForValue(inspection.value, options.modelInput, {
+    origin: 'knowledge.modelInputProvenance',
     trusted: true,
   })
   if (!imported || !registry.isComplete()) {

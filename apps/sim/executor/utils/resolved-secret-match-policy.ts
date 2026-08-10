@@ -36,6 +36,37 @@ export type ResolvedSecretMatchPolicy = 'anywhere' | 'boundary'
 export const MIN_UNANCHORED_MATCH_LENGTH = 8
 
 /**
+ * Literals that may not match at all, at any offset, because they identify nothing.
+ *
+ * This is cardinality, not entropy — the distinction the floor above turns on. An all-`f` HMAC key
+ * is low-entropy but drawn from an enormous space, so a hit on it is evidence. `false` is drawn
+ * from a space of two: a hit on it is evidence of nothing, and substituting it protects nothing an
+ * attacker could not guess by flipping a coin. Meanwhile it rewrites every boolean any workflow
+ * ever wrote — one deployment turned 2,000 `had_error` cells into `[REDACTED_SECRET]` because a
+ * `*_BANNER_ENABLED` variable happened to hold `false`.
+ *
+ * Exactly the three JSON renderings of a non-string primitive, and nothing else. `0` and `1` are
+ * deliberately absent: a short numeric secret is entirely plausible where a boolean one is not.
+ * Matching is case-sensitive because the set is defined by what `String(value)` produces for a
+ * typed primitive, not by what looks boolean — an environment variable literally holding `False`
+ * keeps its protection.
+ *
+ * The residual is one bit: a variable whose whole value is the string `false` is no longer hidden.
+ */
+const NON_IDENTIFYING_SECRET_LITERALS: ReadonlySet<string> = new Set(['true', 'false', 'null'])
+
+/**
+ * True when a literal carries too little information to be worth protecting anywhere.
+ *
+ * Applied where literals are turned into matchers, so it governs detection and substitution alike:
+ * such a value is never rewritten out of content, and never recorded into durable provenance as
+ * something a later read must redact.
+ */
+export function isNonIdentifyingSecretLiteral(plaintext: string): boolean {
+  return NON_IDENTIFYING_SECRET_LITERALS.has(plaintext)
+}
+
+/**
  * Combining marks count so a substitution cannot split a grapheme cluster. `_` deliberately does
  * NOT: `sk_live_...` and `user_483920_profile` are the dominant way a secret gets joined into an
  * identifier, and treating `_` as a word character would suppress those hits entirely.

@@ -1,0 +1,106 @@
+import { createLogger } from '@sim/logger'
+import { env } from '@/lib/core/config/env'
+
+const logger = createLogger('DurableSecretProvenanceEnforcement')
+
+/**
+ * Durable stores that can hand a run a value whose secret provenance was never recorded.
+ *
+ * Named by the call site rather than derived, so the surface survives refactors and stays
+ * greppable — the same convention the projection-refusal `site` strings use.
+ */
+export const DURABLE_SECRET_PROVENANCE_SURFACES = ['memory', 'table-row', 'knowledge'] as const
+
+export type DurableSecretProvenanceSurface = (typeof DURABLE_SECRET_PROVENANCE_SURFACES)[number]
+
+/** Reads the configured surfaces once; an unrecognized name is reported rather than assumed. */
+function resolveEnforcedSurfaces(): ReadonlySet<DurableSecretProvenanceSurface> {
+  const configured = env.DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES?.trim()
+  if (!configured) return new Set()
+
+  const requested = configured
+    .split(',')
+    .map((entry) => entry.trim().toLowerCase())
+    .filter((entry) => entry.length > 0)
+  if (requested.includes('all')) return new Set(DURABLE_SECRET_PROVENANCE_SURFACES)
+
+  const enforced = new Set<DurableSecretProvenanceSurface>()
+  const unrecognized: string[] = []
+  for (const entry of requested) {
+    const surface = DURABLE_SECRET_PROVENANCE_SURFACES.find((candidate) => candidate === entry)
+    if (surface) enforced.add(surface)
+    else unrecognized.push(entry)
+  }
+  if (unrecognized.length > 0) {
+    logger.error('Ignoring unrecognized durable secret provenance surfaces', {
+      unrecognized,
+      supported: [...DURABLE_SECRET_PROVENANCE_SURFACES],
+    })
+  }
+  return enforced
+}
+
+let enforcedSurfaces: ReadonlySet<DurableSecretProvenanceSurface> | undefined
+
+/**
+ * True when unrecorded provenance from this surface must fail the run rather than warn.
+ *
+ * Nothing is enforced by default. `unknown` provenance means "nobody recorded what secrets this
+ * value carries", which is the same thing a pre-tracking legacy row says — and legacy rows are read
+ * as carrying none. Enforcing one and not the other made an *aware* writer that momentarily could
+ * not vouch strictly worse than an unaware one: the row it wrote latched every run that later read
+ * it, and each latched run wrote more such rows, so a workspace could not recover without a data
+ * repair.
+ *
+ * Warning instead keeps that state visible and measurable while the writers that produce it are
+ * fixed. The sidecar still records `unknown` faithfully, so a surface can be closed back up once
+ * its writers stop losing provenance — and the rows that will start failing are countable from the
+ * sidecar table before the switch is thrown. This is a deliberate posture: an unenforced surface
+ * can under-redact a value whose provenance was lost.
+ *
+ * Set `DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES` to `all`, or to a comma-separated subset of
+ * {@link DURABLE_SECRET_PROVENANCE_SURFACES}, to close a surface.
+ *
+ * Workspace files are deliberately not a surface here: their unknown check sits in the callers
+ * rather than in the shared import, and one unknown file locks vfs reads, chat attachments, sandbox
+ * mounts, and the file tool routes at once. They stay fail-closed until that is its own decision.
+ */
+export function isDurableSecretProvenanceEnforced(
+  surface: DurableSecretProvenanceSurface
+): boolean {
+  enforcedSurfaces ??= resolveEnforcedSurfaces()
+  return enforcedSurfaces.has(surface)
+}
+
+export interface UnrecordedDurableProvenanceReport {
+  surface: DurableSecretProvenanceSurface
+  /** What the surface could not vouch for, e.g. `sidecar-status-unknown`. Always a static literal. */
+  cause: string
+  /** How many records in this one read were unrecorded, when the caller reads a page at a time. */
+  affectedCount?: number
+  workspaceId?: string
+}
+
+/**
+ * Records that a read proceeded on provenance nobody wrote down.
+ *
+ * Error, not warn, for the same reason the originating-fault reasons use it: error is the only
+ * level that survives every default the logger falls back to — production, test, and a self-hosted
+ * chart that sets no `LOG_LEVEL`. A surface stays open on the strength of this line being visible
+ * and trending to zero, so a level that a deployment can silently filter would leave the posture
+ * unmeasured. It is deliberately noisy on an affected workspace; that is the signal.
+ */
+export function reportUnrecordedDurableProvenance(report: UnrecordedDurableProvenanceReport): void {
+  logger.error('Proceeding on unrecorded durable secret provenance', {
+    surface: report.surface,
+    cause: report.cause,
+    enforced: false,
+    ...(report.affectedCount !== undefined ? { affectedCount: report.affectedCount } : {}),
+    ...(report.workspaceId ? { workspaceId: report.workspaceId } : {}),
+  })
+}
+
+/** Test seam: forces the next read to re-resolve the env-configured surfaces. */
+export function resetDurableSecretProvenanceEnforcementCache(): void {
+  enforcedSurfaces = undefined
+}

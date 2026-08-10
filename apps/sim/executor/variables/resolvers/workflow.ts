@@ -133,7 +133,7 @@ export class WorkflowResolver implements Resolver {
       provenance,
       value,
       context.inputPath,
-      { trusted: true }
+      { trusted: true, origin: 'workflowResolver.inputCrossing' }
     )
     if (imported.matched) context.onResolvedSecretReference?.()
     return value

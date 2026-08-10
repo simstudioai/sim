@@ -64,6 +64,8 @@ function reportRefusal({ site, registry, inputPath }: ResolvedSecretProjectionRe
       ? {
           reason: diagnostics.reasons[0],
           reasons: diagnostics.reasons,
+          /** The importers that cost the run its completeness — who to go and look at. */
+          ...(diagnostics.origins.length > 0 ? { origins: diagnostics.origins } : {}),
           incompleteInputPathCount: diagnostics.incompleteInputPathCount,
           activeEntryCount: diagnostics.activeEntryCount,
           ...(diagnostics.scopeWorkspaceId
