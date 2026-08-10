@@ -1,1028 +1,171 @@
 /**
- * Integration tests for workflow by ID API route
- * Tests the new centralized permissions system
- *
  * @vitest-environment node
  */
+import { createMockRequest } from '@sim/testing'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import {
-  auditMock,
-  authMockFns,
-  dbChainMockFns,
-  hybridAuthMockFns,
-  resetDbChainMock,
-  telemetryMock,
-  workflowAuthzMockFns,
-  workflowsOrchestrationMock,
-  workflowsOrchestrationMockFns,
-  workflowsPersistenceUtilsMock,
-  workflowsPersistenceUtilsMockFns,
-  workflowsUtilsMock,
-  workflowsUtilsMockFns,
-} from '@sim/testing'
-import { NextRequest } from 'next/server'
-import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
-import { getWorkflowResponseDataSchema } from '@/lib/api/contracts/workflows'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
-
-const { mockReadWorkflowDefinition } = vi.hoisted(() => ({
-  mockReadWorkflowDefinition: vi.fn(),
+const mocks = vi.hoisted(() => ({
+  auth: vi.fn(),
+  capture: vi.fn(),
+  defineRoute: vi.fn((definition) => definition),
+  deleteWorkflow: vi.fn(),
+  parseRequest: vi.fn(),
+  readWorkflow: vi.fn(),
+  updatePolicy: vi.fn(),
+  updateWorkflow: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/application/read-workflow-definition', () => {
-  const operation = {
-    id: 'workflows.read',
-    minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
-    delegatedServices: ['copilot', 'executor'],
-  } as const
-  return {
-    readWorkflowDefinition: { operation, execute: mockReadWorkflowDefinition },
-  }
-})
+vi.mock('@/lib/api/server', () => ({ parseRequest: mocks.parseRequest }))
 
-const mockLoadWorkflowFromNormalizedTables =
-  workflowsPersistenceUtilsMockFns.mockLoadWorkflowFromNormalizedTables
-const mockGetWorkflowById = workflowsUtilsMockFns.mockGetWorkflowById
-const mockAuthorizeWorkflowByWorkspacePermission =
-  workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission
-const mockPerformDeleteWorkflow = workflowsOrchestrationMockFns.mockPerformDeleteWorkflow
-const mockPerformUpdateWorkflow = workflowsOrchestrationMockFns.mockPerformUpdateWorkflow
+vi.mock('@/lib/api/server/routes', () => ({
+  defineInternalJsonRoute: mocks.defineRoute,
+  InternalUnauthenticatedError: class InternalUnauthenticatedError extends Error {},
+  internalPlainOrchestrationErrorPolicy: { kind: 'plain-orchestration' },
+  internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
+}))
 
-/**
- * Helper to set mock auth state consistently across getSession and hybrid auth.
- */
-function mockGetSession(session: { user: { id: string } } | null) {
-  if (session) {
-    authMockFns.mockGetSession.mockResolvedValue({
-      ...session,
-      session: { id: 'session-1' },
-    })
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({
-      success: true,
-      userId: session.user.id,
-    })
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
-      success: true,
-      userId: session.user.id,
-    })
-  } else {
-    authMockFns.mockGetSession.mockResolvedValue(null)
-    hybridAuthMockFns.mockCheckHybridAuth.mockResolvedValue({ success: false })
-    hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({ success: false })
-  }
+vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
+
+vi.mock('@/lib/workflows/api', () => ({
+  internalWorkflowSessionOrExecutorAuth: { authenticate: mocks.auth },
+}))
+
+vi.mock('@/lib/workflows/application/read-workflow-definition', () => ({
+  readWorkflowDefinition: {
+    operation: { id: 'workflows.read' },
+    execute: mocks.readWorkflow,
+  },
+}))
+
+vi.mock('@/lib/workflows/application/delete-workflow', () => ({
+  deleteWorkflow: {
+    operation: { id: 'workflows.delete' },
+    execute: mocks.deleteWorkflow,
+  },
+}))
+
+vi.mock('@/lib/workflows/application/update-workflow', () => ({
+  updateWorkflow: {
+    operation: { id: 'workflows.update' },
+    execute: mocks.updateWorkflow,
+  },
+  updateWorkflowPolicy: {
+    operation: { id: 'workflows.policy.update' },
+    execute: mocks.updatePolicy,
+  },
+}))
+
+import { DELETE, GET, PUT } from '@/app/api/workflows/[id]/route'
+
+const sessionPrincipal = {
+  kind: 'session' as const,
+  userId: 'user-1',
+  sessionId: 'session-1',
 }
 
-function workflowReadResult(
-  workflowOverrides: Record<string, unknown> = {},
-  state: Record<string, unknown> = { blocks: {}, edges: [], loops: {}, parallels: {} }
-) {
-  const now = new Date('2026-08-08T00:00:00.000Z')
-  return {
-    workflow: {
-      id: 'workflow-123',
-      userId: 'user-123',
-      workspaceId: 'workspace-456',
-      folderId: null,
-      sortOrder: 0,
-      name: 'Test Workflow',
-      description: null,
-      lastSynced: now,
-      createdAt: now,
-      updatedAt: now,
-      isDeployed: false,
-      deployedAt: null,
-      isPublicApi: false,
-      locked: false,
-      runCount: 0,
-      lastRunAt: null,
-      archivedAt: null,
-      variables: {},
-      ...workflowOverrides,
-    },
-    workspaceId: 'workspace-456',
-    state,
-  }
-}
-
-vi.mock('@/lib/core/telemetry', () => telemetryMock)
-
-vi.mock('@sim/audit', () => auditMock)
-
-vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
-
-vi.mock('@/lib/workflows/utils', () => workflowsUtilsMock)
-
-vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
-
-import { DELETE, GET, PUT } from './route'
-
-describe('Workflow By ID API Route', () => {
-  afterAll(() => {
-    resetDbChainMock()
-  })
-
+describe('/api/workflows/[id] application adapters', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    resetDbChainMock()
+    mocks.auth.mockResolvedValue(sessionPrincipal)
+    mocks.updateWorkflow.mockResolvedValue({
+      workflow: { id: 'workflow-1', name: 'Renamed', locked: false, forkSyncExcluded: false },
+      workspaceId: 'workspace-1',
+      changes: ['name'],
+    })
+    mocks.updatePolicy.mockResolvedValue({
+      workflow: { id: 'workflow-1', name: 'Workflow', locked: true, forkSyncExcluded: false },
+      workspaceId: 'workspace-1',
+      changes: ['locked'],
+    })
+  })
 
-    vi.stubGlobal('crypto', {
-      randomUUID: vi.fn().mockReturnValue('mock-request-id-12345678'),
+  it('binds GET and DELETE directly to fixed application use cases', () => {
+    expect(GET).toMatchObject({
+      operation: { id: 'workflows.read' },
+      useCase: { operation: { id: 'workflows.read' } },
+    })
+    expect(Reflect.get(GET, 'mapInput')({ params: { id: 'workflow-1' } })).toEqual({
+      workflowId: 'workflow-1',
+      state: 'draft',
     })
 
-    mockLoadWorkflowFromNormalizedTables.mockResolvedValue(null)
-    mockReadWorkflowDefinition.mockResolvedValue(workflowReadResult())
-    mockPerformUpdateWorkflow.mockImplementation(async (params) => ({
+    expect(DELETE).toMatchObject({
+      operation: { id: 'workflows.delete' },
+      useCase: { operation: { id: 'workflows.delete' } },
+    })
+    expect(Reflect.get(DELETE, 'mapInput')({ params: { id: 'workflow-1' } })).toEqual({
+      workflowId: 'workflow-1',
+    })
+  })
+
+  it('keeps human delete analytics surface-specific and no-op aware', async () => {
+    const onSuccess = Reflect.get(DELETE, 'onSuccess')
+    await onSuccess({
+      principal: sessionPrincipal,
+      result: { archived: false, workflowId: 'workflow-1', workspaceId: 'workspace-1' },
+    })
+    expect(mocks.capture).not.toHaveBeenCalled()
+
+    await onSuccess({
+      principal: sessionPrincipal,
+      result: { archived: true, workflowId: 'workflow-1', workspaceId: 'workspace-1' },
+    })
+    expect(mocks.capture).toHaveBeenCalledOnce()
+  })
+
+  it('selects one fixed update command without route-owned resource work', async () => {
+    mocks.parseRequest.mockResolvedValue({
       success: true,
-      workflow: {
-        id: params.workflowId,
-        name: params.name ?? params.currentName,
-        description: params.description ?? null,
-        workspaceId: params.workspaceId,
-        folderId: params.folderId ?? params.currentFolderId ?? null,
-        sortOrder: params.sortOrder ?? null,
-        locked: params.locked ?? null,
-        forkSyncExcluded: params.forkSyncExcluded ?? null,
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        archivedAt: null,
-      },
-    }))
+      data: { params: { id: 'workflow-1' }, body: { name: 'Renamed' } },
+    })
+
+    const response = await PUT(createMockRequest('PUT', { name: 'Renamed' }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
+    })
+
+    expect(response.status).toBe(200)
+    expect(mocks.updateWorkflow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: sessionPrincipal,
+        input: { workflowId: 'workflow-1', name: 'Renamed' },
+      })
+    )
+    expect(mocks.updatePolicy).not.toHaveBeenCalled()
   })
 
-  describe('GET /api/workflows/[id]', () => {
-    it('should return 401 when user is not authenticated', async () => {
-      mockGetSession(null)
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(401)
-      const data = await response.json()
-      expect(data.error).toBe('Unauthorized')
+  it('uses the dedicated policy command and emits only human product analytics', async () => {
+    mocks.parseRequest.mockResolvedValue({
+      success: true,
+      data: { params: { id: 'workflow-1' }, body: { locked: true } },
     })
 
-    it('should return 404 when workflow does not exist', async () => {
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockReadWorkflowDefinition.mockRejectedValue(
-        new OrchestrationError('not_found', 'Workflow not found')
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/nonexistent')
-      const params = Promise.resolve({ id: 'nonexistent' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(404)
-      const data = await response.json()
-      expect(data.error).toBe('Workflow not found')
+    const response = await PUT(createMockRequest('PUT', { locked: true }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
     })
 
-    it('should allow access when user has admin workspace permission', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const mockNormalizedData = {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        isFromNormalizedTables: true,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
-      mockReadWorkflowDefinition.mockResolvedValue(
-        workflowReadResult(mockWorkflow, mockNormalizedData)
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.data.id).toBe('workflow-123')
-    })
-
-    it('omits null workflow description from state metadata so response validates', async () => {
-      const mockWorkflow = {
-        id: 'workflow-null-description',
-        userId: 'user-123',
-        name: 'No Description Workflow',
-        description: null,
-        workspaceId: 'workspace-456',
-        folderId: null,
-        sortOrder: 0,
-        color: '#3972F6',
-        lastSynced: new Date(),
-        createdAt: new Date(),
-        updatedAt: new Date(),
-        isDeployed: false,
-        deployedAt: null,
-        isPublicApi: false,
-        locked: false,
-        runCount: 0,
-        lastRunAt: null,
-        archivedAt: null,
-        variables: {},
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-      mockLoadWorkflowFromNormalizedTables.mockResolvedValue({
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-      })
-      mockReadWorkflowDefinition.mockResolvedValue(
-        workflowReadResult(mockWorkflow, { blocks: {}, edges: [], loops: {}, parallels: {} })
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-null-description')
-      const params = Promise.resolve({ id: 'workflow-null-description' })
-
-      const response = await GET(req, { params })
-      const data = await response.json()
-
-      expect(response.status).toBe(200)
-      expect(data.data.state.metadata).toEqual({ name: 'No Description Workflow' })
-      expect(getWorkflowResponseDataSchema.safeParse(data.data).success).toBe(true)
-    })
-
-    it('should allow access when user has workspace permissions', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const mockNormalizedData = {
-        blocks: {},
-        edges: [],
-        loops: {},
-        parallels: {},
-        isFromNormalizedTables: true,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'read',
-      })
-
-      mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
-      mockReadWorkflowDefinition.mockResolvedValue(
-        workflowReadResult(mockWorkflow, mockNormalizedData)
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.data.id).toBe('workflow-123')
-    })
-
-    it('should deny access when user has no workspace permissions', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: false,
-        status: 403,
-        message: 'Unauthorized: Access denied to read this workflow',
-        workflow: mockWorkflow,
-        workspacePermission: null,
-      })
-      mockReadWorkflowDefinition.mockRejectedValue(
-        new OrchestrationError('forbidden', 'Unauthorized: Access denied to read this workflow')
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(403)
-      const data = await response.json()
-      expect(data.error).toBe('Unauthorized: Access denied to read this workflow')
-    })
-
-    it('should use normalized tables when available', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const mockNormalizedData = {
-        blocks: {
-          'block-1': {
-            id: 'block-1',
-            type: 'starter',
-            name: 'Start',
-            position: { x: 0, y: 0 },
-            subBlocks: {},
-            outputs: {},
-            enabled: true,
-          },
-        },
-        edges: [{ id: 'edge-1', source: 'block-1', target: 'block-2' }],
-        loops: {},
-        parallels: {},
-        isFromNormalizedTables: true,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      mockLoadWorkflowFromNormalizedTables.mockResolvedValue(mockNormalizedData)
-      mockReadWorkflowDefinition.mockResolvedValue(
-        workflowReadResult(mockWorkflow, mockNormalizedData)
-      )
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.data.state.blocks).toEqual(mockNormalizedData.blocks)
-      expect(data.data.state.edges).toEqual(mockNormalizedData.edges)
-    })
+    expect(response.status).toBe(200)
+    expect(mocks.updatePolicy).toHaveBeenCalledOnce()
+    expect(mocks.updateWorkflow).not.toHaveBeenCalled()
+    expect(mocks.capture).toHaveBeenCalledWith(
+      'user-1',
+      'workflow_lock_toggled',
+      expect.objectContaining({ workflow_id: 'workflow-1', locked: true }),
+      expect.any(Object)
+    )
   })
 
-  describe('DELETE /api/workflows/[id]', () => {
-    it('should allow admin to delete workflow', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
+  it('projects unknown update failures safely', async () => {
+    mocks.parseRequest.mockResolvedValue({
+      success: true,
+      data: { params: { id: 'workflow-1' }, body: { name: 'Renamed' } },
+    })
+    mocks.updateWorkflow.mockRejectedValueOnce(new Error('postgres password=secret'))
 
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'DELETE',
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.success).toBe(true)
-      expect(mockPerformDeleteWorkflow).toHaveBeenCalledWith(
-        expect.objectContaining({
-          workflowId: 'workflow-123',
-          userId: 'user-123',
-        })
-      )
+    const response = await PUT(createMockRequest('PUT', { name: 'Renamed' }), {
+      params: Promise.resolve({ id: 'workflow-1' }),
     })
 
-    it('should allow admin to delete workspace workflow', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'DELETE',
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.success).toBe(true)
-    })
-
-    it('should prevent deletion of the last workflow in workspace', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      mockPerformDeleteWorkflow.mockResolvedValue({
-        success: false,
-        error: 'Cannot delete the only workflow in the workspace',
-        errorCode: 'validation',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'DELETE',
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.error).toBe('Cannot delete the only workflow in the workspace')
-    })
-
-    it('should allow user with write permission to delete workflow', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      mockPerformDeleteWorkflow.mockResolvedValue({ success: true })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'DELETE',
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.success).toBe(true)
-      expect(mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith(
-        expect.objectContaining({ workflowId: 'workflow-123', action: 'write' })
-      )
-    })
-
-    it.concurrent('should deny deletion for read-only users', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: false,
-        status: 403,
-        message: 'Unauthorized: Access denied to write this workflow',
-        workflow: mockWorkflow,
-        workspacePermission: 'read',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'DELETE',
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await DELETE(req, { params })
-
-      expect(response.status).toBe(403)
-      const data = await response.json()
-      expect(data.error).toBe('Unauthorized: Access denied to write this workflow')
-    })
-  })
-
-  describe('PUT /api/workflows/[id]', () => {
-    it('should allow user with write permission to update workflow', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const updateData = { name: 'Updated Workflow' }
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify(updateData),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.workflow.name).toBe('Updated Workflow')
-    })
-
-    it('should allow users with write permission to update workflow', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const updateData = { name: 'Updated Workflow' }
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify(updateData),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.workflow.name).toBe('Updated Workflow')
-    })
-
-    it('should deny update for users with only read permission', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'other-user',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      const updateData = { name: 'Updated Workflow' }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: false,
-        status: 403,
-        message: 'Unauthorized: Access denied to write this workflow',
-        workflow: mockWorkflow,
-        workspacePermission: 'read',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify(updateData),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(403)
-      const data = await response.json()
-      expect(data.error).toBe('Unauthorized: Access denied to write this workflow')
-    })
-
-    it.concurrent('should validate request data', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const invalidData = { name: '' }
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify(invalidData),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(400)
-      const data = await response.json()
-      expect(data.error).toBe('Validation error')
-    })
-
-    it('should reject rename when duplicate name exists in same folder', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Original Name',
-        folderId: 'folder-1',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-      mockPerformUpdateWorkflow.mockResolvedValueOnce({
-        success: false,
-        error: 'A workflow named "Duplicate Name" already exists in this folder',
-        errorCode: 'conflict',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ name: 'Duplicate Name' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(409)
-      const data = await response.json()
-      expect(data.error).toBe('A workflow named "Duplicate Name" already exists in this folder')
-    })
-
-    it('should reject rename when duplicate name exists at root level', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Original Name',
-        folderId: null,
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-      mockPerformUpdateWorkflow.mockResolvedValueOnce({
-        success: false,
-        error: 'A workflow named "Duplicate Name" already exists in this folder',
-        errorCode: 'conflict',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ name: 'Duplicate Name' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(409)
-      const data = await response.json()
-      expect(data.error).toBe('A workflow named "Duplicate Name" already exists in this folder')
-    })
-
-    it('should allow rename when no duplicate exists in same folder', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Original Name',
-        folderId: 'folder-1',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ name: 'Unique Name' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.workflow.name).toBe('Unique Name')
-    })
-
-    it('should allow same name in different folders', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'My Workflow',
-        folderId: 'folder-1',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ folderId: 'folder-2' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.workflow.folderId).toBe('folder-2')
-    })
-
-    it('should reject moving to a folder where same name already exists', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'My Workflow',
-        folderId: 'folder-1',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-      mockPerformUpdateWorkflow.mockResolvedValueOnce({
-        success: false,
-        error: 'A workflow named "My Workflow" already exists in this folder',
-        errorCode: 'conflict',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ folderId: 'folder-2' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(409)
-      const data = await response.json()
-      expect(data.error).toBe('A workflow named "My Workflow" already exists in this folder')
-    })
-
-    it('should skip duplicate check when only updating non-name/non-folder fields', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ description: 'Updated description' }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      expect(dbChainMockFns.select).not.toHaveBeenCalled()
-    })
-
-    it('should deny forkSyncExcluded update for non-admin users', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-        forkSyncExcluded: false,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'write',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ forkSyncExcluded: true }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(403)
-      const data = await response.json()
-      expect(data.error).toBe('Admin access required to exclude workflows from sync')
-      expect(mockPerformUpdateWorkflow).not.toHaveBeenCalled()
-    })
-
-    it('should allow admin to toggle forkSyncExcluded and carry it on the response', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-        forkSyncExcluded: false,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ forkSyncExcluded: true }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      const data = await response.json()
-      expect(data.workflow.forkSyncExcluded).toBe(true)
-      expect(mockPerformUpdateWorkflow).toHaveBeenCalledWith(
-        expect.objectContaining({
-          workflowId: 'workflow-123',
-          forkSyncExcluded: true,
-          currentForkSyncExcluded: false,
-        })
-      )
-    })
-
-    it('should skip the mutability check for an exclusion-only update (locked workflow stays togglable)', async () => {
-      const mockWorkflow = {
-        id: 'workflow-123',
-        userId: 'user-123',
-        name: 'Test Workflow',
-        workspaceId: 'workspace-456',
-        locked: true,
-        forkSyncExcluded: false,
-      }
-
-      mockGetSession({ user: { id: 'user-123' } })
-      mockGetWorkflowById.mockResolvedValue(mockWorkflow)
-      mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
-        allowed: true,
-        status: 200,
-        workflow: mockWorkflow,
-        workspacePermission: 'admin',
-      })
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123', {
-        method: 'PUT',
-        body: JSON.stringify({ forkSyncExcluded: true }),
-      })
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await PUT(req, { params })
-
-      expect(response.status).toBe(200)
-      expect(workflowAuthzMockFns.mockAssertWorkflowMutable).not.toHaveBeenCalled()
-    })
-  })
-
-  describe('Error handling', () => {
-    it('should handle database errors gracefully', async () => {
-      mockGetSession({ user: { id: 'user-123' } })
-
-      mockGetWorkflowById.mockRejectedValue(new Error('Database connection timeout'))
-      mockReadWorkflowDefinition.mockRejectedValue(new Error('Database connection timeout'))
-
-      const req = new NextRequest('http://localhost:3000/api/workflows/workflow-123')
-      const params = Promise.resolve({ id: 'workflow-123' })
-
-      const response = await GET(req, { params })
-
-      expect(response.status).toBe(500)
-      const data = await response.json()
-      expect(data.error).toBe('Internal server error')
-    })
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Internal server error' })
   })
 })

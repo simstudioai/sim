@@ -55,6 +55,22 @@ interface CaptureOptions {
   setOnce?: PersonProperties
 }
 
+function buildCaptureProperties<E extends PostHogEventName>(
+  properties: PostHogEventMap[E],
+  options?: CaptureOptions
+): Record<string, unknown> {
+  const contextRequestId = getRequestContext()?.requestId
+  const props = properties as Record<string, unknown>
+  return {
+    ...properties,
+    ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
+    ...(options?.insertId ? { $insert_id: options.insertId } : {}),
+    ...(options?.groups ? { $groups: options.groups } : {}),
+    ...(options?.set ? { $set: options.set } : {}),
+    ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
+  }
+}
+
 /**
  * Capture a server-side PostHog event. Fire-and-forget — never throws.
  *
@@ -73,21 +89,31 @@ export function captureServerEvent<E extends PostHogEventName>(
     const client = getClient()
     if (!client) return
 
-    const contextRequestId = getRequestContext()?.requestId
-    const props = properties as Record<string, unknown>
     client.capture({
       distinctId,
       event,
-      properties: {
-        ...properties,
-        ...(contextRequestId && !('request_id' in props) ? { request_id: contextRequestId } : {}),
-        ...(options?.insertId ? { $insert_id: options.insertId } : {}),
-        ...(options?.groups ? { $groups: options.groups } : {}),
-        ...(options?.set ? { $set: options.set } : {}),
-        ...(options?.setOnce ? { $set_once: options.setOnce } : {}),
-      },
+      properties: buildCaptureProperties(properties, options),
     })
   } catch (error) {
     logger.warn('Failed to capture PostHog server event', { event, error })
   }
+}
+
+/** Captures and flushes one outbox event before its durable checkpoint advances. */
+export async function deliverOutboxServerEvent<E extends PostHogEventName>(
+  distinctId: string,
+  event: E,
+  properties: PostHogEventMap[E],
+  options?: CaptureOptions
+): Promise<'delivered' | 'skipped'> {
+  const client = getClient()
+  if (!client) return 'skipped'
+
+  client.capture({
+    distinctId,
+    event,
+    properties: buildCaptureProperties(properties, options),
+  })
+  await client.flush()
+  return 'delivered'
 }

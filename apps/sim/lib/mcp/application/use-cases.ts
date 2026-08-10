@@ -1,5 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import type { ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
@@ -20,6 +20,7 @@ import {
   type McpServerRow,
   type McpServerSortBy,
 } from '@/lib/mcp/queries'
+import { mcpService } from '@/lib/mcp/service'
 import type { McpAuthType } from '@/lib/mcp/types'
 import { generateMcpServerId } from '@/lib/mcp/utils'
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
@@ -91,6 +92,26 @@ export const listMcpServersUseCase = defineAuthorizedWorkspaceUseCase({
   async execute({ input, context }) {
     const servers = await listWorkspaceMcpServers({ ...input, workspaceId: context.workspaceId })
     return { servers }
+  },
+})
+
+export interface DiscoverMcpToolsInput {
+  workspaceId: string
+  refresh?: boolean
+}
+
+export const discoverMcpToolsUseCase = defineAuthorizedWorkspaceUseCase({
+  operation: mcpServerOperations.discoverTools,
+  resolveContext: ({ input }: { input: DiscoverMcpToolsInput }) =>
+    resolveWorkspaceContext(input.workspaceId),
+  authorizationOptions,
+  async execute({ principal, input, context }) {
+    const tools = await mcpService.discoverTools(
+      requirePrincipalSubjectUserId(principal),
+      context.workspaceId,
+      input.refresh ?? false
+    )
+    return { tools }
   },
 })
 

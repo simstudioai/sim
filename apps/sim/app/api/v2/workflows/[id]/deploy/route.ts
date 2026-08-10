@@ -30,7 +30,6 @@ export const POST = defineV2JsonRoute({
     name: body.name,
     description: body.description ?? undefined,
     requestId: generateRequestId(),
-    analytics: 'human' as const,
   }),
   useCase: deployWorkflow,
   present: (result) => ({

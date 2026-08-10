@@ -65,6 +65,7 @@ vi.mock('../access', () => ({
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
 
 vi.mock('./state-refs', () => ({
+  parseWorkflowRef: (value: number | string) => (value === 'live' ? 'active' : value),
   resolveWorkflowStateRef: resolveWorkflowStateRefMock,
 }))
 
@@ -72,7 +73,7 @@ vi.mock('@/lib/workflows/comparison', () => ({
   generateWorkflowDiffSummary: generateWorkflowDiffSummaryMock,
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
+vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: checkNeedsRedeploymentMock,
 }))
 
@@ -328,9 +329,12 @@ describe('executeDiffWorkflows', () => {
   })
 
   it('diffs ref2 against ref1 and returns the structured summary', async () => {
-    resolveWorkflowStateRefMock
-      .mockResolvedValueOnce({ state: { base: true }, ref: '1', version: 1, isActive: false })
-      .mockResolvedValueOnce({ state: { target: true }, ref: 'live', version: 2, isActive: true })
+    mockExecuteCopilotWorkflowUseCase.mockResolvedValue({
+      references: [
+        { state: { base: true }, ref: '1', version: 1, isActive: false },
+        { state: { target: true }, ref: 'live', version: 2, isActive: true },
+      ],
+    })
 
     const summary = {
       addedBlocks: [],
@@ -356,15 +360,12 @@ describe('executeDiffWorkflows', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith(
-      'wf-1',
-      1,
-      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' })
-    )
-    expect(resolveWorkflowStateRefMock).toHaveBeenCalledWith(
-      'wf-1',
-      'live',
-      expect.objectContaining({ userId: 'user-1', workflowId: 'wf-1' })
+    expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
+      expect.objectContaining({ userId: 'user-1' }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.versions.compare_references' }),
+      }),
+      expect.objectContaining({ workflowId: 'wf-1', references: [1, 'active'] })
     )
     // ref1 = base/previous, ref2 = target/current.
     expect(generateWorkflowDiffSummaryMock).toHaveBeenCalledWith({ target: true }, { base: true })
@@ -390,6 +391,9 @@ describe('executeCheckDeploymentStatus', () => {
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
   })
 
@@ -406,6 +410,9 @@ describe('executeCheckDeploymentStatus', () => {
       },
       latestDeploymentAttempt: null,
       warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
     const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
       userId: 'user-1',
@@ -414,7 +421,9 @@ describe('executeCheckDeploymentStatus', () => {
 
     expect(mockExecuteCopilotWorkflowUseCase).toHaveBeenCalledWith(
       expect.objectContaining({ userId: 'user-1' }),
-      expect.objectContaining({ operation: expect.objectContaining({ id: 'workflows.read' }) }),
+      expect.objectContaining({
+        operation: expect.objectContaining({ id: 'workflows.deployment_overview.read' }),
+      }),
       expect.objectContaining({ workflowId: 'wf-1' })
     )
     expect(result.success).toBe(true)
@@ -436,6 +445,9 @@ describe('executeCheckDeploymentStatus', () => {
       activeDeployment: null,
       latestDeploymentAttempt: null,
       warnings: [],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
 
     const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
@@ -474,6 +486,9 @@ describe('executeCheckDeploymentStatus', () => {
         error: null,
       },
       warnings: ['The latest successful deployment attempt is historical.'],
+      chatDeployment: null,
+      mcpTools: [],
+      mcpToolsTruncated: false,
     })
     const result = await executeCheckDeploymentStatus({ workflowId: 'wf-1' }, {
       userId: 'user-1',

@@ -6,7 +6,7 @@ import { createLogger } from '@sim/logger'
 import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/workflow'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import type { WorkflowState } from '@sim/workflow-types/workflow'
+import type { BlockState, WorkflowState } from '@sim/workflow-types/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
@@ -14,7 +14,10 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
-import { saveWorkflowToNormalizedTables } from '@/lib/workflows/persistence/utils'
+import {
+  loadWorkflowFromNormalizedTables,
+  saveWorkflowToNormalizedTables,
+} from '@/lib/workflows/persistence/utils'
 
 const logger = createLogger('UpdateWorkflowContent')
 const MAX_WORKFLOW_VARIABLE_OPERATIONS = 100
@@ -215,18 +218,65 @@ export const applyWorkflowVariableOperations = defineAuthorizedWorkflowUseCase({
     result.changed ? notifyWorkflowUpdated(context.workflowId) : undefined,
 })
 
-export interface UpdateWorkflowStateInput extends WorkflowContentInput {
-  state: WorkflowState
+function isBlockProtected(blockId: string, blocksById: Record<string, BlockState>): boolean {
+  const block = blocksById[blockId]
+  if (!block) return false
+  if (block.locked) return true
+
+  const visited = new Set<string>()
+  let parentId = block.data?.parentId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    if (blocksById[parentId]?.locked) return true
+    parentId = blocksById[parentId]?.data?.parentId
+  }
+  return false
 }
 
-export const updateWorkflowState = defineAuthorizedWorkflowUseCase({
-  operation: workflowOperations.updateState,
-  resolveContext: resolveWorkflowContentContext<UpdateWorkflowStateInput>,
+function hasDisabledAncestor(blockId: string, blocksById: Record<string, BlockState>): boolean {
+  const visited = new Set<string>()
+  let parentId = blocksById[blockId]?.data?.parentId
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId)
+    const parent = blocksById[parentId]
+    if (!parent) return false
+    if (parent.enabled === false) return true
+    parentId = parent.data?.parentId
+  }
+  return false
+}
+
+function findDescendants(containerId: string, blocksById: Record<string, BlockState>): string[] {
+  const descendants: string[] = []
+  const stack = [containerId]
+  const visited = new Set<string>()
+  while (stack.length > 0) {
+    const current = stack.pop()!
+    if (visited.has(current)) continue
+    visited.add(current)
+    for (const [blockId, block] of Object.entries(blocksById)) {
+      if (block.data?.parentId === current) {
+        descendants.push(blockId)
+        stack.push(blockId)
+      }
+    }
+  }
+  return descendants
+}
+
+export interface SetWorkflowBlockEnabledInput extends WorkflowContentInput {
+  blockId: string
+  enabled: boolean
+}
+
+export const setWorkflowBlockEnabled = defineAuthorizedWorkflowUseCase({
+  operation: workflowOperations.setBlockEnabled,
+  resolveContext: resolveWorkflowContentContext<SetWorkflowBlockEnabledInput>,
   async execute({ input, context }) {
     await requireMutableWorkflow(context.workflowId)
-    await db.transaction(async (tx) => {
+    return db.transaction(async (tx) => {
       const [active] = await tx
-        .select({ id: workflow.id })
+        .select({ id: workflow.id, name: workflow.name })
         .from(workflow)
         .where(
           and(
@@ -239,16 +289,107 @@ export const updateWorkflowState = defineAuthorizedWorkflowUseCase({
         .for('update')
       if (!active) throw new OrchestrationError('not_found', 'Workflow not found')
 
-      const saveResult = await saveWorkflowToNormalizedTables(context.workflowId, input.state, tx)
+      const normalized = await loadWorkflowFromNormalizedTables(context.workflowId, tx)
+      if (!normalized) {
+        throw new OrchestrationError(
+          'validation',
+          `Workflow ${context.workflowId} has no normalized state`
+        )
+      }
+      const currentState: WorkflowState = {
+        blocks: normalized.blocks as Record<string, BlockState>,
+        edges: normalized.edges || [],
+        loops: normalized.loops || {},
+        parallels: normalized.parallels || {},
+        lastSaved: Date.now(),
+      }
+      const targetBlock = currentState.blocks[input.blockId]
+      if (!targetBlock) {
+        throw new OrchestrationError(
+          'not_found',
+          `Block ${input.blockId} not found in workflow ${context.workflowId}`
+        )
+      }
+      if (isBlockProtected(input.blockId, currentState.blocks)) {
+        throw new OrchestrationError(
+          'locked',
+          `Block ${input.blockId} is locked or inside a locked container and cannot be updated`
+        )
+      }
+      if (input.enabled && hasDisabledAncestor(input.blockId, currentState.blocks)) {
+        throw new OrchestrationError(
+          'validation',
+          `Cannot enable block ${input.blockId} while one of its parent containers is disabled. Enable the parent first.`
+        )
+      }
+
+      const affectedBlockIds = new Set<string>([input.blockId])
+      if (targetBlock.type === 'loop' || targetBlock.type === 'parallel') {
+        for (const descendantId of findDescendants(input.blockId, currentState.blocks)) {
+          if (!isBlockProtected(descendantId, currentState.blocks)) {
+            affectedBlockIds.add(descendantId)
+          }
+        }
+      }
+      if (targetBlock.enabled === input.enabled) {
+        return {
+          changed: false,
+          workflowName: active.name,
+          affectedBlockIds: [input.blockId],
+          state: currentState,
+        }
+      }
+
+      const nextBlocks = { ...currentState.blocks }
+      for (const blockId of affectedBlockIds) {
+        nextBlocks[blockId] = { ...nextBlocks[blockId], enabled: input.enabled }
+      }
+      const nextState: WorkflowState = {
+        ...currentState,
+        blocks: nextBlocks,
+        lastSaved: Date.now(),
+      }
+      const saveResult = await saveWorkflowToNormalizedTables(context.workflowId, nextState, tx)
       if (!saveResult.success) {
         throw new Error(saveResult.error || 'Failed to save workflow state')
       }
-      await tx
+      const [updated] = await tx
         .update(workflow)
         .set({ lastSynced: new Date(), updatedAt: new Date() })
-        .where(eq(workflow.id, context.workflowId))
+        .where(
+          and(
+            eq(workflow.id, context.workflowId),
+            eq(workflow.workspaceId, context.workspaceId),
+            isNull(workflow.archivedAt)
+          )
+        )
+        .returning({ id: workflow.id })
+      if (!updated) throw new OrchestrationError('not_found', 'Workflow not found')
+      return {
+        changed: true,
+        workflowName: active.name,
+        affectedBlockIds: [...affectedBlockIds],
+        state: nextState,
+      }
     })
-    return { workflowName: context.workflow.name }
   },
-  afterSuccess: ({ context }) => notifyWorkflowUpdated(context.workflowId),
+  projectAudit: ({ input, context, result }) =>
+    result.changed
+      ? {
+          action: AuditAction.WORKFLOW_UPDATED,
+          resourceType: AuditResourceType.WORKFLOW,
+          resourceId: context.workflowId,
+          resourceName: result.workflowName,
+          description: `${input.enabled ? 'Enabled' : 'Disabled'} workflow block "${input.blockId}"`,
+          metadata: {
+            op: 'set_block_enabled',
+            blockId: input.blockId,
+            enabled: input.enabled,
+            affectedBlockIds: result.affectedBlockIds,
+            source: 'copilot',
+          },
+        }
+      : [],
+  afterSuccess: ({ context, result }) =>
+    result.changed ? notifyWorkflowUpdated(context.workflowId) : undefined,
 })

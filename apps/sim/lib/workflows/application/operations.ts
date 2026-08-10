@@ -33,6 +33,30 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...WORKFLOW_READ_PRINCIPAL_POLICY,
   }),
+  readDeploymentOverview: defineWorkspaceOperation({
+    id: 'workflows.deployment_overview.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  readCopilotRunOptions: defineWorkspaceOperation({
+    id: 'workflows.copilot.run_options.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  readCopilotBlockOutputs: defineWorkspaceOperation({
+    id: 'workflows.copilot.block_outputs.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  readCopilotUpstreamReferences: defineWorkspaceOperation({
+    id: 'workflows.copilot.upstream_references.read',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   create: defineWorkspaceOperation({
     id: 'workflows.create',
     minimumRole: 'write',
@@ -45,14 +69,20 @@ export const workflowOperations = {
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
   }),
-  updateState: defineWorkspaceOperation({
-    id: 'workflows.state.update',
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  updatePolicy: defineWorkspaceOperation({
+    id: 'workflows.policy.update',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    principalKinds: ['session'],
   }),
   applyVariableOperations: defineWorkspaceOperation({
     id: 'workflows.variables.apply_operations',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  setBlockEnabled: defineWorkspaceOperation({
+    id: 'workflows.blocks.set_enabled',
     minimumRole: 'write',
     workspaceApiKey: 'deny',
     ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
@@ -100,6 +130,24 @@ export const workflowOperations = {
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
   }),
+  runUntilFromCopilot: defineWorkspaceOperation({
+    id: 'workflows.copilot.run_until',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  runFromBlockFromCopilot: defineWorkspaceOperation({
+    id: 'workflows.copilot.run_from_block',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  runBlockFromCopilot: defineWorkspaceOperation({
+    id: 'workflows.copilot.run_block',
+    minimumRole: 'write',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   delete: defineWorkspaceOperation({
     id: 'workflows.delete',
     minimumRole: 'write',
@@ -142,6 +190,18 @@ export const workflowOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  deployChat: defineWorkspaceOperation({
+    id: 'workflows.chat.deploy',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  undeployChat: defineWorkspaceOperation({
+    id: 'workflows.chat.undeploy',
+    minimumRole: 'admin',
+    workspaceApiKey: 'deny',
+    ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
+  }),
   updatePublicApi: defineWorkspaceOperation({
     id: 'workflows.public_api.update',
     minimumRole: 'admin',
@@ -177,6 +237,12 @@ export const workflowOperations = {
     minimumRole: 'read',
     workspaceApiKey: 'allow',
     ...ALL_WORKFLOW_PRINCIPAL_POLICY,
+  }),
+  compareReferences: defineWorkspaceOperation({
+    id: 'workflows.versions.compare_references',
+    minimumRole: 'read',
+    workspaceApiKey: 'deny',
+    ...COPILOT_WORKFLOW_PRINCIPAL_POLICY,
   }),
   export: defineWorkspaceOperation({
     id: 'workflows.export',

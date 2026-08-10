@@ -1,13 +1,9 @@
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
+import type { NextRequest } from 'next/server'
+import { NextResponse } from 'next/server'
 import {
-  assertFolderMutable,
-  assertWorkflowMutable,
-  authorizeWorkflowByWorkspacePermission,
-  FolderLockedError,
-  WorkflowLockedError,
-} from '@sim/platform-authz/workflow'
-import { type NextRequest, NextResponse } from 'next/server'
-import {
+  deleteWorkflowContract,
   getWorkflowResponseDataSchema,
   getWorkflowStateContract,
   updateWorkflowContract,
@@ -15,27 +11,29 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import {
   defineInternalJsonRoute,
+  InternalUnauthenticatedError,
   internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
 } from '@/lib/api/server/routes'
-import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { generateRequestId } from '@/lib/core/utils/request'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
+import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
-import { performDeleteWorkflow, performUpdateWorkflow } from '@/lib/workflows/orchestration'
-import { getWorkflowById } from '@/lib/workflows/utils'
+import { updateWorkflow, updateWorkflowPolicy } from '@/lib/workflows/application/update-workflow'
 
 const logger = createLogger('WorkflowByIdAPI')
+
+const workflowInternalRateLimit = internalRateLimits.none({
+  reason: 'Preserve existing internal workflow CRUD behavior',
+})
 
 export const GET = defineInternalJsonRoute({
   contract: getWorkflowStateContract,
   auth: internalWorkflowSessionOrExecutorAuth,
   operation: readWorkflowDefinition.operation,
-  rateLimit: internalRateLimits.none({
-    reason: 'Preserve existing internal workflow read behavior',
-  }),
+  rateLimit: workflowInternalRateLimit,
   errorPolicy: internalPlainOrchestrationErrorPolicy,
   mapInput: ({ params }) => ({ workflowId: params.id, state: 'draft' as const }),
   useCase: readWorkflowDefinition,
@@ -76,208 +74,84 @@ export const GET = defineInternalJsonRoute({
   },
 })
 
-/**
- * DELETE /api/workflows/[id]
- * Delete a workflow by ID
- */
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await params
+export const DELETE = defineInternalJsonRoute({
+  contract: deleteWorkflowContract,
+  auth: internalWorkflowSessionOrExecutorAuth,
+  operation: deleteWorkflow.operation,
+  rateLimit: workflowInternalRateLimit,
+  errorPolicy: internalPlainOrchestrationErrorPolicy,
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  useCase: deleteWorkflow,
+  present: () => ({ success: true as const }),
+  onSuccess: ({ principal, result }) => {
+    if (principal.kind !== 'session' || !result.archived) return
+    captureServerEvent(
+      principal.userId,
+      'workflow_deleted',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})
 
-    try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized deletion attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = auth.userId
-
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
-      })
-      const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for deletion`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
-      }
-
-      const canDelete = authorization.allowed
-
-      if (!canDelete) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to delete workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
-        )
-      }
-
-      await assertWorkflowMutable(workflowId)
-
-      const result = await performDeleteWorkflow({
-        workflowId,
-        userId,
-        requestId,
-      })
-
-      if (!result.success) {
-        const status =
-          result.errorCode === 'not_found' ? 404 : result.errorCode === 'validation' ? 400 : 500
-        return NextResponse.json({ error: result.error }, { status })
-      }
-
-      captureServerEvent(
-        userId,
-        'workflow_deleted',
-        { workflow_id: workflowId, workspace_id: workflowData.workspaceId ?? '' },
-        workflowData.workspaceId ? { groups: { workspace: workflowData.workspaceId } } : undefined
-      )
-
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully archived workflow ${workflowId} in ${elapsed}ms`)
-
-      return NextResponse.json({ success: true }, { status: 200 })
-    } catch (error: any) {
-      if (error instanceof WorkflowLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error deleting workflow ${workflowId} after ${elapsed}ms`, error)
-      return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
-
-/**
- * PUT /api/workflows/[id]
- * Update workflow metadata (name, description, folderId)
- */
 export const PUT = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const startTime = Date.now()
-    const { id: workflowId } = await context.params
-
     try {
-      const auth = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
-      if (!auth.success || !auth.userId) {
-        logger.warn(`[${requestId}] Unauthorized update attempt for workflow ${workflowId}`)
-        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-      }
-
-      const userId = auth.userId
-
-      const parsed = await parseRequest(updateWorkflowContract, request, context)
+      const rawParams = await context.params
+      const principal = await internalWorkflowSessionOrExecutorAuth.authenticate(request, rawParams)
+      const parsed = await parseRequest(updateWorkflowContract, request, {
+        params: Promise.resolve(rawParams),
+      })
       if (!parsed.success) return parsed.response
-      const updates = parsed.data.body
 
-      // Fetch the workflow to check ownership/access
-      const authorization = await authorizeWorkflowByWorkspacePermission({
-        workflowId,
-        userId,
-        action: 'write',
+      const input = { workflowId: parsed.data.params.id, ...parsed.data.body }
+      const isPolicyUpdate = input.locked !== undefined || input.forkSyncExcluded !== undefined
+      const result = isPolicyUpdate
+        ? await updateWorkflowPolicy.execute({ principal, input, request })
+        : await updateWorkflow.execute({ principal, input, request })
+
+      if (principal.kind === 'session' && result.changes.includes('locked')) {
+        captureServerEvent(
+          principal.userId,
+          'workflow_lock_toggled',
+          {
+            workflow_id: result.workflow.id,
+            workspace_id: result.workspaceId,
+            locked: result.workflow.locked === true,
+          },
+          { groups: { workspace: result.workspaceId } }
+        )
+      }
+      if (principal.kind === 'session' && result.changes.includes('forkSyncExcluded')) {
+        captureServerEvent(
+          principal.userId,
+          'workflow_fork_sync_exclusion_toggled',
+          {
+            workflow_id: result.workflow.id,
+            workspace_id: result.workspaceId,
+            fork_sync_excluded: result.workflow.forkSyncExcluded === true,
+          },
+          { groups: { workspace: result.workspaceId } }
+        )
+      }
+
+      logger.info('Successfully updated workflow', {
+        workflowId: result.workflow.id,
+        changes: result.changes,
       })
-      const workflowData = authorization.workflow || (await getWorkflowById(workflowId))
-
-      if (!workflowData) {
-        logger.warn(`[${requestId}] Workflow ${workflowId} not found for update`)
-        return NextResponse.json({ error: 'Workflow not found' }, { status: 404 })
+      return NextResponse.json({ workflow: result.workflow })
+    } catch (error) {
+      if (error instanceof InternalUnauthenticatedError) {
+        return NextResponse.json({ error: error.message }, { status: 401 })
       }
-
-      const canUpdate = authorization.allowed
-
-      if (!canUpdate) {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to update workflow ${workflowId}`
-        )
+      const orchestrationError = asOrchestrationError(error)
+      if (orchestrationError) {
         return NextResponse.json(
-          { error: authorization.message || 'Access denied' },
-          { status: authorization.status || 403 }
+          { error: orchestrationError.message },
+          { status: statusForOrchestrationError(orchestrationError.code) }
         )
       }
-
-      if (updates.locked !== undefined && authorization.workspacePermission !== 'admin') {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to lock workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: 'Admin access required to lock workflows' },
-          { status: 403 }
-        )
-      }
-
-      if (updates.forkSyncExcluded !== undefined && authorization.workspacePermission !== 'admin') {
-        logger.warn(
-          `[${requestId}] User ${userId} denied permission to change sync exclusion for workflow ${workflowId}`
-        )
-        return NextResponse.json(
-          { error: 'Admin access required to exclude workflows from sync' },
-          { status: 403 }
-        )
-      }
-
-      // Policy flags (lock, sync exclusion) don't modify content, so a locked workflow
-      // may still have them toggled; everything else requires mutability.
-      const hasNonPolicyUpdate = Object.keys(updates).some(
-        (key) => key !== 'locked' && key !== 'forkSyncExcluded'
-      )
-      if (hasNonPolicyUpdate) {
-        await assertWorkflowMutable(workflowId)
-      }
-      if (updates.folderId !== undefined) {
-        await assertFolderMutable(updates.folderId)
-      }
-
-      if (!workflowData.workspaceId) {
-        logger.error(`[${requestId}] Workflow ${workflowId} has no workspaceId`)
-        return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
-      }
-
-      const result = await performUpdateWorkflow({
-        workflowId,
-        userId,
-        workspaceId: workflowData.workspaceId,
-        currentName: workflowData.name,
-        currentFolderId: workflowData.folderId,
-        currentLocked: workflowData.locked,
-        currentForkSyncExcluded: workflowData.forkSyncExcluded,
-        ...updates,
-        requestId,
-      })
-
-      if (!result.success || !result.workflow) {
-        const status =
-          result.errorCode === 'not_found'
-            ? 404
-            : result.errorCode === 'conflict'
-              ? 409
-              : result.errorCode === 'validation'
-                ? 400
-                : 500
-        return NextResponse.json({ error: result.error }, { status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.info(`[${requestId}] Successfully updated workflow ${workflowId} in ${elapsed}ms`, {
-        updates,
-      })
-
-      return NextResponse.json({ workflow: result.workflow }, { status: 200 })
-    } catch (error: any) {
-      if (error instanceof WorkflowLockedError || error instanceof FolderLockedError) {
-        return NextResponse.json({ error: error.message }, { status: error.status })
-      }
-
-      const elapsed = Date.now() - startTime
-      logger.error(`[${requestId}] Error updating workflow ${workflowId} after ${elapsed}ms`, error)
+      logger.error('Failed to update workflow', { error: getErrorMessage(error) })
       return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
     }
   }

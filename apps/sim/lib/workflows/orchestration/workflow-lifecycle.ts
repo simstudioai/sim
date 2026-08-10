@@ -94,6 +94,8 @@ export interface PerformDeleteWorkflowParams {
   skipLastWorkflowGuard?: boolean
   /** Override the actor ID used in audit logs. Defaults to `userId`. */
   actorId?: string
+  /** Legacy lifecycle notification; application commands project their own semantic event. */
+  notifySocket?: boolean
 }
 
 export interface PerformDeleteWorkflowResult {
@@ -505,7 +507,10 @@ export async function deleteWorkflowRecord(
     }
   }
 
-  const archiveResult = await archiveWorkflow(workflowId, { requestId })
+  const archiveResult = await archiveWorkflow(workflowId, {
+    requestId,
+    notifySocket: params.notifySocket,
+  })
   if (!archiveResult.workflow) {
     return { success: false, error: 'Workflow not found', errorCode: 'not_found' }
   }

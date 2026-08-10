@@ -1,15 +1,25 @@
 import { createLogger } from '@sim/logger'
 import type { NextRequest } from 'next/server'
-import { updateDeploymentVersionMetadataContract } from '@/lib/api/contracts/deployments'
+import {
+  getDeploymentVersionStateContract,
+  updateDeploymentVersionMetadataContract,
+} from '@/lib/api/contracts/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
+import {
+  defineInternalJsonRoute,
+  InternalUnauthenticatedError,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { createInternalWorkflowErrorPolicy } from '@/lib/workflows/api'
 import {
   activateWorkflowVersion,
   updateWorkflowVersion,
 } from '@/lib/workflows/application/deployments'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { readWorkflowVersion } from '@/lib/workflows/application/read-workflow-version'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 
@@ -19,48 +29,18 @@ export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-export const GET = withRouteHandler(
-  async (
-    request: NextRequest,
-    { params }: { params: Promise<{ id: string; version: string }> }
-  ) => {
-    const requestId = generateRequestId()
-    const { id, version } = await params
-
-    try {
-      const principal = await internalSessionAuth.authenticate()
-
-      const versionNum = Number(version)
-      if (!Number.isFinite(versionNum)) {
-        return createErrorResponse('Invalid version', 400)
-      }
-
-      const { version: row } = await readWorkflowVersion.execute({
-        principal,
-        input: { workflowId: id, version: versionNum },
-        request,
-      })
-
-      return createSuccessResponse({ deployedState: row.state })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
-      }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(
-        `[${requestId}] Error fetching deployment version ${version} for workflow ${id}`,
-        { error }
-      )
-      return createErrorResponse('Failed to fetch deployment version', 500)
-    }
-  }
-)
+export const GET = defineInternalJsonRoute({
+  contract: getDeploymentVersionStateContract,
+  operation: workflowOperations.readVersion,
+  useCase: readWorkflowVersion,
+  auth: internalSessionAuth,
+  rateLimit: internalRateLimits.none({
+    reason: 'Authenticated workspace UI version reads retain their existing admission policy.',
+  }),
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to fetch deployment version'),
+  mapInput: ({ params }) => ({ workflowId: params.id, version: params.version }),
+  present: ({ version }) => ({ deployedState: version.state }),
+})
 
 export const PATCH = withRouteHandler(
   async (request: NextRequest, context: { params: Promise<{ id: string; version: string }> }) => {
@@ -88,7 +68,6 @@ export const PATCH = withRouteHandler(
             version: versionNum,
             transition: 'activate',
             requestId,
-            analytics: 'human',
             name,
             description,
           },

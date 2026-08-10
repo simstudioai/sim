@@ -104,6 +104,26 @@ export async function notifyWorkflowUpdated(workflowId: string): Promise<void> {
   }
 }
 
+/** Best-effort fan-out that removes one durably archived workflow from open clients. */
+export async function notifyWorkflowDeleted(workflowId: string): Promise<void> {
+  try {
+    const response = await fetch(`${getSocketServerUrl()}/api/workflow-deleted`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': env.INTERNAL_API_SECRET },
+      body: JSON.stringify({ workflowId }),
+      signal: AbortSignal.timeout(NOTIFY_TIMEOUT_MS),
+    })
+    if (!response.ok) {
+      logger.warn('workflow-deleted notify failed', { workflowId, status: response.status })
+    }
+  } catch (error) {
+    logger.warn('workflow-deleted notify error', {
+      workflowId,
+      error: getErrorMessage(error),
+    })
+  }
+}
+
 /** Best-effort fan-out that replaces an open editor after a deployment is loaded into draft. */
 export async function notifyWorkflowReverted(workflowId: string, timestamp: number): Promise<void> {
   try {

@@ -18,8 +18,17 @@ vi.mock('@/lib/api/server', () => ({
 }))
 
 vi.mock('@/lib/api/server/routes', () => ({
+  defineInternalJsonRoute: vi.fn(() => vi.fn()),
   InternalUnauthenticatedError: class InternalUnauthenticatedError extends Error {},
+  internalRateLimits: { none: vi.fn(() => ({ kind: 'none' })) },
   internalSessionAuth: { authenticate: mocks.session },
+}))
+
+vi.mock('@/lib/workflows/api', () => ({
+  createInternalWorkflowErrorPolicy: vi.fn(() => ({
+    project: vi.fn(),
+    unhandled: vi.fn(),
+  })),
 }))
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({

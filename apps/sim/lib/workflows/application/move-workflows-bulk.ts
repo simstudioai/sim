@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
   assertWorkflowMutable,
@@ -10,7 +9,7 @@ import {
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { and, eq, inArray, isNull } from 'drizzle-orm'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { notifyWorkflowUpdated } from '@/lib/realtime/notify'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
@@ -18,7 +17,6 @@ import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { updateWorkflowRecord } from '@/lib/workflows/orchestration'
 
-const logger = createLogger('MoveWorkflowsBulk')
 const MAX_BULK_WORKFLOW_MOVES = 100
 
 export interface MoveWorkflowsBulkInput {
@@ -140,11 +138,8 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
           previousFolderId: changed.folderId,
         })
       } catch (error) {
-        logger.warn('Workflow move failed during bounded best-effort command', {
-          workflowId,
-          workspaceId: context.workspaceId,
-          error,
-        })
+        const classified = asOrchestrationError(error)
+        if (!classified || classified.code === 'internal') throw error
         failed.push(workflowId)
       }
     }
@@ -164,6 +159,8 @@ export const moveWorkflowsBulk = defineAuthorizedWorkflowUseCase({
       },
     })),
   afterSuccess: async ({ result }) => {
-    await Promise.all(result.moved.map((workflowId) => notifyWorkflowUpdated(workflowId)))
+    for (const workflowId of result.moved) {
+      await notifyWorkflowUpdated(workflowId)
+    }
   },
 })

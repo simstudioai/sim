@@ -2,7 +2,6 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { db } from '@sim/db'
 import { workflow } from '@sim/db/schema'
-import { createLogger } from '@sim/logger'
 import {
   assertFolderMutable,
   assertWorkflowMutable,
@@ -10,7 +9,6 @@ import {
   WorkflowLockedError,
 } from '@sim/platform-authz/workflow'
 import { and, eq, isNull } from 'drizzle-orm'
-import { encodeVfsPathSegments } from '@/lib/copilot/vfs/path-utils'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -29,18 +27,21 @@ import {
   parseFolderPath,
 } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
-import { notifyFolderResourceChanged, notifyWorkflowUpdated } from '@/lib/realtime/notify'
-import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import {
-  type ActiveWorkspaceApplicationContext,
-  resolveActiveWorkspaceApplicationContext,
-} from '@/lib/workflows/application/context'
+  notifyFolderResourceChanged,
+  notifyWorkflowDeleted,
+  notifyWorkflowUpdated,
+} from '@/lib/realtime/notify'
+import { VfsPathLimitError, validateVfsPathSegments } from '@/lib/vfs/limits'
+import { encodeVfsPathSegments } from '@/lib/vfs/path'
+import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
+import { resolveActiveWorkspaceApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { requireWorkflowTransition } from '@/lib/workflows/application/transition-result'
 import { deleteWorkflowRecord, updateWorkflowRecord } from '@/lib/workflows/orchestration'
 import { duplicateWorkflow as duplicateWorkflowRecord } from '@/lib/workflows/persistence/duplicate'
+import type { ActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
 
-const logger = createLogger('WorkflowVfsApplication')
 const MAX_WORKFLOW_VFS_ITEMS = 100
 const MAX_WORKFLOW_VFS_INDEX_ROWS = 10_000
 const MAX_WORKFLOW_NAME_LENGTH = 200
@@ -159,11 +160,30 @@ function normalizeReferences(
   }
   const byPath = new Map<string, WorkflowVfsPathReference>()
   for (const reference of references) {
+    try {
+      validateVfsPathSegments(reference.segments)
+    } catch (error) {
+      if (error instanceof VfsPathLimitError) {
+        throw new OrchestrationError('validation', error.message)
+      }
+      throw error
+    }
     const key = canonicalSegmentsKey(reference.segments)
     if (!byPath.has(key)) byPath.set(key, reference)
   }
   if (byPath.size === 0) throw new OrchestrationError('validation', 'At least one path is required')
   return [...byPath.values()]
+}
+
+function validateDestination(destination: WorkflowVfsDestination): void {
+  try {
+    validateVfsPathSegments(destination.segments)
+  } catch (error) {
+    if (error instanceof VfsPathLimitError) {
+      throw new OrchestrationError('validation', error.message)
+    }
+    throw error
+  }
 }
 
 async function loadWorkflowVfsIndex(
@@ -325,7 +345,7 @@ function planDestination(
   return plan(false, segments.slice(0, -1), segments.at(-1))
 }
 
-function safeOutcomeMessage(error: unknown, fallback: string): string {
+function expectedOutcomeMessage(error: unknown): string {
   const classified = asOrchestrationError(error)
   if (classified && classified.code !== 'internal') return classified.message
   if (
@@ -335,8 +355,7 @@ function safeOutcomeMessage(error: unknown, fallback: string): string {
   ) {
     return error.message
   }
-  logger.error('Workflow VFS item failed', { error })
-  return fallback
+  throw error
 }
 
 async function moveWorkflowRow(params: {
@@ -438,7 +457,7 @@ export const createWorkflowVfsFolders = defineAuthorizedWorkflowUseCase({
         outcomes.push({
           source: path.source,
           resourceType: 'folder',
-          error: safeOutcomeMessage(error, 'Workflow folder creation failed'),
+          error: expectedOutcomeMessage(error),
         })
       }
     }
@@ -457,6 +476,7 @@ export const moveWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }) {
     const sources = normalizeReferences(input.sources)
+    validateDestination(input.destination)
     const state = await loadWorkflowVfsIndex(context)
     const refs = resolveWorkflowSources(state, sources)
     const userId = resolvePrincipalAttribution(principal, {
@@ -502,7 +522,7 @@ export const moveWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
           outcomes.push({
             source: ref.source,
             resourceType: 'workflow',
-            error: safeOutcomeMessage(error, 'Workflow mutation failed'),
+            error: expectedOutcomeMessage(error),
           })
         }
         continue
@@ -553,7 +573,7 @@ export const moveWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
         outcomes.push({
           source: ref.source,
           resourceType: 'folder',
-          error: safeOutcomeMessage(error, 'Workflow folder mutation failed'),
+          error: expectedOutcomeMessage(error),
         })
       }
     }
@@ -587,12 +607,12 @@ export const moveWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     })),
   ],
   afterSuccess: async ({ context, result }) => {
-    await Promise.all([
-      ...result.movedWorkflows.map((change) => notifyWorkflowUpdated(change.id)),
-      ...(result.createdFolders.length > 0 || result.movedFolders.length > 0
-        ? [notifyFolderResourceChanged('workflow', context.workspaceId)]
-        : []),
-    ])
+    for (const change of result.movedWorkflows) {
+      await notifyWorkflowUpdated(change.id)
+    }
+    if (result.createdFolders.length > 0 || result.movedFolders.length > 0) {
+      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    }
   },
 })
 
@@ -602,6 +622,7 @@ export const copyWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     resolveActiveWorkspaceApplicationContext(input.workspaceId),
   async execute({ principal, input, context }) {
     const sources = normalizeReferences(input.sources)
+    validateDestination(input.destination)
     const state = await loadWorkflowVfsIndex(context)
     const refs = resolveWorkflowSources(state, sources)
     const userId = resolvePrincipalAttribution(principal, {
@@ -675,7 +696,7 @@ export const copyWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
         outcomes.push({
           source: ref.source,
           resourceType: 'workflow',
-          error: safeOutcomeMessage(error, 'Workflow mutation failed'),
+          error: expectedOutcomeMessage(error),
         })
       }
     }
@@ -697,12 +718,12 @@ export const copyWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
     })),
   ],
   afterSuccess: async ({ context, result }) => {
-    await Promise.all([
-      ...result.duplicatedWorkflows.map((change) => notifyWorkflowUpdated(change.id)),
-      ...(result.createdFolders.length > 0
-        ? [notifyFolderResourceChanged('workflow', context.workspaceId)]
-        : []),
-    ])
+    for (const change of result.duplicatedWorkflows) {
+      await notifyWorkflowUpdated(change.id)
+    }
+    if (result.createdFolders.length > 0) {
+      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    }
   },
 })
 
@@ -729,7 +750,11 @@ export const deleteWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
       if (ref.workflow) {
         try {
           await assertWorkflowMutable(ref.workflow.id)
-          const result = await deleteWorkflowRecord({ workflowId: ref.workflow.id, userId })
+          const result = await deleteWorkflowRecord({
+            workflowId: ref.workflow.id,
+            userId,
+            notifySocket: false,
+          })
           requireWorkflowTransition(result, 'Workflow deletion failed')
           if (!result.workflow || !result.archived) {
             throw new OrchestrationError('validation', 'Workflow is already deleted')
@@ -744,7 +769,7 @@ export const deleteWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
           outcomes.push({
             source: ref.source,
             resourceType: 'workflow',
-            error: safeOutcomeMessage(error, 'Workflow deletion failed'),
+            error: expectedOutcomeMessage(error),
           })
         }
         continue
@@ -783,7 +808,7 @@ export const deleteWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
         outcomes.push({
           source: ref.source,
           resourceType: 'folder',
-          error: safeOutcomeMessage(error, 'Workflow folder deletion failed'),
+          error: expectedOutcomeMessage(error),
         })
       }
     }
@@ -815,8 +840,12 @@ export const deleteWorkflowVfsItems = defineAuthorizedWorkflowUseCase({
       },
     })),
   ],
-  afterSuccess: ({ context, result }) =>
-    result.deletedFolders.length > 0
-      ? notifyFolderResourceChanged('workflow', context.workspaceId)
-      : undefined,
+  afterSuccess: async ({ context, result }) => {
+    for (const workflow of result.deletedWorkflows) {
+      await notifyWorkflowDeleted(workflow.id)
+    }
+    if (result.deletedFolders.length > 0) {
+      await notifyFolderResourceChanged('workflow', context.workspaceId)
+    }
+  },
 })

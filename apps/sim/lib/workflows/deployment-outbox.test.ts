@@ -75,7 +75,7 @@ vi.mock('@/lib/mcp/server-locks', () => ({
 }))
 
 vi.mock('@/lib/posthog/server', () => ({
-  captureServerEvent: mockCaptureServerEvent,
+  deliverOutboxServerEvent: mockCaptureServerEvent,
 }))
 
 vi.mock('@/lib/mcp/workflow-mcp-sync', () => ({
@@ -212,6 +212,7 @@ describe('versioned deployment preparation outbox', () => {
     mockSyncMcpToolsForWorkflow.mockResolvedValue([{ serverId: 'mcp-server-1' }])
     mockSetWorkflowMcpTransactionLockTimeout.mockResolvedValue(undefined)
     mockEmitWorkflowDeployedEvent.mockResolvedValue(undefined)
+    mockCaptureServerEvent.mockResolvedValue('delivered')
     mockMarkDeploymentOperationFailed.mockResolvedValue({
       success: true,
       operation: operation({ status: 'failed' }),
@@ -345,6 +346,33 @@ describe('versioned deployment preparation outbox', () => {
     expect(mockCreateSchedulesForDeploy).not.toHaveBeenCalled()
     expect(mockMarkDeploymentComponentReadiness).not.toHaveBeenCalled()
     expect(mockActivateDeploymentOperation).not.toHaveBeenCalled()
+  })
+
+  it('does not checkpoint analytics until durable PostHog delivery resolves', async () => {
+    const active = operation({ status: 'active', completedAt: NOW })
+    mockGetDeploymentOperation.mockResolvedValue(active)
+    queueTableRows(schemaMock.workflow, [
+      { id: 'workflow-1', name: 'Workflow', workspaceId: 'workspace-1' },
+    ])
+    const deliveryFailure = new Error('PostHog flush failed')
+    mockCaptureServerEvent.mockRejectedValueOnce(deliveryFailure)
+    const outboxContext = context()
+
+    await expect(
+      handler()(
+        {
+          ...payload(),
+          checkpoints: { inactiveCleanupCompleted: true, auditEmitted: true },
+        },
+        outboxContext
+      )
+    ).rejects.toBe(deliveryFailure)
+
+    expect(outboxContext.checkpointPayload).not.toHaveBeenCalledWith(
+      expect.objectContaining({
+        checkpoints: expect.objectContaining({ analyticsCaptured: true }),
+      })
+    )
   })
 
   it('honors an aborted signal before starting any side effect', async () => {

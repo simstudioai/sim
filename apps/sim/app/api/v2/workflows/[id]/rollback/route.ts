@@ -26,7 +26,6 @@ export const POST = defineV2JsonRoute({
     version: body.version,
     transition: 'rollback' as const,
     requestId: generateRequestId(),
-    analytics: 'human' as const,
   }),
   useCase: activateWorkflowVersion,
   present: (result) => ({

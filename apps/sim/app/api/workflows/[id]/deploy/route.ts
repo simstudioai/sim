@@ -1,235 +1,132 @@
-import { createLogger } from '@sim/logger'
-import { getErrorMessage } from '@sim/utils/errors'
-import type { NextRequest } from 'next/server'
-import { updatePublicApiContract } from '@/lib/api/contracts/deployments'
-import { parseRequest } from '@/lib/api/server'
-import { InternalUnauthenticatedError, internalSessionAuth } from '@/lib/api/server/routes'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  deployWorkflowContract,
+  getDeploymentInfoContract,
+  undeployWorkflowContract,
+  updatePublicApiContract,
+} from '@/lib/api/contracts/deployments'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { createInternalWorkflowErrorPolicy } from '@/lib/workflows/api'
 import {
   deployWorkflow,
   readWorkflowDeploymentStatus,
   undeployWorkflow,
 } from '@/lib/workflows/application/deployments'
+import { workflowOperations } from '@/lib/workflows/application/operations'
 import { updateWorkflowPublicApi } from '@/lib/workflows/application/update-workflow-deployment-settings'
-import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
-
-const logger = createLogger('WorkflowDeployAPI')
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
 export const maxDuration = 120
 
-export const GET = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const { id } = await params
+const NO_INTERNAL_RATE_LIMIT = internalRateLimits.none({
+  reason:
+    'Authenticated workspace UI deployment operations retain their existing admission policy.',
+})
 
-    try {
-      const principal = await internalSessionAuth.authenticate()
-      const result = await readWorkflowDeploymentStatus.execute({
-        principal,
-        input: { workflowId: id },
-        request,
-      })
-      const workflowData = result.workflow
-
-      /**
-       * A workflow is deployed only when an active version snapshot exists —
-       * the same definition POST and the v1 routes use. The legacy
-       * `workflow.isDeployed` flag is deliberately not consulted: when it
-       * disagrees with the version table the workflow cannot actually serve
-       * traffic, so reporting it as live would be untruthful.
-       */
-      const isDeployed = result.isDeployed
-
-      if (!isDeployed) {
-        logger.info(`[${requestId}] Workflow is not deployed: ${id}`)
-        return createSuccessResponse({
-          isDeployed: false,
-          deployedAt: null,
-          apiKey: null,
-          needsRedeployment: false,
-          isPublicApi: workflowData.isPublicApi ?? false,
-          activeDeployment: result.activeDeployment,
-          latestDeploymentAttempt: result.latestDeploymentAttempt,
-          warnings: result.warnings,
-        })
-      }
-
-      logger.info(`[${requestId}] Successfully retrieved deployment info: ${id}`)
-
-      const responseApiKeyInfo = workflowData.workspaceId
-        ? 'Workspace API keys'
-        : 'Personal API keys'
-
-      return createSuccessResponse({
-        apiKey: responseApiKeyInfo,
-        isDeployed,
-        deployedAt: result.activeDeployment?.deployedAt ?? workflowData.deployedAt,
-        needsRedeployment: result.needsRedeployment,
-        isPublicApi: workflowData.isPublicApi ?? false,
-        activeDeployment: result.activeDeployment,
-        latestDeploymentAttempt: result.latestDeploymentAttempt,
-        warnings: result.warnings,
-      })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
-      }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(`[${requestId}] Error fetching deployment info: ${id}`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return createErrorResponse('Failed to fetch deployment information', 500)
-    }
-  }
-)
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const { id } = await params
-
-    try {
-      const principal = await internalSessionAuth.authenticate()
-      const result = await deployWorkflow.execute({
-        principal,
-        input: { workflowId: id, requestId, analytics: 'human' },
-        request,
-      })
-
-      const isDeployed = Boolean(result.activeDeployment)
-      const attemptActivated = result.latestDeploymentAttempt?.status === 'active'
-      logger.info(
-        `[${requestId}] Workflow deployment ${attemptActivated ? 'activated' : 'accepted for preparation'}: ${id}`
-      )
-
-      return createSuccessResponse({
-        apiKey: 'Workspace API keys',
-        isDeployed,
-        deployedAt: result.deployedAt,
-        warnings: result.warnings,
-        activeDeployment: result.activeDeployment,
-        latestDeploymentAttempt: result.latestDeploymentAttempt,
-      })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
-      }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(`[${requestId}] Error deploying workflow: ${id}`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return createErrorResponse('Failed to deploy workflow', 500)
-    }
-  }
-)
-
-export const PATCH = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-
-    try {
-      const principal = await internalSessionAuth.authenticate()
-      const parsed = await parseRequest(updatePublicApiContract, request, context, {
-        validationErrorResponse: () =>
-          createErrorResponse('Invalid request body: isPublicApi must be a boolean', 400),
-      })
-      if (!parsed.success) return parsed.response
-
-      const { id } = parsed.data.params
-      const { isPublicApi } = parsed.data.body
-
-      const result = await updateWorkflowPublicApi.execute({
-        principal,
-        input: { workflowId: id, isPublicApi },
-        request,
-      })
-
-      logger.info(`[${requestId}] Updated isPublicApi for workflow ${id} to ${isPublicApi}`)
-
-      captureServerEvent(
-        principal.userId,
-        'workflow_public_api_toggled',
-        { workflow_id: id, workspace_id: result.workspaceId, is_public: isPublicApi },
-        { groups: { workspace: result.workspaceId } }
-      )
-
-      return createSuccessResponse({ isPublicApi })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
-      }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(`[${requestId}] Error updating deployment settings`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return createErrorResponse('Failed to update deployment settings', 500)
-    }
-  }
-)
-
-export const DELETE = withRouteHandler(
-  async (request: NextRequest, { params }: { params: Promise<{ id: string }> }) => {
-    const requestId = generateRequestId()
-    const { id } = await params
-
-    try {
-      const principal = await internalSessionAuth.authenticate()
-      const result = await undeployWorkflow.execute({
-        principal,
-        input: { workflowId: id, requestId },
-        request,
-      })
-      captureServerEvent(
-        principal.userId,
-        'workflow_undeployed',
-        { workflow_id: result.workflowId, workspace_id: result.workspaceId },
-        { groups: { workspace: result.workspaceId } }
-      )
-
-      return createSuccessResponse({
+export const GET = defineInternalJsonRoute({
+  contract: getDeploymentInfoContract,
+  operation: workflowOperations.read,
+  useCase: readWorkflowDeploymentStatus,
+  auth: internalSessionAuth,
+  rateLimit: NO_INTERNAL_RATE_LIMIT,
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to fetch deployment information'),
+  mapInput: ({ params }) => ({ workflowId: params.id }),
+  present: (result) => {
+    if (!result.isDeployed) {
+      return {
         isDeployed: false,
         deployedAt: null,
         apiKey: null,
+        needsRedeployment: false,
+        isPublicApi: result.workflow.isPublicApi ?? false,
+        activeDeployment: result.activeDeployment,
+        latestDeploymentAttempt: result.latestDeploymentAttempt,
         warnings: result.warnings,
-      })
-    } catch (error: unknown) {
-      if (error instanceof InternalUnauthenticatedError) {
-        return createErrorResponse(error.message, 401)
       }
-      const orchestrationError = asOrchestrationError(error)
-      if (orchestrationError) {
-        return createErrorResponse(
-          orchestrationError.message,
-          statusForOrchestrationError(orchestrationError.code)
-        )
-      }
-      logger.error(`[${requestId}] Error undeploying workflow: ${id}`, {
-        error: getErrorMessage(error, 'Unknown error'),
-      })
-      return createErrorResponse('Failed to undeploy workflow', 500)
     }
-  }
-)
+    return {
+      apiKey: result.workflow.workspaceId ? 'Workspace API keys' : 'Personal API keys',
+      isDeployed: true,
+      deployedAt: result.activeDeployment?.deployedAt ?? result.workflow.deployedAt?.toISOString(),
+      needsRedeployment: result.needsRedeployment,
+      isPublicApi: result.workflow.isPublicApi ?? false,
+      activeDeployment: result.activeDeployment,
+      latestDeploymentAttempt: result.latestDeploymentAttempt,
+      warnings: result.warnings,
+    }
+  },
+})
+
+export const POST = defineInternalJsonRoute({
+  contract: deployWorkflowContract,
+  operation: workflowOperations.deploy,
+  useCase: deployWorkflow,
+  auth: internalSessionAuth,
+  rateLimit: NO_INTERNAL_RATE_LIMIT,
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to deploy workflow'),
+  mapInput: ({ params }) => ({ workflowId: params.id, requestId: generateRequestId() }),
+  present: (result) => ({
+    apiKey: 'Workspace API keys',
+    isDeployed: Boolean(result.activeDeployment),
+    deployedAt: result.deployedAt?.toISOString(),
+    warnings: result.warnings,
+    activeDeployment: result.activeDeployment,
+    latestDeploymentAttempt: result.latestDeploymentAttempt,
+  }),
+})
+
+export const PATCH = defineInternalJsonRoute({
+  contract: updatePublicApiContract,
+  operation: workflowOperations.updatePublicApi,
+  useCase: updateWorkflowPublicApi,
+  auth: internalSessionAuth,
+  rateLimit: NO_INTERNAL_RATE_LIMIT,
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to update deployment settings'),
+  mapInput: ({ params, body }) => ({
+    workflowId: params.id,
+    isPublicApi: body.isPublicApi,
+  }),
+  present: (result) => ({ isPublicApi: result.isPublicApi }),
+  onSuccess: ({ principal, result }) => {
+    captureServerEvent(
+      principal.userId,
+      'workflow_public_api_toggled',
+      {
+        workflow_id: result.workflowId,
+        workspace_id: result.workspaceId,
+        is_public: result.isPublicApi,
+      },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})
+
+export const DELETE = defineInternalJsonRoute({
+  contract: undeployWorkflowContract,
+  operation: workflowOperations.undeploy,
+  useCase: undeployWorkflow,
+  auth: internalSessionAuth,
+  rateLimit: NO_INTERNAL_RATE_LIMIT,
+  errorPolicy: createInternalWorkflowErrorPolicy('Failed to undeploy workflow'),
+  mapInput: ({ params }) => ({ workflowId: params.id, requestId: generateRequestId() }),
+  present: (result) => ({
+    isDeployed: false,
+    deployedAt: null,
+    apiKey: null,
+    warnings: result.warnings,
+  }),
+  onSuccess: ({ principal, result }) => {
+    captureServerEvent(
+      principal.userId,
+      'workflow_undeployed',
+      { workflow_id: result.workflowId, workspace_id: result.workspaceId },
+      { groups: { workspace: result.workspaceId } }
+    )
+  },
+})

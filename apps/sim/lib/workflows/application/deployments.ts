@@ -12,6 +12,7 @@ import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/aut
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
+import { checkNeedsRedeployment } from '@/lib/workflows/deployment-status'
 import {
   getWorkflowDeploymentSummary,
   performActivateVersion,
@@ -23,7 +24,6 @@ import {
   findPreviousDeploymentVersion,
   updateDeploymentVersionMetadata,
 } from '@/lib/workflows/persistence/utils'
-import { checkNeedsRedeployment } from '@/app/api/workflows/utils'
 
 export interface DeployWorkflowInput {
   workflowId: string
@@ -32,7 +32,6 @@ export interface DeployWorkflowInput {
   description?: string
   requestId: string
   idempotencyKey?: string
-  analytics: 'human' | 'none'
 }
 
 export interface UndeployWorkflowInput {
@@ -48,7 +47,6 @@ export interface ActivateWorkflowVersionInput {
   transition: 'activate' | 'rollback'
   requestId: string
   idempotencyKey?: string
-  analytics: 'human' | 'none'
   name?: string | null
   description?: string | null
 }
@@ -85,19 +83,6 @@ function resolveWorkflowContext<I extends { workflowId: string; assertedWorkspac
   })
 }
 
-function requireHumanAnalyticsPrincipal(
-  principal: Parameters<typeof toPrincipalActor>[0],
-  analytics: 'human' | 'none'
-): void {
-  if (
-    analytics === 'human' &&
-    principal.kind !== 'session' &&
-    principal.kind !== 'personal_api_key'
-  ) {
-    throw new Error('Human deployment analytics require a human principal')
-  }
-}
-
 function throwDeploymentFailure(
   result: { error?: string; errorCode?: OrchestrationErrorCode },
   fallback: string
@@ -123,7 +108,6 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.deploy,
   resolveContext: resolveWorkflowContext<DeployWorkflowInput>,
   async execute({ principal, input, context }) {
-    requireHumanAnalyticsPrincipal(principal, input.analytics)
     await requireMutableWorkflow(context.workflowId)
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,
@@ -133,7 +117,7 @@ export const deployWorkflow = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       actorId: attribution.attributedUserId,
       actor: toPrincipalActor(principal),
-      ...(input.analytics === 'none' ? { captureAnalytics: false as const } : {}),
+      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
       versionName: input.name,
       versionDescription: input.description,
       requestId: input.requestId,
@@ -187,7 +171,6 @@ export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.activateVersion,
   resolveContext: resolveWorkflowContext<ActivateWorkflowVersionInput>,
   async execute({ principal, input, context }) {
-    requireHumanAnalyticsPrincipal(principal, input.analytics)
     if (input.transition === 'rollback' && !context.workflow.isDeployed) {
       throw new OrchestrationError('validation', 'Workflow is not deployed')
     }
@@ -219,7 +202,7 @@ export const activateWorkflowVersion = defineAuthorizedWorkflowUseCase({
       userId: attribution.attributedUserId,
       actorId: attribution.attributedUserId,
       actor: toPrincipalActor(principal),
-      ...(input.analytics === 'none' ? { captureAnalytics: false as const } : {}),
+      ...(principal.kind === 'delegated' ? { captureAnalytics: false as const } : {}),
       requestId: input.requestId,
       idempotencyKey: input.idempotencyKey,
       name: input.name,

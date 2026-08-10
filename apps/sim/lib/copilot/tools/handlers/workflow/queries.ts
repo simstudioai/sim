@@ -1,24 +1,24 @@
-import { toError } from '@sim/utils/errors'
-import { mergeSubblockStateWithValues } from '@sim/workflow-persistence/subblocks'
+import { createLogger } from '@sim/logger'
+import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
+import { executeCopilotCustomToolUseCase } from '@/lib/copilot/application/execute-custom-tool-use-case'
 import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
 import {
   executeCopilotWorkflowUseCase,
   messageForCopilotWorkflowError,
 } from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
 import { formatNormalizedWorkflowForCopilot } from '@/lib/copilot/tools/shared/workflow-utils'
-import { mcpService } from '@/lib/mcp/service'
+import { listAvailableCustomToolsUseCase } from '@/lib/custom-tools/application/use-cases'
+import { discoverMcpToolsUseCase } from '@/lib/mcp/application/use-cases'
+import {
+  readCopilotWorkflowBlockOutputs,
+  readCopilotWorkflowRunOptions,
+  readCopilotWorkflowUpstreamReferences,
+} from '@/lib/workflows/application/read-workflow-copilot-metadata'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
-import { getEffectiveBlockOutputPaths } from '@/lib/workflows/blocks/block-outputs'
-import { BlockPathCalculator } from '@/lib/workflows/blocks/block-path-calculator'
-import { getBlockReferenceTags } from '@/lib/workflows/blocks/block-reference-tags'
-import { listCustomTools } from '@/lib/workflows/custom-tools/operations'
-import { resolveTriggerRunOptions, toPublicRunOption } from '@/lib/workflows/triggers/run-options'
-import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { listUserWorkspaces } from '@/lib/workspaces/utils'
-import { getBlock } from '@/blocks/registry'
-import { normalizeName } from '@/executor/constants'
 import type { Loop, Parallel } from '@/stores/workflows/workflow/types'
 import type {
   GetBlockOutputsParams,
@@ -28,6 +28,8 @@ import type {
   GetWorkflowRunOptionsParams,
 } from '../param-types'
 
+const logger = createLogger('WorkflowQueries')
+
 export async function executeListUserWorkspaces(
   context: ExecutionContext
 ): Promise<ToolCallResult> {
@@ -36,7 +38,11 @@ export async function executeListUserWorkspaces(
 
     return { success: true, output: { workspaces } }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    logger.error('Failed to list user workspaces for Copilot', { error })
+    return {
+      success: false,
+      error: messageForCopilotApplicationError(error, 'Failed to list workspaces'),
+    }
   }
 }
 
@@ -50,17 +56,11 @@ export async function executeGetWorkflowRunOptions(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { state: normalized } = await executeCopilotWorkflowUseCase(
+    const { options } = await executeCopilotWorkflowUseCase(
       context,
-      readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
+      readCopilotWorkflowRunOptions,
+      { workflowId, assertedWorkspaceId: context.workspaceId }
     )
-    if (!normalized) {
-      return { success: false, error: `Workflow ${workflowId} has no saved state` }
-    }
-
-    const merged = mergeSubblockStateWithValues(normalized.blocks)
-    const options = resolveTriggerRunOptions(merged, normalized.edges)
 
     if (options.length === 0) {
       return {
@@ -89,12 +89,11 @@ export async function executeGetWorkflowRunOptions(
     }
 
     const triggers = options.map((option) => {
-      const pub = toPublicRunOption(option)
       const callExample =
-        pub.inputKind === 'none'
-          ? { triggerBlockId: pub.triggerBlockId }
-          : { triggerBlockId: pub.triggerBlockId, workflow_input: pub.mockPayload }
-      return { ...pub, guidance: guidanceFor(pub.inputKind), callExample }
+        option.inputKind === 'none'
+          ? { triggerBlockId: option.triggerBlockId }
+          : { triggerBlockId: option.triggerBlockId, workflow_input: option.mockPayload }
+      return { ...option, guidance: guidanceFor(option.inputKind), callExample }
     })
 
     const defaultOption = options.find((option) => option.isDefault)
@@ -131,13 +130,12 @@ export async function executeGetWorkflowData(
       return { success: false, error: 'data_type is required' }
     }
 
-    const { workflow: workflowRecord, workspaceId } = await executeCopilotWorkflowUseCase(
-      context,
-      readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
-    )
-
     if (dataType === 'global_variables') {
+      const { workflow: workflowRecord } = await executeCopilotWorkflowUseCase(
+        context,
+        readWorkflowDefinition,
+        { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
+      )
       const variablesRecord = (workflowRecord.variables as Record<string, unknown>) || {}
       const variables = Object.values(variablesRecord).map((v) => {
         const variable = v as Record<string, unknown> | null
@@ -150,14 +148,18 @@ export async function executeGetWorkflowData(
       return { success: true, output: { variables } }
     }
 
+    const workspaceId = context.workspaceId
     if (dataType === 'custom_tools') {
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const toolsRows = await listCustomTools({
-        userId: context.userId,
-        workspaceId,
-      })
+      const { tools: toolsRows } = await executeCopilotCustomToolUseCase(
+        context,
+        listAvailableCustomToolsUseCase,
+        {
+          workspaceId,
+        }
+      )
 
       const customToolsData = toolsRows.map((tool) => {
         const schema = tool.schema as Record<string, unknown> | null
@@ -178,7 +180,10 @@ export async function executeGetWorkflowData(
       if (!workspaceId) {
         return { success: false, error: 'workspaceId is required' }
       }
-      const tools = await mcpService.discoverTools(context.userId, workspaceId, false)
+      const { tools } = await executeCopilotMcpServerUseCase(context, discoverMcpToolsUseCase, {
+        workspaceId,
+        refresh: false,
+      })
       const mcpTools = tools.map((tool) => ({
         name: String(tool.name || ''),
         serverId: String(tool.serverId || ''),
@@ -224,78 +229,11 @@ export async function executeGetBlockOutputs(
     if (!workflowId) {
       return { success: false, error: 'workflowId is required' }
     }
-    const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
-      context,
-      readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
-    )
-    if (!normalized) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    const blocks = normalized.blocks || {}
-    const loops = normalized.loops || {}
-    const parallels = normalized.parallels || {}
-    const blockIds =
-      Array.isArray(params.blockIds) && params.blockIds.length > 0
-        ? params.blockIds
-        : Object.keys(blocks)
-
-    const results: Array<{
-      blockId: string
-      blockName: string
-      blockType: string
-      outputs: string[]
-      relativeOutputs?: string[]
-      insideSubflowOutputs?: string[]
-      outsideSubflowOutputs?: string[]
-      relativeInsideSubflowOutputs?: string[]
-      relativeOutsideSubflowOutputs?: string[]
-      triggerMode?: boolean
-    }> = []
-
-    for (const blockId of blockIds) {
-      const block = blocks[blockId]
-      if (!block?.type) continue
-      const blockName = block.name || block.type
-
-      if (block.type === 'loop' || block.type === 'parallel') {
-        const insidePaths = getSubflowInsidePaths(block.type, blockId, loops, parallels)
-        results.push({
-          blockId,
-          blockName,
-          blockType: block.type,
-          outputs: [],
-          relativeOutputs: [],
-          insideSubflowOutputs: formatOutputsForDisplay(insidePaths, blockName),
-          outsideSubflowOutputs: formatOutputsForDisplay(['results'], blockName),
-          relativeInsideSubflowOutputs: insidePaths,
-          relativeOutsideSubflowOutputs: ['results'],
-          triggerMode: block.triggerMode,
-        })
-        continue
-      }
-
-      const blockConfig = getBlock(block.type)
-      const isTriggerCapable = blockConfig ? hasTriggerCapability(blockConfig) : false
-      const triggerMode = Boolean(block.triggerMode && isTriggerCapable)
-      const outputs = getEffectiveBlockOutputPaths(block.type, block.subBlocks, {
-        triggerMode,
-        preferToolOutputs: !triggerMode,
-      })
-      results.push({
-        blockId,
-        blockName,
-        blockType: block.type,
-        outputs: formatOutputsForDisplay(outputs, blockName),
-        relativeOutputs: outputs,
-        triggerMode: block.triggerMode,
-      })
-    }
-
-    const variables = getWorkflowVariablesForTool(workflow.variables)
-
-    const payload = { blocks: results, variables }
+    const payload = await executeCopilotWorkflowUseCase(context, readCopilotWorkflowBlockOutputs, {
+      workflowId,
+      assertedWorkspaceId: context.workspaceId,
+      blockIds: params.blockIds,
+    })
     return { success: true, output: payload }
   } catch (error) {
     return { success: false, error: messageForCopilotWorkflowError(error) }
@@ -314,190 +252,15 @@ export async function executeGetBlockUpstreamReferences(
     if (!Array.isArray(params.blockIds) || params.blockIds.length === 0) {
       return { success: false, error: 'blockIds array is required' }
     }
-    const { state: normalized, workflow } = await executeCopilotWorkflowUseCase(
+    const payload = await executeCopilotWorkflowUseCase(
       context,
-      readWorkflowDefinition,
-      { workflowId, assertedWorkspaceId: context.workspaceId, state: 'draft' }
+      readCopilotWorkflowUpstreamReferences,
+      { workflowId, assertedWorkspaceId: context.workspaceId, blockIds: params.blockIds }
     )
-    if (!normalized) {
-      return { success: false, error: 'Workflow has no normalized data' }
-    }
-
-    const blocks = normalized.blocks || {}
-    const edges = normalized.edges || []
-    const loops = normalized.loops || {}
-    const parallels = normalized.parallels || {}
-
-    const graphEdges = edges.map((edge) => ({ source: edge.source, target: edge.target }))
-    const variableOutputs = getWorkflowVariablesForTool(workflow.variables)
-
-    interface AccessibleBlockEntry {
-      blockId: string
-      blockName: string
-      blockType: string
-      outputs: string[]
-      triggerMode?: boolean
-      accessContext?: 'inside' | 'outside'
-    }
-
-    interface UpstreamReferenceResult {
-      blockId: string
-      blockName: string
-      blockType: string
-      accessibleBlocks: AccessibleBlockEntry[]
-      insideSubflows: Array<{ blockId: string; blockName: string; blockType: string }>
-      variables: Array<{ id: string; name: string; type: string; tag: string }>
-    }
-
-    const results: UpstreamReferenceResult[] = []
-
-    for (const blockId of params.blockIds) {
-      const targetBlock = blocks[blockId]
-      if (!targetBlock) continue
-
-      const insideSubflows: Array<{ blockId: string; blockName: string; blockType: string }> = []
-      const containingLoopIds = new Set<string>()
-      const containingParallelIds = new Set<string>()
-
-      Object.values(loops).forEach((loop) => {
-        if (loop?.nodes?.includes(blockId)) {
-          containingLoopIds.add(loop.id)
-          const loopBlock = blocks[loop.id]
-          if (loopBlock) {
-            insideSubflows.push({
-              blockId: loop.id,
-              blockName: loopBlock.name || loopBlock.type,
-              blockType: 'loop',
-            })
-          }
-        }
-      })
-
-      Object.values(parallels).forEach((parallel) => {
-        if (parallel?.nodes?.includes(blockId)) {
-          containingParallelIds.add(parallel.id)
-          const parallelBlock = blocks[parallel.id]
-          if (parallelBlock) {
-            insideSubflows.push({
-              blockId: parallel.id,
-              blockName: parallelBlock.name || parallelBlock.type,
-              blockType: 'parallel',
-            })
-          }
-        }
-      })
-
-      const ancestorIds = BlockPathCalculator.findAllPathNodes(graphEdges, blockId)
-      const accessibleIds = new Set<string>(ancestorIds)
-      accessibleIds.add(blockId)
-
-      containingLoopIds.forEach((loopId) => accessibleIds.add(loopId))
-
-      containingParallelIds.forEach((parallelId) => accessibleIds.add(parallelId))
-
-      const accessibleBlocks: AccessibleBlockEntry[] = []
-
-      for (const accessibleBlockId of accessibleIds) {
-        const block = blocks[accessibleBlockId]
-        if (!block?.type) continue
-        const canSelfReference = block.type === 'approval' || block.type === 'human_in_the_loop'
-        if (accessibleBlockId === blockId && !canSelfReference) continue
-
-        const blockName = block.name || block.type
-        let accessContext: 'inside' | 'outside' | undefined
-
-        let formattedOutputs: string[]
-        if (block.type === 'loop' || block.type === 'parallel') {
-          const isInside =
-            (block.type === 'loop' && containingLoopIds.has(accessibleBlockId)) ||
-            (block.type === 'parallel' && containingParallelIds.has(accessibleBlockId))
-          accessContext = isInside ? 'inside' : 'outside'
-          const outputPaths = isInside
-            ? getSubflowInsidePaths(block.type, accessibleBlockId, loops, parallels)
-            : ['results']
-          formattedOutputs = formatOutputsForDisplay(outputPaths, blockName)
-        } else {
-          formattedOutputs = getBlockReferenceTags({
-            block: {
-              id: accessibleBlockId,
-              type: block.type,
-              name: block.name,
-              triggerMode: block.triggerMode,
-              subBlocks: block.subBlocks,
-            },
-            currentBlockId: blockId,
-          })
-        }
-        const entry: AccessibleBlockEntry = {
-          blockId: accessibleBlockId,
-          blockName,
-          blockType: block.type,
-          outputs: formattedOutputs,
-          ...(block.triggerMode ? { triggerMode: true } : {}),
-          ...(accessContext ? { accessContext } : {}),
-        }
-        accessibleBlocks.push(entry)
-      }
-
-      results.push({
-        blockId,
-        blockName: targetBlock.name || targetBlock.type,
-        blockType: targetBlock.type,
-        accessibleBlocks,
-        insideSubflows,
-        variables: variableOutputs,
-      })
-    }
-
-    const payload = { results }
     return { success: true, output: payload }
   } catch (error) {
     return { success: false, error: messageForCopilotWorkflowError(error) }
   }
-}
-
-function getWorkflowVariablesForTool(
-  value: unknown
-): Array<{ id: string; name: string; type: string; tag: string }> {
-  const variablesRecord = (value as Record<string, unknown>) || {}
-  return Object.values(variablesRecord)
-    .filter((v): v is Record<string, unknown> => {
-      if (!v || typeof v !== 'object') return false
-      const variable = v as Record<string, unknown>
-      return !!variable.name && String(variable.name).trim() !== ''
-    })
-    .map((v) => ({
-      id: String(v.id || ''),
-      name: String(v.name || ''),
-      type: String(v.type || 'plain'),
-      tag: `variable.${normalizeName(String(v.name || ''))}`,
-    }))
-}
-
-function getSubflowInsidePaths(
-  blockType: 'loop' | 'parallel',
-  blockId: string,
-  loops: Record<string, Loop>,
-  parallels: Record<string, Parallel>
-): string[] {
-  const paths = ['index']
-  if (blockType === 'loop') {
-    const loopType = loops[blockId]?.loopType || 'for'
-    if (loopType === 'forEach') {
-      paths.push('currentItem', 'items')
-    }
-  } else {
-    const parallelType = parallels[blockId]?.parallelType || 'count'
-    if (parallelType === 'collection') {
-      paths.push('currentItem', 'items')
-    }
-  }
-  return paths
-}
-
-function formatOutputsForDisplay(paths: string[], blockName: string): string[] {
-  const normalizedName = normalizeName(blockName)
-  return paths.map((path) => `${normalizedName}.${path}`)
 }
 
 export async function executeGetDeployedWorkflowState(

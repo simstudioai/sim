@@ -5,16 +5,11 @@ import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/applica
 import { workflowOperations } from '@/lib/workflows/application/operations'
 import { assertedWorkflowWorkspaceId } from '@/lib/workflows/application/principal-scope'
 import {
-  getExecutionStateForWorkflow,
-  getLatestExecutionStateWithExecutionId,
-} from '@/lib/workflows/executor/execution-state'
-import {
   type DeployedWorkflowData,
   loadDeployedWorkflowState,
   loadWorkflowFromNormalizedTables,
   NoActiveDeploymentError,
 } from '@/lib/workflows/persistence/utils'
-import type { SerializableExecutionState } from '@/executor/execution/types'
 
 export interface ReadWorkflowDefinitionInput {
   workflowId: string
@@ -56,57 +51,6 @@ export const readWorkflowDefinition = defineAuthorizedWorkflowUseCase({
       workflow: context.workflow,
       workspaceId: context.workspaceId,
       state: await loadDefinition(input, context.workspaceId),
-    }
-  },
-})
-
-export interface PrepareCopilotWorkflowRunInput extends ReadWorkflowDefinitionInput {
-  sourceExecutionId?: string
-  useLatestExecution?: boolean
-}
-
-export interface CopilotWorkflowSourceSnapshot {
-  executionId: string
-  snapshot: SerializableExecutionState
-}
-
-export interface PrepareCopilotWorkflowRunResult extends ReadWorkflowDefinitionResult {
-  sourceSnapshot?: CopilotWorkflowSourceSnapshot
-}
-
-export const prepareCopilotWorkflowRun = defineAuthorizedWorkflowUseCase({
-  operation: workflowOperations.runFromCopilot,
-  resolveContext: ({
-    principal,
-    input,
-  }: {
-    principal: Principal
-    input: PrepareCopilotWorkflowRunInput
-  }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkflowWorkspaceId(principal, input.assertedWorkspaceId),
-    }),
-  async execute({ input, context }): Promise<PrepareCopilotWorkflowRunResult> {
-    const state = await loadDefinition(input, context.workspaceId)
-    let sourceSnapshot: CopilotWorkflowSourceSnapshot | undefined
-    if (input.sourceExecutionId) {
-      const snapshot = await getExecutionStateForWorkflow(
-        input.sourceExecutionId,
-        context.workflowId
-      )
-      if (snapshot) sourceSnapshot = { executionId: input.sourceExecutionId, snapshot }
-    } else if (input.useLatestExecution) {
-      const latest = await getLatestExecutionStateWithExecutionId(context.workflowId)
-      if (latest?.state) {
-        sourceSnapshot = { executionId: latest.executionId, snapshot: latest.state }
-      }
-    }
-    return {
-      workflow: context.workflow,
-      workspaceId: context.workspaceId,
-      state,
-      sourceSnapshot,
     }
   },
 })

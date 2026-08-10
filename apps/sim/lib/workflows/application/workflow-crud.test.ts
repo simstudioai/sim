@@ -153,7 +153,7 @@ const executorPrincipal = {
   expiresAt: new Date('2999-08-01T00:00:00Z'),
   delegationContext: {
     kind: 'workflow_execution' as const,
-    workflowId: 'origin-workflow',
+    workflowId: WORKFLOW_ID,
     executionId: 'origin-run',
   },
 }
@@ -382,7 +382,7 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('supports bounded v2 and unbounded internal version listing', async () => {
+  it('bounds both paginated and legacy unpaginated version listing', async () => {
     await listWorkflowVersions.execute({
       principal: workspacePrincipal,
       input: { workflowId: WORKFLOW_ID, limit: 50 },
@@ -399,9 +399,19 @@ describe('authorized workflow CRUD and version reads', () => {
       })
     ).resolves.toEqual({ versions: [], hasMore: false })
     expect(mocks.listVersions).toHaveBeenLastCalledWith(WORKFLOW_ID, {
-      limit: undefined,
+      limit: 1001,
       afterVersion: undefined,
     })
+
+    mocks.listVersions.mockResolvedValue({
+      versions: Array.from({ length: 1001 }, (_, index) => ({ id: `version-${index}` })),
+    })
+    await expect(
+      listWorkflowVersions.execute({
+        principal: workspacePrincipal,
+        input: { workflowId: WORKFLOW_ID },
+      })
+    ).rejects.toThrow('Workflow version list exceeds the 1000 row limit')
   })
 
   it('reads one version only after canonical workflow authorization', async () => {

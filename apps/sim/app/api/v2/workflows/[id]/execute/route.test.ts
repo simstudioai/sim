@@ -236,7 +236,22 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
       rateLimitSubscription: null,
       keyType: 'workspace',
     })
-    dbChainMockFns.limit.mockResolvedValue([applicationContext])
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          workflowId: workflowRecord.id,
+          workflow: workflowRecord,
+          workspaceId: workflowRecord.workspaceId,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: applicationContext.workspaceId,
+          organizationId: applicationContext.workspaceOrganizationId,
+          allowPersonalApiKeys: applicationContext.allowPersonalApiKeys,
+          billedAccountUserId: applicationContext.billedAccountUserId,
+        },
+      ])
     mockAuthorize.mockResolvedValue({ allowed: true, workflow: workflowRecord })
     mockClaimExecutionId.mockImplementation(async (executionId: string) => ({
       key: `workflow-execution-id:${executionId}`,
@@ -420,9 +435,23 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
       rateLimitSubscription: null,
       keyType: 'personal',
     })
-    dbChainMockFns.limit.mockResolvedValueOnce([
-      { ...applicationContext, allowPersonalApiKeys: false },
-    ])
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          workflowId: workflowRecord.id,
+          workflow: workflowRecord,
+          workspaceId: workflowRecord.workspaceId,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: applicationContext.workspaceId,
+          organizationId: applicationContext.workspaceOrganizationId,
+          allowPersonalApiKeys: false,
+          billedAccountUserId: applicationContext.billedAccountUserId,
+        },
+      ])
 
     const res = await callExecute({ input: {} })
 
@@ -487,6 +516,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('runs the anonymous public path sync but refuses async', async () => {
+    dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockResolvedValueOnce([
       { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
     ])
@@ -526,6 +556,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('401s non-public workflows without a key', async () => {
+    dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockResolvedValueOnce([
       { isPublicApi: false, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
     ])
@@ -551,6 +582,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
   })
 
   it('returns a safe error when canonical workflow lookup fails', async () => {
+    dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockRejectedValueOnce(new Error('database connection details'))
 
     const response = await callExecute({ input: {} })

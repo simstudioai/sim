@@ -210,23 +210,22 @@ describe('workflow VFS application commands', () => {
     expect(mocks.notifyWorkflow).not.toHaveBeenCalledWith('workflow-2')
   })
 
-  it('returns a safe per-item error for an unexpected mutation failure', async () => {
+  it('propagates an unexpected mutation failure without projecting a partial outcome', async () => {
     queueTableRows(schemaMock.workflow, [{ id: 'workflow-1', name: 'One', folderId: null }])
     queueTableRows(schemaMock.workflow, [{ id: 'workflow-1', name: 'One', folderId: null }])
     mocks.updateWorkflow.mockRejectedValueOnce(new Error('postgres password=secret'))
 
-    const result = await moveWorkflowVfsItems.execute({
-      principal,
-      input: {
-        workspaceId: 'workspace-1',
-        sources: [{ source: 'workflows/One', segments: ['One'] }],
-        destination: { segments: [], trailingSlash: true },
-      },
-    })
+    await expect(
+      moveWorkflowVfsItems.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          sources: [{ source: 'workflows/One', segments: ['One'] }],
+          destination: { segments: [], trailingSlash: true },
+        },
+      })
+    ).rejects.toThrow('postgres password=secret')
 
-    expect(result.outcomes).toEqual([
-      expect.objectContaining({ source: 'workflows/One', error: 'Workflow mutation failed' }),
-    ])
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.notifyWorkflow).not.toHaveBeenCalled()
     expect(mocks.notifyFolder).not.toHaveBeenCalled()
