@@ -45,18 +45,13 @@ export function ScheduleDisabledEmail({
 
       <Text style={baseStyles.paragraph}>
         {brand.name} turned off the schedule for {resourceLabel}. It will not run again until you
-        turn it back on.
+        fix the problem and turn it back on.
       </Text>
 
       <Section style={baseStyles.infoBox}>
         <Text style={baseStyles.infoBoxTitle}>Reason</Text>
         <Text style={baseStyles.infoBoxList}>{reasonCopy}</Text>
       </Section>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
-
-      <Text style={baseStyles.paragraph}>Fix the problem, then turn the schedule back on.</Text>
 
       {manageLink ? (
         <Link href={manageLink} style={{ textDecoration: 'none' }}>
