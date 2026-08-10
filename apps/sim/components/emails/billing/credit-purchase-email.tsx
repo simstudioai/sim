@@ -1,6 +1,6 @@
-import { Link, Section, Text } from '@react-email/components'
-import { baseStyles, colors } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { Section, Text } from '@react-email/components'
+import { baseStyles } from '@/components/emails/_styles'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -25,55 +25,20 @@ export function CreditPurchaseEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
       <Text style={baseStyles.paragraph}>
-        Your credit purchase of <strong>{dollarsToCredits(amount).toLocaleString()} credits</strong>{' '}
-        has been confirmed.
+        Your credit purchase of{' '}
+        <EmailStrong>{dollarsToCredits(amount).toLocaleString()} credits</EmailStrong> has been
+        confirmed.
       </Text>
 
       <Section style={baseStyles.infoBox}>
-        <Text
-          style={{
-            margin: 0,
-            fontSize: '14px',
-            color: colors.textMuted,
-            fontFamily: baseStyles.fontFamily,
-          }}
-        >
-          Amount Added
-        </Text>
-        <Text
-          style={{
-            margin: '4px 0 16px',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            color: colors.textPrimary,
-            fontFamily: baseStyles.fontFamily,
-          }}
-        >
+        <Text style={baseStyles.infoBoxLabel}>Amount Added</Text>
+        <Text style={{ ...baseStyles.infoBoxValue, marginBottom: '16px' }}>
           {dollarsToCredits(amount).toLocaleString()} credits
         </Text>
-        <Text
-          style={{
-            margin: 0,
-            fontSize: '14px',
-            color: colors.textMuted,
-            fontFamily: baseStyles.fontFamily,
-          }}
-        >
-          New Balance
-        </Text>
-        <Text
-          style={{
-            margin: '4px 0 0',
-            fontSize: '24px',
-            fontWeight: 'bold',
-            color: colors.textPrimary,
-            fontFamily: baseStyles.fontFamily,
-          }}
-        >
+        <Text style={baseStyles.infoBoxLabel}>New Balance</Text>
+        <Text style={baseStyles.infoBoxValue}>
           {dollarsToCredits(newBalance).toLocaleString()} credits
         </Text>
       </Section>
@@ -82,14 +47,11 @@ export function CreditPurchaseEmail({
         Credits are applied automatically to your workflow executions.
       </Text>
 
-      <Link href={`${baseUrl}/workspace`} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>View Dashboard</Text>
-      </Link>
+      <EmailButton href={`${baseUrl}/workspace`}>View Dashboard</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Purchased on {purchaseDate.toLocaleDateString()}. View balance in Settings → Subscription.
       </Text>
     </EmailLayout>
