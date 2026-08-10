@@ -159,12 +159,17 @@ jobs:
           # 16 GB one (exit 137). The others build in <5 min and idle at 12-15%
           # CPU on 8 vCPU, so they stay on the smaller tiers.
           #
-          # 16 vCPU on Blacksmith because this build is the critical path to a
-          # deploy — nothing ships until the image is pushed — and its two
-          # dominant steps both scale with cores (`bun install` ~300-400s, `next
-          # build` ~260s). The same `next build` runs on 16 vCPU in the separate
-          # Build App verification job, which does not gate anything; this one
-          # was doing comparable work on half the cores.
+          # 16 vCPU: this build gates every deploy, and `next build` scales with
+          # cores — 490.5s to 143.9s, measured across two runs that restored the
+          # same sticky-disk snapshot, so runner size was the only variable. The
+          # deps layer does not scale (465.3s to 547.2s): it is `bun install`
+          # plus a node-gyp rebuild pinned to JOBS=4. Size this on `next build`.
+          #
+          # Size it on step times, never end-to-end: deps misses the Docker cache
+          # on nearly every run, and that ~500s swing hides the 3.4x. All five
+          # image builds share one Blacksmith sticky disk (the action keys it on
+          # GITHUB_REPO_NAME alone), so consecutive app builds restore the same
+          # parent snapshot and each one's cache commit is discarded.
           - dockerfile: ./docker/app.Dockerfile
             ecr_repo_secret: ECR_APP
             gh_runner: linux-x64-8-core
