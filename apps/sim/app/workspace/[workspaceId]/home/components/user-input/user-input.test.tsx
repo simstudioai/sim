@@ -122,7 +122,7 @@ describe('UserInput prompt sizing', () => {
   it('grows the initial composer from its 56px resting height to the 200px cap', () => {
     const { editor, unmount } = renderUserInput()
 
-    expect(editor).toHaveClass('min-h-[56px]', 'max-h-[200px]')
+    expect(editor).toHaveClass('-mr-1.5', 'mb-2', 'max-h-[200px]', 'min-h-[56px]', 'pr-1.5')
     expect(editor).not.toHaveClass('h-[56px]')
     unmount()
   })
@@ -130,7 +130,7 @@ describe('UserInput prompt sizing', () => {
   it('keeps the active composer capped at 200px without the initial-view height floor', () => {
     const { editor, unmount } = renderUserInput({ isInitialView: false })
 
-    expect(editor).toHaveClass('max-h-[200px]')
+    expect(editor).toHaveClass('-mr-1.5', 'mb-2', 'max-h-[200px]', 'pr-1.5')
     expect(editor).not.toHaveClass('min-h-[56px]', 'h-[56px]')
     unmount()
   })
