@@ -244,6 +244,7 @@ describe('POST /api/guardrails/validate', () => {
     expect(res.status).toBe(200)
     expect(mockImportProvenance).toHaveBeenCalledWith(provenance, 'secret value', ['input'], {
       trusted: true,
+      origin: 'guardrailsRoute.inputProvenance',
     })
   })
 

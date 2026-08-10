@@ -337,7 +337,7 @@ export class BlockResolver implements Resolver {
         state.resolvedSecretTraceProvenance,
         value,
         context.inputPath,
-        { trusted: true }
+        { trusted: true, origin: 'blockResolver.outputCrossing' }
       )
     if (imported.matched) context.onResolvedSecretReference?.()
     return value

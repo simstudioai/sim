@@ -267,7 +267,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
                 provenanceInspection.value,
                 inputStr,
                 ['input'],
-                { trusted: true }
+                { trusted: true, origin: 'guardrailsRoute.inputProvenance' }
               )
             ).success
           : true

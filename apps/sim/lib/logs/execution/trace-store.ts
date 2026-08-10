@@ -309,7 +309,7 @@ export async function projectExecutionDataForDisplay(
         origin: 'traceStore.exactProvenance',
       })
     } else {
-      exactRegistry.markIncomplete()
+      exactRegistry.markIncomplete('untrusted-provenance', { origin: 'traceStore.exactProvenance' })
     }
 
     const [projected] = await projectTraceSpansForSecrets(

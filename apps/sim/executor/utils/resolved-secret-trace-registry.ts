@@ -1192,7 +1192,7 @@ export class ResolvedSecretTraceRegistry {
     provenance: unknown,
     value: unknown,
     inputPath: ResolvedSecretInputPath | undefined,
-    options: { trusted: boolean }
+    options: { trusted: boolean; origin?: string }
   ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     return this.importProvenanceForValueInternal(provenance, value, {
       ...options,

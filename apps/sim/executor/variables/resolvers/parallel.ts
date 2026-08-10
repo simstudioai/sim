@@ -390,7 +390,7 @@ export class ParallelResolver implements Resolver {
       provenance,
       resolvedValue,
       context.inputPath,
-      { trusted: true }
+      { trusted: true, origin: 'parallelResolver.itemCrossing' }
     )
     if (imported.matched) context.onResolvedSecretReference?.()
     return resolvedValue
