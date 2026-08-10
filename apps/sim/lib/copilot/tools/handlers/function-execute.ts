@@ -539,7 +539,7 @@ export async function resolveInputFiles(
           })
         }
       } catch {
-        resolvedSecretTraceRegistry.markIncomplete('unspecified', {
+        resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
           origin: 'copilotFunctionExecute.result',
         })
       }
@@ -573,9 +573,13 @@ async function importMountedProvenance(
       trusted: true,
     })
     if (!imported)
-      target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
+      target.markIncomplete('value-provenance-import-failed', {
+        origin: 'copilotFunctionExecute.crossing',
+      })
   } catch {
-    target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
+    target.markIncomplete('value-provenance-import-failed', {
+      origin: 'copilotFunctionExecute.crossing',
+    })
   }
 }
 

@@ -480,14 +480,14 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
   const documentById = new Map(documentRows.map((row) => [row.id, row]))
   const chunkById = new Map(chunkRows.map((row) => [row.id, row]))
   if (documentById.size !== documentIds.length || chunkById.size !== chunkIds.length) {
-    options.registry.markIncomplete('knowledge-row-content-mismatch')
+    options.registry.markIncomplete('knowledge-row-missing')
     return false
   }
 
   for (const item of documents) {
     const row = documentById.get(item.id)
     if (!row) {
-      options.registry.markIncomplete('knowledge-row-content-mismatch')
+      options.registry.markIncomplete('knowledge-row-missing')
       return false
     }
     const source = createKnowledgeDocumentSourceValue(row)

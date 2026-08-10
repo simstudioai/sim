@@ -1449,7 +1449,10 @@ describe('incompleteness diagnostics', () => {
     'structural-input-projection-incomplete',
     'mothership-provenance-invalid',
     'client-tool-seal-failed',
+    'knowledge-row-missing',
     'knowledge-row-content-mismatch',
+    'mothership-response-unreadable',
+    'structural-input-root-unprojected',
     'backfill-scope-mismatch',
   ] as const)('reports %s at error, since it cannot trip on a healthy run', (reason) => {
     new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
@@ -1463,8 +1466,11 @@ describe('incompleteness diagnostics', () => {
 
   it.each([
     'mothership-provenance-missing',
-    'client-tool-completion-unavailable',
+    'client-tool-completion-missing',
+    'client-tool-completion-deferred',
+    'client-tool-completion-unidentified',
     'client-tool-execution-untrusted',
+    'client-tool-content-unavailable',
     'knowledge-result-provenance-unavailable',
     'knowledge-response-capacity-exceeded',
     'memory-crossing-capacity-exceeded',

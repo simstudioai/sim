@@ -116,7 +116,9 @@ export async function waitForClientToolCompletion({
       }
     }
   } catch {
-    toolRegistry?.markIncomplete('unspecified', { origin: 'copilotToolClient.sealedContext' })
+    toolRegistry?.markIncomplete('client-tool-seal-failed', {
+      origin: 'copilotToolClient.sealedContext',
+    })
   } finally {
     finishPendingActivation?.()
   }
@@ -243,18 +245,18 @@ export async function waitForWorkflowToolCompletion({
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
     if (!completion) {
-      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
+      toolRegistry?.markIncomplete('client-tool-completion-missing')
       return null
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
+      toolRegistry?.markIncomplete('client-tool-completion-deferred')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
     if (!workflowId || !executionId) {
-      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
+      toolRegistry?.markIncomplete('client-tool-completion-unidentified')
       const structuralStatus =
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
@@ -284,7 +286,7 @@ export async function waitForWorkflowToolCompletion({
     }
 
     if (!trustedExecution.contentAvailable) {
-      toolRegistry?.markIncomplete('client-tool-execution-untrusted')
+      toolRegistry?.markIncomplete('client-tool-content-unavailable')
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,

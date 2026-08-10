@@ -464,7 +464,7 @@ async function readMothershipExecuteResponse(
       result = (await response.json()) as MothershipExecuteResult
     } catch (error) {
       if (expectsProvenance) {
-        registry?.markIncomplete('mothership-provenance-invalid')
+        registry?.markIncomplete('mothership-response-unreadable')
         throw new Error('Mothership response provenance metadata is invalid')
       }
       throw error
@@ -948,7 +948,7 @@ export class MothershipBlockHandler implements BlockHandler {
           try {
             payload = (await response.clone().json()) as MothershipExecuteResult
           } catch {
-            resultRegistry?.markIncomplete('mothership-provenance-invalid')
+            resultRegistry?.markIncomplete('mothership-response-unreadable')
             throw new Error('Mothership response provenance metadata is invalid')
           }
           await consumeMothershipProvenance(payload, response, resultRegistry)

@@ -44,13 +44,19 @@ export type ResolvedSecretIncompletenessReason =
   | 'tool-input-not-enumerable'
   | 'tool-params-transform-failed'
   | 'structural-input-projection-incomplete'
+  | 'structural-input-root-unprojected'
   | 'mothership-provenance-invalid'
+  | 'mothership-response-unreadable'
   | 'mothership-provenance-missing'
   | 'client-tool-seal-failed'
-  | 'client-tool-completion-unavailable'
+  | 'client-tool-completion-missing'
+  | 'client-tool-completion-deferred'
+  | 'client-tool-completion-unidentified'
   | 'client-tool-execution-untrusted'
+  | 'client-tool-content-unavailable'
   | 'knowledge-result-provenance-unavailable'
   | 'knowledge-response-capacity-exceeded'
+  | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
   | 'memory-crossing-capacity-exceeded'
   | 'workspace-scope-missing'
@@ -95,7 +101,10 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'structural-input-projection-incomplete',
   'mothership-provenance-invalid',
   'client-tool-seal-failed',
+  'knowledge-row-missing',
   'knowledge-row-content-mismatch',
+  'mothership-response-unreadable',
+  'structural-input-root-unprojected',
   'backfill-scope-mismatch',
 ])
 
@@ -219,6 +228,16 @@ type PreparedProvenanceFilterResult =
 /** Extra attribution for a latch: which registry it propagated from, and which importer caused it. */
 interface MarkIncompleteContext {
   source?: ResolvedSecretTraceRegistry
+  /**
+   * Which importer accepted an already-incomplete bundle — only meaningful where several callers
+   * share one guard, as {@link ImportResolvedSecretTraceProvenanceOptions.origin} describes.
+   *
+   * It is not a second way to say what `reason` says. A latch that reaches for an origin because no
+   * reason fits is the signal to add a reason literal instead: `reason` is a closed set that can be
+   * alerted on and aggregated, and splitting the same fact across two fields leaves neither
+   * trustworthy. Passing `'unspecified'` alongside an origin is the shape that produced a
+   * production latch naming no guard at all.
+   */
   origin?: string
 }
 

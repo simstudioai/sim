@@ -234,7 +234,7 @@ export class GenericBlockHandler implements BlockHandler {
               continue
             }
             if (boundary.requiredProjectionRoots.has(projection.path[0])) {
-              registry.markIncomplete('structural-input-projection-incomplete')
+              registry.markIncomplete('structural-input-root-unprojected')
             }
             continue
           }
