@@ -263,6 +263,7 @@
     "@types/three": "0.177.0",
     "@vitejs/plugin-react": "^6.0.5",
     "@vitest/coverage-v8": "^4.1.0",
+    "node-gyp": "12.4.0",
     "postcss": "^8",
     "react-email": "6.9.0",
     "tailwindcss": "^3.4.1",
