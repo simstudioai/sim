@@ -638,6 +638,9 @@ export function WorkflowBlockView({
     sourceBounds.push(nextBounds)
   }, [id, reactFlowStore])
   const isNodeSelected = hasRing && ringStyles.includes('--text-secondary')
+  /* Treatment only — the silhouette and `data-node-selected`. Whether the
+     action menu is pinned open is a separate question, answered by
+     `isNodeSelected` alone below. */
   const usesSelectedVisuals = isNodeSelected || isExecutionHighlighted
   const showActionMenu = Boolean(actionBar)
   const {
@@ -658,7 +661,14 @@ export function WorkflowBlockView({
      * unreachable, so those cards could neither retract nor respond. The block
      * that is actually running keeps both.
      */
-    forceOpen: Boolean(usesSelectedVisuals || isRunning),
+    /*
+     * `isNodeSelected`, not `usesSelectedVisuals`: a block in the handoff into
+     * the running one takes the selected TREATMENT — graphite silhouette, so the
+     * eye can follow the baton — but that is not a reason to pin its toolbar
+     * open. Including it left the upstream card's bar down permanently through a
+     * run, which is the wall-of-open-swells this was supposed to end.
+     */
+    forceOpen: Boolean(isNodeSelected || isRunning),
     maxWidth: ACTION_MENU_MAX_WIDTH_PX,
     suspendInteraction: isRunning,
   })

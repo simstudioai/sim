@@ -137,6 +137,26 @@ describe('WorkflowBlockView action menu', () => {
     expect(actionMenuRoot).not.toHaveAttribute('data-action-menu-ready')
   })
 
+  /**
+   * The handoff source takes the selected treatment so the eye can follow the
+   * baton, but that is not a reason to pin its toolbar open — that left the
+   * upstream card's bar down for the whole run.
+   */
+  it('does not pin the toolbar open for a block merely in the handoff', () => {
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const root = createRoot(host)
+    mountedRoots.add(root)
+    mountedHosts.add(host)
+
+    act(() => root.render(createView(false, true, false, true, true)))
+    flushAnimationFrames()
+
+    const actionMenuRoot = host.querySelector<HTMLElement>('.group.relative')
+    expect(actionMenuRoot).toHaveAttribute('data-node-selected')
+    expect(actionMenuRoot).not.toHaveAttribute('data-action-menu-ready')
+  })
+
   it('uses the selected graphite treatment for a block in the active handoff', () => {
     const host = document.createElement('div')
     document.body.appendChild(host)

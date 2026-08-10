@@ -454,7 +454,14 @@ export function SubflowNodeView({
      * unreachable, so those cards could neither retract nor respond. The block
      * that is actually running keeps both.
      */
-    forceOpen: isExecutionHighlighted || isRunning,
+    /*
+     * A container in the handoff into the running block takes the selected
+     * TREATMENT — graphite silhouette, so the eye can follow the baton — but
+     * that is not a reason to pin its toolbar open, which left it down for the
+     * whole run. Selection is deliberately not here either: a selected container
+     * opens on hover like any other, which is what its own tests pin.
+     */
+    forceOpen: isRunning,
     suspendInteraction: isRunning,
     suppressNestedNodeHover: true,
   })
