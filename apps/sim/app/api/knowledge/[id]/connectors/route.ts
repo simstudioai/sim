@@ -17,6 +17,7 @@ import { hasWorkspaceLiveSyncAccess } from '@/lib/billing/core/subscription'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { dispatchSync } from '@/lib/knowledge/connectors/queue'
+import { sanitizeConnectorSourceConfig } from '@/lib/knowledge/connectors/source-config'
 import { allocateTagSlots } from '@/lib/knowledge/constants'
 import { createTagDefinition } from '@/lib/knowledge/tags/service'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -140,35 +141,65 @@ export const POST = withRouteHandler(
 
       let resolvedCredentialId: string | null = null
       let resolvedEncryptedApiKey: string | null = null
-      let accessToken: string
+      let accessToken = ''
 
-      if (connectorConfig.auth.mode === 'apiKey') {
-        if (!apiKey) {
-          return NextResponse.json({ error: 'API key is required' }, { status: 400 })
-        }
-        accessToken = apiKey
-      } else {
-        if (!credentialId) {
-          return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+      switch (connectorConfig.auth.mode) {
+        case 'sim':
+          /**
+           * Sim connectors read this workspace's own data, so there is nothing to
+           * store. Reject a supplied credential rather than ignoring it: persisting
+           * an unused `credentialId` would leave a connector row pointing at another
+           * workspace's credential, and an unused encrypted key is dead secret material.
+           */
+          if (credentialId || apiKey) {
+            return NextResponse.json(
+              { error: 'This source reads your workspace directly and takes no credential' },
+              { status: 400 }
+            )
+          }
+          break
+
+        case 'apiKey':
+          if (!apiKey) {
+            return NextResponse.json({ error: 'API key is required' }, { status: 400 })
+          }
+          accessToken = apiKey
+          break
+
+        case 'oauth': {
+          if (!credentialId) {
+            return NextResponse.json({ error: 'Credential is required' }, { status: 400 })
+          }
+
+          const credential = await getCredential(requestId, credentialId, auth.userId)
+          if (!credential) {
+            return NextResponse.json({ error: 'Credential not found' }, { status: 400 })
+          }
+
+          if (!credential.accessToken) {
+            return NextResponse.json(
+              { error: 'Credential has no access token. Please reconnect your account.' },
+              { status: 400 }
+            )
+          }
+
+          accessToken = credential.accessToken
+          resolvedCredentialId = credentialId
+          break
         }
 
-        const credential = await getCredential(requestId, credentialId, auth.userId)
-        if (!credential) {
-          return NextResponse.json({ error: 'Credential not found' }, { status: 400 })
+        default: {
+          const _exhaustive: never = connectorConfig.auth
+          return NextResponse.json({ error: 'Unsupported connector auth mode' }, { status: 400 })
         }
-
-        if (!credential.accessToken) {
-          return NextResponse.json(
-            { error: 'Credential has no access token. Please reconnect your account.' },
-            { status: 400 }
-          )
-        }
-
-        accessToken = credential.accessToken
-        resolvedCredentialId = credentialId
       }
 
-      const configValidation = await connectorConfig.validateConfig(accessToken, sourceConfig)
+      const safeSourceConfig = sanitizeConnectorSourceConfig(sourceConfig)
+
+      const configValidation = await connectorConfig.validateConfig(accessToken, safeSourceConfig, {
+        workspaceId: kbWorkspaceId,
+        knowledgeBaseId,
+      })
       if (!configValidation.valid) {
         return NextResponse.json(
           { error: configValidation.error || 'Invalid source configuration' },
@@ -176,7 +207,7 @@ export const POST = withRouteHandler(
         )
       }
 
-      let finalSourceConfig: Record<string, unknown> = { ...sourceConfig }
+      let finalSourceConfig: Record<string, unknown> = { ...safeSourceConfig }
 
       if (connectorConfig.auth.mode === 'apiKey' && apiKey) {
         const { encrypted } = await encryptApiKey(apiKey)
@@ -187,7 +218,7 @@ export const POST = withRouteHandler(
       let newTagSlots: Record<string, string> = {}
 
       if (connectorConfig.tagDefinitions?.length) {
-        const disabledIds = new Set((sourceConfig.disabledTagIds as string[] | undefined) ?? [])
+        const disabledIds = new Set((safeSourceConfig.disabledTagIds as string[] | undefined) ?? [])
         const enabledDefs = connectorConfig.tagDefinitions.filter((td) => !disabledIds.has(td.id))
 
         const existingDefs = await db

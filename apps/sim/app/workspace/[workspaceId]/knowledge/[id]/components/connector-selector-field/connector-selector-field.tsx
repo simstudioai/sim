@@ -2,6 +2,7 @@
 
 import { useMemo, useState } from 'react'
 import { ChipCombobox, type ComboboxOption, Loader } from '@sim/emcn'
+import { useParams } from 'next/navigation'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { SELECTOR_CONTEXT_FIELDS } from '@/lib/workflows/subblocks/context'
 import type {
@@ -24,6 +25,11 @@ interface ConnectorSelectorFieldProps {
   value: ConfigFieldValue
   onChange: (value: ConfigFieldValue) => void
   credentialId: string | null
+  /**
+   * False for `sim` connectors, which read this workspace directly and have no
+   * account to connect. Their selectors are ready as soon as their deps resolve.
+   */
+  requiresCredential?: boolean
   sourceConfig: ConfigFieldMap
   configFields: ConnectorConfigField[]
   canonicalModes: Record<string, 'basic' | 'advanced'>
@@ -35,16 +41,24 @@ export function ConnectorSelectorField({
   value,
   onChange,
   credentialId,
+  requiresCredential = true,
   sourceConfig,
   configFields,
   canonicalModes,
   disabled,
 }: ConnectorSelectorFieldProps) {
+  const { workspaceId } = useParams<{ workspaceId: string }>()
   const isMulti = Boolean(field.multi)
   const [searchTerm, setSearchTerm] = useState('')
 
   const context = useMemo<SelectorContext>(() => {
     const ctx: SelectorContext = {}
+    /**
+     * Set before the dependsOn loop, which can only write keys listed in
+     * SELECTOR_CONTEXT_FIELDS — `workspaceId` is not one, so a config field can
+     * never overwrite it. Workspace-scoped selectors (`sim.*`) are inert without it.
+     */
+    if (workspaceId) ctx.workspaceId = workspaceId
     if (credentialId) ctx.oauthCredential = credentialId
     if (field.mimeType) ctx.mimeType = field.mimeType
 
@@ -59,7 +73,15 @@ export function ConnectorSelectorField({
     }
 
     return ctx
-  }, [credentialId, field.mimeType, field.dependsOn, sourceConfig, configFields, canonicalModes])
+  }, [
+    workspaceId,
+    credentialId,
+    field.mimeType,
+    field.dependsOn,
+    sourceConfig,
+    configFields,
+    canonicalModes,
+  ])
 
   const depsResolved = useMemo(() => {
     if (!field.dependsOn) return true
@@ -69,7 +91,8 @@ export function ConnectorSelectorField({
     )
   }, [field.dependsOn, sourceConfig, configFields, canonicalModes])
 
-  const isEnabled = !disabled && !!credentialId && depsResolved
+  const credentialSatisfied = !requiresCredential || !!credentialId
+  const isEnabled = !disabled && credentialSatisfied && depsResolved
   const {
     data: options = [],
     isLoading,
@@ -154,13 +177,13 @@ export function ConnectorSelectorField({
         onSearchChange={setSearchTerm}
         searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
         placeholder={
-          !credentialId
+          !credentialSatisfied
             ? 'Connect an account first'
             : !depsResolved
               ? `Select ${getDependencyLabel(field, configFields)} first`
               : field.placeholder || `Select ${field.title.toLowerCase()}`
         }
-        disabled={disabled || !credentialId || !depsResolved}
+        disabled={disabled || !credentialSatisfied || !depsResolved}
         emptyMessage={emptyMessage}
       />
     )
@@ -175,13 +198,13 @@ export function ConnectorSelectorField({
       onSearchChange={setSearchTerm}
       searchPlaceholder={`Search ${field.title.toLowerCase()}...`}
       placeholder={
-        !credentialId
+        !credentialSatisfied
           ? 'Connect an account first'
           : !depsResolved
             ? `Select ${getDependencyLabel(field, configFields)} first`
             : field.placeholder || `Select ${field.title.toLowerCase()}`
       }
-      disabled={disabled || !credentialId || !depsResolved}
+      disabled={disabled || !credentialSatisfied || !depsResolved}
       emptyMessage={emptyMessage}
     />
   )

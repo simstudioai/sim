@@ -4,4 +4,6 @@ export const selectorKeys = {
     [...selectorKeys.all, 'sim.workflows', workspaceId] as const,
   simWorkflows: (workspaceId: string, excludeWorkflowId?: string) =>
     [...selectorKeys.simWorkflowsPrefix(workspaceId), excludeWorkflowId ?? 'none'] as const,
+  simFileFolders: (workspaceId: string) =>
+    [...selectorKeys.all, 'sim.fileFolders', workspaceId] as const,
 }

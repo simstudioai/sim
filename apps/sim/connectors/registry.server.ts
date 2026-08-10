@@ -42,6 +42,8 @@ import { salesforceConnector } from '@/connectors/salesforce'
 import { sentryConnector } from '@/connectors/sentry'
 import { servicenowConnector } from '@/connectors/servicenow'
 import { sharepointConnector } from '@/connectors/sharepoint'
+import { simConversationsConnector } from '@/connectors/sim-conversations'
+import { simFilesConnector } from '@/connectors/sim-files'
 import { slackConnector } from '@/connectors/slack'
 import { typeformConnector } from '@/connectors/typeform'
 import type { ConnectorRegistry } from '@/connectors/types'
@@ -104,6 +106,8 @@ export const CONNECTOR_REGISTRY: ConnectorRegistry = {
   sentry: sentryConnector,
   servicenow: servicenowConnector,
   sharepoint: sharepointConnector,
+  sim_conversations: simConversationsConnector,
+  sim_files: simFilesConnector,
   slack: slackConnector,
   typeform: typeformConnector,
   webflow: webflowConnector,

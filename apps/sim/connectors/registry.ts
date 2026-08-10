@@ -42,6 +42,8 @@ import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import { sentryConnectorMeta } from '@/connectors/sentry/meta'
 import { servicenowConnectorMeta } from '@/connectors/servicenow/meta'
 import { sharepointConnectorMeta } from '@/connectors/sharepoint/meta'
+import { simConversationsConnectorMeta } from '@/connectors/sim-conversations/meta'
+import { simFilesConnectorMeta } from '@/connectors/sim-files/meta'
 import { slackConnectorMeta } from '@/connectors/slack/meta'
 import { typeformConnectorMeta } from '@/connectors/typeform/meta'
 import type { ConnectorMeta, ConnectorMetaRegistry } from '@/connectors/types'
@@ -104,6 +106,8 @@ export const CONNECTOR_META_REGISTRY: ConnectorMetaRegistry = {
   sentry: sentryConnectorMeta,
   servicenow: servicenowConnectorMeta,
   sharepoint: sharepointConnectorMeta,
+  sim_conversations: simConversationsConnectorMeta,
+  sim_files: simFilesConnectorMeta,
   slack: slackConnectorMeta,
   typeform: typeformConnectorMeta,
   webflow: webflowConnectorMeta,

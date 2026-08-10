@@ -38,7 +38,11 @@ import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers
 import { getBlock } from '@/blocks'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
-import type { ConnectorMeta } from '@/connectors/types'
+import {
+  type ConnectorAuthConfig,
+  type ConnectorMeta,
+  collectsCredential,
+} from '@/connectors/types'
 import { useCreateConnector } from '@/hooks/queries/kb/connectors'
 import { useOAuthCredentials } from '@/hooks/queries/oauth/oauth-credentials'
 import { useCredentialRefreshTriggers } from '@/hooks/use-credential-refresh-triggers'
@@ -81,7 +85,8 @@ export function AddConnectorModal({
   const hasMaxAccess = hasWorkspaceMaxConnectorAccess(ownerBilling)
 
   const connectorConfig = selectedType ? CONNECTOR_META_REGISTRY[selectedType] : null
-  const isApiKeyMode = connectorConfig?.auth.mode === 'apiKey'
+  const authMode = connectorConfig?.auth.mode
+  const isApiKeyMode = authMode === 'apiKey'
   const connectorProviderId = useMemo(
     () =>
       connectorConfig && connectorConfig.auth.mode === 'oauth'
@@ -95,7 +100,8 @@ export function AddConnectorModal({
     isLoading: credentialsLoading,
     refetch: refetchCredentials,
   } = useOAuthCredentials(connectorProviderId ?? undefined, {
-    enabled: Boolean(connectorConfig) && !isApiKeyMode,
+    // Non-null only for `oauth`, so this covers `apiKey` and `sim` in one condition.
+    enabled: Boolean(connectorProviderId),
     workspaceId,
   })
 
@@ -159,10 +165,8 @@ export function AddConnectorModal({
 
   const canSubmit = useMemo(() => {
     if (!connectorConfig) return false
-    if (isApiKeyMode) {
-      if (!apiKeyValue.trim()) return false
-    } else {
-      if (!effectiveCredentialId) return false
+    if (collectsCredential(connectorConfig.auth)) {
+      if (isApiKeyMode ? !apiKeyValue.trim() : !effectiveCredentialId) return false
     }
 
     for (const field of connectorConfig.configFields) {
@@ -207,7 +211,11 @@ export function AddConnectorModal({
       {
         knowledgeBaseId,
         connectorType: selectedType,
-        ...(isApiKeyMode ? { apiKey: apiKeyValue } : { credentialId: effectiveCredentialId! }),
+        ...(authMode === 'sim'
+          ? {}
+          : isApiKeyMode
+            ? { apiKey: apiKeyValue }
+            : { credentialId: effectiveCredentialId! }),
         sourceConfig: finalSourceConfig,
         syncIntervalMinutes: syncInterval,
       },
@@ -230,6 +238,71 @@ export function AddConnectorModal({
         config.name.toLowerCase().includes(term) || config.description.toLowerCase().includes(term)
     )
   }, [searchTerm])
+
+  /**
+   * Exhaustive over `ConnectorAuthConfig` so a new auth mode fails to compile here
+   * rather than silently falling through to the OAuth account picker.
+   */
+  const renderAuthField = (auth: ConnectorAuthConfig) => {
+    switch (auth.mode) {
+      case 'sim':
+        /** Nothing to collect: the connector reads this workspace directly. */
+        return null
+
+      case 'apiKey':
+        return (
+          <ChipModalField type='custom' title={auth.label || 'API Key'}>
+            <ChipInput
+              type={apiKeyFocused ? 'text' : 'password'}
+              autoComplete='new-password'
+              value={apiKeyValue}
+              onChange={(e) => setApiKeyValue(e.target.value)}
+              onFocus={() => setApiKeyFocused(true)}
+              onBlur={() => setApiKeyFocused(false)}
+              placeholder={auth.placeholder || 'Enter API key'}
+            />
+          </ChipModalField>
+        )
+
+      case 'oauth':
+        return (
+          <ChipModalField type='custom' title='Account'>
+            <ChipCombobox
+              options={[
+                ...credentials.map(
+                  (cred): ComboboxOption => ({
+                    label: cred.name || cred.provider,
+                    value: cred.id,
+                    icon: connectorConfig?.icon,
+                  })
+                ),
+                {
+                  label:
+                    credentials.length > 0
+                      ? `Connect another ${connectorConfig?.name} account`
+                      : `Connect ${connectorConfig?.name} account`,
+                  value: '__connect_new__',
+                  icon: Plus,
+                  onSelect: () => setShowOAuthModal(true),
+                },
+              ]}
+              value={effectiveCredentialId ?? undefined}
+              onChange={(value) => setSelectedCredentialId(value)}
+              onOpenChange={(isOpen) => {
+                if (isOpen) void refetchCredentials()
+              }}
+              placeholder={`Select ${connectorConfig?.name} account`}
+              isLoading={credentialsLoading}
+            />
+          </ChipModalField>
+        )
+
+      default: {
+        const _exhaustive: never = auth
+        return null
+      }
+    }
+  }
 
   return (
     <>
@@ -293,60 +366,7 @@ export function AddConnectorModal({
             </div>
           ) : connectorConfig ? (
             <>
-              {isApiKeyMode ? (
-                <ChipModalField
-                  type='custom'
-                  title={
-                    connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.label
-                      ? connectorConfig.auth.label
-                      : 'API Key'
-                  }
-                >
-                  <ChipInput
-                    type={apiKeyFocused ? 'text' : 'password'}
-                    autoComplete='new-password'
-                    value={apiKeyValue}
-                    onChange={(e) => setApiKeyValue(e.target.value)}
-                    onFocus={() => setApiKeyFocused(true)}
-                    onBlur={() => setApiKeyFocused(false)}
-                    placeholder={
-                      connectorConfig.auth.mode === 'apiKey' && connectorConfig.auth.placeholder
-                        ? connectorConfig.auth.placeholder
-                        : 'Enter API key'
-                    }
-                  />
-                </ChipModalField>
-              ) : (
-                <ChipModalField type='custom' title='Account'>
-                  <ChipCombobox
-                    options={[
-                      ...credentials.map(
-                        (cred): ComboboxOption => ({
-                          label: cred.name || cred.provider,
-                          value: cred.id,
-                          icon: connectorConfig.icon,
-                        })
-                      ),
-                      {
-                        label:
-                          credentials.length > 0
-                            ? `Connect another ${connectorConfig.name} account`
-                            : `Connect ${connectorConfig.name} account`,
-                        value: '__connect_new__',
-                        icon: Plus,
-                        onSelect: () => setShowOAuthModal(true),
-                      },
-                    ]}
-                    value={effectiveCredentialId ?? undefined}
-                    onChange={(value) => setSelectedCredentialId(value)}
-                    onOpenChange={(isOpen) => {
-                      if (isOpen) void refetchCredentials()
-                    }}
-                    placeholder={`Select ${connectorConfig.name} account`}
-                    isLoading={credentialsLoading}
-                  />
-                </ChipModalField>
-              )}
+              {renderAuthField(connectorConfig.auth)}
 
               <ConnectorConfigFields
                 connectorConfig={connectorConfig}

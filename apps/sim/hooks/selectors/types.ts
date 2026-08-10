@@ -71,6 +71,7 @@ export type SelectorKey =
   | 'monday.boards'
   | 'monday.groups'
   | 'sim.workflows'
+  | 'sim.fileFolders'
   | 'table.columns'
 
 export interface SelectorOption {
