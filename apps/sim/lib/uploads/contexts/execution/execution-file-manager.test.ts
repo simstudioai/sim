@@ -23,7 +23,13 @@ vi.mock('@/lib/uploads/providers/s3/client', () => ({
 
 import { uploadExecutionFile } from '@/lib/uploads/contexts/execution/execution-file-manager'
 
-describe('uploadExecutionFile replacement compatibility', () => {
+const context = {
+  workspaceId: 'workspace-1',
+  workflowId: 'workflow-1',
+  executionId: 'execution-1',
+}
+
+describe('uploadExecutionFile key allocation', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
@@ -35,57 +41,27 @@ describe('uploadExecutionFile replacement compatibility', () => {
       type: contentType,
     }))
     mockGetPresignedUrlWithConfig.mockResolvedValue('https://example.com/download')
+    dbChainMockFns.limit.mockResolvedValue([])
+    dbChainMockFns.returning.mockResolvedValue([{ id: 'file-1' }])
   })
 
-  it('allows changed bytes and content type at the same execution-scoped key', async () => {
-    const context = {
-      workspaceId: 'workspace-1',
-      workflowId: 'workflow-1',
-      executionId: 'execution-1',
-    }
-    const key = 'execution/workspace-1/workflow-1/execution-1/result.txt'
-    const existingMetadata = {
-      id: 'file-1',
-      key,
-      userId: 'user-1',
-      workspaceId: 'workspace-1',
-      folderId: null,
-      context: 'execution',
-      originalName: key,
-      displayName: key,
-      contentType: 'text/plain',
-      size: 3,
-      deletedAt: null,
-    }
-
-    dbChainMockFns.limit
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([existingMetadata])
-    dbChainMockFns.returning.mockResolvedValueOnce([existingMetadata])
-
+  it('gives same-named files in one execution distinct keys', async () => {
     const first = await uploadExecutionFile(
       context,
-      Buffer.from('old'),
-      'result.txt',
-      'text/plain',
+      Buffer.alloc(13575),
+      'image.png',
+      'image/png',
       'user-1'
     )
     const second = await uploadExecutionFile(
       context,
-      Buffer.from('{"new":true}'),
-      'result.txt',
-      'application/json',
+      Buffer.alloc(37226),
+      'image.png',
+      'image/png',
       'user-1'
     )
 
-    expect(first.key).toBe(key)
-    expect(second).toMatchObject({
-      key,
-      size: 12,
-      type: 'application/json',
-    })
-    expect(mockUploadToS3).toHaveBeenCalledTimes(2)
-    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(1)
+    expect(first.key).not.toBe(second.key)
+    expect(dbChainMockFns.insert).toHaveBeenCalledTimes(2)
   })
 })

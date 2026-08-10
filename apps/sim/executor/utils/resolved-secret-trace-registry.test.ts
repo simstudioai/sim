@@ -1,15 +1,21 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret } = vi.hoisted(() => ({
+const { mockDecryptSecret, mockLogger } = vi.hoisted(() => ({
   mockDecryptSecret: vi.fn(),
+  mockLogger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
   decryptSecret: mockDecryptSecret,
 }))
 
+vi.mock('@sim/logger', () => ({
+  createLogger: () => mockLogger,
+}))
+
 import {
   ANONYMOUS_SECRET_TRACE_REPLACEMENT,
+  createIncompleteResolvedSecretTraceRegistry,
   createResolvedSecretTraceRegistry,
   isResolvedSecretTraceProvenanceV1,
   RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION,
@@ -1277,5 +1283,183 @@ describe('ResolvedSecretTraceRegistry', () => {
     expect(registry.forkForInputPaths([['systemPrompt']]).isComplete()).toBe(true)
     expect(registry.forkForInputPaths([['userPrompt']]).isComplete()).toBe(false)
     expect(registry.getModelEgressSnapshot()).toEqual({ complete: false })
+  })
+})
+
+describe('incompleteness diagnostics', () => {
+  const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+
+  beforeEach(() => {
+    mockLogger.warn.mockClear()
+    mockLogger.error.mockClear()
+  })
+
+  it('reports an originating incompleteness at error so the default log level cannot hide it', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('projection-mismatch')
+
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'projection-mismatch' })
+    )
+  })
+
+  it('reports an inherited incompleteness at warn so one fault does not read as several', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('inherited-incomplete-source')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'inherited-incomplete-source' })
+    )
+  })
+
+  it('names the guard that tripped rather than reporting unspecified', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.recordResolved('MISSING', 'value-not-in-catalog')
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'unverified-resolved-entry' })
+    )
+  })
+
+  it('separates a tool-call scope mismatch from a merged child that was already incomplete', () => {
+    const scopeMismatch = new ResolvedSecretTraceRegistry([], scope)
+    const foreignChild = new ResolvedSecretTraceRegistry([], {
+      userId: 'user-1',
+      workspaceId: 'workspace-2',
+    })
+
+    scopeMismatch.mergeToolCallRegistry(foreignChild)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'tool-call-scope-mismatch' })
+    )
+
+    mockLogger.warn.mockClear()
+    mockLogger.error.mockClear()
+
+    const sameScope = new ResolvedSecretTraceRegistry([], scope)
+    const incompleteChild = new ResolvedSecretTraceRegistry([], scope)
+    incompleteChild.markIncomplete('projection-mismatch')
+    mockLogger.error.mockClear()
+
+    sameScope.mergeToolCallRegistry(incompleteChild)
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'inherited-incomplete-source' })
+    )
+  })
+
+  it('attributes an already-incomplete bundle to its source rather than to the value filter', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenanceForValue(
+      { version: 1, complete: false, entries: [], scope },
+      'x',
+      {
+        trusted: true,
+        inputPath: ['prompt'],
+      }
+    )
+
+    const reasons = mockLogger.error.mock.calls
+      .concat(mockLogger.warn.mock.calls)
+      .map(([, details]) => (details as { reason?: string })?.reason)
+    expect(reasons).toContain('source-provenance-incomplete')
+    expect(reasons).not.toContain('value-provenance-filter-incomplete')
+  })
+
+  it('reports an incoming incomplete bundle at warn, since no catalog was ever on offer', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('source-provenance-incomplete')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'source-provenance-incomplete' })
+    )
+  })
+
+  it('stays silent for a registry built incomplete by design, which sits on hot paths', () => {
+    createIncompleteResolvedSecretTraceRegistry(scope)
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it('keeps an unaudited caller taking the default reason out of the error stream', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete()
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'unspecified' })
+    )
+  })
+
+  it('reports an incoming incomplete bundle exactly once, from the registry that knows the path', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenanceForValue(
+      { version: 1, complete: false, entries: [], scope },
+      'x',
+      { trusted: true, inputPath: ['prompt'] }
+    )
+
+    const records = mockLogger.error.mock.calls.concat(mockLogger.warn.mock.calls)
+    expect(records).toHaveLength(1)
+    expect(records[0]).toEqual([
+      'Resolved secret input path marked incomplete',
+      expect.objectContaining({ reason: 'source-provenance-incomplete', inputPath: 'prompt' }),
+    ])
+  })
+
+  it('summarises decrypt failures once per import instead of once per entry', async () => {
+    mockDecryptSecret.mockRejectedValue(new Error('key rotated'))
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenance(
+      {
+        version: 1,
+        complete: true,
+        entries: Array.from({ length: 25 }, (_, i) => ({
+          name: `SECRET_${i}`,
+          encryptedValue: `encrypted-${i}`,
+        })),
+        scope,
+      },
+      { trusted: true }
+    )
+
+    const decryptRecords = mockLogger.error.mock.calls.filter(
+      ([message]) => message === 'Provenance entries could not be decrypted'
+    )
+    expect(decryptRecords).toHaveLength(1)
+    expect(decryptRecords[0][1]).toEqual(
+      expect.objectContaining({ failedEntryCount: 25, totalEntryCount: 25, error: 'key rotated' })
+    )
+  })
+
+  it('records no secret material alongside the reason', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.recordResolved('MISSING', 'super-secret-value')
+
+    const logged = JSON.stringify(mockLogger.error.mock.calls)
+    expect(logged).not.toContain('super-secret-value')
+    expect(logged).not.toContain('MISSING')
   })
 })
