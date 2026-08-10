@@ -70,6 +70,22 @@ const RUNNING_FILL =
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
 const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
+/**
+ * Trims the fill to the swell's tapered end.
+ *
+ * The row is a rectangle but the swell is not: its last slot cuts a diagonal
+ * (`M16.25 0 … L36.59 19.9 …`) so the shape narrows toward the top. A rectangular
+ * overlay therefore paints past the gray edge at the top while still sitting
+ * inside it at the bottom — the fill visibly ran off the block. The per-slot
+ * version never did, because each button's own clip contained it.
+ *
+ * Same taper, read off that path: the edge sits 16.67px in from the row's right
+ * at the overlay's top (y=4) and 3.33px at its bottom (y=20), a slope of 20/24.
+ * Changing the end silhouette means changing these two numbers with it.
+ */
+const RUNNING_FILL_END_TAPER =
+  '[clip-path:polygon(0_0,calc(100%_-_16.67px)_0,calc(100%_-_3.33px)_100%,0_100%)]'
+
 const ICON_SIZE = 'size-[14px]'
 
 type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' | 'color'
@@ -391,7 +407,8 @@ export const ActionBar = memo(
               aria-hidden='true'
               className={cn(
                 'pointer-events-none absolute inset-y-[4px] right-0 overflow-hidden',
-                isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN
+                isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN,
+                isSwell && RUNNING_FILL_END_TAPER
               )}
             >
               <span
