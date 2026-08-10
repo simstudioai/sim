@@ -73,6 +73,7 @@ import {
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -293,7 +294,13 @@ async function projectWorkflowMcpModelContent(
     throw new Error('MCP workflow execution provenance is invalid')
   }
   const projection = projectResolvedSecretModelContent(value, registry)
-  if (!projection.safe) throw new Error('MCP workflow output could not be safely projected')
+  if (!projection.safe) {
+    refuseResolvedSecretProjection({
+      site: 'mcpServe.workflowOutput',
+      message: 'MCP workflow output could not be safely projected',
+      registry,
+    })
+  }
   return projection.value
 }
 
@@ -939,7 +946,10 @@ async function handleToolsCall(
           })
         : rawErrorMessage
       if (typeof errorMessage !== 'string') {
-        throw new Error('MCP workflow execution error could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'mcpServe.executionError',
+          message: 'MCP workflow execution error could not be safely projected',
+        })
       }
       const status = getWorkflowErrorStatus(response.status)
       const responseHeaders: Record<string, string> = {}

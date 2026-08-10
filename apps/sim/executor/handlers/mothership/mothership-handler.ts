@@ -43,6 +43,7 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
@@ -50,6 +51,10 @@ import type {
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
+
+const MOTHERSHIP_INPUT_REFUSAL = 'Mothership input could not be safely projected'
+const MOTHERSHIP_SKILL_SELECTOR_REFUSAL =
+  'Mothership skill selector could not be safely projected for display'
 const CANCELLATION_CHECK_INTERVAL_MS = 500
 const MAX_MOTHERSHIP_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const MOTHERSHIP_EXECUTE_STREAM_HEADER = 'X-Mothership-Execute-Stream'
@@ -234,11 +239,15 @@ function projectPrivateMothershipSkillSelectorsForDisplay(
   privateSelectorInputPaths: readonly ResolvedSecretInputPath[]
 ): unknown {
   if (!Array.isArray(skills) || privateSelectorIndexes.size === 0) return skills
-  const projection = registry
-    .forkForInputPaths(privateSelectorInputPaths)
-    .projectResolvedInputSelection({ skills })
+  const selectorRegistry = registry.forkForInputPaths(privateSelectorInputPaths)
+  const projection = selectorRegistry.projectResolvedInputSelection({ skills })
   if (!projection.complete || !Array.isArray(projection.value.skills)) {
-    throw new Error('Mothership skill selector could not be safely projected for display')
+    refuseResolvedSecretProjection({
+      site: 'mothership.skillSelectorDisplay',
+      message: MOTHERSHIP_SKILL_SELECTOR_REFUSAL,
+      registry: selectorRegistry,
+      inputPath: 'skills',
+    })
   }
   for (const inputIndex of privateSelectorIndexes) {
     const source = skills[inputIndex]
@@ -249,7 +258,12 @@ function projectPrivateMothershipSkillSelectorsForDisplay(
       typeof source.skillId !== 'string' ||
       typeof projected.skillId !== 'string'
     ) {
-      throw new Error('Mothership skill selector could not be safely projected for display')
+      refuseResolvedSecretProjection({
+        site: 'mothership.skillSelectorDisplayEntry',
+        message: MOTHERSHIP_SKILL_SELECTOR_REFUSAL,
+        registry: selectorRegistry,
+        inputPath: 'skills.skillId',
+      })
     }
   }
   return projection.value.skills
@@ -293,19 +307,34 @@ function assertMothershipToolSchemaProjectionsAreSafe(
   if (!Array.isArray(tools)) return
   const projection = registry.projectResolvedInputSelection({ tools })
   if (!projection.complete || !Array.isArray(projection.value.tools)) {
-    throw new Error('Mothership input could not be safely projected')
+    refuseResolvedSecretProjection({
+      site: 'mothership.toolSchemaProjection',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry,
+      inputPath: 'tools',
+    })
   }
 
   for (const { inputIndex, selection } of selectIndexedMothershipMcpTools(tools)) {
     if (!selection.schema) continue
     const projectedCandidate = projection.value.tools[inputIndex]
     if (!isPlainRecord(projectedCandidate)) {
-      throw new Error('Mothership input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'mothership.toolSchemaProjectedEntry',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools.schema',
+      })
     }
     const projectedSchema = projectedCandidate.schema ?? selection.schema
     const schemaProjection = projectModelSchemaAnnotations(selection.schema, projectedSchema)
     if (!schemaProjection.safe) {
-      throw new Error('Mothership input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'mothership.toolSchemaAnnotations',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools.schema',
+      })
     }
   }
 }
@@ -316,7 +345,11 @@ function assertMothershipStructuralInputsDoNotResolveSecrets(
 ): void {
   const provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
   if (!provenance.complete) {
-    throw new Error('Mothership input could not be safely projected')
+    refuseResolvedSecretProjection({
+      site: 'mothership.structuralInputProvenance',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry,
+    })
   }
   if (provenance.entries.length > 0) {
     throw new Error('Mothership structural model inputs cannot contain secret references')
@@ -640,7 +673,12 @@ async function buildMothershipFileAttachments(
   }
   const projectedFiles = normalizeFileInput(projectedFilesInput)
   if (!projectedFiles || projectedFiles.length !== files.length) {
-    throw new Error('Mothership input could not be safely projected')
+    refuseResolvedSecretProjection({
+      site: 'mothership.fileAttachmentArity',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry: ctx.resolvedSecretTraceRegistry,
+      inputPath: 'files',
+    })
   }
 
   const userFiles = files.map((file) =>
@@ -767,7 +805,12 @@ export class MothershipBlockHandler implements BlockHandler {
       modelInputPaths
     )
     if (!modelInputProjection.complete || typeof modelInputProjection.value.prompt !== 'string') {
-      throw new Error('Mothership input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'mothership.modelInput',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry: sourceRegistry,
+        inputPath: 'prompt,files,tools,skills',
+      })
     }
     const messages = [
       {

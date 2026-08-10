@@ -1453,6 +1453,51 @@ describe('incompleteness diagnostics', () => {
     )
   })
 
+  it('reports no diagnostics while it can still vouch', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    expect(registry.getIncompletenessDiagnostics()).toBeUndefined()
+  })
+
+  it('retains the causal order of reasons, keeping the first as the originating one', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    registry.markIncomplete('entry-decrypt-failed')
+    registry.markIncomplete('source-provenance-incomplete')
+
+    const diagnostics = registry.getIncompletenessDiagnostics()
+    expect(diagnostics?.reasons[0]).toBe('entry-decrypt-failed')
+    expect(diagnostics?.reasons).toEqual(['entry-decrypt-failed', 'source-provenance-incomplete'])
+  })
+
+  it('retains every distinct reason, since the reason type is what bounds the set', () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+    const reasons = [
+      'entry-decrypt-failed',
+      'source-provenance-incomplete',
+      'projection-mismatch',
+      'unresolved-placeholder',
+      'provenance-capacity-exceeded',
+      'tool-call-scope-mismatch',
+      'untrusted-provenance',
+      'value-provenance-untrusted',
+      'value-provenance-import-failed',
+      'unverified-resolved-entry',
+    ] as const
+
+    for (const reason of reasons) registry.markIncomplete(reason)
+
+    expect(registry.getIncompletenessDiagnostics()?.reasons).toEqual([...reasons])
+  })
+
+  it('retains a by-design reason even though marking it reports nothing', () => {
+    const registry = createIncompleteResolvedSecretTraceRegistry(scope)
+
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(registry.getIncompletenessDiagnostics()?.reasons[0]).toBe('constructed-incomplete')
+  })
+
   it('records no secret material alongside the reason', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
