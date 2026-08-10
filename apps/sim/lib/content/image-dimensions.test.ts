@@ -57,6 +57,14 @@ function webpVp8(width: number, height: number): Buffer {
   return buffer
 }
 
+function gif(width: number, height: number, version: 'GIF87a' | 'GIF89a' = 'GIF89a'): Buffer {
+  const buffer = Buffer.alloc(14)
+  buffer.write(version, 0, 'latin1')
+  buffer.writeUInt16LE(width, 6)
+  buffer.writeUInt16LE(height, 8)
+  return buffer
+}
+
 describe('readImageDimensions', () => {
   it('reads PNG dimensions from IHDR', () => {
     expect(readImageDimensions(png(1200, 630))).toEqual({ width: 1200, height: 630 })
@@ -93,8 +101,28 @@ describe('readImageDimensions', () => {
     expect(readImageDimensions(webpVp8(512, 256))).toEqual({ width: 512, height: 256 })
   })
 
+  it('reads GIF dimensions from the logical screen descriptor', () => {
+    expect(readImageDimensions(gif(800, 424))).toEqual({ width: 800, height: 424 })
+    expect(readImageDimensions(gif(640, 722, 'GIF87a'))).toEqual({ width: 640, height: 722 })
+  })
+
   it('returns null for an unrecognized format', () => {
     expect(readImageDimensions(Buffer.from('not an image at all, really'))).toBeNull()
+  })
+
+  /**
+   * SVG and ICO are intentionally out of scope — neither is a valid `og:image`
+   * for the social crawlers, and callers fall back to the OG default.
+   */
+  it('returns null for SVG and ICO', () => {
+    expect(readImageDimensions(Buffer.from('<svg width="222" height="222"></svg>'))).toBeNull()
+    const ico = Buffer.alloc(16)
+    ico.writeUInt16LE(0, 0)
+    ico.writeUInt16LE(1, 2)
+    ico.writeUInt16LE(1, 4)
+    ico.writeUInt8(32, 6)
+    ico.writeUInt8(32, 7)
+    expect(readImageDimensions(ico)).toBeNull()
   })
 
   it('returns null for a truncated buffer', () => {

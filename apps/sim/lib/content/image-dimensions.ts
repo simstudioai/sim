@@ -1,16 +1,24 @@
 /**
- * Minimal intrinsic-dimension reader for the image formats the content
- * pipeline actually ships as OG covers (PNG, JPEG, WebP).
+ * Minimal intrinsic-dimension reader for the raster formats that are valid as
+ * social preview images: PNG, JPEG, WebP, and GIF.
  *
  * This replaces the `image-size` package, which is archived upstream and
  * carries unpatched high-severity DoS advisories (GHSA-w3rx-r6r6-pgpr,
  * GHSA-5p2g-fcmc-qvqq) in its ICNS/JXL/HEIF parsers — formats this app never
  * reads. Only the JPEG marker scan loops at all, and it advances on every
- * iteration regardless of the declared lengths (see `readJpeg`); PNG and WebP
- * are fixed-offset header reads.
+ * iteration regardless of the declared lengths (see `readJpeg`); the rest are
+ * fixed-offset header reads.
+ *
+ * SVG and ICO are deliberately unsupported: neither is accepted as an
+ * `og:image` by the major social crawlers, and reading SVG dimensions means
+ * regex-matching untrusted-shaped XML, which is the failure class that
+ * motivated removing the dependency in the first place. Callers are expected
+ * to treat a null return as "fall back to the declared OG default".
  */
 
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])
+
+const GIF_SIGNATURES = new Set(['GIF87a', 'GIF89a'])
 
 /** JPEG frame markers that carry a size record, excluding DHT/JPG/DAC. */
 const JPEG_SOF_MARKERS = new Set([
@@ -59,6 +67,11 @@ function readJpeg(buffer: Buffer): ImageDimensions | null {
   return null
 }
 
+function readGif(buffer: Buffer): ImageDimensions | null {
+  if (buffer.length < 10) return null
+  return { width: buffer.readUInt16LE(6), height: buffer.readUInt16LE(8) }
+}
+
 function readWebp(buffer: Buffer): ImageDimensions | null {
   const chunkType = buffer.subarray(12, 16).toString('latin1')
 
@@ -92,8 +105,9 @@ function readWebp(buffer: Buffer): ImageDimensions | null {
 }
 
 /**
- * Reads intrinsic pixel dimensions from a PNG, JPEG, or WebP buffer. Returns
- * null for unrecognized formats, truncated buffers, or zero-valued dimensions.
+ * Reads intrinsic pixel dimensions from a PNG, JPEG, WebP, or GIF buffer.
+ * Returns null for unrecognized formats, truncated buffers, or zero-valued
+ * dimensions.
  */
 export function readImageDimensions(buffer: Buffer): ImageDimensions | null {
   if (buffer.length < 12) return null
@@ -108,6 +122,8 @@ export function readImageDimensions(buffer: Buffer): ImageDimensions | null {
     buffer.subarray(8, 12).toString('latin1') === 'WEBP'
   ) {
     dimensions = readWebp(buffer)
+  } else if (GIF_SIGNATURES.has(buffer.subarray(0, 6).toString('latin1'))) {
+    dimensions = readGif(buffer)
   }
 
   if (!dimensions || dimensions.width <= 0 || dimensions.height <= 0) return null

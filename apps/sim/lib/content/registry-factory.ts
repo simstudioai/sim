@@ -1,6 +1,7 @@
 import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
+import { createLogger } from '@sim/logger'
 import matter from 'gray-matter'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
@@ -12,6 +13,8 @@ import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
 import { byDateDesc, ensureContentDirs, toIsoDate } from '@/lib/content/utils'
+
+const logger = createLogger('ContentRegistry')
 
 /** Loads a post's custom MDX component overrides, keyed by slug. */
 export type ContentComponentLoaders = Record<
@@ -101,7 +104,13 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     if (ogImage.startsWith('http')) return null
     try {
       const buffer = await fs.readFile(path.join(process.cwd(), 'public', ogImage))
-      return readImageDimensions(buffer)
+      const dimensions = readImageDimensions(buffer)
+      if (!dimensions) {
+        logger.warn('OG image dimensions could not be read; falling back to the OG default', {
+          ogImage,
+        })
+      }
+      return dimensions
     } catch {
       return null
     }
