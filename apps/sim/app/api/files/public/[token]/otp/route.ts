@@ -2,7 +2,7 @@ import { createLogger } from '@sim/logger'
 import { normalizeEmail } from '@sim/utils/string'
 import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
-import { renderOTPEmail } from '@/components/emails'
+import { getOtpSubject, renderOTPEmail } from '@/components/emails'
 import {
   requestPublicFileOtpContract,
   verifyPublicFileOtpContract,
@@ -104,7 +104,7 @@ export const POST = withRouteHandler(
       const emailHtml = await renderOTPEmail(otp, email, 'email-verification', SHARE_EMAIL_LABEL)
       const emailResult = await sendEmail({
         to: email,
-        subject: `Verification code for ${SHARE_EMAIL_LABEL}`,
+        subject: getOtpSubject(SHARE_EMAIL_LABEL),
         html: emailHtml,
       })
       if (!emailResult.success) {
