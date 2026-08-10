@@ -37,12 +37,12 @@ vi.mock('@/lib/workspaces/application/workspace-context', () => ({
 }))
 
 import {
+  loadKnowledgeWorkspaceAuthorizationContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeConnectorContext,
   resolveActiveKnowledgeTagContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
   resolveKnowledgeWorkspaceContext,
-  loadKnowledgeWorkspaceAuthorizationContext,
 } from '@/lib/knowledge/application/contexts'
 
 const workspace = {

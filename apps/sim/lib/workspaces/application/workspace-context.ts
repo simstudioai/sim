@@ -21,7 +21,10 @@ export async function loadWorkspaceApplicationContext(
     })
     .from(workspace)
     .where(
-      and(eq(workspace.id, workspaceId), options.includeArchived ? undefined : isNull(workspace.archivedAt))
+      and(
+        eq(workspace.id, workspaceId),
+        options.includeArchived ? undefined : isNull(workspace.archivedAt)
+      )
     )
     .limit(1)
 
