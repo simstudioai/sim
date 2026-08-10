@@ -213,17 +213,19 @@ export const DynatraceBlock: BlockConfig<DynatraceResponse> = {
           { text: 'Mute security problem', field: 'securityProblemId', core: true },
           { text: 'as', field: 'muteReason', core: true },
         ],
+        /* Unmuting takes no reason — Dynatrace accepts exactly one, so the field
+           is scoped to the mute operations and naming it here paints nothing. */
         dynatrace_unmute_security_problem: [
           { text: 'Unmute security problem', field: 'securityProblemId', core: true },
-          { text: 'as', field: 'muteReason', core: true },
         ],
         dynatrace_mute_security_problems: [
           { text: 'Mute security problems', field: 'securityProblemIds', core: true },
           { text: 'as', field: 'muteReason', core: true },
         ],
+        /* Unmuting takes no reason — Dynatrace accepts exactly one, so the field
+           is scoped to the mute operations and naming it here paints nothing. */
         dynatrace_unmute_security_problems: [
           { text: 'Unmute security problems', field: 'securityProblemIds', core: true },
-          { text: 'as', field: 'muteReason', core: true },
         ],
         dynatrace_list_remediation_items: [
           { text: 'List remediation items for security problem', field: 'securityProblemId' },
