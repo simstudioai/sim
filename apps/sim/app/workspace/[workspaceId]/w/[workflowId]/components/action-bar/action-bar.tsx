@@ -53,6 +53,13 @@ const ACTION_BUTTON_STYLES = [
  * win a specificity race against it. The stops keep `--surface-2` exactly — only
  * the shape changes.
  *
+ * Slant and tightness trade against each other: the transparent wedge has to be
+ * at least as wide as the edge's horizontal travel, or the cut clips a corner
+ * instead of crossing the slot cleanly. 97deg leans the edge 7° off vertical,
+ * which travels 2.9px over the 24px slot and lets the wedge come in to 12% —
+ * 3.2px a side, against the 7.8px a 107deg lean needed. Steepen the angle and
+ * both stops have to move outward with it.
+ *
  * Every variant is spelled out: Tailwind's JIT reads literal class strings, so a
  * `hover-hover:${FILL}` built at runtime compiles to no CSS at all. The hover
  * and motion-reduce entries also clear the base `hover-hover:bg-*` COLOR, which
@@ -60,12 +67,12 @@ const ACTION_BUTTON_STYLES = [
  * back in behind the band.
  */
 const RUNNING_SWEEP_FILL = [
-  '!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]',
-  'hover-hover:!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]',
+  '!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]',
+  'hover-hover:!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]',
 ].join(' ')
 
 const RUNNING_SWEEP_FILL_STATIC =
-  'motion-reduce:!bg-[linear-gradient(107deg,transparent_26%,var(--surface-2)_26%,var(--surface-2)_74%,transparent_74%)]'
+  'motion-reduce:!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]'
 
 const ICON_SIZE = 'size-[14px]'
 
