@@ -4,6 +4,7 @@ import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
+import { isNonIdentifyingSecretLiteral } from '@/executor/utils/resolved-secret-match-policy'
 import {
   createResolvedSecretMatcher,
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
@@ -1303,7 +1304,12 @@ export class ResolvedSecretTraceRegistry {
   private buildMatches(entries: Iterable<ActiveSecretEntry>): readonly ResolvedSecretTraceMatch[] {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     for (const entry of entries) {
-      if (entry.plaintext.length === 0) continue
+      /**
+       * Dropped here too, not only inside the matcher, so a literal that will never be substituted
+       * also never counts toward the matcher capacity bound or appears to a snapshot reader as
+       * something this registry protects.
+       */
+      if (entry.plaintext.length === 0 || isNonIdentifyingSecretLiteral(entry.plaintext)) continue
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       candidates.push(entry)
       candidatesByPlaintext.set(entry.plaintext, candidates)
@@ -1511,7 +1517,12 @@ export class ResolvedSecretTraceRegistry {
         compareStrings(left.encryptedValue, right.encryptedValue)
     )
     for (const entry of sortedCandidateEntries) {
-      if (entry.plaintext.length === 0) continue
+      /**
+       * Excluded from scan literals as well as from the matcher, so such a value is never recorded
+       * into durable provenance as something a later read must redact. A named entry still joins
+       * the alias loop below — `__var_NAME` identifies the variable even when its value does not.
+       */
+      if (entry.plaintext.length === 0 || isNonIdentifyingSecretLiteral(entry.plaintext)) continue
       const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
       const entryKey = activeEntryKey(entry)
       if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {

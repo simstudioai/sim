@@ -337,8 +337,8 @@ describe('Memory', () => {
       expect(result.content).toBe('foreign-secret')
     })
 
-    it.each(['123', 'true'])(
-      'projects low-entropy secret %s only in model text and arguments',
+    it.each(['123'])(
+      'projects short secret %s only in model text and arguments',
       async (secret) => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },

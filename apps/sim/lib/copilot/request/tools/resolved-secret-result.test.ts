@@ -227,7 +227,7 @@ describe('projectToolResultForCopilot', () => {
     ).toEqual({ success: true, output: { result: encoded } })
   })
 
-  it('projects exact typed primitive secrets and the same values as strings', () => {
+  it('projects exact typed numeric secrets, leaving booleans and null identifying nothing', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'NUMBER', plaintext: '123', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'true', encryptedValue: 'boolean-ciphertext' },
@@ -256,11 +256,11 @@ describe('projectToolResultForCopilot', () => {
       success: true,
       output: {
         number: '{{NUMBER}}',
-        boolean: '{{BOOLEAN}}',
-        nothing: '{{NULL}}',
+        boolean: true,
+        nothing: null,
         numberText: '{{NUMBER}}',
-        booleanText: '{{BOOLEAN}}',
-        nilText: '{{NULL}}',
+        booleanText: 'true',
+        nilText: 'null',
       },
     })
   })

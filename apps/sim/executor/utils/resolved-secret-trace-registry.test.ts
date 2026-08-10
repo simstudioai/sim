@@ -1010,11 +1010,11 @@ describe('ResolvedSecretTraceRegistry', () => {
 
   it('conservatively retains every active secret that shares a raw plaintext literal', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FIRST', plaintext: 'true', encryptedValue: 'first-ciphertext' },
-      { name: 'SECOND', plaintext: 'true', encryptedValue: 'second-ciphertext' },
+      { name: 'FIRST', plaintext: '4815162342', encryptedValue: 'first-ciphertext' },
+      { name: 'SECOND', plaintext: '4815162342', encryptedValue: 'second-ciphertext' },
     ])
-    registry.recordResolved('FIRST', 'true')
-    registry.recordResolved('SECOND', 'true')
+    registry.recordResolved('FIRST', '4815162342')
+    registry.recordResolved('SECOND', '4815162342')
 
     const expected = {
       version: 1 as const,
@@ -1024,11 +1024,11 @@ describe('ResolvedSecretTraceRegistry', () => {
         { name: 'SECOND', encryptedValue: 'second-ciphertext' },
       ],
     }
-    expect(registry.exportCommittedProvenanceForValue('true')).toEqual(expected)
-    expect(registry.exportCommittedProvenanceForValue(true)).toEqual(expected)
+    expect(registry.exportCommittedProvenanceForValue('4815162342')).toEqual(expected)
+    expect(registry.exportCommittedProvenanceForValue(4815162342)).toEqual(expected)
   })
 
-  it('exports active numeric, boolean, and null literals crossing a value boundary', () => {
+  it('exports active numeric literals crossing a value boundary, but not boolean or null', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'NUMBER', plaintext: '1234', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'false', encryptedValue: 'boolean-ciphertext' },
@@ -1048,11 +1048,7 @@ describe('ResolvedSecretTraceRegistry', () => {
     ).toEqual({
       version: 1,
       complete: true,
-      entries: [
-        { encryptedValue: 'boolean-ciphertext' },
-        { encryptedValue: 'null-ciphertext' },
-        { encryptedValue: 'number-ciphertext' },
-      ],
+      entries: [{ encryptedValue: 'number-ciphertext' }],
     })
   })
 
@@ -1574,5 +1570,55 @@ describe('incompleteness diagnostics', () => {
     const logged = JSON.stringify(mockLogger.error.mock.calls)
     expect(logged).not.toContain('super-secret-value')
     expect(logged).not.toContain('MISSING')
+  })
+})
+
+describe('non-identifying literals in durable provenance', () => {
+  /**
+   * The amplifier behind the boolean redaction: once recorded on a row, every later read of that
+   * table reactivated the value and rewrote every boolean in it.
+   */
+  it('never records a value too small to identify anything', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+      { name: 'TOKEN', plaintext: 'xoxb-real-secret-value', encryptedValue: 'token-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+    registry.recordResolved('TOKEN', 'xoxb-real-secret-value')
+
+    expect(registry.exportProvenanceForValue({ had_error: false, note: 'fromUser=false' })).toEqual(
+      { version: 1, complete: true, entries: [] }
+    )
+    expect(registry.exportProvenanceForValue({ token: 'xoxb-real-secret-value' })).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'TOKEN', encryptedValue: 'token-ciphertext' }],
+    })
+  })
+
+  it('still recognizes the internal alias, which names the variable its value cannot', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+
+    expect(registry.exportProvenanceForValue({ code: '__var_BANNER_ENABLED' })).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'BANNER_ENABLED', encryptedValue: 'flag-ciphertext' }],
+    })
+  })
+
+  it('keeps it out of the model matcher so nothing downstream can substitute it', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'BANNER_ENABLED', plaintext: 'false', encryptedValue: 'flag-ciphertext' },
+    ])
+    registry.recordResolved('BANNER_ENABLED', 'false')
+
+    const snapshot = registry.getModelEgressSnapshot()
+    expect(snapshot.complete).toBe(true)
+    if (snapshot.complete) {
+      expect(snapshot.matches.map((match) => match.plaintext)).not.toContain('false')
+    }
   })
 })

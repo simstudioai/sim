@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   getResolvedSecretMatchPolicy,
+  isNonIdentifyingSecretLiteral,
   isWordBoundaryMatch,
   MIN_UNANCHORED_MATCH_LENGTH,
 } from '@/executor/utils/resolved-secret-match-policy'
@@ -88,4 +89,20 @@ describe('isWordBoundaryMatch', () => {
     expect(isWordBoundaryMatch('abc', 0, 3)).toBe(true)
     expect(isWordBoundaryMatch('abc', 3, 3)).toBe(true)
   })
+})
+
+describe('isNonIdentifyingSecretLiteral', () => {
+  it.each(['true', 'false', 'null'])(
+    'excludes %s, whose value space is too small to identify',
+    (literal) => {
+      expect(isNonIdentifyingSecretLiteral(literal)).toBe(true)
+    }
+  )
+
+  it.each(['0', '1', 'False', 'TRUE', 'Null', 'nullish', '', 'hunter2', 'sk_live_abc'])(
+    'keeps %s protectable',
+    (literal) => {
+      expect(isNonIdentifyingSecretLiteral(literal)).toBe(false)
+    }
+  )
 })
