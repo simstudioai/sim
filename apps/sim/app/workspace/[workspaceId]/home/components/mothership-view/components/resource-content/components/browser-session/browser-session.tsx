@@ -2,6 +2,7 @@
 
 import { type CSSProperties, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type {
+  BrowserOmniboxFocusMode,
   BrowserPanelAnchor,
   BrowserPanelBounds,
   BrowserPanelSnapshot,
@@ -29,10 +30,12 @@ import {
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
+  toast,
 } from '@sim/emcn'
 import { ArrowLeft, ArrowRight, Globe, Key, Link, RefreshCw, Search } from '@sim/emcn/icons'
 import { useTheme } from 'next-themes'
 import { createPortal } from 'react-dom'
+import { onFocusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import {
   fillBrowserCredential,
   loadBrowserFillOptions,
@@ -44,6 +47,7 @@ import {
   onBrowserFindOpen,
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
+  openBrowserTab,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
@@ -57,6 +61,7 @@ import {
   supportsAtomicBrowserPanelOcclusion,
 } from '@/lib/browser-agent/transport'
 import { BROWSER_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
+import { faviconUrl } from '@/lib/core/utils/favicon'
 import {
   loadDesktopBrowserAppearanceTheme,
   resolveDesktopAppearanceTheme,
@@ -66,7 +71,9 @@ import { addMothershipContext } from '@/lib/mothership/events'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { BrowserDownloads } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-downloads'
 import { BrowserFindBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-find-bar'
+import { BrowserLoadingBar } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-loading-bar'
 import {
+  type BrowserPanelOverlay,
   type BrowserPanelOverlayController,
   type BrowserPanelSnapshotLayer,
   createBrowserPanelGeometryOcclusionLease,
@@ -93,6 +100,24 @@ const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
+
+function BrowserSuggestionIcon({ suggestion }: { suggestion: UrlSuggestion }) {
+  const [failed, setFailed] = useState(false)
+  const source = suggestion.icon || faviconUrl(suggestion.hostname, 32)
+
+  if (failed) {
+    return <Link className='size-4 shrink-0 text-[var(--text-icon)]' />
+  }
+
+  return (
+    <img
+      src={source}
+      alt=''
+      className='size-4 shrink-0 rounded-[3px]'
+      onError={() => setFailed(true)}
+    />
+  )
+}
 
 /** Converts the native page selection into the browser-tab mention shown in chat. */
 export function browserSelectionContext({
@@ -247,6 +272,35 @@ export function shouldReportBrowserBounds(visible: boolean, suspended: boolean):
   return visible && !suspended
 }
 
+/**
+ * Whether the omnibox suggestion list may be shown, which is not the same
+ * question as whether it has anything to show.
+ *
+ * Ranking a list is synchronous; making it clickable is not. The rows hang over
+ * the native page, so a click only reaches them once the shell has swapped that
+ * page for its captured frame — and that handshake can fail (a capture that
+ * never lands, a decode or paint that times out, a hide the shell refuses).
+ * Gating on the row count alone painted the list *underneath* the
+ * WebContentsView on those failures: visible, arrow-key navigable, and silently
+ * swallowing every click below the toolbar, while rows still inside the chrome
+ * kept working.
+ *
+ * The other browser popovers survive the same failure because each hands
+ * `requestOverlay` a native Electron menu to fall back to. An omnibox dropdown
+ * has no native equivalent, so its fallback is a no-op and failure has to mean
+ * "do not open" rather than "open something unusable".
+ *
+ * Keyed on the live overlay rather than on the request's result: the lease is
+ * also lost when a modal seizes the frame or another popover takes it, neither
+ * of which re-runs the request.
+ */
+export function shouldOpenUrlSuggestions(
+  activeOverlay: BrowserPanelOverlay | null,
+  suggestionCount: number
+): boolean {
+  return activeOverlay === 'suggestions' && suggestionCount > 0
+}
+
 export function BrowserSession({
   visible,
   scopeId,
@@ -270,6 +324,18 @@ export function BrowserSession({
   const activeTabId = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.activeTabId ?? null
   )
+  const automationTabId = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.automationTabId ?? null
+  )
+  const automationActive = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.automationActive ?? false
+  )
+  const automationNeedsAttention = useBrowserSessionStore(
+    (state) => state.sessions[scopeId]?.automationNeedsAttention ?? false
+  )
+  const browserAgentActive = useBrowserSessionStore(
+    (state) => (state.sessions[scopeId]?.agentRunIds.length ?? 0) > 0
+  )
   const sessionAlive = useBrowserSessionStore(
     (state) => state.sessions[scopeId]?.sessionAlive ?? true
   )
@@ -280,6 +346,7 @@ export function BrowserSession({
   const findInputRef = useRef<HTMLInputElement>(null)
   const fillButtonRef = useRef<HTMLButtonElement>(null)
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
+  const omniboxFocusRafRef = useRef<number | null>(null)
   const { removeResource } = useMothershipResources()
   const { navigateToSettings } = useSettingsNavigation()
 
@@ -324,10 +391,12 @@ export function BrowserSession({
   const [fillOptions, setFillOptions] = useState<BrowserCredentialMetadata[]>([])
   /** Hosts worth suggesting: signed into, holding a saved password, or imported. */
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
-  /** Null until the user arrows into the list, so Enter still means "go to what I typed". */
+  /** Defaults to the best-ranked row whenever the visible result set changes. */
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)
   /** Whether the user has asked to see suggestions for the current omnibox edit. */
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
+  /** Empty on initial focus; follows the typed text once the user edits it. */
+  const [suggestionQuery, setSuggestionQuery] = useState<string | null>(null)
   /** Whether the find bar is docked above the page. */
   const [findOpen, setFindOpen] = useState(false)
   const {
@@ -412,45 +481,48 @@ export function BrowserSession({
     }
   }, [appearanceTheme, theme])
 
-  // Claiming focus is tied to being on screen, not to being mounted: a hidden
-  // panel that announced itself as focused would take keystrokes meant for
-  // whichever resource is actually showing.
+  // Renderer-owned browser chrome claims shortcuts only after real user
+  // interaction. The desktop shell observes focus in the native page itself.
   useEffect(() => {
     const panel = panelRef.current
     if (!panel || !panelVisible) return
-    // Claimed up front, which the terminal deliberately does NOT do. The
-    // difference is that the terminal has a real signal to wait for — xterm
-    // focuses its textarea and that `focusin` bubbles — while this panel's
-    // content is a native view that emits no DOM events at all. Nothing else
-    // seeds the claim either: attaching a view does not focus it, so
-    // `webContents.isFocused()` is false until the user clicks the page. Drop
-    // this and Cmd-W closes the whole window instead of the browser tab.
-    reportBrowserPanelFocused(true, scopeId)
     return trackPanelFocus(panel, (focused) => reportBrowserPanelFocused(focused, scopeId))
   }, [panelVisible, scopeId])
 
+  const focusOmnibox = useCallback((mode: BrowserOmniboxFocusMode) => {
+    // Selecting an existing URL means the user is choosing where to go next,
+    // exactly like clicking the omnibox. A freshly opened blank tab stays
+    // quiet until the user clicks or types.
+    setSuggestionsVisible(mode === 'select')
+    setSuggestionQuery(mode === 'select' ? '' : null)
+    setActiveSuggestion(null)
+    setUrlDraft(mode === 'clear' ? '' : pageUrlRef.current)
+    if (omniboxFocusRafRef.current !== null) {
+      cancelAnimationFrame(omniboxFocusRafRef.current)
+    }
+    omniboxFocusRafRef.current = requestAnimationFrame(() => {
+      omniboxFocusRafRef.current = null
+      urlInputRef.current?.focus()
+      urlInputRef.current?.select()
+    })
+  }, [])
+
+  useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
+
+  // Sim owns keyboard events while its renderer has focus. Claim Cmd+L here
+  // before the workspace's global "Go to Logs" command can navigate away.
   useEffect(() => {
-    let focusRaf: number | null = null
-    const unsubscribe = onBrowserOmniboxFocus((mode) => {
-      setSuggestionsVisible(false)
-      setActiveSuggestion(null)
-      setUrlDraft(mode === 'clear' ? '' : pageUrlRef.current)
-      if (focusRaf !== null) {
-        cancelAnimationFrame(focusRaf)
-      }
-      focusRaf = requestAnimationFrame(() => {
-        focusRaf = null
-        urlInputRef.current?.focus()
-        urlInputRef.current?.select()
-      })
-    }, scopeId)
+    if (!panelVisible || !activeTabId) return
+    return onFocusVisibleBrowserOmnibox(() => focusOmnibox('select'))
+  }, [activeTabId, focusOmnibox, panelVisible])
+
+  useEffect(() => {
     return () => {
-      unsubscribe()
-      if (focusRaf !== null) {
-        cancelAnimationFrame(focusRaf)
+      if (omniboxFocusRafRef.current !== null) {
+        cancelAnimationFrame(omniboxFocusRafRef.current)
       }
     }
-  }, [scopeId])
+  }, [])
 
   // The page is a separate WebContentsView, so clicking it blurs this renderer
   // without reliably blurring its active DOM input. Collapse the selection as
@@ -693,9 +765,15 @@ export function BrowserSession({
    */
   const suggestions = useMemo(
     () =>
-      suggestionsVisible && urlDraft !== null ? rankSuggestions(suggestionCorpus, urlDraft) : [],
-    [suggestionCorpus, suggestionsVisible, urlDraft]
+      suggestionsVisible && suggestionQuery !== null
+        ? rankSuggestions(suggestionCorpus, suggestionQuery)
+        : [],
+    [suggestionCorpus, suggestionQuery, suggestionsVisible]
   )
+
+  useEffect(() => {
+    setActiveSuggestion(suggestions.length > 0 ? 0 : null)
+  }, [suggestions])
 
   // The suggestion list is renderer UI that extends over the native page.
   // Keep the page's exact captured frame underneath it while it is open so
@@ -708,10 +786,13 @@ export function BrowserSession({
     void closeOverlay('suggestions')
   }, [closeOverlay, requestOverlay, suggestions.length])
 
+  const suggestionsOpen = shouldOpenUrlSuggestions(activeOverlay, suggestions.length)
+
   const navigateTo = useCallback(
     (url: string) => {
       sendBrowserPanelAction('navigate', { url }, scopeId)
       setSuggestionsVisible(false)
+      setSuggestionQuery(null)
       setActiveSuggestion(null)
       urlInputRef.current?.blur()
     },
@@ -719,7 +800,9 @@ export function BrowserSession({
   )
 
   const submitUrl = useCallback(() => {
-    const highlighted = activeSuggestion === null ? undefined : suggestions[activeSuggestion]
+    // Enter can only take a highlight from a list the user can actually see.
+    const highlighted =
+      suggestionsOpen && activeSuggestion !== null ? suggestions[activeSuggestion] : undefined
     if (highlighted) {
       navigateTo(highlighted.url)
       return
@@ -730,16 +813,33 @@ export function BrowserSession({
       return
     }
     urlInputRef.current?.blur()
-  }, [activeSuggestion, navigateTo, suggestions, urlDraft])
+  }, [activeSuggestion, navigateTo, suggestions, suggestionsOpen, urlDraft])
 
   const handleNewTab = useCallback(() => {
     setSuggestionsVisible(false)
+    setSuggestionQuery(null)
     setActiveSuggestion(null)
-    setUrlDraft('')
-    sendBrowserPanelAction('new-tab', {}, scopeId)
-    urlInputRef.current?.focus()
-    urlInputRef.current?.select()
-  }, [scopeId])
+    const previousActiveTabId = activeTabId
+    const previousTabCount = tabs.length
+    void openBrowserTab(scopeId)
+      .then((state) => {
+        // Older shells use a tab-state push as their acknowledgement. Do not
+        // clear the current tab's omnibox while that fire-and-forget fallback
+        // is still unresolved.
+        if (!state) return
+        if (state.tabs.length <= previousTabCount || state.activeTabId === previousActiveTabId) {
+          throw new Error('The desktop browser did not create a distinct tab.')
+        }
+        setUrlDraft('')
+        requestAnimationFrame(() => {
+          urlInputRef.current?.focus()
+          urlInputRef.current?.select()
+        })
+      })
+      .catch(() => {
+        toast.error('Could not open a new browser tab. Please try again.')
+      })
+  }, [activeTabId, scopeId, tabs.length])
 
   /**
    * Opens the shell's native account chooser under the key icon. Called
@@ -772,6 +872,7 @@ export function BrowserSession({
   const handleSwitchTab = useCallback(
     (tabId: string) => {
       setSuggestionsVisible(false)
+      setSuggestionQuery(null)
       setUrlDraft(null)
       urlInputRef.current?.blur()
       sendBrowserPanelAction('switch-tab', { tabId }, scopeId)
@@ -782,6 +883,7 @@ export function BrowserSession({
   const handleCloseTab = useCallback(
     (tabId: string) => {
       setSuggestionsVisible(false)
+      setSuggestionQuery(null)
       setUrlDraft(null)
       urlInputRef.current?.blur()
       sendBrowserPanelAction('close-tab', { tabId }, scopeId)
@@ -812,17 +914,20 @@ export function BrowserSession({
 
   return (
     <div ref={panelRef} className='flex h-full flex-col overflow-hidden'>
-      <div className='shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
+      <div className='relative shrink-0 border-[var(--border)] border-b bg-[var(--bg)]'>
         <BrowserTabStrip
           tabs={tabs}
           activeTabId={activeTabId}
+          automationTabId={automationTabId}
+          automationActive={automationActive || browserAgentActive}
+          automationNeedsAttention={automationNeedsAttention}
           onNewTab={handleNewTab}
           onSwitchTab={handleSwitchTab}
           onCloseTab={handleCloseTab}
           onDuplicateTab={handleDuplicateTab}
           onSetTabPinned={handleSetTabPinned}
           onOpenTabMenu={(tabId) =>
-            void requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
+            requestOverlay('tab', () => showBrowserTabContextMenu(tabId, scopeId))
           }
           onCloseTabMenu={() => void closeOverlay('tab')}
           onReorderTab={handleReorderTab}
@@ -863,10 +968,11 @@ export function BrowserSession({
           </Button>
           {/* URL bar: Enter navigates the agent browser. */}
           <Popover
-            open={suggestions.length > 0}
+            open={suggestionsOpen}
             onOpenChange={(open) => {
               if (open) return
               setSuggestionsVisible(false)
+              setSuggestionQuery(null)
               setActiveSuggestion(null)
               urlInputRef.current?.blur()
             }}
@@ -884,14 +990,20 @@ export function BrowserSession({
                   placeholder='Search Google or enter a URL'
                   autoComplete='off'
                   role='combobox'
-                  aria-expanded={suggestions.length > 0}
+                  aria-expanded={suggestionsOpen}
                   aria-controls={SUGGESTIONS_LIST_ID}
                   aria-activedescendant={
-                    activeSuggestion === null ? undefined : suggestionRowId(activeSuggestion)
+                    suggestionsOpen && activeSuggestion !== null
+                      ? suggestionRowId(activeSuggestion)
+                      : undefined
                   }
-                  onPointerDown={() => setSuggestionsVisible(true)}
+                  onPointerDown={(event) => {
+                    setSuggestionsVisible(true)
+                    if (document.activeElement !== event.currentTarget) setSuggestionQuery('')
+                  }}
                   onChange={(event) => {
                     setSuggestionsVisible(true)
+                    setSuggestionQuery(event.target.value)
                     setUrlDraft(event.target.value)
                     // The old highlight pointed at a row that may no longer be
                     // in the list, let alone in the same position.
@@ -899,18 +1011,21 @@ export function BrowserSession({
                   }}
                   onFocus={(event) => {
                     setUrlDraft((current) => current ?? pageState?.url ?? '')
+                    setSuggestionQuery('')
                     selectFocusedOmniboxOnNextFrame(event.currentTarget)
                   }}
                   onBlur={(event) => {
                     clearOmniboxSelection(event.currentTarget)
                     setSuggestionsVisible(false)
+                    setSuggestionQuery(null)
                     setUrlDraft(null)
                     setActiveSuggestion(null)
                   }}
                   onKeyDown={(event) => {
                     event.stopPropagation()
                     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                      if (suggestions.length === 0) return
+                      // Never move a highlight through a list that is not on screen.
+                      if (!suggestionsOpen) return
                       // Otherwise the caret jumps to either end of the text.
                       event.preventDefault()
                       setActiveSuggestion((current) =>
@@ -955,19 +1070,15 @@ export function BrowserSession({
                   onMouseDown={(event) => event.preventDefault()}
                   onClick={() => navigateTo(suggestion.url)}
                 >
-                  <div className='flex min-w-0 items-center gap-2'>
-                    {suggestion.icon ? (
-                      <img src={suggestion.icon} alt='' className='size-4 flex-shrink-0' />
-                    ) : (
-                      <Link className='size-4 flex-shrink-0 text-[var(--text-icon)]' />
-                    )}
+                  <div className='flex w-full min-w-0 items-center gap-2'>
+                    <BrowserSuggestionIcon suggestion={suggestion} />
                     {suggestion.name ? (
-                      <>
-                        <span className='flex-shrink-0'>{suggestion.name}</span>
-                        <span className='truncate text-[var(--text-muted)]'>
+                      <div className='flex min-w-0 flex-1 items-center gap-1.5'>
+                        <span className='min-w-0 flex-1 truncate'>{suggestion.name}</span>
+                        <span className='max-w-[45%] shrink-0 truncate text-[var(--text-muted)]'>
                           — {suggestion.hostname}
                         </span>
-                      </>
+                      </div>
                     ) : (
                       <span className='truncate'>{suggestion.hostname}</span>
                     )}
@@ -1084,6 +1195,7 @@ export function BrowserSession({
         {themeNoticeVersion > 0 && (
           <BrowserThemeNotice key={themeNoticeVersion} scopeId={scopeId} />
         )}
+        <BrowserLoadingBar loading={Boolean(pageState?.loading)} />
       </div>
       {/* Host area: the real page is overlaid exactly on this rect. */}
       <div ref={hostRef} className='relative flex-1 overflow-hidden bg-[var(--bg)]'>

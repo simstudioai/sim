@@ -21,7 +21,9 @@ const {
   onOpenFind,
   onScopeSuspended,
   onToolbarCommand,
+  openTab,
   reorderTab,
+  reorderStoreTab,
   restoreScope,
   nativeSuspendScope,
   setPageState,
@@ -56,7 +58,9 @@ const {
   onOpenFind: vi.fn(),
   onScopeSuspended: vi.fn(),
   onToolbarCommand: vi.fn(),
+  openTab: vi.fn(),
   reorderTab: vi.fn(),
+  reorderStoreTab: vi.fn(),
   restoreScope: vi.fn(),
   nativeSuspendScope: vi.fn(async () => true),
   setPageState: vi.fn(),
@@ -92,6 +96,7 @@ vi.mock('@/lib/desktop', () => ({
       onToolbarCommand,
       onSessionStatus,
       onTabsState,
+      openTab,
       panelAction: vi.fn(),
       reorderTab,
       restoreScope,
@@ -120,6 +125,7 @@ vi.mock('@/stores/browser-session/store', () => ({
       activateScope,
       discardScope,
       migrateScope: migrateStoreScope,
+      reorderTab: reorderStoreTab,
       suspendScope: markScopeSuspended,
       setPageState,
       setSessionAlive,
@@ -143,6 +149,7 @@ import {
   onBrowserFindResult,
   onBrowserOmniboxFocus,
   onBrowserToolbarCommand,
+  openBrowserTab,
   reorderBrowserTab,
   reportBrowserPanelBounds,
   reportBrowserPanelFocused,
@@ -168,12 +175,14 @@ describe('browser panel transport', () => {
     setSessionAlive.mockClear()
     setTabsState.mockClear()
     reorderTab.mockClear()
+    reorderStoreTab.mockClear()
     restoreScope.mockReset()
     nativeSuspendScope.mockReset()
     nativeSuspendScope.mockResolvedValue(true)
     markScopeSuspended.mockClear()
     migrateStoreScope.mockClear()
     nativeMigrateScope.mockReset()
+    openTab.mockReset()
     setTabPinned.mockClear()
     showTabContextMenu.mockClear()
     showToolbarMenu.mockClear()
@@ -183,6 +192,37 @@ describe('browser panel transport', () => {
     setTheme.mockClear()
     discardScope.mockClear()
     disposeScope.mockClear()
+  })
+
+  it('opens a browser tab through the acknowledged bridge and applies its state', async () => {
+    const state = {
+      scopeId: 'chat-test',
+      activeTabId: '2',
+      tabs: [
+        {
+          tabId: '1',
+          title: 'Existing',
+          url: 'https://example.com',
+          loading: false,
+          active: false,
+          pinned: false,
+        },
+        {
+          tabId: '2',
+          title: '',
+          url: '',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+    }
+    openTab.mockResolvedValue(state)
+
+    await expect(openBrowserTab('chat-test')).resolves.toEqual(state)
+
+    expect(openTab).toHaveBeenCalledWith('chat-test')
+    expect(setTabsState).toHaveBeenCalledWith(state)
   })
 
   it('forwards panel bounds directly to the native view', () => {
@@ -333,6 +373,7 @@ describe('browser panel transport', () => {
   it('forwards tab reordering to the native browser', () => {
     reorderBrowserTab('tab-3', 1)
 
+    expect(reorderStoreTab).toHaveBeenCalledWith('chat-test', 'tab-3', 1)
     expect(reorderTab).toHaveBeenCalledWith('tab-3', 1, 'chat-test')
   })
 

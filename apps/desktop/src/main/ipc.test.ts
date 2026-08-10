@@ -919,6 +919,42 @@ describe('registerIpcHandlers', () => {
     restore.mockRestore()
   })
 
+  it('creates browser tabs through an acknowledged active-scope operation', async () => {
+    const tabsState = {
+      scopeId: 'chat-b',
+      tabs: [
+        {
+          tabId: '2',
+          url: '',
+          title: '',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+      activeTabId: '2',
+    }
+    const add = vi.spyOn(browserSession, 'addTab').mockReturnValue({} as never)
+    const peek = vi.spyOn(browserSession, 'peekTabsState').mockReturnValue(tabsState)
+    const { invoke } = collectHandlers()
+
+    await invoke.get('browser-agent:activate-scope')?.(appEvent, 'chat-b')
+    peek.mockClear()
+    await expect(invoke.get('browser-agent:open-tab')?.(appEvent, 'chat-b')).resolves.toEqual(
+      tabsState
+    )
+    await expect(invoke.get('browser-agent:open-tab')?.(evilEvent, 'chat-b')).resolves.toEqual({
+      scopeId: '',
+      tabs: [],
+      activeTabId: null,
+    })
+
+    expect(add).toHaveBeenCalledOnce()
+    expect(peek).toHaveBeenCalledOnce()
+    add.mockRestore()
+    peek.mockRestore()
+  })
+
   it('routes browser scope events after activation and a valid provisional migration', async () => {
     const migrate = vi.spyOn(browserDriver, 'migrateBrowserScope').mockReturnValue(true)
     const { invoke } = collectHandlers()

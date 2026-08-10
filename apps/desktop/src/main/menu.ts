@@ -2,7 +2,10 @@ import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
 import { openExternalSafe } from '@/main/navigation'
-import type { FocusedResourceShortcut } from '@/main/resource-shortcuts'
+import type {
+  FocusedResourceShortcut,
+  ResourceTabSelectionShortcut,
+} from '@/main/resource-shortcuts'
 
 const DOCS_URL = 'https://docs.sim.ai'
 const STATUS_URL = 'https://status.sim.ai'
@@ -45,6 +48,24 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
   /** Accelerators fire on whichever window has focus; fall back to the main one. */
   const focusedOrMain = (focusedWindow: unknown): BrowserWindow | null =>
     focusedWindow instanceof BrowserWindow ? focusedWindow : deps.getMainWindow()
+
+  const resourceShortcut = (
+    shortcut: FocusedResourceShortcut
+  ): NonNullable<MenuItemConstructorOptions['click']> => {
+    return (_item, focusedWindow) => {
+      deps.handleFocusedResourceShortcut(focusedOrMain(focusedWindow), shortcut)
+    }
+  }
+
+  const numberedTabItems: MenuItemConstructorOptions[] = Array.from({ length: 9 }, (_, index) => {
+    const number = index + 1
+    const shortcut = `select-tab-${number}` as ResourceTabSelectionShortcut
+    return {
+      label: number === 9 ? 'Last Tab' : `Tab ${number}`,
+      accelerator: `CmdOrCtrl+${number}`,
+      click: resourceShortcut(shortcut),
+    }
+  })
 
   const setZoom = (
     action: 'in' | 'out' | 'reset'
@@ -144,11 +165,36 @@ export function buildMenuTemplate(deps: MenuDeps): MenuItemConstructorOptions[] 
           },
         },
         {
-          label: 'Close Window',
+          label: 'Focus Address Bar',
+          accelerator: 'CmdOrCtrl+L',
+          click: resourceShortcut('focus-omnibox'),
+        },
+        { type: 'separator' },
+        {
+          label: 'Next Tab',
+          accelerator: 'Ctrl+Tab',
+          click: resourceShortcut('next-tab'),
+        },
+        {
+          label: 'Previous Tab',
+          accelerator: 'Ctrl+Shift+Tab',
+          click: resourceShortcut('previous-tab'),
+        },
+        { label: 'Select Tab', submenu: numberedTabItems },
+        { type: 'separator' },
+        {
+          label: 'Close Tab',
           accelerator: 'CmdOrCtrl+W',
           click: (_item, focusedWindow) => {
             const win = focusedOrMain(focusedWindow)
-            if (deps.handleFocusedResourceShortcut(win, 'close-tab')) return
+            deps.handleFocusedResourceShortcut(win, 'close-tab')
+          },
+        },
+        {
+          label: 'Close Window',
+          accelerator: 'CmdOrCtrl+Shift+W',
+          click: (_item, focusedWindow) => {
+            const win = focusedOrMain(focusedWindow)
             if (win && !win.isDestroyed()) win.close()
           },
         },

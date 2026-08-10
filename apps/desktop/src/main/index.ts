@@ -664,8 +664,8 @@ function main(): void {
       newWindow: () => void createAndLoadAppWindow(),
       newChat: () => void openMainWindowAt(newChatRoute(config.get('lastRoute'))),
       handleFocusedResourceShortcut: (win, shortcut) =>
-        terminal.handleFocusedShortcut(win, shortcut) ||
-        handleFocusedBrowserShortcut(shortcut, win),
+        handleFocusedBrowserShortcut(shortcut, win) ||
+        terminal.handleFocusedShortcut(win, shortcut),
       toggleSidebar: () => getMainWindow()?.webContents.send('desktop:command', 'toggle-sidebar'),
       signOut: signOutFromMenu,
       checkForUpdates: () =>

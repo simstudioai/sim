@@ -36,6 +36,8 @@ export interface CdpCallbacks {
 const callbacksByContents = new WeakMap<WebContents, CdpCallbacks>()
 /** Contents already instrumented (attach survives for the tab's lifetime). */
 const instrumented = new WeakSet<WebContents>()
+/** Tracks trusted input currently being dispatched by the agent itself. */
+const agentInputDepthByContents = new WeakMap<WebContents, number>()
 /** Flattened CDP child-target sessions keyed by their protocol frame/target id. */
 const childSessionsByContents = new WeakMap<WebContents, Map<string, string>>()
 const FRAME_WORLD_NAME = 'sim-browser-agent'
@@ -62,6 +64,7 @@ async function sendInput(
   method: string,
   params: Record<string, unknown>
 ): Promise<void> {
+  agentInputDepthByContents.set(contents, (agentInputDepthByContents.get(contents) ?? 0) + 1)
   let timer: NodeJS.Timeout | undefined
   const timeout = new Promise<never>((_resolve, reject) => {
     timer = setTimeout(
@@ -73,7 +76,15 @@ async function sendInput(
     await Promise.race([send(contents, method, params), timeout])
   } finally {
     clearTimeout(timer)
+    const nextDepth = (agentInputDepthByContents.get(contents) ?? 1) - 1
+    if (nextDepth > 0) agentInputDepthByContents.set(contents, nextDepth)
+    else agentInputDepthByContents.delete(contents)
   }
+}
+
+/** Distinguishes user input from CDP input when Electron mirrors it as an event. */
+export function isDispatchingAgentInput(contents: WebContents): boolean {
+  return (agentInputDepthByContents.get(contents) ?? 0) > 0
 }
 
 /** Idempotently instruments a tab's WebContents. */

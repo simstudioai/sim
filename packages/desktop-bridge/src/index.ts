@@ -76,6 +76,12 @@ export interface SimDesktopTerminalApi {
   /** Open an additional terminal and make it active. */
   openTerminal(cwd: string | undefined, scopeId: string): Promise<ScopedTerminalTabsState>
   switchTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
+  /** Move a terminal to its final position. Optional for older installed shells. */
+  reorderTerminal?(
+    terminalId: string,
+    targetIndex: number,
+    scopeId: string
+  ): Promise<ScopedTerminalTabsState>
   closeTerminal(terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState>
   getTabs(scopeId: string): Promise<ScopedTerminalTabsState>
   /** Makes a chat's terminal group the renderer-visible group. */
@@ -99,11 +105,12 @@ export interface SimDesktopTerminalApi {
   /** Forget retained output for one terminal. */
   clearScrollback(terminalId: string, scopeId: string): Promise<boolean>
   /**
-   * Reports whether the terminal panel owns keyboard focus, so global menu
-   * accelerators can tell a Cmd-W meant for a terminal from one meant for the
-   * window.
+   * Reports whether the visible terminal panel owns resource shortcuts, so a
+   * transient DOM blur cannot turn Cmd-W into a window-level command.
    */
   setFocused(focused: boolean, scopeId: string): void
+  /** Reports whether this renderer is currently displaying the terminal resource. */
+  setVisible?(visible: boolean, scopeId: string): void
   /**
    * The user finishing a handoff — the hand-back chip on the waiting tool row.
    */
@@ -143,6 +150,11 @@ export interface SimDesktopBrowserAgentApi {
   ): Promise<BrowserToolResponse>
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
+  /**
+   * Create and activate a blank tab, returning the authoritative list.
+   * Optional for compatibility with installed shells that predate acknowledged tab creation.
+   */
+  openTab?(scopeId: string): Promise<BrowserTabsState>
   /** Makes a chat's browser tab set the renderer-visible set. */
   activateScope(scopeId: string): Promise<BrowserTabsState>
   /** Materializes a lazily activated chat's persisted tabs without showing its panel. */

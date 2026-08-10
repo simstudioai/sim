@@ -188,6 +188,8 @@ const api: SimDesktopApi = {
     panelAction: (action: BrowserPanelAction, scopeId: string): void => {
       ipcRenderer.send('browser-agent:panel-action', action, scopeId)
     },
+    openTab: (scopeId: string): Promise<BrowserTabsState> =>
+      ipcRenderer.invoke('browser-agent:open-tab', scopeId),
     activateScope: (scopeId: string): Promise<BrowserTabsState> =>
       ipcRenderer.invoke('browser-agent:activate-scope', scopeId),
     restoreScope: (scopeId: string): Promise<BrowserTabsState> =>
@@ -438,6 +440,12 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('terminal:open', cwd, scopeId),
     switchTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:switch', terminalId, scopeId),
+    reorderTerminal: (
+      terminalId: string,
+      targetIndex: number,
+      scopeId: string
+    ): Promise<ScopedTerminalTabsState> =>
+      ipcRenderer.invoke('terminal:reorder', terminalId, targetIndex, scopeId),
     closeTerminal: (terminalId: string, scopeId: string): Promise<ScopedTerminalTabsState> =>
       ipcRenderer.invoke('terminal:close', terminalId, scopeId),
     getTabs: (scopeId: string): Promise<ScopedTerminalTabsState> =>
@@ -469,6 +477,9 @@ const api: SimDesktopApi = {
       ipcRenderer.invoke('terminal:clear-scrollback', terminalId, scopeId),
     setFocused: (focused: boolean, scopeId: string): void => {
       ipcRenderer.send('terminal:focused', focused, scopeId)
+    },
+    setVisible: (visible: boolean, scopeId: string): void => {
+      ipcRenderer.send('terminal:visible', visible, scopeId)
     },
     finishHandoff: (terminalId: string, scopeId: string): void => {
       ipcRenderer.send('terminal:handoff-done', terminalId, scopeId)

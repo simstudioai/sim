@@ -198,6 +198,28 @@ export function sendBrowserPanelAction(
   bridge()?.panelAction({ action, ...payload }, scopeId)
 }
 
+/**
+ * Creates a tab through an acknowledged IPC path when supported. Older shells
+ * retain the fire-and-forget fallback, but callers must not assume completion
+ * until a tab-state push arrives in that case.
+ */
+export async function openBrowserTab(
+  scopeId = currentBrowserScopeId()
+): Promise<BrowserTabsState | null> {
+  const agent = bridge()
+  if (!agent) throw new Error('The Sim desktop browser agent is unavailable.')
+  if (!agent.openTab) {
+    agent.panelAction({ action: 'new-tab' }, scopeId)
+    return null
+  }
+  const state = await agent.openTab(scopeId)
+  if (state.scopeId !== scopeId || !state.activeTabId) {
+    throw new Error('The desktop browser did not confirm the new tab.')
+  }
+  useBrowserSessionStore.getState().setTabsState(state)
+  return state
+}
+
 /** Pins or unpins a live browser tab. */
 export function setBrowserTabPinned(
   tabId: string,
@@ -218,7 +240,10 @@ export function reorderBrowserTab(
   targetIndex: number,
   scopeId = currentBrowserScopeId()
 ): void {
-  bridge()?.reorderTab(tabId, targetIndex, scopeId)
+  const agent = bridge()
+  if (!agent) return
+  useBrowserSessionStore.getState().reorderTab(scopeId, tabId, targetIndex)
+  agent.reorderTab(tabId, targetIndex, scopeId)
 }
 
 /** Mirrors Sim's raw light/dark/system preference into embedded pages. */

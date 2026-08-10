@@ -114,6 +114,7 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
+import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1175,7 +1176,7 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
 }
 
 export interface UseChatOptions {
-  onResourceEvent?: () => void
+  onResourceEvent?: (resourceId: string) => void
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1313,8 +1314,8 @@ export function useChat(
   const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
   const reorderNeededAfterFlushRef = useRef(false)
 
-  // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
-  // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
+  // Derive the effective active resource ID for rendering without writing a
+  // passive fallback back into the user's URL selection.
   const effectiveActiveResourceId = useMemo(() => {
     if (resources.length === 0) return null
     if (activeResourceId && resources.some((r) => r.id === activeResourceId))
@@ -1345,6 +1346,7 @@ export function useChat(
     setResources,
     setActiveResourceId,
     activeResourceIdRef,
+    onResourceEventRef,
   })
 
   const upsertChatHistory = useCallback(
@@ -1713,8 +1715,6 @@ export function useChat(
       if (exists) return prev
       return [...prev, resource]
     })
-    setActiveResourceId(resource.id)
-
     // Synthetic result/preview panels are in-memory only. The browser tab
     // metadata is persisted even though its live page remains desktop-owned.
     if (isEphemeralResource(resource)) {
@@ -1842,15 +1842,12 @@ export function useChat(
       }
 
       const meta = getWorkflowById(workspaceId, targetWorkflowId)
-      const wasAdded = addResource({
+      addResource({
         type: 'workflow',
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
       })
-      if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
-        setActiveResourceId(targetWorkflowId)
-      }
-      onResourceEventRef.current?.()
+      onResourceEventRef.current?.(targetWorkflowId)
 
       return targetWorkflowId
     },
@@ -1895,18 +1892,13 @@ export function useChat(
   )
 
   const openBrowserResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'browser',
       id: BROWSER_SESSION_RESOURCE_ID,
       title: 'Browser',
     })
-    if (!wasAdded && activeResourceIdRef.current !== BROWSER_SESSION_RESOURCE_ID) {
-      setActiveResourceId(BROWSER_SESSION_RESOURCE_ID)
-    }
-    // Browser actions should always surface the panel, including when its
-    // persisted tab already exists but the viewer is collapsed.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
+  }, [addResource])
 
   const startClientBrowserTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
@@ -1927,19 +1919,30 @@ export function useChat(
     [openBrowserResource]
   )
 
+  const startBrowserAgentRun = useCallback(
+    (runId: string) => {
+      openBrowserResource()
+      useBrowserSessionStore.getState().setAgentRunActive(desktopScopeIdRef.current, runId, true)
+    },
+    [openBrowserResource]
+  )
+
+  const endBrowserAgentRun = useCallback((runId: string) => {
+    useBrowserSessionStore.getState().setAgentRunActive(desktopScopeIdRef.current, runId, false)
+  }, [])
+
+  const clearBrowserAgentRuns = useCallback(() => {
+    useBrowserSessionStore.getState().clearAgentRuns(desktopScopeIdRef.current)
+  }, [])
+
   const openTerminalResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'terminal',
       id: TERMINAL_SESSION_RESOURCE_ID,
       title: 'Terminal',
     })
-    if (!wasAdded && activeResourceIdRef.current !== TERMINAL_SESSION_RESOURCE_ID) {
-      setActiveResourceId(TERMINAL_SESSION_RESOURCE_ID)
-    }
-    // The panel must be visible before a command runs: it is where the user
-    // sees what is about to execute and approves or declines it.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(TERMINAL_SESSION_RESOURCE_ID)
+  }, [addResource])
 
   const startClientTerminalTool = useCallback(
     (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
@@ -2388,6 +2391,9 @@ export function useChat(
         startClientLocalFilesystemTool,
         startClientBrowserTool,
         startClientTerminalTool,
+        startBrowserAgentRun,
+        endBrowserAgentRun,
+        clearBrowserAgentRuns,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2427,6 +2433,7 @@ export function useChat(
       }
       streamReaderRef.current = reader
 
+      let readFailed = false
       try {
         await readSSELines(reader, {
           onData: (raw) => {
@@ -2467,7 +2474,14 @@ export function useChat(
             if (state.sawCompleteEvent) return true
           },
         })
+      } catch (error) {
+        readFailed = true
+        throw error
       } finally {
+        if (readFailed || state.sawStreamError) {
+          clearBrowserAgentRuns()
+          state.browserAgentRunIds.clear()
+        }
         if (state.sawStreamError && !state.sawCompleteEvent) {
           applyTurnTerminal(state.model, 'error')
           ops.flush()
@@ -2503,6 +2517,9 @@ export function useChat(
       startClientLocalFilesystemTool,
       startClientBrowserTool,
       startClientTerminalTool,
+      startBrowserAgentRun,
+      endBrowserAgentRun,
+      clearBrowserAgentRuns,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
@@ -4350,6 +4367,7 @@ export function useChat(
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
       locallyTerminalStreamIdRef.current = sid
+      useBrowserSessionStore.getState().clearAgentRuns(desktopScopeIdRef.current)
       streamGenRef.current++
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})

@@ -536,6 +536,34 @@ describe('useBrowserPanelOcclusion modal lifecycle', () => {
     hook.unmount()
   })
 
+  it('replaces one popover with another without revealing or recapturing the native view', async () => {
+    const firstFallback = vi.fn()
+    const secondFallback = vi.fn()
+    const hook = renderOcclusionHook()
+    let firstRequest!: Promise<boolean>
+    let secondRequest!: Promise<boolean>
+
+    act(() => {
+      firstRequest = hook.result().requestOverlay('resources', firstFallback)
+    })
+    await flushOcclusionLifecycle()
+    expect(await firstRequest).toBe(true)
+    expect(hook.result().activeOverlay).toBe('resources')
+
+    act(() => {
+      secondRequest = hook.result().requestOverlay('tab', secondFallback)
+    })
+    await flushOcclusionLifecycle()
+
+    expect(await secondRequest).toBe(true)
+    expect(hook.result().activeOverlay).toBe('tab')
+    expect(captureBrowserPanelSnapshot).toHaveBeenCalledOnce()
+    expect(setBrowserPanelOccluded).toHaveBeenCalledTimes(1)
+    expect(firstFallback).not.toHaveBeenCalled()
+    expect(secondFallback).not.toHaveBeenCalled()
+    hook.unmount()
+  })
+
   it('retires an active popover and replacement when the Browser becomes ineligible', async () => {
     const hook = renderOcclusionHook()
     act(() => {

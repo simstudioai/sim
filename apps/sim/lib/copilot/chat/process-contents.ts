@@ -15,6 +15,10 @@ import {
 } from '@/lib/copilot/chat/selection-context'
 import { QueryLogs } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
+  BROWSER_SESSION_RESOURCE_ID,
+  TERMINAL_SESSION_RESOURCE_ID,
+} from '@/lib/copilot/resources/types'
+import {
   buildVfsFolderPathMap,
   canonicalBlockVfsPath,
   canonicalKnowledgeBaseVfsDir,
@@ -196,6 +200,14 @@ export async function processContextsServer(
       // additionally carries the quoted snapshot they chose, while the pointer
       // lets the agent inspect or act on the current page/shell when needed.
       if (ctx.kind === 'browser_tab' && ctx.tabId) {
+        if (ctx.tabId === BROWSER_SESSION_RESOURCE_ID) {
+          return {
+            type: 'browser_tab',
+            tag: ctx.label ? `@${ctx.label}` : '@Browser',
+            content:
+              'The user tagged the Browser resource as a whole, not a specific tab. Inspect the live tabs with browser_list_tabs and choose the relevant one from their request. If no browser tab is open yet, open or navigate one as needed.',
+          }
+        }
         const pointer = `The user pointed at an open browser tab: "${ctx.label}" (tabId ${ctx.tabId}). Act on THIS tab — switch to it with browser_switch_tab and read it with browser_snapshot rather than assuming which tab they meant.`
         return {
           type: 'browser_tab',
@@ -206,6 +218,14 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'terminal_tab' && ctx.terminalId) {
+        if (ctx.terminalId === TERMINAL_SESSION_RESOURCE_ID) {
+          return {
+            type: 'terminal_tab',
+            tag: ctx.label ? `@${ctx.label}` : '@Terminal',
+            content:
+              'The user tagged the Terminal resource as a whole, not a specific shell. Inspect the live terminals with the terminal list operation and choose the relevant one from their request. If no terminal is open yet, create one as needed.',
+          }
+        }
         const pointer = `The user pointed at an open terminal: "${ctx.label}" (terminalId ${ctx.terminalId}). Act on THIS terminal — pass that terminalId to the terminal tool, and read its screen before assuming what is in it.`
         return {
           type: 'terminal_tab',

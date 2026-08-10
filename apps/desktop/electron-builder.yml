@@ -54,6 +54,10 @@ mac:
   mergeASARs: false
   hardenedRuntime: true
   gatekeeperAssess: false
+  # macOS refuses to show the microphone prompt at all — it kills the process —
+  # unless the bundle declares why it wants the device.
+  extendInfo:
+    NSMicrophoneUsageDescription: Sim uses your microphone for voice input in Chat.
   entitlements: build/entitlements.mac.plist
   entitlementsInherit: build/entitlements.mac.plist
   notarize: true

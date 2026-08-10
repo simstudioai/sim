@@ -15,8 +15,8 @@ import {
 
 export interface CopilotTerminalSessionData {
   tabs: TerminalTabsState
-  /** Tool call ids whose commands the agent is currently running. */
-  agentCommandIds: string[]
+  /** Exact terminal targeted by each currently running agent command. */
+  agentCommandTerminalIds: Record<string, string>
   /** Live PTYs were stopped while the restart descriptor was retained. */
   suspended: boolean
 }
@@ -43,7 +43,7 @@ interface CopilotTerminalState {
 function createInitialSession(): CopilotTerminalSessionData {
   return {
     tabs: { tabs: [], activeTerminalId: null },
-    agentCommandIds: [],
+    agentCommandTerminalIds: {},
     suspended: false,
   }
 }
@@ -60,7 +60,7 @@ function isPristineSession(session: CopilotTerminalSessionData): boolean {
     !session.suspended &&
     session.tabs.tabs.length === 0 &&
     session.tabs.activeTerminalId === null &&
-    session.agentCommandIds.length === 0
+    Object.keys(session.agentCommandTerminalIds).length === 0
   )
 }
 
@@ -72,6 +72,7 @@ function isPristineSession(session: CopilotTerminalSessionData): boolean {
  */
 function tabsEqual(a: TerminalTabsState, b: TerminalTabsState): boolean {
   if (a.activeTerminalId !== b.activeTerminalId) return false
+  if ((a.agentActiveTerminalId ?? null) !== (b.agentActiveTerminalId ?? null)) return false
   if (a.tabs.length !== b.tabs.length) return false
   return a.tabs.every((tab, index) => tabEqual(tab, b.tabs[index]))
 }
@@ -116,22 +117,34 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
               current.suspended &&
               current.tabs.tabs.length === 0 &&
               current.tabs.activeTerminalId === null &&
-              current.agentCommandIds.length === 0
+              Object.keys(current.agentCommandTerminalIds).length === 0
             ) {
               return current
             }
             return {
               tabs: { tabs: [], activeTerminalId: null },
-              agentCommandIds: [],
+              agentCommandTerminalIds: {},
               suspended: true,
             }
           })
         ),
       setTabs: (tabs) =>
         set((state) => {
-          return withSession(state, tabs.scopeId, (current) =>
-            current.suspended || tabsEqual(current.tabs, tabs) ? current : { ...current, tabs }
-          )
+          return withSession(state, tabs.scopeId, (current) => {
+            if (current.suspended) return current
+            const liveTerminalIds = new Set(tabs.tabs.map((tab) => tab.terminalId))
+            const agentCommandTerminalIds = Object.fromEntries(
+              Object.entries(current.agentCommandTerminalIds).filter(([, terminalId]) =>
+                liveTerminalIds.has(terminalId)
+              )
+            )
+            const commandsUnchanged =
+              Object.keys(agentCommandTerminalIds).length ===
+              Object.keys(current.agentCommandTerminalIds).length
+            const nextTabs = tabsEqual(current.tabs, tabs) ? current.tabs : tabs
+            if (nextTabs === current.tabs && commandsUnchanged) return current
+            return { ...current, tabs: nextTabs, agentCommandTerminalIds }
+          })
         }),
       applyCommandEvent: (event) =>
         set((state) => {
@@ -139,15 +152,20 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
           if (!toolCallId) return {}
           return withSession(state, event.scopeId, (current) => {
             if (current.suspended) return current
-            const agentCommandIds =
-              event.phase === 'start'
-                ? current.agentCommandIds.includes(toolCallId)
-                  ? current.agentCommandIds
-                  : [...current.agentCommandIds, toolCallId]
-                : current.agentCommandIds.filter((id) => id !== toolCallId)
-            return agentCommandIds === current.agentCommandIds
-              ? current
-              : { ...current, agentCommandIds }
+            if (event.phase === 'start') {
+              if (current.agentCommandTerminalIds[toolCallId] === event.terminalId) return current
+              return {
+                ...current,
+                agentCommandTerminalIds: {
+                  ...current.agentCommandTerminalIds,
+                  [toolCallId]: event.terminalId,
+                },
+              }
+            }
+            if (!(toolCallId in current.agentCommandTerminalIds)) return current
+            const { [toolCallId]: _finished, ...agentCommandTerminalIds } =
+              current.agentCommandTerminalIds
+            return { ...current, agentCommandTerminalIds }
           })
         }),
     }),

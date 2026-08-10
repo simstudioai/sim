@@ -225,6 +225,12 @@ export interface BrowserTabState {
 export interface BrowserTabsState {
   tabs: BrowserTabState[]
   activeTabId: string | null
+  /** Tab currently driven by the agent when it differs from the user's visible tab. */
+  automationTabId?: string | null
+  /** True while a browser tool is actively driving that tab. */
+  automationActive?: boolean
+  /** True while automation is paused for the user on this tab. */
+  automationNeedsAttention?: boolean
   /** Chat scope that owns this tab set. */
   scopeId: string
 }

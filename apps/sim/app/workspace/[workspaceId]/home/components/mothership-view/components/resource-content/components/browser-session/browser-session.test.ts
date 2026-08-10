@@ -8,6 +8,7 @@ import {
   clearOmniboxSelection,
   resolveUrlBarInput,
   selectFocusedOmniboxOnNextFrame,
+  shouldOpenUrlSuggestions,
   shouldRemoveBrowserResource,
   shouldReportBrowserBounds,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-session'
@@ -150,6 +151,30 @@ describe('clearOmniboxSelection', () => {
 
     expect(input.selectionStart).toBe(input.value.length)
     expect(input.selectionEnd).toBe(input.value.length)
+  })
+})
+
+describe('shouldOpenUrlSuggestions', () => {
+  it('opens only once the renderer owns the painted frame', () => {
+    expect(shouldOpenUrlSuggestions('suggestions', 3)).toBe(true)
+  })
+
+  it('stays closed while the native page is still on top', () => {
+    // The rows are ranked and ready, but a click would land on the
+    // WebContentsView rather than the list — the "clicking a suggestion does
+    // nothing" bug. Not opening is the honest outcome; there is no native menu
+    // to fall back to.
+    expect(shouldOpenUrlSuggestions(null, 3)).toBe(false)
+  })
+
+  it('stays closed when another overlay holds the lease', () => {
+    expect(shouldOpenUrlSuggestions('credentials', 3)).toBe(false)
+    expect(shouldOpenUrlSuggestions('tab', 3)).toBe(false)
+  })
+
+  it('stays closed with nothing to suggest, however the frame is owned', () => {
+    expect(shouldOpenUrlSuggestions('suggestions', 0)).toBe(false)
+    expect(shouldOpenUrlSuggestions(null, 0)).toBe(false)
   })
 })
 

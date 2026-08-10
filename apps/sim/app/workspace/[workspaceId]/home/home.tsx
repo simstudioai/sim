@@ -3,6 +3,7 @@
 import {
   type Dispatch,
   lazy,
+  type PointerEvent,
   type SetStateAction,
   Suspense,
   useCallback,
@@ -203,13 +204,32 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   const [isResourceCollapsed, setIsResourceCollapsed] = useState(true)
   const [skipResourceTransition, setSkipResourceTransition] = useState(false)
+  const [resourceActivityIds, setResourceActivityIds] = useState<Set<string>>(new Set())
   const isResourceCollapsedRef = useRef(isResourceCollapsed)
   isResourceCollapsedRef.current = isResourceCollapsed
+  const userOwnsResourceViewRef = useRef(false)
+  const activeResourceParamRef = useRef(activeResourceParam)
+  activeResourceParamRef.current = activeResourceParam
 
-  function handleResourceEvent() {
-    if (isResourceCollapsedRef.current) {
-      setIsResourceCollapsed(false)
+  function handleResourceEvent(resourceId: string) {
+    // Agent work should always make the resource surface available. Expanding
+    // the panel is independent from selecting a resource: once the user has
+    // chosen another resource, the agent may work in the background without
+    // taking that selection away.
+    if (isResourceCollapsedRef.current) setIsResourceCollapsed(false)
+
+    const activeResourceId = activeResourceParamRef.current
+    if (userOwnsResourceViewRef.current && activeResourceId && activeResourceId !== resourceId) {
+      setResourceActivityIds((current) => new Set(current).add(resourceId))
+      return
     }
+    setResourceActivityIds((current) => {
+      if (!current.has(resourceId)) return current
+      const next = new Set(current)
+      next.delete(resourceId)
+      return next
+    })
+    if (activeResourceId !== resourceId) setActiveResourceUrl(resourceId)
   }
 
   const {
@@ -254,19 +274,63 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   )
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+  const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
+    userOwnsResourceViewRef.current = true
     clearWidth()
     setIsResourceCollapsed(true)
   }, [clearWidth])
 
+  const selectResourceFromUser = useCallback(
+    (resourceId: string) => {
+      userOwnsResourceViewRef.current = true
+      setResourceActivityIds((current) => {
+        if (!current.has(resourceId)) return current
+        const next = new Set(current)
+        next.delete(resourceId)
+        return next
+      })
+      setActiveResourceId(resourceId)
+    },
+    [setActiveResourceId]
+  )
+
+  const addResourceFromUser = useCallback(
+    (resource: MothershipResource) => {
+      userOwnsResourceViewRef.current = true
+      addResource(resource)
+      selectResourceFromUser(resource.id)
+      setIsResourceCollapsed(false)
+    },
+    [addResource, selectResourceFromUser]
+  )
+
+  const handleResourceResizePointerDown = useCallback(
+    (event: PointerEvent<HTMLDivElement>) => {
+      userOwnsResourceViewRef.current = true
+      handleResizePointerDown(event)
+    },
+    [handleResizePointerDown]
+  )
+
+  const handleResourceInteraction = useCallback(() => {
+    userOwnsResourceViewRef.current = true
+  }, [])
+
   useEffect(() => {
+    const previousChatId = resourceAttentionChatIdRef.current
+    resourceAttentionChatIdRef.current = resolvedChatId
     wasSendingRef.current = false
     if (resolvedChatId) {
       markRead(resolvedChatId)
     } else {
       clearWidth()
       setIsResourceCollapsed(true)
+    }
+    if (!resolvedChatId || (previousChatId && previousChatId !== resolvedChatId)) {
+      userOwnsResourceViewRef.current = false
+      setResourceActivityIds(new Set())
     }
   }, [resolvedChatId, markRead, clearWidth])
 
@@ -278,7 +342,12 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }, [isSending, resolvedChatId, markRead])
 
   useEffect(() => {
-    if (!(resources.length > 0 && isResourceCollapsedRef.current)) return
+    if (
+      !(resources.length > 0 && isResourceCollapsedRef.current) ||
+      userOwnsResourceViewRef.current
+    ) {
+      return
+    }
     setIsResourceCollapsed(false)
     setSkipResourceTransition(true)
     const id = requestAnimationFrame(() => setSkipResourceTransition(false))
@@ -287,9 +356,18 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
 
   useEffect(() => {
     if (resources.length === 0 && !isResourceCollapsedRef.current) {
-      collapseResource()
+      clearWidth()
+      setIsResourceCollapsed(true)
     }
-  }, [resources, collapseResource])
+  }, [resources, clearWidth])
+
+  useEffect(() => {
+    const resourceIds = new Set(resources.map((resource) => resource.id))
+    setResourceActivityIds((current) => {
+      const next = new Set([...current].filter((id) => resourceIds.has(id)))
+      return next.size === current.size ? current : next
+    })
+  }, [resources])
 
   const handleStopGeneration = useCallback(() => {
     captureEvent(posthogRef.current, 'task_generation_aborted', {
@@ -316,6 +394,8 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         setIsInputEntering(true)
       }
 
+      userOwnsResourceViewRef.current = false
+      setResourceActivityIds(new Set())
       sendMessage(trimmed || 'Analyze the attached file(s).', fileAttachments, contexts)
     },
     [workspaceId, chatId, sendMessage]
@@ -416,8 +496,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   function handleContextAdd(context: ChatContext) {
     const resolved = resolveResourceFromContext(context)
     if (resolved) {
-      addResource({ ...resolved, title: resourceTitleForContext(context) })
-      handleResourceEvent()
+      addResourceFromUser({ ...resolved, title: resourceTitleForContext(context) })
     }
   }
 
@@ -437,11 +516,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   }
 
   function openWorkspaceResource(resource: MothershipResource) {
-    const wasAdded = addResource(resource)
-    if (!wasAdded) {
-      setActiveResourceId(resource.id)
-    }
-    handleResourceEvent()
+    addResourceFromUser(resource)
   }
 
   /**
@@ -578,14 +653,14 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             role='separator'
             aria-orientation='vertical'
             aria-label='Resize resource panel'
-            onPointerDown={handleResizePointerDown}
+            onPointerDown={handleResourceResizePointerDown}
           />
         </div>
       )}
 
       <MothershipResourcesProvider
-        selectResource={setActiveResourceId}
-        addResource={addResource}
+        selectResource={selectResourceFromUser}
+        addResource={addResourceFromUser}
         removeResource={removeResource}
         reorderResources={reorderResources}
         collapseResource={collapseResource}
@@ -598,11 +673,13 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
             desktopScopeId={desktopScopeId}
             resources={resources}
             activeResourceId={activeResourceId}
+            activityResourceIds={resourceActivityIds}
             isCollapsed={isResourceCollapsed}
             previewSession={previewSession}
             isAgentResponding={isSending}
             genericResourceData={genericResourceData ?? undefined}
             tableViewsEnabled={tableViewsEnabled}
+            onUserInteraction={handleResourceInteraction}
             className={skipResourceTransition ? '!transition-none' : undefined}
           />
         </Suspense>
@@ -619,11 +696,32 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
           variant='ghost'
           size={null}
           type='button'
-          onClick={isResourceCollapsed ? () => setIsResourceCollapsed(false) : collapseResource}
+          onClick={
+            isResourceCollapsed
+              ? () => {
+                  userOwnsResourceViewRef.current = true
+                  const activeResourceId = activeResourceParamRef.current
+                  if (activeResourceId) {
+                    setResourceActivityIds((current) => {
+                      if (!current.has(activeResourceId)) return current
+                      const next = new Set(current)
+                      next.delete(activeResourceId)
+                      return next
+                    })
+                  }
+                  setIsResourceCollapsed(false)
+                }
+              : collapseResource
+          }
           className='size-[30px] rounded-[8px] hover-hover:bg-[var(--surface-active)]'
           aria-label={isResourceCollapsed ? 'Expand resource view' : 'Collapse resource view'}
         >
-          <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
+          <span className='relative'>
+            <PanelLeft className='-scale-x-100 size-[16px] text-[var(--text-icon)]' />
+            {isResourceCollapsed && resourceActivityIds.size > 0 && (
+              <span className='-top-0.5 -right-0.5 absolute size-1.5 rounded-full bg-[var(--brand-primary)]' />
+            )}
+          </span>
         </Button>
       </div>
     </div>

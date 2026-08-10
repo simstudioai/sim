@@ -261,7 +261,7 @@ function instrumentTab(contents: WebContents): void {
   contents.on(
     'did-navigate',
     inScope(() => {
-      if (session.activeTab()?.view.webContents === contents) {
+      if (session.automationTab()?.view.webContents === contents) {
         invalidateSnapshot()
       }
       knownSessions?.noteTopLevelNavigation(contents.getURL())
@@ -281,7 +281,7 @@ function instrumentTab(contents: WebContents): void {
       inScope(() => {
         if (
           event === 'did-navigate-in-page' &&
-          session.activeTab()?.view.webContents === contents
+          session.automationTab()?.view.webContents === contents
         ) {
           invalidateSnapshot()
         }
@@ -667,7 +667,7 @@ async function execInPage<Args extends unknown[], Result>(
       )) as Result
     }
     if ('frameTreeNodeId' in target && typeof target.frameTreeNodeId === 'number') {
-      const contents = session.activeTab()?.view.webContents
+      const contents = session.automationTab()?.view.webContents
       const frame = target as WebFrameMain
       if (
         !contents ||
@@ -967,7 +967,7 @@ async function activeElementState(target: PageExecutionTarget): Promise<Record<s
 }
 
 function requireSnapshotForElementAction(): void {
-  const tab = session.requireTab()
+  const tab = session.requireAutomationTab()
   if (driverScopeState().snapshotTabId === tab.id) return
   throw new ToolError(
     'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.'
@@ -986,8 +986,9 @@ function pageTargetForElement(contents: WebContents, elementId: number): PageExe
 }
 
 function assertActiveContents(contents: WebContents, expectedUrl?: string): void {
-  const active = session.activeTab()
+  const active = session.automationTab()
   if (
+    session.automationTabClaimedByUser() ||
     !active ||
     active.view.webContents !== contents ||
     contents.isDestroyed() ||
@@ -1004,7 +1005,7 @@ function assertElementActionCurrent(
 ): void {
   assertActiveContents(contents)
   const state = driverScopeState()
-  const active = session.activeTab()
+  const active = session.automationTab()
   if (state.snapshotTabId !== active?.id || state.snapshotTargets.get(elementId) !== target) {
     throw new ToolError(
       'The page changed before input could be dispatched. Take a fresh browser_snapshot and try again.'
@@ -1462,7 +1463,7 @@ function validateSnapshotRefs(
  */
 async function captureSnapshot(contents: WebContents, notAfter?: number): Promise<unknown> {
   const state = driverScopeState()
-  const tab = session.requireTab()
+  const tab = session.requireAutomationTab()
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
   }
@@ -1473,7 +1474,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   const targets = new Map<number, PageExecutionTarget>()
   const targetLineIndexes = new Map<number, number>()
   const stillCurrent = (): boolean => {
-    const active = session.activeTab()
+    const active = session.automationTab()
     return (
       state.snapshotCaptureEpoch === captureEpoch &&
       active?.id === capturedTabId &&
@@ -1633,11 +1634,12 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
  * pending state survives navigations.
  */
 async function runTakeover(purpose: string | undefined): Promise<unknown> {
-  const tab = session.ensureTab()
+  const tab = session.ensureAutomationTab()
   const contents = tab.view.webContents
   const state = driverScopeState()
   state.takeoverActive = true
   state.takeoverDone = false
+  session.setAutomationNeedsAttention(true)
 
   const startedAt = Date.now()
   try {
@@ -1650,7 +1652,7 @@ async function runTakeover(purpose: string | undefined): Promise<unknown> {
       }
       if (state.takeoverDone) {
         if (purpose === 'sign_in') {
-          const activeContents = session.activeTab()?.view.webContents
+          const activeContents = session.automationTab()?.view.webContents
           if (activeContents && !activeContents.isDestroyed()) {
             knownSessions?.noteSignInCompleted(activeContents.getURL())
           }
@@ -1660,6 +1662,7 @@ async function runTakeover(purpose: string | undefined): Promise<unknown> {
     }
     throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
   } finally {
+    session.setAutomationNeedsAttention(false)
     state.takeoverActive = false
     state.takeoverDone = false
   }
@@ -1685,7 +1688,7 @@ async function executeToolInner(
         throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       assertCurrentExecution()
-      const tab = session.ensureTab()
+      const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
       return await loadUrlAndGetResult(contents, url)
@@ -1702,7 +1705,7 @@ async function executeToolInner(
         throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       assertCurrentExecution()
-      const tab = session.ensureTab()
+      const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
       const nav = await loadUrlAndGetResult(contents, url)
@@ -1718,7 +1721,7 @@ async function executeToolInner(
     case 'browser_go_back':
     case 'browser_go_forward': {
       invalidateSnapshot()
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const history = contents.navigationHistory
       assertCurrentExecution()
       let completion: Promise<void>
@@ -1746,7 +1749,7 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      const tab = session.addTab()
+      const tab = session.addAutomationTab()
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
@@ -1758,7 +1761,7 @@ async function executeToolInner(
 
     case 'browser_switch_tab': {
       invalidateSnapshot()
-      const tab = session.switchTab(requireStr(params, 'tabId'))
+      const tab = session.switchAutomationTab(requireStr(params, 'tabId'))
       const contents = tab.view.webContents
       return { tabId: tab.id, url: contents.getURL(), title: contents.getTitle() }
     }
@@ -1766,13 +1769,13 @@ async function executeToolInner(
     case 'browser_close_tab': {
       invalidateSnapshot()
       const tabId = requireStr(params, 'tabId')
-      session.closeTab(tabId)
+      session.closeAutomationTab(tabId)
       return { closed: tabId }
     }
 
     case 'browser_list_tabs': {
       session.restoreBrowserSession()
-      return session.getTabsState()
+      return session.getAutomationTabsState()
     }
 
     case 'browser_list_sessions': {
@@ -1790,10 +1793,10 @@ async function executeToolInner(
         await sleep(timeoutMs)
         return { waitedMs: timeoutMs }
       }
-      const waitedTab = session.requireTab()
+      const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
       while (Date.now() - startedAt < timeoutMs) {
-        const active = session.activeTab()
+        const active = session.automationTab()
         if (active?.id !== waitedTab.id || active.view.webContents !== contents) {
           throw new ToolError(
             'The active tab changed while waiting. Start browser_wait_for again on the tab you want to inspect.'
@@ -1832,13 +1835,13 @@ async function executeToolInner(
     }
 
     case 'browser_snapshot': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       assertCurrentExecution()
       return await captureSnapshot(contents, executionDeadline)
     }
 
     case 'browser_read_text': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       if (elementId === undefined) return await readWholePageText(contents, executionDeadline)
       const target = pageTargetForElement(contents, elementId)
@@ -1848,7 +1851,7 @@ async function executeToolInner(
     }
 
     case 'browser_screenshot': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const dataUrl = await cdp.captureScreenshot(contents).catch(() => null)
       if (dataUrl === null) {
         throw new ToolError(
@@ -1866,13 +1869,13 @@ async function executeToolInner(
 
     case 'browser_extract': {
       const instruction = requireStr(params, 'instruction')
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const page = await readWholePageText(contents, executionDeadline)
       return { instruction, page }
     }
 
     case 'browser_click': {
-      const clickedTab = session.requireTab()
+      const clickedTab = session.requireAutomationTab()
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
@@ -2136,7 +2139,7 @@ async function executeToolInner(
       const topObservation = observeTopPage
         ? pageEffect(beforeTopPage, afterTopPage, beforeTopElement, afterTopElement)
         : observation
-      const activeTab = session.activeTab()
+      const activeTab = session.automationTab()
       const tabChanged = activeTab?.id !== clickedTab.id
       const effect = {
         ...observation.effect,
@@ -2207,7 +2210,7 @@ async function executeToolInner(
       const elementId = requireNum(params, 'elementId')
       const text = requireStr(params, 'text')
       const submit = params.submit === true
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
 
@@ -2519,7 +2522,7 @@ async function executeToolInner(
     case 'browser_press_key': {
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const pressedPageUrl = contents.getURL()
       let target: PageExecutionTarget = focusedPageTarget(contents)
       let pressedFrameUrl = target === contents ? undefined : (target as WebFrameMain).url
@@ -2692,7 +2695,7 @@ async function executeToolInner(
     }
 
     case 'browser_scroll': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
         elementId !== undefined
@@ -2728,7 +2731,7 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
@@ -2793,7 +2796,7 @@ async function executeToolInner(
     }
 
     case 'browser_hover': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
@@ -3046,7 +3049,10 @@ export async function handlePanelAction(
     // agent. Meaningful only while a takeover is actually waiting.
     if (action.action === 'takeover-done') {
       const state = driverScopeState()
-      if (state.takeoverActive) state.takeoverDone = true
+      if (state.takeoverActive) {
+        session.returnAutomationTabToAgent()
+        state.takeoverDone = true
+      }
       return
     }
     // Navigate bootstraps the session: the user can open the panel manually
@@ -3054,6 +3060,7 @@ export async function handlePanelAction(
     // bar. The other chrome actions need an existing page.
     if (action.action === 'navigate') {
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
+        session.claimActiveTabForUser()
         const contents = session.ensureTab().view.webContents
         void contents.loadURL(action.url).catch(() => {})
       }
@@ -3081,6 +3088,7 @@ export async function handlePanelAction(
       }
       return
     }
+    session.claimActiveTabForUser()
     const tab = session.activeTab()
     if (!tab) return
     const contents = tab.view.webContents

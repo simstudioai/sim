@@ -185,6 +185,7 @@ export {
   type TabStripItem,
   type TabStripProps,
   tabDropIndex,
+  tabStripWheelPosition,
 } from './tab-strip/tab-strip'
 export {
   Table,

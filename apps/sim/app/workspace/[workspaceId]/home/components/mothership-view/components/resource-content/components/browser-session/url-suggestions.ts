@@ -242,10 +242,8 @@ function bestMatch(suggestion: UrlSuggestion, query: string): { matched: boolean
 /**
  * Where the arrow keys land next.
  *
- * Nothing is highlighted until the user actually arrows into the list, so
- * Enter keeps meaning "go to what I typed" rather than silently redirecting to
- * a suggestion. Both ends wrap, and Up from that neutral state enters at the
- * bottom.
+ * Both ends wrap. A null selection enters at the first row with Down and the
+ * final row with Up, which also keeps this helper safe while results change.
  */
 export function moveActiveIndex(
   current: number | null,

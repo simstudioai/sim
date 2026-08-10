@@ -38,6 +38,7 @@ import {
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  addTab,
   findInActiveTab,
   getBrowserDownloadsState,
   peekTabsState,
@@ -767,6 +768,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
           : { tabs: [], activeTabId: null }
       },
     },
+    'browser-agent:open-tab': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { scopeId: '', tabs: [], activeTabId: null },
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        if (!scope) return { scopeId: '', tabs: [], activeTabId: null }
+        return withBrowserScope(scope, () => {
+          addTab()
+          return peekTabsState()
+        })
+      },
+    },
     'browser-agent:activate-scope': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1391,6 +1408,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (scope) deps.terminal.setPanelFocused(scope, focused === true, sender as WebContents)
       },
     },
+    'terminal:visible': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      handler: (sender, visible, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (scope) deps.terminal.setPanelVisible(scope, visible === true, sender as WebContents)
+      },
+    },
     'terminal:paste': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1550,6 +1577,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         const tabs =
           typeof terminalId === 'string'
             ? deps.terminal.switchTerminal(scope, terminalId)
+            : deps.terminal.getTabs(scope)
+        return { ...tabs, scopeId: scope }
+      },
+    },
+    'terminal:reorder': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, terminalId, targetIndex, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const tabs =
+          typeof terminalId === 'string' &&
+          typeof targetIndex === 'number' &&
+          Number.isFinite(targetIndex)
+            ? deps.terminal.reorderTerminal(scope, terminalId, targetIndex)
             : deps.terminal.getTabs(scope)
         return { ...tabs, scopeId: scope }
       },
