@@ -22,6 +22,7 @@ import {
 } from '@/lib/execution/private-tool-metadata'
 import { refreshTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeProviderRequest } from '@/providers'
 import { isAbortError } from '@/providers/streaming-tool-loop-shared'
@@ -388,7 +389,12 @@ export async function validateHallucination(
       !Array.isArray(contextProjection.value) ||
       !contextProjection.value.every((value) => typeof value === 'string')
     ) {
-      throw new Error('Hallucination model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'guardrails.hallucinationModelInput',
+        message: 'Hallucination model input could not be safely projected',
+        registry: inputRegistry,
+        inputPath: 'input',
+      })
     }
 
     const providerRegistry = inputRegistry

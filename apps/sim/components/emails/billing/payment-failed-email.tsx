@@ -1,6 +1,7 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { EmailButton, EmailLayout } from '@/components/emails/components'
+import { getEmailSubject } from '@/components/emails/subjects'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
@@ -9,7 +10,6 @@ interface PaymentFailedEmailProps {
   lastFourDigits?: string
   billingPortalUrl: string
   failureReason?: string
-  sentDate?: Date
 }
 
 export function PaymentFailedEmail({
@@ -18,11 +18,10 @@ export function PaymentFailedEmail({
   lastFourDigits,
   billingPortalUrl,
   failureReason,
-  sentDate = new Date(),
 }: PaymentFailedEmailProps) {
   const brand = getBrandConfig()
 
-  const previewText = `${brand.name}: Payment Failed - Action Required`
+  const previewText = getEmailSubject('payment-failed')
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={false}>

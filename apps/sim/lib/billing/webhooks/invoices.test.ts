@@ -18,9 +18,9 @@ const { mockBlockOrgMembers, mockUnblockOrgMembers } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/components/emails', () => ({
-  PaymentFailedEmail: vi.fn(),
   getEmailSubject: vi.fn(),
   renderCreditPurchaseEmail: vi.fn(),
+  renderPaymentFailedEmail: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/billing', () => ({
@@ -91,10 +91,6 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 
 vi.mock('@/lib/messaging/email/validation', () => ({
   quickValidateEmail: vi.fn(() => ({ isValid: true })),
-}))
-
-vi.mock('@react-email/render', () => ({
-  render: vi.fn(),
 }))
 
 import {

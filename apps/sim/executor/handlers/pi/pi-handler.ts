@@ -53,6 +53,7 @@ import type {
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -172,7 +173,12 @@ export class PiBlockHandler implements BlockHandler {
       [['task']]
     )
     if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
-      throw new Error('Pi input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'pi.taskModelInput',
+        message: 'Pi input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'task',
+      })
     }
     const task = taskProjection.value.task
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
@@ -431,7 +437,12 @@ export class PiBlockHandler implements BlockHandler {
       [['searchApiKey']]
     )
     if (!searchInputProjection.complete) {
-      throw new Error('Pi search input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'pi.searchApiKeyInput',
+        message: 'Pi search input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'searchApiKey',
+      })
     }
     const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
       ? apiKey

@@ -22,7 +22,7 @@ const logger = createLogger('ResolvedSecretTraceRegistry')
  * genuine containment from a matcher that merely could not decide — the reasons are static
  * literals and the logged path is block/field names, never a resolved value.
  */
-type ResolvedSecretIncompletenessReason =
+export type ResolvedSecretIncompletenessReason =
   | 'untrusted-provenance'
   | 'source-provenance-incomplete'
   | 'entry-decrypt-failed'
@@ -74,6 +74,24 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
 const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'constructed-incomplete',
 ])
+
+/**
+ * Why a registry can no longer vouch for what it projects, readable at the point a projection is
+ * refused rather than only when the guard trips.
+ *
+ * A refusal is often many frames — and sometimes a whole process — away from the guard that caused
+ * it, and the one-way latch means the causing call has long since returned. Without this, a run
+ * that inherits an already-incomplete registry can refuse with nothing recorded anywhere.
+ */
+export interface ResolvedSecretIncompletenessDiagnostics {
+  /** Distinct reasons in first-occurrence order, so the first is what originally cost completeness. */
+  readonly reasons: readonly ResolvedSecretIncompletenessReason[]
+  readonly incompleteInputPathCount: number
+  /** Present so a refusal record joins to the mark-time record that shares these counts. */
+  readonly activeEntryCount: number
+  /** Correlates a refusal with the guard that caused it; never carries user or secret material. */
+  readonly scopeWorkspaceId?: string
+}
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
@@ -599,6 +617,8 @@ export class ResolvedSecretTraceRegistry {
   private readonly propagatedEntryKeys = new Set<string>()
   private readonly resolvedInputPaths = new Map<string, ResolvedInputPathState>()
   private readonly incompleteInputPaths = new Map<string, string[]>()
+  /** Insertion-ordered; see {@link ResolvedSecretIncompletenessDiagnostics}. */
+  private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
@@ -653,7 +673,7 @@ export class ResolvedSecretTraceRegistry {
     }
     this.copyResolvedInputPathsTo(fork)
     this.copyIncompleteInputPathsTo(fork)
-    if (!this.complete) fork.markIncomplete('inherited-incomplete-source')
+    if (!this.complete) fork.markIncomplete('inherited-incomplete-source', this)
     return fork
   }
 
@@ -664,12 +684,12 @@ export class ResolvedSecretTraceRegistry {
   ): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
     if (!this.complete) {
-      fork.markIncomplete('inherited-incomplete-source')
+      fork.markIncomplete('inherited-incomplete-source', this)
       return fork
     }
 
     if (this.hasIncompleteInputPathOverlapping(paths)) {
-      fork.markIncomplete('inherited-incomplete-input-path')
+      fork.markIncomplete('inherited-incomplete-input-path', this)
       return fork
     }
 
@@ -693,7 +713,7 @@ export class ResolvedSecretTraceRegistry {
         fork.addActiveEntry({ ...entry }, { propagated: true })
       }
     }
-    if (this.isPermanentlyIncomplete()) fork.markIncomplete('inherited-incomplete-source')
+    if (this.isPermanentlyIncomplete()) fork.markIncomplete('inherited-incomplete-source', this)
     return fork
   }
 
@@ -705,7 +725,7 @@ export class ResolvedSecretTraceRegistry {
     }
 
     if (!child.isComplete()) {
-      this.markIncomplete('inherited-incomplete-source')
+      this.markIncomplete('inherited-incomplete-source', child)
       return
     }
 
@@ -1308,11 +1328,45 @@ export class ResolvedSecretTraceRegistry {
     return this.complete && this.incompleteInputPaths.size === 0 && this.pendingActivations === 0
   }
 
+  /**
+   * Reports why this registry is incomplete, for a caller that is about to refuse a projection.
+   *
+   * Returns undefined while the registry can still vouch, so a caller cannot accidentally report a
+   * cause for a projection that succeeded.
+   */
+  getIncompletenessDiagnostics(): ResolvedSecretIncompletenessDiagnostics | undefined {
+    if (!this.isPermanentlyIncomplete()) return undefined
+    return {
+      reasons: [...this.incompletenessReasons],
+      incompleteInputPathCount: this.incompleteInputPaths.size,
+      activeEntryCount: this.activeEntries.size,
+      ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
+    }
+  }
+
+  /** Retains a reason for later refusal reporting; the reason type bounds the set at its size. */
+  private recordIncompletenessReason(reason: ResolvedSecretIncompletenessReason): void {
+    this.incompletenessReasons.add(reason)
+  }
+
+  /**
+   * Carries a source registry's reasons into a fork or merge target, so a refusal downstream still
+   * names the guard that originally tripped rather than only the propagation that reached it.
+   */
+  private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
+    for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
+  }
+
   isPermanentlyIncomplete(): boolean {
     return !this.complete || this.incompleteInputPaths.size > 0
   }
 
-  markIncomplete(reason: ResolvedSecretIncompletenessReason = 'unspecified'): void {
+  markIncomplete(
+    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    source?: ResolvedSecretTraceRegistry
+  ): void {
+    if (source) this.inheritIncompletenessReasonsFrom(source)
+    this.recordIncompletenessReason(reason)
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
@@ -1743,6 +1797,7 @@ export class ResolvedSecretTraceRegistry {
       this.markIncomplete(reason)
       return
     }
+    this.recordIncompletenessReason(reason)
     const key = inputPathKey(path)
     if (this.incompleteInputPaths.has(key)) return
     this.incompleteInputPaths.set(key, [...path])
@@ -1763,10 +1818,13 @@ export class ResolvedSecretTraceRegistry {
     target: ResolvedSecretTraceRegistry,
     roots?: readonly ResolvedSecretInputPath[]
   ): void {
+    let copied = false
     for (const [key, path] of this.incompleteInputPaths) {
       if (roots && !roots.some((root) => inputPathsOverlap(path, root))) continue
       target.incompleteInputPaths.set(key, [...path])
+      copied = true
     }
+    if (copied) target.inheritIncompletenessReasonsFrom(this)
   }
 
   private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {

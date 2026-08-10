@@ -24,10 +24,13 @@ import {
   projectResolvedSecretModelContent,
   projectResolvedSecretModelJsonStrings,
 } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { PROVIDER_DEFINITIONS } from '@/providers/models'
 
 const logger = createLogger('Memory')
+
+const MEMORY_CONTENT_REFUSAL = 'Memory content could not be safely projected'
 
 export class Memory {
   async fetchMemoryMessages(ctx: ExecutionContext, inputs: AgentInputs): Promise<Message[]> {
@@ -82,7 +85,12 @@ export class Memory {
           messages
         )))
     ) {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.storedProvenanceImport',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'messages',
+      })
     }
 
     return Promise.all(
@@ -95,7 +103,12 @@ export class Memory {
           ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
         )
         if (!(await importDurableSecretProvenance(modelRegistry, messageProvenance, message))) {
-          throw new Error('Memory content could not be safely projected')
+          refuseResolvedSecretProjection({
+            site: 'memory.messageProvenanceImport',
+            message: MEMORY_CONTENT_REFUSAL,
+            registry: modelRegistry,
+            inputPath: 'messages',
+          })
         }
         return this.projectMessageForModel(modelRegistry, message)
       })
@@ -213,12 +226,21 @@ export class Memory {
   }
 
   private projectMessageForModel(registry: ResolvedSecretTraceRegistry, message: Message): Message {
-    const functionArguments = this.readFunctionCallArguments(message.function_call)
+    const functionArguments = this.readFunctionCallArguments(
+      message.function_call,
+      registry,
+      'function_call'
+    )
     const toolArguments = message.tool_calls?.map((toolCall) => {
       if (!isPlainRecord(toolCall)) {
-        throw new Error('Memory content could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'memory.toolCallShape',
+          message: MEMORY_CONTENT_REFUSAL,
+          registry,
+          inputPath: 'tool_calls',
+        })
       }
-      return this.readFunctionCallArguments(toolCall.function)
+      return this.readFunctionCallArguments(toolCall.function, registry, 'tool_calls.function')
     })
     const contentProjection = projectResolvedSecretModelContent(message.content, registry)
     const argumentProjection = projectResolvedSecretModelJsonStrings(
@@ -232,7 +254,12 @@ export class Memory {
       !Array.isArray(argumentProjection.value) ||
       argumentProjection.value.length !== 1 + (toolArguments?.length ?? 0)
     ) {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.messageContentProjection',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry,
+        inputPath: 'content,function_call,tool_calls',
+      })
     }
 
     const content = contentProjection.value
@@ -241,13 +268,23 @@ export class Memory {
       (functionArguments !== undefined && typeof projectedFunctionArguments !== 'string') ||
       (functionArguments === undefined && projectedFunctionArguments !== undefined)
     ) {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.functionCallArgumentProjection',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry,
+        inputPath: 'function_call.arguments',
+      })
     }
     if (
       (toolArguments !== undefined && projectedToolArguments.length !== toolArguments.length) ||
       (toolArguments === undefined && projectedToolArguments.length !== 0)
     ) {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.toolCallArgumentArity',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry,
+        inputPath: 'tool_calls.function.arguments',
+      })
     }
 
     const projectedToolCalls = message.tool_calls?.map((toolCall, index) => {
@@ -255,11 +292,21 @@ export class Memory {
       const originalFunction = isPlainRecord(toolCall) ? toolCall.function : undefined
       if (originalFunction === undefined || originalFunction === null) return toolCall
       if (!isPlainRecord(originalFunction)) {
-        throw new Error('Memory content could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'memory.toolCallFunctionShape',
+          message: MEMORY_CONTENT_REFUSAL,
+          registry,
+          inputPath: 'tool_calls.function',
+        })
       }
       if (!Object.hasOwn(originalFunction, 'arguments')) return toolCall
       if (typeof argument !== 'string') {
-        throw new Error('Memory content could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'memory.toolCallArgumentType',
+          message: MEMORY_CONTENT_REFUSAL,
+          registry,
+          inputPath: 'tool_calls.function.arguments',
+        })
       }
       return {
         ...toolCall,
@@ -283,14 +330,32 @@ export class Memory {
     }
   }
 
-  private readFunctionCallArguments(functionCall: unknown): string | undefined {
+  /**
+   * Takes the registry and path from its caller so a refusal here reports the run that failed.
+   * Without them the refusal would deduplicate process-wide and name no cause.
+   */
+  private readFunctionCallArguments(
+    functionCall: unknown,
+    registry: ResolvedSecretTraceRegistry,
+    inputPath: string
+  ): string | undefined {
     if (functionCall === undefined || functionCall === null) return undefined
     if (!isPlainRecord(functionCall)) {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.functionCallShape',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry,
+        inputPath,
+      })
     }
     if (!Object.hasOwn(functionCall, 'arguments')) return undefined
     if (typeof functionCall.arguments !== 'string') {
-      throw new Error('Memory content could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'memory.functionCallArgumentType',
+        message: MEMORY_CONTENT_REFUSAL,
+        registry,
+        inputPath,
+      })
     }
     return functionCall.arguments
   }
