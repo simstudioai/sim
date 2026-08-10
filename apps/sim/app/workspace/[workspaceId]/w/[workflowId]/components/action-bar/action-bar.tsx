@@ -45,27 +45,27 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The running hatch: narrow uprights leaning right, painted ONCE across the row.
+ * The running fill: one solid bar whose leading edge leans right.
  *
- * Per-slot backgrounds cannot do this. Each button starts its own gradient at
- * its own origin, so the phase resets at every slot — and the end slots are 40px
- * against the others' 24px, so the resets are not even uniform. The row came out
- * as bars bunched in some places and spread in others. One element spanning the
- * row has one gradient, and therefore one phase.
+ * Painted ONCE across the row, not per slot. Each button would start its own
+ * gradient at its own origin, so the phase reset at every slot — and the end
+ * slots are 40px against the others' 24px, so the resets were not even uniform.
+ * One element spanning the row has one paint and therefore one edge.
  *
- * Stops are measured along the 105° axis, not horizontally, so both carry a
- * `sin(105°)` factor: an 8px bar on an 11px period reads as roughly 8.3px of
- * fill to 3.1px of gap. Widen the first stop toward the second to close the
- * gap further; equal stops would fill solid.
+ * The slant lives on the growing edge rather than in a repeating hatch: with the
+ * gaps closed to nothing, a repeat has no edges left to show. 4px of run across
+ * the 16px height is the same 15° lean the bars carried.
  *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
-const RUNNING_HATCH =
-  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_8px,transparent_8px_11px)]'
+const RUNNING_FILL = [
+  'bg-[var(--surface-2)]',
+  '[clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]',
+].join(' ')
 
-/** Left edge of the hatch: clears the run/stop button, which stays live mid-run. */
-const RUNNING_HATCH_INSET_SWELL = 'left-[42px]'
-const RUNNING_HATCH_INSET_PLAIN = 'left-[26px]'
+/** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
+const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
+const RUNNING_FILL_INSET_PLAIN = 'left-[26px]'
 
 const ICON_SIZE = 'size-[14px]'
 
@@ -378,9 +378,9 @@ export const ActionBar = memo(
           )}
         >
           {/*
-            Painted behind the row rather than into each slot, so the hatch has a
-            single gradient and a single phase. The run/stop button keeps an
-            opaque fill while running, which masks the hatch growing underneath
+            Painted behind the row rather than into each slot, so the fill is one
+            continuous bar with one leading edge. The run/stop button keeps an
+            opaque fill while running, which masks the part growing underneath
             it; every other slot is transparent mid-sweep, so it shows through.
           */}
           {isSweeping && (
@@ -388,13 +388,13 @@ export const ActionBar = memo(
               aria-hidden='true'
               className={cn(
                 'pointer-events-none absolute inset-y-[4px] right-0 overflow-hidden',
-                isSwell ? RUNNING_HATCH_INSET_SWELL : RUNNING_HATCH_INSET_PLAIN
+                isSwell ? RUNNING_FILL_INSET_SWELL : RUNNING_FILL_INSET_PLAIN
               )}
             >
               <span
                 className={cn(
                   'block h-full transition-[width] duration-150 ease-linear motion-reduce:transition-none',
-                  RUNNING_HATCH
+                  RUNNING_FILL
                 )}
                 style={{
                   width: `${(runningSweepFilledCount / runningSweepActionIds.length) * 100}%`,
