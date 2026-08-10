@@ -562,10 +562,6 @@
 }
 
 @media print {
-  @page {
-    margin: 18mm;
-  }
-
   html[data-printing-markdown],
   html[data-printing-markdown] body {
     width: auto !important;
@@ -624,7 +620,9 @@
     -webkit-print-color-adjust: exact;
   }
 
-  html[data-printing-markdown] [data-markdown-print-active] > :has(> .rich-markdown-prose) {
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    > :has(> .rich-markdown-prose):not(.hidden) {
     display: block !important;
     width: 100% !important;
     max-width: none !important;
