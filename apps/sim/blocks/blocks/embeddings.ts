@@ -236,10 +236,15 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
           if (typeof params.openRouterApiKey !== 'string' || !params.openRouterApiKey.trim()) {
             throw new Error('OpenRouter API key is required')
           }
+          const savedModel =
+            typeof params.model === 'string' && params.model ? params.model : undefined
+          const savedCatalogProvider = savedModel
+            ? EMBEDDING_MODELS[savedModel]?.provider
+            : undefined
           const model = normalizeOpenRouterEmbeddingModelId(
-            typeof params.model === 'string' && params.model
-              ? params.model
-              : DEFAULT_OPENROUTER_EMBEDDING_MODEL
+            savedCatalogProvider && savedCatalogProvider !== 'openai'
+              ? DEFAULT_OPENROUTER_EMBEDDING_MODEL
+              : (savedModel ?? DEFAULT_OPENROUTER_EMBEDDING_MODEL)
           )
           return {
             apiKey: params.openRouterApiKey,

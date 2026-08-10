@@ -282,6 +282,28 @@ describe('Embeddings block', () => {
       expect(merged.model).toBe('embed-v4.0')
     })
 
+    it('replaces a catalog model left over when switching to OpenRouter', () => {
+      const merged = mergeLikeExecutor({
+        provider: 'openrouter',
+        model: 'gemini-embedding-001',
+        input: 'hello',
+        openRouterApiKey: 'or-test',
+      })
+
+      expect(merged.model).toBe(DEFAULT_OPENROUTER_EMBEDDING_MODEL)
+    })
+
+    it('rejects an invalid model entered for OpenRouter', () => {
+      expect(() =>
+        mergeLikeExecutor({
+          provider: 'openrouter',
+          model: 'not-an-openrouter-model',
+          input: 'hello',
+          openRouterApiKey: 'or-test',
+        })
+      ).toThrow('Invalid OpenRouter embedding model: not-an-openrouter-model')
+    })
+
     it('keeps a model that does belong to the selected provider', () => {
       const merged = mergeLikeExecutor({
         provider: 'openai',
