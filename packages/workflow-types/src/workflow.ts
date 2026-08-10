@@ -63,6 +63,114 @@ export interface BlockLayoutState {
   measuredHeight?: number
 }
 
+/**
+ * Inclusive bounds for {@link BlockRetryConfig.maxTries}: a retrying block tries
+ * at least twice, since one retry is the whole point, and at most five times.
+ */
+export const BLOCK_RETRY_MIN_TRIES = 2
+export const BLOCK_RETRY_MAX_TRIES = 5
+export const BLOCK_RETRY_DEFAULT_TRIES = 3
+
+/** Inclusive bounds for {@link BlockRetryConfig.waitBetweenTriesMs}. */
+export const BLOCK_RETRY_MIN_WAIT_MS = 0
+export const BLOCK_RETRY_MAX_WAIT_MS = 5_000
+export const BLOCK_RETRY_DEFAULT_WAIT_MS = 1_000
+
+/**
+ * Opt-in per-block retry, off unless the builder turns it on.
+ *
+ * Retrying is only safe when the operation is idempotent, which the platform
+ * cannot determine on a block's behalf: re-running "post message" or "create
+ * ticket" after an ambiguous transport failure duplicates a real side effect.
+ * The decision therefore belongs to whoever wired the block.
+ *
+ * The numbers persist independently of {@link BlockRetryConfig.enabled} so that
+ * switching retry off and back on restores what was configured rather than
+ * silently resetting to the defaults.
+ */
+export interface BlockRetryConfig {
+  /** Absent config and `false` mean the same thing: the block runs once. */
+  enabled: boolean
+  /** Total tries including the first, clamped to the bounds above. */
+  maxTries: number
+  /** Delay between tries, clamped to the bounds above. */
+  waitBetweenTriesMs: number
+}
+
+/**
+ * Whether two stored policies mean the same thing.
+ *
+ * Compared field by field rather than by serializing: `retry` round-trips
+ * through Postgres `jsonb`, which does not preserve key order, so a structural
+ * compare would report a spurious change.
+ */
+export function blockRetryEquals(
+  a: BlockRetryConfig | undefined,
+  b: BlockRetryConfig | undefined
+): boolean {
+  if (!a || !b) return !a && !b
+  return (
+    a.enabled === b.enabled &&
+    a.maxTries === b.maxTries &&
+    a.waitBetweenTriesMs === b.waitBetweenTriesMs
+  )
+}
+
+/**
+ * Pins a tries count into range, falling back to the default when the value is
+ * missing or unusable. Exported so the editor clamps exactly as execution does.
+ *
+ * Nullish is checked before the numeric conversion: `Number(null)` and
+ * `Number('')` are both `0`, so coercing first would read a field that was never
+ * set as an explicit zero.
+ */
+export function normalizeBlockRetryTries(value: unknown): number {
+  return normalizeBound(
+    value,
+    BLOCK_RETRY_MIN_TRIES,
+    BLOCK_RETRY_MAX_TRIES,
+    BLOCK_RETRY_DEFAULT_TRIES
+  )
+}
+
+/** Pins a wait into range. See {@link normalizeBlockRetryTries}. */
+export function normalizeBlockRetryWaitMs(value: unknown): number {
+  return normalizeBound(
+    value,
+    BLOCK_RETRY_MIN_WAIT_MS,
+    BLOCK_RETRY_MAX_WAIT_MS,
+    BLOCK_RETRY_DEFAULT_WAIT_MS
+  )
+}
+
+function normalizeBound(value: unknown, min: number, max: number, fallback: number): number {
+  if (value == null) return fallback
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed)) return fallback
+  return Math.min(max, Math.max(min, Math.floor(parsed)))
+}
+
+/**
+ * Normalizes a stored or wire-supplied retry policy into one the executor can
+ * act on, or `null` when the block must not retry.
+ *
+ * Clamps rather than rejects: every reader — executor, editor, copilot,
+ * imported YAML — goes through here, so a value that reached the database before
+ * a bound moved still resolves to something runnable instead of failing the
+ * whole workflow at serialization time.
+ */
+export function resolveBlockRetryConfig(
+  retry: Partial<BlockRetryConfig> | null | undefined
+): BlockRetryConfig | null {
+  if (!retry?.enabled) return null
+
+  return {
+    enabled: true,
+    maxTries: normalizeBlockRetryTries(retry.maxTries),
+    waitBetweenTriesMs: normalizeBlockRetryWaitMs(retry.waitBetweenTriesMs),
+  }
+}
+
 export interface BlockState {
   id: string
   type: string
@@ -78,6 +186,11 @@ export interface BlockState {
    * default.
    */
   errorEnabled?: boolean
+  /**
+   * Opt-in retry policy. Absent — the default for every block that predates the
+   * setting — means the block runs exactly once, as it always has.
+   */
+  retry?: BlockRetryConfig
   height?: number
   advancedMode?: boolean
   triggerMode?: boolean
