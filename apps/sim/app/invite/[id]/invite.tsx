@@ -280,7 +280,8 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   const [actionError, setActionError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
-  const [storedToken, setStoredToken] = useState<string | null>(null)
+  /** `undefined` until the effect reads storage; `null` once read and empty. */
+  const [storedToken, setStoredToken] = useState<string | null | undefined>(undefined)
 
   const isNewUser = searchParams.get('new') === 'true'
   const errorReason = searchParams.get('error')
@@ -291,7 +292,8 @@ export default function Invite({ registrationDisabled }: InviteProps) {
    * commit; an effect-set token refetches under a second key whenever the
    * session cache is already warm at mount.
    */
-  const token = tokenFromQuery ?? storedToken
+  const token = tokenFromQuery ?? storedToken ?? null
+  const isTokenResolved = tokenFromQuery !== null || storedToken !== undefined
 
   useEffect(() => {
     if (tokenFromQuery) {
@@ -302,7 +304,7 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   }, [tokenFromQuery, inviteTokenStorageKey])
 
   const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
-    enabled: Boolean(session?.user),
+    enabled: Boolean(session?.user) && isTokenResolved,
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
