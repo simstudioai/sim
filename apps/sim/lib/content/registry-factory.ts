@@ -2,11 +2,12 @@ import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
 import matter from 'gray-matter'
-import { imageSize } from 'image-size'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
+import type { ImageDimensions } from '@/lib/content/image-dimensions'
+import { readImageDimensions } from '@/lib/content/image-dimensions'
 import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
@@ -96,14 +97,11 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
    * null for remote URLs or unreadable files, in which case the builders fall
    * back to the 1200x630 OG default.
    */
-  async function readOgImageDimensions(
-    ogImage: string
-  ): Promise<{ width: number; height: number } | null> {
+  async function readOgImageDimensions(ogImage: string): Promise<ImageDimensions | null> {
     if (ogImage.startsWith('http')) return null
     try {
       const buffer = await fs.readFile(path.join(process.cwd(), 'public', ogImage))
-      const { width, height } = imageSize(buffer)
-      return width && height ? { width, height } : null
+      return readImageDimensions(buffer)
     } catch {
       return null
     }
