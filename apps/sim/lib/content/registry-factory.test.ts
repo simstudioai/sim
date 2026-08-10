@@ -6,15 +6,7 @@ import os from 'os'
 import path from 'path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 
-/**
- * `sharp` resolves a platform-specific `@img/sharp-*` native binary that the
- * standalone file tracer cannot follow, so a deployment can ship without it. It
- * must therefore be loaded lazily and its failure contained: an unreadable OG
- * dimension is optional metadata, not a reason to take down `/blog`, `/library`,
- * and every tag, author, slug, and RSS route that reads the registry.
- *
- * This mock makes `import('sharp')` fail the way a missing native binary does.
- */
+/** Fails `import('sharp')` the way an unloadable native binary does. */
 vi.mock('sharp', () => {
   throw new Error('Could not load the sharp module using the linux-x64 runtime')
 })

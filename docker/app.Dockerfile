@@ -130,6 +130,15 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/lib0 ./node_modules/lib
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/yjs ./node_modules/yjs
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modules/y-protocols
 
+# `@img/sharp-<platform>` loads libvips from `@img/sharp-libvips-<platform>` through the dynamic
+# linker, not a JS require, so the tracer copies the binding but not the library and sharp dies with
+# "ERR_DLOPEN_FAILED: libvips-cpp.so: cannot open shared object file". Same hoisting reason as the Yjs
+# stack above. Copying whole directories keeps these arch-agnostic (each build's deps stage holds only
+# its own platform's packages) and keeps sharp and its binding on the same install. Must stay below
+# the standalone COPY, which ships its own partial node_modules that would otherwise win.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
+
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 
