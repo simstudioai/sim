@@ -185,9 +185,9 @@ export default function ResumeExecutionPage({
     executionId,
     selectedContextId ?? undefined
   )
-  const [selectedStatus, setSelectedStatus] =
-    useState<PausePointWithQueue['resumeStatus']>('paused')
-  const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
+  const selectedStatus: PausePointWithQueue['resumeStatus'] =
+    selectedDetail?.pausePoint.resumeStatus ?? 'paused'
+  const queuePosition = selectedDetail?.pausePoint.queuePosition
   const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
   const [formValuesByContext, setFormValuesByContext] = useState<
@@ -440,10 +440,7 @@ export default function ResumeExecutionPage({
     []
   )
 
-  const selectedOperation = useMemo(
-    () => selectedDetail?.pausePoint.response?.data?.operation || 'human',
-    [selectedDetail]
-  )
+  const selectedOperation = selectedDetail?.pausePoint.response?.data?.operation || 'human'
   const isHumanMode = selectedOperation === 'human'
 
   const inputFormatFields = useMemo(
@@ -524,8 +521,6 @@ export default function ResumeExecutionPage({
 
   useEffect(() => {
     if (!selectedDetail) return
-    setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
-    setQueuePosition(selectedDetail.pausePoint.queuePosition)
     seedFormFromDetail(selectedDetail)
   }, [selectedDetail, seedFormFromDetail])
 
@@ -604,7 +599,6 @@ export default function ResumeExecutionPage({
         })
         if (!ok) {
           setError(payload.error || 'Failed to resume execution.')
-          setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
           return
         }
         const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
@@ -641,8 +635,6 @@ export default function ResumeExecutionPage({
             }
           }
         )
-        setSelectedStatus(nextStatus)
-        setQueuePosition(nextQueuePosition)
         setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
         setMessage(
           payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
