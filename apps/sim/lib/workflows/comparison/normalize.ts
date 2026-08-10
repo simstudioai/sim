@@ -51,6 +51,18 @@ export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Parallel fields - duplicated in parallels state and/or subBlocks
   'parallelType', // Duplicated in parallels state
   'distribution', // Parallel distribution (derived during execution)
+
+  /*
+   * Duplicated from the block's own `errorEnabled`. The flag briefly persisted
+   * here before it had a column, and `0287` moves it — but a migration only
+   * reaches the live tables. Every deployment version ever written is frozen
+   * jsonb that keeps the old key forever, and the wire schema no longer declares
+   * it, so Zod strips it from the live side while the snapshot side keeps it.
+   * Compared, that reads as a change no deploy can resolve: the next snapshot is
+   * taken from rows that still carry the key. The block field is compared on its
+   * own, with `!!`, so the value itself is not lost here.
+   */
+  'errorEnabled',
 ] as const
 
 /**

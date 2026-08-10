@@ -388,6 +388,33 @@ describe('hasWorkflowChanged', () => {
     })
   })
 
+  /**
+   * The flag lived in `data` before it had a column. `0287` moves it, but a migration
+   * only reaches the live tables — every deployment version already written is frozen
+   * jsonb that keeps the old key, and the wire schema no longer declares it, so Zod
+   * strips it from the live side. Compared, that read as a change no deploy could
+   * resolve: the next snapshot came from rows that still carried it.
+   */
+  describe('Legacy error flag in block data', () => {
+    const withData = (data: Record<string, unknown>) =>
+      createWorkflowState({ blocks: { block1: createBlock('block1', { data }) } })
+
+    it.concurrent('ignores the flag wherever the old key survives', () => {
+      expect(hasWorkflowChanged(withData({}), withData({ errorEnabled: false }))).toBe(false)
+      expect(hasWorkflowChanged(withData({}), withData({ errorEnabled: true }))).toBe(false)
+    })
+
+    it.concurrent('still compares everything else in data', () => {
+      expect(
+        hasWorkflowChanged(
+          withData({ errorEnabled: false }),
+          withData({ errorEnabled: false, parallelType: 'count' })
+        )
+      ).toBe(false)
+      expect(hasWorkflowChanged(withData({ batchSize: 1 }), withData({ batchSize: 2 }))).toBe(true)
+    })
+  })
+
   describe('SubBlock Changes', () => {
     it.concurrent('should detect subBlock value changes (string)', () => {
       const state1 = createWorkflowState({
