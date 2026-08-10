@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Button, cn, Tooltip } from '@sim/emcn'
+import { Upload } from '@sim/emcn/icons'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -17,6 +18,7 @@ interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
   className?: string
+  compact?: boolean
   disabled?: boolean
 }
 
@@ -24,11 +26,16 @@ export function Deploy({
   activeWorkflowId,
   userPermissions,
   className,
+  compact = false,
   disabled = false,
 }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
-  const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
+  const registryActiveWorkflowId = useWorkflowRegistry((state) => state.activeWorkflowId)
+  const hydration = useWorkflowRegistry((state) => state.hydration)
+  const isRegistryLoading =
+    hydration.phase !== 'ready' ||
+    registryActiveWorkflowId !== activeWorkflowId ||
+    hydration.workflowId !== activeWorkflowId
   const { hasBlocks } = useCurrentWorkflow()
 
   const { data: deploymentInfo } = useDeploymentInfo(activeWorkflowId, {
@@ -82,6 +89,9 @@ export function Deploy({
   }
 
   const getTooltipText = () => {
+    if (isRegistryLoading) {
+      return 'Loading workflow...'
+    }
     if (isEmpty) {
       return 'Cannot deploy an empty workflow'
     }
@@ -119,24 +129,34 @@ export function Deploy({
     return 'Deploy'
   }
 
+  const buttonLabel = getButtonLabel()
+  const tooltipText = getTooltipText()
+
   return (
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
           <span>
             <Button
-              className='h-[30px] gap-1.5 px-2.5'
+              className={cn(compact ? 'h-[30px]' : 'h-[30px] gap-1.5 px-2.5', className)}
               variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
+                compact
+                  ? 'subtle'
+                  : isRegistryLoading
+                    ? 'active'
+                    : changeDetected || !isDeployed
+                      ? 'tertiary'
+                      : 'active'
               }
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
+              aria-label={compact ? buttonLabel : undefined}
             >
-              {getButtonLabel()}
+              {compact ? <Upload className='size-[16px] text-[var(--text-icon)]' /> : buttonLabel}
             </Button>
           </span>
         </Tooltip.Trigger>
-        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
+        <Tooltip.Content>{tooltipText}</Tooltip.Content>
       </Tooltip.Root>
 
       <DeployModal

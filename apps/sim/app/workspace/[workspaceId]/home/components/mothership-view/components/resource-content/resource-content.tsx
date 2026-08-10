@@ -52,12 +52,14 @@ import {
   useWorkspacePermissionsContext,
 } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { Table } from '@/app/workspace/[workspaceId]/tables/[tableId]/table'
+import { Deploy } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy'
 import { useUsageLimits } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useLogDetail } from '@/hooks/queries/logs'
 import { downloadTableExport } from '@/hooks/queries/tables'
-import { useWorkflows } from '@/hooks/queries/workflows'
+import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
+import { useWorkflowMap, useWorkflows } from '@/hooks/queries/workflows'
 import { useWorkspaceFiles } from '@/hooks/queries/workspace-files'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useExecutionStore } from '@/stores/execution/store'
@@ -360,6 +362,8 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
   const { userPermissions: effectivePermissions } = useWorkspacePermissionsContext()
+  const { data: workflowMap = {}, isLoading: isWorkflowMapLoading } = useWorkflowMap(workspaceId)
+  const { data: folderMap = {}, isLoading: isFolderMapLoading } = useFolderMap(workspaceId)
   const setActiveWorkflow = useWorkflowRegistry((state) => state.setActiveWorkflow)
   const { handleRunWorkflow, handleCancelExecution } = useWorkflowExecution()
   const isExecuting = useExecutionStore(
@@ -379,6 +383,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   const isRunButtonDisabled =
     !isExecuting &&
     (isUsageGateLoading || (!effectivePermissions.canRead && !effectivePermissions.isLoading))
+  const isWorkflowLocked = isWorkflowEffectivelyLocked(workflowMap[workflowId], folderMap)
 
   const handleRun = async () => {
     setActiveWorkflow(workflowId)
@@ -450,6 +455,13 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
           <p>{isExecuting ? 'Stop' : 'Run workflow'}</p>
         </Tooltip.Content>
       </Tooltip.Root>
+      <Deploy
+        activeWorkflowId={workflowId}
+        userPermissions={effectivePermissions}
+        className={RESOURCE_TAB_ICON_BUTTON_CLASS}
+        compact
+        disabled={isWorkflowMapLoading || isFolderMapLoading || isWorkflowLocked}
+      />
     </>
   )
 }
