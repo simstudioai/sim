@@ -21,15 +21,8 @@ function buildColors() {
     textPrimary: '#1a1a1a',
     /** Body and value text — platform `--text-body` */
     textBody: '#434343',
-    /** Secondary text — platform `--text-secondary` */
-    textSecondary: '#525252',
-    /** Tertiary text — platform `--text-tertiary` */
-    textTertiary: '#5c5c5c',
     /** Muted text (labels, footer) — platform `--text-muted` */
     textMuted: '#7a7a7a',
-    /** Brand primary — neutral by default, brand color when whitelabeled */
-    brandPrimary:
-      isWhitelabeled && brand.theme?.primaryColor ? brand.theme.primaryColor : '#1a1a1a',
     /** Accent for buttons and links — neutral by default, brand color when whitelabeled */
     brandTertiary: accentColor,
     /** Borders and dividers — platform `--border` */
@@ -50,12 +43,8 @@ function buildColors() {
 export const colors = buildColors()
 
 /**
- * Typography settings.
- *
- * `fontSize` mirrors the platform scale in `apps/sim/tailwind.config.ts` and uses
- * its names, so a value here is always traceable to a Tailwind token. Email body
- * copy runs at `md` (16px) rather than the app's 15px `base` — 16px is the email
- * client default and the only deviation, and it is still a real platform token.
+ * Typography settings. Enforced against the platform sources by
+ * `base.tokens.test.ts`.
  */
 export const typography = {
   /**
@@ -63,20 +52,24 @@ export const typography = {
    * (`apps/sim/app/_styles/fonts/season/season.ts`). This matters more than the
    * `<Font>` webfont in `EmailLayout` — Gmail and Outlook strip `@font-face`
    * entirely, so for most recipients the fallback chain IS the rendered font.
-   * It previously listed Apple system faces the platform never uses.
    */
   fontFamily:
     "'Season Sans', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
+  /**
+   * Deliberately brand-free, for the plain personal emails — those read as a
+   * message typed by a person, so they must NOT carry the brand face.
+   */
+  systemFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  /**
+   * `caption`/`base`/`md` are Sim's own scale from `tailwind.config.ts`. `sm` is
+   * Tailwind's stock 14px — not a Sim token, but what `text-sm` resolves to in
+   * `chipGeometryClass`, so the CTA has to use it.
+   */
   fontSize: {
-    /** `text-caption` */
     caption: '12px',
-    /** `text-small` */
-    small: '13px',
-    /** `text-sm` — chip/button label size */
     sm: '14px',
-    /** `text-base` — the app's default body size */
     base: '15px',
-    /** `text-md` — email body copy */
+    /** Email body copy. Larger than the app's 15px `base` — the client default. */
     md: '16px',
     /**
      * Display figure (OTP code, credit balance). Deliberately above the platform
@@ -108,24 +101,31 @@ const RADIUS = '8px'
 export const spacing = {
   containerWidth: 600,
   gutter: 40,
-  sectionGap: 20,
   paragraphGap: 12,
 }
 
-export const baseStyles = {
+/** Shared body-copy ramp. {@link baseStyles.paragraph} and `greeting` differ only in margin. */
+const bodyText = {
+  fontSize: typography.fontSize.md,
+  lineHeight: typography.lineHeight.body,
+  color: colors.textBody,
+  fontWeight: fontWeight.normal,
   fontFamily: typography.fontFamily,
+}
 
+/** Shared box geometry. {@link baseStyles.infoBox} and `errorBox` differ only in fill. */
+const boxGeometry = {
+  padding: '16px 18px',
+  borderRadius: RADIUS,
+  margin: '16px 0',
+}
+
+export const baseStyles = {
   /** Main body wrapper with outer background */
   main: {
     backgroundColor: colors.bgOuter,
     fontFamily: typography.fontFamily,
     padding: '32px 0',
-  },
-
-  /** Center wrapper for email content */
-  wrapper: {
-    maxWidth: `${spacing.containerWidth}px`,
-    margin: '0 auto',
   },
 
   /** Main card container — white surface, chip-radius, hairline border on the near-white canvas */
@@ -149,40 +149,19 @@ export const baseStyles = {
     padding: `0 ${spacing.gutter}px 32px ${spacing.gutter}px`,
   },
 
-  /** Standard paragraph text — platform body copy (`--text-body`, normal weight) */
+  /** Standard paragraph text */
   paragraph: {
-    fontSize: typography.fontSize.md,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textBody,
-    fontWeight: fontWeight.normal,
-    fontFamily: typography.fontFamily,
+    ...bodyText,
     margin: `${spacing.paragraphGap}px 0`,
   },
 
   /**
-   * The opening line of an email body. Identical to {@link paragraph} but flush
-   * to the top, so it sits at a fixed distance below the logo instead of
-   * inheriting the paragraph gap. Half the templates spelled this out inline and
-   * half forgot it — always use the token.
+   * The opening line of an email body — flush to the top, so it sits a fixed
+   * distance below the logo instead of inheriting the paragraph gap.
    */
   greeting: {
-    fontSize: typography.fontSize.md,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textBody,
-    fontWeight: fontWeight.normal,
-    fontFamily: typography.fontFamily,
+    ...bodyText,
     margin: `0 0 ${spacing.paragraphGap}px 0`,
-  },
-
-  /** Inline emphasized label (e.g., "Platform:", "Time:") */
-  label: {
-    fontSize: typography.fontSize.md,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textPrimary,
-    fontWeight: fontWeight.semibold,
-    fontFamily: typography.fontFamily,
-    margin: 0,
-    display: 'inline',
   },
 
   /**
@@ -229,13 +208,28 @@ export const baseStyles = {
     fontFamily: typography.fontFamily,
   },
 
-  /** Footer text style */
+  /** Footer text style — used inside the footer's own centered table cells */
   footerText: {
     fontSize: typography.fontSize.caption,
     lineHeight: typography.lineHeight.caption,
     color: colors.textMuted,
     fontFamily: typography.fontFamily,
     margin: '0 0 10px 0',
+  },
+
+  /**
+   * The closing fine-print line inside the card (who this was sent to, when it
+   * fires again). Same ramp as {@link footerText}, but left-aligned — the card
+   * is left-aligned while the footer's cells are not. Every template spelled
+   * this out as a spread override; use the token.
+   */
+  footnote: {
+    fontSize: typography.fontSize.caption,
+    lineHeight: typography.lineHeight.caption,
+    color: colors.textMuted,
+    fontFamily: typography.fontFamily,
+    margin: '0 0 10px 0',
+    textAlign: 'left' as const,
   },
 
   /** Code/OTP container */
@@ -258,32 +252,17 @@ export const baseStyles = {
     margin: 0,
   },
 
-  /** Code block text (for JSON/code display) */
-  codeBlock: {
-    fontSize: typography.fontSize.caption,
-    lineHeight: typography.lineHeight.caption,
-    color: colors.textBody,
-    fontFamily: 'monospace',
-    whiteSpace: 'pre-wrap' as const,
-    wordWrap: 'break-word' as const,
-    margin: 0,
-  },
-
   /** Highlighted info box (e.g., "What you get with Pro") */
   infoBox: {
+    ...boxGeometry,
     backgroundColor: colors.surfaceSubtle,
-    padding: '16px 18px',
-    borderRadius: RADIUS,
-    margin: '16px 0',
   },
 
-  /** Error-state variant of {@link infoBox} — same geometry, error fill and border */
+  /** Error-state variant of {@link infoBox} */
   errorBox: {
+    ...boxGeometry,
     backgroundColor: colors.errorBg,
     border: `1px solid ${colors.errorBorder}`,
-    padding: '16px 18px',
-    borderRadius: RADIUS,
-    margin: '16px 0',
   },
 
   /** Info box title */
@@ -325,22 +304,6 @@ export const baseStyles = {
     margin: '4px 0 0 0',
   },
 
-  /** Section borders - decorative accent line */
-  sectionsBorders: {
-    width: '100%',
-    display: 'flex',
-  },
-
-  sectionBorder: {
-    borderBottom: `1px solid ${colors.border}`,
-    width: '249px',
-  },
-
-  sectionCenter: {
-    borderBottom: `1px solid ${colors.brandTertiary}`,
-    width: '102px',
-  },
-
   /** Spacer row for vertical spacing in tables */
   spacer: {
     border: 0,
@@ -359,27 +322,12 @@ export const baseStyles = {
     lineHeight: '1px',
     width: `${spacing.gutter}px`,
   },
-
-  /** Info row (e.g., Platform, Device location, Time) */
-  infoRow: {
-    fontSize: typography.fontSize.md,
-    lineHeight: typography.lineHeight.body,
-    color: colors.textBody,
-    fontFamily: typography.fontFamily,
-    margin: '8px 0',
-  },
 }
 
-/**
- * Styles for plain personal emails (no branding, no EmailLayout).
- *
- * The system font stack is deliberate — these read as a message typed by a
- * person, so they must NOT carry the brand face. Everything else still resolves
- * through the shared tokens.
- */
+/** Styles for plain personal emails (no branding, no EmailLayout). */
 export const plainEmailStyles = {
   body: {
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    fontFamily: typography.systemFontFamily,
     backgroundColor: colors.bgCard,
     margin: '0',
     padding: '0',

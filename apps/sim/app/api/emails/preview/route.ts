@@ -23,6 +23,7 @@ import {
   renderWorkspaceAddedEmail,
   renderWorkspaceInvitationEmail,
 } from '@/components/emails'
+import { colors, typography } from '@/components/emails/_styles'
 import { emailPreviewQuerySchema } from '@/lib/api/contracts/common'
 import { validationErrorResponse } from '@/lib/api/server'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -258,24 +259,24 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
   <title>Email Templates</title>
   <style>
     :root { color-scheme: light; }
-    body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 40px 24px 80px; background: #fff; color: #1a1a1a; }
+    body { font-family: ${typography.systemFontFamily}; margin: 0; padding: 40px 24px 80px; background: ${colors.bgCard}; color: ${colors.textPrimary}; }
     h1 { font-size: 24px; font-weight: 600; margin: 0 0 4px; }
-    .count { color: #7a7a7a; font-size: 14px; margin: 0 0 40px; }
-    h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #7a7a7a; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid #d8d8d8; }
+    .count { color: ${colors.textMuted}; font-size: 14px; margin: 0 0 40px; }
+    h2 { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: ${colors.textMuted}; margin: 48px 0 16px; padding-bottom: 8px; border-bottom: 1px solid ${colors.border}; }
     section { max-width: 1400px; margin: 0 auto; }
     section > h2:first-child { margin-top: 0; }
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(640px, 1fr)); gap: 32px; }
     figure { margin: 0 0 32px; }
     figcaption { display: flex; justify-content: space-between; align-items: baseline; font-size: 13px; margin-bottom: 8px; }
-    figcaption span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: #434343; }
-    figcaption a { color: #7a7a7a; text-decoration: none; font-size: 12px; }
-    figcaption a:hover { color: #1a1a1a; }
-    iframe { width: 100%; height: 900px; border: 1px solid #d8d8d8; border-radius: 8px; background: #fff; display: block; }
+    figcaption span { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; color: ${colors.textBody}; }
+    figcaption a { color: ${colors.textMuted}; text-decoration: none; font-size: 12px; }
+    figcaption a:hover { color: ${colors.textPrimary}; }
+    iframe { width: 100%; height: 900px; border: 1px solid ${colors.border}; border-radius: 8px; background: ${colors.bgCard}; display: block; }
   </style>
 </head>
 <body>
   <h1>Email Templates</h1>
-  <p class="count">Every email Sim sends — ${Object.values(PREVIEW_CATEGORIES).flat().length} previews.</p>
+  <p class="count">Every email Sim sends — ${Object.keys(emailTemplates).length} previews.</p>
   ${categoryHtml}
 </body>
 </html>`,

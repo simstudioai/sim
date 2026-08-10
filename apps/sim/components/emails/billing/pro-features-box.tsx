@@ -1,14 +1,20 @@
 import { Section, Text } from '@react-email/components'
-import { baseStyles, colors, fontWeight, typography } from '@/components/emails/_styles'
+import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
 import { proFeatures } from '@/components/emails/billing/constants'
 
+const CELL = { ...baseStyles.infoBoxList, padding: '4px 0' }
+const LABEL_CELL = {
+  ...CELL,
+  fontWeight: fontWeight.semibold,
+  color: colors.textPrimary,
+  width: '45%',
+}
+
 /**
- * The "Pro includes" panel shared by the two free-tier upgrade prompts
- * ({@link CreditsExhaustedEmail}, {@link FreeTierUpgradeEmail}).
+ * The "Pro includes" panel shared by the two free-tier upgrade prompts.
  *
- * A plain `infoBox` with a two-column table body — the table is what keeps the
- * label and its qualifier on one row across email clients, which a list cannot
- * do reliably.
+ * The two-column table is what keeps a feature and its qualifier on one row
+ * across email clients, which a list cannot do reliably.
  */
 export function ProFeaturesBox() {
   return (
@@ -18,30 +24,8 @@ export function ProFeaturesBox() {
         <tbody>
           {proFeatures.map((feature) => (
             <tr key={feature.label}>
-              <td
-                style={{
-                  padding: '4px 0',
-                  fontSize: typography.fontSize.md,
-                  lineHeight: '1.6',
-                  fontWeight: fontWeight.semibold,
-                  color: colors.textPrimary,
-                  fontFamily: typography.fontFamily,
-                  width: '45%',
-                }}
-              >
-                {feature.label}
-              </td>
-              <td
-                style={{
-                  padding: '4px 0',
-                  fontSize: typography.fontSize.md,
-                  lineHeight: '1.6',
-                  color: colors.textBody,
-                  fontFamily: typography.fontFamily,
-                }}
-              >
-                {feature.desc}
-              </td>
+              <td style={LABEL_CELL}>{feature.label}</td>
+              <td style={CELL}>{feature.desc}</td>
             </tr>
           ))}
         </tbody>

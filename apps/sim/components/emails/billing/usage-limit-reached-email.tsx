@@ -1,6 +1,6 @@
-import { Link, Section, Text } from '@react-email/components'
+import { Section, Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -57,16 +57,13 @@ export function UsageLimitReachedEmail({
           : 'Raise your usage limit in billing settings, or upgrade your plan, to resume.'}
       </Text>
 
-      <Link href={ctaLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>
-          {isOrganization ? 'Raise Organization Limit' : 'Raise Usage Limit'}
-        </Text>
-      </Link>
+      <EmailButton href={ctaLink}>
+        {isOrganization ? 'Raise Organization Limit' : 'Raise Usage Limit'}
+      </EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Sent to the people who manage billing for this account.
       </Text>
     </EmailLayout>

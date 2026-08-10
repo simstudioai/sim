@@ -5,16 +5,14 @@ import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 /**
- * Wordmark display size. `wordmark.png` is 272×164, so these are exactly 1/4 of
- * its intrinsic size — the asset is a 4x source and must stay that way, since
- * email clients do no responsive image selection. Changing one of these without
- * the other distorts the mark.
+ * Wordmark display size — exactly 1/4 of `wordmark.png`'s intrinsic 272×164.
+ * The asset is a 4x source and must stay that way, since email clients do no
+ * responsive image selection; changing one dimension alone distorts the mark.
  */
-const WORDMARK_HEIGHT = 41
-const WORDMARK_WIDTH = 68
+const WORDMARK_SIZE = { height: '41', width: '68' } as const
 
 /** Whitelabeled logos are arbitrary aspect ratios, so only height is pinned. */
-const CUSTOM_LOGO_HEIGHT = 34
+const CUSTOM_LOGO_SIZE = { height: '34' } as const
 
 interface EmailLayoutProps {
   /** Preview text shown in email client list view */
@@ -67,25 +65,19 @@ export function EmailLayout({
       </Head>
       <Preview>{preview}</Preview>
       <Body style={baseStyles.main}>
-        {/* Main card container */}
         <Container style={baseStyles.container}>
-          {/* Header with logo */}
           <Section style={baseStyles.header}>
             <Img
               src={brand.logoUrl || `${baseUrl}/brand/color/email/wordmark.png`}
               alt={brand.name}
-              {...(hasCustomLogo
-                ? { height: `${CUSTOM_LOGO_HEIGHT}` }
-                : { height: `${WORDMARK_HEIGHT}`, width: `${WORDMARK_WIDTH}` })}
+              {...(hasCustomLogo ? CUSTOM_LOGO_SIZE : WORDMARK_SIZE)}
               style={hasCustomLogo ? { display: 'block', width: 'auto' } : { display: 'block' }}
             />
           </Section>
 
-          {/* Content */}
           <Section style={baseStyles.content}>{children}</Section>
         </Container>
 
-        {/* Footer in gray section */}
         {!hideFooter && <EmailFooter baseUrl={baseUrl} showUnsubscribe={showUnsubscribe} />}
       </Body>
     </Html>

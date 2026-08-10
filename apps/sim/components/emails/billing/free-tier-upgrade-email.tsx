@@ -1,7 +1,7 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -29,23 +29,18 @@ export function FreeTierUpgradeEmail({
       <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        You've used <strong>{dollarsToCredits(currentUsage).toLocaleString()}</strong> of your{' '}
-        <strong>{dollarsToCredits(limit).toLocaleString()}</strong> free credits ({percentUsed}%).
-        Upgrade to Pro to keep building without interruption.
+        You've used <EmailStrong>{dollarsToCredits(currentUsage).toLocaleString()}</EmailStrong> of
+        your <EmailStrong>{dollarsToCredits(limit).toLocaleString()}</EmailStrong> free credits (
+        {percentUsed}%). Upgrade to Pro to keep building without interruption.
       </Text>
 
       <ProFeaturesBox />
 
-      <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Upgrade to Pro</Text>
-      </Link>
+      <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
-        One-time notification at 80% usage.
-      </Text>
+      <Text style={baseStyles.footnote}>One-time notification at 80% usage.</Text>
     </EmailLayout>
   )
 }

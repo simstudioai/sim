@@ -1,6 +1,6 @@
 import { Link, Section, Text } from '@react-email/components'
 import { baseStyles, colors, fontWeight } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface PaymentFailedEmailProps {
@@ -61,14 +61,11 @@ export function PaymentFailedEmail({
         </Text>
       </Section>
 
-      <Link href={billingPortalUrl} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Update Payment Method</Text>
-      </Link>
+      <EmailButton href={billingPortalUrl}>Update Payment Method</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Common issues: expired card, insufficient funds, or incorrect billing info. Need help?{' '}
         <Link href={`mailto:${brand.supportEmail}`} style={baseStyles.link}>
           {brand.supportEmail}

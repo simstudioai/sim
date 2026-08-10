@@ -45,10 +45,9 @@ export function OTPVerificationEmail({
 
       <Text style={baseStyles.paragraph}>This code will expire in 15 minutes.</Text>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Do not share this code with anyone. If you didn't request this code, you can safely ignore
         this email.
       </Text>

@@ -1,6 +1,6 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -30,13 +30,11 @@ export function ExistingAccountEmail({ username = '' }: ExistingAccountEmailProp
         forgotten it.
       </Text>
 
-      <Link href={loginLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Sign In</Text>
-      </Link>
+      <EmailButton href={loginLink}>Sign In</EmailButton>
 
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         If this wasn't you, no action is needed — no account was created or changed.
       </Text>
     </EmailLayout>

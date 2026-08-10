@@ -1,7 +1,7 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
 import { ProFeaturesBox } from '@/components/emails/billing/pro-features-box'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
@@ -26,19 +26,17 @@ export function CreditsExhaustedEmail({
       <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
-        You&apos;ve used all <strong>{dollarsToCredits(limit).toLocaleString()}</strong> of your
-        free credits on {brand.name}. Your workflows are paused until you upgrade.
+        You&apos;ve used all <EmailStrong>{dollarsToCredits(limit).toLocaleString()}</EmailStrong>{' '}
+        of your free credits on {brand.name}. Your workflows are paused until you upgrade.
       </Text>
 
       <ProFeaturesBox />
 
-      <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Upgrade to Pro</Text>
-      </Link>
+      <EmailButton href={upgradeLink}>Upgrade to Pro</EmailButton>
 
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         One-time notification when free credits are exhausted.
       </Text>
     </EmailLayout>

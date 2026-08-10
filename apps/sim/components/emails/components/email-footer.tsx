@@ -13,15 +13,15 @@ import { getBrandConfig } from '@/ee/whitelabeling'
  */
 const SOCIAL_ICON_SIZE = 20
 
-/** Gap between social marks. Halved on each side, so the row reads evenly. */
-const SOCIAL_ICON_GAP = 8
-
 /**
  * `display: block` removes the 2–3px gap Outlook adds under inline images;
  * `border: 0` prevents the blue link border older Outlook draws around a linked
  * image.
  */
 const socialIconStyle = { display: 'block' as const, border: 0 }
+
+/** Trailing gap only, so the row starts flush with the gutter. */
+const SOCIAL_CELL_STYLE = { paddingRight: 16 } as const
 
 const SOCIAL_LINKS = [
   { path: 'x', label: 'X', icon: 'x-icon.png' },
@@ -56,8 +56,6 @@ export function EmailFooter({
   const brand = getBrandConfig()
   const isWhitelabeled = brand.isWhitelabeled
 
-  const footerLinkStyle = baseStyles.footerLink
-
   return (
     <Section
       style={{
@@ -91,15 +89,8 @@ export function EmailFooter({
                     <table cellPadding={0} cellSpacing={0} style={{ border: 0 }}>
                       <tbody>
                         <tr>
-                          {SOCIAL_LINKS.map(({ path, label, icon }, index) => (
-                            <td
-                              key={path}
-                              align='left'
-                              style={{
-                                paddingLeft: index === 0 ? 0 : SOCIAL_ICON_GAP,
-                                paddingRight: SOCIAL_ICON_GAP,
-                              }}
-                            >
+                          {SOCIAL_LINKS.map(({ path, label, icon }) => (
+                            <td key={path} align='left' style={SOCIAL_CELL_STYLE}>
                               <Link href={`${baseUrl}/${path}`} rel='noopener noreferrer'>
                                 <Img
                                   src={`${baseUrl}/static/${icon}`}
@@ -152,7 +143,6 @@ export function EmailFooter({
               </>
             )}
 
-            {/* Contact row */}
             <tr>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;
@@ -164,7 +154,7 @@ export function EmailFooter({
                   target="_blank", which on a mailto: opens a blank tab beside
                   the compose window in most webmail clients.
                 */}
-                <a href={`mailto:${brand.supportEmail}`} style={footerLinkStyle}>
+                <a href={`mailto:${brand.supportEmail}`} style={baseStyles.footerLink}>
                   {brand.supportEmail}
                 </a>
               </td>
@@ -179,7 +169,6 @@ export function EmailFooter({
               </td>
             </tr>
 
-            {/* Message ID row (optional) */}
             {messageId && (
               <>
                 <tr>
@@ -201,17 +190,24 @@ export function EmailFooter({
               </>
             )}
 
-            {/* Links row */}
             <tr>
               <td style={baseStyles.gutter} width={spacing.gutter}>
                 &nbsp;
               </td>
               <td style={baseStyles.footerText}>
-                <Link href={`${baseUrl}/privacy`} style={footerLinkStyle} rel='noopener noreferrer'>
+                <Link
+                  href={`${baseUrl}/privacy`}
+                  style={baseStyles.footerLink}
+                  rel='noopener noreferrer'
+                >
                   Privacy Policy
                 </Link>{' '}
                 •{' '}
-                <Link href={`${baseUrl}/terms`} style={footerLinkStyle} rel='noopener noreferrer'>
+                <Link
+                  href={`${baseUrl}/terms`}
+                  style={baseStyles.footerLink}
+                  rel='noopener noreferrer'
+                >
                   Terms of Service
                 </Link>
                 {showUnsubscribe && (
@@ -220,7 +216,7 @@ export function EmailFooter({
                     •{' '}
                     <Link
                       href={`${baseUrl}/unsubscribe?token={{UNSUBSCRIBE_TOKEN}}&email={{UNSUBSCRIBE_EMAIL}}`}
-                      style={footerLinkStyle}
+                      style={baseStyles.footerLink}
                       rel='noopener noreferrer'
                     >
                       Unsubscribe
@@ -233,7 +229,6 @@ export function EmailFooter({
               </td>
             </tr>
 
-            {/* Copyright row */}
             <tr>
               <td style={baseStyles.spacer} height={16}>
                 &nbsp;
