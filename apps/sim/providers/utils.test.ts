@@ -1886,7 +1886,7 @@ describe('workflow executor metadata delegation', () => {
     vi.unstubAllGlobals()
   })
 
-  it('binds workflow metadata reads to the target workflow and trusted execution subject', async () => {
+  it('binds cross-workflow metadata reads to the target without attaching the parent run', async () => {
     const fetchMock = vi
       .fn()
       .mockResolvedValue(
@@ -1914,7 +1914,6 @@ describe('workflow executor metadata delegation', () => {
     expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
       subjectUserId: 'user-1',
       workflowId: 'child-workflow',
-      executionId: 'execution-1',
     })
     expect(fetchMock).toHaveBeenCalledWith('https://sim.local/api/workflows/child-workflow', {
       headers: {
@@ -1926,6 +1925,38 @@ describe('workflow executor metadata delegation', () => {
       id: 'workflow_executor_child-workflow',
       name: 'Child Workflow',
       description: 'Child description',
+    })
+  })
+
+  it('includes the run binding when the metadata target is the executing workflow', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: { name: 'Current Workflow', description: null } }), {
+          status: 200,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      )
+    )
+
+    await transformBlockTool(
+      { type: 'workflow', params: { workflowId: 'current-workflow' } },
+      {
+        getAllBlocks: () => [workflowBlock],
+        getTool: () => workflowTool,
+        enrichmentContext: {
+          workflowId: 'current-workflow',
+          workspaceId: 'workspace-1',
+          executionId: 'execution-1',
+          userId: 'user-1',
+        },
+      }
+    )
+
+    expect(workflowMetadataMocks.buildExecutorDelegationHeaders).toHaveBeenCalledWith({
+      subjectUserId: 'user-1',
+      workflowId: 'current-workflow',
+      executionId: 'execution-1',
     })
   })
 

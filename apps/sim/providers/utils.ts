@@ -89,7 +89,9 @@ async function fetchWorkflowMetadata(
     const headers = await buildExecutorDelegationHeaders({
       subjectUserId: executionContext.userId,
       workflowId,
-      ...(executionContext.executionId ? { executionId: executionContext.executionId } : {}),
+      ...(executionContext.workflowId === workflowId && executionContext.executionId
+        ? { executionId: executionContext.executionId }
+        : {}),
     })
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
