@@ -45,34 +45,26 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The mark a filled sweep slot paints: a slanted band across the slot rather
- * than the slot itself.
+ * The mark a filled sweep slot paints.
  *
- * Drawn as a hard-stop gradient rather than a `clip-path` because the two end
- * slots already carry one for the swell silhouette, and a second would have to
- * win a specificity race against it. The stops keep `--surface-2` exactly — only
- * the shape changes.
+ * Spans its slot edge to edge so consecutive marks read as one bar growing,
+ * with only the row's own `gap-[2px]` between them — a mark inset inside its
+ * slot leaves a gap on both sides of every join, which is what made the last
+ * version read as separate chunks rather than a loader. The weight comes off
+ * vertically instead: `bg-clip-content` with symmetric padding paints a 10px
+ * band inside the 24px slot without changing the slot's own size, so the swell
+ * it is measured into does not move.
  *
- * Slant and tightness trade against each other: the transparent wedge has to be
- * at least as wide as the edge's horizontal travel, or the cut clips a corner
- * instead of crossing the slot cleanly. 97deg leans the edge 7° off vertical,
- * which travels 2.9px over the 24px slot and lets the wedge come in to 12% —
- * 3.2px a side, against the 7.8px a 107deg lean needed. Steepen the angle and
- * both stops have to move outward with it.
- *
- * Every variant is spelled out: Tailwind's JIT reads literal class strings, so a
- * `hover-hover:${FILL}` built at runtime compiles to no CSS at all. The hover
- * and motion-reduce entries also clear the base `hover-hover:bg-*` COLOR, which
- * a background-image cannot override and which would otherwise fill the slot
- * back in behind the band.
+ * `--surface-2` is untouched; only the painted area changes. Each variant is
+ * spelled out because Tailwind's JIT reads literal class strings.
  */
 const RUNNING_SWEEP_FILL = [
-  '!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]',
-  'hover-hover:!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]',
+  '!bg-[var(--surface-2)] hover-hover:!bg-[var(--surface-2)]',
+  '!bg-clip-content !py-[7px] !rounded-none',
 ].join(' ')
 
 const RUNNING_SWEEP_FILL_STATIC =
-  'motion-reduce:!bg-[linear-gradient(97deg,transparent_12%,var(--surface-2)_12%,var(--surface-2)_88%,transparent_88%)]'
+  'motion-reduce:!bg-[var(--surface-2)] motion-reduce:!bg-clip-content motion-reduce:!py-[7px] motion-reduce:!rounded-none'
 
 const ICON_SIZE = 'size-[14px]'
 

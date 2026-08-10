@@ -5,16 +5,16 @@ const ACTION_SWEEP_INTERVAL_MS = 160
 /**
  * Advances the cumulative action-slot sweep by one frame.
  *
- * Fills left to right and starts over — it does not drain back. A bar that
- * empties itself reads as undoing progress, which is the opposite of what a
- * running block is doing.
+ * Fills left to right once and holds. It neither drains back nor restarts:
+ * both re-run ground the bar has already covered, which reads as the block
+ * losing progress rather than making it.
  */
 export function advanceActionSweep(filledCount: number, slotCount: number): number {
   if (slotCount <= 0) return 0
-  return filledCount >= slotCount ? 0 : filledCount + 1
+  return Math.min(filledCount + 1, slotCount)
 }
 
-/** Runs a cumulative left-to-right fill while a block executes. */
+/** Runs a one-pass left-to-right fill while a block executes. */
 export function useRunningActionSweep(isRunning: boolean, slotCount: number): number {
   const [filledCount, setFilledCount] = useState(0)
 

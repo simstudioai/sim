@@ -10,9 +10,9 @@ describe('advanceActionSweep', () => {
     expect([first, second, third]).toEqual([1, 2, 3])
   })
 
-  it('restarts from empty once full, rather than draining back', () => {
-    expect(advanceActionSweep(3, 3)).toBe(0)
-    expect(advanceActionSweep(0, 3)).toBe(1)
+  it('holds at full rather than draining back or restarting', () => {
+    expect(advanceActionSweep(3, 3)).toBe(3)
+    expect(advanceActionSweep(4, 3)).toBe(3)
   })
 
   it('stays empty when there are no action slots', () => {
