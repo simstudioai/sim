@@ -93,12 +93,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
-        <Popover
-          open={isCanvasModeOpen}
-          onOpenChange={setIsCanvasModeOpen}
-          variant='secondary'
-          size='sm'
-        >
+        <Popover open={isCanvasModeOpen} onOpenChange={setIsCanvasModeOpen} size='sm'>
           <Tooltip.Root>
             <PopoverTrigger asChild>
               <div className='flex cursor-pointer items-center gap-1'>
@@ -197,9 +192,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
       <Popover
         open={contextMenu !== null}
         onOpenChange={(open) => !open && setContextMenu(null)}
-        variant='secondary'
         size='sm'
-        colorScheme='inverted'
       >
         <PopoverAnchor
           style={{
