@@ -122,6 +122,8 @@ interface FileViewerProps {
    * never target one editor. See {@link RichMarkdownEditorProps.collaborative}.
    */
   collaborative?: boolean
+  /** Reports when a Markdown file's rendered editor is available as a PDF print target. */
+  onMarkdownPrintReadyChange?: (fileId: string, ready: boolean) => void
   /**
    * Called (debounced) with the markdown document's leading-heading text while the file is still
    * untitled, so the caller can name the file after it. Only wired for the editable markdown editor.
@@ -164,6 +166,7 @@ function FileViewerContent({
   disableStreamingAutoScroll = false,
   previewContextKey,
   collaborative,
+  onMarkdownPrintReadyChange,
   onDeriveTitleFromHeading,
 }: FileViewerProps) {
   const category = resolveFileCategory(file.type, file.name)
@@ -181,7 +184,13 @@ function FileViewerContent({
       // the bubble menu, and every other editing affordance.
       if (isMarkdownFile(file)) {
         return (
-          <RichMarkdownEditor key={file.id} file={file} workspaceId={workspaceId} canEdit={false} />
+          <RichMarkdownEditor
+            key={file.id}
+            file={file}
+            workspaceId={workspaceId}
+            canEdit={false}
+            onPrintReadyChange={onMarkdownPrintReadyChange}
+          />
         )
       }
       return <ReadOnlyTextPreview file={file} workspaceId={workspaceId} />
@@ -211,6 +220,7 @@ function FileViewerContent({
           disableStreamingAutoScroll={disableStreamingAutoScroll}
           previewContextKey={previewContextKey}
           collaborative={collaborative}
+          onPrintReadyChange={onMarkdownPrintReadyChange}
           onDeriveTitleFromHeading={onDeriveTitleFromHeading}
         />
       )

@@ -339,6 +339,7 @@ export function Files() {
   const [creatingFile, setCreatingFile] = useState(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
+  const [markdownPrintReadyFileId, setMarkdownPrintReadyFileId] = useState<string | null>(null)
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
   const [activeDropTargetId, setActiveDropTargetId] = useState<string | null>(null)
   const [draggedRowIds, setDraggedRowIds] = useState<Set<string>>(() => new Set())
@@ -388,6 +389,13 @@ export function Files() {
   )
   const selectedFileRef = useRef(selectedFile)
   selectedFileRef.current = selectedFile
+
+  const handleMarkdownPrintReadyChange = useCallback((fileId: string, ready: boolean) => {
+    setMarkdownPrintReadyFileId((currentFileId) => {
+      if (ready) return fileId
+      return currentFileId === fileId ? null : currentFileId
+    })
+  }, [])
 
   /**
    * While a file is still untitled, name it after the leading heading the user types in its editor. The
@@ -1689,6 +1697,7 @@ export function Files() {
               text: 'Save as PDF…',
               icon: FileText,
               onSelect: handleSaveMarkdownAsPdf,
+              disabled: markdownPrintReadyFileId !== selectedFile.id,
             },
           ]
         : []),
@@ -1716,6 +1725,7 @@ export function Files() {
     handleTogglePreview,
     handleDownloadSelected,
     handleSaveMarkdownAsPdf,
+    markdownPrintReadyFileId,
     handleShareSelected,
     handleDeleteSelected,
   ])
@@ -2117,6 +2127,7 @@ export function Files() {
               saveRef={saveRef}
               discardRef={discardRef}
               collaborative
+              onMarkdownPrintReadyChange={handleMarkdownPrintReadyChange}
               onDeriveTitleFromHeading={handleDeriveTitleFromHeading}
             />
 

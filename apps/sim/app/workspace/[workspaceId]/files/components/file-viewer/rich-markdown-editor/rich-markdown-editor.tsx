@@ -154,6 +154,8 @@ interface RichMarkdownEditorProps {
    * full-document `setContent`, so the stream stays smooth and every peer sees it live.
    */
   collaborative?: boolean
+  /** Reports when this file's rendered editor is available as a PDF print target. */
+  onPrintReadyChange?: (fileId: string, ready: boolean) => void
   /**
    * Called (debounced) with the document's leading-heading text while the file is still untitled, so the
    * caller can name the file after it. Omitted on read-only/non-editable surfaces. See
@@ -180,6 +182,7 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
   previewContextKey,
   disableTagging,
   collaborative = false,
+  onPrintReadyChange,
   onDeriveTitleFromHeading,
 }: RichMarkdownEditorProps) {
   const { data: session, isPending: isSessionPending } = useSession()
@@ -219,6 +222,12 @@ export const RichMarkdownEditor = memo(function RichMarkdownEditor({
     normalizeBaseline: normalizeMarkdownContent,
     canAutosave: collabReady,
   })
+
+  const isPrintReady = !isContentLoading && !isSessionPending && !hasContentError
+  useEffect(() => {
+    onPrintReadyChange?.(file.id, isPrintReady)
+    return () => onPrintReadyChange?.(file.id, false)
+  }, [file.id, isPrintReady, onPrintReadyChange])
 
   // Wait for the session too: the child decides collaboration ONCE at mount from
   // `userId`, so mounting before the session resolves would latch collaboration off
