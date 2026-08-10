@@ -167,10 +167,10 @@ export interface SearchModalProps {
   logs?: LogItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]
-  isOnWorkflowPage?: boolean
   /** Page the palette was opened on, when that page contributes actions. */
   pageContext?: PageActionContext | null
   canEdit?: boolean
+  canAdmin?: boolean
   onCreateWorkflow?: () => void
   onCreateFolder?: () => void
   onImportWorkflow?: () => void

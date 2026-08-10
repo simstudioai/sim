@@ -20,7 +20,11 @@ vi.mock('nuqs', () => ({
 
 const mockSendMessage = vi.fn(async () => {})
 
-function TestHarness({ renderKey }: { renderKey: number }) {
+interface TestHarnessProps {
+  renderKey: number
+}
+
+function TestHarness({ renderKey }: TestHarnessProps) {
   useMothershipHandoff({
     workspaceId: 'workspace-1',
     sendMessage: mockSendMessage,

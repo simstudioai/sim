@@ -3,7 +3,6 @@
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
-  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -41,10 +40,12 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
+import { getMothershipHandoffHref } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   CommandFadedList,
@@ -84,18 +85,31 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
+const MAX_BROWSE_RESULTS_PER_GROUP = 8
+const MAX_SEARCH_RESULTS = 50
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
-export function SearchModal({
-  open,
+interface SearchModalContentProps extends Omit<SearchModalProps, 'open'> {}
+
+export function SearchModal({ open, ...props }: SearchModalProps) {
+  const [mounted, setMounted] = useState(false)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted || !open) return null
+  return <SearchModalContent {...props} />
+}
+
+function SearchModalContent({
   onOpenChange,
   workflows = [],
   workspaces = [],
@@ -106,20 +120,19 @@ export function SearchModal({
   logs = [],
   integrations = [],
   connectedAccounts = [],
-  isOnWorkflowPage = false,
   pageContext = null,
   canEdit = false,
+  canAdmin = false,
   onCreateWorkflow,
   onCreateFolder,
   onImportWorkflow,
-}: SearchModalProps) {
+}: SearchModalContentProps) {
   const params = useParams()
   const router = useRouter()
   const workspaceId = params.workspaceId as string
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
-  const [mounted, setMounted] = useState(false)
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const invokeCommand = useInvokeGlobalCommand()
@@ -131,10 +144,6 @@ export function SearchModal({
   onOpenChangeRef.current = onOpenChange
   const posthogRef = useRef(posthog)
   posthogRef.current = posthog
-
-  useEffect(() => {
-    setMounted(true)
-  }, [])
 
   const { blocks, tools, triggers, toolOperations } = useSearchModalStore((state) => state.data)
 
@@ -225,24 +234,26 @@ export function SearchModal({
     const list: ActionItem[] = []
     const invoke = (id: string) => () => invokeCommand(id)
 
-    list.push(
-      {
-        id: 'run-workflow',
-        name: 'Run workflow',
-        keywords: 'execute start play test',
-        icon: Play,
-        shortcut: '⌘↵',
-        context: 'workflow',
-        run: invoke('run-workflow'),
-      },
-      {
+    list.push({
+      id: 'run-workflow',
+      name: 'Run workflow',
+      keywords: 'execute start play test',
+      icon: Play,
+      shortcut: '⌘↵',
+      context: 'workflow',
+      run: invoke('run-workflow'),
+    })
+    if (canAdmin) {
+      list.push({
         id: 'deploy-workflow',
         name: 'Deploy workflow',
         keywords: 'ship release publish api',
         icon: Rocket,
         context: 'workflow',
         run: invoke('deploy-workflow'),
-      },
+      })
+    }
+    list.push(
       {
         id: 'fit-to-view',
         name: 'Fit workflow to view',
@@ -553,6 +564,7 @@ export function SearchModal({
   }, [
     workspaceId,
     canEdit,
+    canAdmin,
     pageContext,
     onCreateWorkflow,
     onCreateFolder,
@@ -564,51 +576,11 @@ export function SearchModal({
   const [search, setSearch] = useState('')
   /** Tab-toggled ask mode: Enter hands the typed query to Sim as a new chat. */
   const [askMode, setAskMode] = useState(false)
-  const [prevOpen, setPrevOpen] = useState(open)
-  if (open !== prevOpen) {
-    setPrevOpen(open)
-    if (open) {
-      setSearch('')
-      setAskMode(false)
-    }
-  }
-
-  useEffect(() => {
-    if (!open || !inputRef.current) return
-    const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-      window.HTMLInputElement.prototype,
-      'value'
-    )?.set
-    if (nativeInputValueSetter) {
-      nativeInputValueSetter.call(inputRef.current, '')
-      inputRef.current.dispatchEvent(new Event('input', { bubbles: true }))
-    }
-    inputRef.current.focus()
-    /**
-     * cmdk keeps its last selected value across closes and does not re-anchor
-     * when items mount above it (it only auto-selects when nothing is selected
-     * yet), so a palette whose top rows appeared after mount — e.g. page
-     * actions gated on async permissions — would open with a mid-list row
-     * selected. Home re-selects the first row on every open.
-     */
-    inputRef.current.dispatchEvent(new KeyboardEvent('keydown', { key: 'Home', bubbles: true }))
-    /**
-     * After the frame settles, pin the list back to the very top. cmdk's own
-     * `scrollIntoView({ block: 'nearest' })` stops as soon as the selected row
-     * edges into the scrollport, which parks it under the floating search
-     * input; and without any reset a reopened palette keeps its previous
-     * scroll offset.
-     */
-    requestAnimationFrame(() => {
-      if (listRef.current) listRef.current.scrollTop = 0
-    })
-  }, [open])
-
-  const deferredSearch = useDeferredValue(search)
-  const deferredSearchRef = useRef(deferredSearch)
-  deferredSearchRef.current = deferredSearch
+  const searchRef = useRef(search)
+  searchRef.current = search
 
   const handleSearchChange = useCallback((value: string) => {
+    searchRef.current = value
     setSearch(value)
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = 0
@@ -630,8 +602,6 @@ export function SearchModal({
   }, [])
 
   useEffect(() => {
-    if (!open) return
-
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         e.preventDefault()
@@ -641,7 +611,7 @@ export function SearchModal({
 
     document.addEventListener('keydown', handleKeyDown)
     return () => document.removeEventListener('keydown', handleKeyDown)
-  }, [open])
+  }, [])
 
   const handleBlockSelect = useCallback(
     (block: SearchBlockItem, type: 'block' | 'trigger' | 'tool') => {
@@ -654,7 +624,7 @@ export function SearchModal({
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: type,
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -671,7 +641,7 @@ export function SearchModal({
       )
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'tool_operation',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -704,7 +674,7 @@ export function SearchModal({
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'workflow',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -719,7 +689,7 @@ export function SearchModal({
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'workspace',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -732,7 +702,7 @@ export function SearchModal({
       routerRef.current.push(chat.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'task',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -745,7 +715,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'table',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -758,7 +728,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'file',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -771,7 +741,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'knowledge_base',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -792,7 +762,7 @@ export function SearchModal({
       }
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'page',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -805,7 +775,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'log',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -818,7 +788,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'connected_account',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -831,7 +801,7 @@ export function SearchModal({
       routerRef.current.push(item.href)
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'integration',
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
       onOpenChangeRef.current(false)
@@ -846,7 +816,7 @@ export function SearchModal({
       captureEvent(posthogRef.current, 'search_result_selected', {
         result_type: 'action',
         action_id: item.id,
-        query_length: deferredSearchRef.current.length,
+        query_length: searchRef.current.length,
         workspace_id: workspaceId,
       })
     },
@@ -854,22 +824,20 @@ export function SearchModal({
   )
 
   const handleNewChatFromQuery = useCallback(() => {
-    const query = deferredSearchRef.current.trim()
+    const query = searchRef.current.trim()
     if (!query) return
 
     const homeHref = `/workspace/${workspaceId}/home`
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
     if (!sentToMountedHome) {
-      /* Same mechanism as the integrations "Explore" showcase: seed the chat
-         input on the freshly mounted home surface (integration names chip). */
-      if (!storeCuratedPrompt(query)) {
+      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
         logger.warn('Failed to persist command palette query for a new chat', {
           workspaceId,
         })
         return
       }
-      routerRef.current.push(homeHref)
+      routerRef.current.push(getMothershipHandoffHref(workspaceId))
     }
 
     onOpenChangeRef.current(false)
@@ -883,7 +851,7 @@ export function SearchModal({
 
   /** Enter in ask mode: hand the query to Sim, or just open a new chat when empty. */
   const handleAskSim = useCallback(() => {
-    if (deferredSearchRef.current.trim()) {
+    if (searchRef.current.trim()) {
       handleNewChatFromQuery()
       return
     }
@@ -902,7 +870,7 @@ export function SearchModal({
   }, [])
 
   const entriesBySection = useMemo((): Record<SearchSection, SearchEntry[]> => {
-    const query = deferredSearch.trim()
+    const query = search.trim()
     const rank = <T,>(
       section: SearchSection,
       items: T[],
@@ -910,15 +878,15 @@ export function SearchModal({
       toExtra?: (item: T) => string | undefined
     ) =>
       query
-        ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra, MAX_RESULTS_PER_GROUP)
-        : items.map((item) => ({ item, score: 0 }))
+        ? scoreSectionItems(section, items, toValue, search, toExtra, MAX_RESULTS_PER_GROUP)
+        : items.slice(0, MAX_BROWSE_RESULTS_PER_GROUP).map((item) => ({ item, score: 0 }))
     const availableActions = actions.filter(
       (action) => action.context === 'global' || action.context === pageContext
     )
     const rankActionGroup = (items: ActionItem[], groupLabel: ActionGroupLabel) =>
       query
-        ? scoreActions(items, deferredSearch, MAX_RESULTS_PER_GROUP, groupLabel)
-        : items.map((item) => ({ item, score: 0 }))
+        ? scoreActions(items, search, MAX_RESULTS_PER_GROUP, groupLabel)
+        : items.slice(0, MAX_BROWSE_RESULTS_PER_GROUP).map((item) => ({ item, score: 0 }))
     const pageGroupLabel = pageContext ? ('Actions' as const) : null
     const rankedActions = [
       ...(pageGroupLabel
@@ -956,7 +924,10 @@ export function SearchModal({
       triggers: rank(
         'triggers',
         onCanvas
-          ? triggers.map((trigger) => ({ ...trigger, name: `${trigger.name} Trigger` }))
+          ? triggers.map((trigger) => ({
+              ...trigger,
+              name: trigger.name.endsWith('Trigger') ? trigger.name : `${trigger.name} Trigger`,
+            }))
           : [],
         (item) => item.name,
         (item) => `${toSearchToken(item.name)} ${item.id}`
@@ -973,8 +944,6 @@ export function SearchModal({
         (item) => item.name,
         (item) => item.searchValue
       ).map(({ item, score }) => ({ section: 'toolOperations', item, score })),
-      /* An exact page-name query surfaces the page itself above its lifted
-         contents — typing "logs" opens with the Logs page, then the logs. */
       pages: rank('pages', pages, (item) => item.name).map(({ item, score }) => ({
         section: 'pages',
         item,
@@ -1014,9 +983,6 @@ export function SearchModal({
         item,
         score,
       })),
-      /* On the canvas the blocks/tools sections already cover integration
-         intent — the catalog and connected accounts stay off; the Integrations
-         page row under Pages still navigates there. */
       connectedAccounts: rank(
         'connectedAccounts',
         onCanvas ? [] : connectedAccounts,
@@ -1032,7 +998,7 @@ export function SearchModal({
       })),
     }
   }, [
-    deferredSearch,
+    search,
     actions,
     pageContext,
     blocks,
@@ -1052,7 +1018,7 @@ export function SearchModal({
     pages,
   ])
 
-  const searchQuery = deferredSearch.trim()
+  const searchQuery = search.trim()
   const isSearching = Boolean(searchQuery)
   /**
    * Section order for both the browse list and the flat search tie-break: the
@@ -1069,7 +1035,10 @@ export function SearchModal({
     ]
   }, [pageContext])
   const searchResults = useMemo(
-    () => (isSearching ? getGlobalSearchResults(entriesBySection, orderedSections) : []),
+    () =>
+      isSearching
+        ? getGlobalSearchResults(entriesBySection, orderedSections).slice(0, MAX_SEARCH_RESULTS)
+        : [],
     [orderedSections, entriesBySection, isSearching]
   )
   const askSimLabel = searchQuery ? `Ask Sim: ${searchQuery}` : 'Start a new chat'
@@ -1147,32 +1116,23 @@ export function SearchModal({
     ]
   )
 
-  if (!mounted) return null
-
   return createPortal(
     <>
       <div
-        className={cn(
-          'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-100',
-          open ? 'opacity-100' : 'pointer-events-none opacity-0'
-        )}
+        className='fixed inset-0 z-[var(--z-modal)] opacity-100 transition-opacity duration-100'
         onClick={handleOverlayClick}
-        aria-hidden={!open}
       />
 
       <div
         role='dialog'
-        aria-modal={open}
-        aria-hidden={!open}
+        aria-modal='true'
         aria-label='Search'
-        className={cn(
-          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
-          open ? 'visible opacity-100' : 'invisible opacity-0'
-        )}
+        className='-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] opacity-100 shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]'
         style={{
-          left: isOnWorkflowPage
-            ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
-            : 'calc(var(--sidebar-width) / 2 + 50%)',
+          left:
+            pageContext === 'workflow'
+              ? 'calc(50% + (var(--sidebar-width) - var(--panel-width)) / 2)'
+              : 'calc(var(--sidebar-width) / 2 + 50%)',
         }}
       >
         <div className='overflow-hidden rounded-lg border border-[var(--border-1)] bg-[var(--bg)]'>
@@ -1227,6 +1187,7 @@ export function SearchModal({
                 cycleResultsOnTab={!isChatEnabled}
                 autoFocus
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}
+                value={search}
                 onValueChange={handleSearchChange}
                 onKeyDown={handleSearchKeyDown}
                 placeholder={askMode ? 'Ask Sim anything...' : 'Search anything...'}

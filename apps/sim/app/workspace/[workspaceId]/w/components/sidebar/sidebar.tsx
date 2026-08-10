@@ -428,7 +428,7 @@ export const Sidebar = memo(function Sidebar({
 
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
-  const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
+  const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const { config: permissionConfig, filterBlocks } = usePermissionConfig()
   const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
@@ -1143,7 +1143,7 @@ export const Sidebar = memo(function Sidebar({
 
   const { data: fetchedCredentials = [] } = useWorkspaceCredentials({
     workspaceId,
-    enabled: !permissionConfig.hideIntegrationsTab,
+    enabled: !permissionConfig.hideIntegrationsTab && searchModalPageContext !== 'workflow',
   })
 
   const isOnLogsPage =
@@ -1926,9 +1926,9 @@ export const Sidebar = memo(function Sidebar({
         logs={searchModalLogs}
         integrations={searchModalIntegrations}
         connectedAccounts={searchModalConnectedAccounts}
-        isOnWorkflowPage={!!workflowId}
         pageContext={searchModalPageContext}
         canEdit={canEdit}
+        canAdmin={canAdmin}
         onCreateWorkflow={handleCreateWorkflow}
         onCreateFolder={handleCreateFolder}
         onImportWorkflow={handleImportWorkflow}

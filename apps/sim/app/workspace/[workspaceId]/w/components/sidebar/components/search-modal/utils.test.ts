@@ -479,8 +479,6 @@ describe('secondary-text matching — no scattered noise', () => {
   it('does not scatter-match a query across long unrelated secondary text', () => {
     const items = [{ name: 'Write Contact', extra: 'Wealthbox Write Contact match snap up' }]
 
-    // The scattered mode alone finds w…h…a…t…s…a…p…p across this extra, so
-    // without the restriction this item would surface for "whatsapp".
     expect(fuzzyMatch(items[0].extra, 'whatsapp').matched).toBe(true)
     expect(
       filterAndSort(
@@ -532,7 +530,6 @@ describe('secondary-text matching — no scattered noise', () => {
         (item) => item.extra
       )
     ).toHaveLength(1)
-    // "dmchat" needs letters from both the "dm" and "chat" entries — rejected.
     expect(
       filterAndSort(
         items,

@@ -1070,9 +1070,31 @@ export function Table({
   }, [tableData, workspaceId])
 
   useRegisterGlobalCommands(() => [
-    { id: 'table-new-column', handler: () => handleAddColumnOfType('string') },
-    { id: 'table-export-csv', handler: () => void handleExportCsv() },
-    { id: 'table-import-csv', handler: () => setIsImportCsvOpen(true) },
+    {
+      id: 'table-new-column',
+      handler: () => {
+        if (!userPermissions.canEdit) return
+        if (tableDataRef.current?.locks.schemaLocked) {
+          showBlockedToast('add-column')
+          return
+        }
+        handleAddColumnOfType('string')
+      },
+    },
+    {
+      id: 'table-export-csv',
+      handler: () => {
+        if (!tableDataRef.current?.rowCount) return
+        void handleExportCsv()
+      },
+    },
+    {
+      id: 'table-import-csv',
+      handler: () => {
+        if (!userPermissions.canEdit || tableDataRef.current?.locks.insertLocked) return
+        onRequestImportCsv()
+      },
+    },
   ])
 
   const columnOptions = useMemo<ColumnOption[]>(
