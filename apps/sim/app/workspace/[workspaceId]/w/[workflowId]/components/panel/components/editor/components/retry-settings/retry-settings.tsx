@@ -48,6 +48,8 @@ function RetryNumberField({
   const [draft, setDraft] = useState<string | null>(null)
 
   const commit = () => {
+    /** Untouched field: nothing was typed, so there is nothing to normalize or write. */
+    if (draft === null) return
     const next = normalize(draft)
     setDraft(null)
     if (next !== value) onCommit(next)
