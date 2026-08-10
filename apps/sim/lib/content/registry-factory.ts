@@ -103,12 +103,9 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
    * `image-size` package, archived upstream with unpatched DoS advisories in
    * its ICNS/JXL/HEIF parsers (GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq).
    *
-   * `sharp` is loaded lazily, never as a top-level import. It resolves a
-   * platform-specific `@img/sharp-*` native binary that the standalone file
-   * tracer cannot follow, so a deployment that ships without it makes
-   * `import 'sharp'` throw at module scope — which would take down every route
-   * that touches this registry (`/blog`, `/library`, their tag, author, slug,
-   * and RSS routes) rather than degrading one optional OG dimension.
+   * Imported lazily, never at module scope: sharp resolves a native binary, and a
+   * top-level import that fails to load would take down every route reading this
+   * registry instead of dropping one optional dimension.
    */
   async function readOgImageDimensions(
     ogImage: string
