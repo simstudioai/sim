@@ -2,12 +2,12 @@ import fs from 'fs/promises'
 import path from 'path'
 import { cache } from 'react'
 import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import matter from 'gray-matter'
 import { compileMDX } from 'next-mdx-remote/rsc'
 import rehypeAutolinkHeadings from 'rehype-autolink-headings'
 import rehypeSlug from 'rehype-slug'
 import remarkGfm from 'remark-gfm'
-import sharp from 'sharp'
 import { mdxComponents } from '@/lib/content/mdx'
 import type { Author, ContentMeta, ContentPost, TagWithCount } from '@/lib/content/schema'
 import { AuthorSchema, ContentFrontmatterSchema } from '@/lib/content/schema'
@@ -102,6 +102,13 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
    * Uses `sharp`, which only parses headers for `metadata()`. It replaced the
    * `image-size` package, archived upstream with unpatched DoS advisories in
    * its ICNS/JXL/HEIF parsers (GHSA-w3rx-r6r6-pgpr, GHSA-5p2g-fcmc-qvqq).
+   *
+   * `sharp` is loaded lazily, never as a top-level import. It resolves a
+   * platform-specific `@img/sharp-*` native binary that the standalone file
+   * tracer cannot follow, so a deployment that ships without it makes
+   * `import 'sharp'` throw at module scope — which would take down every route
+   * that touches this registry (`/blog`, `/library`, their tag, author, slug,
+   * and RSS routes) rather than degrading one optional OG dimension.
    */
   async function readOgImageDimensions(
     ogImage: string
@@ -109,6 +116,7 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
     if (ogImage.startsWith('http')) return null
     try {
       const buffer = await fs.readFile(path.join(process.cwd(), 'public', ogImage))
+      const sharp = (await import('sharp')).default
       const { width, height } = await sharp(buffer).metadata()
       if (!width || !height) {
         logger.warn('OG image has no readable dimensions; falling back to the OG default', {
@@ -117,7 +125,11 @@ export function createContentRegistry(config: ContentRegistryConfig): ContentReg
         return null
       }
       return { width, height }
-    } catch {
+    } catch (error) {
+      logger.warn('Failed to read OG image dimensions; falling back to the OG default', {
+        ogImage,
+        error: getErrorMessage(error),
+      })
       return null
     }
   }
