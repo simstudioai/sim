@@ -12,6 +12,7 @@ import {
   WORKFLOW_OPERATIONS,
 } from '@sim/realtime-protocol/constants'
 import { generateId } from '@sim/utils/id'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import { useQueryClient } from '@tanstack/react-query'
 import { isEqual } from 'es-toolkit'
@@ -231,6 +232,9 @@ export function useCollaborativeWorkflow() {
               break
             case BLOCK_OPERATIONS.UPDATE_ERROR_ENABLED:
               useWorkflowStore.getState().setBlockErrorEnabled(payload.id, payload.errorEnabled)
+              break
+            case BLOCK_OPERATIONS.UPDATE_RETRY:
+              useWorkflowStore.getState().setBlockRetry(payload.id, payload.retry)
               break
             case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE:
               useWorkflowStore
@@ -1313,6 +1317,18 @@ export function useCollaborativeWorkflow() {
     [executeQueuedOperation]
   )
 
+  const collaborativeSetBlockRetry = useCallback(
+    (id: string, retry: BlockRetryConfig) => {
+      executeQueuedOperation(
+        BLOCK_OPERATIONS.UPDATE_RETRY,
+        OPERATION_TARGETS.BLOCK,
+        { id, retry },
+        () => useWorkflowStore.getState().setBlockRetry(id, retry)
+      )
+    },
+    [executeQueuedOperation]
+  )
+
   const collaborativeSetBlockCanonicalMode = useCallback(
     (id: string, canonicalId: string, canonicalMode: 'basic' | 'advanced') => {
       if (isBaselineDiffView) {
@@ -2268,6 +2284,7 @@ export function useCollaborativeWorkflow() {
     collaborativeBatchUpdateParent,
     collaborativeToggleBlockAdvancedMode,
     collaborativeSetBlockErrorEnabled,
+    collaborativeSetBlockRetry,
     collaborativeSetBlockCanonicalMode,
     collaborativeSetBlockCanonicalModes,
     collaborativeBatchToggleBlockHandles,

@@ -13,12 +13,14 @@ import {
   Unlock,
 } from '@sim/emcn/icons'
 import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { captureEvent } from '@/lib/posthog/client'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -31,6 +33,7 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
+  RetrySettings,
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -194,9 +197,24 @@ export function Editor() {
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
+  /**
+   * Whether the additional-fields disclosure is open, held as view state only.
+   *
+   * Deliberately not written back to `block.advancedMode`: that flag also decides
+   * which member of a canonical pair serializes, so driving it from this control
+   * would change the credential a block sends just because someone opened a
+   * disclosure. Seeded from the stored flag so a block saved while it was on
+   * still opens expanded.
+   */
+  const [additionalFieldsExpanded, setAdditionalFieldsExpanded] = useState(advancedMode)
+
+  useEffect(() => {
+    setAdditionalFieldsExpanded(advancedMode)
+  }, [advancedMode, currentBlockId])
+
   const displayAdvancedOptions = canEditBlock
-    ? advancedMode || activeSearchTargetNeedsAdvanced
-    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
+    ? additionalFieldsExpanded || activeSearchTargetNeedsAdvanced
+    : additionalFieldsExpanded || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -257,14 +275,32 @@ export function Editor() {
   const {
     collaborativeSetBlockCanonicalMode,
     collaborativeUpdateBlockName,
-    collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
-  const handleToggleAdvancedMode = useCallback(() => {
-    if (!currentBlockId || !canEditBlock) return
-    collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
+  const handleToggleAdditionalFields = useCallback(() => {
+    if (!canEditBlock) return
+    setAdditionalFieldsExpanded((expanded) => !expanded)
+  }, [canEditBlock])
+
+  const supportsRetry = isRetryEligibleBlock({
+    blockType: currentBlock?.type,
+    category: blockConfig?.category,
+    triggerMode,
+  })
+  const showRetrySettings = supportsRetry && displayAdvancedOptions
+
+  /** Retry lives in the additional-fields disclosure, which a block may otherwise have no reason to show. */
+  const hasAdditionalFields = hasAdvancedOnlyFields || supportsRetry
+
+  const handleChangeRetry = useCallback(
+    (retry: BlockRetryConfig) => {
+      if (!currentBlockId) return
+      collaborativeSetBlockRetry(currentBlockId, retry)
+    },
+    [currentBlockId, collaborativeSetBlockRetry]
+  )
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
@@ -648,7 +684,7 @@ export function Editor() {
 
                       const showDivider =
                         index < regularSubBlocks.length - 1 ||
-                        (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
+                        (!hasAdditionalFields && index < subBlocks.length - 1)
 
                       return (
                         <div key={stableKey} className='subblock-row'>
@@ -698,12 +734,12 @@ export function Editor() {
                       )
                     })}
 
-                    {hasAdvancedOnlyFields && canEditBlock && (
+                    {hasAdditionalFields && canEditBlock && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <button
                           type='button'
-                          onClick={handleToggleAdvancedMode}
+                          onClick={handleToggleAdditionalFields}
                           className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
@@ -716,7 +752,7 @@ export function Editor() {
                         <DashedDividerLine className='flex-1' />
                       </div>
                     )}
-                    {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                    {hasAdditionalFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <span className='whitespace-nowrap text-[var(--text-secondary)] text-small'>
@@ -749,7 +785,7 @@ export function Editor() {
                                   (subBlock.canonicalParamId ?? subBlock.id))
                             }
                           />
-                          {index < advancedOnlySubBlocks.length - 1 && (
+                          {(index < advancedOnlySubBlocks.length - 1 || showRetrySettings) && (
                             <FieldDivider
                               subblockMarker
                               className={
@@ -762,6 +798,14 @@ export function Editor() {
                         </div>
                       )
                     })}
+
+                    {showRetrySettings && (
+                      <RetrySettings
+                        retry={currentBlock?.retry}
+                        disabled={!canEditBlock}
+                        onChange={handleChangeRetry}
+                      />
+                    )}
                   </div>
                 )}
               </div>

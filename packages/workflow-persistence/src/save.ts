@@ -48,6 +48,12 @@ export async function saveWorkflowToNormalizedTables(
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},
         errorEnabled: block.errorEnabled ?? false,
+        /**
+         * Persisted verbatim, including a disabled policy, so the configured
+         * numbers survive switching retry off and back on. Whether it runs is
+         * decided by `resolveBlockRetryConfig` at execution time.
+         */
+        retry: block.retry ?? null,
         data: block.data || {},
         parentId: block.data?.parentId || null,
         extent: block.data?.extent || null,

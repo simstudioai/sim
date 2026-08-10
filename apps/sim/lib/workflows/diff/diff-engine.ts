@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { blockRetryEquals } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { getTargetedLayoutImpact } from '@/lib/workflows/autolayout'
 import type { BlockWithDiff } from '@/lib/workflows/diff/types'
@@ -43,6 +44,7 @@ function hasBlockChanged(currentBlock: BlockState, proposedBlock: BlockState): b
   if (currentBlock.enabled !== proposedBlock.enabled) return true
   if (currentBlock.triggerMode !== proposedBlock.triggerMode) return true
   if (currentBlock.errorEnabled !== proposedBlock.errorEnabled) return true
+  if (!blockRetryEquals(currentBlock.retry, proposedBlock.retry)) return true
   if ((currentBlock.data?.parentId ?? null) !== (proposedBlock.data?.parentId ?? null)) return true
 
   // Compare subBlocks
@@ -81,6 +83,7 @@ function computeFieldDiff(
     'triggerMode',
     'horizontalHandles',
     'errorEnabled',
+    'retry',
   ] as const
   for (const field of fieldsToCheck) {
     const currentValue = currentBlock[field]

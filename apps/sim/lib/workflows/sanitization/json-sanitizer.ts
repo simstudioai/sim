@@ -4,7 +4,13 @@ import type { Edge } from 'reactflow'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { sanitizeWorkflowForSharing } from '@/lib/workflows/credentials/credential-extractor'
 import { getBlock } from '@/blocks/registry'
-import type { BlockState, Loop, Parallel, WorkflowState } from '@/stores/workflows/workflow/types'
+import type {
+  BlockRetryConfig,
+  BlockState,
+  Loop,
+  Parallel,
+  WorkflowState,
+} from '@/stores/workflows/workflow/types'
 import { generateLoopBlocks, generateParallelBlocks } from '@/stores/workflows/workflow/utils'
 import { TRIGGER_WEBHOOK_URL_FIELD } from '@/triggers/constants'
 import { blockAdvertisesWebhookUrl } from '@/triggers/webhook-url'
@@ -32,6 +38,7 @@ interface CopilotBlockState {
   enabled: boolean
   advancedMode?: boolean
   errorEnabled?: boolean
+  retry?: BlockRetryConfig
   triggerMode?: boolean
 }
 
@@ -609,6 +616,7 @@ export function sanitizeForCopilot(
     if (Object.keys(nestedNodes).length > 0) result.nestedNodes = nestedNodes
     if (block.advancedMode !== undefined) result.advancedMode = block.advancedMode
     if (block.errorEnabled !== undefined) result.errorEnabled = block.errorEnabled
+    if (block.retry !== undefined) result.retry = block.retry
     if (block.triggerMode !== undefined) result.triggerMode = block.triggerMode
 
     // Note: outputs, position, height, layout, horizontalHandles are intentionally excluded

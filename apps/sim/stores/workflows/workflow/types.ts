@@ -1,6 +1,7 @@
 import type {
   BlockData,
   BlockLayoutState,
+  BlockRetryConfig,
   BlockState,
   DragStartPosition,
   Loop,
@@ -21,6 +22,7 @@ import type { Edge } from 'reactflow'
 export type {
   BlockData,
   BlockLayoutState,
+  BlockRetryConfig,
   BlockState,
   DragStartPosition,
   Loop,
@@ -60,6 +62,7 @@ export interface WorkflowActions {
   batchAddEdges: (edges: Edge[], options?: { skipValidation?: boolean }) => void
   batchRemoveEdges: (ids: string[]) => void
   setBlockErrorEnabled: (id: string, errorEnabled: boolean) => void
+  setBlockRetry: (id: string, retry: BlockRetryConfig) => void
   clear: () => Partial<WorkflowState>
   updateLastSaved: () => void
   setBlockEnabled: (id: string, enabled: boolean) => void

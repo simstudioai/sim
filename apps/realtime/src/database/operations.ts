@@ -768,6 +768,35 @@ async function handleBlockOperationTx(
       break
     }
 
+    case BLOCK_OPERATIONS.UPDATE_RETRY: {
+      if (!payload.id || payload.retry === undefined) {
+        throw new Error('Missing required fields for update retry operation')
+      }
+
+      const updateResult = await tx
+        .update(workflowBlocks)
+        .set({
+          /**
+           * Persisted verbatim, including a disabled policy, so the numbers a
+           * builder configured survive switching retry off and back on. NULL stays
+           * reserved for a block that never had a policy at all; whether a stored
+           * policy actually runs is decided by `resolveBlockRetryConfig` at
+           * execution time, never by the column being present.
+           */
+          retry: payload.retry,
+          updatedAt: new Date(),
+        })
+        .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
+        .returning({ id: workflowBlocks.id })
+
+      if (updateResult.length === 0) {
+        throw new Error(`Block ${payload.id} not found in workflow ${workflowId}`)
+      }
+
+      logger.debug(`Updated block retry: ${payload.id} -> ${payload.retry.enabled}`)
+      break
+    }
+
     case BLOCK_OPERATIONS.UPDATE_CANONICAL_MODE: {
       if (!payload.id || !payload.canonicalId || !payload.canonicalMode) {
         throw new Error('Missing required fields for update canonical mode operation')
@@ -962,6 +991,7 @@ async function handleBlocksOperationTx(
             advancedMode: (block.advancedMode as boolean) ?? false,
             triggerMode: (block.triggerMode as boolean) ?? false,
             errorEnabled: (block.errorEnabled as boolean) ?? false,
+            retry: (block.retry as Record<string, unknown> | undefined) ?? null,
             height: (block.height as number) || 0,
             locked: (block.locked as boolean) ?? false,
           }
@@ -981,6 +1011,7 @@ async function handleBlocksOperationTx(
               horizontalHandles: sql`excluded.horizontal_handles`,
               advancedMode: sql`excluded.advanced_mode`,
               triggerMode: sql`excluded.trigger_mode`,
+              retry: sql`excluded.retry`,
               locked: sql`excluded.locked`,
               height: sql`excluded.height`,
               subBlocks: sql`excluded.sub_blocks`,
@@ -2172,6 +2203,7 @@ async function handleWorkflowOperationTx(
           positionX: block.position.x,
           positionY: block.position.y,
           errorEnabled: block.errorEnabled ?? false,
+          retry: block.retry ?? null,
           data: block.data || {},
           subBlocks: block.subBlocks || {},
           outputs: block.outputs || {},
