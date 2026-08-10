@@ -316,7 +316,10 @@ export class LoggingSession {
     }
 
     const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    await registry.importProvenance(provenance, { trusted: true })
+    await registry.importProvenance(provenance, {
+      trusted: true,
+      origin: 'loggingSession.restoredProvenance',
+    })
     return registry
   }
 

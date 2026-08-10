@@ -528,7 +528,10 @@ export async function resolveInputFiles(
         })
         if (
           !provenance.complete ||
-          !(await resolvedSecretTraceRegistry.importProvenance(provenance, { trusted: true }))
+          !(await resolvedSecretTraceRegistry.importProvenance(provenance, {
+            trusted: true,
+            origin: 'copilotFunctionExecute.result',
+          }))
         ) {
           resolvedSecretTraceRegistry.markIncomplete()
         }
@@ -561,6 +564,7 @@ async function importMountedProvenance(
   try {
     const provenance = source.exportProvenanceForValue(crossingValue)
     const imported = await target.importCrossingProvenance(provenance, crossingValue, {
+      origin: 'copilotFunctionExecute.crossing',
       trusted: true,
     })
     if (!imported) target.markIncomplete()

@@ -1562,6 +1562,40 @@ describe('incompleteness diagnostics', () => {
     expect(registry.getIncompletenessDiagnostics()?.reasons[0]).toBe('constructed-incomplete')
   })
 
+  it('attributes an untrustworthy bundle to the caller that imported it', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    await registry.importProvenance(
+      { version: 1, complete: false, entries: [], scope },
+      { trusted: true, origin: 'workflowHandler.childCrossing' }
+    )
+
+    expect(registry.getIncompletenessDiagnostics()?.origins).toEqual([
+      'workflowHandler.childCrossing',
+    ])
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({
+        reason: 'source-provenance-incomplete',
+        origin: 'workflowHandler.childCrossing',
+      })
+    )
+  })
+
+  it('bounds retained origins, which are caller-supplied rather than a closed union', async () => {
+    const registry = new ResolvedSecretTraceRegistry([], scope)
+
+    for (let index = 0; index < 20; index++) {
+      await registry.importProvenance(
+        { version: 1, complete: false, entries: [], scope },
+        { trusted: true, origin: `caller.${index}` }
+      )
+    }
+
+    expect(registry.getIncompletenessDiagnostics()?.origins).toHaveLength(8)
+    expect(registry.getIncompletenessDiagnostics()?.origins[0]).toBe('caller.0')
+  })
+
   it('records no secret material alongside the reason', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 

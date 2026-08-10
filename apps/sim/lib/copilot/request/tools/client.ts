@@ -103,6 +103,7 @@ export async function waitForClientToolCompletion({
         toolRegistry.markIncomplete()
       } else {
         const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
+          origin: 'copilotToolClient.sealedContext',
           trusted: true,
         })
         if (!imported || !sealedContext.provenance.complete) {

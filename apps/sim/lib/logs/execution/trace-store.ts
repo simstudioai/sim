@@ -275,7 +275,10 @@ export async function projectExecutionDataForDisplay(
 
   if (isResolvedSecretTraceProvenanceV1(provenance)) {
     registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    await registry.importProvenance(provenance, { trusted: true })
+    await registry.importProvenance(provenance, {
+      trusted: true,
+      origin: 'traceStore.spanProvenance',
+    })
   }
 
   const projectionStore = {
@@ -301,7 +304,10 @@ export async function projectExecutionDataForDisplay(
       ? new ResolvedSecretTraceRegistry([], exactProvenance.scope)
       : new ResolvedSecretTraceRegistry()
     if (isResolvedSecretTraceProvenanceV1(exactProvenance)) {
-      await exactRegistry.importProvenance(exactProvenance, { trusted: true })
+      await exactRegistry.importProvenance(exactProvenance, {
+        trusted: true,
+        origin: 'traceStore.exactProvenance',
+      })
     } else {
       exactRegistry.markIncomplete()
     }
