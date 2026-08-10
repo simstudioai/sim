@@ -6,7 +6,6 @@ import {
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
   SUBFLOW_TYPES,
-  withPersistedErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import type { InferInsertModel } from 'drizzle-orm'
 import { eq } from 'drizzle-orm'
@@ -48,7 +47,8 @@ export async function saveWorkflowToNormalizedTables(
         height: String(block.height || 0),
         subBlocks: block.subBlocks || {},
         outputs: block.outputs || {},
-        data: withPersistedErrorEnabled(block.data, block.errorEnabled),
+        errorEnabled: block.errorEnabled ?? false,
+        data: block.data || {},
         parentId: block.data?.parentId || null,
         extent: block.data?.extent || null,
         locked: block.locked ?? false,

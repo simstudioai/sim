@@ -331,43 +331,23 @@ describe('hasWorkflowChanged', () => {
   })
 
   /**
-   * `errorEnabled` persists inside the block's `data` jsonb and is mirrored onto
-   * the block as a field on load, so the same flag reaches the comparison twice
-   * — and only some paths populate the copy. Counted through `data`, a block
-   * read one way differed from the identical block read another, which flipped
-   * the deploy badge between Live and "Update deployment" as each query landed.
-   * The top-level field is the one the comparison trusts.
+   * The flag drives the error port, and the deploy badge is what tells a user the
+   * port they just switched on is not live yet.
    */
   describe('Error Output Flag', () => {
-    /* Spread on after the factory, which returns a fixed block shape. */
-    const withErrorFlag = (errorEnabled: boolean, data: Record<string, unknown>) =>
+    const withErrorFlag = (errorEnabled: boolean) =>
       createWorkflowState({
-        blocks: { block1: { ...createBlock('block1', { data }), errorEnabled } },
+        blocks: { block1: { ...createBlock('block1'), errorEnabled } },
       })
 
-    it.concurrent('ignores a stale data mirror when the flag itself matches', () => {
-      expect(
-        hasWorkflowChanged(
-          withErrorFlag(true, { errorEnabled: false }),
-          withErrorFlag(true, { errorEnabled: true })
-        )
-      ).toBe(false)
+    it.concurrent('detects the flag being turned on', () => {
+      expect(hasWorkflowChanged(withErrorFlag(true), withErrorFlag(false))).toBe(true)
     })
 
-    it.concurrent('ignores a data mirror only one side carries', () => {
-      expect(hasWorkflowChanged(withErrorFlag(false, {}), withErrorFlag(false, {}))).toBe(false)
-      expect(
-        hasWorkflowChanged(withErrorFlag(false, {}), withErrorFlag(false, { errorEnabled: false }))
-      ).toBe(false)
-    })
-
-    it.concurrent('still detects the flag being turned on', () => {
-      expect(
-        hasWorkflowChanged(
-          withErrorFlag(true, { errorEnabled: true }),
-          withErrorFlag(false, { errorEnabled: false })
-        )
-      ).toBe(true)
+    it.concurrent('treats an unset flag as off', () => {
+      const unset = createWorkflowState({ blocks: { block1: createBlock('block1') } })
+      expect(hasWorkflowChanged(unset, withErrorFlag(false))).toBe(false)
+      expect(hasWorkflowChanged(unset, withErrorFlag(true))).toBe(true)
     })
   })
 

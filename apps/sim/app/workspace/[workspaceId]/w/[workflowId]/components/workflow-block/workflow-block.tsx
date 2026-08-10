@@ -741,6 +741,16 @@ export const WorkflowBlock = memo(function WorkflowBlock({
     () => new Set(highlightedHandleKey ? highlightedHandleKey.split('|') : []),
     [highlightedHandleKey]
   )
+  /*
+   * An existing error edge means the output is on, whatever the flag says.
+   * Every released version drew the error port with no toggle in front of it, so
+   * a block already wired that way had no other way to make the connection —
+   * reading the flag alone would unmount a port a live workflow routes failures
+   * through, and React Flow drops an edge whose handle is not mounted. The
+   * migration backfills those rows, but this keeps the rule true for any state
+   * that reaches the canvas without passing through it (an imported workflow, a
+   * deployment snapshot, a copilot edit).
+   */
   const errorOutputEnabled = Boolean(currentBlock?.errorEnabled || hasErrorConnection)
   const handleToggleErrorOutput = useCallback(
     (next: boolean) => {

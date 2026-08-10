@@ -56,34 +56,11 @@ export interface BlockData {
   batchSize?: number
   type?: string
   canonicalModes?: Record<string, 'basic' | 'advanced'>
-  /** Persisted mirror of {@link BlockState.errorEnabled}. */
-  errorEnabled?: boolean
 }
 
 export interface BlockLayoutState {
   measuredWidth?: number
   measuredHeight?: number
-}
-
-/**
- * Mirrors {@link BlockState.errorEnabled} into the block's `data` blob.
- *
- * `workflow_blocks` has no `error_enabled` column, so the jsonb `data` column
- * is the flag's only persisted home while the canonical in-memory value lives
- * at the top level. Every writer that inserts or replaces a block row must
- * route its `data` through this, or the toggle is silently dropped on reload.
- *
- * The fallback reads the mirror already on the CALLER's `data` — it does not
- * consult the stored row — so it only covers a payload that carries `data`
- * but no top-level flag. A writer that replaces `data` wholesale still needs
- * the caller to supply the flag.
- */
-export function withPersistedErrorEnabled<T extends object>(
-  data: T | null | undefined,
-  errorEnabled: boolean | undefined
-): T & { errorEnabled: boolean } {
-  const base = (data ?? {}) as T & { errorEnabled?: boolean }
-  return { ...base, errorEnabled: errorEnabled ?? base.errorEnabled === true }
 }
 
 export interface BlockState {

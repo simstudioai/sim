@@ -294,6 +294,7 @@ export const workflowBlocks = pgTable(
     isWide: boolean('is_wide').notNull().default(false),
     advancedMode: boolean('advanced_mode').notNull().default(false),
     triggerMode: boolean('trigger_mode').notNull().default(false),
+    errorEnabled: boolean('error_enabled').notNull().default(false),
     locked: boolean('locked').notNull().default(false),
     height: decimal('height').notNull().default('0'),
 

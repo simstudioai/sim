@@ -34,7 +34,6 @@ import {
   isWorkflowBlockProtected,
   normalizeWorkflowEdgeSourceHandle,
   normalizeWorkflowEdgeTargetHandle,
-  withPersistedErrorEnabled,
 } from '@sim/workflow-types/workflow'
 import { and, eq, inArray, isNull, or, sql } from 'drizzle-orm'
 import { drizzle } from 'drizzle-orm/postgres-js'
@@ -755,12 +754,7 @@ async function handleBlockOperationTx(
       const updateResult = await tx
         .update(workflowBlocks)
         .set({
-          data: sql`jsonb_set(
-            coalesce(${workflowBlocks.data}, '{}'::jsonb),
-            '{errorEnabled}',
-            ${JSON.stringify(payload.errorEnabled)}::jsonb,
-            true
-          )`,
+          errorEnabled: payload.errorEnabled,
           updatedAt: new Date(),
         })
         .where(and(eq(workflowBlocks.id, payload.id), eq(workflowBlocks.workflowId, workflowId)))
@@ -960,16 +954,14 @@ async function handleBlocksOperationTx(
             name: block.name as string,
             positionX: (block.position as { x: number; y: number }).x,
             positionY: (block.position as { x: number; y: number }).y,
-            data: withPersistedErrorEnabled(
-              block.data as Record<string, unknown> | undefined,
-              block.errorEnabled as boolean | undefined
-            ),
+            data: (block.data as Record<string, unknown> | undefined) || {},
             subBlocks: mergedSubBlocks,
             outputs: (block.outputs as Record<string, unknown>) || {},
             enabled: (block.enabled as boolean) ?? true,
             horizontalHandles: (block.horizontalHandles as boolean) ?? true,
             advancedMode: (block.advancedMode as boolean) ?? false,
             triggerMode: (block.triggerMode as boolean) ?? false,
+            errorEnabled: (block.errorEnabled as boolean) ?? false,
             height: (block.height as number) || 0,
             locked: (block.locked as boolean) ?? false,
           }
@@ -2179,7 +2171,8 @@ async function handleWorkflowOperationTx(
           name: block.name,
           positionX: block.position.x,
           positionY: block.position.y,
-          data: withPersistedErrorEnabled(block.data, block.errorEnabled),
+          errorEnabled: block.errorEnabled ?? false,
+          data: block.data || {},
           subBlocks: block.subBlocks || {},
           outputs: block.outputs || {},
           enabled: block.enabled ?? true,

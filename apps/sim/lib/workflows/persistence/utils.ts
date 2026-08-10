@@ -172,16 +172,38 @@ async function materializeDeploymentState(
     state.blocks || {},
     resolvedWorkspaceId
   )
+  /*
+   * Read straight out of the version's jsonb blob, so unlike every path that
+   * goes through `loadWorkflowFromNormalizedTables` these handles were never
+   * canonicalized. Change detection diffs this against a normalized live state,
+   * so a snapshot holding a side-anchored id would report every edge as
+   * added-and-removed and pin the workflow to "needs redeploy" forever.
+   */
+  const edges = normalizeWorkflowEdgeHandles(state.edges)
+
+  /*
+   * An error edge means the error output is on. Every version before the toggle
+   * drew that port unconditionally, so a snapshot with such an edge was taken
+   * from a block that had the output — and the migration backfilling the flag
+   * only reaches the live tables, never a version's frozen jsonb. Without this
+   * the deployed side reads `false` against a live `true` and every workflow
+   * deployed before the toggle asks to be redeployed once. Same rule as
+   * `workflow-block.tsx` applies at render time; neither may read the flag alone.
+   */
+  const errorSourceBlockIds = new Set(
+    edges.filter((edge) => edge.sourceHandle === 'error').map((edge) => edge.source)
+  )
+  const blocks: DeployedWorkflowData['blocks'] = {}
+  for (const [blockId, block] of Object.entries(migratedBlocks)) {
+    blocks[blockId] =
+      block.errorEnabled || !errorSourceBlockIds.has(blockId)
+        ? block
+        : { ...block, errorEnabled: true }
+  }
+
   const deployedState: DeployedWorkflowData = {
-    blocks: migratedBlocks,
-    /*
-     * Read straight out of the version's jsonb blob, so unlike every path that
-     * goes through `loadWorkflowFromNormalizedTables` these handles were never
-     * canonicalized. Change detection diffs this against a normalized live
-     * state, so a snapshot holding a side-anchored id would report every edge
-     * as added-and-removed and pin the workflow to "needs redeploy" forever.
-     */
-    edges: normalizeWorkflowEdgeHandles(state.edges),
+    blocks,
+    edges,
     loops: state.loops || {},
     parallels: state.parallels || {},
     variables: state.variables || {},

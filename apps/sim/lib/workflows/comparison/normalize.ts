@@ -47,17 +47,6 @@ export const EXCLUDED_BLOCK_DATA_FIELDS: readonly string[] = [
   // Parallel fields - duplicated in parallels state and/or subBlocks
   'parallelType', // Duplicated in parallels state
   'distribution', // Parallel distribution (derived during execution)
-
-  /*
-   * Duplicated from the block's own `errorEnabled`. `data` is where the flag
-   * persists (the realtime server `jsonb_set`s it, and load mirrors it back
-   * onto the block), so the same value reaches this comparison twice — and only
-   * some paths populate the copy. Counted here, a block read one way differed
-   * from the identical block read another and the deploy badge flipped between
-   * Live and "Update deployment" as each query landed. The block field is
-   * compared on its own, with `!!`, so absent and `false` agree there.
-   */
-  'errorEnabled',
 ] as const
 
 /**

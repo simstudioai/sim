@@ -172,7 +172,7 @@ export const useWorkflowStore = create<WorkflowStore>()(
             enabled: block.enabled ?? true,
             horizontalHandles: block.horizontalHandles ?? true,
             advancedMode: block.advancedMode ?? false,
-            errorEnabled: block.errorEnabled ?? block.data?.errorEnabled === true,
+            errorEnabled: block.errorEnabled ?? false,
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,

@@ -2003,6 +2003,13 @@
       "when": 1786226773546,
       "tag": "0286_tiktok_routing_key",
       "breakpoints": true
+    },
+    {
+      "idx": 287,
+      "version": "7",
+      "when": 1786238404458,
+      "tag": "0287_workflow_blocks_error_enabled",
+      "breakpoints": true
     }
   ]
 }
