@@ -356,7 +356,7 @@ describe('SearchModal', () => {
     }
   })
 
-  it('hoists a module page’s actions and entity section above the Sim group', async () => {
+  it('hoists a module page’s actions and its entity section directly under the Sim group', async () => {
     const tables = [{ id: 'table-1', name: 'Leads', href: '/workspace/workspace-1/tables/table-1' }]
     await act(async () => {
       root.render(
@@ -367,7 +367,7 @@ describe('SearchModal', () => {
     const headings = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-group-heading]')).map(
       (el) => el.textContent
     )
-    expect(headings.slice(0, 4)).toEqual(['Actions', 'Tables', 'Sim', 'Pages'])
+    expect(headings.slice(0, 4)).toEqual(['Actions', 'Sim', 'Tables', 'Pages'])
   })
 
   it('browses the integrations catalog from every page', async () => {

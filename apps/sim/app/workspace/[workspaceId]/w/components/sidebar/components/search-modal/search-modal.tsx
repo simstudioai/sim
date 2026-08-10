@@ -1097,12 +1097,12 @@ export function SearchModal({
             },
           ]
         : []),
-      ...(hoisted ? [entityGroup(hoisted)] : []),
       {
         key: 'platform-actions',
         heading: 'Sim',
         entries: actionEntriesByLabel('Sim'),
       },
+      ...(hoisted ? [entityGroup(hoisted)] : []),
       ...CANVAS_SECTIONS.map(entityGroup),
       ...SEARCH_SECTIONS.filter(
         (section) => section !== 'actions' && section !== hoisted && !canvasSections.has(section)
