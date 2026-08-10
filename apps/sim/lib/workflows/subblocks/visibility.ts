@@ -448,6 +448,26 @@ export function isSubBlockVisibleForMode(
   return true
 }
 
+/**
+ * Determine whether a subblock is visible in the editor panel.
+ *
+ * The editor exposes standalone basic and advanced fields together. Canonical
+ * basic/advanced pairs remain mutually exclusive because they are alternate
+ * controls for the same parameter.
+ */
+export function isSubBlockVisibleInEditor(
+  subBlock: SubBlockConfig,
+  canonicalIndex: CanonicalIndex,
+  values: Record<string, unknown>,
+  overrides?: CanonicalModeOverrides
+): boolean {
+  const canonicalId = canonicalIndex.canonicalIdBySubBlockId[subBlock.id]
+  const group = canonicalId ? canonicalIndex.groupsById[canonicalId] : undefined
+
+  if (!group || !isCanonicalPair(group)) return true
+  return isSubBlockVisibleForMode(subBlock, false, canonicalIndex, values, overrides)
+}
+
 export function isTriggerModeSubBlock(subBlock: Pick<SubBlockConfig, 'mode'>): boolean {
   return subBlock.mode === 'trigger' || subBlock.mode === 'trigger-advanced'
 }

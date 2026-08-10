@@ -1,6 +1,6 @@
 import type React from 'react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, Combobox as EditableCombobox } from '@sim/emcn'
+import { Button, ChipCombobox as EditableCombobox } from '@sim/emcn'
 import { X } from '@sim/emcn/icons'
 import { SEARCH_DEBOUNCE_MS } from '@/lib/url-state'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'

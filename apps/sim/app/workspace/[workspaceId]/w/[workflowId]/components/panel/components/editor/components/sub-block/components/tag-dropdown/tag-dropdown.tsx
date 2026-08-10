@@ -11,6 +11,8 @@ import {
   PopoverSection,
   usePopoverContext,
 } from '@sim/emcn'
+import { Repeat, Split } from '@sim/emcn/icons'
+import { WorkflowTypeTag } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
@@ -29,7 +31,7 @@ import type {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/types'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import { getBlock } from '@/blocks'
-import { BlockTile } from '@/blocks/block-tile'
+import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
 import { useVariablesStore } from '@/stores/variables/store'
@@ -160,8 +162,6 @@ export const getTagSearchTerm = (text: string, cursorPosition: number): string =
 const BLOCK_COLORS = {
   VARIABLE: '#2F8BFF',
   DEFAULT: '#2F55FF',
-  LOOP: '#2FB3FF',
-  PARALLEL: '#FEE12B',
 } as const
 
 /**
@@ -381,6 +381,25 @@ const buildNestedTagTree = (tags: string[], blockName: string): NestedTag[] => {
   return convertToNestedTags(root, '', blockName)
 }
 
+const TagIcon: React.FC<{
+  icon: string | React.ComponentType<{ className?: string }>
+  color: string
+}> = ({ icon, color }) => (
+  <div
+    className='flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded [&_img]:size-full'
+    style={{ background: color }}
+  >
+    {typeof icon === 'string' ? (
+      <span className={cn(getTileIconColorClass(color, true), 'font-bold text-micro')}>{icon}</span>
+    ) : (
+      (() => {
+        const IconComponent = icon
+        return <IconComponent className={cn(getTileIconColorClass(color, true), 'size-[9px]')} />
+      })()
+    )}
+  </div>
+)
+
 /**
  * Props for the recursive NestedTagRenderer component
  */
@@ -455,7 +474,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }
           }}
         >
-          <span className='flex-1 truncate'>{currentNestedTag.display}</span>
+          <span className='flex-1 truncate font-medium'>{currentNestedTag.display}</span>
         </PopoverItem>
       )}
 
@@ -503,9 +522,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
           >
             <span className='flex-1 truncate'>{child.display}</span>
             {childType && childType !== 'any' && (
-              <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-                {childType}
-              </span>
+              <span className='ml-auto text-[var(--text-muted)] text-micro'>{childType}</span>
             )}
           </PopoverItem>
         )
@@ -538,7 +555,7 @@ const FolderContentsInner: React.FC<FolderContentsProps> = ({
             }}
           >
             <span className='flex-1 truncate'>{nestedChild.display}</span>
-            <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>{'>'}</span>
+            <span className='ml-auto text-[var(--text-muted)] text-micro'>{'>'}</span>
           </PopoverItem>
         )
       })}
@@ -702,9 +719,7 @@ const NestedTagRenderer: React.FC<NestedTagRendererProps> = ({
     >
       <span className='flex-1 truncate'>{nestedTag.display}</span>
       {tagDescription && tagDescription !== 'any' && (
-        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-          {tagDescription}
-        </span>
+        <span className='ml-auto text-[var(--text-muted)] text-micro'>{tagDescription}</span>
       )}
     </PopoverItem>
   )
@@ -772,9 +787,7 @@ const VariableTagItem: React.FC<{
         {tag.startsWith(TAG_PREFIXES.VARIABLE) ? tag.substring(TAG_PREFIXES.VARIABLE.length) : tag}
       </span>
       {variableInfo && (
-        <span className='ml-auto text-[var(--text-muted-inverse)] text-micro'>
-          {variableInfo.type}
-        </span>
+        <span className='ml-auto text-[var(--text-muted)] text-micro'>{variableInfo.type}</span>
       )}
     </PopoverItem>
   )
@@ -791,7 +804,10 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect: (tag: string, group?: BlockTagGroup) => void
   itemRefs: React.RefObject<Map<string, HTMLElement>>
   group: BlockTagGroup
+  tagIcon: string | React.ComponentType<{ className?: string }>
   blockType: string
+  brandColor: string
+  isIntegration: boolean
   blockName: string
 }> = ({
   rootTag,
@@ -801,7 +817,10 @@ const BlockRootTagItem: React.FC<{
   handleTagSelect,
   itemRefs,
   group,
+  tagIcon,
   blockType,
+  brandColor,
+  isIntegration,
   blockName,
 }) => {
   const handleMouseEnter = useKeyboardAwareMouseEnter(setSelectedIndex)
@@ -822,12 +841,18 @@ const BlockRootTagItem: React.FC<{
         }
       }}
     >
-      <BlockTile
-        blockType={blockType}
-        fallbackLabel={blockName.charAt(0).toUpperCase()}
-        size='sm'
-      />
-      <span className='flex-1 truncate'>{blockName}</span>
+      {typeof tagIcon === 'string' ? (
+        <TagIcon icon={tagIcon} color={BLOCK_COLORS.DEFAULT} />
+      ) : (
+        <WorkflowTypeTag
+          type={blockType}
+          blockName={blockName}
+          Icon={tagIcon}
+          iconBgColor={brandColor}
+          isIntegration={isIntegration}
+        />
+      )}
+      <span className='flex-1 truncate font-medium'>{blockName}</span>
     </PopoverItem>
   )
 }
@@ -1660,7 +1685,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
 
   return (
     <NestedNavigationContext.Provider value={nestedNavigationValue}>
-      <Popover open={visible} onOpenChange={(open) => !open && onClose?.()} colorScheme='inverted'>
+      <Popover open={visible} onOpenChange={(open) => !open && onClose?.()}>
         <PopoverContextCapture contextRef={popoverContextRef} />
         <PopoverAnchor asChild>
           <div
@@ -1689,6 +1714,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           }}
         />
         <PopoverContent
+          appearance='dropdown'
           maxHeight={240}
           className='min-w-[280px]'
           side={side}
@@ -1700,7 +1726,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
           <PopoverScrollArea ref={scrollAreaRef}>
             <TagDropdownBackButton setSelectedIndex={setSelectedIndex} />
             {flatTagList.length === 0 ? (
-              <div className='px-1.5 py-2 text-[color-mix(in_srgb,var(--white)_60%,transparent)] text-caption'>
+              <div className='px-1.5 py-2 text-[var(--text-muted)] text-caption'>
                 No matching tags found
               </div>
             ) : (
@@ -1709,7 +1735,7 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                   <>
                     <PopoverSection rootOnly>
                       <div className='flex items-center gap-1.5'>
-                        <BlockTile bgColor={BLOCK_COLORS.VARIABLE} fallbackLabel='V' size='sm' />
+                        <TagIcon icon='V' color={BLOCK_COLORS.VARIABLE} />
                         Variables
                       </div>
                     </PopoverSection>
@@ -1735,6 +1761,18 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                 )}
 
                 {nestedBlockTagGroups.map((group: NestedBlockTagGroup, groupIndex: number) => {
+                  const blockConfig = getBlock(group.blockType)
+
+                  let tagIcon: string | React.ComponentType<{ className?: string }> =
+                    group.blockName.charAt(0).toUpperCase()
+                  if (blockConfig?.icon) {
+                    tagIcon = blockConfig.icon
+                  } else if (group.blockType === 'loop') {
+                    tagIcon = Repeat
+                  } else if (group.blockType === 'parallel') {
+                    tagIcon = Split
+                  }
+
                   const normalizedBlockName = normalizeName(group.blockName)
                   const rootTagFromTags = group.tags.find((tag) => tag === normalizedBlockName)
                   const rootTag = rootTagFromTags || normalizedBlockName
@@ -1751,7 +1789,10 @@ export const TagDropdown: React.FC<TagDropdownProps> = ({
                         handleTagSelect={handleTagSelect}
                         itemRefs={itemRefs}
                         group={group}
+                        tagIcon={tagIcon}
                         blockType={group.blockType}
+                        brandColor={blockConfig?.bgColor ?? ''}
+                        isIntegration={blockConfig?.category === 'tools'}
                         blockName={group.blockName}
                       />
                       {group.nestedTags.map((nestedTag) => {

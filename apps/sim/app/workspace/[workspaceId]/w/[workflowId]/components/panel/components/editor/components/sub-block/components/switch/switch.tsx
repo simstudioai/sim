@@ -1,4 +1,4 @@
-import { Label, Switch as UISwitch } from '@sim/emcn'
+import { BooleanControl } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/boolean-control'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 
 interface SwitchProps {
@@ -24,26 +24,18 @@ export function Switch({
 
   const value = isPreview ? previewValue : propValue !== undefined ? propValue : storeValue
 
-  const handleChange = (checked: boolean) => {
+  const handleChange = (nextValue: boolean) => {
     if (!isPreview && !disabled) {
-      setStoreValue(checked)
+      setStoreValue(nextValue)
     }
   }
 
   return (
-    <div className='flex items-center gap-x-3'>
-      <UISwitch
-        id={`${blockId}-${subBlockId}`}
-        checked={Boolean(value)}
-        onCheckedChange={handleChange}
-        disabled={isPreview || disabled}
-      />
-      <Label
-        htmlFor={`${blockId}-${subBlockId}`}
-        className='cursor-pointer font-sans text-[var(--text-primary)] text-sm leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50'
-      >
-        {title}
-      </Label>
-    </div>
+    <BooleanControl
+      value={Boolean(value)}
+      onChange={handleChange}
+      label={title}
+      disabled={isPreview || disabled}
+    />
   )
 }

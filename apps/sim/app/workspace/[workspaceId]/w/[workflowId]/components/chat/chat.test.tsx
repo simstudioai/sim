@@ -79,6 +79,14 @@ vi.mock('@sim/emcn', () => ({
   }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
     <button {...props}>{children}</button>
   ),
+  Chip: ({
+    children,
+    className: _className,
+    variant: _variant,
+    ...props
+  }: ButtonHTMLAttributes<HTMLButtonElement> & { variant?: string }) => (
+    <button {...props}>{children}</button>
+  ),
   cn: (...values: unknown[]) => values.filter(Boolean).join(' '),
   Input: ({
     ref,
@@ -239,7 +247,7 @@ function setInputValue(input: HTMLInputElement, value: string) {
 
 async function addMessageAndAttachment(message: string, file: File) {
   const messageInput = container.querySelector<HTMLInputElement>(
-    'input[placeholder="Type a message..."]'
+    'input[placeholder="Send a test message..."]'
   )
   const fileInput = container.querySelector<HTMLInputElement>('#floating-chat-file-input')
   if (!messageInput || !fileInput) throw new Error('Expected chat inputs')
@@ -342,7 +350,8 @@ describe('floating chat attachment uploads', () => {
     ])
     expect(container.textContent).not.toContain('diagram.png')
     expect(
-      container.querySelector<HTMLInputElement>('input[placeholder="Type a message..."]')?.value
+      container.querySelector<HTMLInputElement>('input[placeholder="Send a test message..."]')
+        ?.value
     ).toBe('')
     expect(mockRevokeObjectURL).toHaveBeenCalledWith('blob:diagram-preview')
   })
@@ -360,7 +369,8 @@ describe('floating chat attachment uploads', () => {
 
     expect(mockFileReader).not.toHaveBeenCalled()
     expect(
-      container.querySelector<HTMLInputElement>('input[placeholder="Type a message..."]')?.value
+      container.querySelector<HTMLInputElement>('input[placeholder="Send a test message..."]')
+        ?.value
     ).toBe('Summarize this report')
     expect(container.querySelector('img[alt="report.png"]')).not.toBeNull()
     expect(container.textContent).toContain(

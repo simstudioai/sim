@@ -55,10 +55,13 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
-import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
+import { DROPDOWN_MENU_SURFACE_CLASSES } from '../dropdown-menu/dropdown-menu'
+import { ScrollEdgeFade, type ScrollEdgeFadeVariant } from '../scroll-edge-fade/scroll-edge-fade'
+import { thinScrollbarClass } from '../scrollbar/scrollbar'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
+type PopoverVariant = 'default' | 'secondary'
 
 /**
  * Style constants for popover components.
@@ -85,11 +88,12 @@ const STYLES = {
   /** Color scheme variants */
   colorScheme: {
     default: {
-      text: 'text-[var(--text-body)] [&_svg]:text-[var(--text-icon)]',
+      text: 'text-[var(--text-body)] [&>svg]:text-[var(--text-icon)]',
       section: 'text-[var(--text-tertiary)]',
       search: 'text-[var(--text-muted)]',
       searchInput: 'text-[var(--text-primary)] placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-5)] text-foreground dark:bg-[var(--surface-3)]',
+      content:
+        'bg-[var(--surface-5)] text-foreground [--popover-surface:var(--surface-5)] dark:bg-[var(--surface-3)] dark:[--popover-surface:var(--surface-3)]',
       divider: 'border-[var(--border-1)]',
     },
     inverted: {
@@ -98,7 +102,8 @@ const STYLES = {
       search: 'text-[var(--text-muted-inverse)] dark:text-[var(--text-muted)]',
       searchInput:
         'text-white placeholder:text-[var(--text-muted-inverse)] dark:text-[var(--text-primary)] dark:placeholder:text-[var(--text-muted)]',
-      content: 'bg-[var(--surface-inverted)] text-white dark:text-foreground',
+      content:
+        'bg-[var(--surface-inverted)] text-white [--popover-surface:var(--surface-inverted)] dark:text-foreground',
       divider: 'border-[var(--border-inverted)]',
     },
   } satisfies Record<
@@ -113,16 +118,16 @@ const STYLES = {
     }
   >,
 
-  /** Interactive state styles: default, and inverted (dark bg in light mode) */
+  /** Interactive state styles: default, secondary (brand), inverted (dark bg in light mode) */
   states: {
     default: {
-      /**
-       * The shared row-state pair — see {@link chipHoverSurfaceClass}.
-       * `getItemStateClasses` returns active OR hover and never both, which is
-       * what holds a checked item's surface through hover.
-       */
-      active: chipActiveSurfaceClass,
-      hover: chipHoverSurfaceClass,
+      active: 'bg-[var(--surface-active)]',
+      hover: 'hover-hover:bg-[var(--surface-active)]',
+    },
+    secondary: {
+      active: 'bg-[var(--brand-secondary)] text-white [&_svg]:text-white',
+      hover:
+        'hover-hover:bg-[var(--brand-secondary)] hover-hover:text-white hover-hover:[&_svg]:text-white',
     },
     inverted: {
       active:
@@ -133,9 +138,21 @@ const STYLES = {
   },
 } as const
 
-/** Gets the active/hover classes for a popover item, keyed by colour scheme. */
-function getItemStateClasses(colorScheme: PopoverColorScheme, isActive: boolean): string {
+/**
+ * Gets the active/hover classes for a popover item.
+ * Uses variant for secondary, otherwise colorScheme determines default vs inverted.
+ */
+function getItemStateClasses(
+  variant: PopoverVariant,
+  colorScheme: PopoverColorScheme,
+  isActive: boolean
+): string {
   const state = isActive ? 'active' : 'hover'
+
+  if (variant === 'secondary') {
+    return STYLES.states.secondary[state]
+  }
+
   return colorScheme === 'inverted' ? STYLES.states.inverted[state] : STYLES.states.default[state]
 }
 
@@ -151,6 +168,7 @@ interface PopoverContextValue {
   isInFolder: boolean
   folderTitle: string | null
   onFolderSelect: (() => void) | null
+  variant: PopoverVariant
   size: PopoverSize
   colorScheme: PopoverColorScheme
   searchQuery: string
@@ -184,6 +202,11 @@ const usePopoverContext = () => {
 
 export interface PopoverProps extends PopoverPrimitive.PopoverProps {
   /**
+   * Visual variant of the popover
+   * @default 'default'
+   */
+  variant?: PopoverVariant
+  /**
    * Size variant of the popover
    * - sm: 11px text, compact spacing (for logs, notifications, context menus)
    * - md: 13px text, default spacing
@@ -204,6 +227,7 @@ export interface PopoverProps extends PopoverPrimitive.PopoverProps {
  */
 const Popover: React.FC<PopoverProps> = ({
   children,
+  variant = 'default',
   size = 'md',
   colorScheme = 'default',
   open,
@@ -293,6 +317,7 @@ const Popover: React.FC<PopoverProps> = ({
       isInFolder: currentFolder !== null,
       folderTitle,
       onFolderSelect,
+      variant,
       size,
       colorScheme,
       searchQuery,
@@ -313,6 +338,7 @@ const Popover: React.FC<PopoverProps> = ({
       currentFolder,
       folderTitle,
       onFolderSelect,
+      variant,
       size,
       colorScheme,
       searchQuery,
@@ -389,6 +415,12 @@ interface PopoverContentProps
    */
   border?: boolean
   /**
+   * Uses the canonical theme-aware chip-dropdown surface instead of the
+   * standard contextual popover surface.
+   * @default 'default'
+   */
+  appearance?: 'default' | 'dropdown'
+  /**
    * Flip to avoid viewport collisions
    * @default true
    */
@@ -428,6 +460,7 @@ const PopoverContent = React.forwardRef<
       sideOffset,
       collisionPadding = 8,
       border = false,
+      appearance = 'default',
       avoidCollisions = true,
       showArrow = false,
       arrowClassName,
@@ -587,12 +620,19 @@ const PopoverContent = React.forwardRef<
         data-native-surface-overlay=''
         className={cn(
           'z-[var(--z-popover)] flex flex-col outline-none',
-          showArrow ? 'overflow-visible' : 'overflow-auto',
-          STYLES.colorScheme[colorScheme].content,
-          STYLES.content,
+          thinScrollbarClass,
+          showArrow
+            ? 'overflow-visible'
+            : 'overflow-auto [&:has([data-popover-scroll])]:overflow-hidden',
+          appearance === 'dropdown'
+            ? cn(DROPDOWN_MENU_SURFACE_CLASSES, '[--popover-surface:var(--bg)]')
+            : cn(
+                STYLES.colorScheme[colorScheme].content,
+                STYLES.content,
+                border && 'border border-[var(--border-1)]'
+              ),
           hasUserWidthConstraint &&
             '[&_.flex-1:not([data-popover-scroll])]:truncate [&_[data-popover-section]]:truncate',
-          border && 'border border-[var(--border-1)]',
           className
         )}
         style={{
@@ -611,7 +651,7 @@ const PopoverContent = React.forwardRef<
       >
         {showArrow ? (
           <div
-            className='flex flex-1 flex-col overflow-auto'
+            className={cn('flex flex-1 flex-col overflow-auto', thinScrollbarClass)}
             style={{ maxHeight: `${maxHeight || 400}px` }}
           >
             {children}
@@ -651,23 +691,106 @@ const PopoverContent = React.forwardRef<
 
 PopoverContent.displayName = 'PopoverContent'
 
-interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface PopoverScrollAreaProps extends React.HTMLAttributes<HTMLDivElement> {
+  /** Progressive fade density. Compact is the canonical menu treatment. */
+  fadeVariant?: ScrollEdgeFadeVariant
+}
 
 /**
- * Scrollable container for popover items.
+ * Scrollable container for popover items with overflow-safe sizing and subtle
+ * edge fades that reveal additional content without clipping rows.
  */
 const PopoverScrollArea = React.forwardRef<HTMLDivElement, PopoverScrollAreaProps>(
-  ({ className, ...props }, ref) => (
-    <div
-      className={cn(
-        'min-h-0 overflow-auto overscroll-contain',
-        '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
-        className
-      )}
-      ref={ref}
-      {...props}
-    />
-  )
+  ({ className, children, fadeVariant = 'compact', onScroll, ...props }, ref) => {
+    const scrollRef = React.useRef<HTMLDivElement>(null)
+    const [edges, setEdges] = React.useState({ top: false, bottom: false })
+
+    const setScrollRef = React.useCallback(
+      (node: HTMLDivElement | null) => {
+        scrollRef.current = node
+        if (typeof ref === 'function') {
+          ref(node)
+        } else if (ref) {
+          ref.current = node
+        }
+      },
+      [ref]
+    )
+
+    const updateEdges = React.useCallback(() => {
+      const node = scrollRef.current
+      if (!node) return
+
+      const nextEdges = {
+        top: node.scrollTop > 1,
+        bottom: node.scrollTop + node.clientHeight < node.scrollHeight - 1,
+      }
+
+      setEdges((current) =>
+        current.top === nextEdges.top && current.bottom === nextEdges.bottom ? current : nextEdges
+      )
+    }, [])
+
+    React.useEffect(() => {
+      const node = scrollRef.current
+      if (!node) return
+
+      updateEdges()
+
+      const resizeObserver =
+        typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateEdges)
+      resizeObserver?.observe(node)
+
+      const mutationObserver =
+        typeof MutationObserver === 'undefined' ? null : new MutationObserver(updateEdges)
+      mutationObserver?.observe(node, { childList: true, subtree: true })
+
+      return () => {
+        resizeObserver?.disconnect()
+        mutationObserver?.disconnect()
+      }
+    }, [updateEdges])
+
+    const handleScroll = React.useCallback(
+      (event: React.UIEvent<HTMLDivElement>) => {
+        updateEdges()
+        onScroll?.(event)
+      },
+      [onScroll, updateEdges]
+    )
+
+    return (
+      <div className='-my-1.5 relative flex max-h-full min-h-0 flex-1 overflow-hidden [--scroll-edge-fade-surface:var(--popover-surface)]'>
+        <div
+          className={cn(
+            'min-h-0 flex-1 overflow-auto overscroll-contain py-1.5',
+            thinScrollbarClass,
+            fadeVariant === 'compact' ? 'scroll-py-3' : 'scroll-py-12',
+            '[&>div:has([data-popover-section]):not(:first-child)]:mt-1.5',
+            className
+          )}
+          data-popover-scroll=''
+          ref={setScrollRef}
+          onScroll={handleScroll}
+          {...props}
+        >
+          {children}
+        </div>
+        <ScrollEdgeFade
+          position='top'
+          variant={fadeVariant}
+          visible={edges.top}
+          data-popover-scroll-fade='top'
+        />
+        <ScrollEdgeFade
+          position='bottom'
+          variant={fadeVariant}
+          visible={edges.bottom}
+          data-popover-scroll-fade='bottom'
+        />
+      </div>
+    )
+  }
 )
 
 PopoverScrollArea.displayName = 'PopoverScrollArea'
@@ -711,6 +834,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
     ref
   ) => {
     const context = React.useContext(PopoverContext)
+    const variant = context?.variant || 'default'
     const size = context?.size || 'md'
     const colorScheme = context?.colorScheme || 'default'
     const itemRef = React.useRef<HTMLDivElement>(null)
@@ -772,7 +896,7 @@ const PopoverItem = React.forwardRef<HTMLDivElement, PopoverItemProps>(
           STYLES.itemBase,
           STYLES.colorScheme[colorScheme].text,
           STYLES.size[size].item,
-          getItemStateClasses(colorScheme, !!isActive),
+          getItemStateClasses(variant, colorScheme, !!isActive),
           suppressHover && 'hover-hover:!bg-transparent',
           disabled && 'pointer-events-none cursor-not-allowed opacity-50',
           className
@@ -879,6 +1003,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
       openFolder,
       currentFolder,
       isInFolder,
+      variant,
       size,
       colorScheme,
       lastHoveredItem,
@@ -968,7 +1093,7 @@ const PopoverFolder = React.forwardRef<HTMLDivElement, PopoverFolderProps>(
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(colorScheme, isActive || isHoverOpen),
+            getItemStateClasses(variant, colorScheme, isActive || isHoverOpen),
             suppressHover && 'hover-hover:!bg-transparent',
             className
           )}
@@ -1031,7 +1156,7 @@ interface PopoverBackButtonProps extends React.HTMLAttributes<HTMLDivElement> {
  */
 const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProps>(
   ({ className, folderTitleRef, folderTitleActive, onFolderTitleMouseEnter, ...props }, ref) => {
-    const { isInFolder, closeFolder, folderTitle, onFolderSelect, size, colorScheme } =
+    const { isInFolder, closeFolder, folderTitle, onFolderSelect, variant, size, colorScheme } =
       usePopoverContext()
 
     if (!isInFolder) return null
@@ -1045,7 +1170,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
             STYLES.itemBase,
             STYLES.colorScheme[colorScheme].text,
             STYLES.size[size].item,
-            getItemStateClasses(colorScheme, false),
+            getItemStateClasses(variant, colorScheme, false),
             className
           )}
           role='button'
@@ -1071,7 +1196,7 @@ const PopoverBackButton = React.forwardRef<HTMLDivElement, PopoverBackButtonProp
               STYLES.itemBase,
               STYLES.colorScheme[colorScheme].text,
               STYLES.size[size].item,
-              getItemStateClasses(colorScheme, !!folderTitleActive),
+              getItemStateClasses(variant, colorScheme, !!folderTitleActive),
               'peer-hover:!bg-transparent'
             )}
             role='button'

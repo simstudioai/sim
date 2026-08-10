@@ -1,7 +1,17 @@
 'use client'
 
 import { type ReactNode, useCallback, useMemo, useState } from 'react'
-import { Checkbox, cn, Input, Label, SecretInput, Tooltip, Wizard } from '@sim/emcn'
+import {
+  Button,
+  Checkbox,
+  Chip,
+  ChipInput,
+  cn,
+  Label,
+  SecretInput,
+  Tooltip,
+  Wizard,
+} from '@sim/emcn'
 import { Check, ChevronRight, CircleInfo, Clipboard } from '@sim/emcn/icons'
 import { useShallow } from 'zustand/react/shallow'
 import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
@@ -52,20 +62,15 @@ export function SlackSetupWizard({
 
   return (
     <>
-      <button
-        type='button'
+      <Chip
+        variant='border'
+        fullWidth
+        rightIcon={ChevronRight}
         onClick={() => setOpen(true)}
         disabled={launcherDisabled}
-        className={cn(
-          'flex w-full items-center justify-between rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] px-2 py-1.5 text-left transition-colors',
-          launcherDisabled
-            ? 'cursor-not-allowed opacity-70'
-            : 'cursor-pointer hover-hover:bg-[var(--surface-6)]'
-        )}
       >
-        <span className='font-sans text-[var(--text-primary)] text-sm'>Setup Slack App</span>
-        <ChevronRight className='size-[14px] text-[var(--text-muted)]' />
-      </button>
+        Setup Slack App
+      </Chip>
 
       <WizardModal
         blockId={blockId}
@@ -188,7 +193,7 @@ interface SubStepProps {
 function SubStep({ n, children }: SubStepProps) {
   return (
     <li className='flex gap-2.5'>
-      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] text-[var(--text-secondary)] text-xs tabular-nums'>
+      <span className='mt-0.5 flex size-5 shrink-0 items-center justify-center rounded-full bg-[var(--surface-5)] font-medium text-[var(--text-secondary)] text-xs tabular-nums'>
         {n}
       </span>
       <div className='flex-1 text-[var(--text-secondary)] text-sm leading-relaxed'>{children}</div>
@@ -220,17 +225,17 @@ function StepConfigure({
       <div className='space-y-1.5'>
         <Label
           htmlFor={`${blockId}-wizard-bot-name`}
-          className='text-[var(--text-secondary)] text-xs'
+          className='font-medium text-[var(--text-secondary)] text-xs'
         >
           Bot name
         </Label>
-        <Input
+        <ChipInput
           id={`${blockId}-wizard-bot-name`}
           value={appName}
           onChange={(e) => onAppNameChange(e.target.value)}
           disabled={disabled}
           placeholder={DEFAULT_APP_NAME}
-          className='h-9 text-sm'
+          className='h-9'
         />
       </div>
       <div className='grid grid-cols-2 gap-x-4 gap-y-4'>
@@ -279,27 +284,15 @@ function StepCreate({ manifestJson, canCopy }: StepCreateProps) {
       <SubStepList>
         <SubStep n={1}>
           <div>Copy your manifest:</div>
-          <button
-            type='button'
-            onClick={handleCopy}
-            disabled={!canCopy}
-            className={cn(
-              'mt-2 inline-flex items-center gap-2 rounded-md border border-[var(--border-muted)] bg-[var(--surface-1)] px-3 py-1.5 text-left transition-colors',
-              canCopy
-                ? 'cursor-pointer hover-hover:bg-[var(--surface-hover)]'
-                : 'cursor-not-allowed opacity-70'
-            )}
-          >
-            <span className='text-[var(--text-secondary)] text-sm'>
-              {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
-            </span>
+          <Button variant='default' onClick={handleCopy} disabled={!canCopy} className='mt-2'>
+            {canCopy ? 'Click to copy manifest' : 'Deploy once to lock in the webhook URL'}
             {canCopy &&
               (copied ? (
                 <Check className='size-[12px] text-[var(--text-success)]' />
               ) : (
                 <Clipboard className='size-[12px] text-[var(--text-muted)]' />
               ))}
-          </button>
+          </Button>
           {copyFailed ? (
             <p className='mt-1.5 text-[var(--text-error)] text-xs'>
               Couldn't copy manifest — copy it manually from the developer console.
@@ -411,7 +404,7 @@ interface SecretFieldProps {
 function SecretField({ id, label, value, onChange, disabled, placeholder }: SecretFieldProps) {
   return (
     <div className='space-y-1.5'>
-      <Label htmlFor={id} className='text-[var(--text-secondary)] text-xs'>
+      <Label htmlFor={id} className='font-medium text-[var(--text-secondary)] text-xs'>
         {label}
       </Label>
       <SecretInput
@@ -486,7 +479,9 @@ function CapabilityGroup({
 }: CapabilityGroupProps) {
   return (
     <div className='space-y-2'>
-      <div className='text-[var(--text-muted)] text-xs uppercase tracking-wide'>{label}</div>
+      <div className='font-medium text-[var(--text-muted)] text-xs uppercase tracking-wide'>
+        {label}
+      </div>
       <div className='flex flex-col gap-y-2.5'>
         {capabilities.map((c) => (
           <CapabilityRow

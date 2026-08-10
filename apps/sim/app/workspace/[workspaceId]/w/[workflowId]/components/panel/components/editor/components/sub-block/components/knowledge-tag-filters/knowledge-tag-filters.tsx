@@ -4,11 +4,9 @@ import { useRef } from 'react'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  CollapsibleCard,
   type ComboboxOption,
-  cn,
-  handleKeyboardActivation,
-  Input,
   Label,
   Trash,
 } from '@sim/emcn'
@@ -17,17 +15,18 @@ import { generateId } from '@sim/utils/id'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { type FilterFieldType, getOperatorsForFieldType } from '@/lib/knowledge/filters/types'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
 import { useSubBlockInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-input'
+import { useSubBlockValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-sub-block-value'
 import { parseJsonArrayValue } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/utils'
 import { useActiveSearchTarget } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/providers/active-search-target-provider'
 import { useAccessibleReferencePrefixes } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-accessible-reference-prefixes'
 import type { SubBlockConfig } from '@/blocks/types'
 import { useKnowledgeBaseTagDefinitions } from '@/hooks/kb/use-knowledge-base-tag-definitions'
 import { useTagSelection } from '@/hooks/kb/use-tag-selection'
-import { useSubBlockValue } from '../../hooks/use-sub-block-value'
 
 interface TagFilter {
   id: string
@@ -219,67 +218,13 @@ export function KnowledgeTagFilters({
 
     return (
       <div className='space-y-1'>
-        <Label className='text-muted-foreground text-xs'>Tag Filters</Label>
+        <Label className='font-medium text-muted-foreground text-xs'>Tag Filters</Label>
         <div className='text-muted-foreground text-sm'>
           {appliedFilters > 0 ? `${appliedFilters} filter(s) applied` : 'No filters'}
         </div>
       </div>
     )
   }
-
-  /**
-   * Renders the filter header with name, badge, and action buttons
-   * Shows tag name only when collapsed (as summary), generic label when expanded
-   */
-  const renderFilterHeader = (filter: TagFilter, index: number) => (
-    <div
-      role='button'
-      tabIndex={0}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(filter.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(filter.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
-        </span>
-        {filter.collapsed && filter.tagName && (
-          <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
-          </Badge>
-        )}
-      </div>
-      <div className='flex items-center gap-2 pl-2'>
-        <Button
-          variant='ghost'
-          onClick={(e) => {
-            e.stopPropagation()
-            addFilter()
-          }}
-          disabled={isReadOnly}
-          className='h-auto p-0'
-        >
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Filter</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={(e) => {
-            e.stopPropagation()
-            removeFilter(filter.id)
-          }}
-          disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Filter</span>
-        </Button>
-      </div>
-    </div>
-  )
 
   /**
    * Renders the value input with tag dropdown support
@@ -309,10 +254,25 @@ export function KnowledgeTagFilters({
 
     return (
       <div className='relative'>
-        <Input
+        <ReferenceTextInput
           ref={(el) => {
             if (el) valueInputRefs.current[cellKey] = el
           }}
+          overlayRef={(el) => {
+            if (el) overlayRefs.current[cellKey] = el
+          }}
+          overlayContent={
+            <div className='min-w-fit whitespace-pre'>
+              {formatDisplayText(
+                fieldValue,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          }
+          interactiveOverlay={isReadOnly}
+          inputClassName='allow-scroll'
           value={fieldValue}
           onChange={handlers.onChange}
           onKeyDown={handlers.onKeyDown}
@@ -329,26 +289,8 @@ export function KnowledgeTagFilters({
           disabled={isReadOnly}
           autoComplete='off'
           placeholder={placeholder}
-          className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+          className='w-full'
         />
-        <div
-          ref={(el) => {
-            if (el) overlayRefs.current[cellKey] = el
-          }}
-          className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
-            !isReadOnly && 'pointer-events-none'
-          )}
-        >
-          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-            {formatDisplayText(
-              fieldValue,
-              accessiblePrefixes
-                ? { accessiblePrefixes, workflowSearchHighlight }
-                : { highlightAll: true, workflowSearchHighlight }
-            )}
-          </div>
-        </div>
         {fieldState.showTags && (
           <TagDropdown
             visible={fieldState.showTags}
@@ -383,10 +325,10 @@ export function KnowledgeTagFilters({
     const isBetween = filter.operator === 'between'
 
     return (
-      <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+      <>
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Tag</Label>
-          <Combobox
+          <ChipCombobox
             options={tagOptions}
             value={filter.tagName}
             onChange={(value) => updateFilter(filter.id, 'tagName', value)}
@@ -397,7 +339,7 @@ export function KnowledgeTagFilters({
 
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Operator</Label>
-          <Combobox
+          <ChipCombobox
             options={operatorOptions}
             value={filter.operator}
             onChange={(value) => updateFilter(filter.id, 'operator', value)}
@@ -418,24 +360,51 @@ export function KnowledgeTagFilters({
             renderValueInput(filter, 'tagValue')
           )}
         </div>
-      </div>
+      </>
     )
   }
 
   return (
     <div className='space-y-2'>
       {filters.map((filter, index) => (
-        <div
+        <CollapsibleCard
           key={filter.id}
           data-filter-id={filter.id}
-          className={cn(
-            'rounded-sm border border-[var(--border-1)]',
-            filter.collapsed ? 'overflow-hidden' : 'overflow-visible'
-          )}
+          title={filter.collapsed ? filter.tagName || `Filter ${index + 1}` : `Filter ${index + 1}`}
+          badge={
+            filter.collapsed && filter.tagName ? (
+              <Badge variant='type' size='sm'>
+                {FIELD_TYPE_LABELS[filter.fieldType] || 'Text'}
+              </Badge>
+            ) : undefined
+          }
+          actions={
+            <>
+              <Button
+                variant='quiet'
+                size='icon'
+                onClick={addFilter}
+                disabled={isReadOnly}
+                aria-label='Add filter'
+              >
+                <Plus className='size-[14px]' />
+              </Button>
+              <Button
+                variant='quiet'
+                size='icon'
+                onClick={() => removeFilter(filter.id)}
+                disabled={isReadOnly}
+                aria-label='Delete filter'
+              >
+                <Trash className='size-[14px] text-[var(--text-error)]' />
+              </Button>
+            </>
+          }
+          collapsed={filter.collapsed ?? false}
+          onToggleCollapse={() => toggleCollapse(filter.id)}
         >
-          {renderFilterHeader(filter, index)}
-          {!filter.collapsed && renderFilterContent(filter)}
-        </div>
+          {renderFilterContent(filter)}
+        </CollapsibleCard>
       ))}
     </div>
   )

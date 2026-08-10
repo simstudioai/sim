@@ -22,6 +22,7 @@
 import * as React from 'react'
 import { Check } from '../../icons'
 import { cn } from '../../lib/cn'
+import { thinScrollbarClass } from '../scrollbar/scrollbar'
 
 export interface InfoCardProps extends React.HTMLAttributes<HTMLDivElement> {}
 
@@ -61,7 +62,12 @@ const InfoCardList = React.forwardRef<HTMLUListElement, InfoCardListProps>(
   ({ className, maxHeightClassName = 'max-h-[200px]', ...props }, ref) => (
     <ul
       ref={ref}
-      className={cn('flex flex-col gap-2 overflow-y-auto p-2', maxHeightClassName, className)}
+      className={cn(
+        'flex flex-col gap-2 overflow-y-auto p-2',
+        thinScrollbarClass,
+        maxHeightClassName,
+        className
+      )}
       {...props}
     />
   )

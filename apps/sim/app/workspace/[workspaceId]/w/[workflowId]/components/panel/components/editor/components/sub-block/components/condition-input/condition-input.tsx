@@ -5,10 +5,10 @@ import {
   Code,
   calculateGutterWidth,
   cn,
+  FieldCard,
   getCodeEditorProps,
   highlight,
   languages,
-  Textarea,
   Tooltip,
 } from '@sim/emcn'
 import { ChevronDown, ChevronsUpDown, ChevronUp, Plus, Trash } from '@sim/emcn/icons'
@@ -31,6 +31,7 @@ import {
   getValidWorkflowSearchRange,
   type WorkflowSearchTextHighlight,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ReferenceTextarea } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import {
   checkTagTrigger,
   TagDropdown,
@@ -925,7 +926,7 @@ export function ConditionInput({
   // Show loading or empty state if not ready or no blocks
   if (!isReady || conditionalBlocks.length === 0) {
     return (
-      <div className='flex min-h-[150px] items-center justify-center text-muted-foreground'>
+      <div className='flex min-h-[150px] items-center justify-center text-[var(--text-muted)]'>
         Loading conditions…
       </div>
     )
@@ -941,38 +942,26 @@ export function ConditionInput({
           valuePath: [index, 'value'],
         })
         return (
-          <div
+          <FieldCard
             key={block.id}
-            className='group relative overflow-visible rounded-sm border border-[var(--border-1)] bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'
-          >
-            <div
-              className={cn(
-                'flex items-center justify-between overflow-hidden bg-transparent px-2.5 py-[5px]',
-                isRouterMode
-                  ? 'rounded-t-[4px] border-[var(--border-1)] border-b'
-                  : isElseConditionTitle(block.title)
-                    ? 'rounded-sm border-0'
-                    : 'rounded-t-[4px] border-[var(--border-1)] border-b'
-              )}
-            >
-              <span className='text-[var(--text-tertiary)] text-sm'>
-                {isRouterMode ? `Route ${index + 1}` : block.title}
-              </span>
-              <div className='flex items-center gap-2'>
+            title={isRouterMode ? `Route ${index + 1}` : block.title}
+            flush
+            actions={
+              <>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='quiet'
+                      size='icon'
                       onClick={() => addBlock(block.id)}
                       disabled={
                         isPreview ||
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      aria-label='Add block'
                     >
                       <Plus className='size-[14px]' />
-                      <span className='sr-only'>Add Block</span>
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>Add Block</Tooltip.Content>
@@ -981,7 +970,8 @@ export function ConditionInput({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='quiet'
+                      size='icon'
                       onClick={() => moveBlock(block.id, 'up')}
                       disabled={
                         isPreview ||
@@ -989,10 +979,9 @@ export function ConditionInput({
                         disabled ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      aria-label='Move up'
                     >
                       <ChevronUp className='size-[14px]' />
-                      <span className='sr-only'>Move Up</span>
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>Move Up</Tooltip.Content>
@@ -1001,7 +990,8 @@ export function ConditionInput({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='quiet'
+                      size='icon'
                       onClick={() => moveBlock(block.id, 'down')}
                       disabled={
                         isPreview ||
@@ -1011,10 +1001,9 @@ export function ConditionInput({
                           isElseConditionTitle(conditionalBlocks[index + 1]?.title)) ||
                         (!isRouterMode && isElseConditionTitle(block.title))
                       }
-                      className='h-auto p-0'
+                      aria-label='Move down'
                     >
                       <ChevronDown className='size-[14px]' />
-                      <span className='sr-only'>Move Down</span>
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>Move Down</Tooltip.Content>
@@ -1023,23 +1012,24 @@ export function ConditionInput({
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <Button
-                      variant='ghost'
+                      variant='quiet'
+                      size='icon'
                       onClick={() => removeBlock(block.id)}
                       disabled={
                         isPreview || disabled || conditionalBlocks.length <= (isRouterMode ? 1 : 2)
                       }
-                      className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
+                      aria-label={isRouterMode ? 'Delete route' : 'Delete condition'}
                     >
-                      <Trash className='size-[14px]' />
-                      <span className='sr-only'>Delete Block</span>
+                      <Trash className='size-[14px] text-[var(--text-error)]' />
                     </Button>
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     {isRouterMode ? 'Delete Route' : 'Delete Condition'}
                   </Tooltip.Content>
                 </Tooltip.Root>
-              </div>
-            </div>
+              </>
+            }
+          >
             {/* Router mode: show description textarea with tag/env var support */}
             {isRouterMode && (
               <div
@@ -1047,10 +1037,24 @@ export function ConditionInput({
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => handleDrop(block.id, e)}
               >
-                <Textarea
+                <ReferenceTextarea
                   ref={(el) => {
                     if (el) inputRefs.current.set(block.id, el)
                   }}
+                  overlayRef={(el) => {
+                    if (el) {
+                      overlayRefs.current.set(block.id, el)
+                    } else {
+                      overlayRefs.current.delete(block.id)
+                    }
+                  }}
+                  overlayContent={formatDisplayText(block.value, {
+                    accessiblePrefixes,
+                    highlightAll: !accessiblePrefixes,
+                    workflowSearchHighlight,
+                  })}
+                  interactiveOverlay={isPreview || disabled}
+                  containerStyle={{ height: `${getRouterHeight(block.id)}px` }}
                   data-router-block-id={block.id}
                   value={block.value}
                   onChange={(e) => {
@@ -1096,50 +1100,19 @@ export function ConditionInput({
                       )
                     }, 150)
                   }}
-                  onScroll={(e) => {
-                    const overlay = overlayRefs.current.get(block.id)
-                    if (overlay) {
-                      overlay.scrollTop = e.currentTarget.scrollTop
-                      overlay.scrollLeft = e.currentTarget.scrollLeft
-                    }
-                  }}
                   placeholder='Describe when this route should be taken...'
                   disabled={disabled || isPreview}
-                  className='min-h-[100px] resize-none rounded-none border-0 px-3 py-2 text-sm text-transparent caret-foreground [letter-spacing:inherit] placeholder:text-muted-foreground/50 focus-visible:ring-0 focus-visible:ring-offset-0'
+                  className='min-h-[100px] rounded-none border-0 px-3 py-2'
+                  overlayClassName='px-3 py-2'
                   rows={4}
-                  style={{ height: `${getRouterHeight(block.id)}px` }}
                 />
-                <div
-                  ref={(el) => {
-                    if (el) {
-                      overlayRefs.current.set(block.id, el)
-                    } else {
-                      overlayRefs.current.delete(block.id)
-                    }
-                  }}
-                  className={cn(
-                    'pointer-events-none absolute inset-0 box-border overflow-auto whitespace-pre-wrap break-words border border-transparent bg-transparent px-3 py-2 font-sans text-sm',
-                    (isPreview || disabled) && 'opacity-50'
-                  )}
-                  style={{
-                    fontFamily: 'inherit',
-                    lineHeight: 'inherit',
-                    height: `${getRouterHeight(block.id)}px`,
-                  }}
-                >
-                  {formatDisplayText(block.value, {
-                    accessiblePrefixes,
-                    highlightAll: !accessiblePrefixes,
-                    workflowSearchHighlight,
-                  })}
-                </div>
 
                 {/* Custom resize handle */}
                 {!isPreview && !disabled && (
                   <div
                     role='separator'
                     aria-orientation='horizontal'
-                    className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-sm border border-[var(--border-1)] bg-[var(--surface-5)] dark:bg-[var(--surface-5)]'
+                    className='absolute right-1 bottom-1 flex size-4 cursor-ns-resize items-center justify-center rounded-md border border-[var(--border-1)] bg-[var(--surface-4)]'
                     onMouseDown={(e) => startRouterResize(e, block.id)}
                     onDragStart={(e) => {
                       e.preventDefault()
@@ -1217,9 +1190,10 @@ export function ConditionInput({
 
                 return (
                   <Code.Container
+                    appearance='field'
                     onDragOver={(e) => e.preventDefault()}
                     onDrop={(e) => handleDrop(block.id, e)}
-                    className='rounded-t-none border-0'
+                    className='rounded-none border-0'
                   >
                     <Code.Gutter width={blockGutterWidth}>
                       {renderLineNumbers(block.id)}
@@ -1354,7 +1328,7 @@ export function ConditionInput({
                   </Code.Container>
                 )
               })()}
-          </div>
+          </FieldCard>
         )
       })}
     </div>

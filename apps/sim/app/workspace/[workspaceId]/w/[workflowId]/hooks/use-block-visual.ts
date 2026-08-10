@@ -58,7 +58,7 @@ export function useBlockVisual({
     useCallback(
       (state) => {
         if (isPreview || isEmbedded || !isThisBlockInEditor) return false
-        return state.activeTab === 'editor'
+        return state.isOpen && state.activeTab === 'editor'
       },
       [isPreview, isEmbedded, isThisBlockInEditor]
     )

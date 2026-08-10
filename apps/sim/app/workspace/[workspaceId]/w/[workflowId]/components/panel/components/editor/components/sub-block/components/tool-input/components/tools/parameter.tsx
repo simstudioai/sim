@@ -2,8 +2,7 @@
 
 import type React from 'react'
 import { useRef, useState } from 'react'
-import { Button, cn, Input, Label, Tooltip } from '@sim/emcn'
-import { ArrowLeftRight, ArrowUp } from '@sim/emcn/icons'
+import { SubBlockFieldHeader } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/field-header'
 import type { WandControlHandlers } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/sub-block'
 
 /**
@@ -85,100 +84,33 @@ export function ParameterWithLabel({
 
   return (
     <div key={paramId} className='relative min-w-0 space-y-1.5'>
-      <div className='flex items-center justify-between gap-1.5 pl-0.5'>
-        <Label className='flex items-baseline gap-1.5 whitespace-nowrap text-[var(--text-primary)] text-small'>
-          {title}
-          {isRequired && visibility === 'user-only' && <span className='ml-0.5'>*</span>}
-        </Label>
-        <div className='flex min-w-0 flex-1 items-center justify-end gap-1.5'>
-          {showWand &&
-            (!isSearchActive ? (
-              <Button
-                variant='active'
-                className='-my-1 h-5 px-2 py-0 text-xs'
-                onClick={handleSearchClick}
-              >
-                Generate
-              </Button>
-            ) : (
-              <div className='-my-1 flex min-w-[120px] max-w-[280px] flex-1 items-center gap-1'>
-                <Input
-                  ref={searchInputRef}
-                  value={isStreaming ? 'Generating...' : searchQuery}
-                  onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-                    handleSearchChange(e.target.value)
-                  }
-                  onBlur={(e: React.FocusEvent<HTMLInputElement>) => {
-                    const relatedTarget = e.relatedTarget as HTMLElement | null
-                    if (relatedTarget?.closest('button')) return
-                    handleSearchBlur()
-                  }}
-                  onKeyDown={(e: React.KeyboardEvent<HTMLInputElement>) => {
-                    if (e.key === 'Enter' && searchQuery.trim() && !isStreaming) {
-                      handleSearchSubmit()
-                    } else if (e.key === 'Escape') {
-                      handleSearchCancel()
-                    }
-                  }}
-                  disabled={isStreaming}
-                  className={cn(
-                    'h-5 min-w-[80px] flex-1 text-xs',
-                    isStreaming && 'text-muted-foreground'
-                  )}
-                  placeholder='Generate with AI...'
-                />
-                <Button
-                  variant='primary'
-                  disabled={!searchQuery.trim() || isStreaming}
-                  onMouseDown={(e: React.MouseEvent) => {
-                    e.preventDefault()
-                    e.stopPropagation()
-                  }}
-                  onClick={(e: React.MouseEvent) => {
-                    e.stopPropagation()
-                    handleSearchSubmit()
-                  }}
-                  className='size-[20px] flex-shrink-0 p-0'
-                >
-                  <ArrowUp className='size-[12px]' />
-                </Button>
-              </div>
-            ))}
-          {canonicalToggle && !isPreview && (
-            <Tooltip.Root>
-              <Tooltip.Trigger asChild>
-                <button
-                  type='button'
-                  className='flex size-[12px] flex-shrink-0 items-center justify-center bg-transparent p-0 disabled:cursor-not-allowed disabled:opacity-50'
-                  onClick={canonicalToggle.onToggle}
-                  disabled={canonicalToggle.disabled || disabled}
-                  aria-label={
-                    canonicalToggle.mode === 'advanced'
-                      ? 'Switch to selector'
-                      : 'Switch to manual ID'
-                  }
-                >
-                  <ArrowLeftRight
-                    className={cn(
-                      '!h-[12px] !w-[12px]',
-                      canonicalToggle.mode === 'advanced'
-                        ? 'text-[var(--text-primary)]'
-                        : 'text-[var(--text-secondary)]'
-                    )}
-                  />
-                </button>
-              </Tooltip.Trigger>
-              <Tooltip.Content side='top'>
-                <p>
-                  {canonicalToggle.mode === 'advanced'
-                    ? 'Switch to selector'
-                    : 'Switch to manual ID'}
-                </p>
-              </Tooltip.Content>
-            </Tooltip.Root>
-          )}
-        </div>
-      </div>
+      <SubBlockFieldHeader
+        title={title}
+        required={isRequired && visibility === 'user-only'}
+        wandAction={
+          showWand
+            ? {
+                isSearchActive,
+                searchQuery,
+                isStreaming,
+                onSearchClick: handleSearchClick,
+                onSearchBlur: handleSearchBlur,
+                onSearchChange: handleSearchChange,
+                onSearchSubmit: handleSearchSubmit,
+                onSearchCancel: handleSearchCancel,
+                searchInputRef,
+              }
+            : undefined
+        }
+        canonicalAction={
+          canonicalToggle && !isPreview
+            ? {
+                ...canonicalToggle,
+                disabled: canonicalToggle.disabled || disabled,
+              }
+            : undefined
+        }
+      />
       <div className='relative w-full min-w-0'>{children(wandControlRef)}</div>
     </div>
   )

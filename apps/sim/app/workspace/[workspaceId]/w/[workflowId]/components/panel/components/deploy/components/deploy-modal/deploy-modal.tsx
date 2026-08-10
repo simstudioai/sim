@@ -3,10 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import {
   Badge,
-  Chip,
+  Button,
   ChipConfirmModal,
-  chipContentIconClass,
-  cn,
+  ChipSwitch,
   Loader,
   Modal,
   ModalBody,
@@ -16,8 +15,6 @@ import {
   ModalHeader,
   ModalTabs,
   ModalTabsContent,
-  ModalTabsList,
-  ModalTabsTrigger,
   Tooltip,
   toast,
 } from '@sim/emcn'
@@ -135,6 +132,12 @@ export function DeployModal({
   const userPermissions = useUserPermissionsContext()
   const canManageWorkspaceKeys = userPermissions.canAdmin
   const { config: permissionConfig, isPublicApiDisabled } = usePermissionConfig()
+  const deployTabs = [
+    { value: 'general' as const, label: 'General' },
+    ...(!permissionConfig.hideDeployApi ? [{ value: 'api' as const, label: 'API' }] : []),
+    ...(!permissionConfig.hideDeployMcp ? [{ value: 'mcp' as const, label: 'MCP' }] : []),
+    ...(!permissionConfig.hideDeployChatbot ? [{ value: 'chat' as const, label: 'Chat' }] : []),
+  ]
   const { data: apiKeysData, isLoading: isLoadingKeys } = useApiKeys(workflowWorkspaceId || '')
   const { data: workspaceSettingsData, isLoading: isLoadingSettings } = useWorkspaceSettings(
     workflowWorkspaceId || ''
@@ -228,21 +231,7 @@ export function DeployModal({
     workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'
 
   const getInputFormatExample = (includeStreaming = false) => {
-    const inputFormatExample = getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
-    if (!inputFormatExample) return ''
-
-    const match = inputFormatExample.match(/-d\s*'([\s\S]*)'/)
-    if (!match) {
-      throw new Error(`Invalid workflow input example: ${inputFormatExample}`)
-    }
-
-    const legacyBody = JSON.parse(match[1]) as Record<string, unknown>
-    const { stream, selectedOutputs, ...input } = legacyBody
-    return ` -d '${JSON.stringify({
-      input,
-      ...(stream === true ? { stream: true } : {}),
-      ...(Array.isArray(selectedOutputs) ? { selectedOutputs } : {}),
-    })}'`
+    return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
   }
 
   const deploymentInfo: WorkflowDeploymentInfoUI | null = (() => {
@@ -250,7 +239,7 @@ export function DeployModal({
       return null
     }
 
-    const endpoint = `${getBaseUrl()}/api/v2/workflows/${workflowId}/execute`
+    const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
     const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
     const placeholderKey = getApiHeaderPlaceholder()
 
@@ -524,25 +513,20 @@ export function DeployModal({
     <>
       <Modal open={open} onOpenChange={handleCloseModal}>
         <ModalContent size='lg' className='h-[76vh]'>
-          <ModalHeader>Workflow Deployment</ModalHeader>
+          <ModalHeader>Deploy workflow</ModalHeader>
 
           <ModalTabs
             value={activeTab}
             onValueChange={(value) => setActiveTab(value as TabView)}
             className='flex min-h-0 flex-1 flex-col'
           >
-            <ModalTabsList activeValue={activeTab}>
-              <ModalTabsTrigger value='general'>General</ModalTabsTrigger>
-              {!permissionConfig.hideDeployApi && (
-                <ModalTabsTrigger value='api'>API</ModalTabsTrigger>
-              )}
-              {!permissionConfig.hideDeployMcp && (
-                <ModalTabsTrigger value='mcp'>MCP</ModalTabsTrigger>
-              )}
-              {!permissionConfig.hideDeployChatbot && (
-                <ModalTabsTrigger value='chat'>Chat</ModalTabsTrigger>
-              )}
-            </ModalTabsList>
+            <ChipSwitch<TabView>
+              value={activeTab}
+              onChange={setActiveTab}
+              options={deployTabs}
+              aria-label='Deployment section'
+              className='mt-3 ml-4 self-start'
+            />
 
             <ModalBody className='min-h-0 flex-1'>
               <ModalDescription className='sr-only'>
@@ -640,14 +624,16 @@ export function DeployModal({
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
-                <Chip onClick={() => setIsApiInfoModalOpen(true)}>Edit API Info</Chip>
-                <Chip
-                  variant='primary'
+                <Button variant='default' onClick={() => setIsApiInfoModalOpen(true)}>
+                  Edit API Info
+                </Button>
+                <Button
+                  variant='tertiary'
                   onClick={() => setIsCreateKeyModalOpen(true)}
                   disabled={createButtonDisabled}
                 >
                   Generate API Key
-                </Chip>
+                </Button>
               </div>
             </ModalFooter>
           )}
@@ -656,13 +642,18 @@ export function DeployModal({
               <div />
               <div className='flex items-center gap-2'>
                 {chatExists && (
-                  <Chip type='button' onClick={handleChatDelete} disabled={chatSubmitting}>
+                  <Button
+                    type='button'
+                    variant='default'
+                    onClick={handleChatDelete}
+                    disabled={chatSubmitting}
+                  >
                     Delete
-                  </Chip>
+                  </Button>
                 )}
-                <Chip
+                <Button
                   type='button'
-                  variant='primary'
+                  variant='tertiary'
                   onClick={handleChatFormSubmit}
                   disabled={chatSubmitting || !isChatFormValid}
                 >
@@ -677,7 +668,7 @@ export function DeployModal({
                       : chatExists
                         ? 'Update'
                         : 'Launch Chat'}
-                </Chip>
+                </Button>
               </div>
             </ModalFooter>
           )}
@@ -685,8 +676,9 @@ export function DeployModal({
             <ModalFooter className='items-center justify-between'>
               <div />
               <div className='flex items-center gap-2'>
-                <Chip
+                <Button
                   type='button'
+                  variant='default'
                   onClick={() =>
                     navigateToSettings({
                       section: 'workflow-mcp-servers',
@@ -695,18 +687,18 @@ export function DeployModal({
                   }
                 >
                   Manage
-                </Chip>
+                </Button>
                 <Tooltip.Root>
                   <Tooltip.Trigger asChild>
                     <span>
-                      <Chip
+                      <Button
                         type='button'
-                        variant='primary'
+                        variant='tertiary'
                         onClick={handleMcpToolFormSubmit}
                         disabled={mcpToolSubmitting || !mcpToolCanSave}
                       >
                         {mcpToolSubmitting ? 'Saving...' : 'Save Tool'}
-                      </Chip>
+                      </Button>
                     </span>
                   </Tooltip.Trigger>
                   {mcpToolSaveDisabledReason && (
@@ -890,23 +882,16 @@ function GeneralFooter({
     </div>
   )
   const deployActionLoading = isSubmitting || isDeploymentSettling
-  const deployLoader = deployActionLoading ? (
-    <Loader className={cn(chipContentIconClass, 'text-current')} animate />
-  ) : null
 
   if (!isDeployed) {
     return (
       <ModalFooter className='items-center justify-between'>
         {status}
         <div className='flex items-center gap-2'>
-          <Chip
-            variant='primary'
-            onClick={onDeploy}
-            disabled={isDeployBlocked}
-            leftAdornment={deployLoader}
-          >
+          <Button variant='tertiary' onClick={onDeploy} disabled={isDeployBlocked}>
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Deploy
-          </Chip>
+          </Button>
         </div>
       </ModalFooter>
     )
@@ -916,18 +901,14 @@ function GeneralFooter({
     <ModalFooter className='items-center justify-between'>
       {status}
       <div className='flex items-center gap-2'>
-        <Chip onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
+        <Button variant='default' onClick={onUndeploy} disabled={isUndeploying || isSubmitting}>
           {isUndeploying ? 'Undeploying...' : 'Undeploy'}
-        </Chip>
+        </Button>
         {(needsRedeployment || isDeploymentSettling) && (
-          <Chip
-            variant='primary'
-            onClick={onRedeploy}
-            disabled={isDeployBlocked}
-            leftAdornment={deployLoader}
-          >
+          <Button variant='tertiary' onClick={onRedeploy} disabled={isDeployBlocked}>
+            {deployActionLoading && <Loader className='mr-1.5 size-3.5' animate />}
             Update
-          </Chip>
+          </Button>
         )}
       </div>
     </ModalFooter>

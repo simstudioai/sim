@@ -4,8 +4,8 @@ import {
   evaluateSubBlockCondition,
   isSubBlockFeatureEnabled,
   isSubBlockHidden,
-  isSubBlockVisibleForMode,
   isSubBlockVisibleForTriggerMode,
+  isSubBlockVisibleInEditor,
   isToolInputOnlySubBlock,
   shouldUseSubBlockForTriggerModeCanonicalIndex,
 } from '@/lib/workflows/subblocks/visibility'
@@ -22,7 +22,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
  *
  * @param config - The block configuration containing subblock definitions
  * @param blockId - The ID of the current block being edited
- * @param displayAdvancedMode - Whether advanced mode is enabled for this block
  * @param displayTriggerMode - Whether trigger mode is enabled for this block
  * @param activeWorkflowId - The active workflow ID
  * @param blockSubBlockValues - Current subblock values from the store
@@ -32,7 +31,6 @@ import { useWorkflowStore } from '@/stores/workflows/workflow/store'
 export function useEditorSubblockLayout(
   config: BlockConfig,
   blockId: string,
-  displayAdvancedMode: boolean,
   displayTriggerMode: boolean,
   activeWorkflowId: string | null,
   blockSubBlockValues: Record<string, any>,
@@ -106,7 +104,6 @@ export function useEditorSubblockLayout(
       ? (config.subBlocks || []).filter(shouldUseSubBlockForTriggerModeCanonicalIndex)
       : config.subBlocks || []
     const canonicalIndex = buildCanonicalIndex(subBlocksForCanonical)
-    const effectiveAdvanced = displayAdvancedMode
     const canonicalModeOverrides = blockData?.canonicalModes
 
     // Expose canonical mode overrides to condition functions so they can
@@ -137,15 +134,7 @@ export function useEditorSubblockLayout(
         return false
       }
 
-      if (
-        !isSubBlockVisibleForMode(
-          block,
-          effectiveAdvanced,
-          canonicalIndex,
-          rawValues,
-          canonicalModeOverrides
-        )
-      ) {
+      if (!isSubBlockVisibleInEditor(block, canonicalIndex, rawValues, canonicalModeOverrides)) {
         return false
       }
 
@@ -161,7 +150,6 @@ export function useEditorSubblockLayout(
     config.triggers,
     config.category,
     blockId,
-    displayAdvancedMode,
     displayTriggerMode,
     blockSubBlockValues,
     activeWorkflowId,

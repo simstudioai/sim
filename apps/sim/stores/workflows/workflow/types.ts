@@ -75,6 +75,7 @@ export interface WorkflowActions {
     success: boolean
     changedSubblocks: Array<{ blockId: string; subBlockId: string; newValue: any }>
   }
+  updateBlockDescription: (id: string, description: string) => void
   setBlockAdvancedMode: (id: string, advancedMode: boolean) => void
   setBlockCanonicalMode: (id: string, canonicalId: string, mode: 'basic' | 'advanced') => void
   /**

@@ -6,12 +6,7 @@ import { BrandedLayout } from '@/components/branded-layout'
 import { PostHogProvider } from '@/app/_shell/providers/posthog-provider'
 import { generateBrandedMetadata, generateThemeCSS } from '@/ee/whitelabeling'
 import '@/app/_styles/globals.css'
-import {
-  isChatEnabled,
-  isHosted,
-  isReactGrabEnabled,
-  isReactScanEnabled,
-} from '@/lib/core/config/env-flags'
+import { isHosted, isReactGrabEnabled, isReactScanEnabled } from '@/lib/core/config/env-flags'
 import { DesktopUpdateGate } from '@/app/_shell/desktop-update-gate'
 import { HydrationErrorHandler } from '@/app/_shell/hydration-error-handler'
 import { QueryProvider } from '@/app/_shell/providers/query-provider'
@@ -155,10 +150,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                     }
 
                     var activeTab = panelState && panelState.activeTab;
-                    // A session that used the Chat tab before it was turned off still
-                    // has 'copilot' persisted; without this the CSS hides every tab
-                    // body and the panel paints empty.
-                    if (activeTab === 'copilot' && !${isChatEnabled}) {
+                    // Chat moved out of the right inspector. Migrate the legacy
+                    // persisted tab before first paint so the inspector opens on Blocks.
+                    if (activeTab === 'copilot') {
                       activeTab = 'toolbar';
                     }
                     if (activeTab) {
@@ -260,7 +254,10 @@ j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
 
         {isHosted ? <PublicEnvScript /> : <RuntimePublicEnvScript disableNextScript />}
       </head>
-      <body className={`${season.variable} font-season`} suppressHydrationWarning>
+      <body
+        className={`${season.variable} font-season [--scrollbar-size:4px]`}
+        suppressHydrationWarning
+      >
         {/* Google Tag Manager (noscript) — hosted only */}
         {isHosted && (
           <noscript>

@@ -10,6 +10,7 @@ import {
   PopoverItem,
   PopoverTrigger,
   Tooltip,
+  thinScrollbarClass,
 } from '@sim/emcn'
 import {
   ArrowDown,
@@ -541,7 +542,11 @@ export const OutputPanel = React.memo(function OutputPanel({
 
         {/* Content */}
         <div
-          className={clsx('flex-1 overflow-y-auto', !wrapText && 'overflow-x-auto')}
+          className={clsx(
+            'flex-1 overflow-y-auto',
+            thinScrollbarClass,
+            !wrapText && 'overflow-x-auto'
+          )}
           onContextMenu={handleOutputPanelContextMenu}
         >
           {!showInput &&

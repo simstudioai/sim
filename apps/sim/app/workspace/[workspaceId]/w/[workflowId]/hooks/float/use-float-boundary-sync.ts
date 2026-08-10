@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react'
+import { getVisiblePanelWidth, getVisibleWorkflowHeaderHeight } from '@/lib/core/utils/layout'
 
 interface UseFloatBoundarySyncProps {
   isOpen: boolean
@@ -20,7 +21,7 @@ const CONTENT_WINDOW_GAP = 8
  */
 const BOUNDARY_DIMENSIONS = [
   { selector: '.sidebar-shell-outer', cssVar: '--sidebar-width' },
-  { selector: '.panel-container', cssVar: '--panel-width' },
+  { selector: '.workflow-right-tools', cssVar: '--panel-width' },
   { selector: '.terminal-container', cssVar: '--terminal-height' },
 ] as const
 
@@ -51,7 +52,8 @@ export function useFloatBoundarySync({
 
   const checkAndUpdatePosition = useCallback(() => {
     const sidebarWidth = readBoundaryDimension('.sidebar-shell-outer', '--sidebar-width')
-    const panelWidth = readBoundaryDimension('.panel-container', '--panel-width')
+    const panelWidth = getVisiblePanelWidth()
+    const headerHeight = getVisibleWorkflowHeaderHeight()
     const terminalHeight = readBoundaryDimension('.terminal-container', '--terminal-height')
 
     const prev = previousDimensionsRef.current
@@ -67,7 +69,7 @@ export function useFloatBoundarySync({
 
     const minX = sidebarWidth
     const maxX = window.innerWidth - CONTENT_WINDOW_GAP - panelWidth - width
-    const minY = CONTENT_WINDOW_GAP
+    const minY = headerHeight + CONTENT_WINDOW_GAP
     const maxY = window.innerHeight - CONTENT_WINDOW_GAP - terminalHeight - height
 
     const currentPos = positionRef.current

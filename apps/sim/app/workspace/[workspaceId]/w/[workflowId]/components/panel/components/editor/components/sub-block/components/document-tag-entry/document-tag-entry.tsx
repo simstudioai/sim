@@ -4,11 +4,9 @@ import { useMemo, useRef } from 'react'
 import {
   Badge,
   Button,
-  Combobox,
+  ChipCombobox,
+  CollapsibleCard,
   type ComboboxOption,
-  cn,
-  handleKeyboardActivation,
-  Input,
   Label,
   Trash,
 } from '@sim/emcn'
@@ -16,6 +14,7 @@ import { Plus } from '@sim/emcn/icons'
 import { generateId } from '@sim/utils/id'
 import { FIELD_TYPE_LABELS, getPlaceholderForFieldType } from '@/lib/knowledge/constants'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
+import { ReferenceTextInput } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/reference-text-control'
 import { TagDropdown } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/tag-dropdown/tag-dropdown'
 import { getActiveWorkflowSearchHighlight } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/workflow-search-highlight'
 import { useDependsOnGate } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/hooks/use-depends-on-gate'
@@ -211,7 +210,7 @@ export function DocumentTagEntry({
     const tagCount = tags.filter((t) => t.tagName?.trim()).length
     return (
       <div className='space-y-1'>
-        <Label className='text-muted-foreground text-xs'>Document Tags</Label>
+        <Label className='font-medium text-muted-foreground text-xs'>Document Tags</Label>
         <div className='text-muted-foreground text-sm'>
           {tagCount > 0 ? `${tagCount} tag(s) configured` : 'No tags'}
         </div>
@@ -223,7 +222,7 @@ export function DocumentTagEntry({
     return (
       <div className='flex h-32 items-center justify-center rounded-sm border border-[var(--border-1)] border-dashed bg-[var(--surface-3)] dark:bg-[var(--code-bg)]'>
         <div className='text-center'>
-          <p className='text-[var(--text-secondary)] text-sm'>
+          <p className='font-medium text-[var(--text-secondary)] text-sm'>
             No tags defined for this knowledge base
           </p>
           <p className='mt-1 text-[var(--text-muted)] text-xs'>
@@ -233,58 +232,6 @@ export function DocumentTagEntry({
       </div>
     )
   }
-
-  /**
-   * Renders the tag header with name, badge, and action buttons
-   * Shows tag name only when collapsed (as summary), generic label when expanded
-   */
-  const renderTagHeader = (tag: DocumentTag, index: number) => (
-    <div
-      role='group'
-      aria-label={`Tag ${index + 1}`}
-      className='flex cursor-pointer items-center justify-between rounded-t-[4px] bg-[var(--surface-4)] px-2.5 py-[5px]'
-      onClick={() => toggleCollapse(tag.id)}
-      onKeyDown={(event) => {
-        if (event.target !== event.currentTarget) return
-        handleKeyboardActivation(event, () => toggleCollapse(tag.id))
-      }}
-    >
-      <div className='flex min-w-0 flex-1 items-center gap-2'>
-        <span className='block truncate text-[var(--text-tertiary)] text-sm'>
-          {tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
-        </span>
-        {tag.collapsed && tag.tagName && (
-          <Badge variant='type' size='sm'>
-            {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
-          </Badge>
-        )}
-      </div>
-      <div
-        role='presentation'
-        className='flex items-center gap-2 pl-2'
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Button
-          variant='ghost'
-          onClick={addTag}
-          disabled={isReadOnly || !canAddMoreTags}
-          className='h-auto p-0'
-        >
-          <Plus className='size-[14px]' />
-          <span className='sr-only'>Add Tag</span>
-        </Button>
-        <Button
-          variant='ghost'
-          onClick={() => removeTag(tag.id)}
-          disabled={isReadOnly}
-          className='h-auto p-0 text-[var(--text-error)] hover-hover:text-[var(--text-error)]'
-        >
-          <Trash className='size-[14px]' />
-          <span className='sr-only'>Delete Tag</span>
-        </Button>
-      </div>
-    </div>
-  )
 
   /**
    * Renders the value input with tag dropdown support
@@ -314,10 +261,25 @@ export function DocumentTagEntry({
 
     return (
       <div className='relative'>
-        <Input
+        <ReferenceTextInput
           ref={(el) => {
             if (el) valueInputRefs.current[cellKey] = el
           }}
+          overlayRef={(el) => {
+            if (el) overlayRefs.current[cellKey] = el
+          }}
+          overlayContent={
+            <div className='min-w-fit whitespace-pre'>
+              {formatDisplayText(
+                fieldValue,
+                accessiblePrefixes
+                  ? { accessiblePrefixes, workflowSearchHighlight }
+                  : { highlightAll: true, workflowSearchHighlight }
+              )}
+            </div>
+          }
+          interactiveOverlay={isReadOnly}
+          inputClassName='allow-scroll'
           value={fieldValue}
           onChange={handlers.onChange}
           onKeyDown={handlers.onKeyDown}
@@ -334,26 +296,8 @@ export function DocumentTagEntry({
           disabled={isReadOnly}
           autoComplete='off'
           placeholder={placeholder}
-          className='allow-scroll w-full overflow-auto text-transparent caret-foreground [letter-spacing:inherit]'
+          className='w-full'
         />
-        <div
-          ref={(el) => {
-            if (el) overlayRefs.current[cellKey] = el
-          }}
-          className={cn(
-            'absolute inset-0 flex items-center overflow-x-auto bg-transparent px-2 py-1.5 font-sans text-sm',
-            !isReadOnly && 'pointer-events-none'
-          )}
-        >
-          <div className='w-full whitespace-pre' style={{ minWidth: 'fit-content' }}>
-            {formatDisplayText(
-              fieldValue,
-              accessiblePrefixes
-                ? { accessiblePrefixes, workflowSearchHighlight }
-                : { highlightAll: true, workflowSearchHighlight }
-            )}
-          </div>
-        </div>
         {fieldState.showTags && (
           <TagDropdown
             visible={fieldState.showTags}
@@ -385,10 +329,10 @@ export function DocumentTagEntry({
     }))
 
     return (
-      <div className='flex flex-col gap-2 rounded-b-[4px] border-[var(--border-1)] border-t bg-[var(--surface-2)] px-2.5 pt-1.5 pb-2.5'>
+      <>
         <div className='flex flex-col gap-1.5'>
           <Label className='text-small'>Tag</Label>
-          <Combobox
+          <ChipCombobox
             options={tagOptions}
             value={tag.tagName}
             onChange={(value) => updateTag(tag.id, 'tagName', value)}
@@ -401,24 +345,51 @@ export function DocumentTagEntry({
           <Label className='text-small'>Value</Label>
           {renderValueInput(tag)}
         </div>
-      </div>
+      </>
     )
   }
 
   return (
     <div className='space-y-2'>
       {tags.map((tag, index) => (
-        <div
+        <CollapsibleCard
           key={tag.id}
           data-tag-id={tag.id}
-          className={cn(
-            'rounded-sm border border-[var(--border-1)]',
-            tag.collapsed ? 'overflow-hidden' : 'overflow-visible'
-          )}
+          title={tag.collapsed ? tag.tagName || `Tag ${index + 1}` : `Tag ${index + 1}`}
+          badge={
+            tag.collapsed && tag.tagName ? (
+              <Badge variant='type' size='sm'>
+                {FIELD_TYPE_LABELS[tag.fieldType] || 'Text'}
+              </Badge>
+            ) : undefined
+          }
+          actions={
+            <>
+              <Button
+                variant='quiet'
+                size='icon'
+                onClick={addTag}
+                disabled={isReadOnly || !canAddMoreTags}
+                aria-label='Add tag'
+              >
+                <Plus className='size-[14px]' />
+              </Button>
+              <Button
+                variant='quiet'
+                size='icon'
+                onClick={() => removeTag(tag.id)}
+                disabled={isReadOnly}
+                aria-label='Delete tag'
+              >
+                <Trash className='size-[14px] text-[var(--text-error)]' />
+              </Button>
+            </>
+          }
+          collapsed={tag.collapsed ?? false}
+          onToggleCollapse={() => toggleCollapse(tag.id)}
         >
-          {renderTagHeader(tag, index)}
-          {!tag.collapsed && renderTagContent(tag)}
-        </div>
+          {renderTagContent(tag)}
+        </CollapsibleCard>
       ))}
     </div>
   )

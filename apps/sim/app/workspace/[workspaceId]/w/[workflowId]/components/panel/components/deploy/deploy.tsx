@@ -1,8 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, Tooltip, toast } from '@sim/emcn'
-import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { Chip } from '@sim/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -63,7 +62,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
-    if (isRegistryLoading || isDisabled || !activeWorkflowId) return
+    if (disabled || !canDeploy || !activeWorkflowId) return
 
     if (isDeploymentSettling) {
       setIsModalOpen(true)
@@ -74,49 +73,6 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     if (result.shouldOpenModal) {
       setIsModalOpen(true)
     }
-  }
-
-  useRegisterGlobalCommands(() => [
-    {
-      id: 'deploy-workflow',
-      handler: () => {
-        /* The palette can't render a disabled state for this action yet, so a
-           gated invocation reports the same reason the button's tooltip shows. */
-        if (isRegistryLoading || isDisabled) {
-          toast({ message: isRegistryLoading ? 'Workflow is still loading' : getTooltipText() })
-          return
-        }
-        void onDeployClick()
-      },
-    },
-  ])
-
-  const getTooltipText = () => {
-    if (isEmpty) {
-      return 'Cannot deploy an empty workflow'
-    }
-    if (!canDeploy) {
-      return 'Admin permissions required'
-    }
-    if (disabled) {
-      return 'Workflow is locked'
-    }
-    if (isDeploying) {
-      return 'Deploying...'
-    }
-    if (isChangeDetectionSettling) {
-      return 'Syncing deployment state...'
-    }
-    if (deployReadiness.isBlocked && !isDeployed) {
-      return deployReadiness.tooltip
-    }
-    if (changeDetected) {
-      return 'Update deployment'
-    }
-    if (isDeployed) {
-      return 'Active deployment'
-    }
-    return 'Deploy workflow'
   }
 
   const getButtonLabel = () => {
@@ -131,20 +87,9 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
 
   return (
     <>
-      <Tooltip.Root>
-        <Tooltip.Trigger asChild>
-          <span className='inline-flex'>
-            <Chip
-              variant='border'
-              onClick={onDeployClick}
-              disabled={isRegistryLoading || isDisabled}
-            >
-              {getButtonLabel()}
-            </Chip>
-          </span>
-        </Tooltip.Trigger>
-        <Tooltip.Content>{getTooltipText()}</Tooltip.Content>
-      </Tooltip.Root>
+      <Chip variant='border' onClick={onDeployClick} disabled={isRegistryLoading || isDisabled}>
+        {getButtonLabel()}
+      </Chip>
 
       <DeployModal
         open={isModalOpen}
