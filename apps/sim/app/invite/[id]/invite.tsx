@@ -286,7 +286,8 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   const isNewUser = searchParams.get('new') === 'true'
   const errorReason = searchParams.get('error')
   const urlError = errorReason ? getInviteError(errorReason) : null
-  const tokenFromQuery = searchParams.get('token')
+  /** `|| null` so an empty `?token=` falls back to storage rather than querying with ''. */
+  const tokenFromQuery = searchParams.get('token') || null
   /**
    * Derived during render so the invitation query key is correct on the first
    * commit; an effect-set token refetches under a second key whenever the
@@ -308,7 +309,7 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   })
   const invitation = invitationQuery.data?.invitation ?? null
   const joinPreview = invitationQuery.data?.joinPreview ?? null
-  const isLoading = Boolean(session?.user) && invitationQuery.isPending
+  const isLoading = Boolean(session?.user) && (!isTokenResolved || invitationQuery.isPending)
 
   const fetchError = invitationQuery.error
     ? getInviteError(
