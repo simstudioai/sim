@@ -3,6 +3,7 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2TableErrorPolicies } from '@/lib/table/api'
 import { completeTableImportUseCase } from '@/lib/table/application/imports'
 import { tableOperations } from '@/lib/table/application/operations'
+import { presentV2TableImport } from '@/app/api/v2/tables/presenters'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,5 +20,5 @@ export const POST = defineV2JsonRoute({
     uploadToken: headers['upload-token'],
   }),
   useCase: completeTableImportUseCase,
-  present: ({ import: tableImport }) => ({ data: tableImport }),
+  present: ({ import: tableImport }) => presentV2TableImport(tableImport),
 })

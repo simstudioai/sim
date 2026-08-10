@@ -19,6 +19,7 @@ import {
   getColumnId,
   remapGroupColumnRefs,
 } from '@/lib/table/column-keys'
+import { deriveOutputColumnName } from '@/lib/table/column-naming'
 import { NAME_PATTERN, TABLE_LIMITS } from '@/lib/table/constants'
 import { assertColumnDestructive, assertSchemaMutable } from '@/lib/table/mutation-locks'
 import { stripGroupExecutions } from '@/lib/table/rows/executions'
@@ -249,60 +250,22 @@ export async function updateWorkflowGroup(
 ): Promise<TableDefinition> {
   const mappingUpdates = data.mappingUpdates ?? []
 
-  // Phase 1 (no lock): when there are mapping updates, load the workflow once to
-  // resolve each remap's new leaf type. Kept OFF the advisory-lock critical
-  // section so concurrent group edits on the same table don't time out waiting
-  // on this DB load. Best-effort — a resolution failure leaves column types
-  // unchanged (workflow deleted, block removed). The result is applied against
-  // the fresh schema under the lock in phase 2.
+  // Phase 1 (no lock): consume the output types resolved and authorized by the
+  // application command. Resolution stays outside the advisory-lock critical
+  // section so concurrent group edits do not hold the schema lock during the
+  // workflow read. Missing metadata is an application-boundary violation.
   const remapLeafTypeByColumn = new Map<string, ColumnDefinition['type']>()
   // The workflow id the leaf types above were resolved against. Phase 2 only
   // applies the resolved types if the group still points at this workflow under
   // the lock — a concurrent `workflowId` change would make them stale.
   let resolvedForWorkflowId: string | undefined
   if (mappingUpdates.length > 0) {
-    const preTable = await getTableById(data.tableId)
-    if (!preTable || (data.workspaceId && preTable.workspaceId !== data.workspaceId)) {
-      throw new OrchestrationError('not_found', 'Table not found')
+    if (!data.resolvedMappingTypes) {
+      throw new Error('Workflow group mapping updates require authorized resolved output types')
     }
-    try {
-      const preGroup = preTable?.schema.workflowGroups?.find((g) => g.id === data.groupId)
-      const targetWorkflowId = data.workflowId ?? preGroup?.workflowId
-      if (targetWorkflowId) {
-        resolvedForWorkflowId = targetWorkflowId
-        const [
-          { loadWorkflowFromNormalizedTables },
-          { flattenWorkflowOutputs },
-          { columnTypeForLeaf },
-        ] = await Promise.all([
-          import('@/lib/workflows/persistence/utils'),
-          import('@/lib/workflows/blocks/flatten-outputs'),
-          import('@/lib/table/column-naming'),
-        ])
-        const normalized = await loadWorkflowFromNormalizedTables(targetWorkflowId)
-        if (normalized) {
-          const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
-            id: b.id,
-            type: b.type,
-            name: b.name,
-            triggerMode: (b as { triggerMode?: boolean }).triggerMode,
-            subBlocks: b.subBlocks as Record<string, unknown> | undefined,
-          }))
-          const flattened = flattenWorkflowOutputs(blocks, normalized.edges ?? [])
-          const flatByKey = new Map(flattened.map((f) => [`${f.blockId}::${f.path}`, f]))
-          for (const u of mappingUpdates) {
-            const match = flatByKey.get(`${u.blockId}::${u.path}`)
-            if (!match) continue
-            const newType = columnTypeForLeaf(match.leafType)
-            if (newType) remapLeafTypeByColumn.set(u.columnName, newType)
-          }
-        }
-      }
-    } catch (err) {
-      logger.warn(
-        `[${requestId}] Could not resolve new leaf types for remap on group ${data.groupId}; leaving column types unchanged:`,
-        err
-      )
+    resolvedForWorkflowId = data.resolvedMappingTypes.workflowId
+    for (const resolved of data.resolvedMappingTypes.columns) {
+      remapLeafTypeByColumn.set(resolved.columnName, resolved.type)
     }
   }
 
@@ -387,24 +350,22 @@ export async function updateWorkflowGroup(
           })
 
           // Only apply the out-of-lock leaf-type resolution if the group still
-          // points at the workflow we resolved against. If a concurrent writer
-          // changed `workflowId` between phase 1 and now, those types are stale —
-          // leave column types unchanged (best-effort, same as a resolution
-          // failure) rather than stamping types from the old workflow.
+          // points at the workflow we resolved against. A concurrent workflow
+          // remap invalidates the command snapshot and must be retried.
           const finalWorkflowId = data.workflowId ?? group.workflowId
           if (remapLeafTypeById.size > 0 && resolvedForWorkflowId !== finalWorkflowId) {
-            logger.warn(
-              `[${requestId}] Workflow group "${data.groupId}" workflowId changed between leaf-type resolution and apply; leaving remapped column types unchanged.`
+            throw new OrchestrationError(
+              'conflict',
+              `Workflow group "${data.groupId}" changed concurrently; retry the update.`
             )
-          } else {
-            const colById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
-            for (const u of mappingUpdatesNorm) {
-              const newType = remapLeafTypeById.get(u.columnName)
-              if (!newType) continue
-              const oldType = colById.get(u.columnName)?.type
-              if (newType !== oldType) {
-                remappedColumnTypes.set(u.columnName, newType)
-              }
+          }
+          const colById = new Map(schema.columns.map((c) => [getColumnId(c), c]))
+          for (const u of mappingUpdatesNorm) {
+            const newType = remapLeafTypeById.get(u.columnName)
+            if (!newType) continue
+            const oldType = colById.get(u.columnName)?.type
+            if (newType !== oldType) {
+              remappedColumnTypes.set(u.columnName, newType)
             }
           }
         }
@@ -657,15 +618,22 @@ export async function addWorkflowGroupOutput(
     columnName?: string
     /** The member adding the output — billed/gated for any backfill-triggered re-run. */
     actorUserId?: string | null
+    resolvedOutput: {
+      workflowId: string
+      columnType: ColumnDefinition['type']
+      order: Array<{
+        blockId: string
+        path: string
+        executionDistance: number
+        discoveryIndex: number
+      }>
+    }
   },
   requestId: string
 ): Promise<TableDefinition> {
-  // Phase 1 (no lock): load the workflow and resolve the pickable output plus
-  // its execution-order index. This depends only on the workflow graph (which
-  // is stable), so it runs OFF the advisory-lock critical section — holding the
-  // lock during this DB load would make concurrent adders on the same table
-  // time out waiting (the Mothership fan-out this fix targets). Phase 2
-  // re-validates that the group still maps to the same workflow under the lock.
+  // Phase 1 (no lock): validate the authorized workflow metadata against the
+  // group's current workflow. Phase 2 re-validates the same binding under the
+  // table lock before applying the mutation.
   const preTable = await getTableById(data.tableId)
   if (!preTable || (data.workspaceId && preTable.workspaceId !== data.workspaceId)) {
     throw new OrchestrationError('not_found', 'Table not found')
@@ -675,38 +643,16 @@ export async function addWorkflowGroupOutput(
     throw new OrchestrationError('not_found', `Workflow group "${data.groupId}" not found`)
   }
   const workflowId = preGroup.workflowId
-
-  const [
-    { loadWorkflowFromNormalizedTables },
-    { flattenWorkflowOutputs, getBlockExecutionOrder },
-    { columnTypeForLeaf, deriveOutputColumnName },
-  ] = await Promise.all([
-    import('@/lib/workflows/persistence/utils'),
-    import('@/lib/workflows/blocks/flatten-outputs'),
-    import('@/lib/table/column-naming'),
-  ])
-  const normalized = await loadWorkflowFromNormalizedTables(workflowId)
-  if (!normalized) {
-    throw new OrchestrationError('not_found', `Workflow ${workflowId} not found`)
+  if (data.resolvedOutput.workflowId !== workflowId) {
+    throw new OrchestrationError('not_found', 'Workflow not found')
   }
-  const blocks = Object.values(normalized.blocks ?? {}).map((b) => ({
-    id: b.id,
-    type: b.type,
-    name: b.name,
-    triggerMode: (b as { triggerMode?: boolean }).triggerMode,
-    subBlocks: b.subBlocks as Record<string, unknown> | undefined,
-  }))
-  const flattened = flattenWorkflowOutputs(blocks, normalized.edges ?? [])
-  const match = flattened.find((f) => f.blockId === data.blockId && f.path === data.path)
-  if (!match) {
-    throw new OrchestrationError(
-      'validation',
-      `Output ${data.blockId}::${data.path} is not a valid pickable output on workflow ${workflowId}`
-    )
-  }
-  const newColumnType = columnTypeForLeaf(match.leafType)
-  const distances = getBlockExecutionOrder(blocks, normalized.edges ?? [])
-  const flatIndex = new Map(flattened.map((f, i) => [`${f.blockId}::${f.path}`, i]))
+  const newColumnType = data.resolvedOutput.columnType
+  const resolvedOrder = new Map(
+    data.resolvedOutput.order.map((output) => [
+      `${output.blockId}::${output.path}`,
+      [output.executionDistance, output.discoveryIndex] as const,
+    ])
+  )
 
   // Phase 2 (locked): re-read fresh, validate against the current schema, and
   // write. The critical section holds no I/O — just the in-memory splice + the
@@ -776,10 +722,10 @@ export async function addWorkflowGroupOutput(
       // — regardless of whether they were added at create time or one-by-one.
       const groupColIdsBefore = new Set(group.outputs.map((o) => o.columnName))
       const orderKey = (o: { blockId: string; path: string }) => {
-        const d = distances[o.blockId]
-        const dist = d === undefined || d < 0 ? Number.POSITIVE_INFINITY : d
-        const idx = flatIndex.get(`${o.blockId}::${o.path}`) ?? Number.POSITIVE_INFINITY
-        return [dist, idx] as const
+        return (
+          resolvedOrder.get(`${o.blockId}::${o.path}`) ??
+          ([Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY] as const)
+        )
       }
       const allGroupOutputs = [...group.outputs, newOutput].sort((a, b) => {
         const [da, ia] = orderKey(a)

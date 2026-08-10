@@ -27,6 +27,9 @@ vi.mock('@/lib/core/rate-limiter', () => ({
   getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
 }))
 vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
+vi.mock('@/app/api/v2/tables/presenters', () => ({
+  presentV2TableExport: (tableExport: unknown) => ({ data: tableExport }),
+}))
 vi.mock('@/lib/table/application/exports', () => ({
   createTableExportUseCase: { operation: { id: 'tables.exports.create' }, execute: mocks.create },
   readTableExportUseCase: { operation: { id: 'tables.exports.read' }, execute: mocks.read },
