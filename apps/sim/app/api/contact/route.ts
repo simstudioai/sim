@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { renderHelpConfirmationEmail } from '@/components/emails'
+import { getRequestConfirmationSubject, renderHelpConfirmationEmail } from '@/components/emails'
 import {
   getContactTopicLabel,
   mapContactTopicToHelpType,
@@ -168,7 +168,7 @@ ${message}
 
       await sendEmail({
         to: [email],
-        subject: `We've received your message: ${subject}`,
+        subject: getRequestConfirmationSubject(subject),
         html: confirmationHtml,
         from: getFromEmailAddress(),
         replyTo: `help@${helpInboxDomain}`,

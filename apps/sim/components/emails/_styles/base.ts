@@ -21,6 +21,8 @@ function buildColors() {
     textPrimary: '#1a1a1a',
     /** Body and value text — platform `--text-body` */
     textBody: '#434343',
+    /** De-emphasized text inside a body block — platform `--text-secondary` */
+    textSecondary: '#525252',
     /** Muted text (labels, footer) — platform `--text-muted` */
     textMuted: '#7a7a7a',
     /** Accent for buttons and links — neutral by default, brand color when whitelabeled */
@@ -56,10 +58,13 @@ export const typography = {
   fontFamily:
     "'Season Sans', system-ui, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif",
   /**
-   * Deliberately brand-free, for the plain personal emails — those read as a
-   * message typed by a person, so they must NOT carry the brand face.
+   * Deliberately brand-free, for emails that must read as typed by a person
+   * (the plain founder notes, the agent's thread replies). Carries the same
+   * non-brand fallbacks as {@link fontFamily} so Android and Linux clients land
+   * on Roboto rather than a generic sans.
    */
-  systemFontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+  systemFontFamily:
+    '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   /**
    * `caption`/`base`/`md` are Sim's own scale from `tailwind.config.ts`. `sm` is
    * Tailwind's stock 14px — not a Sim token, but what `text-sm` resolves to in
@@ -67,6 +72,7 @@ export const typography = {
    */
   fontSize: {
     caption: '12px',
+    small: '13px',
     sm: '14px',
     base: '15px',
     /** Email body copy. Larger than the app's 15px `base` — the client default. */
@@ -104,7 +110,7 @@ export const spacing = {
   paragraphGap: 12,
 }
 
-/** Shared body-copy ramp. {@link baseStyles.paragraph} and `greeting` differ only in margin. */
+/** Shared body-copy ramp. */
 const bodyText = {
   fontSize: typography.fontSize.md,
   lineHeight: typography.lineHeight.body,
@@ -113,7 +119,7 @@ const bodyText = {
   fontFamily: typography.fontFamily,
 }
 
-/** Shared box geometry. {@link baseStyles.infoBox} and `errorBox` differ only in fill. */
+/** Shared box geometry. */
 const boxGeometry = {
   padding: '16px 18px',
   borderRadius: RADIUS,
@@ -218,10 +224,9 @@ export const baseStyles = {
   },
 
   /**
-   * The closing fine-print line inside the card (who this was sent to, when it
-   * fires again). Same ramp as {@link footerText}, but left-aligned — the card
-   * is left-aligned while the footer's cells are not. Every template spelled
-   * this out as a spread override; use the token.
+   * The closing fine-print line inside the card. Same ramp as
+   * {@link footerText}, but left-aligned — the card is left-aligned while the
+   * footer's own cells are not.
    */
   footnote: {
     fontSize: typography.fontSize.caption,
