@@ -11,6 +11,10 @@ import {
   importDurableSecretProvenance,
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
+import {
+  isDurableSecretProvenanceEnforced,
+  reportUnrecordedDurableProvenance,
+} from '@/lib/execution/durable-secret-provenance-enforcement'
 import { redactObjectStrings } from '@/lib/logs/execution/pii-redaction'
 import {
   readBoundMemorySecretProvenance,
@@ -75,16 +79,32 @@ export class Memory {
       stored.provenance,
       messages
     )
-    if (
-      selectedProvenance.status === 'unknown' ||
-      (selectedProvenance.entries.length > 0 && !ctx.resolvedSecretTraceRegistry) ||
-      (ctx.resolvedSecretTraceRegistry &&
-        !(await importDurableSecretProvenance(
-          ctx.resolvedSecretTraceRegistry,
-          selectedProvenance,
-          messages
-        )))
-    ) {
+    /**
+     * Unrecorded provenance is checked through the same policy the shared import uses, so stored
+     * memory written by a run that could not vouch does not permanently refuse every later turn.
+     */
+    let refuseStoredProvenance: boolean
+    if (selectedProvenance.status === 'unknown') {
+      refuseStoredProvenance = isDurableSecretProvenanceEnforced('memory')
+      if (!refuseStoredProvenance) {
+        reportUnrecordedDurableProvenance({
+          surface: 'memory',
+          cause: 'stored-memory-provenance-unknown',
+          ...(ctx.workspaceId ? { workspaceId: ctx.workspaceId } : {}),
+        })
+      }
+    } else {
+      refuseStoredProvenance =
+        (selectedProvenance.entries.length > 0 && !ctx.resolvedSecretTraceRegistry) ||
+        (ctx.resolvedSecretTraceRegistry !== undefined &&
+          !(await importDurableSecretProvenance(
+            ctx.resolvedSecretTraceRegistry,
+            selectedProvenance,
+            messages,
+            'memory'
+          )))
+    }
+    if (refuseStoredProvenance) {
       refuseResolvedSecretProjection({
         site: 'memory.storedProvenanceImport',
         message: MEMORY_CONTENT_REFUSAL,
@@ -102,7 +122,14 @@ export class Memory {
           [],
           ctx.resolvedSecretTraceRegistry?.exportProvenance().scope
         )
-        if (!(await importDurableSecretProvenance(modelRegistry, messageProvenance, message))) {
+        if (
+          !(await importDurableSecretProvenance(
+            modelRegistry,
+            messageProvenance,
+            message,
+            'memory'
+          ))
+        ) {
           refuseResolvedSecretProjection({
             site: 'memory.messageProvenanceImport',
             message: MEMORY_CONTENT_REFUSAL,

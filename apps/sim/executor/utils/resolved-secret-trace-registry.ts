@@ -38,6 +38,8 @@ export type ResolvedSecretIncompletenessReason =
   | 'value-provenance-untrusted'
   | 'value-provenance-import-failed'
   | 'value-provenance-filter-incomplete'
+  | 'durable-provenance-unknown'
+  | 'durable-provenance-malformed'
   | 'unspecified'
 
 /**
@@ -64,6 +66,7 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'tool-call-scope-mismatch',
   'value-provenance-untrusted',
   'value-provenance-import-failed',
+  'durable-provenance-malformed',
 ])
 
 /**
@@ -161,13 +164,17 @@ interface ResolvedInputPathState {
 interface PreparedProvenanceFilter {
   candidatesByScanLiteral: ReadonlyMap<string, readonly ActiveSecretEntry[]>
   candidatesByAlias: ReadonlyMap<string, readonly ActiveSecretEntry[]>
-  candidateEntryKeys: ReadonlySet<string>
+  candidateEntries: ReadonlyMap<string, ActiveSecretEntry>
   matcher?: ResolvedSecretMatcher
 }
 
+/**
+ * Carries the candidate entries on both arms, because they are the answer whenever narrowing is
+ * unavailable — including when the matcher itself could not be built.
+ */
 type PreparedProvenanceFilterResult =
   | { complete: true; filter: PreparedProvenanceFilter }
-  | { complete: false }
+  | { complete: false; candidateEntries: ReadonlyMap<string, ActiveSecretEntry> }
 
 export interface ImportResolvedSecretTraceProvenanceOptions {
   trusted: boolean
@@ -1495,10 +1502,10 @@ export class ResolvedSecretTraceRegistry {
   }
 
   private prepareProvenanceFilter(
-    candidateEntries: Iterable<ActiveSecretEntry>
+    sourceEntries: Iterable<ActiveSecretEntry>
   ): PreparedProvenanceFilterResult {
     const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
-    const sortedCandidateEntries = [...candidateEntries].sort(
+    const sortedCandidateEntries = [...sourceEntries].sort(
       (left, right) =>
         compareStrings(left.name, right.name) ||
         compareStrings(left.encryptedValue, right.encryptedValue)
@@ -1514,7 +1521,7 @@ export class ResolvedSecretTraceRegistry {
     }
 
     const candidatesByScanLiteral = new Map<string, ActiveSecretEntry[]>()
-    const candidateEntryKeys = new Set<string>()
+    const candidateEntries = new Map<string, ActiveSecretEntry>()
     const addScanLiteral = (literal: string, entry: ActiveSecretEntry): void => {
       if (literal.length === 0) return
       const candidates = candidatesByScanLiteral.get(literal) ?? []
@@ -1523,7 +1530,7 @@ export class ResolvedSecretTraceRegistry {
         candidates.push(entry)
         candidatesByScanLiteral.set(literal, candidates)
       }
-      candidateEntryKeys.add(entryKey)
+      candidateEntries.set(entryKey, entry)
     }
     for (const candidates of candidatesByPlaintext.values()) {
       for (const entry of candidates) {
@@ -1542,7 +1549,7 @@ export class ResolvedSecretTraceRegistry {
         candidates.push(entry)
         candidatesByAlias.set(alias, candidates)
       }
-      candidateEntryKeys.add(entryKey)
+      candidateEntries.set(entryKey, entry)
     }
 
     let matcher: ResolvedSecretMatcher | undefined
@@ -1555,7 +1562,7 @@ export class ResolvedSecretTraceRegistry {
         error: getErrorMessage(error, 'Unknown error'),
         candidateCount: candidatesByScanLiteral.size,
       })
-      return { complete: false }
+      return { complete: false, candidateEntries }
     }
 
     return {
@@ -1563,10 +1570,47 @@ export class ResolvedSecretTraceRegistry {
       filter: {
         candidatesByScanLiteral,
         candidatesByAlias,
-        candidateEntryKeys,
+        candidateEntries,
         ...(matcher ? { matcher } : {}),
       },
     }
+  }
+
+  /** Builds the envelope for one selected entry set; only this registry's own state can void it. */
+  private provenanceForSelectedEntries(
+    entries: ReadonlyMap<string, ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    const complete = !this.isPermanentlyIncomplete()
+    return {
+      version: 1,
+      complete,
+      entries: complete
+        ? this.buildProvenanceEntries([...entries.values()], options.anonymous)
+        : [],
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    }
+  }
+
+  /**
+   * Answers a value the bounded scan could not read in full by keeping every candidate entry.
+   *
+   * Narrowing exists to stop content that provably carries no secret from being over-redacted; it
+   * is not what makes an envelope trustworthy. The candidates are already the trusted answer to
+   * "which secrets could this value carry", so an unreadable value — an offloaded large-value ref
+   * the scan cannot see through, a payload past the traversal bound, a hostile accessor — degrades
+   * to no narrowing rather than to unknown provenance.
+   *
+   * Reporting unknown here is what let a size threshold behave like a permanent fault: the flag
+   * travels onto the producing block's state, and every model boundary that later consumes that
+   * output refuses, with nothing telling the author the cause was payload volume rather than a
+   * secret. Over-approximating costs extra redaction; it can never under-redact.
+   */
+  private unnarrowedProvenance(
+    candidateEntries: ReadonlyMap<string, ActiveSecretEntry>,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    return this.provenanceForSelectedEntries(candidateEntries, options)
   }
 
   private exportProvenanceForValueWithPreparedFilter(
@@ -1583,37 +1627,22 @@ export class ResolvedSecretTraceRegistry {
     options: ExportResolvedSecretTraceProvenanceForValueOptions
   ): ResolvedSecretTraceProvenanceV1 {
     if (!prepared.complete) {
-      return {
-        version: 1,
-        complete: false,
-        entries: [],
-        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-      }
+      return this.unnarrowedProvenance(prepared.candidateEntries, options)
     }
 
-    const { candidatesByScanLiteral, candidatesByAlias, candidateEntryKeys, matcher } =
+    const { candidatesByScanLiteral, candidatesByAlias, candidateEntries, matcher } =
       prepared.filter
     const matchedEntries = new Map<string, ActiveSecretEntry>()
     const pendingValues: unknown[] = []
     try {
       for (const value of values) {
         if (pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) {
-          return {
-            version: 1,
-            complete: false,
-            entries: [],
-            ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-          }
+          return this.unnarrowedProvenance(candidateEntries, options)
         }
         pendingValues.push(value)
       }
     } catch {
-      return {
-        version: 1,
-        complete: false,
-        entries: [],
-        ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-      }
+      return this.unnarrowedProvenance(candidateEntries, options)
     }
     const visited = new WeakSet<object>()
     let scannedNodes = 0
@@ -1661,7 +1690,7 @@ export class ResolvedSecretTraceRegistry {
       if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
       scannedNodes++
       if (!scanString(key)) return false
-      if (matchedEntries.size >= candidateEntryKeys.size) return true
+      if (matchedEntries.size >= candidateEntries.size) return true
 
       if ('value' in descriptor) {
         if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
@@ -1672,7 +1701,7 @@ export class ResolvedSecretTraceRegistry {
       return true
     }
 
-    while (pendingValues.length > 0 && matchedEntries.size < candidateEntryKeys.size) {
+    while (pendingValues.length > 0 && matchedEntries.size < candidateEntries.size) {
       const current = pendingValues.pop()
       scannedNodes++
       if (scannedNodes > MAX_PROVENANCE_FILTER_NODES) {
@@ -1708,9 +1737,9 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidateEntryKeys.size) break
+          if (matchedEntries.size >= candidateEntries.size) break
         }
-        if (!scanComplete || matchedEntries.size >= candidateEntryKeys.size) break
+        if (!scanComplete || matchedEntries.size >= candidateEntries.size) break
 
         for (const key in current as Record<string, unknown>) {
           enumeratedProperties++
@@ -1725,7 +1754,7 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidateEntryKeys.size) break
+          if (matchedEntries.size >= candidateEntries.size) break
         }
         if (!scanComplete) break
       } catch {
@@ -1734,16 +1763,9 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const complete = !this.isPermanentlyIncomplete() && scanComplete
-    const entries = complete
-      ? this.buildProvenanceEntries([...matchedEntries.values()], options.anonymous)
-      : []
-    return {
-      version: 1,
-      complete,
-      entries,
-      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
-    }
+    return scanComplete
+      ? this.provenanceForSelectedEntries(matchedEntries, options)
+      : this.unnarrowedProvenance(candidateEntries, options)
   }
 
   private collectInputPathEntryKeys(paths: readonly ResolvedSecretInputPath[]): Set<string> {

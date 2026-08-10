@@ -1056,11 +1056,13 @@ describe('ResolvedSecretTraceRegistry', () => {
     })
   })
 
-  it('marks a bounded cross-boundary scan incomplete when an enumerable accessor is opaque', () => {
+  it('keeps every candidate when a bounded cross-boundary scan hits an opaque accessor', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+      { name: 'ABSENT', plaintext: 'never-present', encryptedValue: 'absent-ciphertext' },
     ])
     registry.recordResolved('TOKEN', 'secret')
+    registry.recordResolved('ABSENT', 'never-present')
     const value = {}
     Object.defineProperty(value, 'opaque', {
       enumerable: true,
@@ -1069,16 +1071,18 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(registry.exportProvenanceForValue(value, { anonymous: true })).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ encryptedValue: 'absent-ciphertext' }, { encryptedValue: 'ciphertext' }],
     })
   })
 
-  it('does not claim a complete cross-boundary scan for opaque large-value refs', () => {
+  it('keeps every candidate rather than voiding provenance for an opaque large-value ref', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+      { name: 'ABSENT', plaintext: 'never-present', encryptedValue: 'absent-ciphertext' },
     ])
     registry.recordResolved('TOKEN', 'secret')
+    registry.recordResolved('ABSENT', 'never-present')
 
     expect(
       registry.exportProvenanceForValue(
@@ -1091,6 +1095,70 @@ describe('ResolvedSecretTraceRegistry', () => {
         },
         { anonymous: true }
       )
+    ).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ encryptedValue: 'absent-ciphertext' }, { encryptedValue: 'ciphertext' }],
+    })
+  })
+
+  it('lets a model input path survive an upstream output the scan could not read', async () => {
+    const scope = { userId: 'user-1', workspaceId: 'workspace-1' }
+    const catalog = [
+      { name: 'TOKEN', plaintext: 'decrypted:ciphertext', encryptedValue: 'ciphertext' },
+    ]
+    const producer = new ResolvedSecretTraceRegistry(catalog, scope)
+    producer.recordResolved('TOKEN', 'decrypted:ciphertext')
+
+    /** A block output past the traversal bound, exactly as compaction leaves a large table read. */
+    const upstreamOutput = {
+      rows: Array.from({ length: 5_000 }, (_, index) => ({
+        id: `row_${index}`,
+        a: 'a',
+        b: 'b',
+        c: 'c',
+        d: 'd',
+        e: 'e',
+        f: 'f',
+        g: 'g',
+        h: 'h',
+        i: 'i',
+        j: 'j',
+      })),
+    }
+    const upstreamProvenance = producer.exportCommittedProvenanceForValue(upstreamOutput)
+    expect(upstreamProvenance.complete).toBe(true)
+
+    const consumer = new ResolvedSecretTraceRegistry(catalog, scope)
+    await consumer.importProvenanceForValueAtInputPath(
+      upstreamProvenance,
+      upstreamOutput,
+      ['userPrompt'],
+      { trusted: true }
+    )
+
+    const modelFork = consumer.forkForInputPaths([['userPrompt'], ['systemPrompt']])
+    expect(modelFork.projectResolvedInputSelection({ userPrompt: 'classify these rows' })).toEqual({
+      complete: true,
+      value: { userPrompt: 'classify these rows' },
+    })
+  })
+
+  it('still voids provenance for an unscannable value when the registry cannot vouch', () => {
+    const registry = new ResolvedSecretTraceRegistry([
+      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'ciphertext' },
+    ])
+    registry.recordResolved('TOKEN', 'secret')
+    registry.markIncomplete('unverified-resolved-entry')
+
+    expect(
+      registry.exportCommittedProvenanceForValue({
+        __simLargeValueRef: true,
+        version: 1,
+        id: 'lv_ABCDEFGHIJKL',
+        kind: 'object',
+        size: 1024,
+      })
     ).toEqual({ version: 1, complete: false, entries: [] })
   })
 
@@ -1110,8 +1178,8 @@ describe('ResolvedSecretTraceRegistry', () => {
 
     expect(provenance).toEqual({
       version: 1,
-      complete: false,
-      entries: [],
+      complete: true,
+      entries: [{ encryptedValue: 'ciphertext' }],
     })
     expect(descriptorSnapshotCalls).toBe(0)
   })
