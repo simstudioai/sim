@@ -156,11 +156,17 @@ describe('PromptEditor autosize', () => {
     unmount()
   })
 
-  it('uses a visible, stable scroll container when content exceeds the height cap', () => {
+  it('uses a stable, hover-revealed scroll container when content exceeds the height cap', () => {
     const { scroller, unmount } = mountEditor()
 
     expect(scroller).not.toBeNull()
-    expect(scroller).toHaveClass('overflow-y-auto', '[scrollbar-gutter:stable]')
+    expect(scroller).toHaveClass(
+      'overflow-y-auto',
+      '[scrollbar-gutter:stable]',
+      '[scrollbar-color:transparent_transparent]',
+      '[&::-webkit-scrollbar-thumb]:bg-transparent',
+      'hover:[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb-color)]'
+    )
     expect(scroller).not.toHaveClass('[scrollbar-width:none]', '[&::-webkit-scrollbar]:hidden')
     unmount()
   })
