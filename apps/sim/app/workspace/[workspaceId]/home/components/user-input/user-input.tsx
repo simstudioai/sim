@@ -551,7 +551,7 @@ const UserInputImpl = forwardRef<UserInputHandle, UserInputProps>(function UserI
         placeholder='Ask Sim to '
         onSubmit={handleEnterSubmit}
         onArrowUpOnEmpty={handleArrowUpOnEmpty}
-        className={isInitialView ? 'h-[56px]' : 'max-h-[200px]'}
+        className={cn('max-h-[200px]', isInitialView && 'min-h-[56px]')}
       />
 
       <div className='flex items-center justify-between'>
