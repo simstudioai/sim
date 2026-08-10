@@ -45,26 +45,31 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The mark a filled sweep slot paints.
+ * The mark a filled sweep slot paints: a narrow upright bar leaning right, so a
+ * filling run reads as `/ / / /` rather than a row of slabs.
  *
- * Spans its slot edge to edge so consecutive marks read as one bar growing,
- * with only the row's own `gap-[2px]` between them — a mark inset inside its
- * slot leaves a gap on both sides of every join, which is what made the last
- * version read as separate chunks rather than a loader. The weight comes off
- * vertically instead: `bg-clip-content` with symmetric padding paints a 10px
- * band inside the 24px slot without changing the slot's own size, so the swell
- * it is measured into does not move.
+ * A hard-stop gradient rather than a `clip-path`, because the two end slots
+ * already carry one for the swell silhouette and a second would have to win a
+ * specificity race with it. Leaning the edge 15° off vertical carries it 4.3px
+ * across the bar's 16px height, so the transparent margin has to stay above 15%
+ * or the cut clips a corner instead of crossing cleanly — 38%/62% leaves a 7px
+ * bar with room to spare. `bg-clip-content` with symmetric padding sets the
+ * height without touching the slot's own size, so the swell measured around it
+ * does not move. `--surface-2` is untouched.
  *
- * `--surface-2` is untouched; only the painted area changes. Each variant is
- * spelled out because Tailwind's JIT reads literal class strings.
+ * Each variant is spelled out: Tailwind's JIT reads literal class strings, so a
+ * composed `hover-hover:${FILL}` compiles to no CSS at all.
  */
 const RUNNING_SWEEP_FILL = [
-  '!bg-[var(--surface-2)] hover-hover:!bg-[var(--surface-2)]',
-  '!bg-clip-content !py-[7px] !rounded-none',
+  '!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
+  'hover-hover:!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
+  '!bg-clip-content !py-[4px] !rounded-none',
 ].join(' ')
 
-const RUNNING_SWEEP_FILL_STATIC =
-  'motion-reduce:!bg-[var(--surface-2)] motion-reduce:!bg-clip-content motion-reduce:!py-[7px] motion-reduce:!rounded-none'
+const RUNNING_SWEEP_FILL_STATIC = [
+  'motion-reduce:!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
+  'motion-reduce:!bg-clip-content motion-reduce:!py-[4px] motion-reduce:!rounded-none',
+].join(' ')
 
 const ICON_SIZE = 'size-[14px]'
 
