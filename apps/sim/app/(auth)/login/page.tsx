@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { isRegistrationDisabled } from '@/lib/core/config/env-flags'
 import { getOAuthProviderStatus } from '@/app/(auth)/components/oauth-provider-checker'
 import LoginForm from '@/app/(auth)/login/login-form'
 
@@ -20,6 +21,7 @@ export default async function LoginPage() {
         googleAvailable={googleAvailable}
         microsoftAvailable={microsoftAvailable}
         isProduction={isProduction}
+        registrationDisabled={isRegistrationDisabled}
       />
     </Suspense>
   )

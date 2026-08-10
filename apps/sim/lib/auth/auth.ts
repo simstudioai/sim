@@ -31,7 +31,11 @@ import {
 import { getAccessControlConfig, isEmailBlockedByAccessControl } from '@/lib/auth/access-control'
 import { createAnonymousSession, ensureAnonymousUserExists } from '@/lib/auth/anonymous'
 import { buildConnectorProviders } from '@/lib/auth/connectors/providers'
-import { getRequestedSignInProviderId, isSignInProviderAllowed } from '@/lib/auth/constants'
+import {
+  applyRegistrationGate,
+  getRequestedSignInProviderId,
+  isSignInProviderAllowed,
+} from '@/lib/auth/constants'
 import { getSessionCookieCacheVersion } from '@/lib/auth/security-policy'
 import { clampExpiryForSession } from '@/lib/auth/session-policy'
 import { guardSubscriptionPlanWrites } from '@/lib/auth/stripe-adapter-guard'
@@ -714,34 +718,42 @@ export const auth = betterAuth({
       ],
     },
   },
-  socialProviders: {
-    ...(!isGithubAuthDisabled && {
-      github: {
-        clientId: env.GITHUB_CLIENT_ID as string,
-        clientSecret: env.GITHUB_CLIENT_SECRET as string,
-        scope: ['user:email', 'repo'],
-      },
-    }),
-    ...(!isGoogleAuthDisabled && {
-      google: {
-        clientId: env.GOOGLE_CLIENT_ID as string,
-        clientSecret: env.GOOGLE_CLIENT_SECRET as string,
-        scope: [
-          'https://www.googleapis.com/auth/userinfo.email',
-          'https://www.googleapis.com/auth/userinfo.profile',
-        ],
-      },
-    }),
-    ...(!isMicrosoftAuthDisabled &&
-      env.MICROSOFT_CLIENT_ID &&
-      env.MICROSOFT_CLIENT_SECRET && {
-        microsoft: {
-          clientId: env.MICROSOFT_CLIENT_ID,
-          clientSecret: env.MICROSOFT_CLIENT_SECRET,
-          scope: ['openid', 'profile', 'email'],
+  /**
+   * SSO is deliberately outside the registration gate: it runs on
+   * `/sign-in/sso` against admin-configured, domain-verified providers, which
+   * is its own allowlist.
+   */
+  socialProviders: applyRegistrationGate(
+    {
+      ...(!isGithubAuthDisabled && {
+        github: {
+          clientId: env.GITHUB_CLIENT_ID as string,
+          clientSecret: env.GITHUB_CLIENT_SECRET as string,
+          scope: ['user:email', 'repo'],
         },
       }),
-  },
+      ...(!isGoogleAuthDisabled && {
+        google: {
+          clientId: env.GOOGLE_CLIENT_ID as string,
+          clientSecret: env.GOOGLE_CLIENT_SECRET as string,
+          scope: [
+            'https://www.googleapis.com/auth/userinfo.email',
+            'https://www.googleapis.com/auth/userinfo.profile',
+          ],
+        },
+      }),
+      ...(!isMicrosoftAuthDisabled &&
+        env.MICROSOFT_CLIENT_ID &&
+        env.MICROSOFT_CLIENT_SECRET && {
+          microsoft: {
+            clientId: env.MICROSOFT_CLIENT_ID,
+            clientSecret: env.MICROSOFT_CLIENT_SECRET,
+            scope: ['openid', 'profile', 'email'],
+          },
+        }),
+    },
+    isRegistrationDisabled
+  ),
   emailVerification: {
     autoSignInAfterVerification: true,
     afterEmailVerification: async (user) => {

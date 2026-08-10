@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import type { Metadata } from 'next'
+import { isRegistrationDisabled } from '@/lib/core/config/env-flags'
 import Invite from '@/app/invite/[id]/invite'
 
 export const metadata: Metadata = {
@@ -12,7 +13,7 @@ export const dynamic = 'force-dynamic'
 export default function InvitePage() {
   return (
     <Suspense fallback={null}>
-      <Invite />
+      <Invite registrationDisabled={isRegistrationDisabled} />
     </Suspense>
   )
 }
