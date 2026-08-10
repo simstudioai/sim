@@ -98,6 +98,7 @@ function mountEditor() {
   if (!textarea) throw new Error('textarea did not render')
 
   return {
+    scroller: textarea.closest('.overflow-y-auto'),
     textarea,
     unmount: () => {
       act(() => root.unmount())
@@ -152,6 +153,32 @@ describe('PromptEditor autosize', () => {
     const { textarea, unmount } = mountEditor()
 
     expect(textarea.style.height).toBe('240px')
+    unmount()
+  })
+
+  it('uses a visible, stable scroll container when content exceeds the height cap', () => {
+    const { scroller, unmount } = mountEditor()
+
+    expect(scroller).not.toBeNull()
+    expect(scroller).toHaveClass('overflow-y-auto', '[scrollbar-gutter:stable]')
+    expect(scroller).not.toHaveClass('[scrollbar-width:none]', '[&::-webkit-scrollbar]:hidden')
+    unmount()
+  })
+
+  it('shrinks the textarea again when the prompt becomes shorter', () => {
+    const { textarea, unmount } = mountEditor()
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+
+    act(() => {
+      contentHeight = 24
+      valueSetter?.call(textarea, 'short')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(textarea.style.height).toBe('24px')
     unmount()
   })
 

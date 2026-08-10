@@ -90,10 +90,10 @@ export const OVERLAY_CLASSES = cn(
   'text-[var(--text-primary)]'
 )
 
-/** Single scroll container for the textarea + overlay; caps height and hides its scrollbar. */
+/** Single scroll container for the textarea + overlay; caps height and scrolls both together. */
 export const SCROLLER_CLASSES = cn(
   'relative overflow-y-auto overflow-x-hidden',
-  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
+  '[scrollbar-gutter:stable]'
 )
 
 export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
