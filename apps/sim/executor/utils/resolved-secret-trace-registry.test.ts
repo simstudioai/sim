@@ -1443,6 +1443,52 @@ describe('incompleteness diagnostics', () => {
     expect(reasons).not.toContain('value-provenance-filter-incomplete')
   })
 
+  it.each([
+    'tool-input-not-enumerable',
+    'tool-params-transform-failed',
+    'structural-input-projection-incomplete',
+    'mothership-provenance-invalid',
+    'client-tool-seal-failed',
+    'knowledge-row-content-mismatch',
+    'backfill-scope-mismatch',
+  ] as const)('reports %s at error, since it cannot trip on a healthy run', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'mothership-provenance-missing',
+    'client-tool-completion-unavailable',
+    'client-tool-execution-untrusted',
+    'knowledge-result-provenance-unavailable',
+    'knowledge-response-capacity-exceeded',
+    'memory-crossing-capacity-exceeded',
+    'workspace-scope-missing',
+    'mounted-file-provenance-unavailable',
+    'table-snapshot-unsafe-for-mount',
+    'restored-provenance-untrusted',
+  ] as const)('reports %s at warn, since it is reachable without a fault', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  it('does not report a log-less session at all, since it fires on every such run', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('log-creation-skipped')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
   it('reports an incoming incomplete bundle at warn, since no catalog was ever on offer', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
