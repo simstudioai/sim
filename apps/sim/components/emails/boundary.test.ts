@@ -7,6 +7,7 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
+import { renderInboxResponseEmail } from '@/components/emails/render'
 
 const APP_ROOT = join(__dirname, '../..')
 const EMAILS_DIR = join(__dirname)
@@ -50,23 +51,24 @@ describe('every email goes through the shared layer', () => {
     expect(templateComponents).toContain('WelcomeEmail')
   })
 
-  it('no sender imports @react-email/render directly', () => {
+  it('no sender reaches for @react-email/render', () => {
+    // Substring, not an import-statement match — senders here use `await import()` too.
     const offenders = senderFiles.filter((f) =>
-      readFileSync(f, 'utf8').includes("from '@react-email/render'")
+      readFileSync(f, 'utf8').includes('@react-email/render')
     )
     expect(offenders.map(rel)).toEqual([])
   })
 
-  it('no sender imports a template component instead of its render wrapper', () => {
+  it('no sender names a template component instead of its render wrapper', () => {
     const offenders: string[] = []
     for (const file of senderFiles) {
       const src = readFileSync(file, 'utf8')
-      const emailImports = src.match(/import\s*\{[^}]+\}\s*from\s*'@\/components\/emails[^']*'/gs)
-      for (const block of emailImports ?? []) {
-        for (const component of templateComponents) {
-          if (new RegExp(`\\b${component}\\b`).test(block)) {
-            offenders.push(`${rel(file)} -> ${component}`)
-          }
+      for (const component of templateComponents) {
+        // Whole-file scan so static and dynamic imports are both covered. The
+        // word boundary keeps `PaymentFailedEmail` from matching inside
+        // `renderPaymentFailedEmail`.
+        if (new RegExp(`\\b${component}\\b`).test(src)) {
+          offenders.push(`${rel(file)} -> ${component}`)
         }
       }
     }
@@ -86,7 +88,6 @@ describe('every email goes through the shared layer', () => {
   })
 
   it('the agent reply keeps markdown emphasis on the platform weight scale', async () => {
-    const { renderInboxResponseEmail } = await import('@/components/emails')
     const html = await renderInboxResponseEmail({
       markdown: 'Some **emphasis** here.',
       chatUrl: 'https://example.test/chat',
