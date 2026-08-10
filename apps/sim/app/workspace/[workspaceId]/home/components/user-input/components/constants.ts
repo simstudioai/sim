@@ -90,15 +90,10 @@ export const OVERLAY_CLASSES = cn(
   'text-[var(--text-primary)]'
 )
 
-/**
- * Single scroll container for the textarea + overlay. Its inset thumb stays
- * quiet until hover so it does not visually merge with the send control.
- */
+/** Single scroll container for the textarea + overlay; caps height and hides its scrollbar. */
 export const SCROLLER_CLASSES = cn(
   'relative overflow-y-auto overflow-x-hidden',
-  '[scrollbar-color:transparent_transparent] [scrollbar-gutter:stable] [scrollbar-width:thin]',
-  '[&::-webkit-scrollbar]:w-1 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-transparent [&::-webkit-scrollbar-thumb:hover]:bg-[var(--scrollbar-thumb-hover-color)] [&::-webkit-scrollbar-track]:[margin-block:8px]',
-  'hover:[scrollbar-color:var(--scrollbar-thumb-color)_transparent] hover:[&::-webkit-scrollbar-thumb]:bg-[var(--scrollbar-thumb-color)]'
+  '[-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden'
 )
 
 export const SEND_BUTTON_BASE = 'h-[28px] w-[28px] rounded-full border-0 p-0 transition-colors'
