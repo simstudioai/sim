@@ -45,11 +45,21 @@ export function PaymentFailedEmail({
 
       <Section style={baseStyles.errorBox}>
         <Text style={baseStyles.infoBoxTitle}>Payment Details</Text>
-        <Text style={baseStyles.infoBoxList}>Amount due: ${amountDue.toFixed(2)}</Text>
-        {lastFourDigits && (
-          <Text style={baseStyles.infoBoxList}>Payment method: •••• {lastFourDigits}</Text>
-        )}
-        {failureReason && <Text style={baseStyles.infoBoxList}>Reason: {failureReason}</Text>}
+        <Text style={baseStyles.infoBoxList}>
+          Amount due: ${amountDue.toFixed(2)}
+          {lastFourDigits && (
+            <>
+              <br />
+              Payment method: •••• {lastFourDigits}
+            </>
+          )}
+          {failureReason && (
+            <>
+              <br />
+              Reason: {failureReason}
+            </>
+          )}
+        </Text>
       </Section>
 
       <Section style={baseStyles.infoBox}>
