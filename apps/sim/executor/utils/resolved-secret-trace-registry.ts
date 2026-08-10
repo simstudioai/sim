@@ -1818,11 +1818,13 @@ export class ResolvedSecretTraceRegistry {
     target: ResolvedSecretTraceRegistry,
     roots?: readonly ResolvedSecretInputPath[]
   ): void {
+    let copied = false
     for (const [key, path] of this.incompleteInputPaths) {
       if (roots && !roots.some((root) => inputPathsOverlap(path, root))) continue
       target.incompleteInputPaths.set(key, [...path])
-      target.inheritIncompletenessReasonsFrom(this)
+      copied = true
     }
+    if (copied) target.inheritIncompletenessReasonsFrom(this)
   }
 
   private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {
