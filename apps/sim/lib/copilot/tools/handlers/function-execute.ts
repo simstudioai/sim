@@ -528,12 +528,19 @@ export async function resolveInputFiles(
         })
         if (
           !provenance.complete ||
-          !(await resolvedSecretTraceRegistry.importProvenance(provenance, { trusted: true }))
+          !(await resolvedSecretTraceRegistry.importProvenance(provenance, {
+            trusted: true,
+            origin: 'copilotFunctionExecute.result',
+          }))
         ) {
-          resolvedSecretTraceRegistry.markIncomplete()
+          resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
+            origin: 'copilotFunctionExecute.result',
+          })
         }
       } catch {
-        resolvedSecretTraceRegistry.markIncomplete()
+        resolvedSecretTraceRegistry.markIncomplete('unspecified', {
+          origin: 'copilotFunctionExecute.result',
+        })
       }
 
       const columns = table.schema.columns
@@ -561,11 +568,13 @@ async function importMountedProvenance(
   try {
     const provenance = source.exportProvenanceForValue(crossingValue)
     const imported = await target.importCrossingProvenance(provenance, crossingValue, {
+      origin: 'copilotFunctionExecute.crossing',
       trusted: true,
     })
-    if (!imported) target.markIncomplete()
+    if (!imported)
+      target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
   } catch {
-    target.markIncomplete()
+    target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
   }
 }
 
