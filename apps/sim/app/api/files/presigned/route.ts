@@ -11,7 +11,7 @@ import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles } from '@/lib/uploads'
 import { getServeStoragePrefix } from '@/lib/uploads/config'
-import { generateExecutionAttachmentKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { generatePresignedUploadUrl, hasCloudStorage } from '@/lib/uploads/core/storage-service'
@@ -222,7 +222,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         throw new ValidationError(fileValidationError.message)
       }
 
-      const customKey = generateExecutionAttachmentKey(
+      const customKey = generateUniqueExecutionFileKey(
         { workspaceId, workflowId, executionId },
         fileName
       )
