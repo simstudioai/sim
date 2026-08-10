@@ -45,23 +45,26 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The running fill: one solid bar whose leading edge leans right.
+ * The running fill: the squares' own rhythm, sheared right.
+ *
+ * Same geometry the slots used before — a 24px mark with the row's 2px gap after
+ * it — so the marks land where the squares did. Only the shear is new.
  *
  * Painted ONCE across the row, not per slot. Each button would start its own
  * gradient at its own origin, so the phase reset at every slot — and the end
  * slots are 40px against the others' 24px, so the resets were not even uniform.
- * One element spanning the row has one paint and therefore one edge.
+ * One element spanning the row has one gradient and therefore one phase, which
+ * is what lets the 24/2 rhythm hold all the way along.
  *
- * The slant lives on the growing edge rather than in a repeating hatch: with the
- * gaps closed to nothing, a repeat has no edges left to show. 4px of run across
- * the 16px height is the same 15° lean the bars carried.
+ * Stops are measured along the 105° axis rather than horizontally, so both carry
+ * a `sin(105°)` factor: 24px of mark is 23.18px of stop, and the 26px pitch is
+ * 25.11px of period. Writing 24/26 directly would render ~3.5% wide and drift
+ * out of the squares' rhythm across the row.
  *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
-const RUNNING_FILL = [
-  'bg-[var(--surface-2)]',
-  '[clip-path:polygon(0_0,100%_0,calc(100%_-_4px)_100%,0_100%)]',
-].join(' ')
+const RUNNING_FILL =
+  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_23.18px,transparent_23.18px_25.11px)]'
 
 /** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
