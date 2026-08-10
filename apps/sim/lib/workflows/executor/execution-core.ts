@@ -540,19 +540,11 @@ async function executeWorkflowCoreImpl(
     })
     if (restoredState && !restoreTrusted) {
       resolvedSecretTraceRegistry.markIncomplete()
-    } else if (
-      restoredState &&
-      restoredState.resolvedSecretTraceProvenance === undefined &&
-      restoredState.resolvedSecretTraceCheckpointVersion === undefined
-    ) {
-      const legacyProvenance =
-        resolvedSecretTraceRegistry.exportCatalogProvenanceForValue(restoredState)
-      await resolvedSecretTraceRegistry.importProvenance(legacyProvenance, { trusted: true })
     }
     if (options.trustedInitialResolvedSecretTraceProvenance !== undefined) {
       await resolvedSecretTraceRegistry.importProvenance(
         options.trustedInitialResolvedSecretTraceProvenance,
-        { trusted: true }
+        { trusted: true, origin: 'executionCore.initialProvenance' }
       )
     }
     loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)

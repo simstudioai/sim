@@ -8,6 +8,8 @@ import type { TableDefinition } from '@/lib/table/types'
 const {
   mockReplaceRowsPrimitive,
   mockDeleteRowsByIds,
+  mockCreateSecretProvenance,
+  mockIsScopeCompatible,
   mockLoadSecretProvenance,
   mockAssertRowCapacity,
   mockNotifyTableRowUsage,
@@ -22,6 +24,8 @@ const {
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
+  mockCreateSecretProvenance: vi.fn(),
+  mockIsScopeCompatible: vi.fn(),
   mockLoadSecretProvenance: vi.fn(),
   mockAssertRowCapacity: vi.fn(),
   mockNotifyTableRowUsage: vi.fn(),
@@ -92,8 +96,18 @@ vi.mock('@/lib/table/column-types', () => ({
 }))
 
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
+  createTableRowSecretProvenanceFromRegistry: mockCreateSecretProvenance,
   createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
+  createUnknownTableRowSecretProvenance: () => ({ complete: false, columns: {} }),
   loadTableRowSecretProvenance: mockLoadSecretProvenance,
+}))
+
+vi.mock('@/lib/table/validation', () => ({
+  coerceRowValues: vi.fn(),
+}))
+
+vi.mock('@/lib/execution/durable-secret-provenance', () => ({
+  isPrivateSecretProvenanceScopeCompatible: mockIsScopeCompatible,
 }))
 
 vi.mock('@/lib/table/rows/service', () => ({
@@ -188,6 +202,8 @@ describe('replaceProjectedWireRows application command', () => {
         run(freshTable, { kind: 'transaction' })
     )
     mockReplaceRowsWithTx.mockResolvedValue({ deletedCount: 2, insertedCount: 1 })
+    mockCreateSecretProvenance.mockReturnValue({ complete: true, columns: {} })
+    mockIsScopeCompatible.mockReturnValue(true)
   })
 
   it('validates and replaces against the fresh schema held under the table lock', async () => {
@@ -252,6 +268,106 @@ describe('replaceProjectedWireRows application command', () => {
     expect(mockReplaceRowsWithTx).not.toHaveBeenCalled()
     expect(mockRecordAudit).not.toHaveBeenCalled()
     expect(mockSignalRowsChanged).not.toHaveBeenCalled()
+  })
+
+  it('derives projected-row provenance inside the authorized locked operation', async () => {
+    const registry = { kind: 'resolved-secret-registry' }
+    const provenance = {
+      complete: true,
+      columns: {
+        'column-fresh': {
+          entries: [{ encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: TABLE.workspaceId },
+        },
+      },
+    }
+    mockCreateSecretProvenance.mockReturnValue(provenance)
+
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'secret-value' }],
+        projectedRows: [{ full_name: 'secret-value' }],
+        secretProvenance: {
+          mode: 'resolved_output',
+          registry: registry as never,
+        },
+      },
+    })
+
+    expect(mockCreateSecretProvenance).toHaveBeenCalledWith(
+      { 'column-fresh': 'secret-value' },
+      registry
+    )
+    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
+      { userId: 'user-1', workspaceId: TABLE.workspaceId },
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [provenance] }),
+      freshTable,
+      expect.any(String)
+    )
+  })
+
+  it('stores unknown provenance when the authoritative destination rejects the source scope', async () => {
+    const registry = { kind: 'resolved-secret-registry' }
+    mockCreateSecretProvenance.mockReturnValue({
+      complete: true,
+      columns: {
+        'column-fresh': {
+          entries: [{ encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-other' },
+        },
+      },
+    })
+    mockIsScopeCompatible.mockReturnValue(false)
+
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'secret-value' }],
+        projectedRows: [{ full_name: 'secret-value' }],
+        secretProvenance: {
+          mode: 'resolved_output',
+          registry: registry as never,
+        },
+      },
+    })
+
+    expect(mockIsScopeCompatible).toHaveBeenCalledWith(
+      { userId: 'user-1', workspaceId: 'workspace-other' },
+      { userId: 'user-1', workspaceId: TABLE.workspaceId }
+    )
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      freshTable,
+      expect.any(String)
+    )
+  })
+
+  it('stores unknown provenance when resolved output lacks a trace registry', async () => {
+    await replaceProjectedWireRows.execute({
+      principal: delegatedPrincipal,
+      input: {
+        tableId: TABLE.id,
+        sourceRows: [{ full_name: 'value' }],
+        projectedRows: [{ full_name: 'value' }],
+        secretProvenance: { mode: 'resolved_output' },
+      },
+    })
+
+    expect(mockCreateSecretProvenance).not.toHaveBeenCalled()
+    expect(mockReplaceRowsWithTx).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ secretProvenance: [{ complete: false, columns: {} }] }),
+      freshTable,
+      expect.any(String)
+    )
   })
 
   it('rejects delegated table-scope mismatch before opening the mutation lock', async () => {

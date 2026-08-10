@@ -2,6 +2,7 @@ import type { Sql } from 'postgres'
 import { backfillTableOrderKeys } from './0001_backfill_table_order_keys'
 import { backfillPausedBillingAttribution } from './0002_backfill_paused_billing_attribution'
 import { backfillWorkspaceStorageUsage } from './0003_backfill_workspace_storage_usage'
+import { backfillForkKnowledgeBaseFileOwnership } from './0004_backfill_fork_kb_file_ownership'
 import type { ScriptMigration } from './types'
 
 export type { ScriptMigration } from './types'
@@ -15,6 +16,7 @@ export const scriptMigrations: readonly ScriptMigration[] = [
   backfillTableOrderKeys,
   backfillPausedBillingAttribution,
   backfillWorkspaceStorageUsage,
+  backfillForkKnowledgeBaseFileOwnership,
 ]
 
 /**

@@ -195,6 +195,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
 }) {
   const dragGhostRef = useRef<HTMLElement | null>(null)
 
+  /**
+   * The trailing slot fits one glyph, and the dot wins over the pin: it reports
+   * transient state (a run in progress, or an unread reply elsewhere), while pinning
+   * is persistent and already conveyed by the row sorting to the top of the list.
+   */
+  const showStatusDot = isActive || (!isCurrentRoute && isUnread)
+
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.effectAllowed = 'copyMove'
     e.dataTransfer.setData(
@@ -238,12 +245,12 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
         {chat.id !== 'new' && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {(isActive || (!isCurrentRoute && isUnread)) && (
+          <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
+            {showStatusDot && (
               <span
                 aria-hidden='true'
                 className={cn(
-                  'h-[6px] w-[6px] rounded-full transition-opacity',
+                  'size-[6px] rounded-full transition-opacity',
                   isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
                 )}
                 style={{
@@ -251,10 +258,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 }}
               />
             )}
-            {!isActive && !isUnread && isPinned && !isCurrentRoute && !isMenuOpen && (
+            {!showStatusDot && isPinned && (
               <Pin
                 aria-hidden='true'
-                className='absolute size-[12px] text-[var(--text-icon)] group-hover:hidden'
+                className={cn(
+                  'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
+                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
+                )}
               />
             )}
             <button
@@ -508,6 +518,8 @@ export const Sidebar = memo(function Sidebar({
 
   const {
     workspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
@@ -1345,6 +1357,8 @@ export const Sidebar = memo(function Sidebar({
                 activeWorkspace={activeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
+                pinnedWorkspaceIds={pinnedWorkspaceIds}
+                onToggleWorkspacePin={toggleWorkspacePin}
                 workspaceCreationPolicy={workspaceCreationPolicy}
                 isWorkspacesLoading={isWorkspacesLoading}
                 isCreatingWorkspace={isCreatingWorkspace}

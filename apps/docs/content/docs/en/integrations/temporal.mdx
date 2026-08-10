@@ -32,7 +32,7 @@ Connect to a Temporal cluster over the server's HTTP API to start workflow execu
 
 ## Actions
 
-### `temporal_start_workflow`
+### Temporal Start Workflow
 
 Start a new workflow execution on a Temporal cluster.
 
@@ -63,7 +63,7 @@ Start a new workflow execution on a Temporal cluster.
 | `runId` | string | Run ID of the started workflow execution |
 | `started` | boolean | Whether a new execution was started \(false when an existing execution was reused\) |
 
-### `temporal_signal_workflow`
+### Temporal Signal Workflow
 
 Send a signal to a running Temporal workflow execution.
 
@@ -86,7 +86,7 @@ Send a signal to a running Temporal workflow execution.
 | `workflowId` | string | Workflow ID of the signaled execution |
 | `signalName` | string | Name of the signal that was sent |
 
-### `temporal_signal_with_start`
+### Temporal Signal With Start
 
 Atomically signal a Temporal workflow, starting it first if it is not already running, so the signal is never lost.
 
@@ -119,7 +119,7 @@ Atomically signal a Temporal workflow, starting it first if it is not already ru
 | `runId` | string | Run ID of the signaled \(or newly started\) execution |
 | `started` | boolean | Whether this call started a new execution \(false when only signaled\) |
 
-### `temporal_query_workflow`
+### Temporal Query Workflow
 
 Run a synchronous query against the state of a Temporal workflow execution and return the result.
 
@@ -143,7 +143,7 @@ Run a synchronous query against the state of a Temporal workflow execution and r
 | `queryType` | string | Name of the query that was run |
 | `result` | json | Decoded query result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
 
-### `temporal_update_workflow`
+### Temporal Update Workflow
 
 Invoke an update handler on a running Temporal workflow and wait for its result. Unlike a signal, an update is validated by the workflow and returns a response.
 
@@ -167,7 +167,7 @@ Invoke an update handler on a running Temporal workflow and wait for its result.
 | `updateName` | string | Name of the update that was invoked |
 | `result` | json | Decoded update result. A single payload is returned as its JSON value; multiple payloads are returned as an array |
 
-### `temporal_describe_workflow`
+### Temporal Describe Workflow
 
 Get the current state of a Temporal workflow execution, including status, timing, memo, search attributes, and pending activities.
 
@@ -203,7 +203,7 @@ Get the current state of a Temporal workflow execution, including status, timing
 |   ↳ `attempt` | number | Current attempt number |
 |   ↳ `lastFailureMessage` | string | Message of the most recent failure, if the activity is retrying |
 
-### `temporal_list_workflows`
+### Temporal List Workflows
 
 List workflow executions in a Temporal namespace, optionally filtered with a visibility query.
 
@@ -234,7 +234,7 @@ List workflow executions in a Temporal namespace, optionally filtered with a vis
 |   ↳ `taskQueue` | string | Task queue of the execution |
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
 
-### `temporal_count_workflows`
+### Temporal Count Workflows
 
 Count workflow executions in a Temporal namespace matching a visibility query, with optional GROUP BY aggregation.
 
@@ -256,7 +256,7 @@ Count workflow executions in a Temporal namespace matching a visibility query, w
 |   ↳ `values` | json | Decoded values of the GROUP BY fields |
 |   ↳ `count` | number | Number of executions in the group |
 
-### `temporal_get_workflow_history`
+### Temporal Get Workflow History
 
 Fetch the event history of a Temporal workflow execution, optionally filtered to just the close event.
 
@@ -284,7 +284,7 @@ Fetch the event history of a Temporal workflow execution, optionally filtered to
 |   ↳ `attributes` | json | The event's type-specific attributes \(payload data is base64-encoded\) |
 | `nextPageToken` | string | Token for the next page of events, null when no more pages exist |
 
-### `temporal_cancel_workflow`
+### Temporal Cancel Workflow
 
 Request cooperative cancellation of a running Temporal workflow execution. The workflow decides how to respond to the request.
 
@@ -305,7 +305,7 @@ Request cooperative cancellation of a running Temporal workflow execution. The w
 | --------- | ---- | ----------- |
 | `workflowId` | string | Workflow ID of the execution whose cancellation was requested |
 
-### `temporal_terminate_workflow`
+### Temporal Terminate Workflow
 
 Forcefully terminate a Temporal workflow execution immediately, without giving the workflow a chance to react.
 
@@ -326,7 +326,7 @@ Forcefully terminate a Temporal workflow execution immediately, without giving t
 | --------- | ---- | ----------- |
 | `workflowId` | string | Workflow ID of the terminated execution |
 
-### `temporal_reset_workflow`
+### Temporal Reset Workflow
 
 Reset a Temporal workflow execution to a past workflow task, terminating the current run and replaying from the reset point in a new run.
 
@@ -349,7 +349,7 @@ Reset a Temporal workflow execution to a past workflow task, terminating the cur
 | `workflowId` | string | Workflow ID of the reset execution |
 | `runId` | string | Run ID of the new run created by the reset |
 
-### `temporal_describe_task_queue`
+### Temporal Describe Task Queue
 
 List the workers currently polling a Temporal task queue, to check whether a workflow or activity has live workers.
 
@@ -373,7 +373,7 @@ List the workers currently polling a Temporal task queue, to check whether a wor
 |   ↳ `lastAccessTime` | string | Last time the worker polled the queue \(RFC 3339\) |
 |   ↳ `ratePerSecond` | number | Poller rate per second |
 
-### `temporal_create_schedule`
+### Temporal Create Schedule
 
 Create a Temporal schedule that starts a workflow on a cron or interval cadence.
 
@@ -402,7 +402,7 @@ Create a Temporal schedule that starts a workflow on a cron or interval cadence.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the created schedule |
 
-### `temporal_list_schedules`
+### Temporal List Schedules
 
 List schedules in a Temporal namespace.
 
@@ -429,7 +429,7 @@ List schedules in a Temporal namespace.
 |   ↳ `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
 | `nextPageToken` | string | Token for the next page of results, null when no more pages exist |
 
-### `temporal_describe_schedule`
+### Temporal Describe Schedule
 
 Get the configuration and current state of a Temporal schedule, including its spec, recent actions, and upcoming run times.
 
@@ -460,7 +460,7 @@ Get the configuration and current state of a Temporal schedule, including its sp
 |   ↳ `runId` | string | Run ID of the started execution |
 | `futureActionTimes` | json | Upcoming action times \(RFC 3339\) |
 
-### `temporal_pause_schedule`
+### Temporal Pause Schedule
 
 Pause a Temporal schedule so it stops taking actions until unpaused.
 
@@ -480,7 +480,7 @@ Pause a Temporal schedule so it stops taking actions until unpaused.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the paused schedule |
 
-### `temporal_unpause_schedule`
+### Temporal Unpause Schedule
 
 Unpause a Temporal schedule so it resumes taking actions.
 
@@ -500,7 +500,7 @@ Unpause a Temporal schedule so it resumes taking actions.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the unpaused schedule |
 
-### `temporal_trigger_schedule`
+### Temporal Trigger Schedule
 
 Trigger an immediate action of a Temporal schedule, outside its normal spec.
 
@@ -520,7 +520,7 @@ Trigger an immediate action of a Temporal schedule, outside its normal spec.
 | --------- | ---- | ----------- |
 | `scheduleId` | string | ID of the triggered schedule |
 
-### `temporal_delete_schedule`
+### Temporal Delete Schedule
 
 Delete a Temporal schedule. Workflows already started by the schedule keep running.
 

@@ -1,7 +1,7 @@
 import { db } from '@sim/db'
-import { settings, type workspace as workspaceTable } from '@sim/db/schema'
+import { pinnedItem, settings, type workspace as workspaceTable } from '@sim/db/schema'
 import type { PermissionType } from '@sim/platform-authz/workspace'
-import { eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { PlanCategory } from '@/lib/billing/plan-helpers'
 import {
   evaluateWorkspaceInvitePolicy,
@@ -28,6 +28,8 @@ export type WorkspaceWithInviteFlags = WorkspaceRow &
 export interface WorkspaceListPayload {
   workspaces: WorkspaceWithInviteFlags[]
   lastActiveWorkspaceId: string | null
+  /** Workspace ids the viewer pinned to the top of the switcher. */
+  pinnedWorkspaceIds: string[]
   creationPolicy: WorkspaceCreationPolicy
 }
 
@@ -108,7 +110,8 @@ export async function listWorkspacesForViewer(params: {
 }): Promise<WorkspaceListPayload> {
   const { userId, activeOrganizationId, scope = 'active' } = params
 
-  const [creationPolicy, workspaces, userSettings] = await Promise.all([
+  /** Workspace pins ride along here; see `pinnedResourceTypeSchema` for why. */
+  const [creationPolicy, workspaces, userSettings, workspacePins] = await Promise.all([
     getWorkspaceCreationPolicy({ userId, activeOrganizationId }),
     listAccessibleWorkspaceRowsForUser(userId, scope).then((rows) =>
       buildWorkspacesWithInviteFlags(rows, userId)
@@ -118,11 +121,16 @@ export async function listWorkspacesForViewer(params: {
       .from(settings)
       .where(eq(settings.userId, userId))
       .limit(1),
+    db
+      .select({ resourceId: pinnedItem.resourceId })
+      .from(pinnedItem)
+      .where(and(eq(pinnedItem.userId, userId), eq(pinnedItem.resourceType, 'workspace'))),
   ])
 
   return {
     workspaces,
     lastActiveWorkspaceId: userSettings[0]?.lastActiveWorkspaceId ?? null,
+    pinnedWorkspaceIds: workspacePins.map((row) => row.resourceId),
     creationPolicy,
   }
 }

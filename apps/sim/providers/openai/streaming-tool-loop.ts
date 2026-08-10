@@ -258,7 +258,6 @@ async function executeOpenAIToolCall(options: {
       executionParams,
       {
         signal: request.abortSignal,
-        toolInput: toolParams,
       }
     )
     return completeToolExecution(

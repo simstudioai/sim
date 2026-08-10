@@ -89,6 +89,7 @@ vi.mock('@/lib/messaging/email/mailer', () => ({
 }))
 
 vi.mock('@/components/emails', () => ({
+  getOtpSubject: (label: string) => `Verification code for ${label}`,
   renderOTPEmail: mockRenderOTPEmail,
 }))
 

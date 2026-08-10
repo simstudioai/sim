@@ -19,6 +19,7 @@ You are a professional software engineer. All code must follow best practices: a
   - `truncate(str, maxLength, suffix?)` from `@sim/utils/string` — never inline slice + ellipsis
   - `backoffWithJitter(attempt, retryAfterMs, options?)` / `parseRetryAfter(header)` from `@sim/utils/retry` — shared retry pacing; never reimplement exponential backoff inline
 - **Package Manager**: Use `bun` and `bunx`, not `npm` and `npx`
+- **Type-checking**: Run `bun run type-check` (per workspace) or `bunx turbo run type-check` (all of them). Do not remove the `@typescript/native` alias from the root `devDependencies` — nothing imports it, but it is what makes a bare `tsc` resolve to the native TypeScript 7 compiler instead of the ~10x slower JavaScript TypeScript 6 one that `@typescript/typescript6` pulls in transitively. `bun run check:native-typecheck` enforces this
 
 ## Architecture
 
@@ -376,6 +377,12 @@ export function useUpdateEntity() {
 Shareable *client* view-state (active tab/panel, filters, search query, pagination, selected entity id, view mode, a deep-linked drawer/modal) lives in the URL via [`nuqs`](https://nuqs.dev) — not in a store synced with effects, and never read via `useSearchParams().get(...)` / `new URLSearchParams(window.location.search)`. Remote data stays in React Query; high-frequency / large / ephemeral / socket-synced state stays in Zustand (canvas pan/zoom, cursor, drag, resize widths, live collaborative selection).
 
 Co-locate a `search-params.ts` per feature exporting the parser map (single source of truth, shared by client `useQueryStates`/`useQueryState` and server `createSearchParamsCache`). Never `import { z }` in client code for params — use nuqs parsers. Full decision framework, conventions, the debounced-input pattern, and the workflow-editor carve-out are in `.claude/rules/sim-url-state.md`.
+
+## List & Menu Ordering
+
+A list orders itself the way the user already reads the same things somewhere else. Resource menus (`+` attach, `@` mention, resource-tab `+`) mirror the **sidebar** top-down; a row or root **context menu** mirrors that surface's **toolbar**, left-to-right becoming top-to-bottom; tab strips mirror their nav. Platform-only entries (desktop Browser, Terminal) trail the shared set.
+
+Encode the order in ONE exported constant and sort by it — never a hand-maintained literal per menu (`RESOURCE_MENU_ORDER` / `byResourceMenuOrder` in `home/components/mothership-view/components/resource-registry`). Render mixed item kinds in a single ordered pass; emitting all submenu-backed families and then all flat ones silently pins every submenu to the top no matter what the constant says. Divergence is allowed only for search ranking, user-controlled ordering, and recency. Full rule in `.claude/rules/sim-list-ordering.md`.
 
 ## Styling
 

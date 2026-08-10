@@ -32,7 +32,11 @@ vi.mock('@/lib/model-router/resolve', () => ({
   SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
 }))
 
-import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
+  PRIVATE_MODEL_INPUT_STATE_HEADER,
+  PROJECTED_MODEL_INPUT_PATHS_V1,
+} from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -223,8 +227,18 @@ describe('EvaluatorBlockHandler', () => {
         encryptedValue: 'encrypted-evaluator-credential',
       },
     ])
-    registry.recordResolved('CONTENT_SECRET', contentSecret)
-    registry.recordResolved('METRIC_SECRET', metricSecret)
+    registry.recordResolvedAtInputPath('CONTENT_SECRET', contentSecret, ['content'])
+    registry.recordResolvedInputProjection(['content'], contentSecret, '{{CONTENT_SECRET}}')
+    registry.recordResolvedAtInputPath('METRIC_SECRET', metricSecret, [
+      'metrics',
+      '0',
+      'description',
+    ])
+    registry.recordResolvedInputProjection(
+      ['metrics', '0', 'description'],
+      metricSecret,
+      '{{METRIC_SECRET}}'
+    )
     registry.recordResolved('API_KEY', credentialSecret)
     mockContext.resolvedSecretTraceRegistry = registry
 
@@ -246,6 +260,9 @@ describe('EvaluatorBlockHandler', () => {
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
       RESOLVED_SECRET_PROVENANCE_METADATA_V1
     )
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBe(
+      PROJECTED_MODEL_INPUT_PATHS_V1
+    )
     expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
       version: 1,
       complete: true,
@@ -263,6 +280,96 @@ describe('EvaluatorBlockHandler', () => {
     expect(requestBody.apiKey).toBe(credentialSecret)
   })
 
+  it('projects every model-bound metric leaf and maps the score back to the raw metric name', async () => {
+    const rawMetric = {
+      name: 'private-metric-key',
+      description: 'private metric instructions',
+      range: { min: 'private minimum', max: 'private maximum' },
+    }
+    const projectedMetric = {
+      name: '{{METRIC_NAME_SECRET}}',
+      description: '{{METRIC_DESCRIPTION_SECRET}}',
+      range: { min: '{{METRIC_MIN_SECRET}}', max: '{{METRIC_MAX_SECRET}}' },
+    }
+    const secrets = [
+      {
+        name: 'METRIC_NAME_SECRET',
+        plaintext: rawMetric.name,
+        encryptedValue: 'encrypted-metric-name',
+        path: ['metrics', '0', 'name'],
+        projected: projectedMetric.name,
+      },
+      {
+        name: 'METRIC_DESCRIPTION_SECRET',
+        plaintext: rawMetric.description,
+        encryptedValue: 'encrypted-metric-description',
+        path: ['metrics', '0', 'description'],
+        projected: projectedMetric.description,
+      },
+      {
+        name: 'METRIC_MIN_SECRET',
+        plaintext: rawMetric.range.min,
+        encryptedValue: 'encrypted-metric-min',
+        path: ['metrics', '0', 'range', 'min'],
+        projected: projectedMetric.range.min,
+      },
+      {
+        name: 'METRIC_MAX_SECRET',
+        plaintext: rawMetric.range.max,
+        encryptedValue: 'encrypted-metric-max',
+        path: ['metrics', '0', 'range', 'max'],
+        projected: projectedMetric.range.max,
+      },
+    ] as const
+    const registry = new ResolvedSecretTraceRegistry([
+      ...secrets.map(({ name, plaintext, encryptedValue }) => ({
+        name,
+        plaintext,
+        encryptedValue,
+      })),
+      { name: 'UNUSED_SECRET', plaintext: 'x', encryptedValue: 'encrypted-unused' },
+    ])
+    for (const secret of secrets) {
+      registry.recordResolvedAtInputPath(secret.name, secret.plaintext, secret.path)
+      registry.recordResolvedInputProjection(secret.path, secret.plaintext, secret.projected)
+    }
+    mockContext.resolvedSecretTraceRegistry = registry
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          content: JSON.stringify({ [projectedMetric.name.toLowerCase()]: 7 }),
+          model: 'mock-model',
+          tokens: {},
+          cost: 0,
+        }),
+    })
+
+    const result = await handler.execute(mockContext, mockBlock, {
+      content: 'Public x remains public.',
+      metrics: [rawMetric],
+      model: 'gpt-4o',
+      apiKey: 'test-api-key',
+    })
+
+    const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    const serializedRequest = JSON.stringify(requestBody)
+    for (const secret of secrets) {
+      expect(serializedRequest).not.toContain(secret.plaintext)
+      expect(requestBody.systemPrompt).toContain(secret.projected)
+    }
+    expect(requestBody.systemPrompt).toContain('Public x remains public.')
+    expect(requestBody.responseFormat.schema.properties).toEqual({
+      [projectedMetric.name.toLowerCase()]: { type: 'number' },
+    })
+    expect(
+      requestBody[RESOLVED_SECRET_PROVENANCE_FIELD].entries
+        .map((entry: { name: string }) => entry.name)
+        .sort()
+    ).toEqual(secrets.map((secret) => secret.name).sort())
+    expect(result).toMatchObject({ [rawMetric.name.toLowerCase()]: 7 })
+  })
+
   it('keeps the evaluator request shape when no provenance registry exists', async () => {
     await handler.execute(mockContext, mockBlock, {
       content: 'Public evaluator content',
@@ -275,6 +382,7 @@ describe('EvaluatorBlockHandler', () => {
     const requestBody = JSON.parse(request.body)
     expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBeNull()
   })
 
   it('resolves sim-auto before executing evaluator and preserves its public identity', async () => {

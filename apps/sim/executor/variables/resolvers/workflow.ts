@@ -129,7 +129,13 @@ export class WorkflowResolver implements Resolver {
       context.executionContext.workflowVariableResolvedSecretTraceProvenance?.[variableId]
     if (!registry || !provenance) return value
 
-    await registry.importProvenanceForValue(provenance, value, { trusted: true })
+    const imported = await registry.importProvenanceForValueAtInputPath(
+      provenance,
+      value,
+      context.inputPath,
+      { trusted: true, origin: 'workflowResolver.inputCrossing' }
+    )
+    if (imported.matched) context.onResolvedSecretReference?.()
     return value
   }
 

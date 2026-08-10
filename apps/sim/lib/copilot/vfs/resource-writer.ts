@@ -10,6 +10,7 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { admitCreateWorkspaceFile } from '@/lib/workspace-files/application/create-workspace-file'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
 import {
@@ -90,6 +91,23 @@ function vfsPathForRecord(record: WorkspaceFileRecord): string {
   return canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
 }
 
+async function assertWorkspaceFileWriteAccess(args: {
+  workspaceId: string
+  principal: Principal
+  target: WorkspaceFileWriteTarget
+}): Promise<void> {
+  if (args.target.mode === 'create') {
+    await admitCreateWorkspaceFile(args.principal, args.workspaceId)
+    return
+  }
+  await resolveWorkspaceFileReference({
+    principal: args.principal,
+    operation: fileOperations.updateContent,
+    workspaceId: args.workspaceId,
+    reference: args.target.path,
+  })
+}
+
 export async function validateWorkspaceFileWriteTarget(args: {
   workspaceId: string
   principal: Principal
@@ -109,6 +127,7 @@ export async function validateWorkspaceFileWriteTarget(args: {
     }
   }
 
+  await admitCreateWorkspaceFile(args.principal, args.workspaceId)
   const createTarget = await resolveCreateTarget(args.workspaceId, args.target.path)
   return {
     mode: 'create',
@@ -133,6 +152,8 @@ export async function writeWorkspaceFileByPath(args: {
   /** Private provenance for the exact bytes being written. */
   secretProvenance?: WorkspaceFileSecretProvenance
 }): Promise<WorkspaceFileWriteResult> {
+  await assertWorkspaceFileWriteAccess(args)
+
   const contentType = args.target.mimeType || args.inferredMimeType
   if (args.target.mode === 'overwrite') {
     const updated = await updateWorkspaceFileContentBufferByPath.execute({

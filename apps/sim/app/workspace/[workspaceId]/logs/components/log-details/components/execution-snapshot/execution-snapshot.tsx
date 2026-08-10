@@ -138,7 +138,7 @@ export function ExecutionSnapshot({
         >
           <div className='flex items-center gap-3 text-[var(--text-warning)]'>
             <CircleAlert className='size-[20px]' />
-            <span className='font-medium text-base'>Logged State Not Found</span>
+            <span className='text-base'>Logged State Not Found</span>
           </div>
           <div className='max-w-md text-center text-[var(--text-secondary)] text-small'>
             This log was migrated from the old logging system. The workflow state at the time of

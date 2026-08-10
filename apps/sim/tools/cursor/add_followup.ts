@@ -1,6 +1,6 @@
 import {
+  applyProjectedCursorPromptModelInput,
   selectCursorPromptModelInput,
-  selectCursorPromptOpaqueModelInput,
 } from '@/tools/cursor/model-input'
 import type { AddFollowupParams, AddFollowupResponse } from '@/tools/cursor/types'
 import type { ToolConfig } from '@/tools/types'
@@ -37,10 +37,12 @@ const addFollowupBase = {
       mode: 'project',
       select: (params: AddFollowupParams) =>
         selectCursorPromptModelInput(params, 'followupPromptText'),
-    },
-    opaqueModelInput: {
-      mode: 'reject-resolved-secrets',
-      select: selectCursorPromptOpaqueModelInput,
+      applyProjected: (selectedParams, projectedSelection) =>
+        applyProjectedCursorPromptModelInput(
+          selectedParams,
+          projectedSelection,
+          'followupPromptText'
+        ),
     },
     url: (params: AddFollowupParams) =>
       `https://api.cursor.com/v0/agents/${params.agentId.trim()}/followup`,

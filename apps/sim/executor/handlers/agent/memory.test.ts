@@ -266,20 +266,34 @@ describe('Memory', () => {
       expect(mockRedactObjectStrings).toHaveBeenCalledOnce()
     })
 
-    it('does not write memory when projection fails closed', async () => {
+    it('persists raw memory with unknown lineage when provenance is unavailable', async () => {
       const registry = new ResolvedSecretTraceRegistry()
       registry.markIncomplete()
       const appendMessage = vi
         .spyOn(memoryService as any, 'appendMessage')
         .mockResolvedValue(undefined)
 
-      await expect(
-        memoryService.appendToMemory(createContext(registry) as never, inputs, {
-          role: 'user',
-          content: 'possibly secret',
-        })
-      ).rejects.toThrow('Memory content could not be safely projected')
-      expect(appendMessage).not.toHaveBeenCalled()
+      const message = { role: 'user' as const, content: 'possibly secret' }
+      await memoryService.appendToMemory(createContext(registry) as never, inputs, message)
+
+      expect(appendMessage).toHaveBeenCalledWith('workspace-1', 'conversation-1', message, {
+        status: 'unknown',
+      })
+    })
+
+    it('seeds raw memory with unknown lineage when provenance is unavailable', async () => {
+      const registry = new ResolvedSecretTraceRegistry()
+      registry.markIncomplete()
+      const seedMemoryRecord = vi
+        .spyOn(memoryService as any, 'seedMemoryRecord')
+        .mockResolvedValue(undefined)
+      const message = { role: 'assistant' as const, content: 'possibly secret' }
+
+      await memoryService.seedMemory(createContext(registry) as never, inputs, [message])
+
+      expect(seedMemoryRecord).toHaveBeenCalledWith('workspace-1', 'conversation-1', [message], {
+        status: 'unknown',
+      })
     })
 
     it('preserves legacy stored messages when no current resolution activated the value', async () => {
@@ -323,8 +337,8 @@ describe('Memory', () => {
       expect(result.content).toBe('foreign-secret')
     })
 
-    it.each(['123', 'true'])(
-      'projects low-entropy secret %s only in model text and arguments',
+    it.each(['123'])(
+      'projects short secret %s only in model text and arguments',
       async (secret) => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
@@ -351,7 +365,7 @@ describe('Memory', () => {
         }
 
         const projected = (memoryService as any).projectMessageForModel(
-          createContext(registry),
+          registry,
           message
         ) as Message
 
@@ -387,9 +401,16 @@ describe('Memory', () => {
           messages: [message],
           provenance: {
             status: 'exact',
-            entries: [{ name: 'TOKEN', encryptedValue: 'ciphertext' }],
+            entries: [
+              {
+                name: 'TOKEN',
+                encryptedValue: 'ciphertext',
+                sourceValueHash: hashDurableSecretProvenanceValue(message),
+              },
+            ],
           },
         })
+        mockDecryptSecret.mockResolvedValue({ decrypted: secret })
         const [fetched] = await memoryService.fetchMemoryMessages(
           createContext(registry) as never,
           inputs
@@ -402,7 +423,7 @@ describe('Memory', () => {
     )
 
     it.each(['name', 'functionName', 'toolCallId', 'toolName'] as const)(
-      'rejects an active resolved secret in the %s control field',
+      'does not plaintext-scan the %s control field',
       (field) => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: 'control-secret', encryptedValue: 'ciphertext' },
@@ -428,11 +449,27 @@ describe('Memory', () => {
           ],
         } as Message
 
-        expect(() =>
-          (memoryService as any).projectMessageForModel(createContext(registry), message)
-        ).toThrow('Memory content could not be safely projected')
+        expect((memoryService as any).projectMessageForModel(registry, message)).toEqual(message)
       }
     )
+
+    it('does not project unrelated active secrets into legacy memory', async () => {
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'TOKEN', plaintext: 'x', encryptedValue: 'ciphertext' },
+      ])
+      registry.recordResolved('TOKEN', 'x')
+      vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
+        messages: [{ role: 'assistant', content: 'Box' }],
+        provenance: { status: 'exact', entries: [] },
+      })
+
+      const messages = await memoryService.fetchMemoryMessages(
+        createContext(registry) as never,
+        inputs
+      )
+
+      expect(messages).toEqual([{ role: 'assistant', content: 'Box' }])
+    })
 
     it('does not activate provenance from a message dropped by the selected window', async () => {
       const oldSecretMessage: Message = { role: 'user', content: 'same-value' }

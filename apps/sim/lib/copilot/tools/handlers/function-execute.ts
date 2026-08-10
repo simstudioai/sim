@@ -106,19 +106,24 @@ async function importMountedWorkspaceFileProvenance(args: {
   mountPath: string
   registry?: ResolvedSecretTraceRegistry
 }): Promise<void> {
-  const imported = await importWorkspaceFileSecretProvenanceForRuntime({
-    workspaceId: args.workspaceId,
-    identity: {
-      fileId: args.record.id,
-      key: args.record.key,
-      context: args.record.storageContext ?? 'workspace',
-    },
-    registry: args.registry,
-  })
-  if (!imported) {
+  if (!args.registry) {
     throw new Error(
       `Input file "${args.mountPath}" cannot be mounted because its secret provenance is unavailable.`
     )
+  }
+  try {
+    const imported = await importWorkspaceFileSecretProvenanceForRuntime({
+      workspaceId: args.workspaceId,
+      identity: {
+        fileId: args.record.id,
+        key: args.record.key,
+        context: args.record.storageContext ?? 'workspace',
+      },
+      registry: args.registry,
+    })
+    if (!imported) args.registry.markIncomplete()
+  } catch {
+    args.registry.markIncomplete()
   }
 }
 
@@ -488,15 +493,20 @@ export async function resolveInputFiles(
       // Large/hot tables mount by reference from a version-keyed CSV snapshot in object storage.
       if (snapshotCacheEnabled && table.rowCount >= SNAPSHOT_MIN_ROWS) {
         const snapshot = await getOrCreateTableSnapshot(table, 'copilot-fn-exec')
-        const safeForModelMount = await isTableSnapshotSafeForModelMount({
-          tableId: table.id,
-          workspaceId,
-          rowsVersion: snapshot.version,
-        })
-        if (!safeForModelMount) {
+        if (!resolvedSecretTraceRegistry) {
           throw new Error(
-            `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+            `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
           )
+        }
+        try {
+          const safeForModelMount = await isTableSnapshotSafeForModelMount({
+            tableId: table.id,
+            workspaceId,
+            rowsVersion: snapshot.version,
+          })
+          if (!safeForModelMount) resolvedSecretTraceRegistry.markIncomplete()
+        } catch {
+          resolvedSecretTraceRegistry.markIncomplete()
         }
 
         if (hasCloudStorage()) {
@@ -546,14 +556,31 @@ export async function resolveInputFiles(
         { limit: TABLE_LIMITS.DEFAULT_QUERY_LIMIT },
         'copilot-fn-exec'
       )
-      const provenance = await loadTableRowSecretProvenance(rows.rows, {
-        userId: provenanceUserId ?? 'opaque-model-mount',
-        workspaceId,
-      })
-      if (!provenance.complete || provenance.entries.length > 0) {
+      if (!resolvedSecretTraceRegistry) {
         throw new Error(
-          `Input table "${tableId}" cannot be mounted because its secret provenance is not safe for an opaque sandbox file.`
+          `Input table "${tableId}" cannot be mounted because its secret provenance is unavailable.`
         )
+      }
+      try {
+        const provenance = await loadTableRowSecretProvenance(rows.rows, {
+          userId: provenanceUserId ?? 'opaque-model-mount',
+          workspaceId,
+        })
+        if (
+          !provenance.complete ||
+          !(await resolvedSecretTraceRegistry.importProvenance(provenance, {
+            trusted: true,
+            origin: 'copilotFunctionExecute.result',
+          }))
+        ) {
+          resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
+            origin: 'copilotFunctionExecute.result',
+          })
+        }
+      } catch {
+        resolvedSecretTraceRegistry.markIncomplete('unspecified', {
+          origin: 'copilotFunctionExecute.result',
+        })
       }
 
       const columns = table.schema.columns
@@ -581,11 +608,13 @@ async function importMountedProvenance(
   try {
     const provenance = source.exportProvenanceForValue(crossingValue)
     const imported = await target.importCrossingProvenance(provenance, crossingValue, {
+      origin: 'copilotFunctionExecute.crossing',
       trusted: true,
     })
-    if (!imported) target.markIncomplete()
+    if (!imported)
+      target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
   } catch {
-    target.markIncomplete()
+    target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
   }
 }
 
@@ -682,9 +711,7 @@ export async function executeFunctionExecute(
         if (resolved.length > 0) {
           const existing = (enrichedParams._sandboxFiles as SandboxFile[]) || []
           enrichedParams._sandboxFiles = [...existing, ...resolved]
-        }
 
-        if (inputFiles.length > 0 || inputDirectories.length > 0) {
           const provenance = mountedRegistry.exportProvenance()
           const bundle: PrivateSecretProvenanceBundleV1 = {
             version: 1,

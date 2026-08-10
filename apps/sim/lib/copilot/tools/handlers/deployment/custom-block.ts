@@ -71,7 +71,6 @@ async function resolveIconUrl(
   if (record.size > MAX_ICON_BYTES) {
     throw new CustomBlockValidationError('Icon file must be 5MB or smaller')
   }
-
   const { content: buffer } = await executeCopilotFileUseCase(
     context,
     readWorkspaceFileContent,

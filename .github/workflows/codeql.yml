@@ -41,13 +41,12 @@ on:
     # Safety net behind the push trigger, and the thing that keeps the
     # default-branch alert view fresh when main is quiet. Only fires once this
     # file is on the default branch — schedule events ignore other branches.
-    - cron: '17 8 * * *'
+    - cron: '17 8 * * 1'
   workflow_dispatch:
 
-# Scheduled main scans must run to completion — only PR pushes supersede.
 concurrency:
   group: codeql-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 permissions:
   contents: read

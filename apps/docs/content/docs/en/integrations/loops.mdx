@@ -42,7 +42,7 @@ Integrate Loops into the workflow. Create and manage contacts, send transactiona
 
 ## Actions
 
-### `loops_create_contact`
+### Loops Create Contact
 
 Create a new contact in your Loops audience with an email address and optional properties like name, user group, and mailing list subscriptions.
 
@@ -68,7 +68,7 @@ Create a new contact in your Loops audience with an email address and optional p
 | `success` | boolean | Whether the contact was created successfully |
 | `id` | string | The Loops-assigned ID of the created contact |
 
-### `loops_update_contact`
+### Loops Update Contact
 
 Update an existing contact in Loops by email or userId. Creates a new contact if no match is found (upsert). Can update name, subscription status, user group, mailing lists, and custom properties.
 
@@ -94,7 +94,7 @@ Update an existing contact in Loops by email or userId. Creates a new contact if
 | `success` | boolean | Whether the contact was updated successfully |
 | `id` | string | The Loops-assigned ID of the updated or created contact |
 
-### `loops_find_contact`
+### Loops Find Contact
 
 Find a contact in Loops by email address or userId. Returns an array of matching contacts with all their properties including name, subscription status, user group, and mailing lists.
 
@@ -122,7 +122,7 @@ Find a contact in Loops by email address or userId. Returns an array of matching
 |   ↳ `mailingLists` | object | Mailing list IDs mapped to subscription status |
 |   ↳ `optInStatus` | string | Double opt-in status: pending, accepted, rejected, or null |
 
-### `loops_delete_contact`
+### Loops Delete Contact
 
 Delete a contact from Loops by email address or userId. At least one identifier must be provided.
 
@@ -141,7 +141,7 @@ Delete a contact from Loops by email address or userId. At least one identifier 
 | `success` | boolean | Whether the contact was deleted successfully |
 | `message` | string | Status message from the API |
 
-### `loops_send_transactional_email`
+### Loops Send Transactional Email
 
 Send a transactional email to a recipient using a Loops template. Supports dynamic data variables for personalization and optionally adds the recipient to your audience.
 
@@ -162,7 +162,7 @@ Send a transactional email to a recipient using a Loops template. Supports dynam
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the transactional email was sent successfully |
 
-### `loops_send_event`
+### Loops Send Event
 
 Send an event to Loops to trigger automated email sequences for a contact. Identify the contact by email or userId and include optional event properties and mailing list changes.
 
@@ -183,7 +183,7 @@ Send an event to Loops to trigger automated email sequences for a contact. Ident
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the event was sent successfully |
 
-### `loops_list_mailing_lists`
+### Loops List Mailing Lists
 
 Retrieve all mailing lists from your Loops account. Returns each list with its ID, name, description, and public/private status.
 
@@ -203,7 +203,7 @@ Retrieve all mailing lists from your Loops account. Returns each list with its I
 |   ↳ `description` | string | The mailing list description \(null if not set\) |
 |   ↳ `isPublic` | boolean | Whether the list is public or private |
 
-### `loops_list_transactional_emails`
+### Loops List Transactional Emails
 
 Retrieve a list of published transactional email templates from your Loops account. Returns each template with its ID, name, created/updated timestamps, and data variables.
 
@@ -234,7 +234,7 @@ Retrieve a list of published transactional email templates from your Loops accou
 |   ↳ `nextCursor` | string | Cursor for next page \(null if no more pages\) |
 |   ↳ `nextPage` | string | URL for next page \(null if no more pages\) |
 
-### `loops_create_contact_property`
+### Loops Create Contact Property
 
 Create a new custom contact property in your Loops account. The property name must be in camelCase format.
 
@@ -252,7 +252,7 @@ Create a new custom contact property in your Loops account. The property name mu
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the contact property was created successfully |
 
-### `loops_list_contact_properties`
+### Loops List Contact Properties
 
 Retrieve a list of contact properties from your Loops account. Returns each property with its key, label, and data type. Can filter to show all properties or only custom ones.
 
@@ -272,7 +272,7 @@ Retrieve a list of contact properties from your Loops account. Returns each prop
 |   ↳ `label` | string | The property display label |
 |   ↳ `type` | string | The property data type \(string, number, boolean, date\) |
 
-### `loops_check_contact_suppression`
+### Loops Check Contact Suppression
 
 Check whether a Loops contact is on the suppression list (bounced, complained, or unsubscribed) by email address or userId.
 
@@ -295,7 +295,7 @@ Check whether a Loops contact is on the suppression list (bounced, complained, o
 | `removalQuotaLimit` | number | Total suppression-removal quota for the team |
 | `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
 
-### `loops_remove_contact_suppression`
+### Loops Remove Contact Suppression
 
 Remove a Loops contact from the suppression list by email address or userId, allowing them to receive emails again. Subject to a team removal quota.
 
@@ -316,7 +316,7 @@ Remove a Loops contact from the suppression list by email address or userId, all
 | `removalQuotaLimit` | number | Total suppression-removal quota for the team |
 | `removalQuotaRemaining` | number | Remaining suppression-removal quota for the team |
 
-### `loops_get_transactional_email`
+### Loops Get Transactional Email
 
 Retrieve a single transactional email template from your Loops account by its ID, including its data variables and draft/published message IDs.
 

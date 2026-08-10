@@ -15,22 +15,9 @@ export interface ContextMenuPosition {
 }
 
 /**
- * Sort field options for terminal entries
- */
-export type SortField = 'timestamp'
-
-/**
  * Sort direction options
  */
 export type SortDirection = 'asc' | 'desc'
-
-/**
- * Sort configuration for terminal entries
- */
-export interface SortConfig {
-  field: SortField
-  direction: SortDirection
-}
 
 /**
  * Status type for console entries

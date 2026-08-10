@@ -34,7 +34,7 @@ Invoke a Claude Platform Managed Agent from a workflow. Select a Claude Platform
 
 ## Actions
 
-### `managed_agent_run_session`
+### Managed Agent Run Session
 
 Open a Claude Platform Managed Agent session and return the assistant response as text.
 
@@ -54,6 +54,7 @@ Open a Claude Platform Managed Agent session and return the assistant response a
 | `memoryInstructions` | string | No | Per-attachment guidance for how the agent should use the memory store. |
 | `files` | array | No | File attachments \(cloud envs only\), as \[\{fileId, mountPath?\}\]. |
 | `sessionParameters` | object | No | Key/value session metadata forwarded to the session. |
+| `modelInput` | string | No | No description |
 
 #### Output
 
@@ -64,7 +65,7 @@ Open a Claude Platform Managed Agent session and return the assistant response a
 | `inputTokens` | number | Cumulative input tokens for the session. |
 | `outputTokens` | number | Cumulative output tokens for the session. |
 
-### `managed_agent_create_session`
+### Managed Agent Create Session
 
 Create a Claude Platform Managed Agent session and return its id without waiting for a reply.
 
@@ -91,7 +92,7 @@ Create a Claude Platform Managed Agent session and return its id without waiting
 | `sessionId` | string | Anthropic session id \(sesn_...\). |
 | `started` | boolean | True when a first message was seeded, so the agent is already running. |
 
-### `managed_agent_send_message`
+### Managed Agent Send Message
 
 Send a user message to an existing Claude Platform Managed Agent session.
 
@@ -108,7 +109,7 @@ Send a user message to an existing Claude Platform Managed Agent session.
 | `sessionId` | string | The session the message was sent to. |
 | `sent` | boolean | True when the event was accepted by the API. |
 
-### `managed_agent_get_session`
+### Managed Agent Get Session
 
 Read a Managed Agent session: status, stop reason, token usage, metadata, and any tool calls awaiting approval.
 
@@ -131,7 +132,7 @@ Read a Managed Agent session: status, stop reason, token usage, metadata, and an
 | `inputTokens` | number | Cumulative input tokens. |
 | `outputTokens` | number | Cumulative output tokens. |
 
-### `managed_agent_list_events`
+### Managed Agent List Events
 
 Read a Managed Agent session's event history and the agent's reply text.
 
@@ -152,7 +153,7 @@ Read a Managed Agent session's event history and the agent's reply text.
 | `assistantText` | string | Concatenated text of every persisted agent.message, in order. |
 | `truncated` | boolean | True when the limit was hit and older events were dropped. |
 
-### `managed_agent_update_session`
+### Managed Agent Update Session
 
 Update a Managed Agent session's title or metadata.
 
@@ -173,7 +174,7 @@ Update a Managed Agent session's title or metadata.
 | `metadata` | json | Metadata after the update. |
 | `title` | string | Title after the update. |
 
-### `managed_agent_interrupt_session`
+### Managed Agent Interrupt Session
 
 Stop a running Managed Agent session; it stays usable afterwards.
 
@@ -189,7 +190,7 @@ Stop a running Managed Agent session; it stays usable afterwards.
 | `sessionId` | string | The session that was interrupted. |
 | `interrupted` | boolean | True when the interrupt was accepted. |
 
-### `managed_agent_respond_tool_confirmation`
+### Managed Agent Respond To Tool Confirmation
 
 Allow or deny the tool calls a Managed Agent session is waiting on before it can continue.
 
@@ -209,7 +210,7 @@ Allow or deny the tool calls a Managed Agent session is waiting on before it can
 | `decision` | string | The decision applied — 'allow' or 'deny'. |
 | `confirmedToolUseIds` | json | The tool-use event ids that were answered. |
 
-### `managed_agent_respond_custom_tool`
+### Managed Agent Respond To Custom Tool
 
 Return the result of a custom tool a Managed Agent session is waiting on so it can continue.
 
@@ -228,7 +229,7 @@ Return the result of a custom tool a Managed Agent session is waiting on so it c
 | `sessionId` | string | The session that was answered. |
 | `answeredToolUseId` | string | The custom tool-use event id that was answered. |
 
-### `managed_agent_archive_session`
+### Managed Agent Archive Session
 
 Archive a Managed Agent session, preserving its history. Not reversible.
 
@@ -244,7 +245,7 @@ Archive a Managed Agent session, preserving its history. Not reversible.
 | `sessionId` | string | The session that was archived. |
 | `archived` | boolean | True when the archive was accepted. |
 
-### `managed_agent_delete_session`
+### Managed Agent Delete Session
 
 Permanently delete a Managed Agent session, its events, and its sandbox. Not reversible.
 

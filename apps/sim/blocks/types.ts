@@ -181,6 +181,7 @@ export type GenerationType =
   | 'typescript-function-body'
   | 'json-schema'
   | 'json-object'
+  | 'json-array'
   | 'table-schema'
   | 'system-prompt'
   | 'custom-tool-schema'

@@ -459,6 +459,7 @@ export class WorkflowBlockHandler implements BlockHandler {
           await childResolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
+            origin: 'workflowHandler.childCrossing',
           })
         }
         // Custom-block children authenticate internal tool calls as the source
@@ -714,12 +715,13 @@ export class WorkflowBlockHandler implements BlockHandler {
         const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
         if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
           const crossingProvenance =
-            childResolvedSecretTraceRegistry.exportCatalogProvenanceForValue(exposedOutput, {
+            childResolvedSecretTraceRegistry.exportCommittedProvenanceForValue(exposedOutput, {
               anonymous: true,
             })
           await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {
             trusted: true,
             anonymous: true,
+            origin: 'workflowHandler.parentCrossing',
           })
         }
         return exposedOutput

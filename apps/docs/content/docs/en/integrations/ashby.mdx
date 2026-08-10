@@ -36,7 +36,7 @@ Integrate Ashby into the workflow. Manage candidates (list, get, create, update,
 
 ## Actions
 
-### `ashby_add_candidate_tag`
+### Ashby Add Candidate Tag
 
 Adds a tag to a candidate in Ashby and returns the updated candidate.
 
@@ -84,7 +84,7 @@ Adds a tag to a candidate in Ashby and returns the updated candidate.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_change_application_stage`
+### Ashby Change Application Stage
 
 Moves an application to a different interview stage. Requires an archive reason when moving to an Archived stage.
 
@@ -133,7 +133,7 @@ Moves an application to a different interview stage. Requires an archive reason 
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_create_application`
+### Ashby Create Application
 
 Creates a new application for a candidate on a job. Optionally specify interview plan, stage, source, and credited user.
 
@@ -186,7 +186,7 @@ Creates a new application for a candidate on a job. Optionally specify interview
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_create_candidate`
+### Ashby Create Candidate
 
 Creates a new candidate record in Ashby.
 
@@ -242,7 +242,7 @@ Creates a new candidate record in Ashby.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_create_note`
+### Ashby Create Note
 
 Creates a note on a candidate in Ashby. Supports plain text and HTML content (bold, italic, underline, links, lists, code).
 
@@ -272,7 +272,7 @@ Creates a note on a candidate in Ashby. Supports plain text and HTML content (bo
 |   ↳ `lastName` | string | Author last name |
 |   ↳ `email` | string | Author email |
 
-### `ashby_get_application`
+### Ashby Get Application
 
 Retrieves full details about a single application by its ID.
 
@@ -319,7 +319,7 @@ Retrieves full details about a single application by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_get_candidate`
+### Ashby Get Candidate
 
 Retrieves full details about a single candidate by their ID.
 
@@ -366,7 +366,7 @@ Retrieves full details about a single candidate by their ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_get_job`
+### Ashby Get Job
 
 Retrieves full details about a single job by its ID.
 
@@ -413,7 +413,7 @@ Retrieves full details about a single job by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_get_job_posting`
+### Ashby Get Job Posting
 
 Retrieves full details about a single job posting by its ID.
 
@@ -484,7 +484,7 @@ Retrieves full details about a single job posting by its ID.
 | `updatedAt` | string | ISO 8601 last update timestamp |
 | `job` | object | The expanded job object, only present when the request was made with expandJob=true |
 
-### `ashby_get_offer`
+### Ashby Get Offer
 
 Retrieves full details about a single offer by its ID.
 
@@ -531,7 +531,7 @@ Retrieves full details about a single offer by its ID.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_list_applications`
+### Ashby List Applications
 
 Lists all applications in an Ashby organization with pagination and optional filters for status, job, and creation date.
 
@@ -554,7 +554,7 @@ Lists all applications in an Ashby organization with pagination and optional fil
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_archive_reasons`
+### Ashby List Archive Reasons
 
 Lists all archive reasons configured in Ashby.
 
@@ -575,7 +575,7 @@ Lists all archive reasons configured in Ashby.
 |   ↳ `reasonType` | string | Reason type \(RejectedByCandidate, RejectedByOrg, Other\) |
 |   ↳ `isArchived` | boolean | Whether the reason is archived |
 
-### `ashby_list_candidate_tags`
+### Ashby List Candidate Tags
 
 Lists all candidate tags configured in Ashby.
 
@@ -601,7 +601,7 @@ Lists all candidate tags configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `syncToken` | string | Sync token to use for incremental updates in future requests |
 
-### `ashby_list_candidates`
+### Ashby List Candidates
 
 Lists all candidates in an Ashby organization with cursor-based pagination.
 
@@ -622,7 +622,7 @@ Lists all candidates in an Ashby organization with cursor-based pagination.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_custom_fields`
+### Ashby List Custom Fields
 
 Lists all custom field definitions configured in Ashby.
 
@@ -656,7 +656,7 @@ Lists all custom field definitions configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
-### `ashby_list_departments`
+### Ashby List Departments
 
 Lists all departments in Ashby.
 
@@ -687,7 +687,7 @@ Lists all departments in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
-### `ashby_list_interviews`
+### Ashby List Interview Schedules
 
 Lists interview schedules in Ashby, optionally filtered by application or interview stage.
 
@@ -729,7 +729,7 @@ Lists interview schedules in Ashby, optionally filtered by application or interv
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_job_postings`
+### Ashby List Job Postings
 
 Lists all job postings in Ashby.
 
@@ -768,7 +768,7 @@ Lists all job postings in Ashby.
 |   ↳ `shouldDisplayCompensationOnJobBoard` | boolean | Whether compensation is shown on the job board |
 |   ↳ `updatedAt` | string | ISO 8601 last update timestamp |
 
-### `ashby_list_jobs`
+### Ashby List Jobs
 
 Lists all jobs in an Ashby organization. By default returns Open, Closed, and Archived jobs. Specify status to filter.
 
@@ -794,7 +794,7 @@ Lists all jobs in an Ashby organization. By default returns Open, Closed, and Ar
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_locations`
+### Ashby List Locations
 
 Lists all locations configured in Ashby.
 
@@ -833,7 +833,7 @@ Lists all locations configured in Ashby.
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 | `syncToken` | string | Opaque sync token returned after the last page; pass on next sync |
 
-### `ashby_list_notes`
+### Ashby List Notes
 
 Lists all notes on a candidate with pagination support.
 
@@ -863,7 +863,7 @@ Lists all notes on a candidate with pagination support.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_offers`
+### Ashby List Offers
 
 Lists all offers with their latest version in an Ashby organization.
 
@@ -886,7 +886,7 @@ Lists all offers with their latest version in an Ashby organization.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_openings`
+### Ashby List Openings
 
 Lists all openings in Ashby with pagination.
 
@@ -906,7 +906,7 @@ Lists all openings in Ashby with pagination.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_list_sources`
+### Ashby List Sources
 
 Lists all candidate sources configured in Ashby.
 
@@ -930,7 +930,7 @@ Lists all candidate sources configured in Ashby.
 |     ↳ `title` | string | Source type title |
 |     ↳ `isArchived` | boolean | Whether archived |
 
-### `ashby_list_users`
+### Ashby List Users
 
 Lists all users in Ashby with pagination.
 
@@ -951,7 +951,7 @@ Lists all users in Ashby with pagination.
 | `moreDataAvailable` | boolean | Whether more pages of results exist |
 | `nextCursor` | string | Opaque cursor for fetching the next page |
 
-### `ashby_remove_candidate_tag`
+### Ashby Remove Candidate Tag
 
 Removes a tag from a candidate in Ashby and returns the updated candidate.
 
@@ -999,7 +999,7 @@ Removes a tag from a candidate in Ashby and returns the updated candidate.
 | `nextCursor` | string | Pagination cursor for next page |
 | `syncToken` | string | Sync token for incremental updates |
 
-### `ashby_search_candidates`
+### Ashby Search Candidates
 
 Searches for candidates by name and/or email with AND logic. Results are limited to 100 matches. Use candidate.list for full pagination.
 
@@ -1017,7 +1017,7 @@ Searches for candidates by name and/or email with AND logic. Results are limited
 | --------- | ---- | ----------- |
 | `candidates` | array | Matching candidates \(max 100 results\) |
 
-### `ashby_update_candidate`
+### Ashby Update Candidate
 
 Updates an existing candidate record in Ashby. Only provided fields are changed.
 

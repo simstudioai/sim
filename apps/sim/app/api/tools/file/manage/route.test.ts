@@ -412,6 +412,39 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
   })
 
+  it('persists an authenticated file write with unavailable lineage as unknown', async () => {
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        {
+          operation: 'write',
+          workspaceId: 'workspace-1',
+          fileName: 'new.txt',
+          content: 'possibly secret',
+          __privateSecretProvenance: {
+            version: 1,
+            complete: false,
+            selections: [],
+          },
+        },
+        PRIVATE_SECRET_PROVENANCE_HEADER
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('possibly secret'),
+      'new.txt',
+      'text/plain',
+      {
+        folderId: null,
+        secretProvenance: { status: 'unknown' },
+      }
+    )
+  })
+
   it('atomically binds append provenance to the exact predecessor version', async () => {
     const existing = workspaceFile('file-1')
     mockResolveWorkspaceFileReference.mockResolvedValue(existing)
@@ -553,7 +586,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
   })
 
-  it('rejects a secret-bearing archive before downloading or extracting it', async () => {
+  it('extracts a secret-bearing archive with unknown output provenance', async () => {
     const zip = new JSZip()
     zip.file('child.txt', 'secret-value')
     mockDownloadFileFromStorage.mockResolvedValue(
@@ -577,9 +610,19 @@ describe('POST /api/tools/file/manage content provenance', () => {
       })
     )
 
-    expect(response.status).toBe(422)
-    expect(mockDownloadFileFromStorage).not.toHaveBeenCalled()
-    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(response.status).toBe(200)
+    expect(mockDownloadFileFromStorage).toHaveBeenCalledTimes(1)
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
+      'workspace-1',
+      'user-1',
+      Buffer.from('secret-value'),
+      'child.txt',
+      'text/plain',
+      {
+        folderId: null,
+        secretProvenance: { status: 'unknown' },
+      }
+    )
   })
 
   it('omits source scope when canonical files have different owners', async () => {

@@ -7,6 +7,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { BLOB_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   AzureMultipartPart,
   AzureMultipartUploadInit,
@@ -499,9 +500,7 @@ export async function headBlobObject(
       ...(properties.metadata ? { metadata: properties.metadata } : {}),
     }
   } catch (err) {
-    const status = (err as { statusCode?: number }).statusCode
-    const code = (err as { code?: string }).code
-    if (status === 404 || code === 'BlobNotFound') {
+    if (isObjectNotFoundError(err)) {
       return null
     }
     throw err
@@ -920,9 +919,7 @@ export async function abortMultipartUpload(
       await blockBlobClient.deleteIfExists()
     }
   } catch (error) {
-    const status = (error as { statusCode?: number }).statusCode
-    const code = (error as { code?: string }).code
-    if (status !== 404 && code !== 'BlobNotFound') {
+    if (!isObjectNotFoundError(error)) {
       logger.warn('Error cleaning up multipart upload:', error)
     }
   }

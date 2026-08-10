@@ -1,6 +1,6 @@
-import { useCallback, useMemo, useState } from 'react'
+import { useCallback, useState } from 'react'
 import type {
-  SortConfig,
+  SortDirection,
   TerminalFilters,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 import type { ConsoleEntry } from '@/stores/terminal'
@@ -17,14 +17,8 @@ export function useTerminalFilters() {
     statuses: new Set(),
   })
 
-  const [sortConfig, setSortConfig] = useState<SortConfig>({
-    field: 'timestamp',
-    direction: 'desc',
-  })
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
 
-  /**
-   * Toggles a block filter by block ID
-   */
   const toggleBlock = useCallback((blockId: string) => {
     setFilters((prev) => {
       const newBlockIds = new Set(prev.blockIds)
@@ -37,9 +31,6 @@ export function useTerminalFilters() {
     })
   }, [])
 
-  /**
-   * Toggles a status filter
-   */
   const toggleStatus = useCallback((status: 'error' | 'info') => {
     setFilters((prev) => {
       const newStatuses = new Set(prev.statuses)
@@ -52,19 +43,10 @@ export function useTerminalFilters() {
     })
   }, [])
 
-  /**
-   * Toggles sort direction between ascending and descending
-   */
   const toggleSort = useCallback(() => {
-    setSortConfig((prev) => ({
-      field: prev.field,
-      direction: prev.direction === 'desc' ? 'asc' : 'desc',
-    }))
+    setSortDirection((prev) => (prev === 'desc' ? 'asc' : 'desc'))
   }, [])
 
-  /**
-   * Clears all filters
-   */
   const clearFilters = useCallback(() => {
     setFilters({
       blockIds: new Set(),
@@ -72,12 +54,7 @@ export function useTerminalFilters() {
     })
   }, [])
 
-  /**
-   * Checks if any filters are active
-   */
-  const hasActiveFilters = useMemo(() => {
-    return filters.blockIds.size > 0 || filters.statuses.size > 0
-  }, [filters])
+  const hasActiveFilters = filters.blockIds.size > 0 || filters.statuses.size > 0
 
   /**
    * Filters and sorts console entries based on current filter and sort state
@@ -108,17 +85,17 @@ export function useTerminalFilters() {
       // Sort by executionOrder (monotonically increasing integer from server)
       result = [...result].sort((a, b) => {
         const comparison = a.executionOrder - b.executionOrder
-        return sortConfig.direction === 'asc' ? comparison : -comparison
+        return sortDirection === 'asc' ? comparison : -comparison
       })
 
       return result
     },
-    [filters, hasActiveFilters, sortConfig]
+    [filters, hasActiveFilters, sortDirection]
   )
 
   return {
     filters,
-    sortConfig,
+    sortDirection,
     toggleBlock,
     toggleStatus,
     toggleSort,

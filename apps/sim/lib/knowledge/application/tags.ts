@@ -8,7 +8,11 @@ import {
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
-import { SUPPORTED_FIELD_TYPES } from '@/lib/knowledge/constants'
+import {
+  getFieldTypeForSlot,
+  isValidSlotForFieldType,
+  SUPPORTED_FIELD_TYPES,
+} from '@/lib/knowledge/constants'
 import {
   cleanupUnusedTagDefinitions,
   createOrUpdateTagDefinitionsBulk,
@@ -94,6 +98,12 @@ export const createKnowledgeTag = defineAuthorizedKnowledgeUseCase({
       throw new OrchestrationError(
         'validation',
         `No available slots for field type "${fieldType}". Maximum tags of this type reached.`
+      )
+    }
+    if (!isValidSlotForFieldType(tagSlot, fieldType)) {
+      throw new OrchestrationError(
+        'validation',
+        `Tag slot "${tagSlot}" is not valid for field type "${fieldType}"`
       )
     }
     const tagDefinition = await createTagDefinition(
@@ -255,6 +265,9 @@ export const saveKnowledgeDocumentTagDefinitions = defineAuthorizedKnowledgeUseC
           'validation',
           `Unsupported field type: ${definition.fieldType}`
         )
+      }
+      if (getFieldTypeForSlot(definition.tagSlot) === null) {
+        throw new OrchestrationError('validation', `Unsupported tag slot: ${definition.tagSlot}`)
       }
     }
     return createOrUpdateTagDefinitionsBulk(

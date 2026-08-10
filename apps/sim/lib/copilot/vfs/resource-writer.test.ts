@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => {
 
   return {
     FileConflictError,
+    admitCreateWorkspaceFile: vi.fn(),
     ensureWorkspaceFileFolderPath: vi.fn(),
     findWorkspaceFileFolderIdByPath: vi.fn(),
     normalizeWorkspaceFileItemName: vi.fn((name: string) => name.trim()),
@@ -18,6 +19,10 @@ const mocks = vi.hoisted(() => {
     updateWorkspaceFileContentBufferByPath: { execute: vi.fn() },
   }
 })
+
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  admitCreateWorkspaceFile: mocks.admitCreateWorkspaceFile,
+}))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
   ensureWorkspaceFileFolderPath: mocks.ensureWorkspaceFileFolderPath,
@@ -40,12 +45,65 @@ vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', ()
   resolveWorkspaceFileReference: mocks.resolveWorkspaceFileReference,
 }))
 
-import { validateWorkspaceFileWriteTarget, writeWorkspaceFileByPath } from './resource-writer'
+import {
+  validateWorkspaceFileWriteTarget,
+  writeWorkspaceFileByPath,
+} from '@/lib/copilot/vfs/resource-writer'
 
 describe('resource writer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-id')
+    mocks.admitCreateWorkspaceFile.mockResolvedValue(undefined)
+  })
+
+  it('refuses to write into a workspace the acting user is not a member of', async () => {
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(new Error('Insufficient permissions'))
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-victim',
+        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
+        target: { path: 'files/README.md', mode: 'overwrite' },
+        buffer: Buffer.from('owned'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow('Insufficient permissions')
+
+    expect(mocks.resolveWorkspaceFileReference).toHaveBeenCalledWith(
+      expect.objectContaining({ workspaceId: 'workspace-victim' })
+    )
+    expect(mocks.updateWorkspaceFileContentBufferByPath.execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses to write for a read-only workspace member', async () => {
+    mocks.admitCreateWorkspaceFile.mockRejectedValue(new Error('Insufficient permissions'))
+
+    await expect(
+      writeWorkspaceFileByPath({
+        workspaceId: 'workspace-1',
+        principal: { kind: 'session', userId: 'reader', sessionId: 'session-1' },
+        target: { path: 'files/notes.md', mode: 'create' },
+        buffer: Buffer.from('hello'),
+        inferredMimeType: 'text/markdown',
+      })
+    ).rejects.toThrow('Insufficient permissions')
+
+    expect(mocks.createWorkspaceFileBufferByPath.execute).not.toHaveBeenCalled()
+  })
+
+  it('refuses to validate a write target in a workspace the user cannot write to', async () => {
+    mocks.resolveWorkspaceFileReference.mockRejectedValue(new Error('Insufficient permissions'))
+
+    await expect(
+      validateWorkspaceFileWriteTarget({
+        workspaceId: 'workspace-victim',
+        principal: { kind: 'session', userId: 'attacker', sessionId: 'session-1' },
+        target: { path: 'files/README.md', mode: 'overwrite' },
+      })
+    ).rejects.toThrow('Insufficient permissions')
+
+    expect(mocks.findWorkspaceFileFolderIdByPath).not.toHaveBeenCalled()
   })
 
   it('auto-creates missing parent folders for plain workspace file creates', async () => {

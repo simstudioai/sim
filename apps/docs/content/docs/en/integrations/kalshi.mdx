@@ -34,7 +34,7 @@ Integrate Kalshi prediction markets into the workflow. Can get markets, market, 
 
 ## Actions
 
-### `kalshi_get_markets`
+### Get Markets from Kalshi V2
 
 Retrieve a list of prediction markets from Kalshi with all filtering options (V2 - full API response)
 
@@ -91,7 +91,7 @@ Retrieve a list of prediction markets from Kalshi with all filtering options (V2
 |   ↳ `category` | string | Market category |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_market`
+### Get Market from Kalshi V2
 
 Retrieve details of a specific prediction market by ticker (V2 - full API response)
 
@@ -158,7 +158,7 @@ Retrieve details of a specific prediction market by ticker (V2 - full API respon
 |   ↳ `no_bid_fp` | number | No bid \(fixed-point\) |
 |   ↳ `no_ask_fp` | number | No ask \(fixed-point\) |
 
-### `kalshi_get_events`
+### Get Events from Kalshi V2
 
 Retrieve a list of events from Kalshi with optional filtering (V2 - exact API response)
 
@@ -200,7 +200,7 @@ Retrieve a list of events from Kalshi with optional filtering (V2 - exact API re
 |   ↳ `last_updated_ts` | string | Last updated time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_event`
+### Get Event from Kalshi V2
 
 Retrieve details of a specific event by ticker (V2 - exact API response)
 
@@ -229,7 +229,7 @@ Retrieve details of a specific event by ticker (V2 - exact API response)
 |   ↳ `product_metadata` | object | Product metadata |
 |   ↳ `markets` | array | Nested markets \(if requested\) |
 
-### `kalshi_get_balance`
+### Get Balance from Kalshi V2
 
 Retrieve your account balance and portfolio value from Kalshi (V2 - exact API response)
 
@@ -248,7 +248,7 @@ Retrieve your account balance and portfolio value from Kalshi (V2 - exact API re
 | `portfolio_value` | number | Portfolio value in cents |
 | `updated_ts` | number | Unix timestamp of last update \(seconds\) |
 
-### `kalshi_get_positions`
+### Get Positions from Kalshi V2
 
 Retrieve your open positions from Kalshi (V2 - exact API response)
 
@@ -287,7 +287,7 @@ Retrieve your open positions from Kalshi (V2 - exact API response)
 |   ↳ `total_cost` | number | Total cost basis in cents |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_orders`
+### Get Orders from Kalshi V2
 
 Retrieve your orders from Kalshi with optional filtering (V2 with full API response)
 
@@ -331,7 +331,7 @@ Retrieve your orders from Kalshi with optional filtering (V2 with full API respo
 |   ↳ `last_update_time` | string | Last order update time |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_order`
+### Get Order from Kalshi V2
 
 Retrieve details of a specific order by ID from Kalshi (V2 with full API response)
 
@@ -382,7 +382,7 @@ Retrieve details of a specific order by ID from Kalshi (V2 with full API respons
 |   ↳ `order_group_id` | string | Order group ID |
 |   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
 
-### `kalshi_get_orderbook`
+### Get Market Orderbook from Kalshi V2
 
 Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes depth and fp fields)
 
@@ -406,7 +406,7 @@ Retrieve the orderbook (yes and no bids) for a specific market (V2 - includes de
 |   ↳ `yes_dollars` | array | Yes side bids as tuples \[dollars_string, fp_count_string\] |
 |   ↳ `no_dollars` | array | No side bids as tuples \[dollars_string, fp_count_string\] |
 
-### `kalshi_get_trades`
+### Get Trades from Kalshi V2
 
 Retrieve recent trades with additional filtering options (V2 - includes trade_id and count_fp)
 
@@ -433,7 +433,7 @@ Retrieve recent trades with additional filtering options (V2 - includes trade_id
 |   ↳ `created_time` | string | Trade time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_candlesticks`
+### Get Market Candlesticks from Kalshi V2
 
 Retrieve OHLC candlestick data for a specific market (V2 - full API response)
 
@@ -454,7 +454,7 @@ Retrieve OHLC candlestick data for a specific market (V2 - full API response)
 | `ticker` | string | Market ticker |
 | `candlesticks` | array | Array of OHLC candlestick data with nested bid/ask/price objects |
 
-### `kalshi_get_event_candlesticks`
+### Get Event Candlesticks from Kalshi V2
 
 Retrieve OHLC candlestick data aggregated across all markets in an event (V2 - full API response)
 
@@ -476,7 +476,7 @@ Retrieve OHLC candlestick data aggregated across all markets in an event (V2 - f
 | `adjusted_end_ts` | number | Adjusted end timestamp used for the candlestick range \(Unix seconds\) |
 | `market_candlesticks` | array | Array of event-level aggregated OHLC candlestick data with nested bid/ask/price |
 
-### `kalshi_get_fills`
+### Get Fills from Kalshi V2
 
 Retrieve your portfolio's fills/trades from Kalshi (V2 - exact API response)
 
@@ -511,7 +511,7 @@ Retrieve your portfolio's fills/trades from Kalshi (V2 - exact API response)
 |   ↳ `created_time` | string | Trade execution time \(ISO 8601\) |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_settlements`
+### Get Settlements from Kalshi V2
 
 Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)
 
@@ -547,7 +547,7 @@ Retrieve your portfolio settlement history from Kalshi (V2 - exact API response)
 |   ↳ `value` | number | Single yes contract payout in cents |
 | `cursor` | string | Pagination cursor for fetching more results |
 
-### `kalshi_get_series_by_ticker`
+### Get Series by Ticker from Kalshi V2
 
 Retrieve details of a specific market series by ticker (V2 - exact API response)
 
@@ -578,7 +578,7 @@ Retrieve details of a specific market series by ticker (V2 - exact API response)
 |   ↳ `volume` | number | Series volume |
 |   ↳ `volume_fp` | number | Volume \(fixed-point\) |
 
-### `kalshi_get_series_list`
+### Get Series List from Kalshi V2
 
 Retrieve a list of market series from Kalshi with optional filtering (V2 - exact API response)
 
@@ -604,7 +604,7 @@ Retrieve a list of market series from Kalshi with optional filtering (V2 - exact
 |   ↳ `tags` | array | Series tags |
 |   ↳ `contract_url` | string | Contract rules URL |
 
-### `kalshi_get_exchange_status`
+### Get Exchange Status from Kalshi V2
 
 Retrieve the current status of the Kalshi exchange (V2 - exact API response)
 
@@ -621,7 +621,7 @@ Retrieve the current status of the Kalshi exchange (V2 - exact API response)
 | `trading_active` | boolean | Whether trading is active |
 | `exchange_estimated_resume_time` | string | Estimated time when exchange will resume \(if inactive\) |
 
-### `kalshi_get_exchange_schedule`
+### Get Exchange Schedule from Kalshi V2
 
 Retrieve the Kalshi exchange trading schedule and maintenance windows (V2 - exact API response)
 
@@ -638,7 +638,7 @@ Retrieve the Kalshi exchange trading schedule and maintenance windows (V2 - exac
 |   ↳ `standard_hours` | array | Weekly schedules with per-day open/close trading sessions |
 |   ↳ `maintenance_windows` | array | Scheduled maintenance windows with start_datetime and end_datetime |
 
-### `kalshi_get_exchange_announcements`
+### Get Exchange Announcements from Kalshi V2
 
 Retrieve exchange-wide announcements from Kalshi (V2 - exact API response)
 
@@ -657,7 +657,7 @@ Retrieve exchange-wide announcements from Kalshi (V2 - exact API response)
 |   ↳ `delivery_time` | string | Delivery time \(ISO 8601\) |
 |   ↳ `status` | string | Announcement status \(active, inactive\) |
 
-### `kalshi_create_order`
+### Create Order on Kalshi V2
 
 Create a new order on a Kalshi prediction market (V2 with full API response)
 
@@ -727,7 +727,7 @@ Create a new order on a Kalshi prediction market (V2 with full API response)
 |   ↳ `order_group_id` | string | Order group ID |
 |   ↳ `cancel_order_on_pause` | boolean | Cancel on market pause |
 
-### `kalshi_cancel_order`
+### Cancel Order on Kalshi V2
 
 Cancel an existing order on Kalshi (V2 with full API response)
 
@@ -780,7 +780,7 @@ Cancel an existing order on Kalshi (V2 with full API response)
 | `reduced_by` | number | Number of contracts canceled |
 | `reduced_by_fp` | string | Number of contracts canceled in fixed-point format |
 
-### `kalshi_amend_order`
+### Amend Order on Kalshi V2
 
 Modify the price or quantity of an existing order on Kalshi (V2 with full API response)
 

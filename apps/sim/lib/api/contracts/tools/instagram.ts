@@ -5,15 +5,12 @@ import {
   workflowIdSchema,
   workspaceIdSchema,
 } from '@/lib/api/contracts/primitives'
-import { genericToolResponseSchema } from '@/lib/api/contracts/tools/shared'
 import type { ContractBodyInput, ContractJsonResponse } from '@/lib/api/contracts/types'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { RawFileInputArraySchema, RawFileInputSchema } from '@/lib/uploads/utils/file-schemas'
 
 const MAX_ACCESS_TOKEN_LENGTH = 8192
 const MAX_GRAPH_ID_LENGTH = 256
-const MAX_MEDIA_URL_LENGTH = 8192
-const MAX_CAROUSEL_INPUT_LENGTH = 100_000
 const MAX_CAPTION_LENGTH = 2200
 const MAX_ALT_TEXT_LENGTH = 1000
 
@@ -29,22 +26,6 @@ const instagramOptionalCaptionSchema = z
   .max(MAX_CAPTION_LENGTH, `Caption cannot exceed ${MAX_CAPTION_LENGTH} characters`)
   .optional()
   .nullable()
-
-function getCarouselItemCount(value: string): number | null {
-  if (value.startsWith('[') || value.startsWith('{')) {
-    try {
-      const parsed = JSON.parse(value) as unknown
-      return Array.isArray(parsed) ? parsed.length : 1
-    } catch {
-      return null
-    }
-  }
-
-  return value
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean).length
-}
 
 export const instagramAccessTokenSchema = z
   .string()
@@ -93,33 +74,37 @@ export const instagramDownloadMediaResponseSchema = z.discriminatedUnion('succes
   }),
 ])
 
-/** Single media: uploaded file object or public HTTPS URL string. */
-export const instagramMediaInputSchema = z.union([
-  RawFileInputSchema,
-  z.string().trim().min(1, 'Media is required').max(MAX_MEDIA_URL_LENGTH, 'Media URL is too long'),
-])
+/** Canonical Sim file uploaded in basic mode or referenced from a prior block. */
+export const instagramMediaInputSchema = RawFileInputSchema
 
-/**
- * Carousel media: 2-10 files or a legacy comma-separated URL string
- * (optional `video:` prefix per entry).
- */
-export const instagramCarouselMediaSchema = z.union([
-  RawFileInputArraySchema.min(2, 'Carousels require at least 2 items').max(
-    10,
-    'Carousels support at most 10 items'
-  ),
-  z
-    .string()
-    .trim()
-    .min(1, 'Carousel media is required')
-    .max(MAX_CAROUSEL_INPUT_LENGTH, 'Carousel media input is too long')
-    .refine(
-      (value) => {
-        const itemCount = getCarouselItemCount(value)
-        return itemCount !== null && itemCount >= 2 && itemCount <= 10
-      },
-      { message: 'Carousels require between 2 and 10 items' }
-    ),
+/** Canonical Sim files uploaded in basic mode or referenced from prior blocks. */
+export const instagramCarouselMediaSchema = RawFileInputArraySchema.min(
+  2,
+  'Carousels require at least 2 items'
+).max(10, 'Carousels support at most 10 items')
+
+export const instagramPublishOutputSchema = z.object({
+  containerId: z.string().min(1, 'Container ID is required'),
+  mediaId: z.string().min(1, 'Media ID is required'),
+  statusCode: z.string().min(1, 'Status code is required'),
+})
+
+const instagramFailedPublishOutputSchema = z.object({
+  containerId: z.null(),
+  mediaId: z.null(),
+  statusCode: z.null(),
+})
+
+export const instagramPublishResponseSchema = z.discriminatedUnion('success', [
+  z.object({
+    success: z.literal(true),
+    output: instagramPublishOutputSchema,
+  }),
+  z.object({
+    success: z.literal(false),
+    error: z.string().min(1),
+    output: instagramFailedPublishOutputSchema.optional(),
+  }),
 ])
 
 export const instagramPublishImageBodySchema = z.object({
@@ -170,35 +155,35 @@ export const instagramPublishImageContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/instagram/publish-image',
   body: instagramPublishImageBodySchema,
-  response: { mode: 'json', schema: genericToolResponseSchema },
+  response: { mode: 'json', schema: instagramPublishResponseSchema },
 })
 
 export const instagramPublishVideoContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/instagram/publish-video',
   body: instagramPublishVideoBodySchema,
-  response: { mode: 'json', schema: genericToolResponseSchema },
+  response: { mode: 'json', schema: instagramPublishResponseSchema },
 })
 
 export const instagramPublishReelContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/instagram/publish-reel',
   body: instagramPublishReelBodySchema,
-  response: { mode: 'json', schema: genericToolResponseSchema },
+  response: { mode: 'json', schema: instagramPublishResponseSchema },
 })
 
 export const instagramPublishStoryContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/instagram/publish-story',
   body: instagramPublishStoryBodySchema,
-  response: { mode: 'json', schema: genericToolResponseSchema },
+  response: { mode: 'json', schema: instagramPublishResponseSchema },
 })
 
 export const instagramPublishCarouselContract = defineRouteContract({
   method: 'POST',
   path: '/api/tools/instagram/publish-carousel',
   body: instagramPublishCarouselBodySchema,
-  response: { mode: 'json', schema: genericToolResponseSchema },
+  response: { mode: 'json', schema: instagramPublishResponseSchema },
 })
 
 export const instagramDownloadMediaContract = defineRouteContract({

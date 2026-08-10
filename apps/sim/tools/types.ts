@@ -2,6 +2,7 @@ import type { MothershipResource } from '@/lib/copilot/resources/types'
 import type { HostedKeyRateLimitConfig } from '@/lib/core/rate-limiter'
 import type { PrivateSecretProvenanceSelection } from '@/lib/execution/model-input-provenance'
 import type { OAuthService } from '@/lib/oauth'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 
 export type BYOKProviderId =
   | 'openai'
@@ -199,11 +200,12 @@ export interface ToolConfig<P = any, R = any> {
             projectedSelection: Record<string, unknown>
           ) => Record<string, unknown>
           /**
-           * Selects opaque model-bound values that must not be rewritten, such as file bytes or
-           * signed URLs. Provenance is delivered privately to an authenticated internal route,
-           * which owns the final allow/reject decision.
+           * Selects inline model-bound values that must not be rewritten, such as file bytes or
+           * data URLs. Storage keys, paths, signed URLs, and remote URLs are locators rather than
+           * byte provenance. Metadata is delivered only to an authenticated internal route that
+           * owns the final allow/reject decision.
            */
-          privateProvenance?: (params: P) => unknown
+          privateInputPaths?: (params: P) => readonly ResolvedSecretInputPath[]
         }
       | {
           /**
@@ -211,17 +213,8 @@ export interface ToolConfig<P = any, R = any> {
            * the corresponding projection boundary.
            */
           mode: 'private-provenance'
-          select: (params: P) => unknown
+          inputPaths: (params: P) => readonly ResolvedSecretInputPath[]
         }
-    /**
-     * Selects model-bound values whose byte representation cannot be rewritten safely. The
-     * executor rejects the call before request formatting when committed provenance is incomplete
-     * or shows that the exact selection contains a resolved secret. Safe values are left unchanged.
-     */
-    opaqueModelInput?: {
-      mode: 'reject-resolved-secrets'
-      select: (params: P) => unknown
-    }
     /**
      * Transports encrypted secret provenance across an authenticated internal
      * tool boundary without rewriting the selected value.
@@ -318,7 +311,10 @@ interface SchemaEnrichmentConfig {
   /** The param ID that this enrichment depends on (e.g., 'knowledgeBaseId', 'workflowId') */
   dependsOn: string
   /** Function to fetch and build dynamic schema based on the dependency value */
-  enrichSchema: (dependencyValue: string) => Promise<{
+  enrichSchema: (
+    dependencyValue: string,
+    context: WorkflowToolExecutionContext
+  ) => Promise<{
     type: string
     properties?: Record<string, { type: string; description?: string }>
     description?: string

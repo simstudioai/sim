@@ -5,7 +5,6 @@ import { firecrawlHosting } from '@/tools/firecrawl/hosting'
 import {
   applyFirecrawlFormatModelInput,
   applyFirecrawlScrapeOptionsModelInput,
-  hasFirecrawlModelInputFormat,
   selectFirecrawlFormatModelInput,
   selectFirecrawlScrapeOptionsModelInput,
 } from '@/tools/firecrawl/model-input'
@@ -134,13 +133,6 @@ export const batchScrapeTool: ToolConfig<FirecrawlBatchScrapeParams, FirecrawlBa
             ),
           }
         },
-      },
-      opaqueModelInput: {
-        mode: 'reject-resolved-secrets',
-        select: (params) =>
-          hasFirecrawlModelInputFormat(params.formats ?? params.scrapeOptions?.formats)
-            ? params.urls
-            : undefined,
       },
       method: 'POST',
       url: 'https://api.firecrawl.dev/v2/batch/scrape',

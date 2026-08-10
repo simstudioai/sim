@@ -8,8 +8,8 @@
  */
 
 import { createLogger } from '@sim/logger'
-import type { PiSearchConfig, PiToolSpec } from '@/executor/handlers/pi/backend'
-import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/keys'
+import type { PiSearchConfig, PiToolSpec } from '@/executor/handlers/pi/core/backend'
+import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/core/keys'
 import {
   buildPiSearchProviderArgs,
   extractPiSearchRecords,
@@ -25,25 +25,19 @@ import {
   serializePiSearchEnvelope,
 } from '@/executor/handlers/pi/search/normalize'
 import type { ExecutionContext } from '@/executor/types'
-import {
-  projectResolvedSecretModelContent,
-  projectResolvedSecretModelControlMessage,
-} from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 import { executeTool } from '@/tools'
 
 const logger = createLogger('PiSearchTool')
 const SEARCH_RESULT_UNAVAILABLE_MESSAGE =
   'Web search settled, but its result could not be returned safely. Do not retry automatically.'
 
-function unavailableSearchResult(registry: ResolvedSecretTraceRegistry | undefined): {
+function unavailableSearchResult(): {
   text: string
   isError: true
 } {
   return {
-    text:
-      projectResolvedSecretModelControlMessage(SEARCH_RESULT_UNAVAILABLE_MESSAGE, registry) ??
-      SEARCH_RESULT_UNAVAILABLE_MESSAGE,
+    text: SEARCH_RESULT_UNAVAILABLE_MESSAGE,
     isError: true,
   }
 }
@@ -87,7 +81,8 @@ function describePiSearchFailure(label: string, status: unknown, error: unknown)
 export function buildPiSearchToolSpec(
   ctx: ExecutionContext,
   search: Pick<PiSearchConfig, 'provider' | 'apiKey'>,
-  mode: 'local' | 'cloud_review'
+  mode: 'local' | 'cloud_review',
+  projectedApiKey = search.apiKey
 ): PiToolSpec {
   const { label, toolId } = PI_SEARCH_PROVIDERS[search.provider]
   const logContext = {
@@ -122,9 +117,18 @@ export function buildPiSearchToolSpec(
         timeout: PI_SEARCH_TIMEOUT_MS,
       }
       const registry = ctx.resolvedSecretTraceRegistry
-      const toolCallRegistry = registry?.forkForToolInputValues(Object.values(providerParams))
-      if (!registry || !toolCallRegistry?.isComplete()) {
-        return unavailableSearchResult(toolCallRegistry)
+      const toolCallRegistry = registry?.forkForInputPaths([['searchApiKey']], {
+        propagated: true,
+      })
+      if (toolCallRegistry && !toolCallRegistry.isComplete()) {
+        return unavailableSearchResult()
+      }
+      if (toolCallRegistry) {
+        toolCallRegistry.recordTransformedInputProjection(providerParams, {
+          ...providerParams,
+          apiKey: projectedApiKey,
+        })
+        if (!toolCallRegistry.isComplete()) return unavailableSearchResult()
       }
 
       const result = await executeTool(toolId, providerParams, {
@@ -133,18 +137,18 @@ export function buildPiSearchToolSpec(
       })
 
       if (!result.success) {
-        if (!toolCallRegistry.isComplete()) {
-          return unavailableSearchResult(toolCallRegistry)
+        if (toolCallRegistry && !toolCallRegistry.isComplete()) {
+          return unavailableSearchResult()
         }
         if (result.error === PARALLEL_EMPTY_RESULTS_ERROR) {
           logger.info('Pi search returned no results', { ...logContext, resultCount: 0 })
-          registry.mergeToolCallRegistry(toolCallRegistry)
+          if (registry && toolCallRegistry) registry.mergeToolCallRegistry(toolCallRegistry)
           return { text: serializePiSearchEnvelope([]), isError: false }
         }
 
         const status = (result.output as { status?: unknown } | undefined)?.status
         logger.warn('Pi search failed', { ...logContext, status })
-        registry.mergeToolCallRegistry(toolCallRegistry)
+        if (registry && toolCallRegistry) registry.mergeToolCallRegistry(toolCallRegistry)
         return {
           // Classified rather than quoted: `result.error` can carry provider-response-derived text
           // for all four providers, which the untrusted-results guideline does not cover. Only the
@@ -155,9 +159,14 @@ export function buildPiSearchToolSpec(
         }
       }
 
-      const outputProjection = projectResolvedSecretModelContent(result.output, toolCallRegistry)
-      if (!outputProjection.safe || !toolCallRegistry.isComplete()) {
-        return unavailableSearchResult(toolCallRegistry)
+      const outputProjection = toolCallRegistry
+        ? projectResolvedSecretModelContent(
+            result.output,
+            toolCallRegistry.forkForPropagatedEntries()
+          )
+        : ({ safe: true, value: result.output } as const)
+      if (!outputProjection.safe || (toolCallRegistry && !toolCallRegistry.isComplete())) {
+        return unavailableSearchResult()
       }
       const results = normalizePiSearchRecords(
         search.provider,
@@ -165,7 +174,7 @@ export function buildPiSearchToolSpec(
         numResults
       )
       logger.info('Pi search completed', { ...logContext, resultCount: results.length })
-      registry.mergeToolCallRegistry(toolCallRegistry)
+      if (registry && toolCallRegistry) registry.mergeToolCallRegistry(toolCallRegistry)
       return { text: serializePiSearchEnvelope(results), isError: false }
     },
   }

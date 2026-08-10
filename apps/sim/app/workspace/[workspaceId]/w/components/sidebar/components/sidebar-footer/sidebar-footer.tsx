@@ -138,7 +138,7 @@ export function SidebarFooter({
     />
   ) : (
     <div
-      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full font-medium text-[9px] text-white leading-none'
+      className='flex size-[16px] flex-shrink-0 items-center justify-center rounded-full text-[9px] text-white leading-none'
       style={{ backgroundColor: getUserColor(profile.id) }}
     >
       {name.charAt(0).toUpperCase()}

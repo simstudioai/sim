@@ -41,7 +41,7 @@ Integrate Devin into your workflow. Create sessions to assign coding tasks, send
 
 ## Actions
 
-### `devin_create_session`
+### Devin Create Session
 
 Create a new Devin session with a prompt. Devin will autonomously work on the task described in the prompt.
 
@@ -74,7 +74,7 @@ Create a new Devin session with a prompt. Devin will autonomously work on the ta
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
-### `devin_get_session`
+### Devin Get Session
 
 Retrieve details of an existing Devin session including status, tags, pull requests, and structured output.
 
@@ -104,7 +104,7 @@ Retrieve details of an existing Devin session including status, tags, pull reque
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
-### `devin_list_sessions`
+### Devin List Sessions
 
 List Devin sessions in the organization. Returns up to 100 sessions by default.
 
@@ -138,7 +138,7 @@ List Devin sessions in the organization. Returns up to 100 sessions by default.
 | `hasNextPage` | boolean | Whether more sessions are available |
 | `total` | number | Total number of sessions, if provided |
 
-### `devin_send_message`
+### Devin Send Message
 
 Send a message to a Devin session. If the session is suspended, it will be automatically resumed. Returns the updated session state.
 
@@ -169,7 +169,7 @@ Send a message to a Devin session. If the session is suspended, it will be autom
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
-### `devin_list_session_messages`
+### Devin List Session Messages
 
 List the messages exchanged in a Devin session, including messages from both the user and Devin.
 
@@ -196,7 +196,7 @@ List the messages exchanged in a Devin session, including messages from both the
 | `hasNextPage` | boolean | Whether more messages are available |
 | `total` | number | Total number of messages, if provided |
 
-### `devin_list_session_attachments`
+### Devin List Session Attachments
 
 List the files uploaded to or produced by a Devin session.
 
@@ -219,7 +219,7 @@ List the files uploaded to or produced by a Devin session.
 |   ↳ `source` | string | Origin of the attachment \(devin or user\) |
 |   ↳ `contentType` | string | MIME type of the attachment |
 
-### `devin_get_session_tags`
+### Devin Get Session Tags
 
 Retrieve the tags currently applied to a Devin session.
 
@@ -237,7 +237,7 @@ Retrieve the tags currently applied to a Devin session.
 | --------- | ---- | ----------- |
 | `tags` | json | Tags applied to the session \(array of strings\) |
 
-### `devin_append_session_tags`
+### Devin Append Session Tags
 
 Add tags to a Devin session without removing existing tags (max 50 tags total).
 
@@ -256,7 +256,7 @@ Add tags to a Devin session without removing existing tags (max 50 tags total).
 | --------- | ---- | ----------- |
 | `tags` | json | Updated list of tags on the session \(array of strings\) |
 
-### `devin_replace_session_tags`
+### Devin Replace Session Tags
 
 Replace all tags on a Devin session with a new set of tags (max 50 tags).
 
@@ -275,7 +275,7 @@ Replace all tags on a Devin session with a new set of tags (max 50 tags).
 | --------- | ---- | ----------- |
 | `tags` | json | Updated list of tags on the session \(array of strings\) |
 
-### `devin_archive_session`
+### Devin Archive Session
 
 Archive a Devin session. Archived sessions can still be viewed but cannot be modified or resumed.
 
@@ -305,7 +305,7 @@ Archive a Devin session. Archived sessions can still be viewed but cannot be mod
 | `playbookId` | string | Associated playbook ID |
 | `isArchived` | boolean | Whether the session is archived |
 
-### `devin_terminate_session`
+### Devin Terminate Session
 
 Terminate a Devin session. Optionally archive the session instead of permanently terminating it.
 

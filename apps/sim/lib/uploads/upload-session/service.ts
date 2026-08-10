@@ -12,7 +12,7 @@ import {
   resolveStorageBillingContext,
 } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { generateExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
+import { generateUniqueExecutionFileKey } from '@/lib/uploads/contexts/execution/utils'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { generateWorkspaceFileKey } from '@/lib/uploads/contexts/workspace'
 import {
@@ -1218,7 +1218,7 @@ function resolveUploadStorage(
     case 'execution_attachment':
       return {
         storageContext: 'execution',
-        finalKey: generateExecutionFileKey(
+        finalKey: generateUniqueExecutionFileKey(
           {
             workspaceId: params.workspaceId,
             workflowId: params.workflowId,

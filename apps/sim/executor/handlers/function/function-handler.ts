@@ -1,3 +1,4 @@
+import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { getRemainingExecutionMs } from '@/lib/core/execution-limits'
 import {
   normalizeRecord,
@@ -68,6 +69,13 @@ export class FunctionBlockHandler implements BlockHandler {
               ? remainingExecutionMs
               : Math.min(requestedTimeout, remainingExecutionMs)
           )
+    const secretMountPolicy =
+      inputs.secretScope === undefined
+        ? undefined
+        : normalizeSecretMountPolicy({
+            secretScope: inputs.secretScope,
+            mountedSecrets: inputs.mountedSecrets,
+          })
 
     const toolParams = {
       code: codeContent,
@@ -75,6 +83,7 @@ export class FunctionBlockHandler implements BlockHandler {
       language: inputs.language || DEFAULT_CODE_LANGUAGE,
       timeout,
       ...(inputs.sandboxId ? { sandboxId: inputs.sandboxId } : {}),
+      ...(secretMountPolicy ?? {}),
       envVars: normalizeStringRecord(ctx.environmentVariables),
       workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
       blockData: {},

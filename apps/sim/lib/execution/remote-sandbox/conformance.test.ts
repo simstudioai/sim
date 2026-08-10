@@ -119,6 +119,7 @@ import { E2B_MAX_SANDBOX_LIFETIME_MS, e2bProvider } from '@/lib/execution/remote
 import {
   MAX_SANDBOX_OUTPUT_BYTES,
   MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
+  MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   PI_SANDBOX_MIN_LIFETIME_MS,
@@ -293,6 +294,9 @@ beforeEach(() => {
   mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
 })
 
+/** Headroom for the note `tailStreamedSandboxOutput` prepends when it truncates. */
+const TRUNCATION_NOTE_ALLOWANCE_BYTES = 256
+
 describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
   beforeEach(() => useProvider(provider))
 
@@ -371,6 +375,98 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       limitBytes: MAX_SANDBOX_PROCESS_OUTPUT_BYTES,
     })
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps only a diagnostic tail from a caller-consumed stream', async () => {
+    const streamedOutput = 'x'.repeat(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + 1024)
+    if (provider === 'e2b') {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
+        options.onStdout(`${streamedOutput}TAIL_MARKER`)
+        return { stdout: `${streamedOutput}TAIL_MARKER`, stderr: '', exitCode: 0 }
+      })
+    } else {
+      mockGetSessionCommandLogs.mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout(`${streamedOutput}TAIL_MARKER`)
+        }
+      )
+      mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
+    }
+
+    let streamedBytes = 0
+    const result = await withPiSandbox({}, (runner) =>
+      runner.run('pi run', {
+        timeoutMs: 1000,
+        onStdout: (chunk) => {
+          streamedBytes += chunk.length
+        },
+      })
+    )
+
+    // Delivered in full to the caller...
+    expect(streamedBytes).toBeGreaterThan(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES)
+    expect(result.exitCode).toBe(0)
+    /** Only a small diagnostic tail is returned after the caller consumes the full live stream. */
+    expect(result.stdout).toContain('TAIL_MARKER')
+    // The tail plus its truncation note, NOT a multiple of it. A looser bound here passes on both
+    // providers even when one returns twice as much as the other, which is the divergence this
+    // pair exists to prevent.
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(
+      MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + TRUNCATION_NOTE_ALLOWANCE_BYTES
+    )
+  })
+
+  it('cuts the retained tail identically when a stream ends between one and two tails', async () => {
+    // The Daytona appender only collapses once the accumulator passes twice the tail, so a stream
+    // finishing inside that band is the case where the two providers can disagree.
+    const midBand = 'y'.repeat(Math.floor(MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES * 1.5))
+    if (provider === 'e2b') {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
+        options.onStdout?.(midBand)
+        return { stdout: midBand, stderr: '', exitCode: 0 }
+      })
+    } else {
+      mockGetSessionCommandLogs.mockImplementationOnce(
+        async (_sessionId: string, _commandId: string, onStdout: (chunk: string) => void) => {
+          onStdout(midBand)
+        }
+      )
+      mockGetSessionCommand.mockResolvedValue({ exitCode: 0 })
+    }
+
+    const result = await withPiSandbox({}, (runner) =>
+      runner.run('pi run', { timeoutMs: 1000, onStdout: () => {} })
+    )
+
+    expect(Buffer.byteLength(result.stdout)).toBeLessThanOrEqual(
+      MAX_SANDBOX_STREAMED_OUTPUT_TAIL_BYTES + TRUNCATION_NOTE_ALLOWANCE_BYTES
+    )
+    expect(Buffer.byteLength(result.stdout)).toBeLessThan(Buffer.byteLength(midBand))
+  })
+
+  it('still bounds a stream the caller does not consume', async () => {
+    const oversized = 'x'.repeat(MAX_SANDBOX_PROCESS_OUTPUT_BYTES + 1)
+    if (provider === 'e2b') {
+      mockE2BCommandsRun.mockImplementationOnce(async (_cmd, options) => {
+        options.onStderr(oversized)
+      })
+    } else {
+      mockGetSessionCommandLogs.mockImplementationOnce(
+        async (
+          _sessionId: string,
+          _commandId: string,
+          _onStdout: (chunk: string) => void,
+          onStderr: (chunk: string) => void
+        ) => {
+          onStderr(oversized)
+        }
+      )
+    }
+
+    /** A stdout callback must not exempt unconsumed stderr from the process-output budget. */
+    await expect(
+      withPiSandbox({}, (runner) => runner.run('pi run', { timeoutMs: 1000, onStdout: () => {} }))
+    ).rejects.toMatchObject({ code: 'sandbox_output_limit_exceeded', outputKind: 'process' })
   })
 
   it('normalizes execution errors to the same shape', async () => {
@@ -1055,6 +1151,35 @@ describe.each(PROVIDERS)('sandbox conformance [%s]', (provider) => {
       reason: 'cleanup',
     })
     expect(provider === 'e2b' ? mockE2BKill : mockDelete).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('E2B streamed output safety', () => {
+  it('bounds callback-delivered output that the E2B SDK also retains', async () => {
+    useProvider('e2b')
+    mockE2BCommandsRun.mockImplementationOnce(async (_command, options) => {
+      options.onStdout?.('1234')
+      options.onStdout?.('56789')
+      return { stdout: '123456789', stderr: '', exitCode: 0 }
+    })
+
+    const streamed: string[] = []
+    const sandbox = await e2bProvider.create('pi')
+
+    await expect(
+      sandbox.runCommand('pi run', {
+        timeoutMs: 1000,
+        maxOutputBytes: 8,
+        onStdout: (chunk) => streamed.push(chunk),
+      })
+    ).rejects.toMatchObject({
+      code: 'sandbox_output_limit_exceeded',
+      outputKind: 'process',
+      attemptedBytes: 9,
+      limitBytes: 8,
+    })
+    expect(streamed).toEqual(['1234'])
+    expect(mockE2BKill).toHaveBeenCalledTimes(1)
   })
 })
 

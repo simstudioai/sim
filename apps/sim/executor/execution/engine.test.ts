@@ -1009,10 +1009,12 @@ describe('ExecutionEngine', () => {
       startNode.outgoingEdges.set('edge1', { target: 'error-node' })
 
       const dag = createMockDAG([startNode, errorNode])
+      const registry = new ResolvedSecretTraceRegistry([
+        { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
+      ])
+      registry.recordResolved('API_KEY', secret)
       const context = createMockContext({
-        resolvedSecretTraceRegistry: new ResolvedSecretTraceRegistry([
-          { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-api-key' },
-        ]),
+        resolvedSecretTraceRegistry: registry,
       })
       const edgeManager = createMockEdgeManager((node) => {
         if (node.id === 'start') return ['error-node']

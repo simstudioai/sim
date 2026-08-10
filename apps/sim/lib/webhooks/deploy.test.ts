@@ -97,6 +97,15 @@ const slackTrigger = trigger([
   },
 ])
 
+const tiktokTrigger = trigger([
+  {
+    id: 'triggerCredentials',
+    mode: 'trigger',
+    serviceId: 'tiktok',
+    required: true,
+  },
+])
+
 function makeBlock(
   type: string,
   subBlockValues: Record<string, unknown>,
@@ -362,5 +371,65 @@ describe('resolveWebhookConfigForBlock — slack_oauth routing', () => {
     expect(result?.error?.status).toBe(400)
     expect(result?.error?.message).toContain('Could not access the connected Slack account')
     expect(mockFetchSlackTeamId).not.toHaveBeenCalled()
+  })
+})
+
+describe('resolveWebhookConfigForBlock — TikTok routing', () => {
+  const tiktokTriggerDef = {
+    provider: 'tiktok',
+    name: 'TikTok',
+    subBlocks: tiktokTrigger.subBlocks,
+  }
+
+  function resolveTikTok(
+    credentialReference = 'credential-1',
+    workflow: Record<string, unknown> = { workspaceId: 'ws-1' }
+  ) {
+    ;(getBlock as unknown as Mock).mockReturnValue({ category: 'triggers' })
+    ;(getTrigger as unknown as Mock).mockReturnValue(tiktokTriggerDef)
+    return resolveWebhookConfigForBlock({
+      block: makeBlock('tiktok', { triggerCredentials: credentialReference }),
+      workflow,
+      userId: 'deployer-1',
+      requestId: 'req-1',
+    })
+  }
+
+  it('routes a canonical workspace credential by its TikTok open_id', async () => {
+    queueTableRows(credential, [{ id: 'credential-1' }])
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'account-1' })
+    queueTableRows(account, [
+      { accountId: 'open-id-with-hyphens-12345678-1234-1234-1234-123456789abc' },
+    ])
+
+    const result = await resolveTikTok()
+
+    expect(result?.success).toBe(true)
+    if (!result?.success) throw new Error('expected success')
+    expect(result.config.provider).toBe('tiktok')
+    expect(result.config.routingKey).toBe('open-id-with-hyphens')
+    expect(result.config.triggerPath).toBeNull()
+    expect(result.config.providerConfig.credentialId).toBe('credential-1')
+  })
+
+  it('rejects a TikTok credential not available in the workflow workspace', async () => {
+    const result = await resolveTikTok('foreign-credential')
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error.message).toContain('not available in this workspace')
+    expect(mockResolveOAuthAccountId).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed TikTok account identity', async () => {
+    queueTableRows(credential, [{ id: 'credential-1' }])
+    mockResolveOAuthAccountId.mockResolvedValue({ accountId: 'account-1' })
+    queueTableRows(account, [{ accountId: 'missing-generated-uuid' }])
+
+    const result = await resolveTikTok()
+
+    expect(result?.success).toBe(false)
+    if (result?.success) throw new Error('expected failure')
+    expect(result?.error.message).toContain('Reconnect')
   })
 })

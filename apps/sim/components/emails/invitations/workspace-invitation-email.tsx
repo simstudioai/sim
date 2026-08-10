@@ -1,6 +1,6 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout, EmailStrong } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface WorkspaceInvitationEmailProps {
@@ -23,9 +23,9 @@ export function WorkspaceInvitationEmail({
 
   return (
     <EmailLayout preview={preview} showUnsubscribe={false}>
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
-        <strong>{inviterName}</strong> invited you to join the{' '}
+        <EmailStrong>{inviterName}</EmailStrong> invited you to join the{' '}
         {workspaceNames.map((name, index) => (
           <span key={`${name}-${index}`}>
             {index > 0 &&
@@ -34,19 +34,17 @@ export function WorkspaceInvitationEmail({
                   ? ', and '
                   : ' and '
                 : ', ')}
-            <strong>{name}</strong>
+            <EmailStrong>{name}</EmailStrong>
           </span>
         ))}{' '}
         {isMultiple ? 'workspaces' : 'workspace'} on {brand.name}.
       </Text>
 
-      <Link href={invitationLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Accept Invitation</Text>
-      </Link>
+      <EmailButton href={invitationLink}>Accept Invitation</EmailButton>
 
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         Invitation expires in 7 days. If unexpected, you can ignore this email.
       </Text>
     </EmailLayout>

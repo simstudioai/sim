@@ -115,11 +115,10 @@ describe('buildResponsesInputFromMessages', () => {
     ])
   })
 
-  it('projects a document filename at the Responses serialization boundary', () => {
+  it('preserves an ordinary document filename that collides with a configured secret', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FILE_NAME', plaintext: 'report.pdf', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('FILE_NAME', 'report.pdf')
 
     const input = runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, () =>
       buildResponsesInputFromMessages([
@@ -148,7 +147,7 @@ describe('buildResponsesInputFromMessages', () => {
           { type: 'input_text', text: 'Analyze this document' },
           {
             type: 'input_file',
-            filename: '{{FILE_NAME}}.pdf',
+            filename: 'report.pdf',
             file_data: 'data:application/pdf;base64,cGRm',
           },
         ],

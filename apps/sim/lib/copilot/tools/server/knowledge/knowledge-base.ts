@@ -17,7 +17,6 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { projectServerToolModelInput } from '@/lib/copilot/tools/server/model-input'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
@@ -47,7 +46,9 @@ import {
   readKnowledgeTagUsage,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
+import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('KnowledgeBaseServerTool')
 
@@ -346,7 +347,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           const topK = args.topK || 5
-          const { query: modelQuery } = projectServerToolModelInput({ query: args.query }, context)
+          const queryProjection = projectResolvedSecretModelContent(
+            args.query,
+            context.resolvedSecretTraceRegistry
+          )
+          if (!queryProjection.safe || typeof queryProjection.value !== 'string') {
+            return {
+              success: false,
+              message: 'Failed to query knowledge base: Query could not be processed safely',
+            }
+          }
+          const modelQuery = queryProjection.value
           if (!context.resolvedSecretTraceRegistry) {
             return {
               success: false,
@@ -684,6 +695,12 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'tagDisplayName is required for create_tag operation',
             }
           }
+          if (args.tagDisplayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
+            }
+          }
 
           const fieldType = args.tagFieldType || 'text'
           assertNotAborted()
@@ -735,6 +752,15 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return {
               success: false,
               message: 'At least one of tagDisplayName or tagFieldType is required for update_tag',
+            }
+          }
+          if (
+            updateData.displayName &&
+            updateData.displayName.length > KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH
+          ) {
+            return {
+              success: false,
+              message: `tagDisplayName must be ${KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH} characters or less`,
             }
           }
 

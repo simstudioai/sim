@@ -157,7 +157,7 @@ export function ToolPermissionCard({
             </Tooltip.Trigger>
             <Tooltip.Content>
               <div className='max-w-[320px]'>
-                <div className='mb-1 font-medium text-xs'>{toolName}</div>
+                <div className='mb-1 text-xs'>{toolName}</div>
                 <pre className='whitespace-pre-wrap break-all font-mono text-xs'>{preview}</pre>
               </div>
             </Tooltip.Content>

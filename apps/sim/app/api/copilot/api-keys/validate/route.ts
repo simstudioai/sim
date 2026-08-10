@@ -17,6 +17,7 @@ import {
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/plan'
+import { isEnterprisePlan } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
@@ -324,9 +325,11 @@ export const POST = withRouteHandler((req: NextRequest) =>
           )
         }
 
+        const isEnterprise = await isEnterprisePlan(userId)
+
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.Ok)
         span.setAttribute(TraceAttr.HttpStatusCode, 200)
-        return new NextResponse(null, { status: 200, headers: responseHeaders })
+        return NextResponse.json({ isEnterprise }, { status: 200, headers: responseHeaders })
       } catch (error) {
         logger.error('Error validating usage limit', { error })
         span.setAttribute(TraceAttr.CopilotValidateOutcome, CopilotValidateOutcome.InternalError)

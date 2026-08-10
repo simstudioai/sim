@@ -1,4 +1,3 @@
-import { selectSttAudioModelInput } from '@/tools/stt/model-input'
 import type { SttParams, SttResponse, SttV2Params } from '@/tools/stt/types'
 import type { ToolConfig } from '@/tools/types'
 
@@ -63,7 +62,6 @@ export const geminiSttTool: ToolConfig<SttParams, SttResponse> = {
     modelInput: {
       mode: 'project',
       select: (params) => ({ language: params.language }),
-      privateProvenance: selectSttAudioModelInput,
     },
     url: '/api/tools/stt',
     method: 'POST',

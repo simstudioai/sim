@@ -28,7 +28,7 @@ Use the A2A (Agent-to-Agent) protocol to call external AI agents over the latest
 
 ## Tools
 
-### `a2a_send_message`
+### A2A Send Message
 
 Send a message to an external A2A agent and return its response.
 
@@ -54,7 +54,7 @@ Send a message to an external A2A agent and return its response.
 | `state` | string | Task lifecycle state: `submitted`, `working`, `input-required`, `auth-required`, `completed`, `failed`, `canceled`, or `rejected` |
 | `artifacts` | array | Structured task output artifacts |
 
-### `a2a_get_task`
+### A2A Get Task
 
 Retrieve the current state and result of an A2A task.
 
@@ -77,7 +77,7 @@ Retrieve the current state and result of an A2A task.
 | `state` | string | Task lifecycle state |
 | `artifacts` | array | Structured task output artifacts |
 
-### `a2a_cancel_task`
+### A2A Cancel Task
 
 Request cancellation of an in-progress A2A task.
 
@@ -97,7 +97,7 @@ Request cancellation of an in-progress A2A task.
 | `state` | string | Task lifecycle state after cancellation |
 | `canceled` | boolean | Whether the task reached the canceled state |
 
-### `a2a_get_agent_card`
+### A2A Get Agent Card
 
 Fetch the Agent Card (discovery document) for an external A2A agent.
 

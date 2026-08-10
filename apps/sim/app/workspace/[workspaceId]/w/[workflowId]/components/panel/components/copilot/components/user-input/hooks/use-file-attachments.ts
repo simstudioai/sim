@@ -5,6 +5,7 @@ import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
+import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { assertMultiFileUploadAdmission } from '@/lib/uploads/client/admission'
 import { runWithConcurrency, WHOLE_FILE_PARALLEL_UPLOADS } from '@/lib/uploads/client/concurrency'
 import { uploadInternalFileSession } from '@/lib/uploads/client/session-upload'
@@ -12,6 +13,32 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { resolveFileType } from '@/lib/uploads/utils/file-utils'
 
 const logger = createLogger('useFileAttachments')
+
+/**
+ * Image formats no browser decodes in an `<img>`. A blob URL of these bytes renders
+ * broken, so their preview has to come from the serve route, which substitutes a
+ * JPEG derivative once the file is uploaded.
+ *
+ * Matched as prefixes so the `-sequence` variants Safari reports for Live Photos and
+ * burst captures are covered too. The server decides for real by sniffing the
+ * container — see `isHevcHeifContainer` in `@/lib/uploads/server/heic`; keep the two
+ * in step when adding a format.
+ */
+const SERVER_RENDERED_IMAGE_PREFIXES = ['image/heic', 'image/heif'] as const
+
+/** Whether the browser can decode these bytes itself, making a blob URL worth creating. */
+function rendersFromBlobUrl(mediaType: string): boolean {
+  if (SERVER_RENDERED_IMAGE_PREFIXES.some((prefix) => mediaType.startsWith(prefix))) return false
+  return mediaType.startsWith('image/') || mediaType.startsWith('video/')
+}
+
+/**
+ * Revokes a preview URL only when it is one we minted. A preview can also be a serve
+ * URL, which owns no object-URL handle.
+ */
+function revokePreviewUrl(previewUrl?: string): void {
+  if (previewUrl?.startsWith('blob:')) URL.revokeObjectURL(previewUrl)
+}
 
 /**
  * File size units for formatting
@@ -85,11 +112,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
     return () => {
       for (const controller of uploadControllersRef.current.values()) controller.abort()
       uploadControllersRef.current.clear()
-      attachedFilesRef.current.forEach((f) => {
-        if (f.previewUrl) {
-          URL.revokeObjectURL(f.previewUrl)
-        }
-      })
+      attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     }
   }, [])
 
@@ -147,18 +170,20 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
 
       const files = Array.from(fileList)
 
-      const placeholders: AttachedFile[] = files.map((file) => ({
-        id: generateId(),
-        name: file.name,
-        size: file.size,
-        type: resolveFileType(file),
-        path: '',
-        uploading: true,
-        previewUrl:
-          file.type.startsWith('image/') || file.type.startsWith('video/')
-            ? URL.createObjectURL(file)
-            : undefined,
-      }))
+      const placeholders: AttachedFile[] = files.map((file) => {
+        /** Resolved once: browsers report `application/octet-stream` (or nothing) for
+         *  plenty of files, and both the chip and the preview decision key off it. */
+        const type = resolveFileType(file)
+        return {
+          id: generateId(),
+          name: file.name,
+          size: file.size,
+          type,
+          path: '',
+          uploading: true,
+          previewUrl: rendersFromBlobUrl(type) ? URL.createObjectURL(file) : undefined,
+        }
+      })
       const controllers = placeholders.map(() => new AbortController())
       placeholders.forEach((placeholder, index) => {
         uploadControllersRef.current.set(placeholder.id, controllers[index])
@@ -182,7 +207,18 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
           updateAttachedFiles((current) =>
             current.map((f) =>
               f.id === placeholder.id
-                ? { ...f, path: result.path, key: result.key, uploading: false }
+                ? {
+                    ...f,
+                    path: result.path,
+                    key: result.key,
+                    uploading: false,
+                    previewUrl:
+                      f.previewUrl ??
+                      getMothershipAttachmentPreviewUrl({
+                        key: result.key,
+                        media_type: f.type,
+                      }),
+                  }
                 : f
             )
           )
@@ -193,7 +229,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
               description: toError(error).message,
             })
           }
-          if (placeholder.previewUrl) URL.revokeObjectURL(placeholder.previewUrl)
+          revokePreviewUrl(placeholder.previewUrl)
           updateAttachedFiles((current) => current.filter((file) => file.id !== placeholder.id))
         } finally {
           uploadControllersRef.current.delete(placeholder.id)
@@ -239,9 +275,7 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
       uploadControllersRef.current.get(fileId)?.abort()
       uploadControllersRef.current.delete(fileId)
       const file = attachedFilesRef.current.find((f) => f.id === fileId)
-      if (file?.previewUrl) {
-        URL.revokeObjectURL(file.previewUrl)
-      }
+      revokePreviewUrl(file?.previewUrl)
       updateAttachedFiles((current) => current.filter((file) => file.id !== fileId))
     },
     [updateAttachedFiles]
@@ -308,28 +342,21 @@ export function useFileAttachments(props: UseFileAttachmentsProps) {
   const clearAttachedFiles = useCallback(() => {
     for (const controller of uploadControllersRef.current.values()) controller.abort()
     uploadControllersRef.current.clear()
-    attachedFilesRef.current.forEach((f) => {
-      if (f.previewUrl) {
-        URL.revokeObjectURL(f.previewUrl)
-      }
-    })
+    attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
     updateAttachedFiles(() => [])
   }, [updateAttachedFiles])
 
   /**
-   * Replaces the current attached files with a given set.
-   * Cleans up preview URLs from the prior set before replacing.
+   * Replaces the current attached files with a given set, revoking the prior set's
+   * preview URLs first. Revoked outside the updater, which must stay pure — React
+   * double-invokes updaters in StrictMode and may replay them.
    */
   const restoreAttachedFiles = useCallback(
     (files: AttachedFile[]) => {
       for (const controller of uploadControllersRef.current.values()) controller.abort()
       uploadControllersRef.current.clear()
-      updateAttachedFiles((current) => {
-        current.forEach((f) => {
-          if (f.previewUrl) URL.revokeObjectURL(f.previewUrl)
-        })
-        return files
-      })
+      attachedFilesRef.current.forEach((f) => revokePreviewUrl(f.previewUrl))
+      updateAttachedFiles(() => files)
     },
     [updateAttachedFiles]
   )

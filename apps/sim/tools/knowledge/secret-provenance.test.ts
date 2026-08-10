@@ -5,7 +5,6 @@ import { describe, expect, it } from 'vitest'
 import {
   knowledgeDocumentContentSelectionKey,
   knowledgeDocumentFilenameSelectionKey,
-  knowledgeDocumentTagNameSelectionKey,
   knowledgeDocumentTagValueSelectionKey,
   parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance-selection'
@@ -18,10 +17,9 @@ function serverSelectionKeys(documentTags: unknown): string[] {
   return [
     knowledgeDocumentFilenameSelectionKey(0),
     knowledgeDocumentContentSelectionKey(0),
-    ...parseKnowledgeDocumentTagProvenanceTargets(documentTagsData).flatMap((_tag, tagIndex) => [
-      knowledgeDocumentTagNameSelectionKey(0, tagIndex),
-      knowledgeDocumentTagValueSelectionKey(0, tagIndex),
-    ]),
+    ...parseKnowledgeDocumentTagProvenanceTargets(documentTagsData).map((_tag, tagIndex) =>
+      knowledgeDocumentTagValueSelectionKey(0, tagIndex)
+    ),
   ]
 }
 
@@ -61,6 +59,48 @@ describe('selectKnowledgeDocumentWriteSecretProvenance', () => {
     })
 
     expect(selections.map((selection) => selection.key)).toEqual(serverSelectionKeys(documentTags))
-    expect(selections).toHaveLength(8)
+    expect(selections).toHaveLength(5)
+    expect(selections).toEqual([
+      { key: 'document-filename:0', inputPaths: [['name']] },
+      { key: 'document-content:0', inputPaths: [['content']] },
+      { key: 'document-tag-value:0:0', inputPaths: [['documentTags', 'alpha']] },
+      { key: 'document-tag-value:0:1', inputPaths: [['documentTags', 'beta']] },
+      { key: 'document-tag-value:0:2', inputPaths: [['documentTags', 'gamma']] },
+    ])
+  })
+
+  it('selects array tag values without tracking persisted tag names', () => {
+    const selections = selectKnowledgeDocumentWriteSecretProvenance({
+      name: 'doc.md',
+      content: 'content',
+      documentTags: [
+        { tagName: 'team', value: 'support' },
+        { tagName: 'region', value: 'west' },
+      ],
+    })
+
+    expect(selections).toEqual([
+      { key: 'document-filename:0', inputPaths: [['name']] },
+      { key: 'document-content:0', inputPaths: [['content']] },
+      { key: 'document-tag-value:0:0', inputPaths: [['documentTags', '0', 'value']] },
+      { key: 'document-tag-value:0:1', inputPaths: [['documentTags', '1', 'value']] },
+    ])
+  })
+
+  it('uses the whole resolver leaf for JSON-string tag inputs', () => {
+    const documentTags = JSON.stringify([
+      { tagName: 'team', value: 'support' },
+      { tagName: 'region', value: 'west' },
+    ])
+    const selections = selectKnowledgeDocumentWriteSecretProvenance({
+      name: 'doc.md',
+      content: 'content',
+      documentTags,
+    })
+
+    expect(selections.map((selection) => selection.key)).toEqual(serverSelectionKeys(documentTags))
+    expect(
+      selections.slice(2).every(({ inputPaths }) => inputPaths[0]?.[0] === 'documentTags')
+    ).toBe(true)
   })
 })

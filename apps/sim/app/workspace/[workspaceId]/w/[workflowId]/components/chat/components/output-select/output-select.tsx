@@ -280,7 +280,7 @@ export function OutputSelect({
         sectionElement: (
           <div className='flex items-center gap-1.5 px-1.5 py-1'>
             <TagIcon icon={blockIcon} color={blockColor} />
-            <span className='font-medium text-small'>{blockName}</span>
+            <span className='text-small'>{blockName}</span>
           </div>
         ),
         items: outputs.map((output) => ({

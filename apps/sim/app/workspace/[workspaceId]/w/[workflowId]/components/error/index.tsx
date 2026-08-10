@@ -35,7 +35,7 @@ export function ErrorUI({
       <div className='flex h-full flex-1 items-center justify-center'>
         <div className='flex flex-col items-center gap-4 text-center'>
           <div className='flex flex-col gap-2'>
-            <h2 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h2>
+            <h2 className='text-[var(--text-primary)] text-md'>{title}</h2>
             <p className='max-w-[300px] text-[var(--text-tertiary)] text-small'>{message}</p>
           </div>
           <Button variant='default' size='sm' onClick={onReset ?? (() => window.location.reload())}>
@@ -54,10 +54,8 @@ export function ErrorUI({
       <div className='relative flex flex-1'>
         <div className='pointer-events-none absolute inset-0 flex items-center justify-center'>
           <div className='pointer-events-none flex flex-col items-center gap-4'>
-            <h3 className='font-semibold text-[var(--text-primary)] text-md'>{title}</h3>
-            <p className='max-w-sm text-center font-medium text-[var(--text-tertiary)] text-sm'>
-              {message}
-            </p>
+            <h3 className='text-[var(--text-primary)] text-md'>{title}</h3>
+            <p className='max-w-sm text-center text-[var(--text-tertiary)] text-sm'>{message}</p>
           </div>
         </div>
 

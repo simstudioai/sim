@@ -179,6 +179,44 @@ describe('LoggingSession diagnostic projection', () => {
   })
 })
 
+describe('LoggingSession response provenance', () => {
+  it('exports only active secrets present in the settled response without mutating it', () => {
+    const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
+    const registry = new ResolvedSecretTraceRegistry(
+      [
+        { name: 'OUTPUT_SECRET', plaintext: 'secret output', encryptedValue: 'encrypted-output' },
+        { name: 'UNUSED_SECRET', plaintext: 'public', encryptedValue: 'encrypted-unused' },
+      ],
+      { userId: 'user-1', workspaceId: 'workspace-1' }
+    )
+    registry.recordResolved('OUTPUT_SECRET', 'secret output')
+    session.setResolvedSecretTraceRegistry(registry)
+    const responseBody = { success: false, error: 'failed with secret output', public: 'public' }
+
+    expect(session.exportResolvedSecretTraceProvenanceForValue(responseBody)).toEqual({
+      version: 1,
+      complete: true,
+      entries: [{ name: 'OUTPUT_SECRET', encryptedValue: 'encrypted-output' }],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    })
+    expect(responseBody).toEqual({
+      success: false,
+      error: 'failed with secret output',
+      public: 'public',
+    })
+  })
+
+  it('returns incomplete provenance when the run registry is unavailable', () => {
+    const session = new LoggingSession('workflow-1', 'execution-1', 'manual')
+
+    expect(session.exportResolvedSecretTraceProvenanceForValue({ output: 'public' })).toEqual({
+      version: 1,
+      complete: false,
+      entries: [],
+    })
+  })
+})
+
 describe('LoggingSession terminal provenance', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -706,12 +744,12 @@ describe('LoggingSession completion retries', () => {
         status: 'success',
         output: { apiKey: 'ordinary-value' },
         displayResolvedSecretTraceProvenance: createDisplayProvenance([
-          { plaintext: 'E', replacement: '{{X}}' },
+          { plaintext: 'REDACTED', replacement: '{{X}}' },
         ]),
       },
     ]
     session.setResolvedSecretTraceRegistry(
-      createSecretRegistry([{ plaintext: 'E', replacement: '{{X}}' }])
+      createSecretRegistry([{ plaintext: 'REDACTED', replacement: '{{X}}' }])
     )
     prepareTraceSpansForProjectionMock.mockImplementationOnce(
       async ({ traceSpans }: { traceSpans: Array<Record<string, unknown>> }) =>

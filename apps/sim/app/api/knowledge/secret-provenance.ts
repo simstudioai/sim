@@ -26,7 +26,6 @@ import {
 import {
   knowledgeDocumentContentSelectionKey,
   knowledgeDocumentFilenameSelectionKey,
-  knowledgeDocumentTagNameSelectionKey,
   knowledgeDocumentTagValueSelectionKey,
   parseKnowledgeDocumentTagProvenanceTargets,
 } from '@/lib/knowledge/secret-provenance-selection'
@@ -77,11 +76,16 @@ export function resolveKnowledgeWriteSecretProvenance(options: {
   if (inspection.status !== 'verified' || options.authType !== AuthType.INTERNAL_JWT) {
     return { success: false, response: invalidKnowledgeProvenanceResponse() }
   }
-  if (
-    !isPrivateSecretProvenanceBundleV1(inspection.value) ||
-    !inspection.value.complete ||
-    inspection.value.selections.length !== options.selectionKeys.length
-  ) {
+  if (!isPrivateSecretProvenanceBundleV1(inspection.value)) {
+    return { success: false, response: invalidKnowledgeProvenanceResponse() }
+  }
+  if (!inspection.value.complete) {
+    return {
+      success: true,
+      provenances: options.selectionKeys.map(() => ({ status: 'unknown' })),
+    }
+  }
+  if (inspection.value.selections.length !== options.selectionKeys.length) {
     return { success: false, response: invalidKnowledgeProvenanceResponse() }
   }
   const provenances = options.selectionKeys.map((selectionKey) =>
@@ -90,9 +94,7 @@ export function resolveKnowledgeWriteSecretProvenance(options: {
       ...(options.workspaceId ? { workspaceId: options.workspaceId } : {}),
     })
   )
-  if (
-    provenances.some((provenance) => provenance === undefined || provenance.status === 'unknown')
-  ) {
+  if (provenances.some((provenance) => provenance === undefined)) {
     return { success: false, response: invalidKnowledgeProvenanceResponse() }
   }
   return { success: true, provenances: provenances as DurableSecretProvenance[] }
@@ -102,7 +104,7 @@ type KnowledgeDocumentWriteProvenanceResolution =
   | { success: true; provenances?: KnowledgeDocumentWriteSecretProvenance[] }
   | { success: false; response: NextResponse }
 
-/** Resolves field-separated document input provenance and rejects dynamic secret tag names. */
+/** Resolves provenance for durable document fields; persisted tag names remain raw and untracked. */
 export function resolveKnowledgeDocumentWriteSecretProvenance(options: {
   request: NextRequest
   payload: unknown
@@ -117,10 +119,9 @@ export function resolveKnowledgeDocumentWriteSecretProvenance(options: {
   const selectionKeys = options.documents.flatMap((_document, documentIndex) => [
     knowledgeDocumentFilenameSelectionKey(documentIndex),
     knowledgeDocumentContentSelectionKey(documentIndex),
-    ...tagTargets[documentIndex].flatMap((_tag, tagIndex) => [
-      knowledgeDocumentTagNameSelectionKey(documentIndex, tagIndex),
-      knowledgeDocumentTagValueSelectionKey(documentIndex, tagIndex),
-    ]),
+    ...tagTargets[documentIndex].map((_tag, tagIndex) =>
+      knowledgeDocumentTagValueSelectionKey(documentIndex, tagIndex)
+    ),
   ])
   const resolved = resolveKnowledgeWriteSecretProvenance({
     request: options.request,
@@ -140,11 +141,7 @@ export function resolveKnowledgeDocumentWriteSecretProvenance(options: {
     const content = resolved.provenances[provenanceIndex++]
     const tagProvenances: KnowledgeDocumentWriteSecretProvenance['tags'][number][] = []
     for (const tag of tags) {
-      const tagName = resolved.provenances[provenanceIndex++]
       const tagValue = resolved.provenances[provenanceIndex++]
-      if (tagName.status !== 'exact' || tagName.entries.length > 0) {
-        return { success: false, response: invalidKnowledgeProvenanceResponse() }
-      }
       tagProvenances.push({ tagName: tag.tagName, provenance: tagValue })
     }
     provenances.push({ filename, content, tags: tagProvenances })

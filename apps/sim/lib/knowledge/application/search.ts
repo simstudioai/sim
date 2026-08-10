@@ -525,7 +525,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
           }))
         if (
           renderedMetadata.length > 0 &&
-          !(await importDurableSecretProvenance(registry, document.provenance, renderedMetadata))
+          !(await importDurableSecretProvenance(
+            registry,
+            document.provenance,
+            renderedMetadata,
+            'knowledge'
+          ))
         ) {
           registry.markIncomplete()
         }

@@ -1,7 +1,12 @@
 import '@sim/testing/mocks/executor'
 
 import { createLogger } from '@sim/logger'
-import { authOAuthUtilsMock, authOAuthUtilsMockFns } from '@sim/testing'
+import {
+  authOAuthUtilsMock,
+  authOAuthUtilsMockFns,
+  encryptionMock,
+  encryptionMockFns,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest'
 
 const { mockResolveAutoModel } = vi.hoisted(() => ({
@@ -9,6 +14,7 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
 }))
 
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
+vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: vi.fn().mockResolvedValue({
@@ -32,7 +38,11 @@ vi.mock('@/lib/model-router/resolve', () => ({
   SIM_AUTO_SYSTEM_PREAMBLE: 'Sim auto system preamble',
 }))
 
-import { PRIVATE_MODEL_INPUT_PROVENANCE_HEADER } from '@/lib/execution/model-input-provenance'
+import {
+  PRIVATE_MODEL_INPUT_PROVENANCE_HEADER,
+  PRIVATE_MODEL_INPUT_STATE_HEADER,
+  PROJECTED_MODEL_INPUT_PATHS_V1,
+} from '@/lib/execution/model-input-provenance'
 import {
   RESOLVED_SECRET_PROVENANCE_FIELD,
   RESOLVED_SECRET_PROVENANCE_METADATA_V1,
@@ -124,6 +134,7 @@ describe('RouterBlockHandler', () => {
     }
 
     vi.clearAllMocks()
+    encryptionMockFns.mockDecryptSecret.mockResolvedValue({ decrypted: 'test-decrypted' })
 
     // unstubGlobals removes any module-scope fetch stub before each test, so re-stub here
     vi.stubGlobal('fetch', mockFetch)
@@ -258,7 +269,8 @@ describe('RouterBlockHandler', () => {
         encryptedValue: 'encrypted-router-credential',
       },
     ])
-    registry.recordResolved('PROMPT_SECRET', promptSecret)
+    registry.recordResolvedAtInputPath('PROMPT_SECRET', promptSecret, ['prompt'])
+    registry.recordResolvedInputProjection(['prompt'], promptSecret, '{{PROMPT_SECRET}}')
     registry.recordResolved('API_KEY', credentialSecret)
     mockContext.resolvedSecretTraceRegistry = registry
 
@@ -273,6 +285,9 @@ describe('RouterBlockHandler', () => {
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
       RESOLVED_SECRET_PROVENANCE_METADATA_V1
     )
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBe(
+      PROJECTED_MODEL_INPUT_PATHS_V1
+    )
     expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
       version: 1,
       complete: true,
@@ -284,6 +299,100 @@ describe('RouterBlockHandler', () => {
       ],
     })
     expect(requestBody.apiKey).toBe(credentialSecret)
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith('{{PROMPT_SECRET}}', expect.any(Array))
+  })
+
+  it('omits a prior target state when only aggregate secret provenance is available', async () => {
+    const stateSecret = 'x'
+    const encryptedStateSecret = 'encrypted-router-state'
+    const rawState = { result: stateSecret, ordinary: 'Box remains raw state' }
+    const registry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'STATE_SECRET',
+        plaintext: stateSecret,
+        encryptedValue: encryptedStateSecret,
+      },
+    ])
+    mockContext.resolvedSecretTraceRegistry = registry
+    mockContext.blockStates = new Map([
+      [
+        mockTargetBlock1.id,
+        {
+          output: rawState,
+          executed: true,
+          executionTime: 1,
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [{ name: 'STATE_SECRET', encryptedValue: encryptedStateSecret }],
+          },
+        },
+      ],
+    ])
+    encryptionMockFns.mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
+      decrypted: encryptedValue === encryptedStateSecret ? stateSecret : 'test-decrypted',
+    }))
+
+    await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+      model: 'gpt-4o',
+    })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(
+      'Choose the best option.',
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: mockTargetBlock1.id,
+          subBlocks: expect.objectContaining({ p: 'a' }),
+          currentState: undefined,
+        }),
+      ])
+    )
+    expect(rawState).toEqual({ result: stateSecret, ordinary: 'Box remains raw state' })
+    expect(mockTargetBlock1.config.params).toEqual({ p: 'a' })
+
+    const requestBody = JSON.parse(mockFetch.mock.calls[0][1].body)
+    expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
+      version: 1,
+      complete: true,
+      entries: [],
+    })
+  })
+
+  it('keeps an ordinary prior target state with exact-empty provenance unchanged', async () => {
+    const rawState = { result: 'x', ordinary: 'Box remains raw state' }
+    mockContext.resolvedSecretTraceRegistry = new ResolvedSecretTraceRegistry([])
+    mockContext.blockStates = new Map([
+      [
+        mockTargetBlock1.id,
+        {
+          output: rawState,
+          executed: true,
+          executionTime: 1,
+          resolvedSecretTraceProvenance: {
+            version: 1,
+            complete: true,
+            entries: [],
+          },
+        },
+      ],
+    ])
+
+    await handler.execute(mockContext, mockBlock, {
+      prompt: 'Choose the best option.',
+      model: 'gpt-4o',
+    })
+
+    expect(mockGenerateRouterPrompt).toHaveBeenCalledWith(
+      'Choose the best option.',
+      expect.arrayContaining([
+        expect.objectContaining({
+          id: mockTargetBlock1.id,
+          currentState: rawState,
+        }),
+      ])
+    )
+    expect(rawState).toEqual({ result: 'x', ordinary: 'Box remains raw state' })
   })
 
   it('keeps the legacy router request shape when no provenance registry exists', async () => {
@@ -297,6 +406,7 @@ describe('RouterBlockHandler', () => {
     const requestBody = JSON.parse(request.body)
     expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBeNull()
   })
 
   it('bills the cost the provider proxy decided rather than recomputing it', async () => {
@@ -665,7 +775,8 @@ describe('RouterBlockHandler V2', () => {
         encryptedValue: 'encrypted-router-v2-credential',
       },
     ])
-    registry.recordResolved('CONTEXT_SECRET', contextSecret)
+    registry.recordResolvedAtInputPath('CONTEXT_SECRET', contextSecret, ['context'])
+    registry.recordResolvedInputProjection(['context'], contextSecret, '{{CONTEXT_SECRET}}')
     registry.recordResolved('API_KEY', credentialSecret)
     mockContext.resolvedSecretTraceRegistry = registry
     mockFetch.mockResolvedValueOnce({
@@ -690,6 +801,9 @@ describe('RouterBlockHandler V2', () => {
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBe(
       RESOLVED_SECRET_PROVENANCE_METADATA_V1
     )
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBe(
+      PROJECTED_MODEL_INPUT_PATHS_V1
+    )
     expect(requestBody[RESOLVED_SECRET_PROVENANCE_FIELD]).toEqual({
       version: 1,
       complete: true,
@@ -701,6 +815,7 @@ describe('RouterBlockHandler V2', () => {
       ],
     })
     expect(requestBody.apiKey).toBe(credentialSecret)
+    expect(mockGenerateRouterV2Prompt).toHaveBeenCalledWith('{{CONTEXT_SECRET}}', expect.any(Array))
   })
 
   it('keeps the router V2 request shape when no provenance registry exists', async () => {
@@ -725,6 +840,7 @@ describe('RouterBlockHandler V2', () => {
     const requestBody = JSON.parse(request.body)
     expect(Object.hasOwn(requestBody, RESOLVED_SECRET_PROVENANCE_FIELD)).toBe(false)
     expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_PROVENANCE_HEADER)).toBeNull()
+    expect((request.headers as Headers).get(PRIVATE_MODEL_INPUT_STATE_HEADER)).toBeNull()
   })
 
   it('resolves sim-auto before executing router V2 and preserves its public identity', async () => {

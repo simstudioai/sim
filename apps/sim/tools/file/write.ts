@@ -50,7 +50,7 @@ export const fileWriteTool: ToolConfig<FileWriteParams, ToolResponse> = {
       workspaceId: params.workspaceId || params._context?.workspaceId,
     }),
     secretProvenance: {
-      request: (params) => [{ key: 'content', value: params.content }],
+      request: () => [{ key: 'content', inputPaths: [['content']] }],
     },
   },
 

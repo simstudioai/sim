@@ -36,6 +36,7 @@ import {
   SandboxOutputFileError,
   SandboxOutputLimitError,
   SandboxProcessOutputBudget,
+  tailStreamedSandboxOutput,
 } from '@/lib/execution/remote-sandbox/output-limits'
 import {
   quoteDependency,
@@ -389,6 +390,14 @@ class E2BSandboxHandle implements SandboxHandle {
     const outputBudget = new SandboxProcessOutputBudget(
       options.maxOutputBytes ?? MAX_SANDBOX_PROCESS_OUTPUT_BYTES
     )
+    /**
+     * E2B's SDK accumulates every callback-delivered chunk in its own result strings, so all streams
+     * must share the process budget even when Sim's caller consumes them incrementally. The callback
+     * still receives each chunk that fits; the sandbox is stopped before later chunks can make the
+     * SDK's retained copy grow without bound.
+     */
+    const retainStdout = options.onStdout === undefined
+    const retainStderr = options.onStderr === undefined
     const guardOutput = (value: string, callback?: (chunk: string) => void) => {
       try {
         outputBudget.add(value)
@@ -409,7 +418,11 @@ class E2BSandboxHandle implements SandboxHandle {
         onStderr: (chunk) => guardOutput(chunk, options.onStderr),
       })
       assertSandboxProcessOutputWithinLimit([result.stdout, result.stderr], options.maxOutputBytes)
-      return { stdout: result.stdout, stderr: result.stderr, exitCode: result.exitCode }
+      return {
+        stdout: retainStdout ? result.stdout : tailStreamedSandboxOutput(result.stdout),
+        stderr: retainStderr ? result.stderr : tailStreamedSandboxOutput(result.stderr),
+        exitCode: result.exitCode,
+      }
     } catch (error) {
       if (outputBudget.error) throw outputBudget.error
       if (reachedE2BProviderLimit(error, this.providerLimitAtMs, options.signal)) {
@@ -436,17 +449,21 @@ class E2BSandboxHandle implements SandboxHandle {
         [failure.stdout, failure.stderr, failure.message],
         options.maxOutputBytes
       )
+      const tailIfStreamed = (value: string | undefined, retain: boolean) =>
+        retain || value === undefined ? value : tailStreamedSandboxOutput(value)
+      const failureStdout = tailIfStreamed(failure.stdout, retainStdout)
+      const failureStderr = tailIfStreamed(failure.stderr, retainStderr)
       if (isE2BExecutionTimeout(error)) {
         return {
-          stdout: failure.stdout ?? '',
-          stderr: failure.stderr ?? failure.message ?? '',
+          stdout: failureStdout ?? '',
+          stderr: failureStderr ?? failure.message ?? '',
           exitCode: 124,
           timedOut: true,
         }
       }
       return {
-        stdout: failure.stdout ?? '',
-        stderr: failure.stderr ?? failure.message ?? getErrorMessage(error),
+        stdout: failureStdout ?? '',
+        stderr: failureStderr ?? failure.message ?? getErrorMessage(error),
         exitCode: failure.exitCode ?? 1,
       }
     }

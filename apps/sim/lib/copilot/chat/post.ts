@@ -4,7 +4,6 @@ import { copilotChats } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { isPlainRecord } from '@sim/utils/object'
 import { eq } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { z } from 'zod'
@@ -54,8 +53,9 @@ import {
 import type { ExecutionContext, OrchestratorResult } from '@/lib/copilot/request/types'
 import { persistChatResources } from '@/lib/copilot/resources/persistence'
 import {
-  canonicalizeDesktopSessionResources,
+  hasAddressableId,
   isEphemeralResource,
+  sanitizeChatResources,
 } from '@/lib/copilot/resources/types'
 import { prepareExecutionContext } from '@/lib/copilot/tools/handlers/context'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -65,8 +65,6 @@ import {
   isWorkspaceAccessDeniedError,
   type PermissionType,
 } from '@/lib/workspaces/permissions/utils'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { ChatContext } from '@/stores/panel'
 
 export const maxDuration = 3600
@@ -145,6 +143,20 @@ function isPersistableAttachment(resource: z.infer<typeof ResourceAttachmentSche
     type: resource.type,
     id: resource.id,
     title: resource.title ?? '',
+  })
+}
+
+/**
+ * Drops open tabs the client cannot address, so one unusable tab does not fail
+ * the whole message — clients on a stale bundle still send them. A non-string
+ * id is left in place for the schema to reject, since that is a malformed
+ * request rather than a resource we merely cannot open.
+ */
+function dropUnaddressableAttachments(value: unknown): unknown {
+  if (!Array.isArray(value)) return value
+  return value.filter((resource) => {
+    const id = (resource as { id?: unknown } | null)?.id
+    return typeof id !== 'string' || hasAddressableId(id)
   })
 }
 
@@ -257,7 +269,9 @@ const ChatMessageSchema = z.object({
   createNewChat: z.boolean().optional().default(false),
   implicitFeedback: z.string().optional(),
   fileAttachments: z.array(FileAttachmentSchema).optional(),
-  resourceAttachments: z.array(ResourceAttachmentSchema).optional(),
+  resourceAttachments: z
+    .preprocess(dropUnaddressableAttachments, z.array(ResourceAttachmentSchema))
+    .optional(),
   provider: z.string().optional(),
   contexts: z.array(ChatContextSchema).optional(),
   commands: z.array(z.string()).optional(),
@@ -503,36 +517,6 @@ async function resolveAgentContexts(params: {
   }
 
   return agentContexts
-}
-
-function projectAgentContextInputs(
-  message: string,
-  contexts: UnifiedChatRequest['contexts'],
-  registry: ResolvedSecretTraceRegistry | undefined
-): { message: string; contexts: UnifiedChatRequest['contexts'] } {
-  const labels = (contexts ?? []).map((context) => context.label ?? null)
-  const projection = projectResolvedSecretModelContent({ message, labels }, registry)
-  if (!projection.safe || !isPlainRecord(projection.value)) {
-    throw new Error('Agent context input could not be safely projected')
-  }
-  const projectedMessage = projection.value.message
-  const projectedLabels = projection.value.labels
-  if (
-    typeof projectedMessage !== 'string' ||
-    !Array.isArray(projectedLabels) ||
-    projectedLabels.length !== labels.length ||
-    !projectedLabels.every((label) => label === null || typeof label === 'string')
-  ) {
-    throw new Error('Agent context input could not be safely projected')
-  }
-
-  return {
-    message: projectedMessage,
-    contexts: contexts?.map((context, index) => ({
-      ...context,
-      ...(projectedLabels[index] === null ? {} : { label: projectedLabels[index] }),
-    })),
-  }
 }
 
 async function persistUserMessage(params: {
@@ -1090,7 +1074,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
-        const persistable = canonicalizeDesktopSessionResources(
+        // Canonicalizes here, not just inside `persistChatResources`: several
+        // browser tabs collapse onto the one Browser panel before they are
+        // stored, so the chat reopens with a single tab rather than one per page.
+        const persistable = sanitizeChatResources(
           body.resourceAttachments.filter(isPersistableAttachment).map((resource) => ({
             type: resource.type,
             id: resource.id,
@@ -1191,12 +1178,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           }),
         activeOtelRoot.context
       )
-      const agentContextsPromise = executionContextPromise.then((executionContext) => {
-        const projected = projectAgentContextInputs(
-          body.message,
-          normalizedContexts,
-          executionContext.resolvedSecretTraceRegistry
-        )
+      const agentContextsPromise = executionContextPromise.then(() => {
         return withCopilotSpan(
           TraceSpan.CopilotChatResolveAgentContexts,
           {
@@ -1205,10 +1187,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
           },
           () =>
             resolveAgentContexts({
-              contexts: projected.contexts,
+              contexts: normalizedContexts,
               resourceAttachments: body.resourceAttachments,
               userId: authenticatedUserId,
-              message: projected.message,
+              message: body.message,
               workspaceId,
               chatId: actualChatId,
               requestId,
@@ -1398,6 +1380,14 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     otelRoot?.finish('error', error)
 
     if (isZodError(error)) {
+      // A rejected body otherwise leaves no trace: the client sees a 400 and
+      // its stream reconnect 404s, which reads as the stream dying for no reason.
+      logger.warn(`[${requestId}] Rejected chat request as invalid`, {
+        issues: error.issues.map((issue) => ({
+          path: issue.path.join('.'),
+          message: issue.message,
+        })),
+      })
       return validationErrorResponse(error, 'Invalid request data')
     }
 

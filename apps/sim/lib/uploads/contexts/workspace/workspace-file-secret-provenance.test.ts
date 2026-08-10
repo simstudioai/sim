@@ -9,9 +9,11 @@ import {
   areModelSafeWorkspaceFileKeys,
   copyWorkspaceFileSecretProvenanceInTx,
   filterModelSafeWorkspaceFileAttachments,
+  importWorkspaceFileSecretProvenanceForModelView,
   importWorkspaceFileSecretProvenanceForRuntime,
   initializeWorkspaceFileSecretProvenanceInTx,
   isModelSafeWorkspaceFileKey,
+  isOpaqueWorkspaceFileEgressSafe,
   mergeWorkspaceFileSecretProvenance,
   preserveWorkspaceFileSecretProvenanceInTx,
   replaceWorkspaceFileSecretProvenanceInTx,
@@ -35,6 +37,7 @@ describe('workspace file secret provenance', () => {
       {
         status: 'exact',
         entries: [
+          { encryptedValue: 'anonymous', sourceUserId: 'user-1' },
           { name: 'z', encryptedValue: 'b', sourceUserId: 'user-1' },
           { name: 'a', encryptedValue: 'z', sourceUserId: 'user-1' },
           { name: 'a', encryptedValue: 'a', sourceUserId: 'user-1' },
@@ -49,6 +52,12 @@ describe('workspace file secret provenance', () => {
         contentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
         entries: [
+          {
+            name: 'MOUNTED_FILE_SECRET',
+            encryptedValue: 'anonymous',
+            sourceUserId: 'user-1',
+            anonymous: true,
+          },
           { name: 'a', encryptedValue: 'a', sourceUserId: 'user-1' },
           { name: 'a', encryptedValue: 'z', sourceUserId: 'user-1' },
           { name: 'z', encryptedValue: 'b', sourceUserId: 'user-1' },
@@ -57,6 +66,56 @@ describe('workspace file secret provenance', () => {
     )
     expect(dbChainMockFns.update).toHaveBeenCalledWith(workspaceFiles)
     expect(dbChainMockFns.set).toHaveBeenCalledWith({ secretProvenanceVersion: 1 })
+  })
+
+  it('keeps the legacy logical-byte budget when storing an anonymous entry', async () => {
+    await replaceWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      'file-1',
+      CONTENT_UPDATED_AT,
+      {
+        status: 'exact',
+        entries: [
+          {
+            encryptedValue: 'x'.repeat(8 * 1024 * 1024 - 1),
+            sourceUserId: 'u',
+          },
+        ],
+      }
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entries: [
+          expect.objectContaining({
+            name: 'MOUNTED_FILE_SECRET',
+            sourceUserId: 'u',
+            anonymous: true,
+          }),
+        ],
+      })
+    )
+  })
+
+  it('rejects entries beyond the legacy logical-byte budget', async () => {
+    await expect(
+      replaceWorkspaceFileSecretProvenanceInTx(
+        dbChainMock.db as unknown as DbTransaction,
+        'file-1',
+        CONTENT_UPDATED_AT,
+        {
+          status: 'exact',
+          entries: [
+            {
+              encryptedValue: 'x'.repeat(8 * 1024 * 1024),
+              sourceUserId: 'u',
+            },
+          ],
+        }
+      )
+    ).rejects.toThrow('exceeds its size limit')
+
+    expect(dbChainMockFns.values).not.toHaveBeenCalled()
   })
 
   it('initializes a missing classification without replacing an existing one', async () => {
@@ -199,7 +258,10 @@ describe('workspace file secret provenance', () => {
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+        entries: [
+          { name: 'API_KEY', encryptedValue: 'encrypted-original', sourceUserId: 'user-1' },
+          { name: 'API_KEY', encryptedValue: 'encrypted-representation', sourceUserId: 'user-1' },
+        ],
       },
       {
         id: 'unknown-id',
@@ -312,6 +374,42 @@ describe('workspace file secret provenance', () => {
     await expect(isModelSafeWorkspaceFileKey('legacy-key')).resolves.toBe(true)
   })
 
+  it('allows opaque egress only for exact-empty or legacy file provenance', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+    await expect(
+      isOpaqueWorkspaceFileEgressSafe('workspace-1', {
+        fileId: 'legacy-file',
+        key: 'legacy-key',
+        context: 'workspace',
+      })
+    ).resolves.toBe(true)
+
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+      },
+    ])
+    await expect(
+      isOpaqueWorkspaceFileEgressSafe('workspace-1', {
+        fileId: 'tracked-file',
+        key: 'tracked-key',
+        context: 'workspace',
+      })
+    ).resolves.toBe(false)
+  })
+
   it('imports exact mounted-file provenance and keeps legacy-null files compatible', async () => {
     const registry = {
       importProvenance: vi.fn().mockResolvedValue(true),
@@ -323,7 +421,13 @@ describe('workspace file secret provenance', () => {
         secretProvenanceVersion: 1,
         provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
         status: 'exact',
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+        entries: [
+          {
+            name: '__SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1__',
+            encryptedValue: 'encrypted',
+            sourceUserId: 'user-1',
+          },
+        ],
       },
     ])
 
@@ -338,10 +442,88 @@ describe('workspace file secret provenance', () => {
       {
         version: 1,
         complete: true,
-        entries: [{ name: 'API_KEY', encryptedValue: 'encrypted' }],
+        entries: [
+          {
+            name: '__SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1__',
+            encryptedValue: 'encrypted',
+          },
+        ],
         scope: { userId: 'user-1' },
       },
-      { trusted: true }
+      { trusted: true, origin: 'durableProvenance.envelope' }
+    )
+
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [
+          {
+            name: ':SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1:',
+            encryptedValue: 'reserved-name-encrypted',
+            sourceUserId: 'user-1',
+          },
+        ],
+      },
+    ])
+    vi.mocked(registry.importProvenance).mockClear()
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'reserved-name-file', key: 'reserved-name-key', context: 'workspace' },
+        registry,
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenance).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [
+          {
+            encryptedValue: 'reserved-name-encrypted',
+          },
+        ],
+        scope: { userId: 'user-1' },
+      },
+      { trusted: true, origin: 'durableProvenance.envelope' }
+    )
+
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [
+          {
+            name: ':SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1:',
+            anonymous: true,
+            encryptedValue: 'anonymous-encrypted',
+            sourceUserId: 'user-1',
+          },
+        ],
+      },
+    ])
+    vi.mocked(registry.importProvenance).mockClear()
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForRuntime({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'anonymous-file', key: 'anonymous-key', context: 'workspace' },
+        registry,
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenance).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ encryptedValue: 'anonymous-encrypted' }],
+        scope: { userId: 'user-1' },
+      },
+      { trusted: true, origin: 'durableProvenance.envelope' }
     )
 
     queueTableRows(workspaceFiles, [
@@ -363,6 +545,132 @@ describe('workspace file secret provenance', () => {
       })
     ).resolves.toBe(true)
     expect(registry.importProvenance).not.toHaveBeenCalled()
+  })
+
+  it('imports the complete sidecar for an exact model-visible file view', async () => {
+    const registry = {
+      importProvenance: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [
+          { name: 'API_KEY', encryptedValue: 'encrypted-original', sourceUserId: 'user-1' },
+          { name: 'API_KEY', encryptedValue: 'encrypted-representation', sourceUserId: 'user-1' },
+        ],
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+        view: 'complete',
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenance).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [
+          { name: 'API_KEY', encryptedValue: 'encrypted-original' },
+          { name: 'API_KEY', encryptedValue: 'encrypted-representation' },
+        ],
+        scope: { userId: 'user-1' },
+      },
+      { trusted: true, origin: 'durableProvenance.envelope' }
+    )
+  })
+
+  it('rejects a contributor identity captured from an older file content version', async () => {
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: null,
+        provenanceContentUpdatedAt: null,
+        status: null,
+        entries: null,
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: {
+          fileId: 'file-1',
+          key: 'file-key',
+          context: 'workspace',
+          contentUpdatedAt: new Date(CONTENT_UPDATED_AT.getTime() - 1),
+        },
+        view: 'opaque',
+      })
+    ).resolves.toBe(false)
+  })
+
+  it('rejects derived content views of tracked files', async () => {
+    const registry = {
+      importProvenance: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    const trackedRow = {
+      fileContentUpdatedAt: CONTENT_UPDATED_AT,
+      secretProvenanceVersion: 1,
+      provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+      status: 'exact',
+      entries: [{ name: 'MULTILINE', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+    }
+    queueTableRows(workspaceFiles, [trackedRow])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+        view: 'derived',
+      })
+    ).resolves.toBe(false)
+    expect(registry.importProvenance).not.toHaveBeenCalled()
+  })
+
+  it('filters tracked provenance against the exact derived model view', async () => {
+    const registry = {
+      importProvenanceForValue: vi.fn().mockResolvedValue(true),
+      isPermanentlyIncomplete: vi.fn().mockReturnValue(false),
+    } as unknown as ResolvedSecretTraceRegistry
+    queueTableRows(workspaceFiles, [
+      {
+        fileContentUpdatedAt: CONTENT_UPDATED_AT,
+        secretProvenanceVersion: 1,
+        provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+        status: 'exact',
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+      },
+    ])
+
+    await expect(
+      importWorkspaceFileSecretProvenanceForModelView({
+        workspaceId: 'workspace-1',
+        identity: { fileId: 'file-1', key: 'file-key', context: 'workspace' },
+        registry,
+        view: 'derived',
+        value: 'derived text',
+      })
+    ).resolves.toBe(true)
+    expect(registry.importProvenanceForValue).toHaveBeenCalledWith(
+      {
+        version: 1,
+        complete: true,
+        entries: [{ name: 'TOKEN', encryptedValue: 'encrypted' }],
+        scope: { userId: 'user-1' },
+      },
+      'derived text',
+      { trusted: true, origin: 'durableProvenance.valueEnvelope' }
+    )
   })
 
   it('rejects unavailable mounted-file provenance without importing it', async () => {
@@ -709,6 +1017,63 @@ describe('workspace file secret provenance', () => {
         contentUpdatedAt: targetContentUpdatedAt,
         status: 'exact',
         entries: [{ name: 'API_KEY', encryptedValue: 'encrypted', sourceUserId: 'user-1' }],
+      })
+    )
+  })
+
+  it('preserves anonymous provenance across a byte-identical file copy', async () => {
+    const targetContentUpdatedAt = new Date('2026-08-04T00:00:01.000Z')
+    dbChainMockFns.limit
+      .mockResolvedValueOnce([
+        {
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          contentUpdatedAt: targetContentUpdatedAt,
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          key: 'source-key',
+          userId: 'user-1',
+          workspaceId: 'workspace-1',
+          secretProvenanceVersion: 1,
+          fileContentUpdatedAt: CONTENT_UPDATED_AT,
+          provenanceContentUpdatedAt: CONTENT_UPDATED_AT,
+          status: 'exact',
+          entries: [
+            {
+              name: ':SIM_INTERNAL_ANONYMOUS_SECRET_PROVENANCE_V1:',
+              anonymous: true,
+              encryptedValue: 'anonymous-encrypted',
+              sourceUserId: 'user-1',
+            },
+          ],
+        },
+      ])
+
+    await copyWorkspaceFileSecretProvenanceInTx(
+      dbChainMock.db as unknown as DbTransaction,
+      {
+        fileId: 'source-file',
+        key: 'source-key',
+        contentUpdatedAtMs: CONTENT_UPDATED_AT.getTime(),
+      },
+      'target-file'
+    )
+
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({
+        fileId: 'target-file',
+        contentUpdatedAt: targetContentUpdatedAt,
+        status: 'exact',
+        entries: [
+          {
+            name: 'MOUNTED_FILE_SECRET',
+            anonymous: true,
+            encryptedValue: 'anonymous-encrypted',
+            sourceUserId: 'user-1',
+          },
+        ],
       })
     )
   })

@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 1091,
-  zodRoutes: 1091,
+  totalRoutes: 1092,
+  zodRoutes: 1092,
   nonZodRoutes: 0,
 } as const
 
@@ -24,7 +24,7 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 8,
+  doubleCasts: 6,
   rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,

@@ -374,19 +374,46 @@ describe('buildCopilotRequestPayload', () => {
       ])
     })
 
-    it('fails the request when an authorized attachment cannot be prepared', async () => {
+    it('isolates a failed attachment and still prepares valid siblings', async () => {
       const cause = new Error('provenance sidecar unavailable')
-      mockTrackChatUpload.mockRejectedValueOnce(cause)
+      mockTrackChatUpload
+        .mockRejectedValueOnce(cause)
+        .mockResolvedValueOnce({ displayName: 'photo.png' })
 
-      await expect(
-        buildCopilotRequestPayload(
-          { ...attachmentParams, userPermission: 'write' },
-          { selectedModel: 'claude-opus-4-8' }
-        )
-      ).rejects.toMatchObject({
-        message: 'Failed to prepare attached file "payroll.xlsx" for Copilot. Please try again.',
-        cause,
-      })
+      const payload = await buildCopilotRequestPayload(
+        {
+          ...attachmentParams,
+          userPermission: 'write',
+          fileAttachments: [
+            ...attachmentParams.fileAttachments,
+            {
+              id: 'a2',
+              key: 'workspace/ws-1/1731000000001-ab12cd35-photo.png',
+              filename: 'photo.png',
+              media_type: 'image/png',
+              size: 10,
+            },
+          ],
+        },
+        { selectedModel: 'claude-opus-4-8' }
+      )
+
+      expect(mockTrackChatUpload).toHaveBeenCalledTimes(2)
+      expect(payload.context).toEqual([
+        {
+          type: 'uploaded_file',
+          content:
+            'File "payroll.xlsx" could not be prepared for Copilot and was omitted. Other attached files remain available.',
+        },
+        {
+          type: 'uploaded_file',
+          content: [
+            'File "photo.png" (image/png, 10 bytes) uploaded.',
+            'Read with: read("uploads/photo.png")',
+            'To save permanently: materialize_file(fileName: "photo.png")',
+          ].join('\n'),
+        },
+      ])
     })
   })
 
