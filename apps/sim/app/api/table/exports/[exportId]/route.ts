@@ -6,8 +6,8 @@ import {
   defineInternalJsonRoute,
   internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
-  internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { cancelTableExportUseCase, readTableExportUseCase } from '@/lib/table/application/exports'
 import { tableOperations } from '@/lib/table/application/operations'
 import { toV2TableExport } from '@/lib/table/orchestration/export-resource'
@@ -18,7 +18,7 @@ const rateLimit = internalRateLimits.none({
 
 export const GET = defineInternalJsonRoute({
   contract: getTableExportResourceContract,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.readExport,
   rateLimit,
   errorPolicy: internalPlainOrchestrationErrorPolicy,
@@ -32,7 +32,7 @@ export const GET = defineInternalJsonRoute({
 
 export const DELETE = defineInternalJsonRoute({
   contract: cancelTableExportResourceContract,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.cancelExport,
   rateLimit,
   errorPolicy: internalPlainOrchestrationErrorPolicy,

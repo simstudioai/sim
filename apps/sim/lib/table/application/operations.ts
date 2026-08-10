@@ -5,6 +5,16 @@ const ALL_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+const ALL_TABLE_TOOL_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot', 'executor'],
+} as const
+
+const INTERNAL_EXECUTOR_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['executor'],
+} as const
+
 function readOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -23,6 +33,33 @@ function writeOperation<const Id extends string>(id: Id) {
   })
 }
 
+function toolWriteOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...ALL_TABLE_TOOL_PRINCIPAL_POLICY,
+  })
+}
+
+function internalExecutorReadOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'read',
+    workspaceApiKey: 'allow',
+    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
+  })
+}
+
+function internalExecutorWriteOperation<const Id extends string>(id: Id) {
+  return defineWorkspaceOperation({
+    id,
+    minimumRole: 'write',
+    workspaceApiKey: 'allow',
+    ...INTERNAL_EXECUTOR_PRINCIPAL_POLICY,
+  })
+}
+
 function delegatedWriteOperation<const Id extends string>(id: Id) {
   return defineWorkspaceOperation({
     id,
@@ -30,15 +67,6 @@ function delegatedWriteOperation<const Id extends string>(id: Id) {
     workspaceApiKey: 'deny',
     principalKinds: ['delegated'],
     delegatedServices: ['copilot'],
-  })
-}
-
-function nonDelegatedWriteOperation<const Id extends string>(id: Id) {
-  return defineWorkspaceOperation({
-    id,
-    minimumRole: 'write',
-    workspaceApiKey: 'allow',
-    principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
   })
 }
 
@@ -72,22 +100,22 @@ export const tableOperations = {
   updateView: writeOperation('tables.views.update'),
   deleteView: writeOperation('tables.views.delete'),
   listGroups: readOperation('tables.groups.list'),
-  createGroup: writeOperation('tables.groups.create'),
-  updateGroup: writeOperation('tables.groups.update'),
-  deleteGroup: writeOperation('tables.groups.delete'),
+  createGroup: toolWriteOperation('tables.groups.create'),
+  updateGroup: toolWriteOperation('tables.groups.update'),
+  deleteGroup: toolWriteOperation('tables.groups.delete'),
   startRun: writeOperation('tables.runs.start'),
   cancelRuns: writeOperation('tables.runs.cancel'),
-  createImport: nonDelegatedWriteOperation('tables.imports.create'),
+  createImport: internalExecutorWriteOperation('tables.imports.create'),
   createFromWorkspaceFile: delegatedWriteOperation('tables.imports.create_from_workspace_file'),
   importWorkspaceFile: delegatedWriteOperation('tables.imports.workspace_file'),
-  readImport: readOperation('tables.imports.read'),
-  createImportParts: nonDelegatedWriteOperation('tables.imports.create_parts'),
-  completeImport: nonDelegatedWriteOperation('tables.imports.complete'),
-  cancelImport: writeOperation('tables.imports.cancel'),
-  createExport: readOperation('tables.exports.create'),
-  readExport: readOperation('tables.exports.read'),
-  cancelExport: readOperation('tables.exports.cancel'),
-  downloadExport: readOperation('tables.exports.download'),
+  readImport: internalExecutorReadOperation('tables.imports.read'),
+  createImportParts: internalExecutorWriteOperation('tables.imports.create_parts'),
+  completeImport: internalExecutorWriteOperation('tables.imports.complete'),
+  cancelImport: internalExecutorWriteOperation('tables.imports.cancel'),
+  createExport: internalExecutorReadOperation('tables.exports.create'),
+  readExport: internalExecutorReadOperation('tables.exports.read'),
+  cancelExport: internalExecutorReadOperation('tables.exports.cancel'),
+  downloadExport: internalExecutorReadOperation('tables.exports.download'),
 } as const
 
 export type TableOperation = (typeof tableOperations)[keyof typeof tableOperations]

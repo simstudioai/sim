@@ -9,8 +9,8 @@ import {
   internalErrorResponse,
   internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
-  internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import {
   createTableGroupUseCase,
   deleteTableGroupUseCase,
@@ -28,7 +28,7 @@ const errorPolicy = extendInternalErrorPolicy(internalPlainOrchestrationErrorPol
 )
 
 const rateLimit = internalRateLimits.none({
-  reason: 'First-party table group mutations are authenticated browser operations',
+  reason: 'Existing authenticated table group mutations have no request-rate policy',
 })
 
 function presentTable(table: TableDefinition) {
@@ -45,7 +45,7 @@ export const POST = defineInternalJsonRoute({
   contract: addWorkflowGroupContract,
   operation: tableOperations.createGroup,
   useCase: createTableGroupUseCase,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
@@ -56,7 +56,7 @@ export const PATCH = defineInternalJsonRoute({
   contract: updateWorkflowGroupContract,
   operation: tableOperations.updateGroup,
   useCase: updateTableGroupUseCase,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
@@ -67,7 +67,7 @@ export const DELETE = defineInternalJsonRoute({
   contract: deleteWorkflowGroupContract,
   operation: tableOperations.deleteGroup,
   useCase: deleteTableGroupUseCase,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),

@@ -1,6 +1,6 @@
 import { isDeepStrictEqual } from 'node:util'
 import { AuditAction, AuditResourceType } from '@sim/audit'
-import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { requirePrincipalSubjectUserId, resolvePrincipalAttribution } from '@sim/auth/principal'
 import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
@@ -54,7 +54,10 @@ import {
   validateStoragePredicate,
 } from '@/lib/table/query-builder/validate'
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
-import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
+import {
+  createExactEmptyTableRowSecretProvenance,
+  loadTableRowSecretProvenance,
+} from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
@@ -77,6 +80,21 @@ interface TableScopedInput {
 
 interface TableResult {
   table: TableDefinition
+}
+
+type TableRowsProvenance = Awaited<ReturnType<typeof loadTableRowSecretProvenance>>
+
+async function loadAuthorizedRowsProvenance(
+  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
+  workspaceId: string,
+  rows: TableRow[],
+  include: boolean | undefined
+): Promise<TableRowsProvenance | undefined> {
+  if (!include) return undefined
+  return loadTableRowSecretProvenance(rows, {
+    userId: requirePrincipalSubjectUserId(principal),
+    workspaceId,
+  })
 }
 
 function requestId(input: TableScopedInput): string {
@@ -183,6 +201,7 @@ export interface QueryTableRowsInput extends TableScopedInput {
   limit?: number
   cursor?: string
   includeTotal?: boolean
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface QueryTableRowsResult extends TableResult {
@@ -190,17 +209,16 @@ export interface QueryTableRowsResult extends TableResult {
   rowCount: number
   totalCount: number | null
   nextCursor: string | null
+  secretProvenance?: TableRowsProvenance
 }
 
 export const queryTableRows = defineAuthorizedTableUseCase({
   operation: tableOperations.queryRows,
   resolveContext: ({ input }: { input: QueryTableRowsInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<QueryTableRowsResult> {
+  async execute({ principal, input, context }): Promise<QueryTableRowsResult> {
     try {
       if (input.limit !== undefined) {
-        if (!Number.isSafeInteger(input.limit) || input.limit < 1) {
-          throw new TableRowsValidationError('Limit must be 1 or greater')
-        }
+        requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_QUERY_LIMIT, 'Limit')
       }
       let predicate = input.predicate
       if (predicate) {
@@ -230,7 +248,16 @@ export const queryTableRows = defineAuthorizedTableUseCase({
         },
         requestId(input)
       )
-      return { table: context.table, ...result }
+      return {
+        table: context.table,
+        ...result,
+        secretProvenance: await loadAuthorizedRowsProvenance(
+          principal,
+          context.workspaceId,
+          result.rows,
+          input.includePersistedSecretProvenance
+        ),
+      }
     } catch (error) {
       rethrowQueryValidation(error)
     }
@@ -279,19 +306,30 @@ export const findTableRows = defineAuthorizedTableUseCase({
 
 export interface ReadTableRowInput extends TableScopedInput {
   rowId: string
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface ReadTableRowResult extends TableResult {
   row: TableRow
+  secretProvenance?: TableRowsProvenance
 }
 
 export const readTableRow = defineAuthorizedTableUseCase({
   operation: tableOperations.readRow,
   resolveContext: ({ input }: { input: ReadTableRowInput }) => resolveActiveTableContext(input),
-  async execute({ input, context }): Promise<ReadTableRowResult> {
+  async execute({ principal, input, context }): Promise<ReadTableRowResult> {
     const row = await getRowById(context.tableId, input.rowId, context.workspaceId)
     if (!row) throw new OrchestrationError('not_found', 'Row not found')
-    return { table: context.table, row }
+    return {
+      table: context.table,
+      row,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
 })
 
@@ -567,11 +605,13 @@ export interface UpdateTableRowInput extends TableScopedInput {
   rowId: string
   data: RowData
   secretProvenance?: TableRowSecretProvenanceWrite
+  includePersistedSecretProvenance?: boolean
 }
 
 export interface UpdateTableRowResult extends TableResult {
   row: TableRow
   changed: boolean
+  secretProvenance?: TableRowsProvenance
 }
 
 export const updateTableRow = defineAuthorizedTableUseCase({
@@ -592,7 +632,17 @@ export const updateTableRow = defineAuthorizedTableUseCase({
       requestId(input)
     )
     if (!row) throw new Error('Unconditional table row update was rejected')
-    return { table: context.table, row, changed: Object.keys(data).length > 0 }
+    return {
+      table: context.table,
+      row,
+      changed: Object.keys(data).length > 0,
+      secretProvenance: await loadAuthorizedRowsProvenance(
+        principal,
+        context.workspaceId,
+        [row],
+        input.includePersistedSecretProvenance
+      ),
+    }
   },
   afterSuccess: ({ context, result }) => {
     if (result.changed) signalTableRowsChanged(context.tableId)

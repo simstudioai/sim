@@ -1,5 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   addTableColumn,
@@ -7,7 +8,9 @@ import {
   type ColumnType,
   deleteColumn,
   deleteColumns,
+  getColumnId,
   type SelectOption,
+  TABLE_LIMITS,
   type TableDefinition,
 } from '@/lib/table'
 import { defineAuthorizedTableUseCase } from '@/lib/table/application/authorized-table-use-case'
@@ -161,6 +164,11 @@ export interface DeleteTableColumnsInput extends TableColumnInput {
   columnNames: string[]
 }
 
+interface DeletedTableColumn {
+  id: string
+  name: string
+}
+
 export const deleteTableColumnsUseCase = defineAuthorizedTableUseCase({
   operation: tableOperations.deleteColumn,
   resolveContext: ({ input }: { input: DeleteTableColumnsInput }) =>
@@ -168,29 +176,43 @@ export const deleteTableColumnsUseCase = defineAuthorizedTableUseCase({
       tableId: input.tableId,
       assertedWorkspaceId: input.workspaceId,
     }),
-  async execute({ input, context }): Promise<{ table: TableDefinition }> {
+  async execute({ input, context }): Promise<{
+    table: TableDefinition
+    deletedColumns: DeletedTableColumn[]
+  }> {
     if (input.columnNames.length < 1) {
-      throw new Error('At least one column name is required')
+      throw new OrchestrationError('validation', 'At least one column name is required')
+    }
+    if (input.columnNames.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+      throw new OrchestrationError(
+        'validation',
+        `Cannot delete more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+      )
     }
     const table = await deleteColumns(
       { tableId: context.table.id, columnNames: input.columnNames },
       generateRequestId(),
       { expectedWorkspaceId: context.workspaceId }
     )
-    return { table }
+    const remainingColumnIds = new Set(table.schema.columns.map(getColumnId))
+    const deletedColumns = context.table.schema.columns
+      .filter((column) => !remainingColumnIds.has(getColumnId(column)))
+      .map((column) => ({ id: getColumnId(column), name: column.name }))
+    return { table, deletedColumns }
   },
-  projectAudit({ input, context, result }) {
+  projectAudit({ context, result }) {
+    if (result.deletedColumns.length === 0) return []
     return {
       action: AuditAction.TABLE_UPDATED,
       resourceType: AuditResourceType.TABLE,
       resourceId: result.table.id,
       resourceName: result.table.name,
-      description: `Deleted ${input.columnNames.length} columns from table "${context.table.name}"`,
-      metadata: { columnNames: input.columnNames },
+      description: `Deleted ${result.deletedColumns.length} ${result.deletedColumns.length === 1 ? 'column' : 'columns'} from table "${context.table.name}"`,
+      metadata: { columnNames: result.deletedColumns.map((column) => column.name) },
     }
   },
-  afterSuccess({ context }) {
-    signalTableSchemaChanged(context.table.id)
+  afterSuccess({ context, result }) {
+    if (result.deletedColumns.length > 0) signalTableSchemaChanged(context.table.id)
   },
 })
 

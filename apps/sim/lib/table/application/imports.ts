@@ -88,10 +88,11 @@ interface TableImportUploadContext extends TableAuthorizationContext {
 
 async function resolveCreateTableImportContext(input: CreateTableImportInput) {
   if (input.body.target.type === 'existing') {
-    return resolveActiveTableContext({
+    const { tableId: _tableId, ...context } = await resolveActiveTableContext({
       tableId: input.body.target.tableId,
       assertedWorkspaceId: input.body.workspaceId,
     })
+    return context
   }
   return resolveTableWorkspaceContext(input.body.workspaceId)
 }
@@ -107,7 +108,6 @@ async function resolveTableImportContext(
   return {
     ...workspace,
     importId: record.id,
-    ...(record.tableId ? { tableId: record.tableId } : {}),
     record,
   }
 }
@@ -127,7 +127,6 @@ async function resolveTableImportUploadContext(
   return {
     ...workspace,
     importId: upload.id,
-    ...(body.target.type === 'existing' ? { tableId: body.target.tableId } : {}),
     upload,
   }
 }

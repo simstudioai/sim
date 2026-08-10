@@ -72,12 +72,23 @@ describe('deleteCopilotTables', () => {
   })
 
   it('canonically resolves each table and audits each authoritative archive', async () => {
+    const assertNotAborted = vi.fn()
     const result = await deleteCopilotTables.execute({
       principal,
-      input: { workspaceId: 'workspace-1', tableIds: ['table-1', 'table-2'] },
+      input: {
+        workspaceId: 'workspace-1',
+        tableIds: ['table-1', 'table-2'],
+        assertNotAborted,
+      },
     })
 
-    expect(result).toEqual({ deleted: ['table-1', 'table-2'], failed: [] })
+    expect(result).toEqual({
+      deleted: [
+        { id: 'table-1', name: 'Table table-1' },
+        { id: 'table-2', name: 'Table table-2' },
+      ],
+      failed: [],
+    })
     expect(mocks.resolveActiveTableContext).toHaveBeenNthCalledWith(1, {
       tableId: 'table-1',
       assertedWorkspaceId: 'workspace-1',
@@ -86,7 +97,12 @@ describe('deleteCopilotTables', () => {
       tableId: 'table-2',
       assertedWorkspaceId: 'workspace-1',
     })
+    expect(assertNotAborted).toHaveBeenCalledTimes(2)
     expect(mocks.audit).toHaveBeenCalledTimes(2)
+    expect(mocks.audit).toHaveBeenNthCalledWith(
+      1,
+      expect.objectContaining({ resourceId: 'table-1', resourceName: 'Table table-1' })
+    )
   })
 
   it('conceals a cross-workspace table as a best-effort miss', async () => {
@@ -97,7 +113,11 @@ describe('deleteCopilotTables', () => {
     await expect(
       deleteCopilotTables.execute({
         principal,
-        input: { workspaceId: 'workspace-1', tableIds: ['table-other'] },
+        input: {
+          workspaceId: 'workspace-1',
+          tableIds: ['table-other'],
+          assertNotAborted: vi.fn(),
+        },
       })
     ).resolves.toEqual({ deleted: [], failed: ['table-other'] })
 
@@ -111,7 +131,11 @@ describe('deleteCopilotTables', () => {
     await expect(
       deleteCopilotTables.execute({
         principal,
-        input: { workspaceId: 'workspace-1', tableIds: ['table-1'] },
+        input: {
+          workspaceId: 'workspace-1',
+          tableIds: ['table-1'],
+          assertNotAborted: vi.fn(),
+        },
       })
     ).rejects.toMatchObject({ code: 'forbidden' })
 
@@ -120,7 +144,7 @@ describe('deleteCopilotTables', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
-  it('preserves audit for completed items before a later mutation fails', async () => {
+  it('does not project partial audit when the compound command fails', async () => {
     const failure = new Error('delete storage unavailable')
     mocks.deleteTable
       .mockResolvedValueOnce({
@@ -131,13 +155,42 @@ describe('deleteCopilotTables', () => {
     await expect(
       deleteCopilotTables.execute({
         principal,
-        input: { workspaceId: 'workspace-1', tableIds: ['table-1', 'table-2'] },
+        input: {
+          workspaceId: 'workspace-1',
+          tableIds: ['table-1', 'table-2'],
+          assertNotAborted: vi.fn(),
+        },
       })
     ).rejects.toBe(failure)
 
-    expect(mocks.audit).toHaveBeenCalledTimes(1)
-    expect(mocks.audit).toHaveBeenCalledWith(
-      expect.objectContaining({ resourceId: 'table-1', action: 'table.deleted' })
-    )
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('checks cancellation immediately before each archive and stops partial progress', async () => {
+    const canceled = new Error('Request aborted before tool mutation could be applied')
+    const assertNotAborted = vi
+      .fn()
+      .mockImplementationOnce(() => undefined)
+      .mockImplementationOnce(() => {
+        throw canceled
+      })
+
+    await expect(
+      deleteCopilotTables.execute({
+        principal,
+        input: {
+          workspaceId: 'workspace-1',
+          tableIds: ['table-1', 'table-2'],
+          assertNotAborted,
+        },
+      })
+    ).rejects.toBe(canceled)
+
+    expect(mocks.resolveActiveTableContext).toHaveBeenCalledTimes(2)
+    expect(mocks.deleteTable).toHaveBeenCalledTimes(1)
+    expect(mocks.deleteTable).toHaveBeenCalledWith('table-1', 'request-1', {
+      expectedWorkspaceId: 'workspace-1',
+    })
+    expect(mocks.audit).not.toHaveBeenCalled()
   })
 })

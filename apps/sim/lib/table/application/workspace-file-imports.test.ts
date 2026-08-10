@@ -122,8 +122,8 @@ const principal = {
   audience: 'sim:tables',
   issuedAt: new Date('2026-08-01T00:00:00.000Z'),
   expiresAt: new Date('2099-08-01T00:00:00.000Z'),
-  resourceScope: { tableId: 'table-1' },
 }
+const tablePrincipal = { ...principal, resourceScope: { tableId: 'table-1' } }
 
 describe('workspace-file Table application commands', () => {
   beforeEach(() => {
@@ -270,7 +270,7 @@ describe('workspace-file Table application commands', () => {
     })
 
     await importWorkspaceFileIntoTable.execute({
-      principal,
+      principal: tablePrincipal,
       input: {
         tableId: table.id,
         assertedWorkspaceId: table.workspaceId,
@@ -287,7 +287,7 @@ describe('workspace-file Table application commands', () => {
 
     await expect(
       importWorkspaceFileIntoTable.execute({
-        principal,
+        principal: tablePrincipal,
         input: {
           tableId: table.id,
           assertedWorkspaceId: table.workspaceId,
@@ -316,7 +316,7 @@ describe('workspace-file Table application commands', () => {
 
     await expect(
       importWorkspaceFileIntoTable.execute({
-        principal,
+        principal: tablePrincipal,
         input: {
           tableId: table.id,
           assertedWorkspaceId: table.workspaceId,
@@ -338,7 +338,7 @@ describe('workspace-file Table application commands', () => {
 
     await expect(
       importWorkspaceFileIntoTable.execute({
-        principal,
+        principal: tablePrincipal,
         input: {
           tableId: table.id,
           assertedWorkspaceId: table.workspaceId,

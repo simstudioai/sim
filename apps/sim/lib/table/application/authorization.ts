@@ -24,7 +24,9 @@ export const tableDelegationPolicy: WorkspaceDelegationPolicy<TableAuthorization
     principal: Extract<Principal, { kind: 'delegated' }>,
     context: TableAuthorizationContext
   ) {
-    return context.tableId === undefined || principal.resourceScope?.tableId === context.tableId
+    return context.tableId === undefined
+      ? principal.resourceScope?.tableId === undefined
+      : principal.resourceScope?.tableId === context.tableId
   },
 }
 

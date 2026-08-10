@@ -44,7 +44,6 @@ export interface DownloadTableExportResult {
 
 interface TableExportContext extends TableAuthorizationContext {
   exportId: string
-  tableId: string
   table: TableDefinition
   record: TableExportRecord
 }
@@ -61,7 +60,6 @@ async function resolveTableExportContext(
   return {
     ...workspace,
     exportId: record.id,
-    tableId: table.id,
     table,
     record,
   }
@@ -112,7 +110,7 @@ export const cancelTableExportUseCase = defineAuthorizedTableUseCase({
     const record = await cancelTableExportResource(context.record)
     logger.info('Canceled table export', {
       exportId: record.id,
-      tableId: context.tableId,
+      tableId: context.table.id,
       workspaceId: context.workspaceId,
       principalKind: principal.kind,
     })

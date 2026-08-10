@@ -3,13 +3,14 @@ import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import type { V2AddWorkflowGroupBody } from '@/lib/api/contracts/v2/tables'
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
   type ColumnDefinition,
   type DeleteWorkflowGroupData,
   getColumnId,
+  TABLE_LIMITS,
   type TableDefinition,
   type TableSchema,
   type UpdateWorkflowGroupData,
@@ -65,6 +66,20 @@ async function resolveWorkflowForAuthorizedTableCommand(
   return loadResolvedWorkflowOutputs(workflowContext)
 }
 
+async function resolveRelatedWorkflowForTableRoute(
+  workflowId: string,
+  workspaceId: string
+): Promise<ResolveWorkflowOutputsResult> {
+  try {
+    return await resolveWorkflowForAuthorizedTableCommand(workflowId, workspaceId)
+  } catch (error) {
+    if (asOrchestrationError(error)?.code === 'not_found') {
+      throw new OrchestrationError('validation', 'Invalid workflow ID')
+    }
+    throw error
+  }
+}
+
 function requireWorkflowOutputs(
   resolved: ResolveWorkflowOutputsResult,
   workflowId: string
@@ -73,6 +88,15 @@ function requireWorkflowOutputs(
     throw new OrchestrationError('validation', `Workflow has no pickable outputs: ${workflowId}`)
   }
   return resolved.outputs
+}
+
+function requireBoundedGroupItems(items: readonly unknown[] | undefined, label: string): void {
+  if ((items?.length ?? 0) > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+    throw new OrchestrationError(
+      'validation',
+      `${label} cannot exceed ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} entries`
+    )
+  }
 }
 
 function validateRequestedOutputs(
@@ -169,8 +193,11 @@ export const createTableGroupUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
+    requireBoundedGroupItems(input.group.outputs, 'Workflow group outputs')
+    requireBoundedGroupItems(input.outputColumns, 'Workflow group output columns')
+    requireBoundedGroupItems(input.group.inputMappings, 'Workflow group input mappings')
     if (input.group.workflowId) {
-      await resolveWorkflowForAuthorizedTableCommand(input.group.workflowId, context.workspaceId)
+      await resolveRelatedWorkflowForTableRoute(input.group.workflowId, context.workspaceId)
     }
     const outputNames = new Set(input.group.outputs.map((output) => output.columnName))
     const orphan = input.outputColumns.find((column) => !outputNames.has(column.name))
@@ -247,6 +274,7 @@ export const createWorkflowTableGroup = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
+    requireBoundedGroupItems(input.outputs, 'Workflow group outputs')
     if (input.outputs.length === 0) {
       throw new OrchestrationError('validation', 'At least one workflow output is required')
     }
@@ -359,6 +387,13 @@ export const createTableEnrichmentGroup = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
+    requireBoundedGroupItems(input.inputMappings, 'Enrichment input mappings')
+    if (Object.keys(input.outputColumnNames ?? {}).length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
+      throw new OrchestrationError(
+        'validation',
+        `Enrichment output names cannot exceed ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} entries`
+      )
+    }
     const enrichment = getEnrichment(input.enrichmentId)
     if (!enrichment) {
       throw new OrchestrationError(
@@ -506,6 +541,10 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
+    requireBoundedGroupItems(input.outputs, 'Workflow group outputs')
+    requireBoundedGroupItems(input.newOutputColumns, 'Workflow group output columns')
+    requireBoundedGroupItems(input.mappingUpdates, 'Workflow group mapping updates')
+    requireBoundedGroupItems(input.inputMappings, 'Workflow group input mappings')
     const previousGroup = (context.table.schema.workflowGroups ?? []).find(
       (group) => group.id === input.groupId
     )
@@ -519,7 +558,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       if (!targetWorkflowId) {
         throw new OrchestrationError('not_found', 'Workflow not found')
       }
-      resolvedWorkflow = await resolveWorkflowForAuthorizedTableCommand(
+      resolvedWorkflow = await resolveRelatedWorkflowForTableRoute(
         targetWorkflowId,
         context.workspaceId
       )
@@ -640,6 +679,8 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ principal, input, context }) {
+    requireBoundedGroupItems(input.outputs, 'Workflow group outputs')
+    requireBoundedGroupItems(input.mappingUpdates, 'Workflow group mapping updates')
     const previousGroup = context.table.schema.workflowGroups?.find(
       (candidate) => candidate.id === input.groupId
     )

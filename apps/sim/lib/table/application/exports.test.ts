@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { TableDefinition } from '@/lib/table/types'
 
@@ -81,6 +82,18 @@ const principal = {
   workspaceId: 'workspace-1',
   keyId: 'workspace-key-1',
 }
+const executor: WorkflowExecutionDelegatedPrincipal = {
+  kind: 'delegated',
+  serviceId: 'executor',
+  subjectUserId: 'user-1',
+  workspaceId: 'workspace-1',
+  delegationId: 'delegation-1',
+  audience: 'sim:tables',
+  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
+  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
+  resourceScope: { tableId: 'table-1' },
+  delegationContext: { kind: 'workflow_execution', workflowId: 'workflow-1' },
+}
 
 describe('table export application use cases', () => {
   beforeEach(() => {
@@ -124,5 +137,31 @@ describe('table export application use cases', () => {
         input: { exportId: 'export-1', workspaceId: 'workspace-1' },
       })
     ).resolves.toMatchObject({ export: { status: 'canceled', startedAt: now } })
+  })
+
+  it('supports exact table-scoped executor create and unscoped resource reads', async () => {
+    await expect(
+      createTableExportUseCase.execute({
+        principal: executor,
+        input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
+      })
+    ).resolves.toEqual({ export: record })
+    await expect(
+      readTableExportUseCase.execute({
+        principal: { ...executor, resourceScope: undefined },
+        input: { exportId: 'export-1', workspaceId: 'workspace-1' },
+      })
+    ).resolves.toEqual({ export: record })
+  })
+
+  it('rejects a mismatched executor table scope before export mutation', async () => {
+    await expect(
+      createTableExportUseCase.execute({
+        principal: { ...executor, resourceScope: { tableId: 'table-other' } },
+        input: { tableId: 'table-1', workspaceId: 'workspace-1', format: 'csv' },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

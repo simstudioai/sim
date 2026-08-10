@@ -8,6 +8,7 @@ import type { TableDefinition } from '@/lib/table/types'
 const {
   mockReplaceRowsPrimitive,
   mockDeleteRowsByIds,
+  mockLoadSecretProvenance,
   mockAssertRowCapacity,
   mockNotifyTableRowUsage,
   mockQueryRows,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
   mockReplaceRowsPrimitive: vi.fn(),
   mockDeleteRowsByIds: vi.fn(),
+  mockLoadSecretProvenance: vi.fn(),
   mockAssertRowCapacity: vi.fn(),
   mockNotifyTableRowUsage: vi.fn(),
   mockQueryRows: vi.fn(),
@@ -91,6 +93,7 @@ vi.mock('@/lib/table/column-types', () => ({
 
 vi.mock('@/lib/table/rows/secret-provenance', () => ({
   createExactEmptyTableRowSecretProvenance: () => ({ complete: true, columns: {} }),
+  loadTableRowSecretProvenance: mockLoadSecretProvenance,
 }))
 
 vi.mock('@/lib/table/rows/service', () => ({
@@ -421,6 +424,51 @@ describe('row query and upsert application semantics', () => {
       })
     ).rejects.toMatchObject({ details: { code: 'INVALID_CURSOR' } })
     expect(mockQueryRows).not.toHaveBeenCalled()
+  })
+
+  it('rejects an oversized page before querying storage', async () => {
+    await expect(
+      queryTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, limit: 1001 },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mockQueryRows).not.toHaveBeenCalled()
+    expect(mockLoadSecretProvenance).not.toHaveBeenCalled()
+  })
+
+  it('loads requested persisted provenance inside the authorized application query', async () => {
+    const row = {
+      id: 'row-1',
+      tableId: TABLE.id,
+      data: { 'column-name': 'Ada' },
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    }
+    const provenance = { complete: true, columns: {} }
+    mockQueryRows.mockResolvedValueOnce({
+      rows: [row],
+      rowCount: 1,
+      totalCount: null,
+      nextCursor: null,
+    })
+    mockLoadSecretProvenance.mockResolvedValueOnce(provenance)
+
+    const result = await queryTableRows.execute({
+      principal: PRINCIPAL,
+      input: {
+        tableId: TABLE.id,
+        limit: 10,
+        includePersistedSecretProvenance: true,
+      },
+    })
+
+    expect(mockLoadSecretProvenance).toHaveBeenCalledWith([row], {
+      userId: 'user-1',
+      workspaceId: TABLE.workspaceId,
+    })
+    expect(result.secretProvenance).toBe(provenance)
   })
 
   it('audits only the authoritative deleted count and suppresses no-op audit', async () => {

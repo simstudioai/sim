@@ -1,5 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
 import { executeCopilotResolveWorkflowOutputs } from '@/lib/copilot/application/execute-workflow-use-case'
 import {
   executeCopilotAddWorkflowTableGroupOutput,
@@ -10,10 +11,7 @@ import {
   executeCopilotImportWorkspaceFileIntoTable,
   executeCopilotUpdateWorkflowTableGroup,
 } from '@/lib/copilot/application/table-commands'
-import {
-  messageForCopilotTableError,
-  resolveCopilotTablePrincipal,
-} from '@/lib/copilot/auth/table-delegation'
+import { messageForCopilotTableError } from '@/lib/copilot/auth/table-delegation'
 import { UserTable } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -53,10 +51,7 @@ import {
 import { namedRowMapper } from '@/lib/table/cell-format'
 import { isSupportedCurrencyCode } from '@/lib/table/currency'
 import { normalizeTablePredicate } from '@/lib/table/query-builder/predicate'
-import {
-  createExactEmptyTableRowSecretProvenance,
-  loadTableRowSecretProvenance,
-} from '@/lib/table/rows/secret-provenance'
+import { createExactEmptyTableRowSecretProvenance } from '@/lib/table/rows/secret-provenance'
 import { normalizeSelectOptionsInput } from '@/lib/table/select-options'
 import type {
   RowData,
@@ -66,6 +61,7 @@ import type {
   WorkflowGroupDependencies,
   WorkflowGroupDeploymentMode,
 } from '@/lib/table/types'
+import type { ResolvedSecretTraceProvenanceV1 } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('UserTableServerTool')
 
@@ -103,16 +99,14 @@ function parseDeploymentMode(value: unknown): WorkflowGroupDeploymentMode | unde
   return value === 'live' || value === 'deployed' ? value : undefined
 }
 
-/**
- * Validates an optional row limit. There's no upper bound the caller must respect — the model may
- * ask for any number. `MAX_QUERY_LIMIT` / `MAX_BULK_OPERATION_SIZE` are applied internally instead
- * (query_rows clamps the page; bulk ops above the bound run as a background job). Returns an error
- * message, or `null` when the limit is acceptable.
- */
-function limitError(limit: unknown): string | null {
+/** Validates an optional row limit against the policy for the requested surface operation. */
+function limitError(limit: unknown, max?: number): string | null {
   if (limit === undefined) return null
   if (typeof limit !== 'number' || !Number.isInteger(limit) || limit < 1) {
     return 'Limit must be an integer of at least 1'
+  }
+  if (max !== undefined && limit > max) {
+    return `Limit cannot exceed ${max}`
   }
   return null
 }
@@ -137,26 +131,18 @@ function normalizeSchemaSelectColumns(schema: TableSchema): TableSchema {
   }
 }
 
-async function importRowsForModel(
-  rows: Array<{ id: string; data: RowData; updatedAt: Date | string }>,
+async function importRowsProvenanceForModel(
+  provenance: ResolvedSecretTraceProvenanceV1 | undefined,
+  values: unknown[],
   context: ServerToolContext
 ): Promise<void> {
   const registry = context.resolvedSecretTraceRegistry
   if (!registry) return
-  if (!context.workspaceId) {
+  if (!provenance) {
     registry.markIncomplete()
     return
   }
-
-  const provenance = await loadTableRowSecretProvenance(rows, {
-    userId: context.userId,
-    workspaceId: context.workspaceId,
-  })
-  await registry.importCrossingProvenance(
-    provenance,
-    rows.map((row) => row.data),
-    { trusted: true }
-  )
+  await registry.importCrossingProvenance(provenance, values, { trusted: true })
 }
 
 export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult> = {
@@ -174,8 +160,6 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
     const workspaceId = context.workspaceId
     const assertNotAborted = () =>
       assertServerToolNotAborted(context, 'Request aborted before table mutation could be applied.')
-    const tablePrincipal = (tableId?: string) => resolveCopilotTablePrincipal(context, tableId)
-
     try {
       switch (operation) {
         case 'create': {
@@ -190,14 +174,11 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const { table } = await createTableUseCase.execute({
-            principal: tablePrincipal(),
-            input: {
-              name: args.name,
-              description: args.description,
-              schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
-              workspaceId,
-            },
+          const { table } = await executeCopilotTableUseCase(context, createTableUseCase, {
+            name: args.name,
+            description: args.description,
+            schema: normalizeSchemaSelectColumns(args.schema as TableSchema),
+            workspaceId,
           })
 
           return {
@@ -215,10 +196,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const { table } = await readTableUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId },
-          })
+          const { table } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -235,10 +218,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const { table } = await readTableUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId },
-          })
+          const { table } = await executeCopilotTableUseCase(
+            context,
+            readTableUseCase,
+            { tableId: args.tableId, workspaceId },
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -267,10 +252,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const { deleted, failed } = await executeCopilotDeleteTables(context, {
+          const { deleted: archived, failed } = await executeCopilotDeleteTables(context, {
             tableIds,
             workspaceId,
+            assertNotAborted,
           })
+          const deleted = archived.map((table) => table.id)
 
           return {
             success: deleted.length > 0,
@@ -291,9 +278,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await createTableRows.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            createTableRows,
+            {
               kind: 'single',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
@@ -301,7 +289,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               position: args.position as number | undefined,
               secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),
             },
-          })
+            { tableId: args.tableId }
+          )
           if (result.kind !== 'single') throw new Error('Single row insert returned a batch')
           const { table, row } = result
           const toNamedRow = namedRowMapper(table.schema.columns)
@@ -331,16 +320,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
 
           assertNotAborted()
           const sourceRows = args.rows as RowData[]
-          const result = await createTableRows.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            createTableRows,
+            {
               kind: 'batch',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               rows: sourceRows,
               secretProvenance: sourceRows.map(createExactEmptyTableRowSecretProvenance),
             },
-          })
+            { tableId: args.tableId }
+          )
           if (result.kind !== 'batch') throw new Error('Batch row insert returned one row')
           const { table, rows } = result
           const toNamedRow = namedRowMapper(table.schema.columns)
@@ -369,15 +360,22 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const { table: rowTable, row } = await readTableRow.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const {
+            table: rowTable,
+            row,
+            secretProvenance,
+          } = await executeCopilotTableUseCase(
+            context,
+            readTableRow,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               rowId: args.rowId,
+              includePersistedSecretProvenance: Boolean(context.resolvedSecretTraceRegistry),
             },
-          })
-          await importRowsForModel([row], context)
+            { tableId: args.tableId }
+          )
+          await importRowsProvenanceForModel(secretProvenance, [row.data], context)
 
           const toNamedRow = namedRowMapper(rowTable.schema.columns)
           return {
@@ -400,28 +398,35 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'Workspace ID is required' }
           }
 
-          const queryLimitError = limitError(args.limit)
+          const queryLimitError = limitError(args.limit, TABLE_LIMITS.MAX_QUERY_LIMIT)
           if (queryLimitError) {
             return { success: false, message: queryLimitError }
           }
 
-          const result = await queryTableRows.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            queryTableRows,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               predicate: args.filter
                 ? normalizeTablePredicate(args.filter as TablePredicateInput)
                 : undefined,
               sort: args.order as SortSpec | undefined,
-              limit: args.limit,
+              limit: args.limit ?? TABLE_LIMITS.MAX_QUERY_LIMIT,
               cursor: args.cursor,
               includeTotal: !args.cursor,
+              includePersistedSecretProvenance: Boolean(context.resolvedSecretTraceRegistry),
             },
-          })
-          const { table } = result
+            { tableId: args.tableId }
+          )
+          const { table, secretProvenance, ...queryResult } = result
           const toNamedRow = namedRowMapper(table.schema.columns)
-          await importRowsForModel(result.rows, context)
+          await importRowsProvenanceForModel(
+            secretProvenance,
+            result.rows.map((row) => row.data),
+            context
+          )
 
           // nextCursor covers both cut kinds (explicit limit or the 5MB byte
           // budget) — either way the truthful signal is "more rows exist". The
@@ -434,7 +439,7 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             success: true,
             message,
             data: {
-              ...result,
+              ...queryResult,
               rows: result.rows.map((r) => ({
                 ...r,
                 data: toNamedRow(r.data),
@@ -458,18 +463,25 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const { table, row: updatedRow } = await updateTableRow.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const {
+            table,
+            row: updatedRow,
+            secretProvenance,
+          } = await executeCopilotTableUseCase(
+            context,
+            updateTableRow,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               rowId: args.rowId,
               data: args.data,
               secretProvenance: createExactEmptyTableRowSecretProvenance(args.data),
+              includePersistedSecretProvenance: Boolean(context.resolvedSecretTraceRegistry),
             },
-          })
+            { tableId: args.tableId }
+          )
           const toNamedRow = namedRowMapper(table.schema.columns)
-          await importRowsForModel([updatedRow], context)
+          await importRowsProvenanceForModel(secretProvenance, [updatedRow.data], context)
 
           return {
             success: true,
@@ -495,14 +507,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          await deleteTableRow.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          await executeCopilotTableUseCase(
+            context,
+            deleteTableRow,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               rowId: args.rowId,
             },
-          })
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -529,16 +543,18 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await copilotUpdateRowsByFilter.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotUpdateRowsByFilter,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               filter: normalizeTablePredicate(args.filter as TablePredicateInput),
               data: args.data as RowData,
               limit: args.limit,
             },
-          })
+            { tableId: args.tableId }
+          )
           if (result.kind === 'background') {
             return {
               success: true,
@@ -570,15 +586,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await copilotDeleteRowsByFilter.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotDeleteRowsByFilter,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               filter: normalizeTablePredicate(args.filter as TablePredicateInput),
               limit: args.limit,
             },
-          })
+            { tableId: args.tableId }
+          )
           if (result.kind === 'background') {
             return {
               success: true,
@@ -636,14 +654,16 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await copilotBatchUpdateRows.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            copilotBatchUpdateRows,
+            {
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               updates: updates as Array<{ rowId: string; data: RowData }>,
             },
-          })
+            { tableId: args.tableId }
+          )
 
           return {
             success: true,
@@ -673,15 +693,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await deleteTableRows.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const result = await executeCopilotTableUseCase(
+            context,
+            deleteTableRows,
+            {
               kind: 'ids',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
               rowIds,
             },
-          })
+            { tableId: args.tableId }
+          )
           if (result.kind !== 'ids') throw new Error('Row ID deletion returned a filter result')
 
           return {
@@ -874,10 +896,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             col.type === 'select'
               ? { ...col, options: normalizeSelectOptionsInput(col.options) }
               : { ...col, options: undefined }
-          const { table: updated } = await addTableColumnUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId, column: columnToAdd },
-          })
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            addTableColumnUseCase,
+            { tableId: args.tableId, workspaceId, column: columnToAdd },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Added column "${col.name}" (${col.type}) to table`,
@@ -898,15 +922,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'columnName and newName are required' }
           }
           assertNotAborted()
-          const { table: updated } = await updateTableColumnUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            updateTableColumnUseCase,
+            {
               tableId: args.tableId,
               workspaceId,
               columnName: colName,
               updates: { name: newColName },
             },
-          })
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Renamed column "${colName}" to "${newColName}"`,
@@ -929,10 +955,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
           if (names.length === 1) {
             assertNotAborted()
-            const { table: updated } = await deleteTableColumnUseCase.execute({
-              principal: tablePrincipal(args.tableId),
-              input: { tableId: args.tableId, workspaceId, columnName: names[0] },
-            })
+            const { table: updated } = await executeCopilotTableUseCase(
+              context,
+              deleteTableColumnUseCase,
+              { tableId: args.tableId, workspaceId, columnName: names[0] },
+              { tableId: args.tableId }
+            )
             return {
               success: true,
               message: `Deleted column "${names[0]}"`,
@@ -940,13 +968,17 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
           assertNotAborted()
-          const { table: updated } = await deleteTableColumnsUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId, columnNames: names },
-          })
+          const { table: updated, deletedColumns } = await executeCopilotTableUseCase(
+            context,
+            deleteTableColumnsUseCase,
+            { tableId: args.tableId, workspaceId, columnNames: names },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
-            message: `Deleted ${names.length} columns: ${names.join(', ')}`,
+            message: `Deleted ${deletedColumns.length} ${deletedColumns.length === 1 ? 'column' : 'columns'}: ${deletedColumns
+              .map((column) => column.name)
+              .join(', ')}`,
             data: { schema: updated.schema },
           }
         }
@@ -993,9 +1025,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
           assertNotAborted()
-          const { table: updated } = await updateTableColumnUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            updateTableColumnUseCase,
+            {
               tableId: args.tableId,
               workspaceId,
               columnName: colName,
@@ -1009,7 +1042,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
                 ...(currencyCode !== undefined ? { currencyCode } : {}),
               },
             },
-          })
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Updated column "${colName}"`,
@@ -1029,10 +1063,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
           }
 
           assertNotAborted()
-          const result = await updateTableUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId, name: newName },
-          })
+          const result = await executeCopilotTableUseCase(
+            context,
+            updateTableUseCase,
+            { tableId: args.tableId, workspaceId, name: newName },
+            { tableId: args.tableId }
+          )
           if (result.failure) {
             throw result.failure
           }
@@ -1174,10 +1210,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'groupId is required for delete_workflow_group' }
           }
           assertNotAborted()
-          const { table: updated } = await deleteTableGroupUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, workspaceId, groupId },
-          })
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            deleteTableGroupUseCase,
+            { tableId: args.tableId, workspaceId, groupId },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Deleted workflow group ${groupId}`,
@@ -1226,10 +1264,12 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             }
           }
           assertNotAborted()
-          const { table: updated } = await deleteTableGroupOutputUseCase.execute({
-            principal: tablePrincipal(args.tableId),
-            input: { tableId: args.tableId, groupId, columnName, workspaceId },
-          })
+          const { table: updated } = await executeCopilotTableUseCase(
+            context,
+            deleteTableGroupOutputUseCase,
+            { tableId: args.tableId, groupId, columnName, workspaceId },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Removed output "${columnName}" from workflow group ${groupId}`,
@@ -1275,9 +1315,10 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             rowIds = rawRowIds as string[]
           }
           assertNotAborted()
-          const { dispatchId } = await startTableRun.execute({
-            principal: tablePrincipal(args.tableId),
-            input: {
+          const { dispatchId } = await executeCopilotTableUseCase(
+            context,
+            startTableRun,
+            {
               kind: 'selection',
               tableId: args.tableId,
               assertedWorkspaceId: workspaceId,
@@ -1285,7 +1326,8 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
               mode: runMode,
               rowIds,
             },
-          })
+            { tableId: args.tableId }
+          )
           const scopeLabel = rowIds ? `${rowIds.length} row(s) by id` : runMode
           return {
             success: true,
@@ -1309,22 +1351,23 @@ export const userTableServerTool: BaseServerTool<UserTableArgs, UserTableResult>
             return { success: false, message: 'rowId is required when scope is "row"' }
           }
           assertNotAborted()
-          const { cancelled } = await cancelTableRuns.execute({
-            principal: tablePrincipal(args.tableId),
-            input:
-              scope === 'row'
-                ? {
-                    scope: 'row',
-                    tableId: args.tableId,
-                    assertedWorkspaceId: workspaceId,
-                    rowId: rowId as string,
-                  }
-                : {
-                    scope: 'all',
-                    tableId: args.tableId,
-                    assertedWorkspaceId: workspaceId,
-                  },
-          })
+          const { cancelled } = await executeCopilotTableUseCase(
+            context,
+            cancelTableRuns,
+            scope === 'row'
+              ? {
+                  scope: 'row',
+                  tableId: args.tableId,
+                  assertedWorkspaceId: workspaceId,
+                  rowId: rowId as string,
+                }
+              : {
+                  scope: 'all',
+                  tableId: args.tableId,
+                  assertedWorkspaceId: workspaceId,
+                },
+            { tableId: args.tableId }
+          )
           return {
             success: true,
             message: `Cancelled ${cancelled} run(s)`,

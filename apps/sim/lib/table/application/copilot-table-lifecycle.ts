@@ -1,5 +1,4 @@
-import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
-import { resolvePrincipalAuditAttribution } from '@sim/auth/principal'
+import { AuditAction, AuditResourceType } from '@sim/audit'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { deleteTable, TABLE_LIMITS } from '@/lib/table'
@@ -13,10 +12,16 @@ import { tableOperations } from '@/lib/table/application/operations'
 export interface DeleteCopilotTablesInput {
   workspaceId: string
   tableIds: string[]
+  assertNotAborted: () => void
+}
+
+export interface ArchivedCopilotTable {
+  id: string
+  name: string
 }
 
 export interface DeleteCopilotTablesResult {
-  deleted: string[]
+  deleted: ArchivedCopilotTable[]
   failed: string[]
 }
 
@@ -25,7 +30,7 @@ export const deleteCopilotTables = defineAuthorizedTableUseCase({
   operation: tableOperations.delete,
   resolveContext: ({ input }: { input: DeleteCopilotTablesInput }) =>
     resolveTableWorkspaceContext(input.workspaceId),
-  async execute({ principal, input, context, request }): Promise<DeleteCopilotTablesResult> {
+  async execute({ input, context }): Promise<DeleteCopilotTablesResult> {
     if (
       input.tableIds.length < 1 ||
       input.tableIds.length > TABLE_LIMITS.MAX_TABLES_PER_WORKSPACE
@@ -39,9 +44,8 @@ export const deleteCopilotTables = defineAuthorizedTableUseCase({
       throw new OrchestrationError('validation', 'Each table ID must be a non-empty string')
     }
 
-    const deleted: string[] = []
+    const deleted: ArchivedCopilotTable[] = []
     const failed: string[] = []
-    const auditAttribution = resolvePrincipalAuditAttribution(principal)
 
     for (const tableId of input.tableIds) {
       try {
@@ -49,6 +53,7 @@ export const deleteCopilotTables = defineAuthorizedTableUseCase({
           tableId,
           assertedWorkspaceId: context.workspaceId,
         })
+        input.assertNotAborted()
         const { archived } = await deleteTable(tableContext.tableId, generateRequestId(), {
           expectedWorkspaceId: context.workspaceId,
         })
@@ -57,22 +62,7 @@ export const deleteCopilotTables = defineAuthorizedTableUseCase({
           continue
         }
 
-        deleted.push(tableId)
-        recordAudit({
-          workspaceId: context.workspaceId,
-          actorId: auditAttribution.actorId,
-          actorName: auditAttribution.actorName,
-          action: AuditAction.TABLE_DELETED,
-          resourceType: AuditResourceType.TABLE,
-          resourceId: tableId,
-          resourceName: archived.name,
-          description: `Archived table "${archived.name}"`,
-          metadata: {
-            operation: tableOperations.delete.id,
-            actor: auditAttribution.actor,
-          },
-          request,
-        })
+        deleted.push({ id: tableId, name: archived.name })
       } catch (error) {
         if (asOrchestrationError(error)?.code === 'not_found') {
           failed.push(tableId)
@@ -84,4 +74,12 @@ export const deleteCopilotTables = defineAuthorizedTableUseCase({
 
     return { deleted, failed }
   },
+  projectAudit: ({ result }) =>
+    result.deleted.map((table) => ({
+      action: AuditAction.TABLE_DELETED,
+      resourceType: AuditResourceType.TABLE,
+      resourceId: table.id,
+      resourceName: table.name,
+      description: `Archived table "${table.name}"`,
+    })),
 })

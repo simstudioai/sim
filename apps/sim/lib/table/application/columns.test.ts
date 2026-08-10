@@ -29,9 +29,11 @@ vi.mock('@sim/platform-authz/workspace', () => ({
 }))
 vi.mock('@/lib/core/utils/request', () => ({ generateRequestId: () => 'request-1' }))
 vi.mock('@/lib/table', () => ({
+  TABLE_LIMITS: { MAX_COLUMNS_PER_TABLE: 3 },
   addTableColumn: vi.fn(),
   deleteColumn: vi.fn(),
   deleteColumns: mocks.deleteColumns,
+  getColumnId: (column: { id?: string; name: string }) => column.id ?? column.name,
 }))
 vi.mock('@/lib/table/application/context', () => ({
   resolveActiveTableContext: mocks.resolveContext,
@@ -45,7 +47,13 @@ const table: TableDefinition = {
   id: 'table-1',
   name: 'People',
   description: null,
-  schema: { columns: [{ name: 'name', type: 'string' }] },
+  schema: {
+    columns: [
+      { id: 'column-name', name: 'name', type: 'string' },
+      { id: 'column-first', name: 'first', type: 'string' },
+      { id: 'column-last', name: 'last', type: 'string' },
+    ],
+  },
   metadata: null,
   rowCount: 0,
   maxRows: 100,
@@ -67,6 +75,12 @@ const principal = {
   resourceScope: { tableId: 'table-1' },
 }
 
+const tableAfterDelete: TableDefinition = {
+  ...table,
+  schema: { columns: [{ id: 'column-name', name: 'name', type: 'string' }] },
+  updatedAt: new Date('2026-08-02T00:00:00.000Z'),
+}
+
 describe('multi-column delete application use case', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -79,11 +93,11 @@ describe('multi-column delete application use case', () => {
       allowPersonalApiKeys: true,
       billedAccountUserId: 'billing-owner-1',
     })
-    mocks.deleteColumns.mockResolvedValue(table)
+    mocks.deleteColumns.mockResolvedValue(tableAfterDelete)
   })
 
   it('owns canonical mutation, audit, and schema effects', async () => {
-    await deleteTableColumnsUseCase.execute({
+    const result = await deleteTableColumnsUseCase.execute({
       principal,
       input: {
         tableId: 'table-1',
@@ -97,8 +111,64 @@ describe('multi-column delete application use case', () => {
       'request-1',
       { expectedWorkspaceId: 'workspace-1' }
     )
+    expect(result.deletedColumns).toEqual([
+      { id: 'column-first', name: 'first' },
+      { id: 'column-last', name: 'last' },
+    ])
     expect(mocks.audit).toHaveBeenCalledTimes(1)
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Deleted 2 columns from table "People"',
+        metadata: expect.objectContaining({ columnNames: ['first', 'last'] }),
+      })
+    )
     expect(mocks.signal).toHaveBeenCalledWith('table-1')
+  })
+
+  it('derives aliases and duplicate references from the authoritative schema delta', async () => {
+    mocks.deleteColumns.mockResolvedValue({
+      ...table,
+      schema: {
+        columns: [
+          { id: 'column-name', name: 'name', type: 'string' },
+          { id: 'column-last', name: 'last', type: 'string' },
+        ],
+      },
+    })
+
+    const result = await deleteTableColumnsUseCase.execute({
+      principal,
+      input: {
+        tableId: 'table-1',
+        workspaceId: 'workspace-1',
+        columnNames: ['first', 'column-first', 'FIRST'],
+      },
+    })
+
+    expect(result.deletedColumns).toEqual([{ id: 'column-first', name: 'first' }])
+    expect(mocks.audit).toHaveBeenCalledWith(
+      expect.objectContaining({
+        description: 'Deleted 1 column from table "People"',
+        metadata: expect.objectContaining({ columnNames: ['first'] }),
+      })
+    )
+  })
+
+  it('rejects an oversized request before mutation', async () => {
+    await expect(
+      deleteTableColumnsUseCase.execute({
+        principal,
+        input: {
+          tableId: 'table-1',
+          workspaceId: 'workspace-1',
+          columnNames: ['first', 'last', 'name', 'extra'],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.deleteColumns).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+    expect(mocks.signal).not.toHaveBeenCalled()
   })
 
   it('rejects admission before mutation when delegated scope is stale', async () => {

@@ -5,35 +5,37 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
-  addOutput: vi.fn(),
-  createEnrichment: vi.fn(),
-  createFromFile: vi.fn(),
-  createWorkflowGroup: vi.fn(),
-  deleteTables: vi.fn(),
-  importFile: vi.fn(),
-  replaceProjectedRows: vi.fn(),
-  resolvePrincipal: vi.fn(),
-  updateWorkflowGroup: vi.fn(),
+  executeTableUseCase: vi.fn(),
+  useCases: {
+    addOutput: { operation: { id: 'tables.groups.update' } },
+    createEnrichment: { operation: { id: 'tables.groups.create' } },
+    createFromFile: { operation: { id: 'tables.imports.create_from_workspace_file' } },
+    createWorkflowGroup: { operation: { id: 'tables.groups.create' } },
+    deleteTables: { operation: { id: 'tables.delete' } },
+    importFile: { operation: { id: 'tables.imports.workspace_file' } },
+    replaceProjectedRows: { operation: { id: 'tables.rows.replace' } },
+    updateWorkflowGroup: { operation: { id: 'tables.groups.update' } },
+  },
 }))
 
-vi.mock('@/lib/copilot/auth/table-delegation', () => ({
-  resolveCopilotTablePrincipal: mocks.resolvePrincipal,
+vi.mock('@/lib/copilot/application/execute-table-use-case', () => ({
+  executeCopilotTableUseCase: mocks.executeTableUseCase,
 }))
 vi.mock('@/lib/table/application/groups', () => ({
-  addWorkflowTableGroupOutput: { execute: mocks.addOutput },
-  createTableEnrichmentGroup: { execute: mocks.createEnrichment },
-  createWorkflowTableGroup: { execute: mocks.createWorkflowGroup },
-  updateWorkflowTableGroup: { execute: mocks.updateWorkflowGroup },
+  addWorkflowTableGroupOutput: mocks.useCases.addOutput,
+  createTableEnrichmentGroup: mocks.useCases.createEnrichment,
+  createWorkflowTableGroup: mocks.useCases.createWorkflowGroup,
+  updateWorkflowTableGroup: mocks.useCases.updateWorkflowGroup,
 }))
 vi.mock('@/lib/table/application/copilot-table-lifecycle', () => ({
-  deleteCopilotTables: { execute: mocks.deleteTables },
+  deleteCopilotTables: mocks.useCases.deleteTables,
 }))
 vi.mock('@/lib/table/application/rows', () => ({
-  replaceProjectedWireRows: { execute: mocks.replaceProjectedRows },
+  replaceProjectedWireRows: mocks.useCases.replaceProjectedRows,
 }))
 vi.mock('@/lib/table/application/workspace-file-imports', () => ({
-  createTableFromWorkspaceFile: { execute: mocks.createFromFile },
-  importWorkspaceFileIntoTable: { execute: mocks.importFile },
+  createTableFromWorkspaceFile: mocks.useCases.createFromFile,
+  importWorkspaceFileIntoTable: mocks.useCases.importFile,
 }))
 
 import {
@@ -61,57 +63,86 @@ const context = {
   toolCallId: 'tool-call-1',
   copilotToolExecution: true,
 }
-const principal = { kind: 'delegated', audience: 'sim:tables' }
-
 describe('fixed Copilot Table application commands', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.resolvePrincipal.mockReturnValue(principal)
   })
 
   it.each([
-    ['replace projected rows', executeCopilotReplaceProjectedWireRows, mocks.replaceProjectedRows],
-    ['create workflow group', executeCopilotCreateWorkflowTableGroup, mocks.createWorkflowGroup],
-    ['update workflow group', executeCopilotUpdateWorkflowTableGroup, mocks.updateWorkflowGroup],
-    ['add workflow output', executeCopilotAddWorkflowTableGroupOutput, mocks.addOutput],
-    ['create enrichment group', executeCopilotCreateTableEnrichmentGroup, mocks.createEnrichment],
-    ['import a workspace file', executeCopilotImportWorkspaceFileIntoTable, mocks.importFile],
+    [
+      'replace projected rows',
+      executeCopilotReplaceProjectedWireRows,
+      mocks.useCases.replaceProjectedRows,
+    ],
+    [
+      'create workflow group',
+      executeCopilotCreateWorkflowTableGroup,
+      mocks.useCases.createWorkflowGroup,
+    ],
+    [
+      'update workflow group',
+      executeCopilotUpdateWorkflowTableGroup,
+      mocks.useCases.updateWorkflowGroup,
+    ],
+    ['add workflow output', executeCopilotAddWorkflowTableGroupOutput, mocks.useCases.addOutput],
+    [
+      'create enrichment group',
+      executeCopilotCreateTableEnrichmentGroup,
+      mocks.useCases.createEnrichment,
+    ],
+    [
+      'import a workspace file',
+      executeCopilotImportWorkspaceFileIntoTable,
+      mocks.useCases.importFile,
+    ],
   ])(
     'dispatches %s to exactly one code-defined Table command',
-    async (_label, execute, command) => {
-      command.mockResolvedValue({ ok: true })
+    async (_label, execute, useCase) => {
+      mocks.executeTableUseCase.mockResolvedValue({ ok: true })
       const input = { tableId: 'table-1', workspaceId: 'workspace-1' }
 
       await expect(execute(context, input as never)).resolves.toEqual({ ok: true })
 
-      expect(mocks.resolvePrincipal).toHaveBeenCalledWith(context, 'table-1')
-      expect(command).toHaveBeenCalledWith({ principal, input })
-      expect(command).toHaveBeenCalledTimes(1)
+      expect(mocks.executeTableUseCase).toHaveBeenCalledWith(context, useCase, input, {
+        tableId: 'table-1',
+      })
+      expect(mocks.executeTableUseCase).toHaveBeenCalledTimes(1)
     }
   )
 
   it('uses a workspace-scoped Table principal for create-from-file', async () => {
-    mocks.createFromFile.mockResolvedValue({ kind: 'empty' })
+    mocks.executeTableUseCase.mockResolvedValue({ kind: 'empty' })
     const input = { workspaceId: 'workspace-1', fileReference: 'files/people.csv' }
 
     await executeCopilotCreateTableFromWorkspaceFile(context, input)
 
-    expect(mocks.resolvePrincipal).toHaveBeenCalledWith(context)
-    expect(mocks.createFromFile).toHaveBeenCalledWith({ principal, input })
+    expect(mocks.executeTableUseCase).toHaveBeenCalledWith(
+      context,
+      mocks.useCases.createFromFile,
+      input
+    )
   })
 
   it('uses one workspace-scoped Table command for best-effort multi-table deletion', async () => {
-    mocks.deleteTables.mockResolvedValue({ deleted: ['table-1'], failed: ['table-2'] })
-    const input = { workspaceId: 'workspace-1', tableIds: ['table-1', 'table-2'] }
-
-    await expect(executeCopilotDeleteTables(context, input)).resolves.toEqual({
-      deleted: ['table-1'],
+    const result = {
+      deleted: [{ id: 'table-1', name: 'People' }],
       failed: ['table-2'],
-    })
+    }
+    mocks.executeTableUseCase.mockResolvedValue(result)
+    const input = {
+      workspaceId: 'workspace-1',
+      tableIds: ['table-1', 'table-2'],
+      assertNotAborted: vi.fn(),
+    }
 
-    expect(mocks.resolvePrincipal).toHaveBeenCalledWith(context)
-    expect(mocks.deleteTables).toHaveBeenCalledWith({ principal, input })
-    expect(mocks.deleteTables).toHaveBeenCalledTimes(1)
+    await expect(executeCopilotDeleteTables(context, input)).resolves.toBe(result)
+
+    expect(mocks.executeTableUseCase).toHaveBeenCalledWith(
+      context,
+      mocks.useCases.deleteTables,
+      input
+    )
+    expect(mocks.executeTableUseCase).toHaveBeenCalledTimes(1)
   })
 
   it('declares inherited request-rate admission and no direct provider cost for every command', () => {
@@ -136,7 +167,7 @@ describe('fixed Copilot Table application commands', () => {
 
   it('rejects an untrusted context before application execution', async () => {
     const error = new Error('trusted Copilot execution context required')
-    mocks.resolvePrincipal.mockImplementationOnce(() => {
+    mocks.executeTableUseCase.mockImplementationOnce(() => {
       throw error
     })
 
@@ -147,6 +178,6 @@ describe('fixed Copilot Table application commands', () => {
         projectedRows: [],
       })
     ).toThrow(error)
-    expect(mocks.replaceProjectedRows).not.toHaveBeenCalled()
+    expect(mocks.executeTableUseCase).toHaveBeenCalledTimes(1)
   })
 })

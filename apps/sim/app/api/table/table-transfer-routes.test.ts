@@ -15,7 +15,7 @@ interface CapturedDefinition {
 }
 
 const mocks = vi.hoisted(() => ({
-  auth: { kind: 'session-only' },
+  auth: { kind: 'session-or-executor' },
   definitions: [] as CapturedDefinition[],
   useCases: {
     cancelExport: { operation: { id: 'tables.exports.cancel' } },
@@ -39,8 +39,9 @@ vi.mock('@/lib/api/server/routes', () => ({
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },
-  internalSessionAuth: mocks.auth,
 }))
+
+vi.mock('@/lib/table/api', () => ({ internalTableSessionOrExecutorAuth: mocks.auth }))
 
 vi.mock('@/lib/table/application/imports', () => ({
   cancelTableImportUseCase: mocks.useCases.cancelImport,
@@ -83,7 +84,7 @@ function definition(method: string, path: string): CapturedDefinition {
 }
 
 describe('internal table transfer routes', () => {
-  it('routes every ordinary transfer control leg through session-authenticated use cases', () => {
+  it('routes every ordinary transfer control leg through session-or-executor use cases', () => {
     const expected = [
       ['POST', '/api/table/imports', mocks.useCases.createImport],
       ['GET', '/api/table/imports/[importId]', mocks.useCases.readImport],

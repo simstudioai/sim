@@ -53,21 +53,42 @@ describe('table operation registry', () => {
     expect(tableOperations.cancelExport.minimumRole).toBe('read')
   })
 
-  it('keeps delegated table operations Copilot-only', () => {
+  it('admits executor delegation only for the intentional internal route operations', () => {
+    const executorOnlyOperations = new Set([
+      tableOperations.createImport.id,
+      tableOperations.readImport.id,
+      tableOperations.createImportParts.id,
+      tableOperations.completeImport.id,
+      tableOperations.cancelImport.id,
+      tableOperations.createExport.id,
+      tableOperations.readExport.id,
+      tableOperations.cancelExport.id,
+      tableOperations.downloadExport.id,
+    ])
+    const sharedGroupOperations = new Set([
+      tableOperations.createGroup.id,
+      tableOperations.updateGroup.id,
+      tableOperations.deleteGroup.id,
+    ])
+
     for (const operation of Object.values(tableOperations)) {
-      if (operation.principalKinds.includes('delegated')) {
-        expect(operation.delegatedServices).toEqual(['copilot'])
-      } else {
-        expect(operation.delegatedServices).toBeUndefined()
-      }
+      expect(operation.delegatedServices).toEqual(
+        executorOnlyOperations.has(operation.id)
+          ? ['executor']
+          : sharedGroupOperations.has(operation.id)
+            ? ['copilot', 'executor']
+            : ['copilot']
+      )
     }
   })
 
-  it('separates Copilot file imports from the credential-bound HTTP lifecycle', () => {
-    expect(tableOperations.createImport.principalKinds).not.toContain('delegated')
-    expect(tableOperations.createImportParts.principalKinds).not.toContain('delegated')
-    expect(tableOperations.completeImport.principalKinds).not.toContain('delegated')
+  it('separates Copilot workspace-file imports from the credential-bound upload lifecycle', () => {
+    expect(tableOperations.createImport.delegatedServices).toEqual(['executor'])
+    expect(tableOperations.createImportParts.delegatedServices).toEqual(['executor'])
+    expect(tableOperations.completeImport.delegatedServices).toEqual(['executor'])
     expect(tableOperations.createFromWorkspaceFile.principalKinds).toEqual(['delegated'])
+    expect(tableOperations.createFromWorkspaceFile.delegatedServices).toEqual(['copilot'])
     expect(tableOperations.importWorkspaceFile.principalKinds).toEqual(['delegated'])
+    expect(tableOperations.importWorkspaceFile.delegatedServices).toEqual(['copilot'])
   })
 })

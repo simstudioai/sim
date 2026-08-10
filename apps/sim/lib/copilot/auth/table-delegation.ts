@@ -1,30 +1,7 @@
-import type { DelegatedPrincipal } from '@sim/auth/principal'
 import { messageForCopilotApplicationError } from '@/lib/copilot/application/error'
-import {
-  COPILOT_APPLICATION_DELEGATION_TTL_MS,
-  type CopilotExecutionContext,
-  createCopilotApplicationPrincipal,
-  requireTrustedCopilotExecutionContext,
-} from '@/lib/copilot/auth/application-delegation'
-import { tableDelegationPolicy } from '@/lib/table/application/authorization'
+import type { CopilotExecutionContext } from '@/lib/copilot/auth/application-delegation'
 
 export type CopilotTableDelegationContext = CopilotExecutionContext
-
-/** Normalizes trusted Copilot execution context into the shared table principal. */
-export function resolveCopilotTablePrincipal(
-  context: CopilotTableDelegationContext | undefined,
-  tableId?: string
-): DelegatedPrincipal {
-  if (tableId !== undefined && !tableId.trim()) {
-    throw new Error('Table delegation requires a non-empty table ID')
-  }
-  return createCopilotApplicationPrincipal(requireTrustedCopilotExecutionContext(context), {
-    audience: tableDelegationPolicy.audience,
-    ttlMs: COPILOT_APPLICATION_DELEGATION_TTL_MS,
-    createDelegationId: (trustedContext) => `copilot-tool:${trustedContext.toolCallId}`,
-    resourceScope: tableId ? { tableId } : undefined,
-  })
-}
 
 export function messageForCopilotTableError(
   error: unknown,

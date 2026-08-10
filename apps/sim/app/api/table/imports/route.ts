@@ -3,15 +3,15 @@ import {
   defineInternalJsonRoute,
   internalPlainOrchestrationErrorPolicy,
   internalRateLimits,
-  internalSessionAuth,
 } from '@/lib/api/server/routes'
+import { internalTableSessionOrExecutorAuth } from '@/lib/table/api'
 import { createTableImportUseCase } from '@/lib/table/application/imports'
 import { tableOperations } from '@/lib/table/application/operations'
 import { toV2CreateTableImport } from '@/lib/table/orchestration/import-resource'
 
 export const POST = defineInternalJsonRoute({
   contract: createTableImportResourceContract,
-  auth: internalSessionAuth,
+  auth: internalTableSessionOrExecutorAuth,
   operation: tableOperations.createImport,
   rateLimit: internalRateLimits.none({
     reason: 'Existing authenticated table import creation has no request-rate policy',

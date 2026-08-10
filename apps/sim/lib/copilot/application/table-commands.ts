@@ -1,5 +1,5 @@
+import { executeCopilotTableUseCase } from '@/lib/copilot/application/execute-table-use-case'
 import type { CopilotTableDelegationContext } from '@/lib/copilot/auth/table-delegation'
-import { resolveCopilotTablePrincipal } from '@/lib/copilot/auth/table-delegation'
 import {
   type DeleteCopilotTablesInput,
   deleteCopilotTables,
@@ -44,10 +44,7 @@ export function executeCopilotDeleteTables(
   context: CopilotTableDelegationContext | undefined,
   input: DeleteCopilotTablesInput
 ) {
-  return deleteCopilotTables.execute({
-    principal: resolveCopilotTablePrincipal(context),
-    input,
-  })
+  return executeCopilotTableUseCase(context, deleteCopilotTables, input)
 }
 
 export const copilotReplaceProjectedWireRowsPolicy = {
@@ -59,9 +56,8 @@ export function executeCopilotReplaceProjectedWireRows(
   context: CopilotTableDelegationContext | undefined,
   input: ReplaceProjectedWireRowsInput
 ) {
-  return replaceProjectedWireRows.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, replaceProjectedWireRows, input, {
+    tableId: input.tableId,
   })
 }
 
@@ -74,9 +70,8 @@ export function executeCopilotCreateWorkflowTableGroup(
   context: CopilotTableDelegationContext | undefined,
   input: CreateWorkflowTableGroupInput
 ) {
-  return createWorkflowTableGroup.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, createWorkflowTableGroup, input, {
+    tableId: input.tableId,
   })
 }
 
@@ -89,9 +84,8 @@ export function executeCopilotUpdateWorkflowTableGroup(
   context: CopilotTableDelegationContext | undefined,
   input: UpdateWorkflowTableGroupInput
 ) {
-  return updateWorkflowTableGroup.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, updateWorkflowTableGroup, input, {
+    tableId: input.tableId,
   })
 }
 
@@ -104,9 +98,8 @@ export function executeCopilotAddWorkflowTableGroupOutput(
   context: CopilotTableDelegationContext | undefined,
   input: AddTableGroupOutputInput
 ) {
-  return addWorkflowTableGroupOutput.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, addWorkflowTableGroupOutput, input, {
+    tableId: input.tableId,
   })
 }
 
@@ -119,9 +112,8 @@ export function executeCopilotCreateTableEnrichmentGroup(
   context: CopilotTableDelegationContext | undefined,
   input: CreateTableEnrichmentGroupInput
 ) {
-  return createTableEnrichmentGroup.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, createTableEnrichmentGroup, input, {
+    tableId: input.tableId,
   })
 }
 
@@ -134,10 +126,7 @@ export function executeCopilotCreateTableFromWorkspaceFile(
   context: CopilotTableDelegationContext | undefined,
   input: CreateTableFromWorkspaceFileInput
 ) {
-  return createTableFromWorkspaceFile.execute({
-    principal: resolveCopilotTablePrincipal(context),
-    input,
-  })
+  return executeCopilotTableUseCase(context, createTableFromWorkspaceFile, input)
 }
 
 export const copilotImportWorkspaceFileIntoTablePolicy = {
@@ -149,8 +138,7 @@ export function executeCopilotImportWorkspaceFileIntoTable(
   context: CopilotTableDelegationContext | undefined,
   input: ImportWorkspaceFileInput
 ) {
-  return importWorkspaceFileIntoTable.execute({
-    principal: resolveCopilotTablePrincipal(context, input.tableId),
-    input,
+  return executeCopilotTableUseCase(context, importWorkspaceFileIntoTable, input, {
+    tableId: input.tableId,
   })
 }

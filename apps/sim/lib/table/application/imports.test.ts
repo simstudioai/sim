@@ -2,6 +2,7 @@
  * @vitest-environment node
  */
 
+import type { WorkflowExecutionDelegatedPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -104,6 +105,21 @@ const workspaceKey = {
   workspaceId: 'workspace-1',
   keyId: 'workspace-key-1',
 }
+const executor: WorkflowExecutionDelegatedPrincipal = {
+  kind: 'delegated',
+  serviceId: 'executor',
+  subjectUserId: 'executor-user-1',
+  workspaceId: 'workspace-1',
+  delegationId: 'delegation-1',
+  audience: 'sim:tables',
+  issuedAt: new Date('2026-08-01T00:00:00.000Z'),
+  expiresAt: new Date('2099-08-01T00:00:00.000Z'),
+  delegationContext: {
+    kind: 'workflow_execution',
+    workflowId: 'workflow-1',
+    executionId: 'execution-1',
+  },
+}
 const upload = {
   id: 'import-1',
   workspaceId: 'workspace-1',
@@ -180,6 +196,36 @@ describe('table import application use cases', () => {
       workspaceFile: undefined,
     })
     expect(record.createdAt).toBe(createdAt)
+  })
+
+  it('creates an upload import for an unscoped current-workflow executor principal', async () => {
+    const request = new Request('http://localhost:3000/api/table/imports', { method: 'POST' })
+
+    await createTableImportUseCase.execute({
+      principal: executor,
+      input: {
+        body: {
+          workspaceId: 'workspace-1',
+          source: record.source,
+          target: record.target,
+        },
+      },
+      request,
+    })
+
+    expect(mocks.resolvePermission).toHaveBeenCalledWith(
+      'executor-user-1',
+      'workspace-1',
+      null,
+      undefined,
+      { forUpdate: undefined }
+    )
+    expect(mocks.createResource).toHaveBeenCalledWith(
+      expect.objectContaining({
+        userId: 'executor-user-1',
+        principal: executor,
+      })
+    )
   })
 
   it('reads a durable import by workspace role rather than uploader identity', async () => {
@@ -300,6 +346,45 @@ describe('table import application use cases', () => {
     })
     expect(mocks.abortUpload).toHaveBeenCalledWith(upload, workspaceKey)
     expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, workspaceKey)
+  })
+
+  it('threads the exact executor principal through upload control and finalization', async () => {
+    const request = new Request('http://localhost:3000/api/table/imports/import-1/parts', {
+      method: 'POST',
+    })
+
+    await createTableImportPartsUseCase.execute({
+      principal: executor,
+      input: {
+        importId: 'import-1',
+        workspaceId: 'workspace-1',
+        uploadToken: 'signed-token',
+        partNumbers: [1],
+      },
+      request,
+    })
+    await completeTableImportUseCase.execute({
+      principal: executor,
+      input: {
+        importId: 'import-1',
+        workspaceId: 'workspace-1',
+        uploadToken: 'signed-token',
+      },
+    })
+
+    expect(mocks.getUpload).toHaveBeenNthCalledWith(1, {
+      importId: 'import-1',
+      assertedWorkspaceId: 'workspace-1',
+      principal: executor,
+      uploadToken: 'signed-token',
+    })
+    expect(mocks.getUpload).toHaveBeenNthCalledWith(2, {
+      importId: 'import-1',
+      assertedWorkspaceId: 'workspace-1',
+      principal: executor,
+      uploadToken: 'signed-token',
+    })
+    expect(mocks.assertUploadBinding).toHaveBeenCalledWith(upload, executor)
   })
 
   it('rejects delegated HTTP import creation before canonical load or mutation', async () => {

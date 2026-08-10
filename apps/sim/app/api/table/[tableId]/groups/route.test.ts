@@ -11,7 +11,7 @@ interface CapturedDefinition {
 }
 
 const mocks = vi.hoisted(() => ({
-  auth: { kind: 'session-only' },
+  auth: { kind: 'session-or-executor' },
   definitions: [] as CapturedDefinition[],
   useCases: {
     create: { operation: { id: 'tables.groups.create' } },
@@ -31,8 +31,9 @@ vi.mock('@/lib/api/server/routes', () => ({
   internalRateLimits: {
     none: ({ reason }: { reason: string }) => ({ kind: 'none', reason }),
   },
-  internalSessionAuth: mocks.auth,
 }))
+
+vi.mock('@/lib/table/api', () => ({ internalTableSessionOrExecutorAuth: mocks.auth }))
 
 vi.mock('@/lib/table/application/groups', () => ({
   createTableGroupUseCase: mocks.useCases.create,
@@ -53,7 +54,7 @@ function definition(method: string): CapturedDefinition {
 }
 
 describe('/api/table/[tableId]/groups', () => {
-  it('routes every mutation through its session-authenticated application use case', () => {
+  it('routes every mutation through its session-or-executor application use case', () => {
     const expected = [
       ['POST', mocks.useCases.create],
       ['PATCH', mocks.useCases.update],

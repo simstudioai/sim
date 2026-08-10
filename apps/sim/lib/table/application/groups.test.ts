@@ -3,6 +3,7 @@
  */
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import type { TableDefinition, WorkflowGroup } from '@/lib/table/types'
 
 const mocks = vi.hoisted(() => ({
@@ -68,8 +69,10 @@ vi.mock('@/lib/workflows/application/resolve-workflow-outputs', () => ({
 import {
   addWorkflowTableGroupOutput,
   createTableEnrichmentGroup,
+  createTableGroupUseCase,
   createWorkflowTableGroup,
   deleteTableGroupOutputUseCase,
+  updateTableGroupUseCase,
   updateWorkflowTableGroup,
 } from '@/lib/table/application/groups'
 
@@ -243,7 +246,7 @@ describe('workflow and enrichment Table application commands', () => {
 
   it('conceals a cross-workspace workflow before group mutation or effects', async () => {
     mocks.resolveWorkflowContext.mockRejectedValueOnce(
-      Object.assign(new Error('Workflow not found'), { code: 'not_found' })
+      new OrchestrationError('not_found', 'Workflow not found')
     )
 
     await expect(
@@ -267,6 +270,52 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.signal).not.toHaveBeenCalled()
   })
 
+  it('preserves the internal create contract for an invalid related workflow', async () => {
+    mocks.resolveWorkflowContext.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workflow not found')
+    )
+
+    await expect(
+      createTableGroupUseCase.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          group: {
+            id: 'group-new',
+            workflowId: 'workflow-other',
+            outputs: [{ blockId: 'block-2', path: 'score', columnName: 'score' }],
+          },
+          outputColumns: [{ name: 'score', type: 'number' }],
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid workflow ID' })
+
+    expect(mocks.addGroup).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('preserves the internal update contract for an invalid related workflow', async () => {
+    mocks.resolveWorkflowContext.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'Workflow not found')
+    )
+
+    await expect(
+      updateTableGroupUseCase.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          groupId: group.id,
+          workflowId: 'workflow-other',
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid workflow ID' })
+
+    expect(mocks.updateGroup).not.toHaveBeenCalled()
+    expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
   it('rejects an invalid output before constructing or mutating the group', async () => {
     await expect(
       createWorkflowTableGroup.execute({
@@ -282,6 +331,26 @@ describe('workflow and enrichment Table application commands', () => {
 
     expect(mocks.addGroup).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
+  })
+
+  it('rejects oversized workflow output construction before resolution or mutation', async () => {
+    await expect(
+      createWorkflowTableGroup.execute({
+        principal,
+        input: {
+          tableId: table.id,
+          workspaceId: table.workspaceId,
+          workflowId: 'workflow-1',
+          outputs: Array.from({ length: 1001 }, (_, index) => ({
+            blockId: `block-${index}`,
+            path: 'content',
+          })),
+        },
+      })
+    ).rejects.toMatchObject({ code: 'validation' })
+
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mocks.addGroup).not.toHaveBeenCalled()
   })
 
   it('constructs new columns while preserving existing bindings during restructure', async () => {
