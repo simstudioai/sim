@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { createLogger } from '@sim/logger'
 import type { PostHog } from 'posthog-js'
-import { getEnv, isTruthy } from '@/lib/core/config/env'
+import { getEnv, isTruthy, publicEnvMissingAtModuleInit } from '@/lib/core/config/env'
 
 const logger = createLogger('PostHogProvider')
 
@@ -48,6 +48,9 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
             },
             persistence: 'localStorage+cookie',
           })
+        }
+        if (publicEnvMissingAtModuleInit) {
+          posthog.capture('runtime_env_missing_at_module_init')
         }
         clientRef.current = posthog
         setProvider(() => PHProvider)
