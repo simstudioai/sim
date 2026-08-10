@@ -10,14 +10,6 @@ const logger = createLogger('ResolvedSecretProjectionRefusal')
  */
 const reportedSitesByRegistry = new WeakMap<ResolvedSecretTraceRegistry, Set<string>>()
 
-/**
- * Keys that refused without a registry to deduplicate against. Every `site` in the tree is a build
- * time literal, so this settles at one entry per site; the cap makes that a guarantee rather than a
- * convention, since a future interpolated site would otherwise grow it for the process lifetime.
- */
-const reportedKeysWithoutRegistry = new Set<string>()
-const MAX_REPORTED_KEYS_WITHOUT_REGISTRY = 512
-
 export interface ResolvedSecretProjectionRefusal {
   /**
    * Stable dotted identifier for the boundary that refused, e.g. `agent.modelInput`. Chosen by the
@@ -87,14 +79,19 @@ function dedupKey(site: string, inputPath: string | undefined): string {
   return inputPath ? `${site}\u0000${inputPath}` : site
 }
 
+/**
+ * Deduplicates only against a registry, whose lifetime is the run that refused.
+ *
+ * A refusal with no registry is never deduplicated: those sites abort the request rather than
+ * iterate, so each reaches this at most once per request, and any process-wide memory of them would
+ * silence every later request — including the one being investigated. A new registry-less site
+ * placed inside a loop would therefore repeat; give it a registry instead.
+ */
 function shouldReport(key: string, registry: ResolvedSecretTraceRegistry | undefined): boolean {
-  let reported = reportedKeysWithoutRegistry
-  if (registry) {
-    reported = reportedSitesByRegistry.get(registry) ?? new Set()
-    reportedSitesByRegistry.set(registry, reported)
-  } else if (reported.size >= MAX_REPORTED_KEYS_WITHOUT_REGISTRY) {
-    return false
-  }
+  if (!registry) return true
+
+  const reported = reportedSitesByRegistry.get(registry) ?? new Set<string>()
+  reportedSitesByRegistry.set(registry, reported)
   if (reported.has(key)) return false
   reported.add(key)
   return true

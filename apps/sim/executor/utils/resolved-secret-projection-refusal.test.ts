@@ -182,6 +182,19 @@ describe('refuseResolvedSecretProjection', () => {
     expect(refusalRecords()).toHaveLength(2)
   })
 
+  it('reports a registry-less refusal every time, since a later request is a new incident', () => {
+    for (let request = 0; request < 3; request++) {
+      expect(() =>
+        refuseResolvedSecretProjection({
+          site: 'copilot.initialAttachmentsShape',
+          message: 'Copilot model input could not be safely projected',
+        })
+      ).toThrow()
+    }
+
+    expect(refusalRecords()).toHaveLength(3)
+  })
+
   it('records no secret material', () => {
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'API_KEY', plaintext: 'super-secret-value', encryptedValue: 'encrypted' }],
