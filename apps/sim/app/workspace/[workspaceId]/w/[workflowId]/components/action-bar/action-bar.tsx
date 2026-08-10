@@ -45,29 +45,33 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The mark a filled sweep slot paints: a narrow upright bar leaning right, so a
- * filling run reads as `/ / / /` rather than a row of slabs.
+ * The hatch a filled sweep slot paints: narrow uprights leaning right, so a
+ * filling run reads as one continuous `////` band.
  *
- * A hard-stop gradient rather than a `clip-path`, because the two end slots
- * already carry one for the swell silhouette and a second would have to win a
- * specificity race with it. Leaning the edge 15° off vertical carries it 4.3px
- * across the bar's 16px height, so the transparent margin has to stay above 15%
- * or the cut clips a corner instead of crossing cleanly — 38%/62% leaves a 7px
- * bar with room to spare. `bg-clip-content` with symmetric padding sets the
- * height without touching the slot's own size, so the swell measured around it
- * does not move. `--surface-2` is untouched.
+ * Repeating, not one bar per slot. A single bar left the rest of its 24px button
+ * empty, so the marks inherited the button grid's rhythm and sat ~19px apart —
+ * the row read as isolated ticks rather than a loader. The pitch instead divides
+ * the row's own rhythm: slot + `gap-[2px]` is 26px, so a 13px horizontal pitch
+ * puts exactly two bars in every slot and stays in phase across the gaps,
+ * including the 40px end slots. Bars land every 13px with a uniform 6px between
+ * them, whatever the run's length.
  *
- * Each variant is spelled out: Tailwind's JIT reads literal class strings, so a
- * composed `hover-hover:${FILL}` compiles to no CSS at all.
+ * Stops are measured along the 105° axis, not horizontally, so they carry the
+ * `sin(105°)` factor: a 7px bar on a 13px pitch is 6.76px on a 12.56px period.
+ * `bg-clip-content` with symmetric padding sets the height without touching the
+ * slot's size, so the swell measured around it does not move. `--surface-2` is
+ * untouched.
+ *
+ * Each variant is spelled out: Tailwind's JIT reads literal class strings.
  */
 const RUNNING_SWEEP_FILL = [
-  '!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
-  'hover-hover:!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
+  '!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
+  'hover-hover:!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
   '!bg-clip-content !py-[4px] !rounded-none',
 ].join(' ')
 
 const RUNNING_SWEEP_FILL_STATIC = [
-  'motion-reduce:!bg-[linear-gradient(105deg,transparent_38%,var(--surface-2)_38%,var(--surface-2)_62%,transparent_62%)]',
+  'motion-reduce:!bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_6.76px,transparent_6.76px_12.56px)]',
   'motion-reduce:!bg-clip-content motion-reduce:!py-[4px] motion-reduce:!rounded-none',
 ].join(' ')
 
