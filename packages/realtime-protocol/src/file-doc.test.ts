@@ -10,4 +10,12 @@ describe('FILE_DOC_TIMEOUTS ordering invariants', () => {
     // read-only fallback, or a late-but-successful seed can never reach the client.
     expect(FILE_DOC_TIMEOUTS.seedRequestMs).toBeLessThan(FILE_DOC_TIMEOUTS.readinessDeadlineMs)
   })
+
+  it('keeps the client flush wait well under the write budget it triggers', () => {
+    // Deliberately NOT an "inner finishes before outer" invariant: the flush wait is an interaction
+    // budget and the persist is a durable write budget. The client gives up FIRST and continues; the
+    // write it started still completes server-side. Asserting the ordering pins that intent, so
+    // raising the flush wait to "cover" a slow persist is a conscious change, not a drift.
+    expect(FILE_DOC_TIMEOUTS.flushRequestMs).toBeLessThan(FILE_DOC_TIMEOUTS.persistRequestMs)
+  })
 })

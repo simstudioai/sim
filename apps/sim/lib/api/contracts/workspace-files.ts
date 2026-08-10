@@ -2,6 +2,11 @@ import { z } from 'zod'
 import { inlineFileRefQuerySchema } from '@/lib/api/contracts/primitives'
 import { shareRecordSchema } from '@/lib/api/contracts/public-shares'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import {
+  findTextFileTypeByExtension,
+  SELECTABLE_TEXT_MIME_TYPES,
+} from '@/lib/uploads/utils/text-file-types'
 
 /**
  * Client-reachable listing scopes. `all` is deliberately excluded: it drops the
@@ -47,9 +52,34 @@ const workspaceFileNameSchema = z
     'Name cannot contain path separators or dot segments'
   )
 
-export const renameWorkspaceFileBodySchema = z.object({
-  name: workspaceFileNameSchema,
-})
+/**
+ * Renames a file and, when `contentType` is present, retypes it in the same write.
+ *
+ * Only the text-editable MIMEs are accepted, and the name's extension must be the one that MIME
+ * writes. The client computes both sides; the server re-derives the pairing here and rejects any
+ * disagreement, so a crafted request cannot label arbitrary bytes `text/plain`. The check runs
+ * extension to MIME rather than the reverse because the extension is the registry's unique key —
+ * several types share a MIME.
+ */
+export const renameWorkspaceFileBodySchema = z
+  .object({
+    name: workspaceFileNameSchema,
+    contentType: z
+      .string()
+      .refine((mimeType) => SELECTABLE_TEXT_MIME_TYPES.includes(mimeType), 'Unsupported file type')
+      .optional(),
+  })
+  .refine(
+    (body) =>
+      body.contentType === undefined ||
+      findTextFileTypeByExtension(getFileExtension(body.name))?.mimeType === body.contentType,
+    {
+      path: ['name'],
+      error: 'File name extension does not match the selected type',
+    }
+  )
+
+export type RenameWorkspaceFileBody = z.input<typeof renameWorkspaceFileBodySchema>
 
 export const updateWorkspaceFileContentBodySchema = z.object({
   content: z.string(),

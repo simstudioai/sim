@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useCallback, useMemo } from 'react'
 import { toast } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -589,24 +589,62 @@ export function useUpdateWorkspaceFileContent() {
 }
 
 /**
+ * Refetch the workspace file list, resolving once the fresh records have landed and **rejecting**
+ * if the refetch failed.
+ *
+ * Every content write mints a new storage key and deletes the previous blob, so a cached record's
+ * `key` is dead the moment one lands. A caller that is about to mount a viewer from that record -
+ * a retype, which swaps editors optimistically - has to wait for the refreshed list, or the new
+ * viewer fetches a key the store has already deleted.
+ *
+ * The rejection is the point: react-query resolves an invalidation whether or not the refetch
+ * succeeded, so a caller awaiting a usable key cannot otherwise tell fresh records from the dead
+ * ones still sitting in the cache. Callers decide what a failure means for them.
+ */
+export function useRefreshWorkspaceFiles() {
+  const queryClient = useQueryClient()
+
+  return useCallback(
+    (workspaceId: string) =>
+      queryClient.invalidateQueries(
+        {
+          queryKey: workspaceFilesKeys.workspaceLists(workspaceId),
+          // `all`, not the default `active`: the caller awaits this to get a usable key back, and an
+          // invalidation that only marks an unobserved list stale resolves immediately with the dead
+          // key still cached - the exact staleness this exists to close.
+          refetchType: 'all',
+        },
+        { throwOnError: true }
+      ),
+    [queryClient]
+  )
+}
+
+/**
  * Rename a workspace file
  */
 interface RenameFileParams {
   workspaceId: string
   fileId: string
   name: string
+  /**
+   * Set only when the rename is a type change, in which case `name` already carries the matching
+   * extension. Patched into the cache alongside the name so the viewer swaps editors immediately
+   * rather than waiting for the invalidation to land.
+   */
+  contentType?: string
 }
 
 export function useRenameWorkspaceFile() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ workspaceId, fileId, name }: RenameFileParams) =>
+    mutationFn: async ({ workspaceId, fileId, name, contentType }: RenameFileParams) =>
       requestJson(renameWorkspaceFileContract, {
         params: { id: workspaceId, fileId },
-        body: { name },
+        body: contentType ? { name, contentType } : { name },
       }),
-    onMutate: async ({ workspaceId, fileId, name }) => {
+    onMutate: async ({ workspaceId, fileId, name, contentType }) => {
       await queryClient.cancelQueries({ queryKey: workspaceFilesKeys.workspaceLists(workspaceId) })
       const previous = queryClient.getQueryData<WorkspaceFileRecord[]>(
         workspaceFilesKeys.list(workspaceId, 'active')
@@ -614,7 +652,9 @@ export function useRenameWorkspaceFile() {
       if (previous) {
         queryClient.setQueryData<WorkspaceFileRecord[]>(
           workspaceFilesKeys.list(workspaceId, 'active'),
-          previous.map((f) => (f.id === fileId ? { ...f, name } : f))
+          previous.map((f) =>
+            f.id === fileId ? { ...f, name, ...(contentType ? { type: contentType } : {}) } : f
+          )
         )
       }
       return { previous }

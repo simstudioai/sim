@@ -37,7 +37,7 @@ export const PATCH = withRouteHandler(
       const parsed = await parseRequest(renameWorkspaceFileContract, request, context)
       if (!parsed.success) return parsed.response
       const { id: workspaceId, fileId } = parsed.data.params
-      const { name } = parsed.data.body
+      const { name, contentType } = parsed.data.body
 
       const userPermission = await getUserEntityPermissions(
         session.user.id,
@@ -56,6 +56,7 @@ export const PATCH = withRouteHandler(
         fileId,
         name,
         userId: session.user.id,
+        contentType,
       })
       if (!result.success || !result.file) {
         return NextResponse.json(
@@ -66,12 +67,21 @@ export const PATCH = withRouteHandler(
 
       logger.info(`[${requestId}] Renamed workspace file: ${fileId} to "${result.file.name}"`)
 
-      captureServerEvent(
-        session.user.id,
-        'file_renamed',
-        { workspace_id: workspaceId },
-        { groups: { workspace: workspaceId } }
-      )
+      if (contentType) {
+        captureServerEvent(
+          session.user.id,
+          'file_type_changed',
+          { workspace_id: workspaceId, content_type: contentType },
+          { groups: { workspace: workspaceId } }
+        )
+      } else {
+        captureServerEvent(
+          session.user.id,
+          'file_renamed',
+          { workspace_id: workspaceId },
+          { groups: { workspace: workspaceId } }
+        )
+      }
       return NextResponse.json({
         success: true,
         file: result.file,

@@ -8,7 +8,14 @@ import { truncate } from '@sim/utils/string'
  */
 export const DEFAULT_UNTITLED_NAME = 'untitled.md'
 
-const UNTITLED_NAME_RE = /^untitled(?: \(\d+\))?\.md$/
+/**
+ * Any extension, not just `.md`: a file created as `untitled.md` and immediately retyped to JSON is
+ * still an unnamed file, and should keep naming itself from its first heading if it is retyped back.
+ * A bare `untitled` with no extension is a name the user chose, so it does not match. Still
+ * case-sensitive: only the lowercase name this app generates counts as unnamed, so a file a user
+ * deliberately called `Untitled.md` is left alone.
+ */
+const UNTITLED_NAME_RE = /^untitled(?: \(\d+\))?\.[a-z0-9]+$/
 
 /** Longest title kept when deriving a file name from a heading, before the `.md` extension. */
 const MAX_DERIVED_TITLE_LENGTH = 100
@@ -19,7 +26,7 @@ const MAX_DERIVED_TITLE_LENGTH = 100
  */
 const ILLEGAL_FILENAME_CHARS = /[\\/:*?"<>|\x00-\x1f]/g
 
-/** True when `name` is still the auto-assigned untitled markdown name (`untitled.md`, `untitled (2).md`). */
+/** True when `name` is still the auto-assigned untitled name (`untitled.md`, `untitled (2).json`). */
 export function isUntitledName(name: string): boolean {
   return UNTITLED_NAME_RE.test(name)
 }
@@ -41,17 +48,22 @@ export function deriveMarkdownFileName(headingText: string): string | null {
 }
 
 /**
- * Makes `name` unique among `existingNames` by appending ` (n)` before the `.md` extension — the same
- * scheme `handleCreateFile` uses for the default untitled name.
+ * Makes `name` unique among `existingNames` by inserting ` (n)` before the extension — the same
+ * scheme `handleCreateFile` uses for the default untitled name, and the same last-dot rule the
+ * server's `withCopySuffix` applies, so `report.final.csv` becomes `report.final (2).csv`. A name
+ * with no extension takes the suffix at the end: `notes` becomes `notes (2)`.
  */
-export function uniqueMarkdownName(name: string, existingNames: ReadonlySet<string>): string {
+export function uniqueFileName(name: string, existingNames: ReadonlySet<string>): string {
   if (!existingNames.has(name)) return name
-  const withoutExt = name.replace(/\.md$/i, '')
+  const lastDot = name.lastIndexOf('.')
+  const hasExtension = lastDot > 0 && lastDot < name.length - 1
+  const base = hasExtension ? name.slice(0, lastDot) : name
+  const extension = hasExtension ? name.slice(lastDot) : ''
   let counter = 1
-  let candidate = `${withoutExt} (${counter}).md`
+  let candidate = `${base} (${counter})${extension}`
   while (existingNames.has(candidate)) {
     counter++
-    candidate = `${withoutExt} (${counter}).md`
+    candidate = `${base} (${counter})${extension}`
   }
   return candidate
 }
