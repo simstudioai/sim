@@ -6,6 +6,11 @@ import { generateShortId } from '@sim/utils/id'
 import { and, eq, inArray, isNull, or } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { getProviderIdFromServiceId } from '@/lib/oauth'
+import {
+  getSlackBotCredential,
+  refreshAccessTokenIfNeeded,
+  resolveOAuthAccountId,
+} from '@/lib/oauth/credential-service'
 import { WebhookPathClaimConflictError } from '@/lib/webhooks/path-claims'
 import { PendingWebhookVerificationTracker } from '@/lib/webhooks/pending-verification'
 import {
@@ -27,11 +32,6 @@ import {
   isCanonicalPair,
   resolveActiveCanonicalValue,
 } from '@/lib/workflows/subblocks/visibility'
-import {
-  getSlackBotCredential,
-  refreshAccessTokenIfNeeded,
-  resolveOAuthAccountId,
-} from '@/app/api/auth/oauth/utils'
 import type { SubBlockConfig } from '@/blocks/types'
 import type { BlockState } from '@/stores/workflows/workflow/types'
 import { getTrigger, isTriggerValid } from '@/triggers'

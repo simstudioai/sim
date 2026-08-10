@@ -14,6 +14,7 @@ export {
   internalSessionAuth,
 } from '@/lib/api/server/routes/internal-json-route'
 export { defineV2BinaryRoute } from '@/lib/api/server/routes/v2-binary-route'
+export { defineV2BodyLifecycleRoute } from '@/lib/api/server/routes/v2-body-lifecycle-route'
 export {
   admitV2Request,
   defineV2JsonRoute,

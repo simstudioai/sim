@@ -5,6 +5,7 @@ import {
   COPILOT_APPLICATION_DELEGATION_TTL_MS,
   type CopilotExecutionContext,
   createCopilotApplicationPrincipal,
+  createTrustedCopilotPrincipal,
   requireTrustedCopilotExecutionContext,
 } from '@/lib/copilot/auth/application-delegation'
 import type { OperationUseCase } from '@/lib/core/application'
@@ -15,6 +16,12 @@ import {
 } from '@/lib/knowledge/application/operations'
 
 export type CopilotKnowledgeDelegationContext = CopilotExecutionContext
+
+export interface CopilotChatKnowledgeDelegationContext {
+  userId: string
+  workspaceId: string
+  chatId?: string
+}
 
 const knowledgeDelegation = {
   audience: knowledgeDelegationPolicy.audience,
@@ -29,12 +36,34 @@ const executeKnowledgeUseCase = createCopilotApplicationAdapter({
   operations: knowledgeOperations,
 })
 
+/** Requires the immutable trusted workspace bound to a Copilot Knowledge execution. */
+export function requireCopilotKnowledgeWorkspaceId(
+  context: CopilotKnowledgeDelegationContext | undefined
+): string {
+  return requireTrustedCopilotExecutionContext(context).workspaceId
+}
+
 /** Normalizes immutable Copilot execution identity into a knowledge delegation. */
 export function resolveCopilotKnowledgePrincipal(
   context: CopilotKnowledgeDelegationContext | undefined
 ): DelegatedPrincipal {
   return createCopilotApplicationPrincipal(
     requireTrustedCopilotExecutionContext(context),
+    knowledgeDelegation
+  )
+}
+
+/** Creates the trusted Knowledge principal used while resolving Copilot chat context. */
+export function createCopilotChatKnowledgePrincipal(
+  context: CopilotChatKnowledgeDelegationContext
+): DelegatedPrincipal {
+  return createTrustedCopilotPrincipal(
+    {
+      userId: context.userId,
+      workspaceId: context.workspaceId,
+      delegationId: `copilot-chat:${context.chatId ?? context.workspaceId}`,
+      chatId: context.chatId,
+    },
     knowledgeDelegation
   )
 }

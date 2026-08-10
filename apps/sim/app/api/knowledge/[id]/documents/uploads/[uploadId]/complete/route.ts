@@ -1,70 +1,57 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { completeKnowledgeDocumentUploadContract } from '@/lib/api/contracts/knowledge/upload-sessions'
-import { parseRequest } from '@/lib/api/server'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { toInternalKnowledgeDocumentUpload } from '@/lib/knowledge/api/internal-route'
+import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { completeKnowledgeDocumentUpload } from '@/lib/knowledge/application/upload-sessions'
 import { captureServerEvent } from '@/lib/posthog/server'
-import {
-  knowledgeDocumentUploadErrorResponse,
-  requireKnowledgeDocumentUploadActor,
-} from '@/app/api/knowledge/[id]/documents/uploads/utils'
-import { toV2KnowledgeDocumentUpload } from '@/app/api/v2/knowledge/[id]/documents/uploads/utils'
 
-interface KnowledgeDocumentUploadRouteParams {
-  params: Promise<{ id: string; uploadId: string }>
-}
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: KnowledgeDocumentUploadRouteParams) => {
-    const actor = await requireKnowledgeDocumentUploadActor()
-    if (actor instanceof NextResponse) return actor
-    const parsed = await parseRequest(completeKnowledgeDocumentUploadContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id: knowledgeBaseId, uploadId } = parsed.data.params
-    const { workspaceId } = parsed.data.query
-    try {
-      const completed = await completeKnowledgeDocumentUpload.execute({
-        principal: { kind: 'session', userId: actor.id, sessionId: actor.sessionId },
-        input: {
-          knowledgeBaseId,
-          assertedWorkspaceId: workspaceId,
-          uploadId,
-          uploadToken: parsed.data.headers['upload-token'],
-          source: 'ui',
-        },
-        request,
-      })
-      if (completed.value.created) {
-        captureServerEvent(
-          actor.id,
-          'knowledge_base_document_uploaded',
-          {
-            knowledge_base_id: completed.knowledgeBaseId,
-            workspace_id: completed.workspaceId,
-            document_count: 1,
-            upload_type: 'single',
-          },
-          {
-            groups: { workspace: completed.workspaceId },
-            setOnce: { first_document_uploaded_at: new Date().toISOString() },
-          }
-        )
-        PlatformEvents.knowledgeBaseDocumentsUploaded({
-          knowledgeBaseId: completed.knowledgeBaseId,
-          documentsCount: 1,
-          uploadType: 'single',
-          mimeType: completed.value.document.mimeType,
-          fileSize: completed.value.document.fileSize,
-        })
+export const POST = defineInternalJsonRoute({
+  contract: completeKnowledgeDocumentUploadContract,
+  auth: internalSessionAuth,
+  operation: knowledgeOperations.uploadComplete,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal upload-session completion behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.uploads,
+  mapInput: ({ params, query, headers }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: query.workspaceId,
+    uploadId: params.uploadId,
+    uploadToken: headers['upload-token'],
+    source: 'ui' as const,
+  }),
+  useCase: completeKnowledgeDocumentUpload,
+  onSuccess: ({ principal, result }) => {
+    if (!result.value.created) return
+    captureServerEvent(
+      principal.userId,
+      'knowledge_base_document_uploaded',
+      {
+        knowledge_base_id: result.knowledgeBaseId,
+        workspace_id: result.workspaceId,
+        document_count: 1,
+        upload_type: 'single',
+      },
+      {
+        groups: { workspace: result.workspaceId },
+        setOnce: { first_document_uploaded_at: new Date().toISOString() },
       }
-      return NextResponse.json({
-        data: toV2KnowledgeDocumentUpload(completed.session, completed.value.document),
-      })
-    } catch (error) {
-      const classified = knowledgeDocumentUploadErrorResponse(error)
-      if (classified) return classified
-      throw error
-    }
-  }
-)
+    )
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId: result.knowledgeBaseId,
+      documentsCount: 1,
+      uploadType: 'single',
+      mimeType: result.value.document.mimeType,
+      fileSize: result.value.document.fileSize,
+    })
+  },
+  present: (result) => ({
+    data: toInternalKnowledgeDocumentUpload(result.session, result.value.document),
+  }),
+})

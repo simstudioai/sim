@@ -1,13 +1,18 @@
 /**
  * @vitest-environment node
  */
+import {
+  V2_OPERATION_RATE_LIMIT_ALLOWED,
+  V2_PREAUTH_RATE_LIMIT_ALLOWED,
+  v2ApiKeyAuthModuleMock,
+  v2GateModuleMock,
+  v2RateLimiterModuleMock,
+  v2RouteMocks,
+} from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
-  mockAuthenticate,
-  mockCheckPreAuth,
-  mockCheckRateLimit,
   mockAdmitUpload,
   mockUploadDocument,
   mockReadFormData,
@@ -15,10 +20,8 @@ const {
   mockUploadWorkspaceFile,
   mockPlatformUploaded,
   mockCapture,
+  mockIsPayloadSizeLimitError,
 } = vi.hoisted(() => ({
-  mockAuthenticate: vi.fn(),
-  mockCheckPreAuth: vi.fn(),
-  mockCheckRateLimit: vi.fn(),
   mockAdmitUpload: vi.fn(),
   mockUploadDocument: vi.fn(),
   mockReadFormData: vi.fn(),
@@ -26,27 +29,12 @@ const {
   mockUploadWorkspaceFile: vi.fn(),
   mockPlatformUploaded: vi.fn(),
   mockCapture: vi.fn(),
+  mockIsPayloadSizeLimitError: vi.fn(),
 }))
 
-vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
-  authenticateV2ApiKey: mockAuthenticate,
-  V2ApiKeyUnauthenticatedError: class V2ApiKeyUnauthenticatedError extends Error {},
-}))
-
-vi.mock('@/lib/core/rate-limiter', () => ({
-  getRateLimit: () => ({ maxTokens: 100, refillRate: 100, refillIntervalMs: 60_000 }),
-  RateLimiter: class RateLimiter {
-    checkRateLimitDirect(...args: unknown[]) {
-      return mockCheckPreAuth(...args)
-    }
-
-    checkRateLimitDirectOrThrow(...args: unknown[]) {
-      return mockCheckRateLimit(...args)
-    }
-  },
-}))
-
-vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: vi.fn().mockResolvedValue(null) }))
+vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
+vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
+vi.mock('@/app/api/v2/lib/gate', () => v2GateModuleMock)
 
 vi.mock('@/lib/knowledge/application/documents', () => ({
   listKnowledgeDocuments: {
@@ -64,7 +52,8 @@ vi.mock('@/lib/knowledge/application/documents', () => ({
 }))
 
 vi.mock('@/lib/core/utils/stream-limits', () => ({
-  isPayloadSizeLimitError: () => false,
+  MAX_MULTIPART_OVERHEAD_BYTES: 1024 * 1024,
+  isPayloadSizeLimitError: mockIsPayloadSizeLimitError,
   readFormDataWithLimit: mockReadFormData,
   readFileToBufferWithLimit: mockReadFile,
 }))
@@ -79,16 +68,13 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
+import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import { validateFileType } from '@/lib/uploads/utils/validation'
 import { POST } from '@/app/api/v2/knowledge/[id]/documents/route'
 
 const WORKSPACE_ID = 'workspace-1'
-const RATE_LIMIT_OK = {
-  allowed: true,
-  remaining: 99,
-  resetAt: new Date('2024-01-01T01:00:00Z'),
-  retryAfterMs: 0,
-}
 const PRINCIPAL = { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' } as const
 
 function buildRequest() {
@@ -101,9 +87,11 @@ function buildRequest() {
 describe('POST /api/v2/knowledge/[id]/documents', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mockCheckPreAuth.mockResolvedValue(RATE_LIMIT_OK)
-    mockCheckRateLimit.mockResolvedValue(RATE_LIMIT_OK)
-    mockAuthenticate.mockResolvedValue({
+    v2RouteMocks.preauthRate.mockResolvedValue(V2_PREAUTH_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.operationRate.mockResolvedValue(V2_OPERATION_RATE_LIMIT_ALLOWED)
+    v2RouteMocks.gate.mockResolvedValue(null)
+    mockIsPayloadSizeLimitError.mockReturnValue(false)
+    v2RouteMocks.authenticate.mockResolvedValue({
       principal: PRINCIPAL,
       rolloutUserId: 'user-1',
       rateLimitSubjectIds: ['api-key:key-1', 'user:user-1'],
@@ -184,6 +172,16 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
       expect.objectContaining({ knowledge_base_id: 'kb-1' }),
       expect.any(Object)
     )
+    expect(mockReadFormData).toHaveBeenCalledWith(request, {
+      maxBytes: MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE + 1024 * 1024,
+      label: 'knowledge document upload body',
+    })
+    expect(mockReadFile).toHaveBeenCalledWith(expect.any(File), {
+      maxBytes: MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+      label: 'knowledge document file',
+    })
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
+    expect(response.headers.get('x-ratelimit-limit')).toBe('100')
   })
 
   it('maps usage admission to the v2 error before multipart buffering', async () => {
@@ -201,7 +199,7 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
   })
 
   it('does not create human analytics for a workspace key', async () => {
-    mockAuthenticate.mockResolvedValue({
+    v2RouteMocks.authenticate.mockResolvedValue({
       principal: { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-2' },
       rolloutUserId: 'billing-owner',
       rateLimitSubjectIds: ['api-key:key-2', `workspace:${WORKSPACE_ID}`],
@@ -213,6 +211,111 @@ describe('POST /api/v2/knowledge/[id]/documents', () => {
 
     expect(response.status).toBe(201)
     expect(mockPlatformUploaded).toHaveBeenCalledOnce()
+    expect(mockCapture).not.toHaveBeenCalled()
+  })
+
+  it('preserves the malformed multipart envelope without transferring storage', async () => {
+    mockReadFormData.mockRejectedValueOnce(new Error('multipart boundary missing'))
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { code: 'BAD_REQUEST', message: 'Request body must be valid multipart form data' },
+    })
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUploadDocument).not.toHaveBeenCalled()
+    expect(mockPlatformUploaded).not.toHaveBeenCalled()
+  })
+
+  it('preserves bounded multipart rejection and stops before storage transfer', async () => {
+    const error = new Error('knowledge document upload body exceeds maximum size')
+    mockReadFormData.mockRejectedValueOnce(error)
+    mockIsPayloadSizeLimitError.mockImplementation((candidate: unknown) => candidate === error)
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: error.message },
+    })
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+    expect(mockUploadDocument).not.toHaveBeenCalled()
+  })
+
+  it('requires a file form field before storage transfer', async () => {
+    mockReadFormData.mockResolvedValueOnce(new FormData())
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(400)
+    expect(await response.json()).toEqual({
+      error: { code: 'BAD_REQUEST', message: 'file form field is required' },
+    })
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('preserves the exact file-size rejection before reading file bytes', async () => {
+    const formData = new FormData()
+    const file = new File(['x'], 'large.txt', { type: 'text/plain' })
+    Object.defineProperty(file, 'size', { value: MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE + 1 })
+    formData.set('file', file)
+    mockReadFormData.mockResolvedValueOnce(formData)
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(413)
+    expect(await response.json()).toEqual({
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'File size exceeds 100MB limit (100.00MB)' },
+    })
+    expect(mockReadFile).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('preserves unsupported file-type validation before reading file bytes', async () => {
+    const formData = new FormData()
+    formData.set('file', new File(['x'], 'malware.exe', { type: 'application/octet-stream' }))
+    mockReadFormData.mockResolvedValueOnce(formData)
+    const expectedMessage = validateFileType('malware.exe', 'application/octet-stream')?.message
+    if (!expectedMessage) throw new Error('Expected unsupported file type validation to fail')
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(415)
+    expect(await response.json()).toEqual({
+      error: { code: 'UNSUPPORTED_MEDIA_TYPE', message: expectedMessage },
+    })
+    expect(mockReadFile).not.toHaveBeenCalled()
+    expect(mockUploadWorkspaceFile).not.toHaveBeenCalled()
+  })
+
+  it('does not register or emit effects when storage transfer fails', async () => {
+    mockUploadWorkspaceFile.mockRejectedValueOnce(new Error('storage unavailable'))
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({
+      error: { code: 'INTERNAL_ERROR', message: 'Internal server error' },
+    })
+    expect(mockUploadDocument).not.toHaveBeenCalled()
+    expect(mockPlatformUploaded).not.toHaveBeenCalled()
+    expect(mockCapture).not.toHaveBeenCalled()
+  })
+
+  it('preserves application authorization errors after storage transfer', async () => {
+    mockUploadDocument.mockRejectedValueOnce(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+
+    const response = await POST(buildRequest(), { params: Promise.resolve({ id: 'kb-1' }) })
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+    })
+    expect(mockUploadWorkspaceFile).toHaveBeenCalledOnce()
+    expect(mockPlatformUploaded).not.toHaveBeenCalled()
     expect(mockCapture).not.toHaveBeenCalled()
   })
 })

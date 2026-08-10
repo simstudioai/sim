@@ -13,7 +13,7 @@ const { mockGetCredentialActorContext, mockGetServiceAccountToken, mockRefreshTo
 vi.mock('@/lib/credentials/access', () => ({
   getCredentialActorContext: mockGetCredentialActorContext,
 }))
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getServiceAccountToken: mockGetServiceAccountToken,
   refreshTokenIfNeeded: mockRefreshTokenIfNeeded,
 }))

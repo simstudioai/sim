@@ -20,13 +20,13 @@ import {
   parseTokenServiceAccountSecretBlob,
   type TokenServiceAccountSecretBlob,
 } from '@/lib/credentials/token-service-accounts/server'
-import { refreshOAuthToken } from '@/lib/oauth'
 import { isInstagramProvider, shouldProactivelyRefreshInstagramToken } from '@/lib/oauth/instagram'
 import {
   getMicrosoftRefreshTokenExpiry,
   isMicrosoftProvider,
   PROACTIVE_REFRESH_THRESHOLD_DAYS,
 } from '@/lib/oauth/microsoft'
+import { refreshOAuthToken } from '@/lib/oauth/oauth'
 import {
   extractSlackTeamId,
   fanOutSlackTokenChain,
@@ -46,7 +46,7 @@ import {
   SLACK_CUSTOM_BOT_PROVIDER_ID,
 } from '@/lib/oauth/types'
 
-const logger = createLogger('OAuthUtilsAPI')
+const logger = createLogger('OAuthCredentialService')
 
 export class ServiceAccountTokenError extends Error {
   constructor(

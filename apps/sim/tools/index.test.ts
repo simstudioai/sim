@@ -48,6 +48,7 @@ const {
   mockListCustomTools,
   mockMarkWorkspaceFileSecretProvenanceUnknown,
   mockGetCustomToolByIdOrTitle,
+  mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
@@ -62,6 +63,7 @@ const {
   mockListCustomTools: vi.fn(),
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
+  mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
 }))
@@ -76,6 +78,8 @@ vi.mock('@/lib/api-key/byok', () => ({
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
+  generateInternalDelegationToken: (...args: unknown[]) =>
+    mockGenerateInternalDelegationToken(...args),
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
@@ -208,6 +212,25 @@ const mockRegistryTools: Record<string, any> = {
     outputs: {
       result: { type: 'json', description: 'Execution result' },
     },
+  },
+  test_executor_delegation: {
+    id: 'test_executor_delegation',
+    name: 'Executor Delegation Test',
+    description: 'Exercises scoped internal executor authentication',
+    version: '1.0.0',
+    params: {},
+    request: {
+      url: '/api/knowledge/test',
+      method: 'POST',
+      internalAuth: 'executor_delegation',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: () => ({}),
+    },
+    transformResponse: async (response: Response) => ({
+      success: response.ok,
+      output: await response.json(),
+    }),
+    outputs: {},
   },
   gmail_read: {
     id: 'gmail_read',
@@ -423,6 +446,7 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+  mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -705,6 +729,58 @@ describe('executeTool Function', () => {
     )
     const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer mothership-token')
+  })
+
+  it('uses server-authored executor identity for protected internal tools', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      executionId: 'trusted-execution',
+    })
+    await executeTool(
+      'test_executor_delegation',
+      {
+        _context: {
+          userId: 'model-user',
+          workflowId: 'model-workflow',
+        },
+      },
+      { executionContext }
+    )
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      executionId: 'trusted-execution',
+    })
+    const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
+    expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')
+  })
+
+  it('rejects protected internal tools without trusted executor scope before transport', async () => {
+    const result = await executeTool('test_executor_delegation', {
+      _context: {
+        userId: 'model-user',
+        workflowId: 'model-workflow',
+      },
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Executor delegation requires a trusted workflow execution context',
+    })
+    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('imports File Get Content provenance without exposing private transport metadata', async () => {

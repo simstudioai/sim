@@ -18,7 +18,7 @@ vi.mock('@/lib/knowledge/documents/service', () => ({
   processDocumentAsync: vi.fn(),
 }))
 vi.mock('@/lib/uploads', () => ({ StorageService: {} }))
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/background/knowledge-connector-sync', () => ({
   knowledgeConnectorSync: { trigger: vi.fn() },
 }))

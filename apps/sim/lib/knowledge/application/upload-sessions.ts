@@ -1,7 +1,5 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import type { V2KnowledgeDocumentUploadMetadata } from '@/lib/api/contracts/v2/knowledge'
-import { v2KnowledgeDocumentUploadMetadataSchema } from '@/lib/api/contracts/v2/knowledge'
 import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation, type WorkspaceOperation } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -25,6 +23,10 @@ import {
 } from '@/lib/knowledge/documents/service'
 import type { CreatedKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
 import { findBoundKnowledgeDocument } from '@/lib/knowledge/orchestration/documents'
+import {
+  type KnowledgeDocumentUploadMetadata,
+  knowledgeDocumentUploadMetadataSchema,
+} from '@/lib/knowledge/upload-metadata'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
 import { requestOrigin } from '@/lib/uploads/upload-session/application'
 import {
@@ -60,7 +62,7 @@ export interface CreateKnowledgeDocumentUploadInput {
   name: string
   contentType: string
   size: number
-  metadata: V2KnowledgeDocumentUploadMetadata
+  metadata: KnowledgeDocumentUploadMetadata
 }
 
 export interface KnowledgeDocumentUploadControlInput {
@@ -384,7 +386,7 @@ export const completeKnowledgeDocumentUpload = defineAuthorizedKnowledgeUseCase(
 async function dispatchKnowledgeDocumentProcessing(
   document: CreatedKnowledgeDocument,
   knowledgeBaseId: string,
-  processingOptions: V2KnowledgeDocumentUploadMetadata['processingOptions'],
+  processingOptions: KnowledgeDocumentUploadMetadata['processingOptions'],
   requestId: string,
   billingAttribution: Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>
 ): Promise<void> {
@@ -447,7 +449,7 @@ async function reauthorizeKnowledgeDocumentUpload(
 
 function knowledgeDocumentMetadataFor(session: UploadSessionRecord) {
   const { authBinding: _authBinding, ...metadata } = session.metadata
-  return v2KnowledgeDocumentUploadMetadataSchema.parse(metadata)
+  return knowledgeDocumentUploadMetadataSchema.parse(metadata)
 }
 
 function knowledgeDocumentInputFor(session: UploadSessionRecord) {

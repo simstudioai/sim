@@ -1,20 +1,15 @@
-import { db } from '@sim/db'
-import { knowledgeConnector } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
-import { generateId } from '@sim/utils/id'
-import { filterUndefined } from '@sim/utils/object'
 import { truncate } from '@sim/utils/string'
-import { and, eq, isNull } from 'drizzle-orm'
 import {
   assertBillingAttributionSnapshot,
   type BillingAttributionSnapshot,
 } from '@/lib/billing/core/billing-attribution'
 import {
+  executeCopilotKnowledgeUseCase,
   messageForCopilotKnowledgeError,
-  resolveCopilotKnowledgePrincipal,
+  requireCopilotKnowledgeWorkspaceId,
 } from '@/lib/copilot/application/execute-knowledge-use-case'
-import { resolveCopilotFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { KnowledgeBase } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolErrorMessageForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import {
@@ -23,54 +18,38 @@ import {
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { projectServerToolModelInput } from '@/lib/copilot/tools/server/model-input'
-import {
-  asOrchestrationError,
-  messageForOrchestrationError,
-  type OrchestrationErrorCode,
-} from '@/lib/core/orchestration/types'
+import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { addWorkspaceFilesToKnowledgeBase } from '@/lib/knowledge/application/add-workspace-files'
+import { MAX_KNOWLEDGE_BATCH_ITEMS } from '@/lib/knowledge/application/batch-policy'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
-  deleteKnowledgeDocument,
-  uploadKnowledgeDocument,
+  createKnowledgeConnector,
+  deleteKnowledgeConnector,
+  syncKnowledgeConnector,
+  updateKnowledgeConnector,
+} from '@/lib/knowledge/application/connectors'
+import {
+  bulkDeleteKnowledgeDocuments,
+  updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import {
+  bulkDeleteKnowledgeBases,
   createKnowledgeBase,
-  deleteKnowledgeBaseOperation,
   readKnowledgeBase,
   updateKnowledgeBaseOperation,
 } from '@/lib/knowledge/application/knowledge-bases'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
 import {
-  performCreateKnowledgeConnector,
-  performDeleteKnowledgeConnector,
-  performSyncKnowledgeConnector,
-  performUpdateKnowledgeConnector,
-  performUpdateKnowledgeDocument,
-} from '@/lib/knowledge/orchestration'
-import {
-  createTagDefinition,
-  deleteTagDefinition,
-  getDocumentTagDefinitions,
-  getNextAvailableSlot,
-  getTagDefinitionById,
-  getTagUsageStats,
-  updateTagDefinition,
-} from '@/lib/knowledge/tags/service'
+  createKnowledgeTag,
+  deleteKnowledgeTag,
+  listKnowledgeTags,
+  readKnowledgeTagUsage,
+  updateKnowledgeTag,
+} from '@/lib/knowledge/application/tags'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { StorageService } from '@/lib/uploads'
-import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { fileOperations } from '@/lib/workspace-files/application/operations'
-import { resolveWorkspaceFileReference } from '@/lib/workspace-files/application/resolve-workspace-file-reference'
-import { getCredential } from '@/app/api/auth/oauth/utils'
-import {
-  checkDocumentWriteAccess,
-  checkKnowledgeBaseAccess,
-  checkKnowledgeBaseWriteAccess,
-} from '@/app/api/knowledge/utils'
 
 const logger = createLogger('KnowledgeBaseServerTool')
-const MAX_COPILOT_KNOWLEDGE_BATCH_SIZE = 100
 
 function requireKnowledgeBillingAttribution(
   context: ServerToolContext,
@@ -86,20 +65,7 @@ function requireKnowledgeBillingAttribution(
   return attribution
 }
 
-/**
- * The message the agent — and therefore the user — is shown for a failed
- * operation. Mirrors `messageForOrchestrationError` on the HTTP surfaces: a
- * classified failure is caller-fixable and safe to relay, an unclassified one
- * carries whatever text the fault happened to have (a driver's failed SQL, say)
- * and is replaced by the operation's own wording.
- */
-function agentFacingError(
-  outcome: { error?: string; errorCode?: OrchestrationErrorCode },
-  fallback: string
-): string {
-  return messageForOrchestrationError(outcome, fallback)
-}
-
+/** Records the existing Copilot product analytics after application success. */
 function captureKnowledgeBaseCreated(
   userId: string,
   workspaceId: string,
@@ -125,46 +91,131 @@ function captureKnowledgeBaseCreated(
   )
 }
 
-function captureKnowledgeDocumentUploaded(
+function captureKnowledgeDocumentsUploaded(
   userId: string,
   workspaceId: string,
   knowledgeBaseId: string,
-  document: { mimeType: string; fileSize: number }
+  documents: readonly { mimeType: string; fileSize: number }[]
 ): void {
-  PlatformEvents.knowledgeBaseDocumentsUploaded({
-    knowledgeBaseId,
-    documentsCount: 1,
-    uploadType: 'single',
-    mimeType: document.mimeType,
-    fileSize: document.fileSize,
-  })
+  for (const document of documents) {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId,
+      documentsCount: 1,
+      uploadType: 'single',
+      mimeType: document.mimeType,
+      fileSize: document.fileSize,
+    })
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_uploaded',
+      {
+        knowledge_base_id: knowledgeBaseId,
+        workspace_id: workspaceId,
+        document_count: 1,
+        upload_type: 'single',
+      },
+      {
+        groups: { workspace: workspaceId },
+        setOnce: { first_document_uploaded_at: new Date().toISOString() },
+      }
+    )
+  }
+}
+
+function captureKnowledgeDocumentsDeleted(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  count: number
+): void {
+  for (let index = 0; index < count; index += 1) {
+    captureServerEvent(
+      userId,
+      'knowledge_base_document_deleted',
+      { knowledge_base_id: knowledgeBaseId, workspace_id: workspaceId },
+      { groups: { workspace: workspaceId } }
+    )
+  }
+}
+
+function captureKnowledgeConnectorAdded(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType: string,
+  syncIntervalMinutes: number
+): void {
   captureServerEvent(
     userId,
-    'knowledge_base_document_uploaded',
+    'knowledge_base_connector_added',
     {
       knowledge_base_id: knowledgeBaseId,
       workspace_id: workspaceId,
-      document_count: 1,
-      upload_type: 'single',
+      connector_type: connectorType,
+      sync_interval_minutes: syncIntervalMinutes,
     },
     {
       groups: { workspace: workspaceId },
-      setOnce: { first_document_uploaded_at: new Date().toISOString() },
+      setOnce: { first_connector_added_at: new Date().toISOString() },
     }
   )
 }
 
-function captureKnowledgeDocumentDeleted(
+function captureKnowledgeConnectorRemoved(
   userId: string,
   workspaceId: string,
-  knowledgeBaseId: string
+  knowledgeBaseId: string,
+  connectorType: string,
+  documentsDeleted: number
 ): void {
   captureServerEvent(
     userId,
-    'knowledge_base_document_deleted',
-    { knowledge_base_id: knowledgeBaseId, workspace_id: workspaceId },
+    'knowledge_base_connector_removed',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      workspace_id: workspaceId,
+      connector_type: connectorType,
+      documents_deleted: documentsDeleted,
+    },
     { groups: { workspace: workspaceId } }
   )
+}
+
+function captureKnowledgeConnectorSynced(
+  userId: string,
+  workspaceId: string,
+  knowledgeBaseId: string,
+  connectorType: string
+): void {
+  captureServerEvent(
+    userId,
+    'knowledge_base_connector_synced',
+    {
+      knowledge_base_id: knowledgeBaseId,
+      workspace_id: workspaceId,
+      connector_type: connectorType,
+    },
+    { groups: { workspace: workspaceId } }
+  )
+}
+
+function applicationFailureFallback(operation: string): string | null {
+  switch (operation) {
+    case 'update_document':
+      return 'Failed to update document'
+    case 'create_tag':
+      return 'Failed to create tag'
+    case 'add_connector':
+      return 'Failed to add connector'
+    case 'update_connector':
+      return 'Failed to update connector'
+    case 'delete_connector':
+      return 'Failed to delete connector'
+    case 'sync_connector':
+      return 'Failed to sync connector'
+    default:
+      return null
+  }
 }
 
 type KnowledgeBaseArgs = {
@@ -188,26 +239,13 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
     context?: ServerToolContext
   ): Promise<KnowledgeBaseResult> {
     if (!context) throw new Error('Knowledge delegation requires a Copilot execution context')
-    const principal = resolveCopilotKnowledgePrincipal(context)
     const { operation, args = {} } = params
-    const workspaceId = principal.workspaceId
+    const workspaceId = requireCopilotKnowledgeWorkspaceId(context)
     const assertNotAborted = () =>
       assertServerToolNotAborted(
         context,
         'Request aborted before knowledge mutation could be applied.'
       )
-    /**
-     * The acting agent, as every knowledge orchestration function expects it.
-     * `source: 'agent'` is what makes an agent-driven mutation distinguishable in
-     * the audit log — before these operations went through orchestration they
-     * were not recorded there at all.
-     */
-    const actor = (requestId: string) => ({
-      userId: context.userId as string,
-      source: 'agent' as const,
-      requestId,
-    })
-
     try {
       switch (operation) {
         case 'create': {
@@ -226,16 +264,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          const { knowledgeBase: newKnowledgeBase } = await createKnowledgeBase.execute({
-            principal,
-            input: {
+          const { knowledgeBase: newKnowledgeBase } = await executeCopilotKnowledgeUseCase(
+            context,
+            createKnowledgeBase,
+            {
               workspaceId,
               name: args.name,
               description: args.description,
               chunkingConfig: args.chunkingConfig,
               source: 'agent',
-            },
-          })
+            }
+          )
           captureKnowledgeBaseCreated(context.userId, workspaceId, newKnowledgeBase)
           return {
             success: true,
@@ -259,13 +298,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const { knowledgeBase } = await readKnowledgeBase.execute({
-            principal,
-            input: {
+          const { knowledgeBase } = await executeCopilotKnowledgeUseCase(
+            context,
+            readKnowledgeBase,
+            {
               knowledgeBaseId: args.knowledgeBaseId,
               assertedWorkspaceId: workspaceId,
-            },
-          })
+            }
+          )
 
           logger.info('Knowledge base metadata retrieved via copilot', {
             knowledgeBaseId: knowledgeBase.id,
@@ -314,24 +354,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 'Failed to query knowledge base: Knowledge result secret provenance is unavailable',
             }
           }
-          const { knowledgeBase: kb } = await readKnowledgeBase.execute({
-            principal,
-            input: {
-              knowledgeBaseId: args.knowledgeBaseId,
-              assertedWorkspaceId: workspaceId,
-            },
-          })
-          const searchResult = await searchKnowledge.execute({
-            principal,
-            input: {
-              workspaceId,
-              knowledgeBaseIds: [args.knowledgeBaseId],
-              query: modelQuery,
-              topK,
-              resultSecretRegistry: context.resolvedSecretTraceRegistry,
-            },
+          const searchResult = await executeCopilotKnowledgeUseCase(context, searchKnowledge, {
+            workspaceId,
+            knowledgeBaseIds: [args.knowledgeBaseId],
+            query: modelQuery,
+            topK,
+            resultSecretRegistry: context.resolvedSecretTraceRegistry,
           })
           const results = searchResult.results
+          const knowledgeBase = searchResult.knowledgeBases[0]
+          if (!knowledgeBase)
+            throw new Error('Knowledge search returned no canonical knowledge base')
 
           logger.info('Knowledge base queried via copilot', {
             knowledgeBaseIds: [args.knowledgeBaseId],
@@ -345,7 +378,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             message: `Found ${results.length} result(s) for query "${truncate(args.query, 50)}"`,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
-              knowledgeBaseName: kb.name,
+              knowledgeBaseName: knowledgeBase.name,
               query: args.query,
               topK,
               totalResults: results.length,
@@ -378,108 +411,49 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
                 'filePaths is required for add_file. Use canonical VFS file paths from glob("files/**").',
             }
           }
-          if (fileRefs.length > MAX_COPILOT_KNOWLEDGE_BATCH_SIZE) {
+          if (fileRefs.length > MAX_KNOWLEDGE_BATCH_ITEMS) {
             return {
               success: false,
-              message: `Too many files (${fileRefs.length}). Maximum is ${MAX_COPILOT_KNOWLEDGE_BATCH_SIZE}.`,
+              message: `Too many files (${fileRefs.length}). Maximum is ${MAX_KNOWLEDGE_BATCH_ITEMS}.`,
             }
           }
 
-          const { knowledgeBase: targetKb } = await readKnowledgeBase.execute({
-            principal,
-            input: {
+          assertNotAborted()
+          const outcome = await executeCopilotKnowledgeUseCase(
+            context,
+            addWorkspaceFilesToKnowledgeBase,
+            {
               knowledgeBaseId: args.knowledgeBaseId,
               assertedWorkspaceId: workspaceId,
-            },
-          })
-
-          const added: Array<{ documentId: string; filename: string }> = []
-          const failedFiles: string[] = []
-          const filePrincipal = resolveCopilotFilePrincipal(context)
-
-          for (const fileRef of fileRefs) {
-            let fileRecord
-            try {
-              fileRecord = await resolveWorkspaceFileReference({
-                principal: filePrincipal,
-                operation: fileOperations.readContent,
-                workspaceId,
-                reference: fileRef,
-              })
-            } catch (error) {
-              const classified = asOrchestrationError(error)
-              if (classified && classified.code !== 'internal') {
-                failedFiles.push(fileRef)
-                continue
-              }
-              throw error
+              fileReferences: fileRefs,
+              cancellationSignal: context.userStopSignal,
+              source: 'agent',
             }
+          )
+          captureKnowledgeDocumentsUploaded(
+            context.userId,
+            workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.added
+          )
+          assertNotAborted()
 
-            const fileProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
-              fileId: fileRecord.id,
-              key: fileRecord.key,
-              context: 'workspace',
-            })
-            if (fileProvenance.status !== 'exact' || fileProvenance.entries.length > 0) {
-              failedFiles.push(fileRef)
-              continue
-            }
-
-            const presignedUrl = await StorageService.generatePresignedDownloadUrl(
-              fileRecord.key,
-              'workspace',
-              5 * 60
-            )
-
-            assertNotAborted()
-            try {
-              const outcome = await uploadKnowledgeDocument.execute({
-                principal,
-                input: {
-                  knowledgeBaseId: args.knowledgeBaseId,
-                  assertedWorkspaceId: workspaceId,
-                  document: {
-                    filename: fileRecord.name,
-                    fileUrl: presignedUrl,
-                    fileSize: fileRecord.size,
-                    mimeType: fileRecord.type,
-                  },
-                  startProcessing: true,
-                  source: 'agent',
-                },
-              })
-              captureKnowledgeDocumentUploaded(
-                context.userId,
-                workspaceId,
-                args.knowledgeBaseId,
-                outcome.document
-              )
-              added.push({ documentId: outcome.document.id, filename: fileRecord.name })
-            } catch (error) {
-              if (error instanceof KnowledgeUsageLimitExceededError) {
-                return { success: false, message: error.message }
-              }
-              const classified = asOrchestrationError(error)
-              if (classified && classified.code !== 'internal') {
-                failedFiles.push(fileRef)
-                continue
-              }
-              throw error
-            }
-          }
-
-          const addedNames = added.map((a) => a.filename).join(', ')
+          const added = outcome.added.map(({ documentId, filename }) => ({
+            documentId,
+            filename,
+          }))
+          const addedNames = added.map((item) => item.filename).join(', ')
           return {
             success: added.length > 0,
             message:
               added.length > 0
-                ? `Added ${added.length} file(s) to "${targetKb.name}": ${addedNames}. Processing started.`
+                ? `Added ${added.length} file(s) to "${outcome.knowledgeBaseName}": ${addedNames}. Processing started.`
                 : `No files could be added.`,
             data: {
               knowledgeBaseId: args.knowledgeBaseId,
-              knowledgeBaseName: targetKb.name,
+              knowledgeBaseName: outcome.knowledgeBaseName,
               added,
-              failed: failedFiles,
+              failed: outcome.failed,
             },
           }
         }
@@ -510,15 +484,16 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           }
 
           assertNotAborted()
-          const { knowledgeBase: updatedKb } = await updateKnowledgeBaseOperation.execute({
-            principal,
-            input: {
+          const { knowledgeBase: updatedKb } = await executeCopilotKnowledgeUseCase(
+            context,
+            updateKnowledgeBaseOperation,
+            {
               knowledgeBaseId: args.knowledgeBaseId,
               assertedWorkspaceId: workspaceId,
               ...updates,
               source: 'agent',
-            },
-          })
+            }
+          )
           return {
             success: true,
             message: `Knowledge base "${updatedKb.name}" updated successfully`,
@@ -542,58 +517,25 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'knowledgeBaseId or knowledgeBaseIds is required for delete operation',
             }
           }
-          if (kbIds.length > MAX_COPILOT_KNOWLEDGE_BATCH_SIZE) {
+          if (kbIds.length > MAX_KNOWLEDGE_BATCH_ITEMS) {
             return {
               success: false,
-              message: `Too many knowledge base IDs (${kbIds.length}). Maximum is ${MAX_COPILOT_KNOWLEDGE_BATCH_SIZE}.`,
+              message: `Too many knowledge base IDs (${kbIds.length}). Maximum is ${MAX_KNOWLEDGE_BATCH_ITEMS}.`,
             }
           }
 
-          const deleted: Array<{ id: string; name: string }> = []
-          const notFound: string[] = []
-          // A knowledge base that exists but could not be archived is neither
-          // deleted nor missing. Folding it into `notFound` told the user it was
-          // never there instead of why the delete failed.
-          const failed: Array<{ id: string; name: string; reason: string }> = []
-
-          for (const kbId of kbIds) {
-            let knowledgeBaseName = kbId
-            try {
-              const readResult = await readKnowledgeBase.execute({
-                principal,
-                input: { knowledgeBaseId: kbId, assertedWorkspaceId: workspaceId },
-              })
-              knowledgeBaseName = readResult.knowledgeBase.name
-              assertNotAborted()
-              const deletedKnowledgeBase = await deleteKnowledgeBaseOperation.execute({
-                principal,
-                input: {
-                  knowledgeBaseId: kbId,
-                  assertedWorkspaceId: workspaceId,
-                  source: 'agent',
-                },
-              })
-              PlatformEvents.knowledgeBaseDeleted({ knowledgeBaseId: kbId })
-              deleted.push(deletedKnowledgeBase)
-            } catch (error) {
-              const classified = asOrchestrationError(error)
-              if (
-                classified?.code === 'not_found' ||
-                classified?.code === 'forbidden' ||
-                classified?.code === 'unauthorized'
-              ) {
-                notFound.push(kbId)
-              } else if (classified && classified.code !== 'internal') {
-                failed.push({
-                  id: kbId,
-                  name: knowledgeBaseName,
-                  reason: classified.message,
-                })
-              } else {
-                throw error
-              }
+          assertNotAborted()
+          const { deleted, notFound, failed } = await executeCopilotKnowledgeUseCase(
+            context,
+            bulkDeleteKnowledgeBases,
+            {
+              assertedWorkspaceId: workspaceId,
+              knowledgeBaseIds: kbIds,
+              cancellationSignal: context.userStopSignal,
+              source: 'agent',
             }
-          }
+          )
+          assertNotAborted()
 
           const deleteSummary = [
             deleted.length > 0 ? `Deleted: ${deleted.map((d) => d.name).join(', ')}` : null,
@@ -622,44 +564,34 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'documentId or documentIds is required for delete_document',
             }
           }
-          if (docIds.length > MAX_COPILOT_KNOWLEDGE_BATCH_SIZE) {
+          if (docIds.length > MAX_KNOWLEDGE_BATCH_ITEMS) {
             return {
               success: false,
-              message: `Too many document IDs (${docIds.length}). Maximum is ${MAX_COPILOT_KNOWLEDGE_BATCH_SIZE}.`,
+              message: `Too many document IDs (${docIds.length}). Maximum is ${MAX_KNOWLEDGE_BATCH_ITEMS}.`,
             }
           }
 
-          const deleted: string[] = []
-          const failed: string[] = []
-
-          for (const docId of docIds) {
-            assertNotAborted()
-            try {
-              await deleteKnowledgeDocument.execute({
-                principal,
-                input: {
-                  knowledgeBaseId: args.knowledgeBaseId,
-                  documentId: docId,
-                  assertedWorkspaceId: workspaceId,
-                  source: 'agent',
-                },
-              })
-              captureKnowledgeDocumentDeleted(context.userId, workspaceId, args.knowledgeBaseId)
-              deleted.push(docId)
-            } catch (error) {
-              const classified = asOrchestrationError(error)
-              if (classified && classified.code !== 'internal') {
-                failed.push(docId)
-                continue
-              }
-              throw error
-            }
-          }
+          assertNotAborted()
+          const { knowledgeBaseId, deleted, deletedDocuments, failed } =
+            await executeCopilotKnowledgeUseCase(context, bulkDeleteKnowledgeDocuments, {
+              knowledgeBaseId: args.knowledgeBaseId,
+              documentIds: docIds,
+              assertedWorkspaceId: workspaceId,
+              cancellationSignal: context.userStopSignal,
+              source: 'agent',
+            })
+          captureKnowledgeDocumentsDeleted(
+            context.userId,
+            workspaceId,
+            knowledgeBaseId,
+            deletedDocuments.length
+          )
+          assertNotAborted()
 
           return {
             success: deleted.length > 0,
             message: `Deleted ${deleted.length} document(s)${failed.length > 0 ? `, ${failed.length} failed` : ''}`,
-            data: { knowledgeBaseId: args.knowledgeBaseId, deleted, failed },
+            data: { knowledgeBaseId, deleted, failed },
           }
         }
 
@@ -683,35 +615,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               message: 'At least one of filename or enabled is required for update_document',
             }
           }
-          const docAccess = await checkDocumentWriteAccess(
-            args.knowledgeBaseId,
-            args.documentId,
-            context.userId
-          )
-          if (!docAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Document with ID "${args.documentId}" not found`,
-            }
-          }
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const outcome = await performUpdateKnowledgeDocument({
-            ...actor(requestId),
-            knowledgeBase: {
-              id: args.knowledgeBaseId,
-              name: docAccess.knowledgeBase.name,
-              workspaceId: docAccess.knowledgeBase.workspaceId ?? null,
-            },
-            document: docAccess.document,
-            updates: updateData,
+          await executeCopilotKnowledgeUseCase(context, updateKnowledgeDocument, {
+            knowledgeBaseId: args.knowledgeBaseId,
+            documentId: args.documentId,
+            assertedWorkspaceId: workspaceId,
+            ...updateData,
+            source: 'agent',
           })
-          if (!outcome.success) {
-            return {
-              success: false,
-              message: agentFacingError(outcome, 'Failed to update document'),
-            }
-          }
 
           return {
             success: true,
@@ -732,15 +643,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
-          if (!access.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+          const { tagDefinitions } = await executeCopilotKnowledgeUseCase(
+            context,
+            listKnowledgeTags,
+            {
+              knowledgeBaseId: args.knowledgeBaseId,
+              assertedWorkspaceId: workspaceId,
             }
-          }
-
-          const tagDefinitions = await getDocumentTagDefinitions(args.knowledgeBaseId)
+          )
 
           logger.info('Tag definitions listed via copilot', {
             knowledgeBaseId: args.knowledgeBaseId,
@@ -775,37 +685,18 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
-            args.knowledgeBaseId,
-            context.userId
-          )
-          if (!writeAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
-            }
-          }
-
           const fieldType = args.tagFieldType || 'text'
-
-          const tagSlot = await getNextAvailableSlot(args.knowledgeBaseId, fieldType)
-          if (!tagSlot) {
-            return {
-              success: false,
-              message: `No available slots for field type "${fieldType}". Maximum tags of this type reached.`,
-            }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const newTag = await createTagDefinition(
+          const { tagDefinition: newTag } = await executeCopilotKnowledgeUseCase(
+            context,
+            createKnowledgeTag,
             {
               knowledgeBaseId: args.knowledgeBaseId,
-              tagSlot,
               displayName: args.tagDisplayName,
               fieldType,
-            },
-            requestId
+              assertedWorkspaceId: workspaceId,
+              source: 'agent',
+            }
           )
 
           logger.info('Tag definition created via copilot', {
@@ -847,32 +738,18 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const existingTag = await getTagDefinitionById(args.tagDefinitionId)
-          if (!existingTag) {
-            return {
-              success: false,
-              message: `Tag definition with ID "${args.tagDefinitionId}" not found`,
-            }
-          }
-
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
-            existingTag.knowledgeBaseId,
-            context.userId
-          )
-          if (!writeAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Tag definition with ID "${args.tagDefinitionId}" not found`,
-            }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const updatedTag = await updateTagDefinition(args.tagDefinitionId, updateData, requestId)
+          const { tagDefinition: updatedTag, knowledgeBaseId } =
+            await executeCopilotKnowledgeUseCase(context, updateKnowledgeTag, {
+              tagDefinitionId: args.tagDefinitionId,
+              assertedWorkspaceId: workspaceId,
+              updates: updateData,
+              source: 'agent',
+            })
 
           logger.info('Tag definition updated via copilot', {
             tagId: args.tagDefinitionId,
-            knowledgeBaseId: existingTag.knowledgeBaseId,
+            knowledgeBaseId,
             userId: context.userId,
           })
 
@@ -881,7 +758,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             message: `Tag "${updatedTag.displayName}" updated successfully`,
             data: {
               id: updatedTag.id,
-              knowledgeBaseId: existingTag.knowledgeBaseId,
+              knowledgeBaseId,
               tagSlot: updatedTag.tagSlot,
               displayName: updatedTag.displayName,
               fieldType: updatedTag.fieldType,
@@ -903,24 +780,13 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
-            args.knowledgeBaseId,
-            context.userId
-          )
-          if (!writeAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
-            }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const deleted = await deleteTagDefinition(
-            args.knowledgeBaseId,
-            args.tagDefinitionId,
-            requestId
-          )
+          const deleted = await executeCopilotKnowledgeUseCase(context, deleteKnowledgeTag, {
+            knowledgeBaseId: args.knowledgeBaseId,
+            tagDefinitionId: args.tagDefinitionId,
+            assertedWorkspaceId: workspaceId,
+            source: 'agent',
+          })
 
           logger.info('Tag definition deleted via copilot', {
             tagId: args.tagDefinitionId,
@@ -948,16 +814,14 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const access = await checkKnowledgeBaseAccess(args.knowledgeBaseId, context.userId)
-          if (!access.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+          const { usage: stats } = await executeCopilotKnowledgeUseCase(
+            context,
+            readKnowledgeTagUsage,
+            {
+              knowledgeBaseId: args.knowledgeBaseId,
+              assertedWorkspaceId: workspaceId,
             }
-          }
-
-          const requestId = generateId().slice(0, 8)
-          const stats = await getTagUsageStats(args.knowledgeBaseId, requestId)
+          )
 
           return {
             success: true,
@@ -981,57 +845,32 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             }
           }
 
-          const writeAccess = await checkKnowledgeBaseWriteAccess(
-            args.knowledgeBaseId,
-            context.userId
-          )
-          if (!writeAccess.hasAccess) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
-            }
-          }
-          const connectorWorkspaceId = writeAccess.knowledgeBase.workspaceId
-          if (!connectorWorkspaceId) {
-            return {
-              success: false,
-              message: `Knowledge base with ID "${args.knowledgeBaseId}" has no workspace billing context`,
-            }
-          }
-          const billingAttribution = requireKnowledgeBillingAttribution(
-            context,
-            connectorWorkspaceId
-          )
-
           const sourceConfig: Record<string, unknown> = { ...(args.sourceConfig ?? {}) }
           if (args.disabledTagIds?.length) {
             sourceConfig.disabledTagIds = args.disabledTagIds
           }
 
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const outcome = await performCreateKnowledgeConnector({
-            ...actor(requestId),
-            knowledgeBase: {
-              id: args.knowledgeBaseId,
-              name: writeAccess.knowledgeBase.name,
-              workspaceId: connectorWorkspaceId,
-            },
-            connectorType: args.connectorType,
-            credentialId: args.credentialId,
-            apiKey: args.apiKey,
-            sourceConfig,
-            syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
-            resolveBillingAttribution: async () => billingAttribution,
-            resolveAccessToken: async (credentialId) =>
-              (await getCredential(requestId, credentialId, context.userId as string))
-                ?.accessToken ?? null,
-          })
-          if (!outcome.success) {
-            return { success: false, message: agentFacingError(outcome, 'Failed to add connector') }
-          }
-
-          const connector = outcome.connector
+          const { connector, workspaceId: canonicalWorkspaceId } =
+            await executeCopilotKnowledgeUseCase(context, createKnowledgeConnector, {
+              knowledgeBaseId: args.knowledgeBaseId,
+              assertedWorkspaceId: workspaceId,
+              connectorType: args.connectorType,
+              credentialId: args.credentialId,
+              apiKey: args.apiKey,
+              sourceConfig,
+              syncIntervalMinutes: args.syncIntervalMinutes ?? 1440,
+              resolveBillingAttribution: async (billingWorkspaceId) =>
+                requireKnowledgeBillingAttribution(context, billingWorkspaceId),
+              source: 'agent',
+            })
+          captureKnowledgeConnectorAdded(
+            context.userId,
+            canonicalWorkspaceId,
+            connector.knowledgeBaseId,
+            connector.connectorType,
+            connector.syncIntervalMinutes
+          )
           return {
             success: true,
             message: `Connector "${args.connectorType}" added to knowledge base. Initial sync started.`,
@@ -1039,7 +878,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
               id: connector.id,
               connectorType: connector.connectorType,
               status: connector.status,
-              knowledgeBaseId: args.knowledgeBaseId,
+              knowledgeBaseId: connector.knowledgeBaseId,
             },
           }
         }
@@ -1049,48 +888,31 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: 'connectorId is required for update_connector' }
           }
 
-          const kbId = await resolveKnowledgeBaseId(args.connectorId)
-          if (!kbId) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-
-          const writeAccess = await checkKnowledgeBaseWriteAccess(kbId, context.userId)
-          if (!writeAccess.hasAccess) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-
           const updates = {
             sourceConfig: args.sourceConfig,
             syncIntervalMinutes: args.syncIntervalMinutes,
             status: args.connectorStatus,
           }
 
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          // No `validateSourceConfig`: the agent has no requesting identity to
-          // resolve the connector's OAuth token with, so a replacement config is
-          // stored unvalidated and the next sync reports any problem with it.
-          const outcome = await performUpdateKnowledgeConnector({
-            ...actor(requestId),
-            knowledgeBase: {
-              id: kbId,
-              name: writeAccess.knowledgeBase.name,
-              workspaceId: writeAccess.knowledgeBase.workspaceId ?? null,
-            },
+          await executeCopilotKnowledgeUseCase(context, updateKnowledgeConnector, {
             connectorId: args.connectorId,
+            assertedWorkspaceId: workspaceId,
             updates,
+            source: 'agent',
           })
-          if (!outcome.success) {
-            return {
-              success: false,
-              message: agentFacingError(outcome, 'Failed to update connector'),
-            }
-          }
 
           return {
             success: true,
             message: 'Connector updated successfully',
-            data: { id: args.connectorId, ...filterUndefined(updates) },
+            data: {
+              id: args.connectorId,
+              ...(updates.sourceConfig !== undefined && { sourceConfig: updates.sourceConfig }),
+              ...(updates.syncIntervalMinutes !== undefined && {
+                syncIntervalMinutes: updates.syncIntervalMinutes,
+              }),
+              ...(updates.status !== undefined && { status: updates.status }),
+            },
           }
         }
 
@@ -1099,33 +921,19 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: 'connectorId is required for delete_connector' }
           }
 
-          const deleteKbId = await resolveKnowledgeBaseId(args.connectorId)
-          if (!deleteKbId) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-
-          const writeAccess = await checkKnowledgeBaseWriteAccess(deleteKbId, context.userId)
-          if (!writeAccess.hasAccess) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const outcome = await performDeleteKnowledgeConnector({
-            ...actor(requestId),
-            knowledgeBase: {
-              id: deleteKbId,
-              name: writeAccess.knowledgeBase.name,
-              workspaceId: writeAccess.knowledgeBase.workspaceId ?? null,
-            },
+          const outcome = await executeCopilotKnowledgeUseCase(context, deleteKnowledgeConnector, {
             connectorId: args.connectorId,
+            assertedWorkspaceId: workspaceId,
+            source: 'agent',
           })
-          if (!outcome.success) {
-            return {
-              success: false,
-              message: agentFacingError(outcome, 'Failed to delete connector'),
-            }
-          }
+          captureKnowledgeConnectorRemoved(
+            context.userId,
+            outcome.workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.connectorType,
+            outcome.documentsDeleted
+          )
 
           // Report what the delete actually did. The documents are kept — this
           // used to claim they had been removed, which was never true on this
@@ -1150,45 +958,20 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             return { success: false, message: 'connectorId is required for sync_connector' }
           }
 
-          const syncKbId = await resolveKnowledgeBaseId(args.connectorId)
-          if (!syncKbId) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-
-          const writeAccess = await checkKnowledgeBaseWriteAccess(syncKbId, context.userId)
-          if (!writeAccess.hasAccess) {
-            return { success: false, message: `Connector "${args.connectorId}" not found` }
-          }
-          const connectorWorkspaceId = writeAccess.knowledgeBase.workspaceId
-          if (!connectorWorkspaceId) {
-            return {
-              success: false,
-              message: `Connector "${args.connectorId}" has no workspace billing context`,
-            }
-          }
-          const billingAttribution = requireKnowledgeBillingAttribution(
-            context,
-            connectorWorkspaceId
-          )
-
-          const requestId = generateId().slice(0, 8)
           assertNotAborted()
-          const outcome = await performSyncKnowledgeConnector({
-            ...actor(requestId),
-            knowledgeBase: {
-              id: syncKbId,
-              name: writeAccess.knowledgeBase.name,
-              workspaceId: connectorWorkspaceId,
-            },
+          const outcome = await executeCopilotKnowledgeUseCase(context, syncKnowledgeConnector, {
             connectorId: args.connectorId,
-            resolveBillingAttribution: async () => billingAttribution,
+            assertedWorkspaceId: workspaceId,
+            resolveBillingAttribution: async (canonicalWorkspaceId) =>
+              requireKnowledgeBillingAttribution(context, canonicalWorkspaceId),
+            source: 'agent',
           })
-          if (!outcome.success) {
-            return {
-              success: false,
-              message: agentFacingError(outcome, 'Failed to sync connector'),
-            }
-          }
+          captureKnowledgeConnectorSynced(
+            context.userId,
+            outcome.workspaceId,
+            outcome.knowledgeBaseId,
+            outcome.connectorType
+          )
 
           return {
             success: true,
@@ -1221,40 +1004,39 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
       if (error instanceof KnowledgeUsageLimitExceededError) {
         return { success: false, message: error.message }
       }
+      if (context.userStopSignal?.aborted) throw error
       const classified = asOrchestrationError(error)
-      if (!classified || classified.code === 'internal') throw error
-      if (
-        (classified.code === 'not_found' || classified.code === 'forbidden') &&
-        args.knowledgeBaseId
-      ) {
-        return {
-          success: false,
-          message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+      if (classified?.code === 'not_found' || classified?.code === 'forbidden') {
+        if (args.connectorId) {
+          return { success: false, message: `Connector "${args.connectorId}" not found` }
+        }
+        if (args.tagDefinitionId) {
+          return {
+            success: false,
+            message: `Tag definition with ID "${args.tagDefinitionId}" not found`,
+          }
+        }
+        if (args.documentId) {
+          return {
+            success: false,
+            message: `Document with ID "${args.documentId}" not found`,
+          }
+        }
+        if (args.knowledgeBaseId) {
+          return {
+            success: false,
+            message: `Knowledge base with ID "${args.knowledgeBaseId}" not found`,
+          }
         }
       }
+      const directFallback = applicationFailureFallback(operation)
+      const fallback = directFallback ?? `Failed to ${operation} knowledge base`
+      const safeMessage = messageForCopilotKnowledgeError(error, fallback)
       return {
         success: false,
-        message: `Failed to ${operation} knowledge base: ${messageForCopilotKnowledgeError(
-          error,
-          `Failed to ${operation} knowledge base`
-        )}`,
+        message:
+          directFallback || safeMessage === fallback ? safeMessage : `${fallback}: ${safeMessage}`,
       }
     }
   },
-}
-
-async function resolveKnowledgeBaseId(connectorId: string): Promise<string | null> {
-  const rows = await db
-    .select({ knowledgeBaseId: knowledgeConnector.knowledgeBaseId })
-    .from(knowledgeConnector)
-    .where(
-      and(
-        eq(knowledgeConnector.id, connectorId),
-        isNull(knowledgeConnector.archivedAt),
-        isNull(knowledgeConnector.deletedAt)
-      )
-    )
-    .limit(1)
-
-  return rows[0]?.knowledgeBaseId ?? null
 }

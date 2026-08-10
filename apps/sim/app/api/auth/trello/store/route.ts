@@ -9,8 +9,8 @@ import { getSession } from '@/lib/auth'
 import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { processCredentialDraft } from '@/lib/credentials/draft-processor'
+import { safeAccountInsert } from '@/lib/oauth/credential-service'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
-import { safeAccountInsert } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('TrelloStore')
 

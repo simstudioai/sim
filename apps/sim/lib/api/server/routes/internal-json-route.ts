@@ -179,6 +179,16 @@ export interface InternalAuthPolicy<P extends Principal> {
   ): Promise<P>
 }
 
+export interface InternalJsonResponseFinalization {
+  bodyFields?: Readonly<Record<string, unknown>>
+  headers?: HeadersInit
+}
+
+type InternalJsonParseOptions = Pick<
+  ParseRequestOptions,
+  'maxBodyBytes' | 'validationErrorResponse'
+>
+
 type InternalJsonPresenter<C extends JsonApiRouteContract, R> = [R] extends [
   ContractJsonResponse<C>,
 ]
@@ -198,12 +208,12 @@ type InternalJsonRouteOptions<
 > = {
   contract: C
   operation: O
-  mapInput(input: ParsedRequest<C>): I
+  mapInput(input: ParsedRequest<C>, context: { principal: P; request: NextRequest }): I | Promise<I>
   useCase: OperationUseCase<NoInfer<O>, I, R>
   auth: InternalAuthPolicy<P>
   rateLimit: InternalRateLimitPolicy
   errorPolicy: InternalErrorPolicy
-  parseOptions?: Omit<ParseRequestOptions, 'validationErrorResponse'>
+  parseOptions?: InternalJsonParseOptions
   beforeParse?(args: {
     request: NextRequest
     principal: P
@@ -211,6 +221,13 @@ type InternalJsonRouteOptions<
   }): void | Promise<void>
   onSuccess?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): void | Promise<void>
   responseHeaders?(args: { principal: P; input: NoInfer<I>; result: NoInfer<R> }): HeadersInit
+  finalizeResponse?(args: {
+    request: NextRequest
+    principal: P
+    input: NoInfer<I>
+    result: NoInfer<R>
+    body: ContractJsonResponse<C>
+  }): InternalJsonResponseFinalization | Promise<InternalJsonResponseFinalization>
 } & InternalJsonPresenter<C, R>
 
 function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextResponse {
@@ -218,6 +235,34 @@ function createJsonErrorResponse(descriptor: JsonErrorResponseDescriptor): NextR
     status: descriptor.status,
     headers: descriptor.headers,
   })
+}
+
+function appendFinalizedBodyFields(
+  body: unknown,
+  bodyFields?: Readonly<Record<string, unknown>>
+): unknown {
+  if (!bodyFields || Object.keys(bodyFields).length === 0) return body
+  if (!body || typeof body !== 'object' || Array.isArray(body)) {
+    throw new Error('Internal JSON response metadata requires an object response body')
+  }
+  for (const key of Object.keys(bodyFields)) {
+    if (Object.hasOwn(body, key)) {
+      throw new Error(`Internal JSON response metadata cannot replace contract field "${key}"`)
+    }
+  }
+  return { ...body, ...bodyFields }
+}
+
+function appendFinalizedHeaders(base: HeadersInit | undefined, additions?: HeadersInit): Headers {
+  const headers = new Headers(base)
+  if (!additions) return headers
+  new Headers(additions).forEach((value, key) => {
+    if (headers.has(key)) {
+      throw new Error(`Internal JSON response finalizer cannot replace header "${key}"`)
+    }
+    headers.set(key, value)
+  })
+  return headers
 }
 
 export function defineInternalJsonRoute<
@@ -271,7 +316,7 @@ export function defineInternalJsonRoute<
       if (!parsed.success) return parsed.response
 
       try {
-        const input = options.mapInput(parsed.data)
+        const input = await options.mapInput(parsed.data, { principal, request })
         const result = await options.useCase.execute({
           principal,
           input,
@@ -283,11 +328,24 @@ export function defineInternalJsonRoute<
         if (responseSchema.mode !== 'json') {
           throw new Error('Internal JSON route response mode changed after initialization')
         }
-        const validatedBody = responseSchema.schema.parse(body)
-        return NextResponse.json(validatedBody, {
-          status: successStatus,
-          headers: options.responseHeaders?.({ principal, input, result }),
-        })
+        const validatedBody = responseSchema.schema.parse(body) as ContractJsonResponse<C>
+        const headers = options.responseHeaders?.({ principal, input, result })
+        const finalization = options.finalizeResponse
+          ? await options.finalizeResponse({
+              request,
+              principal,
+              input,
+              result,
+              body: validatedBody,
+            })
+          : undefined
+        return NextResponse.json(
+          appendFinalizedBodyFields(validatedBody, finalization?.bodyFields),
+          {
+            status: successStatus,
+            headers: appendFinalizedHeaders(headers, finalization?.headers),
+          }
+        )
       } catch (error) {
         const response = options.errorPolicy.project(error)
         if (response) return createJsonErrorResponse(response)

@@ -51,4 +51,25 @@ describe('knowledge delegation policy', () => {
 
     expect(principal.audience).not.toBe(knowledgeDelegationPolicy.audience)
   })
+
+  it('accepts a correctly scoped executor delegation for executor-enabled operations', () => {
+    const principal: DelegatedPrincipal = {
+      kind: 'delegated',
+      serviceId: 'executor',
+      subjectUserId: 'user-1',
+      workspaceId: 'workspace-1',
+      delegationId: 'execution-1',
+      audience: KNOWLEDGE_DELEGATION_AUDIENCE,
+      issuedAt: new Date(),
+      expiresAt: new Date(Date.now() + 60_000),
+    }
+
+    expect(
+      knowledgeDelegationPolicy.isWithinScope(principal, {
+        workspaceId: 'workspace-1',
+        workspaceOrganizationId: null,
+        allowPersonalApiKeys: true,
+      })
+    ).toBe(true)
+  })
 })

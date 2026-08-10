@@ -1,46 +1,28 @@
-import { type NextRequest, NextResponse } from 'next/server'
 import { createKnowledgeDocumentUploadPartUrlsContract } from '@/lib/api/contracts/knowledge/upload-sessions'
-import { parseRequest } from '@/lib/api/server'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { issueKnowledgeDocumentUploadParts } from '@/lib/knowledge/application/upload-sessions'
 import {
-  knowledgeDocumentUploadErrorResponse,
-  requireKnowledgeDocumentUploadActor,
-} from '@/app/api/knowledge/[id]/documents/uploads/utils'
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { internalKnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
+import { knowledgeOperations } from '@/lib/knowledge/application/operations'
+import { issueKnowledgeDocumentUploadParts } from '@/lib/knowledge/application/upload-sessions'
 
-interface KnowledgeDocumentUploadRouteParams {
-  params: Promise<{ id: string; uploadId: string }>
-}
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: KnowledgeDocumentUploadRouteParams) => {
-    const actor = await requireKnowledgeDocumentUploadActor()
-    if (actor instanceof NextResponse) return actor
-    const parsed = await parseRequest(
-      createKnowledgeDocumentUploadPartUrlsContract,
-      request,
-      context
-    )
-    if (!parsed.success) return parsed.response
-    const { id: knowledgeBaseId, uploadId } = parsed.data.params
-    const { workspaceId } = parsed.data.query
-    try {
-      const { parts } = await issueKnowledgeDocumentUploadParts.execute({
-        principal: { kind: 'session', userId: actor.id, sessionId: actor.sessionId },
-        input: {
-          knowledgeBaseId,
-          assertedWorkspaceId: workspaceId,
-          uploadId,
-          uploadToken: parsed.data.headers['upload-token'],
-          partNumbers: parsed.data.body.partNumbers,
-        },
-        request,
-      })
-      return NextResponse.json({ data: { parts } })
-    } catch (error) {
-      const classified = knowledgeDocumentUploadErrorResponse(error)
-      if (classified) return classified
-      throw error
-    }
-  }
-)
+export const POST = defineInternalJsonRoute({
+  contract: createKnowledgeDocumentUploadPartUrlsContract,
+  auth: internalSessionAuth,
+  operation: knowledgeOperations.uploadParts,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal upload-part issuance behavior',
+  }),
+  errorPolicy: internalKnowledgeErrorPolicies.uploads,
+  mapInput: ({ params, query, headers, body }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: query.workspaceId,
+    uploadId: params.uploadId,
+    uploadToken: headers['upload-token'],
+    partNumbers: body.partNumbers,
+  }),
+  useCase: issueKnowledgeDocumentUploadParts,
+  present: ({ parts }) => ({ data: { parts } }),
+})

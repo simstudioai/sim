@@ -77,6 +77,7 @@ const workspace = {
 
 const knowledgeBase = {
   id: 'knowledge-1',
+  name: 'Docs',
   workspaceId: 'workspace-1',
   embeddingModel: 'text-embedding-3-small',
 }
@@ -157,6 +158,7 @@ describe('knowledge search application use case', () => {
       documentId: 'document-1',
       similarity: 0.8,
     })
+    expect(result.knowledgeBases).toEqual([{ id: 'knowledge-1', name: 'Docs' }])
   })
 
   it('rejects a cross-workspace knowledge base before authorization or spend', async () => {

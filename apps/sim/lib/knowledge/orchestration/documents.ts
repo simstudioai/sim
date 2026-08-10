@@ -77,6 +77,10 @@ export interface PerformUploadKnowledgeDocumentParams extends KnowledgeOperation
   /** Deterministic id carried by a stateless upload token for completion retries. */
   documentId?: string
   secretProvenance?: KnowledgeDocumentWriteSecretProvenance
+  /** False when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformUploadKnowledgeDocumentResult = KnowledgeOrchestrationResult<{
@@ -266,25 +270,29 @@ export async function performUploadKnowledgeDocument(
     })
   }
 
-  PlatformEvents.knowledgeBaseDocumentsUploaded({
-    knowledgeBaseId: knowledgeBase.id,
-    documentsCount: 1,
-    uploadType: 'single',
-    mimeType: document.mimeType,
-    fileSize: document.fileSize,
-  })
-  captureUpload(params, 1, 'single')
-
-  auditUpload(params, {
-    resourceId: created.id,
-    resourceName: document.filename,
-    description: `Uploaded document "${document.filename}" to knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
-    metadata: {
-      fileName: document.filename,
-      fileType: document.mimeType,
+  if (params.recordProductAnalytics !== false) {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId: knowledgeBase.id,
+      documentsCount: 1,
+      uploadType: 'single',
+      mimeType: document.mimeType,
       fileSize: document.fileSize,
-    },
-  })
+    })
+    captureUpload(params, 1, 'single')
+  }
+
+  if (params.recordSemanticAudit !== false) {
+    auditUpload(params, {
+      resourceId: created.id,
+      resourceName: document.filename,
+      description: `Uploaded document "${document.filename}" to knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
+      metadata: {
+        fileName: document.filename,
+        fileType: document.mimeType,
+        fileSize: document.fileSize,
+      },
+    })
+  }
 
   return { success: true, document: created, created: true }
 }
@@ -296,6 +304,10 @@ export interface PerformUploadKnowledgeDocumentsParams extends KnowledgeOperatio
   billingAttribution?: BillingAttributionSnapshot
   uploadedBy?: string | null
   secretProvenances?: readonly KnowledgeDocumentWriteSecretProvenance[]
+  /** False when an authorized application use case projects the semantic audit. */
+  recordSemanticAudit?: boolean
+  /** False when the calling HTTP/tool adapter owns product analytics. */
+  recordProductAnalytics?: boolean
 }
 
 export type PerformUploadKnowledgeDocumentsResult = KnowledgeOrchestrationResult<{
@@ -349,20 +361,24 @@ export async function performUploadKnowledgeDocuments(
     logger.error(`[${requestId}] Critical error in document processing pipeline`, { error })
   })
 
-  PlatformEvents.knowledgeBaseDocumentsUploaded({
-    knowledgeBaseId: knowledgeBase.id,
-    documentsCount: created.length,
-    uploadType: 'bulk',
-    recipe: processingOptions?.recipe,
-  })
-  captureUpload(params, created.length, 'bulk')
+  if (params.recordProductAnalytics !== false) {
+    PlatformEvents.knowledgeBaseDocumentsUploaded({
+      knowledgeBaseId: knowledgeBase.id,
+      documentsCount: created.length,
+      uploadType: 'bulk',
+      recipe: processingOptions?.recipe,
+    })
+    captureUpload(params, created.length, 'bulk')
+  }
 
-  auditUpload(params, {
-    resourceId: knowledgeBase.id,
-    resourceName: `${created.length} document(s)`,
-    description: `Uploaded ${created.length} document(s) to knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
-    metadata: { fileCount: created.length },
-  })
+  if (params.recordSemanticAudit !== false) {
+    auditUpload(params, {
+      resourceId: knowledgeBase.id,
+      resourceName: `${created.length} document(s)`,
+      description: `Uploaded ${created.length} document(s) to knowledge base "${knowledgeBase.name ?? knowledgeBase.id}"`,
+      metadata: { fileCount: created.length },
+    })
+  }
 
   return { success: true, documents: created }
 }

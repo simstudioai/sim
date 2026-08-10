@@ -6,7 +6,7 @@ import { authorizeCredentialUse } from '@/lib/auth/credential-access'
 import { validateSharePointSiteId } from '@/lib/core/security/input-validation'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import { assertGraphNextPageUrl, getGraphNextPageUrl } from '@/tools/sharepoint/utils'
 
 export const dynamic = 'force-dynamic'

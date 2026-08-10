@@ -121,6 +121,7 @@ export async function performCreateKnowledgeBase(
 
 export interface PerformUpdateKnowledgeBaseParams extends KnowledgeOperationContext {
   knowledgeBaseId: string
+  assertedWorkspaceId?: string
   /** Workspace the knowledge base currently belongs to, for the audit row. */
   workspaceId: string | null
   updates: {
@@ -157,6 +158,7 @@ export async function performUpdateKnowledgeBase(
   try {
     updated = await updateKnowledgeBase(knowledgeBaseId, updates, requestId, {
       actorUserId: params.userId,
+      assertedWorkspaceId: params.assertedWorkspaceId,
     })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Update knowledge base ${knowledgeBaseId}`)
@@ -193,6 +195,7 @@ export async function performUpdateKnowledgeBase(
 
 export interface PerformDeleteKnowledgeBaseParams extends KnowledgeOperationContext {
   knowledgeBase: { id: string; name: string; workspaceId: string | null }
+  assertedWorkspaceId?: string
 }
 
 export type PerformDeleteKnowledgeBaseResult = KnowledgeOrchestrationResult
@@ -211,7 +214,9 @@ export async function performDeleteKnowledgeBase(
   const requestId = params.requestId ?? generateRequestId()
 
   try {
-    await deleteKnowledgeBase(knowledgeBase.id, requestId)
+    await deleteKnowledgeBase(knowledgeBase.id, requestId, {
+      assertedWorkspaceId: params.assertedWorkspaceId,
+    })
   } catch (error) {
     return classifyKnowledgeFailure(error, requestId, `Delete knowledge base ${knowledgeBase.id}`)
   }

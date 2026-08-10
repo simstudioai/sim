@@ -8,6 +8,7 @@ import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
   MAX_TABLE_SELECTION_ROWS,
 } from '@/lib/copilot/chat/selection-context'
+import { DelegatedWorkspaceAuthorizationError } from '@/lib/core/application'
 import type { ChatContext } from '@/stores/panel'
 
 const {
@@ -20,6 +21,7 @@ const {
   readWorkspaceFileMetadata,
   getTableById,
   getRowsByIds,
+  readKnowledgeBase,
   getBlockVisibilityForCopilot,
   isIntegrationDeploymentAvailable,
 } = vi.hoisted(() => ({
@@ -32,6 +34,7 @@ const {
   readWorkspaceFileMetadata: vi.fn(),
   getTableById: vi.fn(),
   getRowsByIds: vi.fn(),
+  readKnowledgeBase: vi.fn(),
   getBlockVisibilityForCopilot: vi.fn(async () => null),
   isIntegrationDeploymentAvailable: vi.fn(() => true),
 }))
@@ -50,6 +53,9 @@ vi.mock('@/lib/workspace-files/application/read-workspace-file-metadata', () => 
 }))
 vi.mock('@/lib/table/service', () => ({ getTableById }))
 vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
+vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
+  readKnowledgeBase: { execute: readKnowledgeBase },
+}))
 
 /**
  * Overrides the global `@sim/db` mock: the logs-context tests below need
@@ -57,6 +63,75 @@ vi.mock('@/lib/table/rows/service', () => ({ getRowsByIds }))
  */
 
 import { processContextsServer } from './process-contents'
+
+describe('processContextsServer - knowledge contexts', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    readKnowledgeBase.mockResolvedValue({
+      knowledgeBase: { id: 'knowledge-1', name: 'Product docs' },
+    })
+  })
+
+  it('reads through the fixed application query with a trusted chat principal', async () => {
+    const result = await processContextsServer(
+      [{ kind: 'knowledge', knowledgeId: 'knowledge-1', label: 'Docs' } as ChatContext],
+      'dual-workspace-user',
+      'hello',
+      'workspace-a',
+      'chat-1'
+    )
+
+    expect(readKnowledgeBase).toHaveBeenCalledWith({
+      principal: expect.objectContaining({
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: 'dual-workspace-user',
+        workspaceId: 'workspace-a',
+        audience: 'sim:knowledge',
+      }),
+      input: {
+        knowledgeBaseId: 'knowledge-1',
+        assertedWorkspaceId: 'workspace-a',
+      },
+    })
+    expect(result).toEqual([
+      {
+        type: 'knowledge',
+        tag: '@Docs',
+        content: '',
+        path: 'knowledgebases/Product%20docs/meta.json',
+      },
+    ])
+  })
+
+  it('conceals a cross-workspace Knowledge target from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new DelegatedWorkspaceAuthorizationError())
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+
+  it('conceals infrastructure details from Copilot context', async () => {
+    readKnowledgeBase.mockRejectedValueOnce(new Error('database host and password'))
+
+    await expect(
+      processContextsServer(
+        [{ kind: 'knowledge', knowledgeId: 'knowledge-b', label: 'Hidden' } as ChatContext],
+        'dual-workspace-user',
+        'hello',
+        'workspace-a',
+        'chat-1'
+      )
+    ).resolves.toEqual([])
+  })
+})
 
 describe('processContextsServer - block contexts', () => {
   beforeEach(() => {
