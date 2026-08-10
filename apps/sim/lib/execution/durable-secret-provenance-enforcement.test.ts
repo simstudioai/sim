@@ -69,7 +69,7 @@ describe('durable secret provenance enforcement', () => {
     )
   })
 
-  it('warns with the surface, cause, and affected count so a surface can be measured', () => {
+  it('reports at error with the surface, cause, and affected count so it survives every LOG_LEVEL default', () => {
     reportUnrecordedDurableProvenance({
       surface: 'table-row',
       cause: 'row-sidecar-not-exact',
@@ -77,7 +77,8 @@ describe('durable secret provenance enforcement', () => {
       workspaceId: 'workspace-1',
     })
 
-    expect(mockLogger.warn).toHaveBeenCalledWith(
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).toHaveBeenCalledWith(
       'Proceeding on unrecorded durable secret provenance',
       {
         surface: 'table-row',

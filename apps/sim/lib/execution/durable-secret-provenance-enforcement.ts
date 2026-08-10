@@ -84,12 +84,14 @@ export interface UnrecordedDurableProvenanceReport {
 /**
  * Records that a read proceeded on provenance nobody wrote down.
  *
- * Warn, not error: on an unenforced surface this is the expected state for legacy data, and it sits
- * on a per-block read path. The count is what tells you whether a surface is ready to close — it
- * should fall to zero once its writers stop losing provenance.
+ * Error, not warn, for the same reason the originating-fault reasons use it: error is the only
+ * level that survives every default the logger falls back to — production, test, and a self-hosted
+ * chart that sets no `LOG_LEVEL`. A surface stays open on the strength of this line being visible
+ * and trending to zero, so a level that a deployment can silently filter would leave the posture
+ * unmeasured. It is deliberately noisy on an affected workspace; that is the signal.
  */
 export function reportUnrecordedDurableProvenance(report: UnrecordedDurableProvenanceReport): void {
-  logger.warn('Proceeding on unrecorded durable secret provenance', {
+  logger.error('Proceeding on unrecorded durable secret provenance', {
     surface: report.surface,
     cause: report.cause,
     enforced: false,
