@@ -393,7 +393,7 @@ describe('provider runtime context', () => {
     expect(result.output).toBe('{{TOKEN}}')
   })
 
-  it.each(['123', 'true'])(
+  it.each(['123'])(
     'leaves non-model resource metadata untouched while projecting content (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([

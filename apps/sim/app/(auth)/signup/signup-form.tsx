@@ -1,6 +1,6 @@
 'use client'
 
-import { Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { Turnstile, type TurnstileInstance } from '@marsidev/react-turnstile'
 import { createLogger } from '@sim/logger'
 import { useRouter, useSearchParams } from 'next/navigation'
@@ -15,6 +15,7 @@ import {
   buildAuthCrossLink,
   DEFAULT_POST_AUTH_ROUTE,
   POST_AUTH_REDIRECT_STORAGE_KEY,
+  resolveAuthRedirect,
   resolvePostSignupDestination,
   VERIFY_FROM_SIGNUP_ROUTE,
 } from '@/app/(auth)/auth-redirect'
@@ -123,7 +124,11 @@ function SignupFormContent({
   const [formError, setFormError] = useState<string | null>(null)
   const turnstileRef = useRef<TurnstileInstance>(null)
   const [turnstileSiteKey] = useState(() => getEnv('NEXT_PUBLIC_TURNSTILE_SITE_KEY'))
-  const rawRedirectUrl = searchParams.get('redirect') || searchParams.get('callbackUrl') || ''
+  const { rawCallbackUrl: rawRedirectUrl, isInviteFlow } = resolveAuthRedirect({
+    redirect: searchParams.get('redirect'),
+    callbackUrl: searchParams.get('callbackUrl'),
+    inviteFlow: searchParams.get('invite_flow'),
+  })
   const isValidRedirectUrl = rawRedirectUrl ? validateCallbackUrl(rawRedirectUrl) : false
   const invalidCallbackRef = useRef(false)
   if (rawRedirectUrl && !isValidRedirectUrl && !invalidCallbackRef.current) {
@@ -131,10 +136,6 @@ function SignupFormContent({
     logger.warn('Invalid callback URL detected and blocked:', { url: rawRedirectUrl })
   }
   const redirectUrl = isValidRedirectUrl ? rawRedirectUrl : ''
-  const isInviteFlow = useMemo(
-    () => searchParams.get('invite_flow') === 'true' || redirectUrl.startsWith('/invite/'),
-    [searchParams, redirectUrl]
-  )
 
   const [name, setName] = useState('')
   const [nameErrors, setNameErrors] = useState<string[]>([])

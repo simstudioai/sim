@@ -114,14 +114,15 @@ interface RestoredResourceEntry {
   displayIndex: number
 }
 
+/** Labels for {@link RECENTLY_DELETED_TABS}, which owns the order. */
 const TABS: { id: ResourceType; label: string }[] = [
   { id: 'all', label: 'All' },
+  { id: 'chat', label: 'Chats' },
+  { id: 'table', label: 'Tables' },
+  { id: 'file', label: 'Files' },
+  { id: 'knowledge', label: 'Knowledge Bases' },
   { id: 'workflow', label: 'Workflows' },
   { id: 'folder', label: 'Folders' },
-  { id: 'table', label: 'Tables' },
-  { id: 'knowledge', label: 'Knowledge Bases' },
-  { id: 'file', label: 'Files' },
-  { id: 'chat', label: 'Chats' },
 ]
 
 const TYPE_LABEL: Record<Exclude<ResourceType, 'all'>, string> = {

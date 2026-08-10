@@ -152,6 +152,8 @@ export const downloadToWorkspaceFileServerTool: BaseServerTool<
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
+    // Intentionally not reused for the write below: the download in between can be long, so the
+    // writer re-resolves access at write time and a revocation mid-download blocks the write.
     await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     try {

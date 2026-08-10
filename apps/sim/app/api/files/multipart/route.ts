@@ -215,10 +215,10 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               { status: 400 }
             )
           }
-          const { generateExecutionAttachmentKey } = await import(
+          const { generateUniqueExecutionFileKey } = await import(
             '@/lib/uploads/contexts/execution/utils'
           )
-          customKey = generateExecutionAttachmentKey(
+          customKey = generateUniqueExecutionFileKey(
             { workspaceId, workflowId, executionId },
             fileName
           )

@@ -1534,13 +1534,9 @@ export function Files() {
 
   useEffect(() => {
     if (isNewFile && fileIdFromRoute) {
-      router.replace(
-        currentFolderId
-          ? `/workspace/${workspaceId}/files/${fileIdFromRoute}?folderId=${currentFolderId}`
-          : `/workspace/${workspaceId}/files/${fileIdFromRoute}`
-      )
+      void setFilesParams({ new: null }, { history: 'replace', scroll: false })
     }
-  }, [isNewFile, fileIdFromRoute, router, workspaceId, currentFolderId])
+  }, [isNewFile, fileIdFromRoute, setFilesParams])
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {

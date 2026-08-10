@@ -7,10 +7,12 @@ import { addTagsTool } from '@/tools/dynatrace/add_tags'
 import { closeProblemTool } from '@/tools/dynatrace/close_problem'
 import { createSettingsObjectTool } from '@/tools/dynatrace/create_settings_object'
 import { createSloTool } from '@/tools/dynatrace/create_slo'
+import { getAttackTool } from '@/tools/dynatrace/get_attack'
 import { getAuditLogsTool } from '@/tools/dynatrace/get_audit_logs'
 import { getEntityTool } from '@/tools/dynatrace/get_entity'
 import { getMetricTool } from '@/tools/dynatrace/get_metric'
 import { getProblemTool } from '@/tools/dynatrace/get_problem'
+import { getSecurityProblemTool } from '@/tools/dynatrace/get_security_problem'
 import { getSloTool } from '@/tools/dynatrace/get_slo'
 import { getSyntheticBatchTool } from '@/tools/dynatrace/get_synthetic_batch'
 import { ingestEventTool } from '@/tools/dynatrace/ingest_event'
@@ -91,8 +93,8 @@ describe('path identifiers', () => {
   const base = { environmentUrl: ENV, apiToken: TOKEN }
 
   it('trims whitespace pasted around an identifier', () => {
-    expect(url(getProblemTool, { ...base, problemId: '  P-123_456V2  ' })).toBe(
-      `${ENV}/api/v2/problems/P-123_456V2`
+    expect(new URL(url(getProblemTool, { ...base, problemId: '  P-123_456V2  ' })).pathname).toBe(
+      '/api/v2/problems/P-123_456V2'
     )
     expect(url(getEntityTool, { ...base, entityId: ' HOST-06F288EE2A930951\n' })).toBe(
       `${ENV}/api/v2/entities/HOST-06F288EE2A930951`
@@ -147,6 +149,11 @@ describe('new-surface request shaping', () => {
     expect(call(undefined).enabled).toBeUndefined()
     expect(call('true').enabled).toBe(true)
     expect(call('false').enabled).toBe(false)
+
+    // A value wired from an upstream block arrives as a real boolean, which must
+    // not read as "disabled only" the way `true === 'true'` would.
+    expect(call(true as unknown as string).enabled).toBe(true)
+    expect(call(false as unknown as string).enabled).toBe(false)
 
     expect(url(listSyntheticMonitorsTool, { environmentUrl: ENV, apiToken: TOKEN })).toBe(
       `${ENV}/api/v1/synthetic/monitors`
@@ -703,5 +710,121 @@ describe('response mapping', () => {
     const result = await ingestLogsTool.transformResponse!(response)
     expect(result.output.accepted).toBe(false)
     expect(result.output.details).toEqual({ error: { message: 'some invalid' } })
+  })
+
+  it('fails a settings write that Dynatrace rejected per-object under a 2xx', async () => {
+    const rejected = JSON.stringify([
+      { code: 400, error: { code: 400, message: 'value.enabled is required' } },
+    ])
+
+    await expect(
+      createSettingsObjectTool.transformResponse!(new Response(rejected, { status: 207 }))
+    ).rejects.toThrow(/value.enabled is required/)
+
+    await expect(
+      updateSettingsObjectTool.transformResponse!(
+        new Response(JSON.stringify({ code: 400, error: { message: 'schema mismatch' } }), {
+          status: 207,
+        })
+      )
+    ).rejects.toThrow(/schema mismatch/)
+  })
+})
+
+describe('detail requests ask for the properties they map', () => {
+  const base = { environmentUrl: ENV, apiToken: TOKEN }
+
+  it('requests every optional vulnerability property by default', () => {
+    // Dynatrace omits description, remediation guidance, and affected entities
+    // unless they are named in `fields`, so an unset default would map nulls.
+    const requested = new URL(
+      url(getSecurityProblemTool, { ...base, securityProblemId: 'S-1' })
+    ).searchParams
+      .get('fields')
+      ?.split(',')
+
+    expect(requested).toEqual(
+      expect.arrayContaining([
+        '+description',
+        '+remediationDescription',
+        '+affectedEntities',
+        '+vulnerableComponents',
+        '+riskAssessment',
+      ])
+    )
+
+    // An explicit choice still wins.
+    expect(
+      new URL(
+        url(getSecurityProblemTool, {
+          ...base,
+          securityProblemId: 'S-1',
+          fields: '+riskAssessment',
+        })
+      ).searchParams.get('fields')
+    ).toBe('+riskAssessment')
+  })
+
+  it('requests every optional attack property by default', () => {
+    expect(
+      new URL(url(getAttackTool, { ...base, attackId: 'A-1' })).searchParams.get('fields')
+    ).toBe(
+      '+attackTarget,+request,+entrypoint,+vulnerability,+securityProblem,+attacker,+managementZones'
+    )
+
+    expect(
+      new URL(
+        url(getAttackTool, { ...base, attackId: 'A-1', fields: '+attacker' })
+      ).searchParams.get('fields')
+    ).toBe('+attacker')
+  })
+
+  it('requests the optional problem properties by default', () => {
+    expect(
+      new URL(url(getProblemTool, { ...base, problemId: 'P-1' })).searchParams.get('fields')
+    ).toBe('evidenceDetails,impactAnalysis,recentComments')
+
+    expect(
+      new URL(
+        url(getProblemTool, { ...base, problemId: 'P-1', fields: 'impactAnalysis' })
+      ).searchParams.get('fields')
+    ).toBe('impactAnalysis')
+  })
+})
+
+describe('mute state writes', () => {
+  const params = (DynatraceBlock.tools.config?.params ?? (() => ({}))) as (
+    p: Record<string, unknown>
+  ) => Record<string, unknown>
+
+  const call = (operation: string) =>
+    params({
+      operation,
+      environmentUrl: ENV,
+      apiToken: TOKEN,
+      securityProblemId: 'S-1',
+      securityProblemIds: 'S-1, S-2',
+      // The shared dropdown's default. It is a valid mute reason and an invalid
+      // unmute one, so forwarding it would make every unmute fail.
+      muteReason: 'FALSE_POSITIVE',
+    })
+
+  it('sends AFFECTED for an unmute, the only reason the API accepts', () => {
+    expect(call('dynatrace_unmute_security_problem').reason).toBe('AFFECTED')
+    expect(call('dynatrace_unmute_security_problems').reason).toBe('AFFECTED')
+  })
+
+  it('still forwards the chosen reason for a mute', () => {
+    expect(call('dynatrace_mute_security_problem').reason).toBe('FALSE_POSITIVE')
+    expect(call('dynatrace_mute_security_problems').reason).toBe('FALSE_POSITIVE')
+  })
+
+  it('offers only mute reasons in the dropdown, and only to the mute operations', () => {
+    const reason = DynatraceBlock.subBlocks.find((sb) => sb.id === 'muteReason')
+    expect(reason?.options).not.toContainEqual(expect.objectContaining({ id: 'AFFECTED' }))
+    expect(reason?.condition).toEqual({
+      field: 'operation',
+      value: ['dynatrace_mute_security_problem', 'dynatrace_mute_security_problems'],
+    })
   })
 })

@@ -14,6 +14,12 @@ import type { BlockState } from '@/stores/workflows/workflow/types'
 const logger = createLogger('SubblockMigrations')
 
 /**
+ * Marks a migration target as "this field is gone", rather than a rename. The
+ * old value is discarded instead of being carried into workflow state.
+ */
+const REMOVED_SUBBLOCK_ID_PREFIX = '_removed_'
+
+/**
  * Maps old subblock IDs to their current equivalents per block type.
  *
  * When a subblock is renamed in a block definition, old deployed/saved states
@@ -21,8 +27,15 @@ const logger = createLogger('SubblockMigrations')
  * serializer silently drops the value, breaking execution.
  *
  * Format: { blockType: { oldSubblockId: newSubblockId } }
+ *
+ * A target prefixed with `_removed_` means the field was deleted outright; the
+ * stored value is dropped. Use it for fields with no replacement — never map a
+ * secret onto a live subblock.
  */
 export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
+  instagram: {
+    metrics: 'insightMetrics',
+  },
   knowledge: {
     knowledgeBaseId: 'knowledgeBaseSelector',
   },
@@ -77,6 +90,30 @@ export const SUBBLOCK_ID_MIGRATIONS: Record<string, Record<string, string>> = {
     useAutoprompt: '_removed_useAutoprompt',
     livecrawl: '_removed_livecrawl',
   },
+  /**
+   * The Snowflake block moved from per-block `host` + `apiKey` fields to a
+   * stored credential, and gave every object field a basic picker paired with
+   * an advanced text input.
+   *
+   * The old free-text values map onto the ADVANCED members, not the pickers: a
+   * migrated block has no credential yet, so a picker cannot hydrate a name and
+   * would render an empty control over a non-empty value. `fileFormat` is the
+   * clearest case — legacy values were fully qualified (`DB.SCHEMA.FORMAT`)
+   * while the picker lists bare names, so it could never resolve. The host and
+   * token have no in-block equivalent and are dropped.
+   */
+  snowflake: {
+    database: 'databaseName',
+    schema: 'schemaName',
+    table: 'tableName',
+    fileFormat: 'fileFormatName',
+    warehouseName: 'warehouseNameManual',
+    procedureName: 'procedureNameManual',
+    warehouse: 'warehouseManual',
+    role: 'roleManual',
+    host: '_removed_host',
+    apiKey: '_removed_apiKey',
+  },
   rippling: {
     action: '_removed_action',
     candidateDepartment: '_removed_candidateDepartment',
@@ -129,6 +166,16 @@ function migrateBlockSubblockIds(
   for (const [oldId, newId] of Object.entries(renames)) {
     if (!(oldId in result)) continue
 
+    // A `_removed_` target means the field no longer exists in the block. Drop
+    // the value rather than parking it under a dead key: nothing ever reads
+    // these keys, and secret scrubbing walks the block config, so a parked
+    // `password: true` value would never be cleared and would ride along in
+    // workflow exports and templates.
+    if (newId.startsWith(REMOVED_SUBBLOCK_ID_PREFIX)) {
+      delete result[oldId]
+      continue
+    }
+
     if (newId in result) {
       delete result[oldId]
       continue
@@ -166,6 +213,29 @@ function migrateBlockSubblockIds(
 }
 
 /**
+ * Drops any `_removed_*` subblock left behind by an earlier version of this
+ * migration, which renamed retired fields into a dead key instead of deleting
+ * them. Those keys are unreachable from the block config, so secret scrubbing —
+ * which walks the config — can never clear them, and a parked token or PII
+ * would otherwise survive in state, exports, and templates indefinitely.
+ *
+ * Runs for every block, not just those with a rename map: the parked keys no
+ * longer appear in any `SUBBLOCK_ID_MIGRATIONS` entry as an `oldId`, so nothing
+ * else would ever look at them.
+ */
+function dropParkedSubblocks(subBlocks: Record<string, BlockState['subBlocks'][string]>): {
+  subBlocks: Record<string, BlockState['subBlocks'][string]>
+  dropped: boolean
+} {
+  const parked = Object.keys(subBlocks).filter((id) => id.startsWith(REMOVED_SUBBLOCK_ID_PREFIX))
+  if (parked.length === 0) return { subBlocks, dropped: false }
+
+  const result = { ...subBlocks }
+  for (const id of parked) delete result[id]
+  return { subBlocks: result, dropped: true }
+}
+
+/**
  * Applies subblock-ID migrations to every block in a workflow.
  * Returns a new blocks record with migrated subBlocks where needed.
  */
@@ -186,11 +256,19 @@ export function migrateSubblockIds(blocks: Record<string, BlockState>): {
     const renamed = renames
       ? migrateBlockSubblockIds(block.type, block.subBlocks, renames)
       : { subBlocks: block.subBlocks, migrated: false }
-    const renamedBlock = renamed.migrated ? { ...block, subBlocks: renamed.subBlocks } : block
+    const purged = dropParkedSubblocks(renamed.subBlocks)
+    const changedSubBlocks = renamed.migrated || purged.dropped
+    const renamedBlock = changedSubBlocks ? { ...block, subBlocks: purged.subBlocks } : block
     const sanitized = sanitizeMalformedSubBlocks(renamedBlock)
-    const blockMigrated = renamed.migrated || sanitized.changed
+    const blockMigrated = changedSubBlocks || sanitized.changed
 
     if (blockMigrated) {
+      if (purged.dropped) {
+        logger.info('Dropped parked subblock values left by an earlier migration', {
+          blockId: block.id,
+          blockType: block.type,
+        })
+      }
       if (renamed.migrated) {
         logger.info('Migrated legacy subblock IDs', {
           blockId: block.id,

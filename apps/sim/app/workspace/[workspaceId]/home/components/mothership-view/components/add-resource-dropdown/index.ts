@@ -2,7 +2,7 @@ export {
   AddResourceDropdown,
   FOLDERED_RESOURCE_TYPES,
   ResourceFolderTreeItems,
-  ResourceTreeSections,
+  ResourceMenuSections,
   useAvailableResources,
   useResourceTreeSections,
 } from './add-resource-dropdown'

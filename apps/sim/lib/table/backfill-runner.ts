@@ -82,7 +82,10 @@ export async function createBackfillExecutionSecretRegistry(options: {
     registry.markIncomplete()
     return registry
   }
-  await registry.importProvenance(provenance, { trusted: true })
+  await registry.importProvenance(provenance, {
+    trusted: true,
+    origin: 'tableBackfill.rowProvenance',
+  })
   return registry
 }
 

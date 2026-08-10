@@ -21,6 +21,23 @@ const getEnv = (variable: string): string | undefined => {
   return window.__ENV?.[variable] ?? process.env[variable]
 }
 
+/**
+ * Whether `window.__ENV` was still unset when this module first evaluated in the
+ * browser. Always `false` on the server.
+ *
+ * Module bodies run inside the framework bootstrap, which an `async` chunk can
+ * start before the parser has reached the inline assignment at the end of
+ * `<head>`. Reads made during render are unaffected: nothing renders until the
+ * RSC payload arrives, and that streams from `<body>` — after the assignment.
+ * Module-scope reads have no such ordering, and the values they derive
+ * (`isHosted` and the other flags in `env-flags`) stay frozen for the session.
+ *
+ * Reported once per load so the rate is measurable rather than assumed; it is
+ * what decides whether those flags need to become lazy.
+ */
+export const publicEnvMissingAtModuleInit =
+  typeof window !== 'undefined' && window.__ENV === undefined
+
 // biome-ignore format: keep alignment for readability
 export const env = createEnv({
   skipValidation: true,
@@ -67,6 +84,7 @@ export const env = createEnv({
     /** Gates risky copilot tools behind an Allow / Skip prompt. Off by default. */
     COPILOT_TOOL_PERMISSIONS_ENABLED:      z.boolean().optional(),
     SIM_AGENT_API_URL:                     z.string().url().optional(),            // URL for internal sim agent API
+    MSHIP_SYSPROMPT_OVERRIDE:              z.string().min(1).optional(),           // Enterprise-only highest-priority Mothership system prompt override forwarded by Sim
     COPILOT_SOURCE_ENV:                    z.enum(['dev', 'staging', 'prod']).optional(), // Source Sim environment sent to mothership for callbacks
     COPILOT_DEV_URL:                       z.string().url().optional(),            // Sim agent API URL for the dev mothership environment
     COPILOT_STAGING_URL:                   z.string().url().optional(),            // Sim agent API URL for the staging mothership environment
@@ -108,6 +126,7 @@ export const env = createEnv({
     PII_REDACTION:                         z.boolean().optional(),                 // Redact PII from workflow logs via configurable Data Retention rules (Presidio at the logger persist choke point) and expose the Data Retention config UI
     PII_GRANULAR_REDACTION:                z.boolean().optional(),                 // Expose the execution-altering PII redaction stages (redact workflow input + block outputs in-flight) in the Data Retention config; layered on top of PII_REDACTION
     TRIGGER_EU_REGION:                     z.boolean().optional(),                 // Route Trigger.dev runs to eu-central-1 instead of the default us-east-1 (fallback for the trigger-eu-region flag when AppConfig is not the source of truth)
+    DURABLE_SECRET_PROVENANCE_ENFORCED_SURFACES: z.string().optional(),            // Durable surfaces where unrecorded secret provenance fails the run instead of logging a warning: "all", or a comma-separated subset of memory,table-row,knowledge,workspace-file (default: none enforced)
 
     // Table feature limits (per plan). Apply when billing is disabled (free tier defaults) or for billed plans.
     FREE_TABLES_LIMIT:                     z.number().optional(),                  // Max user tables per workspace on free tier (default: 5)

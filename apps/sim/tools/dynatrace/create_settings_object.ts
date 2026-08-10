@@ -105,6 +105,14 @@ export const createSettingsObjectTool: ToolConfig<
     const entries = Array.isArray(parsed) ? (parsed as Array<Record<string, unknown>>) : []
     const results = entries.map(mapSettingsWriteResult)
 
+    // A rejected object comes back as 207 with a per-object 4xx, so the HTTP
+    // status alone would report a failed create as a success.
+    const failure = results.find((result) => result.code !== null && result.code >= 400)
+    if (failure) {
+      const message = (failure.writeError?.message as string) ?? `HTTP ${failure.code}`
+      throw new Error(`Dynatrace rejected the settings object: ${message}`)
+    }
+
     return {
       success: true,
       output: {

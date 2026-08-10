@@ -34,6 +34,7 @@ import {
   mcpServeRouteParamsSchema,
   mcpToolCallParamsSchema,
 } from '@/lib/api/contracts/mcp'
+import { PERSONAL_KEY_DENIED } from '@/lib/api-key/policy-messages'
 import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { generateInternalToken } from '@/lib/auth/internal'
 import {
@@ -72,6 +73,7 @@ import {
 import { getMeaningfulWorkflowDescription } from '@/lib/mcp/workflow-tool-schema'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 const logger = createLogger('WorkflowMcpServeAPI')
@@ -286,13 +288,20 @@ async function projectWorkflowMcpModelContent(
 ): Promise<unknown> {
   const registry = new ResolvedSecretTraceRegistry([], scope)
   const imported = await registry.importCrossingProvenance(privateProvenance, value, {
+    origin: 'mcpServe.workflowCrossing',
     trusted: true,
   })
   if (!imported || !registry.isComplete()) {
     throw new Error('MCP workflow execution provenance is invalid')
   }
   const projection = projectResolvedSecretModelContent(value, registry)
-  if (!projection.safe) throw new Error('MCP workflow output could not be safely projected')
+  if (!projection.safe) {
+    refuseResolvedSecretProjection({
+      site: 'mcpServe.workflowOutput',
+      message: 'MCP workflow output could not be safely projected',
+      registry,
+    })
+  }
   return projection.value
 }
 
@@ -363,6 +372,7 @@ async function getServer(serverId: string) {
       workspaceId: workflowMcpServer.workspaceId,
       isPublic: workflowMcpServer.isPublic,
       createdBy: workflowMcpServer.createdBy,
+      workspaceAllowsPersonalApiKeys: workspace.allowPersonalApiKeys,
     })
     .from(workflowMcpServer)
     .innerJoin(workspace, eq(workflowMcpServer.workspaceId, workspace.id))
@@ -424,11 +434,22 @@ async function authorizeMcpServeRequest(
     return { response: NextResponse.json({ error: 'Forbidden' }, { status: 403 }) }
   }
 
+  /**
+   * Not redundant with the same check in `/api/workflows/{id}/execute`: tool
+   * calls bridge to that route with an internal JWT, so its API-key branch
+   * never sees this request.
+   */
+  const isPersonalApiKey = auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal'
+  if (isPersonalApiKey && !server.workspaceAllowsPersonalApiKeys) {
+    return {
+      response: NextResponse.json({ error: PERSONAL_KEY_DENIED }, { status: 403 }),
+    }
+  }
+
   return {
     executeAuthContext: {
       userId: auth.userId,
-      useAuthenticatedUserAsActor:
-        auth.authType === AuthType.API_KEY && auth.apiKeyType === 'personal',
+      useAuthenticatedUserAsActor: isPersonalApiKey,
     },
   }
 }
@@ -926,7 +947,10 @@ async function handleToolsCall(
           })
         : rawErrorMessage
       if (typeof errorMessage !== 'string') {
-        throw new Error('MCP workflow execution error could not be safely projected')
+        refuseResolvedSecretProjection({
+          site: 'mcpServe.executionError',
+          message: 'MCP workflow execution error could not be safely projected',
+        })
       }
       const status = getWorkflowErrorStatus(response.status)
       const responseHeaders: Record<string, string> = {}

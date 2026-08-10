@@ -103,17 +103,20 @@ export async function waitForClientToolCompletion({
         toolRegistry.markIncomplete()
       } else {
         const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
+          origin: 'copilotToolClient.sealedContext',
           trusted: true,
         })
         if (!imported || !sealedContext.provenance.complete) {
-          toolRegistry.markIncomplete()
+          toolRegistry.markIncomplete('source-provenance-incomplete', {
+            origin: 'copilotToolClient.sealedContext',
+          })
         } else {
           content = sealedContent
         }
       }
     }
   } catch {
-    toolRegistry?.markIncomplete()
+    toolRegistry?.markIncomplete('unspecified', { origin: 'copilotToolClient.sealedContext' })
   } finally {
     finishPendingActivation?.()
   }

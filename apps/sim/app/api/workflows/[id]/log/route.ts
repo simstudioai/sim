@@ -144,7 +144,10 @@ export const POST = withRouteHandler(
         if (trustedProvenance === undefined) {
           resolvedSecretTraceRegistry.markIncomplete()
         } else {
-          await resolvedSecretTraceRegistry.importProvenance(trustedProvenance, { trusted: true })
+          await resolvedSecretTraceRegistry.importProvenance(trustedProvenance, {
+            trusted: true,
+            origin: 'workflowLogRoute.trustedProvenance',
+          })
         }
         loggingSession.setResolvedSecretTraceRegistry(resolvedSecretTraceRegistry)
 

@@ -341,7 +341,6 @@ export interface DynatraceQueryMetricsResponse extends ToolResponse {
     result: DynatraceMetricResult[]
     resolution: string | null
     totalCount: number | null
-    nextPageKey: string | null
     warnings: string[]
   }
 }

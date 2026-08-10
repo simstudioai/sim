@@ -59,6 +59,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'pipedrive-service-account',
   'salesforce-service-account',
   'shopify-service-account',
+  'snowflake-service-account',
   'trello-service-account',
   'wealthbox-service-account',
   'webflow-service-account',

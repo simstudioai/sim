@@ -32,6 +32,11 @@ export async function enableInbox(
 
   let webhook: Awaited<ReturnType<typeof agentmail.createWebhook>> | null = null
   try {
+    /**
+     * The receiver routes a delivery to this workspace by the `message.inbox_id`
+     * in the envelope, so it can only accept event types that carry a message.
+     * Adding one that does not would make those deliveries unroutable.
+     */
     webhook = await agentmail.createWebhook({
       url: `${getBaseUrl()}/api/webhooks/agentmail`,
       eventTypes: ['message.received'],
@@ -114,9 +119,17 @@ export async function disableInbox(workspaceId: string): Promise<void> {
   }
   await Promise.all(deletePromises)
 
-  await Promise.all([
-    db.delete(mothershipInboxWebhook).where(eq(mothershipInboxWebhook.workspaceId, workspaceId)),
-    db
+  /**
+   * Atomic so the two rows cannot disagree. `workspace.inboxProviderId` is
+   * uniquely indexed, so a half-applied disable would strand the id of an
+   * AgentMail inbox that no longer exists — and the next workspace to claim that
+   * same address would then fail to enable at all.
+   */
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(mothershipInboxWebhook)
+      .where(eq(mothershipInboxWebhook.workspaceId, workspaceId))
+    await tx
       .update(workspace)
       .set({
         inboxEnabled: false,
@@ -124,8 +137,8 @@ export async function disableInbox(workspaceId: string): Promise<void> {
         inboxProviderId: null,
         updatedAt: new Date(),
       })
-      .where(eq(workspace.id, workspaceId)),
-  ])
+      .where(eq(workspace.id, workspaceId))
+  })
 
   logger.info('Inbox disabled', { workspaceId })
 }

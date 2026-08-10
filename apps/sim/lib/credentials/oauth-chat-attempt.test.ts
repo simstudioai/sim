@@ -1,15 +1,19 @@
 /**
  * @vitest-environment jsdom
+ * @vitest-environment-options { "url": "https://sim.test/workspace/workspace-1/chat/chat-1" }
  */
 
 import { beforeEach, describe, expect, it } from 'vitest'
 import {
   addOAuthChatAttemptToAuthorizeUrl,
+  buildOAuthChatCompleteAuthorizeUrl,
   createOAuthChatAttempt,
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
   OAUTH_CHAT_ATTEMPT_EVENT,
   OAUTH_CHAT_ATTEMPT_PARAM,
+  OAUTH_CHAT_COMPLETE_PATH,
+  OAUTH_CHAT_RETURN_TO_PARAM,
   readLatestOAuthChatAttempt,
   readOAuthChatAttempt,
   resolveActiveDesktopOAuthChatAttempt,
@@ -46,6 +50,64 @@ describe('OAuth chat attempts', () => {
       expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
     }
   )
+
+  it('routes the return through the chat-complete page', () => {
+    const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
+      'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+      'attempt-1'
+    )
+
+    const callbackUrl = new URL(new URL(authorizeUrl ?? '').searchParams.get('callbackURL') ?? '')
+    expect(callbackUrl.pathname).toBe(OAUTH_CHAT_COMPLETE_PATH)
+    expect(callbackUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-1')
+    // Anchored on the server-generated return URL's origin, not this tab's —
+    // a proxied deployment's two origins need not agree.
+    expect(callbackUrl.origin).toBe('https://sim.test')
+  })
+
+  it('refuses a cross-origin authorize URL so the attempt id never leaves the app', () => {
+    expect(
+      buildOAuthChatCompleteAuthorizeUrl(
+        'https://evil.example/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fevil.example%2Fsink',
+        'attempt-1'
+      )
+    ).toBeNull()
+  })
+
+  it('leaves the attempt off the close-fallback target so it is not re-decided', () => {
+    const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
+      'https://sim.test/api/auth/oauth2/authorize?providerId=google-email&callbackURL=https%3A%2F%2Fsim.test%2Fworkspace%2Fworkspace-1%2Fchat%2Fchat-1',
+      'attempt-1'
+    )
+
+    const callbackUrl = new URL(new URL(authorizeUrl ?? '').searchParams.get('callbackURL') ?? '')
+    const returnTo = new URL(callbackUrl.searchParams.get(OAUTH_CHAT_RETURN_TO_PARAM) ?? '')
+    expect(returnTo.pathname).toBe('/workspace/workspace-1/chat/chat-1')
+    expect(returnTo.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBeNull()
+  })
+
+  it.each(['instagram', 'shopify', 'trello'])(
+    'routes the %s return through the chat-complete page',
+    (provider) => {
+      const authorizeUrl = buildOAuthChatCompleteAuthorizeUrl(
+        `https://sim.test/api/auth/${provider}/authorize?returnUrl=${encodeURIComponent('https://sim.test/workspace/workspace-1/chat/chat-1')}`,
+        'attempt-2'
+      )
+
+      const returnUrl = new URL(new URL(authorizeUrl ?? '').searchParams.get('returnUrl') ?? '')
+      expect(returnUrl.pathname).toBe(OAUTH_CHAT_COMPLETE_PATH)
+      expect(returnUrl.searchParams.get(OAUTH_CHAT_ATTEMPT_PARAM)).toBe('attempt-2')
+    }
+  )
+
+  it('declines a chat-complete URL when there is no return param to rewrite', () => {
+    expect(
+      buildOAuthChatCompleteAuthorizeUrl(
+        'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
+        'attempt-3'
+      )
+    ).toBeNull()
+  })
 
   it('publishes and persists server-verified completion', () => {
     let publishedStatus: string | undefined

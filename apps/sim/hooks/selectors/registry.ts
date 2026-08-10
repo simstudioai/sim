@@ -18,6 +18,7 @@ import { pipedriveSelectors } from '@/hooks/selectors/providers/pipedrive/select
 import { sharepointSelectors } from '@/hooks/selectors/providers/sharepoint/selectors'
 import { simSelectors } from '@/hooks/selectors/providers/sim/selectors'
 import { slackSelectors } from '@/hooks/selectors/providers/slack/selectors'
+import { snowflakeSelectors } from '@/hooks/selectors/providers/snowflake/selectors'
 import { trelloSelectors } from '@/hooks/selectors/providers/trello/selectors'
 import { wealthboxSelectors } from '@/hooks/selectors/providers/wealthbox/selectors'
 import { webflowSelectors } from '@/hooks/selectors/providers/webflow/selectors'
@@ -56,6 +57,7 @@ export const selectorRegistry = {
   ...clickupSelectors,
   ...cloudwatchSelectors,
   ...simSelectors,
+  ...snowflakeSelectors,
 } satisfies Record<SelectorKey, SelectorDefinition>
 
 export function getSelectorDefinition(key: SelectorKey): SelectorDefinition {

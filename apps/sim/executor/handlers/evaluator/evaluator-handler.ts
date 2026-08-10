@@ -18,6 +18,7 @@ import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
 import { isJSONString, parseJSON, stringifyJSON } from '@/executor/utils/json'
 import { projectResolvedSecretDiagnosticError } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import type {
   ResolvedSecretInputPath,
   ResolvedSecretTraceRegistry,
@@ -81,7 +82,12 @@ export class EvaluatorBlockHandler implements BlockHandler {
       modelInputPaths
     )
     if (!modelInputProjection.complete) {
-      throw new Error('Evaluator model input could not be safely projected')
+      refuseResolvedSecretProjection({
+        site: 'evaluator.contentMetricsModelInput',
+        message: 'Evaluator model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'content,metrics',
+      })
     }
     const processedContent = this.processContent(modelInputProjection.value.content)
     const projectedMetrics = Array.isArray(modelInputProjection.value.metrics)
