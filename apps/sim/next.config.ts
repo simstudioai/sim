@@ -168,8 +168,10 @@ const nextConfig: NextConfig = {
     '/api/internal/file-doc/seed': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/merge': ['./node_modules/jsdom/**/*'],
     '/api/internal/file-doc/persist': ['./node_modules/jsdom/**/*'],
-    // No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
-    // monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
+    /**
+     * No `sharp`/`@img` entries: these globs resolve against apps/sim while both hoist to the
+     * monorepo root, so they matched nothing. docker/app.Dockerfile copies them instead.
+     */
     '/*': ['./lib/execution/sandbox/bundles/*.cjs'],
   },
   experimental: {
