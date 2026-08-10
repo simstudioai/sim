@@ -538,7 +538,7 @@ export async function resolveInputFiles(
           })
         }
       } catch {
-        resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
+        resolvedSecretTraceRegistry.markIncomplete('unspecified', {
           origin: 'copilotFunctionExecute.result',
         })
       }
