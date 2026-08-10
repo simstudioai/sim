@@ -39,9 +39,7 @@ export function ScheduleDisabledEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {recipientName ? `Hi ${recipientName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{recipientName ? `Hi ${recipientName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         {brand.name} turned off the schedule for {resourceLabel}. It will not run again until you

@@ -23,7 +23,7 @@ export function ExistingAccountEmail({ username = '' }: ExistingAccountEmailProp
       preview={`Someone tried to sign up with your ${brand.name} email`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello {username},</Text>
+      <Text style={baseStyles.greeting}>Hello {username},</Text>
       <Text style={baseStyles.paragraph}>
         Someone just tried to create a {brand.name} account using this email address, but an account
         already exists. If this was you, sign in instead — or reset your password if you've

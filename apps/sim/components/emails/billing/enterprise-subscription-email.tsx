@@ -22,7 +22,7 @@ export function EnterpriseSubscriptionEmail({
       preview={`Your Enterprise Plan is now active on ${brand.name}`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello {userName},</Text>
+      <Text style={baseStyles.greeting}>Hello {userName},</Text>
       <Text style={baseStyles.paragraph}>
         Your <strong>Enterprise Plan</strong> is now active. You have full access to advanced
         features and increased capacity for your workflows.

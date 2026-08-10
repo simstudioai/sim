@@ -27,9 +27,7 @@ export function UsageThresholdEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         You're approaching your monthly budget on the {planName} plan.
@@ -42,9 +40,6 @@ export function UsageThresholdEmail({
           {dollarsToCredits(limit).toLocaleString()} credits used ({percentUsed}%)
         </Text>
       </Section>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
 
       <Text style={baseStyles.paragraph}>
         To avoid interruptions, consider increasing your monthly limit.

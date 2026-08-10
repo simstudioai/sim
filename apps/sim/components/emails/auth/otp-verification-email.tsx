@@ -37,7 +37,7 @@ export function OTPVerificationEmail({
 
   return (
     <EmailLayout preview={getSubjectByType(type, brand.name, chatTitle)} showUnsubscribe={false}>
-      <Text style={baseStyles.paragraph}>Your verification code:</Text>
+      <Text style={baseStyles.greeting}>Your verification code:</Text>
 
       <Section style={baseStyles.codeContainer}>
         <Text style={baseStyles.code}>{otp}</Text>

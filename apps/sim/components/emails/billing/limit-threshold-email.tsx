@@ -39,9 +39,7 @@ export function LimitThresholdEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         {lead} Upgrade your plan for more {copy.noun}.
@@ -53,9 +51,6 @@ export function LimitThresholdEmail({
           {usageLabel} of {limitLabel} used ({percentUsed}%)
         </Text>
       </Section>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
 
       <Link href={upgradeLink} style={{ textDecoration: 'none' }}>
         <Text style={baseStyles.button}>Upgrade</Text>

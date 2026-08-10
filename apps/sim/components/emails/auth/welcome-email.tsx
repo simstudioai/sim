@@ -14,9 +14,7 @@ export function WelcomeEmail({ userName }: WelcomeEmailProps) {
 
   return (
     <EmailLayout preview={`Welcome to ${brand.name}`} showUnsubscribe={false}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hey ${userName},` : 'Hey,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hey ${userName},` : 'Hey,'}</Text>
       <Text style={baseStyles.paragraph}>
         Welcome to {brand.name}! Your account is ready. Start building, testing, and deploying AI
         workflows in minutes.

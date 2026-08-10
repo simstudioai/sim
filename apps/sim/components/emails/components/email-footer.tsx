@@ -1,5 +1,5 @@
 import { Container, Img, Link, Section } from '@react-email/components'
-import { baseStyles, colors, spacing, typography } from '@/components/emails/_styles'
+import { baseStyles, colors, spacing } from '@/components/emails/_styles'
 import { isHosted } from '@/lib/core/config/env-flags'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getBrandConfig } from '@/ee/whitelabeling'
@@ -30,12 +30,7 @@ export function EmailFooter({
   const brand = getBrandConfig()
   const isWhitelabeled = brand.isWhitelabeled
 
-  const footerLinkStyle = {
-    color: colors.textMuted,
-    textDecoration: 'underline',
-    fontWeight: 'normal' as const,
-    fontFamily: typography.fontFamily,
-  }
+  const footerLinkStyle = baseStyles.footerLink
 
   /**
    * Social icons are linked images. `display: block` removes the 2–3px gap

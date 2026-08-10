@@ -33,9 +33,7 @@ export function UsageLimitReachedEmail({
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
 
       <Text style={baseStyles.paragraph}>
         {isOrganization
@@ -52,9 +50,6 @@ export function UsageLimitReachedEmail({
           {dollarsToCredits(limit).toLocaleString()} credits used
         </Text>
       </Section>
-
-      {/* Divider */}
-      <div style={baseStyles.divider} />
 
       <Text style={baseStyles.paragraph}>
         {isOrganization

@@ -36,7 +36,7 @@ export function HelpConfirmationEmail({
       preview={`Your ${typeLabel.toLowerCase()} has been received`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         We've received your <strong>{typeLabel.toLowerCase()}</strong> and will get back to you
         shortly.

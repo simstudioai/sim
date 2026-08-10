@@ -58,7 +58,7 @@ export function BatchInvitationEmail({
       preview={`You've been invited to join ${organizationName}${hasWorkspaces ? ` and ${workspaceInvitations.length} workspace(s)` : ''}`}
       showUnsubscribe={false}
     >
-      <Text style={baseStyles.paragraph}>Hello,</Text>
+      <Text style={baseStyles.greeting}>Hello,</Text>
       <Text style={baseStyles.paragraph}>
         <strong>{inviterName}</strong> has invited you to join <strong>{organizationName}</strong>{' '}
         on {brand.name}.

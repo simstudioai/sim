@@ -19,9 +19,7 @@ export function PlanWelcomeEmail({ planName, userName, loginLink }: PlanWelcomeE
 
   return (
     <EmailLayout preview={previewText} showUnsubscribe={true}>
-      <Text style={{ ...baseStyles.paragraph, marginTop: 0 }}>
-        {userName ? `Hi ${userName},` : 'Hi,'}
-      </Text>
+      <Text style={baseStyles.greeting}>{userName ? `Hi ${userName},` : 'Hi,'}</Text>
       <Text style={baseStyles.paragraph}>
         Welcome to <strong>{planName}</strong>! You're all set to build, test, and scale your
         workflows.
