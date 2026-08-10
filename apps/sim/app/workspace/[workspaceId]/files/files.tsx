@@ -18,7 +18,7 @@ import {
   toast,
   Upload,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Download, FileText, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -1159,6 +1159,44 @@ export function Files() {
     if (file) handleDownload(file)
   }, [handleDownload])
 
+  const handleSaveMarkdownAsPdf = useCallback(() => {
+    const file = selectedFileRef.current
+    const printRoot = Array.from(
+      document.querySelectorAll<HTMLElement>('[data-markdown-print-root]')
+    ).find((root) => root.dataset.markdownPrintRoot === file?.id)
+
+    if (!file || !isMarkdownFile(file) || !printRoot) {
+      toast.error('Failed to prepare the Markdown file for PDF')
+      return
+    }
+
+    const previousTitle = document.title
+    const documentElement = document.documentElement
+    const suggestedTitle = file.name.replace(/\.(?:md|markdown)$/i, '') || file.name
+    let cleanedUp = false
+
+    const cleanup = () => {
+      if (cleanedUp) return
+      cleanedUp = true
+      printRoot.removeAttribute('data-markdown-print-active')
+      documentElement.removeAttribute('data-printing-markdown')
+      document.title = previousTitle
+      window.removeEventListener('afterprint', cleanup)
+    }
+
+    try {
+      document.title = suggestedTitle
+      printRoot.setAttribute('data-markdown-print-active', '')
+      documentElement.setAttribute('data-printing-markdown', '')
+      window.addEventListener('afterprint', cleanup, { once: true })
+      window.print()
+    } catch (error) {
+      cleanup()
+      logger.error('Failed to prepare Markdown file for PDF:', toError(error))
+      toast.error('Failed to prepare the Markdown file for PDF')
+    }
+  }, [])
+
   const handleDeleteSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) {
@@ -1645,6 +1683,15 @@ export function Files() {
         icon: Download,
         onSelect: handleDownloadSelected,
       },
+      ...(isInlineMarkdown
+        ? [
+            {
+              text: 'Save as PDF…',
+              icon: FileText,
+              onSelect: handleSaveMarkdownAsPdf,
+            },
+          ]
+        : []),
       ...(canEdit
         ? [
             {
@@ -1668,6 +1715,7 @@ export function Files() {
     handleCyclePreviewMode,
     handleTogglePreview,
     handleDownloadSelected,
+    handleSaveMarkdownAsPdf,
     handleShareSelected,
     handleDeleteSelected,
   ])

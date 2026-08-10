@@ -1204,6 +1204,7 @@ export function LoadedRichMarkdownEditor({
   return (
     <div
       ref={containerRef}
+      data-markdown-print-root={file.id}
       className={cn('relative flex flex-1 flex-col overflow-y-auto', isEditable && 'cursor-text')}
     >
       {editor && (

@@ -560,3 +560,201 @@
   border-radius: 2px;
   pointer-events: none;
 }
+
+@media print {
+  @page {
+    margin: 18mm;
+  }
+
+  html[data-printing-markdown],
+  html[data-printing-markdown] body {
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    background: #fff !important;
+    color-scheme: light;
+  }
+
+  html[data-printing-markdown]
+    body
+    *:not(:has([data-markdown-print-active])):not([data-markdown-print-active]):not(
+      [data-markdown-print-active] *
+    ) {
+    display: none !important;
+  }
+
+  html[data-printing-markdown] body :has([data-markdown-print-active]),
+  html[data-printing-markdown] [data-markdown-print-active] {
+    position: static !important;
+    display: block !important;
+    width: auto !important;
+    height: auto !important;
+    min-height: 0 !important;
+    max-height: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    border: 0 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+    transform: none !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] {
+    --bg: #fff;
+    --border: #d4d4d8;
+    --border-1: #a1a1aa;
+    --brand-secondary: #2563eb;
+    --code-bg: #f4f4f5;
+    --surface-1: #fff;
+    --surface-2: #fff;
+    --surface-5: #f4f4f5;
+    --text-muted: #71717a;
+    --text-primary: #18181b;
+    --text-secondary: #52525b;
+    --text-tertiary: #71717a;
+    flex: none !important;
+    background: #fff !important;
+    color: #18181b !important;
+    color-scheme: light;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] > :has(> .rich-markdown-prose) {
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    color: #18181b !important;
+    caret-color: transparent;
+    font-size: 11pt;
+    line-height: 1.6;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] button,
+  html[data-printing-markdown] [data-markdown-print-active] input:not([type="checkbox"]),
+  html[data-printing-markdown] [data-markdown-print-active] select,
+  html[data-printing-markdown] [data-markdown-print-active] textarea,
+  html[data-printing-markdown] [data-markdown-print-active] [role="listbox"],
+  html[data-printing-markdown] [data-markdown-print-active] [role="menu"],
+  html[data-printing-markdown] [data-markdown-print-active] [role="toolbar"],
+  html[data-printing-markdown] [data-markdown-print-active] [contenteditable="false"]:has(button),
+  html[data-printing-markdown] [data-markdown-print-active] .collaboration-carets__caret,
+  html[data-printing-markdown] [data-markdown-print-active] .collaboration-carets__selection,
+  html[data-printing-markdown] [data-markdown-print-active] .ProseMirror-gapcursor,
+  html[data-printing-markdown] [data-markdown-print-active] .column-resize-handle,
+  html[data-printing-markdown] [data-markdown-print-active] .selectedCell::after {
+    display: none !important;
+  }
+
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .ProseMirror-selectednode,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .ProseMirror-selectednode
+    img,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .rich-leaf-in-selection {
+    outline: none !important;
+    box-shadow: none !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h1,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h2,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h3,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h4,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h5,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose h6 {
+    color: #18181b !important;
+    break-after: avoid-page;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose a {
+    color: #2563eb !important;
+    text-decoration: underline;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose pre,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    pre.code-editor-theme,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    pre.code-editor-theme
+    code,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .raw-markdown-block,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .raw-markdown-inline {
+    max-width: 100% !important;
+    overflow: visible !important;
+    white-space: pre-wrap !important;
+    overflow-wrap: anywhere !important;
+    word-break: break-word !important;
+    background: #f4f4f5 !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose pre,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose blockquote,
+  html[data-printing-markdown]
+    [data-markdown-print-active]
+    .rich-markdown-prose
+    .mermaid-diagram-frame,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose img {
+    break-inside: avoid-page;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose img,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose svg {
+    max-width: 100% !important;
+    height: auto !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose table {
+    width: 100% !important;
+    max-width: 100% !important;
+    table-layout: auto !important;
+    overflow: visible !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose th,
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose td {
+    min-width: 0 !important;
+    overflow-wrap: anywhere !important;
+    color: #18181b !important;
+    border-color: #d4d4d8 !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose th {
+    background: #f4f4f5 !important;
+  }
+
+  html[data-printing-markdown] [data-markdown-print-active] .rich-markdown-prose td {
+    background: #fff !important;
+  }
+}
