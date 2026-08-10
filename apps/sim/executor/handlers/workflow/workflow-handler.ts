@@ -714,7 +714,7 @@ export class WorkflowBlockHandler implements BlockHandler {
         const exposedOutput = this.projectCustomBlockOutput(executionResult, exposedOutputs)
         if (ctx.resolvedSecretTraceRegistry && childResolvedSecretTraceRegistry) {
           const crossingProvenance =
-            childResolvedSecretTraceRegistry.exportCatalogProvenanceForValue(exposedOutput, {
+            childResolvedSecretTraceRegistry.exportCommittedProvenanceForValue(exposedOutput, {
               anonymous: true,
             })
           await ctx.resolvedSecretTraceRegistry.importProvenance(crossingProvenance, {

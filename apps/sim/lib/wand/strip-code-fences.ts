@@ -19,6 +19,7 @@ const STRIPS_CODE_FENCES: Record<GenerationType, boolean> = {
   'typescript-function-body': true,
   'json-schema': true,
   'json-object': true,
+  'json-array': true,
   'table-schema': true,
   'system-prompt': false,
   'custom-tool-schema': true,

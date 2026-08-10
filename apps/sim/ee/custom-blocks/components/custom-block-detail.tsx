@@ -618,7 +618,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
                         }}
                       >
                         <div className='flex min-w-0 flex-1 items-center gap-2'>
-                          <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                          <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                             {i.name}
                           </span>
                           <Badge variant='type' size='sm'>
@@ -764,7 +764,7 @@ export function CustomBlockDetail({ blockId, workspaceId, onBack }: CustomBlockD
           title={
             <span>
               Type&nbsp;
-              <span className='font-medium text-[var(--text-primary)]'>{existing?.name}</span>
+              <span className='text-[var(--text-primary)]'>{existing?.name}</span>
               &nbsp;to confirm
             </span>
           }

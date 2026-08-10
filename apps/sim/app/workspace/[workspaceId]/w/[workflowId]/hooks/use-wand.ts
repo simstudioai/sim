@@ -55,11 +55,15 @@ function buildWandContextInfo({
 
       case 'json-schema':
       case 'json-object':
+      case 'json-array':
       case 'table-schema':
         try {
           const parsed = JSON.parse(currentValue)
-          const keys = Object.keys(parsed)
-          contextInfo += `\n\nJSON analysis: Valid JSON with ${keys.length} top-level keys: ${keys.join(', ')}`
+          // Reporting "top-level keys" for an array would list numeric indices,
+          // which tells the model nothing about the shape it should produce.
+          contextInfo += Array.isArray(parsed)
+            ? `\n\nJSON analysis: Valid JSON array with ${parsed.length} items`
+            : `\n\nJSON analysis: Valid JSON with ${Object.keys(parsed).length} top-level keys: ${Object.keys(parsed).join(', ')}`
         } catch {
           contextInfo += `\n\nJSON analysis: Invalid JSON - needs fixing`
         }

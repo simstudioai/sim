@@ -27,6 +27,7 @@ vi.mock('@/lib/api/server/routes', () => ({
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
 vi.mock('@/lib/workflows/api', () => ({
+  internalWorkflowReadAuth: { authenticate: mocks.auth },
   internalWorkflowSessionOrExecutorAuth: { authenticate: mocks.auth },
 }))
 

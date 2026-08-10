@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest'
 import {
   instagramAuthorizeQuerySchema,
   instagramCallbackQuerySchema,
+  trelloAuthorizeQuerySchema,
 } from '@/lib/api/contracts/oauth-connections'
 
 describe('Instagram OAuth query contracts', () => {
@@ -36,6 +37,24 @@ describe('Instagram OAuth query contracts', () => {
     expect(instagramCallbackQuerySchema.safeParse({ state: 'a'.repeat(257) }).success).toBe(false)
     expect(
       instagramCallbackQuerySchema.safeParse({ error_description: 'a'.repeat(2049) }).success
+    ).toBe(false)
+  })
+})
+
+describe('Trello OAuth query contracts', () => {
+  it('accepts a bounded chat return URL', () => {
+    expect(
+      trelloAuthorizeQuerySchema.safeParse({
+        returnUrl: 'https://sim.ai/workspace/workspace-1/chat/chat-1?oauthAttempt=attempt-1',
+      }).success
+    ).toBe(true)
+  })
+
+  it('rejects an oversized return URL before it can be persisted in a cookie', () => {
+    expect(
+      trelloAuthorizeQuerySchema.safeParse({
+        returnUrl: `https://sim.ai/${'a'.repeat(2048)}`,
+      }).success
     ).toBe(false)
   })
 })

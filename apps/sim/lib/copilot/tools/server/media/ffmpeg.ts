@@ -13,10 +13,17 @@ import {
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
+import {
+  createWorkspaceFileSecretProvenanceFromRegistry,
+  mergeWorkspaceFileSecretProvenance,
+  type WorkspaceFileSecretProvenance,
+} from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
 const logger = createLogger('FfmpegTool')
+const MEDIA_OPERATION_FAILED_SAFELY = 'The media operation failed safely'
 
 const VALID_OPERATIONS: FfmpegOperation[] = [
   'overlay_audio',
@@ -83,9 +90,11 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       return { success: false, message: 'At least one input file is required in inputs.files' }
     }
 
+    let inputRequiresOpaqueError = false
     try {
       const mediaFiles: MediaFile[] = []
       let totalInputBytes = 0
+      const inputProvenances: WorkspaceFileSecretProvenance[] = []
       for (const filePath of inputPaths) {
         const fileRecord = await resolveCopilotWorkspaceFileReference(
           context,
@@ -95,20 +104,28 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
             reference: filePath,
           }
         )
-        const { content: buffer } = await executeCopilotFileUseCase(
-          context,
-          readWorkspaceFileContent,
-          {
-            fileId: fileRecord.id,
-            assertedWorkspaceId: workspaceId,
-            maxBytes: MAX_MEDIA_BYTES,
-          },
-          { fileId: fileRecord.id }
-        )
+        const { content: buffer, secretProvenance: fileProvenance } =
+          await executeCopilotFileUseCase(
+            context,
+            readWorkspaceFileContent,
+            {
+              fileId: fileRecord.id,
+              assertedWorkspaceId: workspaceId,
+              maxBytes: MAX_MEDIA_BYTES,
+              includeSecretProvenance: true,
+            },
+            { fileId: fileRecord.id }
+          )
+        if (!fileProvenance) {
+          throw new Error('Authorized media read did not return requested secret provenance')
+        }
         totalInputBytes += buffer.length
         if (totalInputBytes > MAX_MEDIA_BYTES) {
           throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
         }
+        inputRequiresOpaqueError ||=
+          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
+        inputProvenances.push(fileProvenance)
         mediaFiles.push({
           buffer,
           mimeType: fileRecord.type || 'application/octet-stream',
@@ -116,6 +133,9 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         })
       }
 
+      const inputProvenance = mergeWorkspaceFileSecretProvenance(...inputProvenances)
+      inputRequiresOpaqueError ||=
+        inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
       const result = await runFfmpegOperation(params.operation, mediaFiles, {
         text: params.text,
@@ -147,6 +167,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       const outputFile = params.outputs?.files?.[0]
       const outputPath = outputFile?.path || `files/ffmpeg-${params.operation}.${result.ext}`
       const mode = outputFile?.mode ?? 'create'
+      let outputProvenance = inputProvenance
+      if (params.operation === 'add_text' && params.text !== undefined) {
+        const textProvenance = await createWorkspaceFileSecretProvenanceFromRegistry(
+          context.resolvedSecretTraceRegistry,
+          params.text,
+          { userId: context.userId, workspaceId }
+        )
+        outputProvenance = mergeWorkspaceFileSecretProvenance(
+          outputProvenance,
+          textProvenance.safe ? textProvenance.provenance : { status: 'unknown' as const }
+        )
+      }
 
       assertServerToolNotAborted(context)
       const written = await writeCopilotWorkspaceFileByPath(context, {
@@ -154,6 +186,7 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         target: { path: outputPath, mode, mimeType: outputFile?.mimeType },
         buffer: result.buffer,
         inferredMimeType: result.contentType || 'application/octet-stream',
+        secretProvenance: outputProvenance,
       })
 
       logger.info('ffmpeg operation completed', {
@@ -171,9 +204,18 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
         downloadUrl: written.downloadUrl,
       }
     } catch (error) {
-      const msg = getErrorMessage(error, 'Unknown error')
-      logger.error('ffmpeg operation failed', { operation: params.operation, error: msg })
-      return { success: false, message: `ffmpeg ${params.operation} failed: ${msg}` }
+      const errorMessage = getErrorMessage(error, '')
+      const projection = inputRequiresOpaqueError
+        ? undefined
+        : errorMessage
+          ? projectResolvedSecretModelContent(errorMessage, context.resolvedSecretTraceRegistry)
+          : undefined
+      const message =
+        projection?.safe && typeof projection.value === 'string' && projection.value.length > 0
+          ? projection.value
+          : MEDIA_OPERATION_FAILED_SAFELY
+      logger.error('ffmpeg operation failed', { operation: params.operation, error: message })
+      return { success: false, message: `ffmpeg ${params.operation} failed: ${message}` }
     }
   },
 }

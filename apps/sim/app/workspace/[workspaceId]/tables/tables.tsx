@@ -589,7 +589,7 @@ export function Tables() {
     () => (
       <div className='flex w-[240px] flex-col gap-3 p-3'>
         <div className='flex flex-col gap-1.5'>
-          <span className='font-medium text-[var(--text-secondary)] text-caption'>Row Count</span>
+          <span className='text-[var(--text-secondary)] text-caption'>Row Count</span>
           <ChipCombobox
             options={[
               { value: 'empty', label: 'Empty' },
@@ -609,7 +609,7 @@ export function Tables() {
         </div>
         {memberOptions.length > 0 && (
           <div className='flex flex-col gap-1.5'>
-            <span className='font-medium text-[var(--text-secondary)] text-caption'>Owner</span>
+            <span className='text-[var(--text-secondary)] text-caption'>Owner</span>
             <ChipCombobox
               options={memberOptions}
               multiSelect

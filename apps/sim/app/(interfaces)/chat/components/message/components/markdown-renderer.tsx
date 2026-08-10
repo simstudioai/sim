@@ -18,7 +18,7 @@ function LinkWithPreview({ href, children }: { href: string; children: React.Rea
         </a>
       </Tooltip.Trigger>
       <Tooltip.Content side='top' align='center' sideOffset={5} className='max-w-sm'>
-        <span className='truncate font-medium text-xs'>{href}</span>
+        <span className='truncate text-xs'>{href}</span>
       </Tooltip.Content>
     </Tooltip.Root>
   )

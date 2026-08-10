@@ -2,9 +2,9 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { Knowledge } from '@/app/workspace/[workspaceId]/knowledge/knowledge'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
-import { Knowledge } from './knowledge'
 
 export const metadata: Metadata = {
   title: 'Knowledge Base',

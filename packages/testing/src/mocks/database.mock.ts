@@ -29,8 +29,8 @@ export function createMockSql() {
       toSQL: () => ({ sql: strings.join('?'), params: values }),
       /** Mirrors drizzle's `sql``…`.as(alias)` for aliased select expressions. */
       as: (alias: string) => ({ ...fragment, alias }),
-      /** Mirrors drizzle's `sql``…`.mapWith(Number)` result decoder. */
-      mapWith: (_decoder: unknown) => fragment,
+      /** Mirrors drizzle's `sql``…`.mapWith(decoder)` for typed select expressions. */
+      mapWith: (decoder: unknown) => ({ ...fragment, decoder }),
     }
     return fragment
   }

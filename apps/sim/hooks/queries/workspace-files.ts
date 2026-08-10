@@ -107,6 +107,23 @@ async function fetchWorkspaceFiles(
 }
 
 /**
+ * Shared options for the workspace-file list, so an imperative caller can
+ * `fetchQuery` the same cache entry {@link useWorkspaceFiles} populates instead
+ * of refetching by key and reading the result back out of the cache.
+ */
+export function getWorkspaceFilesQueryOptions(
+  workspaceId: string,
+  scope: WorkspaceFileQueryScope = 'active'
+) {
+  return {
+    queryKey: workspaceFilesKeys.list(workspaceId, scope),
+    queryFn: ({ signal }: { signal?: AbortSignal }) =>
+      fetchWorkspaceFiles(workspaceId, scope, signal),
+    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
+  }
+}
+
+/**
  * Hook to fetch workspace files
  */
 export function useWorkspaceFiles(
@@ -115,29 +132,35 @@ export function useWorkspaceFiles(
   options?: { enabled?: boolean }
 ) {
   return useQuery({
-    queryKey: workspaceFilesKeys.list(workspaceId, scope),
-    queryFn: ({ signal }) => fetchWorkspaceFiles(workspaceId, scope, signal),
+    ...getWorkspaceFilesQueryOptions(workspaceId, scope),
     enabled: !!workspaceId && (options?.enabled ?? true),
-    staleTime: WORKSPACE_FILES_LIST_STALE_TIME, // 30 seconds - files can change frequently
     placeholderData: keepPreviousData, // Show cached data immediately
   })
 }
 
 /**
- * Back the file content source's image-dimension capability with workspace file metadata. Reads intrinsic
- * dimensions synchronously from the already-loaded active file list (so a stored image reserves its box on
- * the first render), and persists the browser's measured dimensions when they're absent or disagree with
- * what's stored — an overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected
- * one) self-corrects rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache
- * check plus mismatch-only reporting from the caller), so it never storms, never blocks render, and never
- * touches the collaborative document.
+ * Back the file content source's image-dimension capability with workspace file metadata. Subscribes to
+ * the active file list ({@link useWorkspaceFiles}) and reads each image's stored intrinsic dimensions from
+ * it, so a stored image reserves its box before it downloads. A reactive read (not a one-shot
+ * `getQueryData`), so it also works on a cold direct file-view load where the list isn't cached until after
+ * the image first renders: the subscription re-runs the node view's dimension read once the list resolves.
+ * Persists the browser's measured dimensions when they're absent or disagree with what's stored — an
+ * overwrite, so a stale value (left over after a content swap, or a non-EXIF-corrected one) self-corrects
+ * rather than sticking. The write is fire-and-forget and de-duped (an exact-match cache check plus
+ * mismatch-only reporting from the caller), so it never storms, never blocks render, and never touches the
+ * collaborative document. `options.enabled` turns the subscription off for callers that supply their own
+ * content source (the public share page, whose `workspaceId` is a share token that would 404).
  */
-export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDimensionsSource {
+export function useWorkspaceImageDimensionsAdapter(
+  workspaceId: string,
+  options?: { enabled?: boolean }
+): ImageDimensionsSource {
   const queryClient = useQueryClient()
+  const { data: files } = useWorkspaceFiles(workspaceId, 'active', options)
   return useMemo<ImageDimensionsSource>(() => {
     const listKey = workspaceFilesKeys.list(workspaceId, 'active')
     const findRecord = (src: string | undefined): WorkspaceFileRecord | undefined =>
-      findWorkspaceFileBySrc(queryClient.getQueryData<WorkspaceFileRecord[]>(listKey), src)
+      findWorkspaceFileBySrc(files, src)
     return {
       getImageDimensions: (src) => {
         const record = findRecord(src)
@@ -176,7 +199,7 @@ export function useWorkspaceImageDimensionsAdapter(workspaceId: string): ImageDi
           .catch(() => {})
       },
     }
-  }, [queryClient, workspaceId])
+  }, [files, queryClient, workspaceId])
 }
 
 /**

@@ -1,4 +1,5 @@
 import { render } from '@react-email/render'
+import { InboxErrorEmail, InboxResponseEmail } from '@/components/emails/agent/inbox-response-email'
 import {
   ExistingAccountEmail,
   OnboardingFollowupEmail,
@@ -29,8 +30,6 @@ import { HelpConfirmationEmail } from '@/components/emails/support'
 import type { UpgradeReason } from '@/lib/billing/upgrade-reasons'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import type { ScheduleDisableReason } from '@/lib/workflows/schedules/disable-reasons'
-
-export { getEmailSubject, getLimitEmailSubject } from './subjects'
 
 interface WorkspaceInvitation {
   workspaceId: string
@@ -283,4 +282,25 @@ export async function renderPaymentFailedEmail(params: {
       failureReason: params.failureReason,
     })
   )
+}
+
+/** Neutralize `javascript:`/`data:` hrefs that agent-authored markdown could emit. */
+function stripUnsafeUrls(html: string): string {
+  return html.replace(/href\s*=\s*(['"])(?:javascript|vbscript|data):.*?\1/gi, 'href="#"')
+}
+
+/** The agent's reply to an inbound email. */
+export async function renderInboxResponseEmail(params: {
+  markdown: string
+  chatUrl: string
+}): Promise<string> {
+  return stripUnsafeUrls(await render(InboxResponseEmail(params)))
+}
+
+/** The agent's reply when the task could not be completed. */
+export async function renderInboxErrorEmail(params: {
+  error: string
+  chatUrl: string
+}): Promise<string> {
+  return stripUnsafeUrls(await render(InboxErrorEmail(params)))
 }

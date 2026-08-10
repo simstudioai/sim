@@ -38,6 +38,29 @@ const oauthBlockConfig = {
   tools: { access: ['slack_message'] },
 }
 
+const tableBlockConfig = {
+  type: 'table',
+  name: 'Table',
+  outputs: {},
+  subBlocks: [
+    {
+      id: 'operation',
+      type: 'dropdown',
+      options: [
+        { label: 'Query Rows', id: 'query_rows' },
+        { label: 'Insert Row', id: 'insert_row' },
+      ],
+    },
+  ],
+  tools: {
+    access: ['table_query_rows', 'table_insert_row'],
+    config: {
+      tool: (params: Record<string, unknown>) =>
+        params.operation === 'insert_row' ? 'table_insert_row' : 'table_query_rows',
+    },
+  },
+}
+
 const routerBlockConfig = {
   type: 'router_v2',
   name: 'Router',
@@ -205,6 +228,7 @@ const toolsByIdMock: Record<string, unknown> = {
 const blockConfigsByType: Record<string, unknown> = {
   condition: conditionBlockConfig,
   slack: oauthBlockConfig,
+  table: tableBlockConfig,
   router_v2: routerBlockConfig,
   agent: agentBlockConfig,
   pi: piBlockConfig,
@@ -1006,14 +1030,17 @@ describe('preValidateCredentialInputs (hosted models)', () => {
     expect(result.errors[0]?.error).toContain('hosted model')
   })
 
-  // Create PR hands the key to the sandbox, so Sim never covers it with a hosted
+  // Sandbox modes hand the key to the sandbox, so Sim never covers it with a hosted
   // key -- stripping it would leave the copilot authoring a block that cannot run.
-  it('preserves apiKey on a Create PR Pi block when the model is hosted', async () => {
-    const result = await preValidateCredentialInputs(piAddOperation('cloud'), CTX)
+  it.each([['cloud'], ['cloud_branch'], ['cloud_plan']])(
+    'preserves apiKey on a Pi block in %s mode when the model is hosted',
+    async (mode) => {
+      const result = await preValidateCredentialInputs(piAddOperation(mode), CTX)
 
-    expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
-    expect(result.errors).toHaveLength(0)
-  })
+      expect(result.filteredOperations[0]?.params?.inputs?.apiKey).toBe('user-anthropic-key')
+      expect(result.errors).toHaveLength(0)
+    }
+  )
 
   // Local Dev and Review Code keep the model client in Sim, so the hosted key applies.
   it.each([['local'], ['cloud_review']])(
@@ -1237,6 +1264,42 @@ describe('validateInputsForBlock - agent tools (tool-input)', () => {
     )
     expect(result.errors).toHaveLength(0)
     expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('accepts a declared integration block operation', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', operation: 'insert_row', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.errors).toHaveLength(0)
+    expect(result.validInputs.tools).toBeDefined()
+  })
+
+  it('rejects a prefixed tool id used as an integration block operation', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', operation: 'table_insert_row', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]?.error).toContain('invalid operation "table_insert_row"')
+    expect(result.errors[0]?.error).toContain('query_rows, insert_row')
+    expect(result.errors[0]?.error).toContain('may differ from the underlying tool id')
+  })
+
+  it('rejects a missing operation for a multi-operation integration block', () => {
+    const result = validateInputsForBlock(
+      'agent',
+      { tools: [{ type: 'table', usageControl: 'auto' }] },
+      'agent-1'
+    )
+
+    expect(result.validInputs.tools).toBeUndefined()
+    expect(result.errors[0]?.error).toContain('requires an operation')
   })
 
   it('rejects an integration tool unavailable in this deployment', () => {

@@ -1,14 +1,148 @@
+import { isDeepStrictEqual } from 'node:util'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
+import { isPlainRecord } from '@sim/utils/object'
 import { getBlock } from '@/blocks/index'
 import { isMcpTool } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { readStatusCode } from '@/executor/utils/errors'
+import { prepareResolvedSecretProjectedInputs } from '@/executor/utils/resolved-secret-input-projection'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import { executeTool } from '@/tools'
+import type { ToolConfig } from '@/tools/types'
 import { getTool } from '@/tools/utils'
 
 const logger = createLogger('GenericBlockHandler')
+
+interface BlockBoundaryPaths {
+  paths: ResolvedSecretInputPath[]
+  requiredProjectionRoots: Set<string>
+}
+
+function selectBlockBoundaryPaths(
+  tool: ToolConfig,
+  params: Record<string, unknown>
+): BlockBoundaryPaths | undefined {
+  try {
+    const paths: ResolvedSecretInputPath[] = []
+    const requiredProjectionRoots = new Set<string>()
+    const modelInput = tool.request.modelInput
+    if (modelInput?.mode === 'project') {
+      const selected = modelInput.select(params)
+      if (!isPlainRecord(selected)) return undefined
+      for (const key of Object.keys(selected)) {
+        requiredProjectionRoots.add(key)
+        paths.push([key])
+      }
+      const privateInputPaths = modelInput.privateInputPaths?.(params) ?? []
+      paths.push(...privateInputPaths)
+      for (const path of privateInputPaths) {
+        if (path[0]) requiredProjectionRoots.add(path[0])
+      }
+    } else if (modelInput?.mode === 'private-provenance') {
+      const privateInputPaths = modelInput.inputPaths(params)
+      paths.push(...privateInputPaths)
+      for (const path of privateInputPaths) {
+        if (path[0]) requiredProjectionRoots.add(path[0])
+      }
+    }
+    for (const selection of tool.request.secretProvenance?.request?.(params) ?? []) {
+      paths.push(...selection.inputPaths)
+      for (const path of selection.inputPaths) {
+        if (path[0]) requiredProjectionRoots.add(path[0])
+      }
+    }
+
+    const uniquePaths = new Map<string, ResolvedSecretInputPath>()
+    for (const path of paths) {
+      if (path.length > 0) uniquePaths.set(JSON.stringify(path), path)
+    }
+    return { paths: [...uniquePaths.values()], requiredProjectionRoots }
+  } catch {
+    return undefined
+  }
+}
+
+function canonicalPlaceholder(value: unknown): string | undefined {
+  if (typeof value !== 'string') return undefined
+  const match = /^\{\{([A-Za-z0-9_]+)\}\}$/.exec(value.trim())
+  return match ? value.trim() : undefined
+}
+
+function isFileBoundaryPath(tool: ToolConfig, path: ResolvedSecretInputPath): boolean {
+  return Boolean(path[0] && tool.params[path[0]]?.type === 'file')
+}
+
+function projectScalarLeaves(
+  value: unknown,
+  placeholder: string
+): { value: unknown; projectedLeaves: number } | undefined {
+  if (value === null || typeof value !== 'object') {
+    return { value: placeholder, projectedLeaves: 1 }
+  }
+  if (!Array.isArray(value) && !isPlainRecord(value)) return undefined
+
+  const root: unknown[] | Record<string, unknown> = Array.isArray(value) ? [] : {}
+  const pending: Array<{
+    source: unknown[] | Record<string, unknown>
+    target: unknown[] | Record<string, unknown>
+  }> = [{ source: value as unknown[] | Record<string, unknown>, target: root }]
+  const visited = new WeakSet<object>()
+  let projectedLeaves = 0
+  while (pending.length > 0) {
+    const { source, target } = pending.pop()!
+    if (visited.has(source)) return undefined
+    visited.add(source)
+    for (const [key, child] of Object.entries(source)) {
+      if (child !== null && typeof child === 'object') {
+        if (!Array.isArray(child) && !isPlainRecord(child)) return undefined
+        const projectedChild: unknown[] | Record<string, unknown> = Array.isArray(child) ? [] : {}
+        ;(target as Record<string, unknown>)[key] = projectedChild
+        pending.push({
+          source: child as unknown[] | Record<string, unknown>,
+          target: projectedChild,
+        })
+      } else {
+        ;(target as Record<string, unknown>)[key] = placeholder
+        projectedLeaves += 1
+      }
+    }
+  }
+  return { value: root, projectedLeaves }
+}
+
+function createStructuredModelProjection(
+  tool: ToolConfig,
+  finalInputs: Record<string, unknown>,
+  sourcePath: ResolvedSecretInputPath,
+  projectedSourceValue: unknown
+): Record<string, unknown> | undefined {
+  const modelInput = tool.request.modelInput
+  const sourceKey = sourcePath.length === 1 ? sourcePath[0] : undefined
+  const placeholder = canonicalPlaceholder(projectedSourceValue)
+  if (modelInput?.mode !== 'project' || !modelInput.applyProjected || !sourceKey || !placeholder) {
+    return undefined
+  }
+
+  try {
+    const selected = modelInput.select(finalInputs)
+    if (!isPlainRecord(selected) || !Object.hasOwn(selected, sourceKey)) return undefined
+    const projectedValue = projectScalarLeaves(selected[sourceKey], placeholder)
+    if (!projectedValue || projectedValue.projectedLeaves === 0) return undefined
+    const projectedSelection = { ...selected, [sourceKey]: projectedValue.value }
+    const selectedParams = Object.fromEntries(
+      Object.keys(selected).map((key) => [key, finalInputs[key]])
+    )
+    const patch = modelInput.applyProjected(structuredClone(selectedParams), projectedSelection)
+    if (!isPlainRecord(patch)) return undefined
+    const projectedInputs = { ...finalInputs, ...patch }
+    if (!isDeepStrictEqual(modelInput.select(projectedInputs), projectedSelection)) return undefined
+    return projectedInputs
+  } catch {
+    return undefined
+  }
+}
 
 export class GenericBlockHandler implements BlockHandler {
   canHandle(block: SerializedBlock): boolean {
@@ -35,6 +169,8 @@ export class GenericBlockHandler implements BlockHandler {
     const blockType = block.metadata?.id
     if (blockType) {
       const blockConfig = getBlock(blockType)
+      const registry = ctx.resolvedSecretTraceRegistry
+
       if (blockConfig?.tools?.config?.params) {
         const transformedParams = blockConfig.tools.config.params(inputs)
         finalInputs = { ...inputs, ...transformedParams }
@@ -55,6 +191,74 @@ export class GenericBlockHandler implements BlockHandler {
               }
             }
           }
+        }
+      }
+
+      const boundary = tool ? selectBlockBoundaryPaths(tool, finalInputs) : undefined
+      const projectedInputs =
+        boundary && boundary.paths.length > 0 && registry?.hasResolvedInputProjections()
+          ? registry.projectResolvedInputSelections(inputs)
+          : undefined
+      if (projectedInputs?.complete === false) registry?.markIncomplete()
+
+      if (projectedInputs?.complete && boundary && tool && registry) {
+        for (const projection of projectedInputs.values) {
+          const preserveFileDescriptorGrammar =
+            isFileBoundaryPath(tool, projection.path) ||
+            boundary.paths.some((path) => isFileBoundaryPath(tool, path))
+          let projectedFinalInputs = prepareResolvedSecretProjectedInputs(
+            projection.value,
+            blockConfig?.inputs,
+            inputs,
+            { preserveFileDescriptorGrammar }
+          )
+          try {
+            if (blockConfig?.tools?.config?.params) {
+              projectedFinalInputs = {
+                ...projectedFinalInputs,
+                ...blockConfig.tools.config.params(projectedFinalInputs),
+              }
+            }
+          } catch {
+            const structuredProjection = createStructuredModelProjection(
+              tool,
+              finalInputs,
+              projection.path,
+              projection.projectedValue
+            )
+            if (structuredProjection) {
+              registry.recordTransformedInputProjection(finalInputs, structuredProjection, {
+                targetPaths: boundary.paths,
+              })
+              continue
+            }
+            if (boundary.requiredProjectionRoots.has(projection.path[0])) {
+              registry.markIncomplete()
+            }
+            continue
+          }
+
+          if (blockConfig?.inputs) {
+            projectedFinalInputs = prepareResolvedSecretProjectedInputs(
+              projectedFinalInputs,
+              blockConfig.inputs,
+              finalInputs,
+              { preserveFileDescriptorGrammar }
+            )
+            for (const [key, inputSchema] of Object.entries(blockConfig.inputs)) {
+              const value = projectedFinalInputs[key]
+              if (typeof value !== 'string' || value.trim().length === 0) continue
+              const inputType = typeof inputSchema === 'object' ? inputSchema.type : inputSchema
+              if (inputType !== 'json' && inputType !== 'array') continue
+              try {
+                projectedFinalInputs[key] = JSON.parse(value.trim())
+              } catch {}
+            }
+          }
+
+          registry.recordTransformedInputProjection(finalInputs, projectedFinalInputs, {
+            targetPaths: boundary.paths,
+          })
         }
       }
     }

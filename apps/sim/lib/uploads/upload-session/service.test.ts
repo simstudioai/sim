@@ -137,6 +137,55 @@ describe('upload sessions', () => {
     })
   })
 
+  it('allocates distinct keys for same-named execution attachments', async () => {
+    dbChainMockFns.returning
+      .mockResolvedValueOnce([
+        uploadRow({
+          id: 'upload-1',
+          purpose: 'execution_attachment',
+          storageContext: 'execution',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      ])
+      .mockResolvedValueOnce([
+        uploadRow({
+          id: 'upload-2',
+          purpose: 'execution_attachment',
+          storageContext: 'execution',
+          workflowId: 'workflow-1',
+          executionId: 'execution-1',
+        }),
+      ])
+
+    const createExecutionAttachment = (id: string) =>
+      createUploadSession({
+        id,
+        workspaceId: WORKSPACE_ID,
+        workflowId: 'workflow-1',
+        executionId: 'execution-1',
+        userId: 'user-1',
+        purpose: 'execution_attachment',
+        fileName: 'output.bin',
+        contentType: 'application/octet-stream',
+        fileSize: 4,
+        localOrigin: 'http://localhost:3000',
+      })
+
+    await createExecutionAttachment('upload-1')
+    await createExecutionAttachment('upload-2')
+
+    const firstKey = dbChainMockFns.values.mock.calls[0][0].finalKey
+    const secondKey = dbChainMockFns.values.mock.calls[1][0].finalKey
+    expect(firstKey).not.toBe(secondKey)
+    expect(firstKey).toMatch(
+      new RegExp(`^execution/${WORKSPACE_ID}/workflow-1/execution-1/[^/]+/upload-1-output\\.bin$`)
+    )
+    expect(secondKey).toMatch(
+      new RegExp(`^execution/${WORKSPACE_ID}/workflow-1/execution-1/[^/]+/upload-2-output\\.bin$`)
+    )
+  })
+
   it('rejects workspace control access without the matching immutable credential binding', async () => {
     const row = uploadRow({
       metadata: {

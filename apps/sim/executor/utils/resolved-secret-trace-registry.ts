@@ -1,6 +1,9 @@
+import { createLogger } from '@sim/logger'
+import { getErrorMessage } from '@sim/utils/errors'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { isLargeArrayManifest } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import { MAX_INLINE_MATERIALIZATION_BYTES } from '@/lib/execution/payloads/limits'
 import {
   createResolvedSecretMatcher,
   OPAQUE_RESOLVED_SECRET_REPLACEMENT,
@@ -8,6 +11,87 @@ import {
   scanResolvedSecretString,
 } from '@/executor/utils/resolved-secret-matcher'
 import { getResolvedSecretMatcherCapacityFailure } from '@/executor/utils/resolved-secret-matcher-capacity'
+
+const logger = createLogger('ResolvedSecretTraceRegistry')
+
+/**
+ * Why a registry stopped being able to vouch for what it projects.
+ *
+ * Incompleteness is one-way and fails every later model projection in the run, surfacing to the
+ * user as a single opaque sentence. Recording which guard tripped is the only way to tell a
+ * genuine containment from a matcher that merely could not decide — the reasons are static
+ * literals and the logged path is block/field names, never a resolved value.
+ */
+export type ResolvedSecretIncompletenessReason =
+  | 'untrusted-provenance'
+  | 'source-provenance-incomplete'
+  | 'entry-decrypt-failed'
+  | 'unverified-resolved-entry'
+  | 'projection-mismatch'
+  | 'unresolved-placeholder'
+  | 'provenance-capacity-exceeded'
+  | 'restored-checkpoint-unavailable'
+  | 'constructed-incomplete'
+  | 'inherited-incomplete-source'
+  | 'inherited-incomplete-input-path'
+  | 'tool-call-scope-mismatch'
+  | 'value-provenance-untrusted'
+  | 'value-provenance-import-failed'
+  | 'value-provenance-filter-incomplete'
+  | 'unspecified'
+
+/**
+ * Reasons that mean something went wrong, rather than that provenance was never on offer.
+ *
+ * These log at error: each is a guard tripping on a path that should have succeeded, none is
+ * reachable on a healthy run, and error is the only level surviving every default the logger falls
+ * back to — production, test, and a self-hosted chart that sets no `LOG_LEVEL`.
+ *
+ * Everything absent from this set logs at warn, which is the deliberate default. Incompleteness is
+ * also the *designed* state wherever there is no catalog to vouch with, and those paths are hot — a
+ * webhook execution builds an incomplete registry on every run before replacing it. Defaulting to
+ * warn keeps a by-design state, an upstream bundle that already declared itself incomplete, a fork
+ * inheriting a parent that reported moments earlier, or an unaudited caller taking the default
+ * reason from flooding the error stream. A reason added later without thought stays quiet.
+ */
+const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'untrusted-provenance',
+  'entry-decrypt-failed',
+  'unverified-resolved-entry',
+  'projection-mismatch',
+  'unresolved-placeholder',
+  'provenance-capacity-exceeded',
+  'tool-call-scope-mismatch',
+  'value-provenance-untrusted',
+  'value-provenance-import-failed',
+])
+
+/**
+ * Incompleteness that is a construction choice rather than an event: `createIncomplete…` states
+ * outright that no trusted catalog was available. It carries nothing a reader could act on and sits
+ * on hot paths, so it is not reported at all.
+ */
+const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessReason>([
+  'constructed-incomplete',
+])
+
+/**
+ * Why a registry can no longer vouch for what it projects, readable at the point a projection is
+ * refused rather than only when the guard trips.
+ *
+ * A refusal is often many frames — and sometimes a whole process — away from the guard that caused
+ * it, and the one-way latch means the causing call has long since returned. Without this, a run
+ * that inherits an already-incomplete registry can refuse with nothing recorded anywhere.
+ */
+export interface ResolvedSecretIncompletenessDiagnostics {
+  /** Distinct reasons in first-occurrence order, so the first is what originally cost completeness. */
+  readonly reasons: readonly ResolvedSecretIncompletenessReason[]
+  readonly incompleteInputPathCount: number
+  /** Present so a refusal record joins to the mark-time record that shares these counts. */
+  readonly activeEntryCount: number
+  /** Correlates a refusal with the guard that caused it; never carries user or secret material. */
+  readonly scopeWorkspaceId?: string
+}
 
 export const ANONYMOUS_SECRET_TRACE_REPLACEMENT = OPAQUE_RESOLVED_SECRET_REPLACEMENT
 export const RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION = 1
@@ -17,8 +101,9 @@ const MAX_SERIALIZED_PROVENANCE_BYTES = 8 * 1024 * 1024
 const MAX_TRACE_CATALOG_ENTRIES = MAX_PROVENANCE_ENTRIES
 const MAX_TRACE_CATALOG_BYTES = 8 * 1024 * 1024
 const MAX_PROVENANCE_FILTER_NODES = 50_000
-const MAX_PROVENANCE_FILTER_CHARACTERS = 16 * 1024 * 1024
+const MAX_PROVENANCE_FILTER_CHARACTERS = MAX_INLINE_MATERIALIZATION_BYTES
 const MAX_PROVENANCE_FILTER_MATCH_EVENTS = 1_000_000
+const LEGACY_RUNTIME_ALIAS_PATTERN = /__var_[A-Za-z0-9_]+/g
 const ERROR_CONTENT_PROPERTY_NAMES = ['name', 'message', 'stack', 'cause', 'errors'] as const
 const PROVENANCE_PROPERTY_NAMES = new Set(['version', 'complete', 'entries', 'scope'])
 const PROVENANCE_ENTRY_PROPERTY_NAMES = new Set(['encryptedValue', 'name'])
@@ -34,6 +119,12 @@ export interface ResolvedSecretTraceMatch {
   plaintext: string
   replacement: string
 }
+
+export type ResolvedSecretInputPath = readonly string[]
+
+export type ResolvedSecretInputProjection =
+  | { complete: true; value: Record<string, unknown> }
+  | { complete: false }
 
 export type ResolvedSecretModelEgressSnapshot =
   | { complete: true; matches: readonly ResolvedSecretTraceMatch[] }
@@ -60,6 +151,24 @@ interface ActiveSecretEntry extends ResolvedSecretTraceCatalogEntry {
   anonymous: boolean
 }
 
+interface ResolvedInputPathState {
+  path: string[]
+  entryKeys: Set<string>
+  rawValue?: unknown
+  projectedValue?: unknown
+}
+
+interface PreparedProvenanceFilter {
+  candidatesByScanLiteral: ReadonlyMap<string, readonly ActiveSecretEntry[]>
+  candidatesByAlias: ReadonlyMap<string, readonly ActiveSecretEntry[]>
+  candidateEntryKeys: ReadonlySet<string>
+  matcher?: ResolvedSecretMatcher
+}
+
+type PreparedProvenanceFilterResult =
+  | { complete: true; filter: PreparedProvenanceFilter }
+  | { complete: false }
+
 export interface ImportResolvedSecretTraceProvenanceOptions {
   trusted: boolean
   anonymous?: boolean
@@ -67,6 +176,11 @@ export interface ImportResolvedSecretTraceProvenanceOptions {
 
 export interface ExportResolvedSecretTraceProvenanceForValueOptions {
   anonymous?: boolean
+}
+
+export interface ImportResolvedSecretTraceProvenanceForValueResult {
+  success: boolean
+  matched: boolean
 }
 
 export interface CreateResolvedSecretTraceRegistryOptions {
@@ -93,6 +207,74 @@ function cloneProvenanceScope(scope: ResolvedSecretTraceScopeV1): ResolvedSecret
     userId: scope.userId,
     ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
   }
+}
+
+function createLegacyRuntimeAlias(name: string): string {
+  return `__var_${name.replace(/[^a-zA-Z0-9_]/g, '_')}`
+}
+
+function activeEntryKey(entry: ActiveSecretEntry): string {
+  return entry.anonymous
+    ? `anonymous\u0000${entry.encryptedValue}`
+    : `named\u0000${entry.name}\u0000${entry.encryptedValue}`
+}
+
+function inputPathKey(path: ResolvedSecretInputPath): string {
+  return JSON.stringify(path)
+}
+
+function isInputPathWithin(path: readonly string[], root: readonly string[]): boolean {
+  return root.length <= path.length && root.every((segment, index) => segment === path[index])
+}
+
+function inputPathsOverlap(left: readonly string[], right: readonly string[]): boolean {
+  return isInputPathWithin(left, right) || isInputPathWithin(right, left)
+}
+
+function readInputPath(root: unknown, path: readonly string[]): unknown {
+  let current = root
+  for (const segment of path) {
+    if (current === null || typeof current !== 'object') return undefined
+    current = (current as Record<string, unknown>)[segment]
+  }
+  return current
+}
+
+function writeInputPathOnProjectedCopy(
+  sourceRoot: Record<string, unknown>,
+  projectedRoot: Record<string, unknown>,
+  path: readonly string[],
+  value: unknown,
+  projectedContainers: WeakMap<object, object>
+): boolean {
+  if (path.length === 0) return false
+  let source: unknown = sourceRoot
+  let projected: unknown = projectedRoot
+  for (let index = 0; index < path.length - 1; index++) {
+    if (
+      source === null ||
+      typeof source !== 'object' ||
+      projected === null ||
+      typeof projected !== 'object'
+    ) {
+      return false
+    }
+    const sourceChild = (source as Record<string, unknown>)[path[index]]
+    if (sourceChild === null || typeof sourceChild !== 'object') return false
+    let projectedChild = projectedContainers.get(sourceChild)
+    if (!projectedChild) {
+      projectedChild = Array.isArray(sourceChild)
+        ? [...sourceChild]
+        : { ...(sourceChild as Record<string, unknown>) }
+      projectedContainers.set(sourceChild, projectedChild)
+    }
+    ;(projected as Record<string, unknown>)[path[index]] = projectedChild
+    source = sourceChild
+    projected = projectedChild
+  }
+  if (projected === null || typeof projected !== 'object') return false
+  ;(projected as Record<string, unknown>)[path.at(-1)!] = value
+  return true
 }
 
 function serializedJsonStringByteSize(value: string): number {
@@ -140,6 +322,14 @@ function serializedProvenanceEntryByteSize(entry: ResolvedSecretTraceProvenanceE
     byteSize += Buffer.byteLength(',"name":', 'utf8') + serializedJsonStringByteSize(entry.name)
   }
   return byteSize + 1
+}
+
+function catalogEntryByteSize(entry: ResolvedSecretTraceCatalogEntry): number {
+  return (
+    Buffer.byteLength(entry.name, 'utf8') +
+    Buffer.byteLength(entry.plaintext, 'utf8') +
+    Buffer.byteLength(entry.encryptedValue, 'utf8')
+  )
 }
 
 function serializedProvenanceEnvelopeByteSize(
@@ -226,14 +416,6 @@ function isExactProvenanceEntriesArray(value: unknown): value is unknown[] {
   } catch {
     return false
   }
-}
-
-function catalogEntryByteSize(entry: ResolvedSecretTraceCatalogEntry): number {
-  return (
-    Buffer.byteLength(entry.name, 'utf8') +
-    Buffer.byteLength(entry.plaintext, 'utf8') +
-    Buffer.byteLength(entry.encryptedValue, 'utf8')
-  )
 }
 
 function buildEffectiveCatalogEntry(
@@ -432,30 +614,44 @@ export class ResolvedSecretTraceRegistry {
   private readonly catalog = new Map<string, ResolvedSecretTraceCatalogEntry>()
   private catalogBytes = 0
   private readonly activeEntries = new Map<string, ActiveSecretEntry>()
+  private readonly propagatedEntryKeys = new Set<string>()
+  private readonly resolvedInputPaths = new Map<string, ResolvedInputPathState>()
+  private readonly incompleteInputPaths = new Map<string, string[]>()
+  /** Insertion-ordered; see {@link ResolvedSecretIncompletenessDiagnostics}. */
+  private readonly incompletenessReasons = new Set<ResolvedSecretIncompletenessReason>()
   private activeProvenanceEntryBytes = 0
   private complete = true
   private pendingActivations = 0
   private modelEgressRevision = 0
+  private activeProvenanceFilterCache?: {
+    revision: number
+    result: PreparedProvenanceFilterResult
+  }
   private readonly scope?: ResolvedSecretTraceScopeV1
   private readonly completeProvenanceEnvelopeBytes: number
+  /**
+   * A staged registry filters one value and is then discarded. Its caller re-reports whatever
+   * fault it hits against the real input path, so its own summary lines would restate that with
+   * strictly less context. Entry-level detail still logs — the caller cannot reconstruct it.
+   */
+  private readonly staged: boolean
 
   constructor(
     catalogEntries: Iterable<ResolvedSecretTraceCatalogEntry> = [],
-    scope?: ResolvedSecretTraceScopeV1
+    scope?: ResolvedSecretTraceScopeV1,
+    options: { staged?: boolean } = {}
   ) {
+    this.staged = options.staged === true
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
     this.completeProvenanceEnvelopeBytes = serializedProvenanceEnvelopeByteSize(true, this.scope)
     if (this.completeProvenanceEnvelopeBytes > MAX_SERIALIZED_PROVENANCE_BYTES) {
-      this.markIncomplete()
+      this.markIncomplete('provenance-capacity-exceeded')
     }
     let catalogEntriesSeen = 0
     for (const entry of catalogEntries) {
       catalogEntriesSeen++
-      if (catalogEntriesSeen > MAX_TRACE_CATALOG_ENTRIES) {
-        this.markIncomplete()
-        break
-      }
-      if (!this.addCatalogEntry(entry)) break
+      if (catalogEntriesSeen > MAX_TRACE_CATALOG_ENTRIES) break
+      this.addCatalogEntry(entry)
     }
   }
 
@@ -470,108 +666,424 @@ export class ResolvedSecretTraceRegistry {
   forkForToolCall(): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
     for (const entry of this.activeEntries.values()) {
-      fork.addActiveEntry({ ...entry })
+      fork.addActiveEntry(
+        { ...entry },
+        { propagated: this.propagatedEntryKeys.has(activeEntryKey(entry)) }
+      )
     }
-    if (!this.complete) fork.markIncomplete()
+    this.copyResolvedInputPathsTo(fork)
+    this.copyIncompleteInputPathsTo(fork)
+    if (!this.complete) fork.markIncomplete('inherited-incomplete-source', this)
     return fork
   }
 
-  /**
-   * Creates an isolated tool registry seeded only with committed parent provenance present in
-   * that call's resolved input. The full catalog remains available so the call can activate a
-   * direct environment read, while unrelated secrets resolved by earlier calls cannot rewrite an
-   * otherwise public result that happens to contain the same bytes.
-   */
-  forkForToolInput(input: unknown): ResolvedSecretTraceRegistry {
-    return this.forkForToolInputValues([input])
-  }
-
-  /**
-   * Creates an isolated tool registry from independent input roots without treating a synthetic
-   * container's keys as data. Callers use this when top-level parameter names are trusted grammar
-   * but nested object keys remain user-controlled input.
-   */
-  forkForToolInputValues(values: Iterable<unknown>): ResolvedSecretTraceRegistry {
+  /** Creates an isolated registry from resolver-recorded input paths without plaintext matching. */
+  forkForInputPaths(
+    paths: readonly ResolvedSecretInputPath[],
+    options: { propagated?: boolean } = {}
+  ): ResolvedSecretTraceRegistry {
     const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
     if (!this.complete) {
-      fork.markIncomplete()
-      return fork
-    }
-    const provenance = this.exportProvenanceForValuesFromEntries(
-      values,
-      this.activeEntries.values(),
-      {}
-    )
-    if (!provenance.complete) {
-      fork.markIncomplete()
+      fork.markIncomplete('inherited-incomplete-source', this)
       return fork
     }
 
-    const selectedEntries = new Set(
-      provenance.entries.map((entry) => `${entry.name ?? ''}\u0000${entry.encryptedValue}`)
-    )
-    for (const entry of this.activeEntries.values()) {
-      const provenanceEntry = toProvenanceEntry(entry)
-      if (
-        selectedEntries.has(`${provenanceEntry.name ?? ''}\u0000${provenanceEntry.encryptedValue}`)
-      ) {
-        fork.addActiveEntry({ ...entry })
-      }
+    if (this.hasIncompleteInputPathOverlapping(paths)) {
+      fork.markIncomplete('inherited-incomplete-input-path', this)
+      return fork
     }
-    if (!this.complete) fork.markIncomplete()
+
+    const selectedKeys = this.collectInputPathEntryKeys(paths)
+    for (const [key, entry] of this.activeEntries) {
+      if (!selectedKeys.has(key)) continue
+      fork.addActiveEntry(
+        { ...entry },
+        { propagated: options.propagated === true || this.propagatedEntryKeys.has(key) }
+      )
+    }
+    this.copyResolvedInputPathsTo(fork, paths)
     return fork
   }
 
-  /**
-   * Creates a diagnostic-only registry for compiler aliases present in one log payload.
-   * Every alias must bind to the local catalog; an unknown alias returns `undefined` so
-   * callers can fall back to text-free diagnostics instead of exposing adjacent plaintext.
-   */
-  forkForDiagnosticAliases(aliases: Iterable<string>): ResolvedSecretTraceRegistry | undefined {
-    const fork = this.forkForToolCall()
-    if (!this.complete) return fork
-
-    const requestedAliases = new Set(aliases)
-    const entriesByAlias = new Map<string, ResolvedSecretTraceCatalogEntry[]>()
-    for (const entry of this.catalog.values()) {
-      const alias = `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`
-      const entries = entriesByAlias.get(alias) ?? []
-      entries.push(entry)
-      entriesByAlias.set(alias, entries)
-    }
-    for (const alias of requestedAliases) {
-      const entries = entriesByAlias.get(alias)
-      if (!entries) return undefined
-      for (const entry of entries) {
-        fork.addActiveEntry({ ...entry, anonymous: false })
+  /** Creates a model/output registry containing only provenance explicitly carried by a result. */
+  forkForPropagatedEntries(): ResolvedSecretTraceRegistry {
+    const fork = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    for (const entry of this.activeEntries.values()) {
+      if (this.propagatedEntryKeys.has(activeEntryKey(entry))) {
+        fork.addActiveEntry({ ...entry }, { propagated: true })
       }
     }
+    if (this.isPermanentlyIncomplete()) fork.markIncomplete('inherited-incomplete-source', this)
     return fork
   }
 
   /** Merges one settled tool-call registry into the turn-scoped registry. */
   mergeToolCallRegistry(child: ResolvedSecretTraceRegistry): void {
-    if (!scopesMatch(this.scope, child.scope) || !child.complete || child.pendingActivations > 0) {
-      this.markIncomplete()
+    if (!scopesMatch(this.scope, child.scope)) {
+      this.markIncomplete('tool-call-scope-mismatch')
+      return
+    }
+
+    if (!child.isComplete()) {
+      this.markIncomplete('inherited-incomplete-source', child)
       return
     }
 
     for (const entry of child.activeEntries.values()) {
-      this.addActiveEntry({ ...entry })
+      this.addActiveEntry(
+        { ...entry },
+        { propagated: child.propagatedEntryKeys.has(activeEntryKey(entry)) }
+      )
     }
+    child.copyResolvedInputPathsTo(this)
   }
 
   /** Activates a configured secret only when the resolved runtime value matches its catalog value. */
-  recordResolved(name: string, resolvedValue: string): boolean {
+  recordResolved(
+    name: string,
+    resolvedValue: string,
+    options: { propagated?: boolean } = {}
+  ): boolean {
     if (resolvedValue.length === 0) return false
-    const catalogEntry = this.catalog.get(name)
-    if (!catalogEntry || catalogEntry.plaintext !== resolvedValue) {
-      this.markIncomplete()
+    const entry = this.getVerifiedResolvedEntry(name, resolvedValue)
+    if (!entry) {
+      this.markIncomplete('unverified-resolved-entry')
       return false
     }
 
-    this.addActiveEntry({ ...catalogEntry, anonymous: false })
+    this.addActiveEntry(entry, options)
     return true
+  }
+
+  /** Records the exact resolved input leaf that activated a configured secret. */
+  recordResolvedAtInputPath(
+    name: string,
+    resolvedValue: string,
+    path: ResolvedSecretInputPath | undefined,
+    options: { propagated?: boolean } = {}
+  ): boolean {
+    if (!path || path.length === 0) return this.recordResolved(name, resolvedValue, options)
+    if (resolvedValue.length === 0) return false
+
+    const entry = this.getVerifiedResolvedEntry(name, resolvedValue)
+    if (!entry) {
+      this.markInputPathIncomplete(path, 'unverified-resolved-entry')
+      return false
+    }
+
+    this.addActiveEntry(entry, options)
+    this.bindResolvedInputPathEntries(path, [entry])
+    return true
+  }
+
+  private getVerifiedResolvedEntry(
+    name: string,
+    resolvedValue: string
+  ): ActiveSecretEntry | undefined {
+    const catalogEntry = this.catalog.get(name)
+    return catalogEntry?.plaintext === resolvedValue
+      ? { ...catalogEntry, anonymous: false }
+      : undefined
+  }
+
+  private bindResolvedInputPathEntries(
+    path: ResolvedSecretInputPath,
+    entries: Iterable<ActiveSecretEntry>
+  ): void {
+    const key = inputPathKey(path)
+    const state = this.resolvedInputPaths.get(key) ?? {
+      path: [...path],
+      entryKeys: new Set<string>(),
+    }
+    for (const entry of entries) state.entryKeys.add(activeEntryKey(entry))
+    this.resolvedInputPaths.set(key, state)
+  }
+
+  /** Stores the exact placeholder-preserving copy produced while resolving one string leaf. */
+  recordResolvedInputProjection(
+    path: ResolvedSecretInputPath | undefined,
+    rawValue: unknown,
+    projectedValue: unknown
+  ): void {
+    if (!path || path.length === 0) return
+    const key = inputPathKey(path)
+    const state = this.resolvedInputPaths.get(key)
+    if (!state || state.entryKeys.size === 0) return
+    state.rawValue = rawValue
+    state.projectedValue = projectedValue
+  }
+
+  /** Returns whether the resolver recorded any placeholder-preserving input copies. */
+  hasResolvedInputProjections(): boolean {
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.rawValue !== undefined && state.projectedValue !== undefined) return true
+    }
+    return false
+  }
+
+  /**
+   * Carries resolver-recorded provenance through one deterministic block-parameter transform.
+   *
+   * The caller supplies the real transformed params and the result of applying the same transform
+   * to the resolver's placeholder-preserving input copy. Only canonical placeholders in that
+   * private projected copy establish the mapping; raw values are never searched or rewritten.
+   */
+  recordTransformedInputProjection(
+    rawTransformed: Record<string, unknown>,
+    projectedTransformed: Record<string, unknown>,
+    options: { targetPaths?: readonly ResolvedSecretInputPath[] } = {}
+  ): void {
+    if (!this.complete) return
+
+    const eligibleEntryKeys = new Set<string>()
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.rawValue === undefined || state.projectedValue === undefined) continue
+      for (const entryKey of state.entryKeys) eligibleEntryKeys.add(entryKey)
+    }
+    if (eligibleEntryKeys.size === 0) return
+
+    const entryKeysByName = new Map<string, Set<string>>()
+    for (const entryKey of eligibleEntryKeys) {
+      const entry = this.activeEntries.get(entryKey)
+      if (!entry || entry.anonymous || entry.name.length === 0) continue
+      const keys = entryKeysByName.get(entry.name) ?? new Set<string>()
+      keys.add(entryKey)
+      entryKeysByName.set(entry.name, keys)
+    }
+    if (entryKeysByName.size === 0) return
+
+    const canonicalPlaceholderName = (value: string): string | undefined => {
+      const match = /^\{\{([^{}]+)\}\}$/.exec(value.trim())
+      if (!match) return undefined
+      const name = match[1].trim()
+      return /^[A-Za-z0-9_]+$/.test(name) ? name : undefined
+    }
+
+    const placeholderEntryKeys = (value: unknown): Set<string> => {
+      const keys = new Set<string>()
+      if (typeof value !== 'string') return keys
+      for (const match of value.matchAll(/\{\{([^{}]+)\}\}/g)) {
+        const name = match[1].trim()
+        if (!/^[A-Za-z0-9_]+$/.test(name)) continue
+        for (const entryKey of entryKeysByName.get(name) ?? []) keys.add(entryKey)
+      }
+      return keys
+    }
+
+    const recordState = (
+      path: string[],
+      entryKeys: ReadonlySet<string>,
+      rawValue: unknown,
+      projectedValue: unknown
+    ): void => {
+      if (path.length === 0 || rawValue === undefined || projectedValue === undefined) return
+      const key = inputPathKey(path)
+      const state = this.resolvedInputPaths.get(key) ?? {
+        path: [...path],
+        entryKeys: new Set<string>(),
+      }
+      if (
+        state.rawValue === rawValue &&
+        typeof state.projectedValue === 'string' &&
+        typeof projectedValue === 'string' &&
+        state.projectedValue !== projectedValue
+      ) {
+        this.markInputPathIncomplete(path, 'projection-mismatch')
+        return
+      }
+      for (const entryKey of entryKeys) state.entryKeys.add(entryKey)
+      state.rawValue = rawValue
+      state.projectedValue = projectedValue
+      this.resolvedInputPaths.set(key, state)
+    }
+
+    const recordProjectedMarkerAcrossRawLeaves = (
+      rawValue: unknown,
+      projectedValue: string,
+      path: string[],
+      entryKeys: ReadonlySet<string>
+    ): void => {
+      const pending: Array<{ value: unknown; path: string[] }> = [{ value: rawValue, path }]
+      const visited = new WeakSet<object>()
+      while (pending.length > 0) {
+        const current = pending.pop()!
+        if (current.value === null || typeof current.value !== 'object') {
+          recordState(current.path, entryKeys, current.value, projectedValue)
+          continue
+        }
+        if (visited.has(current.value)) continue
+        visited.add(current.value)
+        for (const [key, value] of Object.entries(current.value)) {
+          pending.push({ value, path: [...current.path, key] })
+        }
+      }
+    }
+
+    const pending: Array<{ raw: unknown; projected: unknown; path: string[] }> =
+      options.targetPaths === undefined
+        ? Object.keys(projectedTransformed).map((key) => ({
+            raw: rawTransformed[key],
+            projected: projectedTransformed[key],
+            path: [key],
+          }))
+        : options.targetPaths
+            .filter((path) => path.length > 0)
+            .map((path) => ({
+              raw: readInputPath(rawTransformed, path),
+              projected: readInputPath(projectedTransformed, path),
+              path: [...path],
+            }))
+    const visitedPairs = new WeakMap<object, WeakSet<object>>()
+
+    while (pending.length > 0) {
+      const current = pending.pop()!
+      if (Object.is(current.raw, current.projected)) continue
+
+      const projectedEntryKeys = placeholderEntryKeys(current.projected)
+      if (projectedEntryKeys.size > 0) {
+        if (current.raw !== null && typeof current.raw === 'object') {
+          const standaloneName = canonicalPlaceholderName(current.projected as string)
+          if (!standaloneName || !entryKeysByName.has(standaloneName)) {
+            this.markInputPathIncomplete(current.path, 'unresolved-placeholder')
+            return
+          }
+          recordProjectedMarkerAcrossRawLeaves(
+            current.raw,
+            current.projected as string,
+            current.path,
+            projectedEntryKeys
+          )
+        } else {
+          recordState(current.path, projectedEntryKeys, current.raw, current.projected)
+        }
+        continue
+      }
+
+      if (
+        current.raw === null ||
+        typeof current.raw !== 'object' ||
+        current.projected === null ||
+        typeof current.projected !== 'object'
+      ) {
+        continue
+      }
+
+      const projectedObjectsSeen = visitedPairs.get(current.raw) ?? new WeakSet<object>()
+      if (projectedObjectsSeen.has(current.projected)) continue
+      projectedObjectsSeen.add(current.projected)
+      visitedPairs.set(current.raw, projectedObjectsSeen)
+
+      for (const key of Object.keys(current.projected)) {
+        pending.push({
+          raw: (current.raw as Record<string, unknown>)[key],
+          projected: (current.projected as Record<string, unknown>)[key],
+          path: [...current.path, key],
+        })
+      }
+    }
+  }
+
+  private projectResolvedInputStates(
+    selected: Record<string, unknown>,
+    states: Iterable<ResolvedInputPathState>
+  ): ResolvedSecretInputProjection {
+    const projected = { ...selected }
+    const projectedContainers = new WeakMap<object, object>([[selected, projected]])
+
+    for (const state of states) {
+      if (state.rawValue === undefined || state.projectedValue === undefined) continue
+      if (!Object.hasOwn(selected, state.path[0])) continue
+      if (readInputPath(selected, state.path) !== state.rawValue) continue
+      if (
+        !writeInputPathOnProjectedCopy(
+          selected,
+          projected,
+          state.path,
+          state.projectedValue,
+          projectedContainers
+        )
+      ) {
+        return { complete: false }
+      }
+    }
+    return { complete: true, value: projected }
+  }
+
+  /** Projects only resolver-recorded leaves and preserves every object key byte-for-byte. */
+  projectResolvedInputSelection(selected: Record<string, unknown>): ResolvedSecretInputProjection {
+    if (
+      !this.complete ||
+      this.hasIncompleteInputPathOverlapping(Object.keys(selected).map((key) => [key]))
+    ) {
+      return { complete: false }
+    }
+    return this.projectResolvedInputStates(selected, this.resolvedInputPaths.values())
+  }
+
+  /**
+   * Produces one causal projection per resolved input path.
+   *
+   * Replaying transforms independently keeps a secret-valued discriminator from changing the
+   * control flow used to trace a different secret-valued input.
+   */
+  projectResolvedInputSelections(selected: Record<string, unknown>):
+    | {
+        complete: true
+        values: Array<{
+          path: ResolvedSecretInputPath
+          rawValue: unknown
+          projectedValue: unknown
+          value: Record<string, unknown>
+        }>
+      }
+    | { complete: false } {
+    if (
+      !this.complete ||
+      this.hasIncompleteInputPathOverlapping(Object.keys(selected).map((key) => [key]))
+    ) {
+      return { complete: false }
+    }
+
+    const values: Array<{
+      path: ResolvedSecretInputPath
+      rawValue: unknown
+      projectedValue: unknown
+      value: Record<string, unknown>
+    }> = []
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.rawValue === undefined || state.projectedValue === undefined) continue
+      if (!Object.hasOwn(selected, state.path[0])) continue
+      if (readInputPath(selected, state.path) !== state.rawValue) continue
+      const projection = this.projectResolvedInputStates(selected, [state])
+      if (!projection.complete) return projection
+      values.push({
+        path: state.path,
+        rawValue: state.rawValue,
+        projectedValue: state.projectedValue,
+        value: projection.value,
+      })
+    }
+    return { complete: true, values }
+  }
+
+  /** Exports resolver-recorded provenance for selected input paths without inspecting values. */
+  exportCommittedProvenanceForInputPaths(
+    paths: readonly ResolvedSecretInputPath[],
+    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!this.complete || this.hasIncompleteInputPathOverlapping(paths)) {
+      return this.incompleteProvenance()
+    }
+    const selectedKeys = this.collectInputPathEntryKeys(paths)
+    const entries = [...this.activeEntries]
+      .filter(([key]) => selectedKeys.has(key))
+      .map(([, entry]) => entry)
+    return {
+      version: 1,
+      complete: true,
+      entries: this.buildProvenanceEntries(entries, options.anonymous),
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    }
   }
 
   /** Imports encrypted provenance only from a boundary that has already established trust. */
@@ -580,29 +1092,49 @@ export class ResolvedSecretTraceRegistry {
     options: ImportResolvedSecretTraceProvenanceOptions
   ): Promise<boolean> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markIncomplete()
+      this.markIncomplete('untrusted-provenance')
       return false
     }
 
     if (!provenance.complete) {
-      this.markIncomplete()
+      this.markIncomplete('source-provenance-incomplete')
     }
 
     const sameScope = scopesMatch(provenance.scope, this.scope)
     let importedAll = true
+    let decryptFailures = 0
+    let firstDecryptError: string | undefined
     for (const entry of provenance.entries) {
       try {
         const { decrypted } = await decryptSecret(entry.encryptedValue)
-        this.addActiveEntry({
-          name: entry.name ?? '',
-          plaintext: decrypted,
-          encryptedValue: entry.encryptedValue,
-          anonymous: options.anonymous === true || !sameScope || entry.name === undefined,
-        })
-      } catch {
+        this.addActiveEntry(
+          {
+            name: entry.name ?? '',
+            plaintext: decrypted,
+            encryptedValue: entry.encryptedValue,
+            anonymous: options.anonymous === true || !sameScope || entry.name === undefined,
+          },
+          { propagated: true }
+        )
+      } catch (error) {
         importedAll = false
-        this.markIncomplete()
+        decryptFailures += 1
+        firstDecryptError ??= getErrorMessage(error, 'Unknown error')
+        this.markIncomplete('entry-decrypt-failed')
       }
+    }
+
+    /**
+     * Summarised rather than logged per entry: one rotated or corrupt key fails every entry in the
+     * bundle, and a bundle may carry up to MAX_PROVENANCE_ENTRIES of them.
+     */
+    if (decryptFailures > 0) {
+      logger.error('Provenance entries could not be decrypted', {
+        error: firstDecryptError,
+        failedEntryCount: decryptFailures,
+        totalEntryCount: provenance.entries.length,
+        scopeWorkspaceId: this.scope?.workspaceId,
+      })
     }
 
     return importedAll
@@ -618,16 +1150,70 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: { trusted: boolean }
   ): Promise<boolean> {
+    const result = await this.importProvenanceForValueInternal(provenance, value, options)
+    return result.success
+  }
+
+  /** Imports exact crossing provenance and binds only its matched entries to one resolved input. */
+  async importProvenanceForValueAtInputPath(
+    provenance: unknown,
+    value: unknown,
+    inputPath: ResolvedSecretInputPath | undefined,
+    options: { trusted: boolean }
+  ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
+    return this.importProvenanceForValueInternal(provenance, value, {
+      ...options,
+      inputPath,
+    })
+  }
+
+  private async importProvenanceForValueInternal(
+    provenance: unknown,
+    value: unknown,
+    options: { trusted: boolean; inputPath?: ResolvedSecretInputPath }
+  ): Promise<ImportResolvedSecretTraceProvenanceForValueResult> {
     if (!options.trusted || !isResolvedSecretTraceProvenanceV1(provenance)) {
-      this.markIncomplete()
-      return false
+      this.markInputPathIncomplete(options.inputPath, 'value-provenance-untrusted')
+      return { success: false, matched: false }
     }
 
-    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope)
+    const sourceRegistry = new ResolvedSecretTraceRegistry([], provenance.scope, { staged: true })
     const sourceImported = await sourceRegistry.importProvenance(provenance, { trusted: true })
     const filteredProvenance = sourceRegistry.exportProvenanceForValue(value)
+    if (!sourceImported) {
+      this.markInputPathIncomplete(options.inputPath, 'value-provenance-import-failed')
+      return { success: false, matched: false }
+    }
+    if (!filteredProvenance.complete) {
+      this.markInputPathIncomplete(
+        options.inputPath,
+        provenance.complete ? 'value-provenance-filter-incomplete' : 'source-provenance-incomplete'
+      )
+      return { success: true, matched: false }
+    }
     const filteredImported = await this.importProvenance(filteredProvenance, { trusted: true })
-    return sourceImported && filteredImported
+    if (options.inputPath && options.inputPath.length > 0 && filteredProvenance.complete) {
+      const sameScope = scopesMatch(filteredProvenance.scope, this.scope)
+      this.bindResolvedInputPathEntries(
+        options.inputPath,
+        filteredProvenance.entries.flatMap((entry) => {
+          const anonymous = !sameScope || entry.name === undefined
+          const importedEntry = this.activeEntries.get(
+            activeEntryKey({
+              name: entry.name ?? '',
+              plaintext: '',
+              encryptedValue: entry.encryptedValue,
+              anonymous,
+            })
+          )
+          return importedEntry ? [importedEntry] : []
+        })
+      )
+    }
+    return {
+      success: sourceImported && filteredImported,
+      matched: filteredProvenance.complete && filteredProvenance.entries.length > 0,
+    }
   }
 
   /** Imports only provenance present in the exact crossing value, preserving names in-scope. */
@@ -646,12 +1232,12 @@ export class ResolvedSecretTraceRegistry {
 
   /**
    * Returns committed literals that must be removed before content can cross into a model.
-   * Trusted execution boundaries scan their full local catalog and activate exact values before
-   * exposing a result. Temporary work in another call is intentionally excluded: until that call
-   * commits a result, its pending state is neither data nor provenance for this projection.
+   * Only entries activated by an exact resolver or trusted provenance boundary participate;
+   * configured-but-unused catalog values remain inert. Temporary work in another call is
+   * intentionally excluded until that call commits a result.
    */
   getModelEgressSnapshot(): ResolvedSecretModelEgressSnapshot {
-    if (!this.complete) return { complete: false }
+    if (this.isPermanentlyIncomplete()) return { complete: false }
 
     const modelEntries = [...this.activeEntries.values()]
     const legacyAliasEntries = modelEntries
@@ -659,7 +1245,7 @@ export class ResolvedSecretTraceRegistry {
       .map(
         (entry): ActiveSecretEntry => ({
           ...entry,
-          plaintext: `__var_${entry.name.replace(/[^a-zA-Z0-9_]/g, '_')}`,
+          plaintext: createLegacyRuntimeAlias(entry.name),
         })
       )
     const matches = this.withJsonStringEncodedMatches(
@@ -683,13 +1269,10 @@ export class ResolvedSecretTraceRegistry {
     const addMatch = (plaintext: string, replacement: string): void => {
       if (!plaintext) return
       const existing = replacementByPlaintext.get(plaintext)
-      if (
-        existing === undefined ||
-        replacement === ANONYMOUS_SECRET_TRACE_REPLACEMENT ||
-        (existing !== ANONYMOUS_SECRET_TRACE_REPLACEMENT &&
-          compareStrings(replacement, existing) < 0)
-      ) {
+      if (existing === undefined) {
         replacementByPlaintext.set(plaintext, replacement)
+      } else if (existing !== replacement) {
+        replacementByPlaintext.set(plaintext, ANONYMOUS_SECRET_TRACE_REPLACEMENT)
       }
     }
 
@@ -722,12 +1305,13 @@ export class ResolvedSecretTraceRegistry {
     const matches = [...candidatesByPlaintext.keys()].map((plaintext) => {
       const candidates = candidatesByPlaintext.get(plaintext) ?? []
       const anonymous = candidates.some((candidate) => candidate.anonymous)
-      const firstNamed = candidates
-        .filter((candidate) => !candidate.anonymous)
-        .sort((left, right) => compareStrings(left.name, right.name))[0]
-      const replacement = anonymous
-        ? ANONYMOUS_SECRET_TRACE_REPLACEMENT
-        : `{{${firstNamed?.name ?? ''}}}`
+      const names = new Set(
+        candidates.filter((candidate) => !candidate.anonymous).map((candidate) => candidate.name)
+      )
+      const replacement =
+        anonymous || names.size !== 1
+          ? ANONYMOUS_SECRET_TRACE_REPLACEMENT
+          : `{{${names.values().next().value}}}`
 
       return { plaintext, replacement }
     })
@@ -741,17 +1325,61 @@ export class ResolvedSecretTraceRegistry {
   }
 
   isComplete(): boolean {
-    return this.complete && this.pendingActivations === 0
+    return this.complete && this.incompleteInputPaths.size === 0 && this.pendingActivations === 0
+  }
+
+  /**
+   * Reports why this registry is incomplete, for a caller that is about to refuse a projection.
+   *
+   * Returns undefined while the registry can still vouch, so a caller cannot accidentally report a
+   * cause for a projection that succeeded.
+   */
+  getIncompletenessDiagnostics(): ResolvedSecretIncompletenessDiagnostics | undefined {
+    if (!this.isPermanentlyIncomplete()) return undefined
+    return {
+      reasons: [...this.incompletenessReasons],
+      incompleteInputPathCount: this.incompleteInputPaths.size,
+      activeEntryCount: this.activeEntries.size,
+      ...(this.scope?.workspaceId ? { scopeWorkspaceId: this.scope.workspaceId } : {}),
+    }
+  }
+
+  /** Retains a reason for later refusal reporting; the reason type bounds the set at its size. */
+  private recordIncompletenessReason(reason: ResolvedSecretIncompletenessReason): void {
+    this.incompletenessReasons.add(reason)
+  }
+
+  /**
+   * Carries a source registry's reasons into a fork or merge target, so a refusal downstream still
+   * names the guard that originally tripped rather than only the propagation that reached it.
+   */
+  private inheritIncompletenessReasonsFrom(source: ResolvedSecretTraceRegistry): void {
+    for (const reason of source.incompletenessReasons) this.recordIncompletenessReason(reason)
   }
 
   isPermanentlyIncomplete(): boolean {
-    return !this.complete
+    return !this.complete || this.incompleteInputPaths.size > 0
   }
 
-  markIncomplete(): void {
+  markIncomplete(
+    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    source?: ResolvedSecretTraceRegistry
+  ): void {
+    if (source) this.inheritIncompletenessReasonsFrom(source)
+    this.recordIncompletenessReason(reason)
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
+    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+    const details = {
+      reason,
+      scopeWorkspaceId: this.scope?.workspaceId,
+      activeEntryCount: this.activeEntries.size,
+      incompleteInputPathCount: this.incompleteInputPaths.size,
+    }
+    const message = 'Resolved secret registry marked incomplete'
+    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
+    else logger.warn(message, details)
   }
 
   /**
@@ -790,13 +1418,12 @@ export class ResolvedSecretTraceRegistry {
    * their guard as permanent incompleteness would incorrectly poison a later resume.
    */
   exportCheckpointProvenance(): ResolvedSecretTraceProvenanceV1 {
-    const entries = this.complete
-      ? this.buildProvenanceEntries([...this.activeEntries.values()])
-      : []
+    const complete = this.complete && this.incompleteInputPaths.size === 0
+    const entries = complete ? this.buildProvenanceEntries([...this.activeEntries.values()]) : []
 
     return {
       version: 1,
-      complete: this.complete,
+      complete,
       entries,
       ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
     }
@@ -810,9 +1437,13 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.isComplete()) return { version: 1, complete: false, entries: [] }
+    if (!this.isComplete()) return this.incompleteProvenance()
 
-    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
+    return this.exportProvenanceForValueWithPreparedFilter(
+      value,
+      this.getPreparedActiveProvenanceFilter(),
+      options
+    )
   }
 
   /**
@@ -824,29 +1455,11 @@ export class ResolvedSecretTraceRegistry {
     value: unknown,
     options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
   ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.complete) return { version: 1, complete: false, entries: [] }
+    if (this.isPermanentlyIncomplete()) return this.incompleteProvenance()
 
-    return this.exportProvenanceForValueFromEntries(value, this.activeEntries.values(), options)
-  }
-
-  /**
-   * Reconstructs provenance at a trusted compatibility boundary by scanning only the current
-   * catalog and committed active entries for exact values in the bounded payload. Callers must
-   * not use this for arbitrary external results: catalog scanning is reserved for persisted
-   * legacy state or locally executed outputs whose older producer could not record activation.
-   */
-  exportCatalogProvenanceForValue(
-    value: unknown,
-    options: ExportResolvedSecretTraceProvenanceForValueOptions = {}
-  ): ResolvedSecretTraceProvenanceV1 {
-    if (!this.complete) return { version: 1, complete: false, entries: [] }
-
-    const catalogEntries = [...this.catalog.values()].map(
-      (entry): ActiveSecretEntry => ({ ...entry, anonymous: false })
-    )
-    return this.exportProvenanceForValueFromEntries(
+    return this.exportProvenanceForValueWithPreparedFilter(
       value,
-      [...catalogEntries, ...this.activeEntries.values()],
+      this.getPreparedActiveProvenanceFilter(),
       options
     )
   }
@@ -864,7 +1477,27 @@ export class ResolvedSecretTraceRegistry {
     candidateEntries: Iterable<ActiveSecretEntry>,
     options: ExportResolvedSecretTraceProvenanceForValueOptions
   ): ResolvedSecretTraceProvenanceV1 {
-    const candidatesByPlaintext = new Map<string, ActiveSecretEntry>()
+    return this.exportProvenanceForValuesWithPreparedFilter(
+      values,
+      this.prepareProvenanceFilter(candidateEntries),
+      options
+    )
+  }
+
+  private getPreparedActiveProvenanceFilter(): PreparedProvenanceFilterResult {
+    if (this.activeProvenanceFilterCache?.revision === this.modelEgressRevision) {
+      return this.activeProvenanceFilterCache.result
+    }
+
+    const result = this.prepareProvenanceFilter(this.activeEntries.values())
+    this.activeProvenanceFilterCache = { revision: this.modelEgressRevision, result }
+    return result
+  }
+
+  private prepareProvenanceFilter(
+    candidateEntries: Iterable<ActiveSecretEntry>
+  ): PreparedProvenanceFilterResult {
+    const candidatesByPlaintext = new Map<string, ActiveSecretEntry[]>()
     const sortedCandidateEntries = [...candidateEntries].sort(
       (left, right) =>
         compareStrings(left.name, right.name) ||
@@ -872,33 +1505,84 @@ export class ResolvedSecretTraceRegistry {
     )
     for (const entry of sortedCandidateEntries) {
       if (entry.plaintext.length === 0) continue
-      const existing = candidatesByPlaintext.get(entry.plaintext)
-      if (!existing || (!existing.anonymous && entry.anonymous)) {
-        candidatesByPlaintext.set(entry.plaintext, entry)
+      const candidates = candidatesByPlaintext.get(entry.plaintext) ?? []
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
+        candidates.push(entry)
+        candidatesByPlaintext.set(entry.plaintext, candidates)
       }
     }
 
     const candidatesByScanLiteral = new Map<string, ActiveSecretEntry[]>()
+    const candidateEntryKeys = new Set<string>()
     const addScanLiteral = (literal: string, entry: ActiveSecretEntry): void => {
       if (literal.length === 0) return
       const candidates = candidatesByScanLiteral.get(literal) ?? []
-      if (!candidates.some((candidate) => candidate.plaintext === entry.plaintext)) {
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
         candidates.push(entry)
         candidatesByScanLiteral.set(literal, candidates)
       }
+      candidateEntryKeys.add(entryKey)
     }
-    for (const entry of candidatesByPlaintext.values()) {
-      addScanLiteral(entry.plaintext, entry)
-      addScanLiteral(JSON.stringify(entry.plaintext).slice(1, -1), entry)
+    for (const candidates of candidatesByPlaintext.values()) {
+      for (const entry of candidates) {
+        addScanLiteral(entry.plaintext, entry)
+        addScanLiteral(JSON.stringify(entry.plaintext).slice(1, -1), entry)
+      }
     }
 
-    const matchedEntries = new Map<string, ActiveSecretEntry>()
+    const candidatesByAlias = new Map<string, ActiveSecretEntry[]>()
+    for (const entry of sortedCandidateEntries) {
+      if (!entry.name) continue
+      const alias = createLegacyRuntimeAlias(entry.name)
+      const candidates = candidatesByAlias.get(alias) ?? []
+      const entryKey = activeEntryKey(entry)
+      if (!candidates.some((candidate) => activeEntryKey(candidate) === entryKey)) {
+        candidates.push(entry)
+        candidatesByAlias.set(alias, candidates)
+      }
+      candidateEntryKeys.add(entryKey)
+    }
+
     let matcher: ResolvedSecretMatcher | undefined
     try {
       matcher = createResolvedSecretMatcher(
         [...candidatesByScanLiteral.keys()].map((plaintext) => ({ plaintext, replacement: '' }))
       )
-    } catch {
+    } catch (error) {
+      logger.error('Provenance filter matcher could not be built', {
+        error: getErrorMessage(error, 'Unknown error'),
+        candidateCount: candidatesByScanLiteral.size,
+      })
+      return { complete: false }
+    }
+
+    return {
+      complete: true,
+      filter: {
+        candidatesByScanLiteral,
+        candidatesByAlias,
+        candidateEntryKeys,
+        ...(matcher ? { matcher } : {}),
+      },
+    }
+  }
+
+  private exportProvenanceForValueWithPreparedFilter(
+    value: unknown,
+    prepared: PreparedProvenanceFilterResult,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    return this.exportProvenanceForValuesWithPreparedFilter([value], prepared, options)
+  }
+
+  private exportProvenanceForValuesWithPreparedFilter(
+    values: Iterable<unknown>,
+    prepared: PreparedProvenanceFilterResult,
+    options: ExportResolvedSecretTraceProvenanceForValueOptions
+  ): ResolvedSecretTraceProvenanceV1 {
+    if (!prepared.complete) {
       return {
         version: 1,
         complete: false,
@@ -906,6 +1590,10 @@ export class ResolvedSecretTraceRegistry {
         ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
       }
     }
+
+    const { candidatesByScanLiteral, candidatesByAlias, candidateEntryKeys, matcher } =
+      prepared.filter
+    const matchedEntries = new Map<string, ActiveSecretEntry>()
     const pendingValues: unknown[] = []
     try {
       for (const value of values) {
@@ -933,23 +1621,36 @@ export class ResolvedSecretTraceRegistry {
     let matchEvents = 0
     let enumeratedProperties = 0
     let scanComplete = true
+    const matchedAliases = new Set<string>()
 
     const scanString = (candidate: string): boolean => {
       scannedCharacters += candidate.length
       if (scannedCharacters > MAX_PROVENANCE_FILTER_CHARACTERS) return false
 
-      if (!matcher) return true
       try {
-        matchEvents += scanResolvedSecretString(
-          candidate,
-          matcher,
-          (scanLiteral) => {
-            for (const entry of candidatesByScanLiteral.get(scanLiteral) ?? []) {
-              matchedEntries.set(entry.plaintext, entry)
-            }
-          },
-          MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
-        )
+        if (matcher) {
+          matchEvents += scanResolvedSecretString(
+            candidate,
+            matcher,
+            (scanLiteral) => {
+              for (const entry of candidatesByScanLiteral.get(scanLiteral) ?? []) {
+                matchedEntries.set(activeEntryKey(entry), entry)
+              }
+            },
+            MAX_PROVENANCE_FILTER_MATCH_EVENTS - matchEvents
+          )
+        }
+        for (const match of candidate.matchAll(LEGACY_RUNTIME_ALIAS_PATTERN)) {
+          const alias = match[0]
+          const candidates = candidatesByAlias.get(alias)
+          if (!candidates || matchedAliases.has(alias)) continue
+          matchedAliases.add(alias)
+          matchEvents++
+          if (matchEvents > MAX_PROVENANCE_FILTER_MATCH_EVENTS) return false
+          for (const entry of candidates) {
+            matchedEntries.set(activeEntryKey(entry), entry)
+          }
+        }
       } catch {
         return false
       }
@@ -960,7 +1661,7 @@ export class ResolvedSecretTraceRegistry {
       if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
       scannedNodes++
       if (!scanString(key)) return false
-      if (matchedEntries.size >= candidatesByPlaintext.size) return true
+      if (matchedEntries.size >= candidateEntryKeys.size) return true
 
       if ('value' in descriptor) {
         if (scannedNodes + pendingValues.length >= MAX_PROVENANCE_FILTER_NODES) return false
@@ -971,7 +1672,7 @@ export class ResolvedSecretTraceRegistry {
       return true
     }
 
-    while (pendingValues.length > 0 && matchedEntries.size < candidatesByPlaintext.size) {
+    while (pendingValues.length > 0 && matchedEntries.size < candidateEntryKeys.size) {
       const current = pendingValues.pop()
       scannedNodes++
       if (scannedNodes > MAX_PROVENANCE_FILTER_NODES) {
@@ -1007,9 +1708,9 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidatesByPlaintext.size) break
+          if (matchedEntries.size >= candidateEntryKeys.size) break
         }
-        if (!scanComplete || matchedEntries.size >= candidatesByPlaintext.size) break
+        if (!scanComplete || matchedEntries.size >= candidateEntryKeys.size) break
 
         for (const key in current as Record<string, unknown>) {
           enumeratedProperties++
@@ -1024,7 +1725,7 @@ export class ResolvedSecretTraceRegistry {
             scanComplete = false
             break
           }
-          if (matchedEntries.size >= candidatesByPlaintext.size) break
+          if (matchedEntries.size >= candidateEntryKeys.size) break
         }
         if (!scanComplete) break
       } catch {
@@ -1033,7 +1734,7 @@ export class ResolvedSecretTraceRegistry {
       }
     }
 
-    const complete = this.complete && scanComplete
+    const complete = !this.isPermanentlyIncomplete() && scanComplete
     const entries = complete
       ? this.buildProvenanceEntries([...matchedEntries.values()], options.anonymous)
       : []
@@ -1045,10 +1746,92 @@ export class ResolvedSecretTraceRegistry {
     }
   }
 
-  private addActiveEntry(entry: ActiveSecretEntry): void {
-    const key = `${entry.anonymous ? 'anonymous' : entry.name}\u0000${entry.encryptedValue}`
+  private collectInputPathEntryKeys(paths: readonly ResolvedSecretInputPath[]): Set<string> {
+    const selected = new Set<string>()
+    for (const state of this.resolvedInputPaths.values()) {
+      if (!paths.some((path) => isInputPathWithin(state.path, path))) continue
+      for (const entryKey of state.entryKeys) selected.add(entryKey)
+    }
+    return selected
+  }
+
+  private incompleteProvenance(): ResolvedSecretTraceProvenanceV1 {
+    return {
+      version: 1,
+      complete: false,
+      entries: [],
+      ...(this.scope ? { scope: cloneProvenanceScope(this.scope) } : {}),
+    }
+  }
+
+  private copyResolvedInputPathsTo(
+    target: ResolvedSecretTraceRegistry,
+    roots?: readonly ResolvedSecretInputPath[]
+  ): void {
+    for (const [key, state] of this.resolvedInputPaths) {
+      if (roots && !roots.some((root) => isInputPathWithin(state.path, root))) continue
+      const targetState = target.resolvedInputPaths.get(key) ?? {
+        path: [...state.path],
+        entryKeys: new Set<string>(),
+      }
+      for (const entryKey of state.entryKeys) targetState.entryKeys.add(entryKey)
+      if (state.rawValue !== undefined && state.projectedValue !== undefined) {
+        targetState.rawValue = state.rawValue
+        targetState.projectedValue = state.projectedValue
+      }
+      target.resolvedInputPaths.set(key, targetState)
+    }
+  }
+
+  private hasIncompleteInputPathOverlapping(paths: readonly ResolvedSecretInputPath[]): boolean {
+    return [...this.incompleteInputPaths.values()].some((incompletePath) =>
+      paths.some((path) => inputPathsOverlap(incompletePath, path))
+    )
+  }
+
+  private markInputPathIncomplete(
+    path: ResolvedSecretInputPath | undefined,
+    reason: ResolvedSecretIncompletenessReason = 'unspecified'
+  ): void {
+    if (!path || path.length === 0) {
+      this.markIncomplete(reason)
+      return
+    }
+    this.recordIncompletenessReason(reason)
+    const key = inputPathKey(path)
+    if (this.incompleteInputPaths.has(key)) return
+    this.incompleteInputPaths.set(key, [...path])
+    this.modelEgressRevision += 1
+    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+    const details = {
+      reason,
+      inputPath: path.join('.'),
+      scopeWorkspaceId: this.scope?.workspaceId,
+      activeEntryCount: this.activeEntries.size,
+    }
+    const message = 'Resolved secret input path marked incomplete'
+    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
+    else logger.warn(message, details)
+  }
+
+  private copyIncompleteInputPathsTo(
+    target: ResolvedSecretTraceRegistry,
+    roots?: readonly ResolvedSecretInputPath[]
+  ): void {
+    let copied = false
+    for (const [key, path] of this.incompleteInputPaths) {
+      if (roots && !roots.some((root) => inputPathsOverlap(path, root))) continue
+      target.incompleteInputPaths.set(key, [...path])
+      copied = true
+    }
+    if (copied) target.inheritIncompletenessReasonsFrom(this)
+  }
+
+  private addActiveEntry(entry: ActiveSecretEntry, options: { propagated?: boolean } = {}): void {
+    const key = activeEntryKey(entry)
     const existing = this.activeEntries.get(key)
     if (existing) {
+      if (options.propagated) this.propagatedEntryKeys.add(key)
       if (
         existing.name === entry.name &&
         existing.plaintext === entry.plaintext &&
@@ -1072,10 +1855,11 @@ export class ResolvedSecretTraceRegistry {
         entryBytes >
         MAX_SERIALIZED_PROVENANCE_BYTES
     ) {
-      this.markIncomplete()
+      this.markIncomplete('provenance-capacity-exceeded')
       return
     }
     this.activeEntries.set(key, entry)
+    if (options.propagated) this.propagatedEntryKeys.add(key)
     this.activeProvenanceEntryBytes += separatorBytes + entryBytes
     this.modelEgressRevision += 1
   }
@@ -1088,7 +1872,6 @@ export class ResolvedSecretTraceRegistry {
       catalogEntryByteSize(entry)
     const nextCatalogSize = this.catalog.size + (existing ? 0 : 1)
     if (nextCatalogSize > MAX_TRACE_CATALOG_ENTRIES || nextCatalogBytes > MAX_TRACE_CATALOG_BYTES) {
-      this.markIncomplete()
       return false
     }
 
@@ -1133,7 +1916,7 @@ export async function createResolvedSecretTraceRegistry(
     options.restoreTrusted === true &&
     options.restoredCheckpointVersion !== undefined
   ) {
-    registry.markIncomplete()
+    registry.markIncomplete('restored-checkpoint-unavailable')
   }
 
   return registry
@@ -1144,6 +1927,6 @@ export function createIncompleteResolvedSecretTraceRegistry(
   scope?: ResolvedSecretTraceScopeV1
 ): ResolvedSecretTraceRegistry {
   const registry = new ResolvedSecretTraceRegistry([], scope)
-  registry.markIncomplete()
+  registry.markIncomplete('constructed-incomplete')
   return registry
 }

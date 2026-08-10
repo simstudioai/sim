@@ -5,6 +5,7 @@ import { getRequestContext } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { isPrivateSecretProvenanceScopeCompatible } from '@/lib/execution/durable-secret-provenance'
 import type {
   BulkDeleteByIdsResult,
   BulkOperationResult,
@@ -56,11 +57,15 @@ import {
 import { assertCursorSortBinding, decodeCursor } from '@/lib/table/rows/cursor'
 import {
   createExactEmptyTableRowSecretProvenance,
+  createTableRowSecretProvenanceFromRegistry,
+  createUnknownTableRowSecretProvenance,
   loadTableRowSecretProvenance,
 } from '@/lib/table/rows/secret-provenance'
 import type { FindRowMatch } from '@/lib/table/rows/service'
 import { replaceTableRowsWithTx } from '@/lib/table/rows/service'
 import { predicateToStorage } from '@/lib/table/select-values'
+import { coerceRowValues } from '@/lib/table/validation'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 
 export class TableRowsValidationError extends OrchestrationError {
   constructor(
@@ -489,6 +494,10 @@ export class ProjectedWireRowsValidationError extends TableRowsValidationError {
 export interface ReplaceProjectedWireRowsInput extends TableScopedInput {
   sourceRows: Array<Record<string, unknown>>
   projectedRows: unknown
+  secretProvenance?: {
+    mode: 'resolved_output'
+    registry?: ResolvedSecretTraceRegistry
+  }
 }
 
 export interface ReplaceProjectedWireRowsResult extends TableResult, ReplaceRowsResult {}
@@ -535,6 +544,32 @@ function projectedRowsForTable(
   return value.map((row) => rowDataNameToId(row as RowData, idByName))
 }
 
+function projectedRowsSecretProvenance(
+  rows: RowData[],
+  principal: Parameters<typeof requirePrincipalSubjectUserId>[0],
+  workspaceId: string,
+  policy: ReplaceProjectedWireRowsInput['secretProvenance']
+): TableRowSecretProvenanceWrite[] {
+  if (!policy) return rows.map(createExactEmptyTableRowSecretProvenance)
+  const registry = policy.registry
+  if (!registry) return rows.map(createUnknownTableRowSecretProvenance)
+
+  const destinationScope = {
+    userId: requirePrincipalSubjectUserId(principal),
+    workspaceId,
+  }
+  return rows.map((row) => {
+    const provenance = createTableRowSecretProvenanceFromRegistry(row, registry)
+    if (!provenance.complete) return createUnknownTableRowSecretProvenance()
+    const compatible = Object.values(provenance.columns).every(
+      (columnProvenance) =>
+        columnProvenance.entries.length === 0 ||
+        isPrivateSecretProvenanceScopeCompatible(columnProvenance.scope, destinationScope)
+    )
+    return compatible ? provenance : createUnknownTableRowSecretProvenance()
+  })
+}
+
 /** Atomically validates name-keyed projected rows against the locked schema and replaces the table. */
 export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
   operation: tableOperations.replaceRows,
@@ -555,6 +590,11 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
       context.tableId,
       async (table, trx) => {
         const rows = projectedRowsForTable(table, input.sourceRows, input.projectedRows)
+        const provenanceRows = rows.map((row) => {
+          const persistedRow = { ...row }
+          coerceRowValues(persistedRow, table.schema)
+          return persistedRow
+        })
         const replacement = await replaceTableRowsWithTx(
           trx,
           {
@@ -562,7 +602,12 @@ export const replaceProjectedWireRows = defineAuthorizedTableUseCase({
             workspaceId: table.workspaceId,
             rows,
             userId: actorUserId(principal, context.billedAccountUserId),
-            secretProvenance: rows.map(createExactEmptyTableRowSecretProvenance),
+            secretProvenance: projectedRowsSecretProvenance(
+              provenanceRows,
+              principal,
+              context.workspaceId,
+              input.secretProvenance
+            ),
           },
           table,
           requestId(input)

@@ -124,12 +124,11 @@ describe('OpenAI large-file attachment lifecycle', () => {
     ])
   })
 
-  it('projects the multipart filename without mutating upload preparation metadata', async () => {
+  it('preserves a multipart filename that collides with a configured secret', async () => {
     const request = makeRequest(CSV_BYTES)
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'FILE_NAME', plaintext: 'data_10mb.csv', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('FILE_NAME', 'data_10mb.csv')
 
     await runWithProviderRuntimeContext({ resolvedSecretTraceRegistry: registry }, async () => {
       await attachLargeFileRemoteUrls(request, 'openai')
@@ -138,7 +137,7 @@ describe('OpenAI large-file attachment lifecycle', () => {
 
     const [, init] = (fetch as unknown as ReturnType<typeof vi.fn>).mock.calls[0]
     const uploaded = (init.body as FormData).get('file') as File
-    expect(uploaded.name).toBe('{{FILE_NAME}}.csv')
+    expect(uploaded.name).toBe('data_10mb.csv')
     expect(request.messages?.[0].files?.[0].name).toBe('data_10mb.csv')
   })
 

@@ -36,7 +36,7 @@ Integrate Vanta into the workflow. Monitor compliance frameworks, controls, and 
 
 ## Actions
 
-### `vanta_list_frameworks`
+### Vanta List Frameworks
 
 List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta account with completion counts
 
@@ -57,7 +57,7 @@ List the compliance frameworks (e.g., SOC 2, ISO 27001) available in a Vanta acc
 | `frameworks` | array | Frameworks in the Vanta account |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_framework`
+### Vanta Get Framework
 
 Get a Vanta compliance framework by ID, including its requirement categories and mapped controls
 
@@ -76,7 +76,7 @@ Get a Vanta compliance framework by ID, including its requirement categories and
 | --------- | ---- | ----------- |
 | `framework` | json | The requested framework with requirement categories |
 
-### `vanta_list_framework_controls`
+### Vanta List Framework Controls
 
 List the controls that belong to a specific Vanta compliance framework
 
@@ -98,7 +98,7 @@ List the controls that belong to a specific Vanta compliance framework
 | `controls` | array | Controls belonging to the framework |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_controls`
+### Vanta List Controls
 
 List the security controls in a Vanta account, optionally filtered by framework
 
@@ -120,7 +120,7 @@ List the security controls in a Vanta account, optionally filtered by framework
 | `controls` | array | Controls matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_control`
+### Vanta Get Control
 
 Get a Vanta security control by ID, including its status and evidence pass/fail counts
 
@@ -139,7 +139,7 @@ Get a Vanta security control by ID, including its status and evidence pass/fail 
 | --------- | ---- | ----------- |
 | `control` | json | The requested control with status and evidence counts |
 
-### `vanta_list_control_tests`
+### Vanta List Control Tests
 
 List the automated tests mapped to a specific Vanta control
 
@@ -161,7 +161,7 @@ List the automated tests mapped to a specific Vanta control
 | `tests` | array | Tests mapped to the control |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_control_documents`
+### Vanta List Control Documents
 
 List the evidence documents mapped to a specific Vanta control
 
@@ -183,7 +183,7 @@ List the evidence documents mapped to a specific Vanta control
 | `documents` | array | Documents mapped to the control |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_tests`
+### Vanta List Tests
 
 List the automated compliance tests in a Vanta account, with filters for status, framework, integration, control, owner, and category
 
@@ -211,7 +211,7 @@ List the automated compliance tests in a Vanta account, with filters for status,
 | `tests` | array | Tests matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_test`
+### Vanta Get Test
 
 Get a Vanta automated compliance test by ID, including its status and remediation info
 
@@ -230,7 +230,7 @@ Get a Vanta automated compliance test by ID, including its status and remediatio
 | --------- | ---- | ----------- |
 | `test` | json | The requested test |
 
-### `vanta_list_test_entities`
+### Vanta List Test Entities
 
 List the failing or deactivated resource entities for a specific Vanta test, useful for finding exactly which resources need remediation
 
@@ -253,7 +253,7 @@ List the failing or deactivated resource entities for a specific Vanta test, use
 | `entities` | array | Resource entities for the test |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_documents`
+### Vanta List Documents
 
 List the evidence documents in a Vanta account, optionally filtered by framework or document status
 
@@ -276,7 +276,7 @@ List the evidence documents in a Vanta account, optionally filtered by framework
 | `documents` | array | Documents matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_document`
+### Vanta Get Document
 
 Get a Vanta evidence document by ID, including its renewal schedule and deactivation status
 
@@ -295,7 +295,7 @@ Get a Vanta evidence document by ID, including its renewal schedule and deactiva
 | --------- | ---- | ----------- |
 | `document` | json | The requested document |
 
-### `vanta_list_document_uploads`
+### Vanta List Document Uploads
 
 List the files uploaded to a specific Vanta evidence document
 
@@ -317,7 +317,7 @@ List the files uploaded to a specific Vanta evidence document
 | `uploads` | array | Files uploaded to the document |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_upload_document_file`
+### Vanta Upload Document File
 
 Upload an evidence file to a Vanta document. Requires credentials with the vanta-api.documents:upload scope.
 
@@ -342,7 +342,7 @@ Upload an evidence file to a Vanta document. Requires credentials with the vanta
 | --------- | ---- | ----------- |
 | `upload` | json | Metadata of the uploaded file |
 
-### `vanta_download_document_file`
+### Vanta Download Document File
 
 Download a file previously uploaded to a Vanta evidence document and store it in execution files
 
@@ -365,7 +365,7 @@ Download a file previously uploaded to a Vanta evidence document and store it in
 | `mimeType` | string | MIME type of the downloaded file |
 | `size` | number | Size of the downloaded file in bytes |
 
-### `vanta_submit_document`
+### Vanta Submit Document
 
 Submit a Vanta document collection for review so uploaded evidence becomes visible to auditors. Requires credentials with write access.
 
@@ -385,7 +385,7 @@ Submit a Vanta document collection for review so uploaded evidence becomes visib
 | `documentId` | string | ID of the submitted document |
 | `submitted` | boolean | Whether the document collection was submitted |
 
-### `vanta_list_people`
+### Vanta List People
 
 List the people tracked in a Vanta account with employment status, group membership, and security task completion
 
@@ -412,7 +412,7 @@ List the people tracked in a Vanta account with employment status, group members
 | `people` | array | People matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_person`
+### Vanta Get Person
 
 Get a person tracked in Vanta by ID, including employment, leave, and security task status
 
@@ -431,7 +431,7 @@ Get a person tracked in Vanta by ID, including employment, leave, and security t
 | --------- | ---- | ----------- |
 | `person` | json | The requested person |
 
-### `vanta_list_policies`
+### Vanta List Policies
 
 List the security policies in a Vanta account with approval status and version info
 
@@ -452,7 +452,7 @@ List the security policies in a Vanta account with approval status and version i
 | `policies` | array | Policies in the Vanta account |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_policy`
+### Vanta Get Policy
 
 Get a Vanta security policy by ID, including its approval status and latest approved version documents
 
@@ -471,7 +471,7 @@ Get a Vanta security policy by ID, including its approval status and latest appr
 | --------- | ---- | ----------- |
 | `policy` | json | The requested policy |
 
-### `vanta_list_vendors`
+### Vanta List Vendors
 
 List the vendors tracked in a Vanta account with risk levels, contract dates, and security review schedules
 
@@ -494,7 +494,7 @@ List the vendors tracked in a Vanta account with risk levels, contract dates, an
 | `vendors` | array | Vendors matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_vendor`
+### Vanta Get Vendor
 
 Get a Vanta vendor by ID, including risk levels, contract details, and authentication info
 
@@ -513,7 +513,7 @@ Get a Vanta vendor by ID, including risk levels, contract details, and authentic
 | --------- | ---- | ----------- |
 | `vendor` | json | The requested vendor |
 
-### `vanta_list_monitored_computers`
+### Vanta List Monitored Computers
 
 List the monitored computers in a Vanta account with screenlock, disk encryption, password manager, and antivirus check outcomes
 
@@ -535,7 +535,7 @@ List the monitored computers in a Vanta account with screenlock, disk encryption
 | `computers` | array | Monitored computers matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_vulnerabilities`
+### Vanta List Vulnerabilities
 
 List the vulnerabilities detected across a Vanta account with filters for severity, fixability, SLA deadlines, package, and integration
 
@@ -567,7 +567,7 @@ List the vulnerabilities detected across a Vanta account with filters for severi
 | `vulnerabilities` | array | Vulnerabilities matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_vulnerability_remediations`
+### Vanta List Vulnerability Remediations
 
 List remediated vulnerabilities in a Vanta account with detection, SLA deadline, and remediation dates
 
@@ -593,7 +593,7 @@ List remediated vulnerabilities in a Vanta account with detection, SLA deadline,
 | `remediations` | array | Vulnerability remediations matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_list_vulnerable_assets`
+### Vanta List Vulnerable Assets
 
 List the assets associated with vulnerabilities in a Vanta account (servers, repositories, workstations, and more)
 
@@ -618,7 +618,7 @@ List the assets associated with vulnerabilities in a Vanta account (servers, rep
 | `assets` | array | Vulnerable assets matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_vulnerable_asset`
+### Vanta Get Vulnerable Asset
 
 Get a vulnerable asset in Vanta by ID, including the scanners reporting it and per-scanner asset details
 
@@ -637,7 +637,7 @@ Get a vulnerable asset in Vanta by ID, including the scanners reporting it and p
 | --------- | ---- | ----------- |
 | `asset` | json | The requested vulnerable asset |
 
-### `vanta_list_risk_scenarios`
+### Vanta List Risk Scenarios
 
 List the risk scenarios in a Vanta risk register with likelihood/impact scores, treatment decisions, and review status
 
@@ -669,7 +669,7 @@ List the risk scenarios in a Vanta risk register with likelihood/impact scores, 
 | `riskScenarios` | array | Risk scenarios matching the filters |
 | `pageInfo` | json | Cursor pagination info for the returned page; pass endCursor as pageCursor to fetch the next page |
 
-### `vanta_get_risk_scenario`
+### Vanta Get Risk Scenario
 
 Get a Vanta risk scenario by ID, including its scores, treatment decision, and review status
 

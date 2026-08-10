@@ -8,6 +8,7 @@ import {
   readNodeStreamToBufferWithLimit,
 } from '@/lib/core/utils/stream-limits'
 import { GCS_CONFIG } from '@/lib/uploads/config'
+import { isObjectNotFoundError } from '@/lib/uploads/core/errors'
 import type {
   GcsConfig,
   GcsMultipartPart,
@@ -420,7 +421,7 @@ async function getGcsMultipartCompletionId(
     const metadata = await getGcsObjectMetadata(key, customConfig)
     return metadata[GCS_MULTIPART_UPLOAD_ID_METADATA_KEY] ?? null
   } catch (error) {
-    if ((error as { code?: number } | null)?.code === 404) return null
+    if (isObjectNotFoundError(error)) return null
     throw error
   }
 }

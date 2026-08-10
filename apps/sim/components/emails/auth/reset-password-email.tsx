@@ -1,6 +1,6 @@
-import { Link, Text } from '@react-email/components'
+import { Text } from '@react-email/components'
 import { baseStyles } from '@/components/emails/_styles'
-import { EmailLayout } from '@/components/emails/components'
+import { EmailButton, EmailLayout } from '@/components/emails/components'
 import { getBrandConfig } from '@/ee/whitelabeling'
 
 interface ResetPasswordEmailProps {
@@ -13,20 +13,17 @@ export function ResetPasswordEmail({ username = '', resetLink = '' }: ResetPassw
 
   return (
     <EmailLayout preview={`Reset your ${brand.name} password`} showUnsubscribe={false}>
-      <Text style={baseStyles.paragraph}>Hello {username},</Text>
+      <Text style={baseStyles.greeting}>Hello {username},</Text>
       <Text style={baseStyles.paragraph}>
         A password reset was requested for your {brand.name} account. Click below to set a new
         password.
       </Text>
 
-      <Link href={resetLink} style={{ textDecoration: 'none' }}>
-        <Text style={baseStyles.button}>Reset Password</Text>
-      </Link>
+      <EmailButton href={resetLink}>Reset Password</EmailButton>
 
-      {/* Divider */}
       <div style={baseStyles.divider} />
 
-      <Text style={{ ...baseStyles.footerText, textAlign: 'left' }}>
+      <Text style={baseStyles.footnote}>
         If you didn't request this, you can ignore this email. Link expires in 24 hours.
       </Text>
     </EmailLayout>

@@ -79,8 +79,16 @@ export const WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID = 'wealthbox-service-account'
 export const PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID = 'pipedrive-service-account' as const
 export const CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID =
   'claude-platform-service-account' as const
+export const SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID = 'snowflake-service-account' as const
 
 const SHOPIFY_DOMAIN_HINT_REGEX = /^[a-z0-9][a-z0-9-]*\.myshopify\.com$/i
+
+/**
+ * Account hostnames carry a variable number of labels — `myorg-myaccount`,
+ * but also the legacy `xy12345.us-east-1` locator form — so dots are allowed
+ * before the `snowflakecomputing` suffix. China accounts use `.cn`.
+ */
+const SNOWFLAKE_HOST_HINT_REGEX = /^[a-z0-9][a-z0-9.-]*\.snowflakecomputing\.(com|cn)$/i
 
 export type TokenServiceAccountProviderId =
   | typeof HUBSPOT_SERVICE_ACCOUNT_PROVIDER_ID
@@ -98,6 +106,7 @@ export type TokenServiceAccountProviderId =
   | typeof WEALTHBOX_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof PIPEDRIVE_SERVICE_ACCOUNT_PROVIDER_ID
   | typeof CLAUDE_PLATFORM_SERVICE_ACCOUNT_PROVIDER_ID
+  | typeof SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID
 
 export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
   TokenServiceAccountProviderId,
@@ -380,6 +389,31 @@ export const TOKEN_SERVICE_ACCOUNT_DESCRIPTORS: Record<
       },
     ],
     docsUrl: 'https://docs.sim.ai/integrations/managed-agent',
+  },
+  [SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID]: {
+    providerId: SNOWFLAKE_SERVICE_ACCOUNT_PROVIDER_ID,
+    serviceLabel: 'Snowflake',
+    tokenNoun: 'programmatic access token',
+    connectNoun: 'programmatic access token',
+    fields: [
+      {
+        id: 'domain',
+        label: 'Account host',
+        placeholder: 'myorg-myaccount.snowflakecomputing.com',
+        secret: false,
+        hintPattern: SNOWFLAKE_HOST_HINT_REGEX,
+        hintMessage: 'Snowflake account hosts end in .snowflakecomputing.com.',
+      },
+      {
+        id: 'apiToken',
+        label: 'Programmatic access token',
+        placeholder: 'Paste a programmatic access token',
+        secret: true,
+      },
+    ],
+    docsUrl: 'https://docs.sim.ai/integrations/snowflake-service-account',
+    invalidCredentialsHelp:
+      'Snowflake rejected this token. Check that it belongs to a user on this exact account host, that it has not expired or been revoked, that a network policy allows Sim to reach the account, and that the SQL API is enabled for the account.',
   },
 }
 

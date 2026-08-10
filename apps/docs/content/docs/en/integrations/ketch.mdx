@@ -34,7 +34,7 @@ Integrate Ketch into the workflow. Retrieve and update consent preferences, mana
 
 ## Actions
 
-### `ketch_get_consent`
+### Ketch Get Consent
 
 Retrieve consent status for a data subject. Returns the current consent preferences for each configured purpose.
 
@@ -58,7 +58,7 @@ Retrieve consent status for a data subject. Returns the current consent preferen
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
 | `vendors` | object | Map of vendor consent statuses |
 
-### `ketch_set_consent`
+### Ketch Set Consent
 
 Update consent preferences for a data subject. Sets the consent status for specified purposes with the appropriate legal basis.
 
@@ -82,7 +82,7 @@ Update consent preferences for a data subject. Sets the consent status for speci
 |   ↳ `allowed` | string | Consent status for the purpose: "granted" or "denied" |
 |   ↳ `legalBasisCode` | string | Legal basis code \(e.g., "consent_optin", "consent_optout", "disclosure", "other"\) |
 
-### `ketch_get_subscriptions`
+### Ketch Get Subscriptions
 
 Retrieve subscription preferences for a data subject. Returns the current subscription topic and control statuses.
 
@@ -102,7 +102,7 @@ Retrieve subscription preferences for a data subject. Returns the current subscr
 | `topics` | object | Map of topic codes to contact method settings \(e.g., \{"newsletter": \{"email": \{"status": "granted"\}\}\}\) |
 | `controls` | object | Map of control codes to settings \(e.g., \{"global_unsubscribe": \{"status": "denied"\}\}\) |
 
-### `ketch_set_subscriptions`
+### Ketch Set Subscriptions
 
 Update subscription preferences for a data subject. Sets topic and control statuses for email, SMS, and other contact methods.
 
@@ -123,7 +123,7 @@ Update subscription preferences for a data subject. Sets topic and control statu
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the subscription preferences were updated |
 
-### `ketch_invoke_right`
+### Ketch Invoke Right
 
 Submit a data subject rights request (e.g., access, delete, correct, restrict processing). Initiates a privacy rights workflow in Ketch.
 

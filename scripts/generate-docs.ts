@@ -59,6 +59,7 @@ const HANDWRITTEN_INTEGRATION_DOCS = new Set([
   'pipedrive-service-account',
   'salesforce-service-account',
   'shopify-service-account',
+  'snowflake-service-account',
   'trello-service-account',
   'wealthbox-service-account',
   'webflow-service-account',
@@ -157,7 +158,6 @@ if (!fs.existsSync(DOCS_OUTPUT_PATH)) {
   fs.mkdirSync(DOCS_OUTPUT_PATH, { recursive: true })
 }
 
-// Ensure docs components directory exists
 const docsComponentsDir = path.dirname(DOCS_ICONS_PATH)
 if (!fs.existsSync(docsComponentsDir)) {
   fs.mkdirSync(docsComponentsDir, { recursive: true })
@@ -253,6 +253,56 @@ interface TriggerConfigField {
   required: boolean
   description?: string
   placeholder?: string
+}
+
+/** The subset of `SubBlockConfig` the generated configuration table reads. */
+interface RegistrySubBlock {
+  id?: string
+  type?: string
+  title?: string
+  description?: string
+  placeholder?: unknown
+  /** `true`, or a condition object making the field required only for some configurations. */
+  required?: unknown
+  readOnly?: boolean
+}
+
+interface RegistryTrigger {
+  subBlocks?: RegistrySubBlock[]
+  outputs?: Record<string, any>
+}
+
+/** Present for the operator, not part of a trigger's configuration surface. */
+const TRIGGER_UI_ONLY_IDS = new Set([
+  'webhookUrlDisplay',
+  'triggerInstructions',
+  'selectedTriggerId',
+])
+
+/**
+ * Loads the evaluated trigger registry.
+ *
+ * Imported by absolute path so Bun resolves the `@/` aliases against `apps/sim`'s tsconfig
+ * rather than this script's.
+ */
+async function loadTriggerRegistry(): Promise<Record<string, RegistryTrigger>> {
+  const module = await import(path.join(rootDir, 'apps/sim/triggers/registry.ts'))
+  return module.TRIGGER_REGISTRY as Record<string, RegistryTrigger>
+}
+
+/** Human-facing tool names, keyed by tool id. Kept in sync with the registry by CI. */
+let toolDisplayNames: Map<string, string> | null = null
+
+async function loadToolDisplayNames(): Promise<Map<string, string>> {
+  if (toolDisplayNames) return toolDisplayNames
+  const module = await import(path.join(rootDir, 'apps/sim/tools/generated/tool-metadata.ts'))
+  const metadata = module.default as Record<string, { name?: string }>
+  toolDisplayNames = new Map(
+    Object.entries(metadata).flatMap(([id, entry]) =>
+      entry?.name ? [[id, entry.name] as const] : []
+    )
+  )
+  return toolDisplayNames
 }
 
 interface TriggerFullInfo {
@@ -377,7 +427,6 @@ async function generateIconMapping(options: {
       // First, extract the primary icon from the file (usually the legacy block's icon)
       const primaryIcon = extractIconNameFromContent(fileContent)
 
-      // Find all block exports and their types
       const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
       let match
 
@@ -385,7 +434,6 @@ async function generateIconMapping(options: {
         const blockName = match[1]
         const startIndex = match.index + match[0].length - 1
 
-        // Extract the block content
         const endIndex = findMatchingClose(fileContent, startIndex)
 
         if (endIndex !== -1) {
@@ -401,18 +449,15 @@ async function generateIconMapping(options: {
             continue
           }
 
-          // Get block type
           const blockType =
             extractStringPropertyFromContent(blockContent, 'type') || blockName.toLowerCase()
 
-          // Get icon - either from this block or inherited from primary
           const iconName = extractIconNameFromContent(blockContent) || primaryIcon
 
           if (!blockType || !iconName) {
             continue
           }
 
-          // Skip trigger/webhook/rss blocks
           if (
             blockType.includes('_trigger') ||
             blockType.includes('_webhook') ||
@@ -421,7 +466,6 @@ async function generateIconMapping(options: {
             continue
           }
 
-          // Get category for additional filtering
           const category = extractStringPropertyFromContent(blockContent, 'category') || 'misc'
 
           // Exclude first-party `blocks`-category primitives (except the native
@@ -440,7 +484,16 @@ async function generateIconMapping(options: {
           }
 
           const isVersionedBlockType = isVersionedType(blockType)
-          if (!hideFromToolbar || (options.includeHidden && isVersionedBlockType)) {
+          /**
+           * A sunset block keeps its docs page — `docsLink` is baked into every
+           * placed instance — so it still needs an icon there, exactly like a
+           * hidden versioned block. Without this it renders as a text tile.
+           */
+          const isSunsetBlockType = /sunset\s*:\s*\{/.test(stripSourceComments(blockContent))
+          if (
+            !hideFromToolbar ||
+            (options.includeHidden && (isVersionedBlockType || isSunsetBlockType))
+          ) {
             iconMapping[blockType] = {
               name: iconName,
               source: resolveIconSource(fileContent, iconName),
@@ -533,7 +586,6 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
   const subBlocksMatch = /subBlocks\s*:\s*\[/.exec(blockContent)
   if (!subBlocksMatch) return []
 
-  // Locate the opening '[' of the subBlocks array
   const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
   const arrayEnd = findMatchingClose(blockContent, arrayStart, '[', ']')
   if (arrayEnd === -1) return []
@@ -556,7 +608,6 @@ function extractOperationsFromContent(blockContent: string): { label: string; id
         if (optArrayEnd === -1) return []
         const optionsContent = objContent.substring(optArrayStart + 1, optArrayEnd - 1)
 
-        // Extract { label, id } pairs from each option object
         const pairs: { label: string; id: string }[] = []
         const optionObjectRegex = /\{[^{}]*\}/g
         let m
@@ -681,7 +732,6 @@ async function buildToolDescriptionMap(): Promise<ToolMaps> {
  * 'api-key' if it uses a plain API key field, or 'none' otherwise.
  */
 function extractAuthType(blockContent: string): 'oauth' | 'api-key' | 'none' {
-  // Prefer the authoritative `authMode` declaration when present.
   if (/authMode\s*:\s*AuthMode\.OAuth\b/.test(blockContent)) return 'oauth'
   if (/authMode\s*:\s*AuthMode\.(?:ApiKey|BotToken)\b/.test(blockContent)) return 'api-key'
   // Fall back to credential subBlock heuristics for blocks without authMode.
@@ -943,7 +993,6 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
         }
         const integrationType = config.integrationType as IntegrationType
 
-        // Deduplicate by stripped base type
         const baseType = stripVersionSuffix(blockType)
         if (seenBaseTypes.has(baseType)) continue
         seenBaseTypes.add(baseType)
@@ -967,7 +1016,6 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
             const switchMappedId = switchCaseMap.get(id)
             if (switchMappedId) {
               opDesc = toolDescMap.get(switchMappedId) || ''
-              // Also check versioned variants in tools.access (e.g. gmail_send_v2)
               if (!opDesc) {
                 for (const tId of toolsAccess) {
                   if (tId === switchMappedId || tId.startsWith(`${switchMappedId}_v`)) {
@@ -1037,7 +1085,6 @@ async function writeIntegrationsJson(iconMapping: Record<string, IconRef>): Prom
       }
     }
 
-    // Sort alphabetically by name for a predictable, crawl-friendly order
     integrations.sort((a, b) => a.name.localeCompare(b.name))
 
     const jsonPath = path.join(INTEGRATIONS_DATA_PATH, 'integrations.json')
@@ -1085,7 +1132,6 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
   // First, extract the primary icon from the file (for V2 blocks that inherit via spread)
   const primaryIcon = extractIconNameFromContent(fileContent)
 
-  // Find all block exports in the file
   const exportRegex = /export\s+const\s+(\w+)Block\s*:\s*BlockConfig[^=]*=\s*\{/g
   let match
 
@@ -1093,13 +1139,11 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
     const blockName = match[1]
     const startIndex = match.index + match[0].length - 1 // Position of opening brace
 
-    // Extract the block content by matching braces
     const endIndex = findMatchingClose(fileContent, startIndex)
 
     if (endIndex !== -1) {
       const blockContent = fileContent.substring(startIndex, endIndex)
 
-      // Check if this block has hideFromToolbar: true
       const hideFromToolbar = /hideFromToolbar\s*:\s*true/.test(stripSourceComments(blockContent))
       if (hideFromToolbar) {
         console.log(`Skipping ${blockName}Block - hideFromToolbar is true`)
@@ -1114,7 +1158,6 @@ function extractAllBlockConfigs(fileContent: string): BlockConfig[] {
         continue
       }
 
-      // Pass fileContent to enable spread inheritance resolution
       const config = extractBlockConfigFromContent(blockContent, blockName, fileContent)
       if (config) {
         // For V2 blocks that don't have an explicit icon, use the primary icon from the file
@@ -1148,12 +1191,10 @@ function extractBlockConfigFromContent(
   fileContent?: string
 ): BlockConfig | null {
   try {
-    // Check for spread inheritance
     const spreadBase = extractSpreadBase(blockContent)
     let baseConfig: BlockConfig | null = null
 
     if (spreadBase && fileContent) {
-      // Extract the base block's content from the file
       const baseBlockRegex = new RegExp(
         `export\\s+const\\s+${spreadBase}\\s*:\\s*BlockConfig[^=]*=\\s*\\{`,
         'g'
@@ -1210,7 +1251,6 @@ function extractBlockConfigFromContent(
         /access\s*:\s*\(\s*\w+Block\.tools\?\.access\s*\|\|\s*\[\]\s*\)\.map\s*\(\s*\(\s*\w+\s*\)\s*=>\s*`\$\{\s*\w+\s*\}_v(\d+)`\s*\)/
       )
       if (mapMatch) {
-        // V2 block - append the version suffix to base tools
         const versionSuffix = `_v${mapMatch[1]}`
         finalToolsAccess = baseConfig.tools.access.map((tool) => `${tool}${versionSuffix}`)
       }
@@ -1544,7 +1584,6 @@ function extractToolsAccessFromContent(content: string): string[] {
 function getToolPrefixFromName(toolName: string): string {
   const parts = toolName.split('_')
 
-  // Try to find a valid tool directory
   for (let i = parts.length - 1; i >= 1; i--) {
     const possiblePrefix = parts.slice(0, i).join('_')
     const toolDirPath = path.join(rootDir, `apps/sim/tools/${possiblePrefix}`)
@@ -1571,22 +1610,18 @@ function resolveConstReference(
   toolPrefix: string,
   depth = 0
 ): Record<string, any> | null {
-  // Prevent infinite recursion
   if (depth > 10) {
     console.warn(`Max recursion depth reached resolving const: ${constName}`)
     return null
   }
 
-  // Check cache first
   const cacheKey = `${toolPrefix}:${constName}`
   if (constResolutionCache.has(cacheKey)) {
     return constResolutionCache.get(cacheKey)!
   }
 
-  // Read the types file for this tool
   const typesFilePath = path.join(rootDir, `apps/sim/tools/${toolPrefix}/types.ts`)
   if (!fs.existsSync(typesFilePath)) {
-    // Try to find const in the tool file itself
     return null
   }
 
@@ -1604,7 +1639,6 @@ function resolveConstReference(
     return null
   }
 
-  // Extract the const content
   const startIndex = constMatch.index + constMatch[0].length - 1
   const endIndex = findMatchingClose(typesContent, startIndex)
 
@@ -1629,7 +1663,6 @@ function resolveConstReference(
   // Otherwise, this is a properties object - use parseConstProperties
   const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
 
-  // Cache the result
   constResolutionCache.set(cacheKey, properties)
 
   return properties
@@ -1652,7 +1685,6 @@ function parseConstProperties(
   while ((spreadMatch = spreadRegex.exec(content)) !== null) {
     const constName = spreadMatch[1]
 
-    // Check if at depth 0
     const beforeMatch = content.substring(0, spreadMatch.index)
     const openBraces = (beforeMatch.match(/\{/g) || []).length
     const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -1662,12 +1694,10 @@ function parseConstProperties(
 
     const resolvedConst = resolveConstFromTypesContent(constName, typesContent, toolPrefix, depth)
     if (resolvedConst && typeof resolvedConst === 'object') {
-      // Spread all properties from the resolved const
       Object.assign(properties, resolvedConst)
     }
   }
 
-  // Find all top-level property definitions
   const propRegex = /(\w+)\s*:\s*(?:\{|([A-Z][A-Z_0-9]+)(?:\s*,|\s*$))/g
   let match
 
@@ -1675,12 +1705,10 @@ function parseConstProperties(
     const propName = match[1]
     const constRef = match[2]
 
-    // Skip 'items' keyword (always a nested structure, never a field name)
     if (propName === 'items') {
       continue
     }
 
-    // Check if this match is at depth 0 (not inside nested braces)
     const beforeMatch = content.substring(0, match.index)
     const openBraces = (beforeMatch.match(/\{/g) || []).length
     const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -1691,7 +1719,6 @@ function parseConstProperties(
     // For 'properties' or 'type', check if it's an output field definition vs a keyword
     // Output field definitions have 'type:' inside (e.g., { type: 'string', description: '...' })
     if ((propName === 'properties' || propName === 'type') && !constRef) {
-      // Peek at what's inside the braces
       const startPos = match.index + match[0].length - 1
       const endPos = findMatchingClose(content, startPos)
       if (endPos !== -1) {
@@ -1715,7 +1742,6 @@ function parseConstProperties(
         properties[propName] = resolvedConst
       }
     } else {
-      // This property has inline definition
       const startPos = match.index + match[0].length - 1
       const endPos = findMatchingClose(content, startPos)
 
@@ -1743,13 +1769,11 @@ function resolveConstFromTypesContent(
 ): Record<string, any> | null {
   if (depth > 10) return null
 
-  // Check cache
   const cacheKey = `${toolPrefix}:${constName}`
   if (constResolutionCache.has(cacheKey)) {
     return constResolutionCache.get(cacheKey)!
   }
 
-  // Find the const definition in typesContent
   const constRegex = new RegExp(
     `export\\s+const\\s+${constName}\\s*(?::\\s*[^=]+)?\\s*=\\s*\\{`,
     'g'
@@ -1770,7 +1794,6 @@ function resolveConstFromTypesContent(
   // Check if this const defines a complete output field (has type property)
   const typeMatch = constContent.match(/^\s*type\s*:\s*['"]([^'"]+)['"]/)
   if (typeMatch) {
-    // This is a complete output definition (like ATTENDEES_OUTPUT)
     const result = parseConstFieldContent(constContent, toolPrefix, typesContent, depth)
     if (result) {
       constResolutionCache.set(cacheKey, result)
@@ -1778,7 +1801,6 @@ function resolveConstFromTypesContent(
     return result
   }
 
-  // This is a properties object (like ATTENDEE_OUTPUT_PROPERTIES)
   const properties = parseConstProperties(constContent, toolPrefix, typesContent, depth + 1)
   constResolutionCache.set(cacheKey, properties)
   return properties
@@ -1822,9 +1844,7 @@ function parseConstFieldContent(
     description: description || '',
   }
 
-  // Check for properties - either inline or const reference
   if (fieldType === 'object' || fieldType === 'json') {
-    // Check for const reference first
     const propsConstMatch = fieldContent.match(/properties\s*:\s*([A-Z][A-Z_0-9]+)/)
     if (propsConstMatch) {
       const resolvedProps = resolveConstFromTypesContent(
@@ -1837,7 +1857,6 @@ function parseConstFieldContent(
         result.properties = resolvedProps
       }
     } else {
-      // Check for inline properties
       const propertiesStart = fieldContent.search(/properties\s*:\s*\{/)
       if (propertiesStart !== -1) {
         const braceStart = fieldContent.indexOf('{', propertiesStart)
@@ -1856,7 +1875,6 @@ function parseConstFieldContent(
     }
   }
 
-  // Check for items (arrays)
   const itemsConstMatch = fieldContent.match(/items\s*:\s*([A-Z][A-Z_0-9]+)/)
   if (itemsConstMatch) {
     const resolvedItems = resolveConstFromTypesContent(
@@ -1958,9 +1976,42 @@ function extractOutputsFromToolContent(content: string, toolPrefix: string): Rec
   return {}
 }
 
+/**
+ * Resolves the module a tool delegates its config to, for tools built by a
+ * factory instead of an inline object literal:
+ *
+ *   export const embeddingsOpenAITool = createEmbeddingTool({ id, provider, ... })
+ *
+ * The `params` block lives in the factory's module, so a file-local search finds
+ * nothing and the docs page renders an empty Input table. This follows the
+ * factory's import the way {@link extractSpreadBase} follows a same-file spread.
+ * Returns null when the tool declares its own config, which is the common case.
+ */
+function resolveFactorySource(fileContent: string, toolFilePath: string, rootDir: string): string {
+  const factoryCall = fileContent.match(/=\s*(create\w+)\s*\(\s*\{/)
+  if (!factoryCall) return ''
+
+  const factoryName = factoryCall[1]
+  const importMatch = fileContent.match(
+    new RegExp(`import\\s*\\{[^}]*\\b${factoryName}\\b[^}]*\\}\\s*from\\s*['"]([^'"]+)['"]`)
+  )
+  if (!importMatch) return ''
+
+  const specifier = importMatch[1]
+  const resolved = specifier.startsWith('@/')
+    ? path.join(rootDir, 'apps/sim', specifier.slice(2))
+    : path.resolve(path.dirname(toolFilePath), specifier)
+
+  for (const candidate of [`${resolved}.ts`, path.join(resolved, 'index.ts')]) {
+    if (fs.existsSync(candidate)) return fs.readFileSync(candidate, 'utf-8')
+  }
+  return ''
+}
+
 function extractToolInfo(
   toolName: string,
-  fileContent: string
+  fileContent: string,
+  factorySource = ''
 ): {
   description: string
   params: Array<{ name: string; type: string; required: boolean; description: string }>
@@ -1994,8 +2045,11 @@ function extractToolInfo(
     // compress.ts) don't all inherit the first tool's params. Fall back to the
     // full file for tools that inherit params via spread from a base object.
     const toolConfigRegex =
-      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|request|directExecution|postProcess|transformResponse)\s*:/
-    const toolConfigMatch = toolContent.match(toolConfigRegex) ?? fileContent.match(toolConfigRegex)
+      /params\s*:\s*{([\s\S]*?)},?\s*(?:outputs|oauth|hosting|request|directExecution|postProcess|transformResponse)\s*:/
+    const toolConfigMatch =
+      toolContent.match(toolConfigRegex) ??
+      fileContent.match(toolConfigRegex) ??
+      factorySource.match(toolConfigRegex)
 
     // Description should come from the specific tool block if found
     // Only search before nested objects (params, outputs, request, etc.) to avoid matching
@@ -2030,7 +2084,6 @@ function extractToolInfo(
       )
       if (inheritedDescMatch) {
         const baseTool = inheritedDescMatch[1]
-        // Try to find the base tool's description in the file
         const baseToolDescRegex = new RegExp(
           `export\\s+const\\s+${baseTool}Tool[^{]*\\{[\\s\\S]*?description\\s*:\\s*(?:'([^']+)'|"([^"]+)"|\`([^\`]+)\`)`,
           'i'
@@ -2071,7 +2124,6 @@ function extractToolInfo(
           const char = content[i]
           const prevChar = i > 0 ? content[i - 1] : ''
 
-          // Skip escaped quotes
           if (prevChar === '\\') continue
 
           if (char === "'" && !inDoubleQuote && !inBacktick) {
@@ -2139,7 +2191,6 @@ function extractToolInfo(
       }
     }
 
-    // Get the tool prefix for resolving const references
     const toolPrefix = getToolPrefixFromName(toolName)
 
     let outputs = extractOutputsFromToolContent(toolContent, toolPrefix)
@@ -2210,16 +2261,7 @@ function formatOutputStructure(outputs: Record<string, any>, indentLevel = 0): s
       }
     }
 
-    const escapedDescription = description
-      .replace(/\|/g, '\\|')
-      .replace(/\{/g, '\\{')
-      .replace(/\}/g, '\\}')
-      .replace(/\(/g, '\\(')
-      .replace(/\)/g, '\\)')
-      .replace(/\[/g, '\\[')
-      .replace(/\]/g, '\\]')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
+    const escapedDescription = escapeMdxCell(description)
 
     // Build prefix based on indent level - each level adds 2 spaces before the arrow
     let prefix = ''
@@ -2259,14 +2301,12 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
   // First, handle top-level const references
   // Patterns: "data: BOOKING_DATA_OUTPUT_PROPERTIES" or "pagination: PAGINATION_OUTPUT"
   if (toolPrefix) {
-    // Pattern 1: Direct const reference
     const constRefRegex = /(\w+)\s*:\s*([A-Z][A-Z_0-9]+)\s*(?:,|$)/g
     let constMatch
     while ((constMatch = constRefRegex.exec(outputsContent)) !== null) {
       const propName = constMatch[1]
       const constName = constMatch[2]
 
-      // Check if at depth 0
       const beforeMatch = outputsContent.substring(0, constMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2288,12 +2328,10 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
       const constName = propAccessMatch[2]
       const accessedProp = propAccessMatch[3]
 
-      // Skip if already resolved
       if (outputs[propName]) {
         continue
       }
 
-      // Check if at depth 0
       const beforeMatch = outputsContent.substring(0, propAccessMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2313,7 +2351,6 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
     while ((spreadMatch = spreadRegex.exec(outputsContent)) !== null) {
       const constName = spreadMatch[1]
 
-      // Check if at depth 0 (not inside nested braces)
       const beforeMatch = outputsContent.substring(0, spreadMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2323,7 +2360,6 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
 
       const resolvedConst = resolveConstReference(constName, toolPrefix)
       if (resolvedConst && typeof resolvedConst === 'object') {
-        // Spread all properties from the resolved const
         Object.assign(outputs, resolvedConst)
       }
     }
@@ -2357,7 +2393,6 @@ function parseToolOutputsField(outputsContent: string, toolPrefix?: string): Rec
     const fieldName = match[1]
     const bracePos = match.index + match[0].length - 1
 
-    // Skip if already resolved as const reference
     if (outputs[fieldName]) {
       continue
     }
@@ -2426,7 +2461,6 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
     if (resolvedConst && typeof resolvedConst === 'object') {
       // Start with the resolved const and override with inline properties
       const result: any = { ...resolvedConst }
-      // Override description if provided inline
       if (description) {
         result.description = description
       }
@@ -2465,7 +2499,6 @@ function parseFieldContent(fieldContent: string, toolPrefix?: string): any {
         result.properties = resolvedProps
       }
     } else {
-      // Check for inline properties
       const propertiesRegex = /properties\s*:\s*{/
       const propertiesStart = fieldContent.search(propertiesRegex)
 
@@ -2569,12 +2602,10 @@ function parsePropertiesContent(
       const propName = constMatch[1]
       const constName = constMatch[2]
 
-      // Skip keywords
       if (propName === 'items' || propName === 'properties' || propName === 'type') {
         continue
       }
 
-      // Check if at depth 0
       const beforeMatch = propertiesContent.substring(0, constMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2596,17 +2627,14 @@ function parsePropertiesContent(
       const constName = propAccessMatch[2]
       const accessedProp = propAccessMatch[3]
 
-      // Skip keywords
       if (propName === 'items' || propName === 'properties' || propName === 'type') {
         continue
       }
 
-      // Skip if already resolved
       if (properties[propName]) {
         continue
       }
 
-      // Check if at depth 0
       const beforeMatch = propertiesContent.substring(0, propAccessMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2626,7 +2654,6 @@ function parsePropertiesContent(
     while ((spreadMatch = spreadRegex.exec(propertiesContent)) !== null) {
       const constName = spreadMatch[1]
 
-      // Check if at depth 0
       const beforeMatch = propertiesContent.substring(0, spreadMatch.index)
       const openBraces = (beforeMatch.match(/\{/g) || []).length
       const closeBraces = (beforeMatch.match(/\}/g) || []).length
@@ -2636,7 +2663,6 @@ function parsePropertiesContent(
 
       const resolvedConst = resolveConstReference(constName, toolPrefix)
       if (resolvedConst && typeof resolvedConst === 'object') {
-        // Spread all properties from the resolved const
         Object.assign(properties, resolvedConst)
       }
     }
@@ -2653,7 +2679,6 @@ function parsePropertiesContent(
       continue
     }
 
-    // Skip if already resolved as const reference
     if (properties[propName]) {
       continue
     }
@@ -2732,7 +2757,6 @@ async function getToolInfo(toolName: string): Promise<{
       toolSuffix = parts.slice(1).join('_')
     }
 
-    // Check if this is a versioned tool (e.g., _v2, _v3)
     const isVersionedTool = isVersionedType(toolSuffix)
     const strippedToolSuffix = stripVersionSuffix(toolSuffix)
 
@@ -2741,7 +2765,6 @@ async function getToolInfo(toolName: string): Promise<{
     // For versioned tools, prioritize the exact versioned file first
     // This handles cases like google_sheets where V2 is in a separate file (read_v2.ts)
     if (isVersionedTool) {
-      // First priority: exact versioned file (e.g., read_v2.ts)
       possibleLocations.push({
         path: path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`),
         priority: 'exact',
@@ -2752,14 +2775,12 @@ async function getToolInfo(toolName: string): Promise<{
         priority: 'fallback',
       })
     } else {
-      // Non-versioned tool: try the direct file
       possibleLocations.push({
         path: path.join(rootDir, `apps/sim/tools/${toolPrefix}/${toolSuffix}.ts`),
         priority: 'exact',
       })
     }
 
-    // Also try camelCase versions
     const camelCaseSuffix = strippedToolSuffix
       .split('_')
       .map((part, i) => (i === 0 ? part : part.charAt(0).toUpperCase() + part.slice(1)))
@@ -2769,7 +2790,6 @@ async function getToolInfo(toolName: string): Promise<{
       priority: 'fallback',
     })
 
-    // Fall back to index.ts
     possibleLocations.push({
       path: path.join(rootDir, `apps/sim/tools/${toolPrefix}/index.ts`),
       priority: 'fallback',
@@ -2779,12 +2799,10 @@ async function getToolInfo(toolName: string): Promise<{
     let foundFile = ''
     let foundExactId = false
 
-    // Try to find a file that contains the exact tool ID
     for (const location of possibleLocations) {
       if (fs.existsSync(location.path)) {
         const content = fs.readFileSync(location.path, 'utf-8')
 
-        // Check if this file contains the exact tool ID we're looking for
         const toolIdRegex = new RegExp(`id:\\s*['"]${toolName}['"]`)
         if (toolIdRegex.test(content)) {
           toolFileContent = content
@@ -2839,7 +2857,11 @@ async function getToolInfo(toolName: string): Promise<{
       return null
     }
 
-    return extractToolInfo(toolName, toolFileContent)
+    return extractToolInfo(
+      toolName,
+      toolFileContent,
+      resolveFactorySource(toolFileContent, foundFile, rootDir)
+    )
   } catch (error) {
     console.error(`Error getting info for tool ${toolName}:`, error)
     return null
@@ -2923,7 +2945,6 @@ async function generateBlockDoc(blockPath: string) {
       return
     }
 
-    // Process each block config
     for (const blockConfig of blockConfigs) {
       if (!blockConfig.type) {
         continue
@@ -3007,16 +3028,7 @@ async function generateMarkdownForBlock(
       const output = outputs[outputKey]
 
       const escapedDescription = output.description
-        ? output.description
-            .replace(/\|/g, '\\|')
-            .replace(/\{/g, '\\{')
-            .replace(/\}/g, '\\}')
-            .replace(/\(/g, '\\(')
-            .replace(/\)/g, '\\)')
-            .replace(/\[/g, '\\[')
-            .replace(/\]/g, '\\]')
-            .replace(/</g, '&lt;')
-            .replace(/>/g, '&gt;')
+        ? escapeMdxCell(output.description)
         : `Output from ${outputKey}`
 
       if (typeof output.type === 'string') {
@@ -3039,16 +3051,7 @@ async function generateMarkdownForBlock(
         for (const propName in output.properties) {
           const prop = output.properties[propName]
           const escapedPropertyDescription = prop.description
-            ? prop.description
-                .replace(/\|/g, '\\|')
-                .replace(/\{/g, '\\{')
-                .replace(/\}/g, '\\}')
-                .replace(/\(/g, '\\(')
-                .replace(/\)/g, '\\)')
-                .replace(/\[/g, '\\[')
-                .replace(/\]/g, '\\]')
-                .replace(/</g, '&lt;')
-                .replace(/>/g, '&gt;')
+            ? escapeMdxCell(prop.description)
             : `The ${propName} of the ${outputKey}`
 
           outputsSection += `| ↳ \`${propName}\` | ${prop.type} | ${escapedPropertyDescription} |\n`
@@ -3063,19 +3066,21 @@ async function generateMarkdownForBlock(
   if (tools.access?.length) {
     toolsSection = '## Actions\n\n'
 
+    const displayNames = await loadToolDisplayNames()
+
     for (const tool of tools.access) {
-      // Strip version suffix from tool name for display
-      const displayToolName = stripVersionSuffix(tool)
-      toolsSection += `### \`${displayToolName}\`\n\n`
+      // Prefer the tool's own name ("A2A Send Message") over its id — the id is an
+      // implementation detail, and these headings are what the page's table of
+      // contents shows. Falls back to the id for a tool missing from the metadata.
+      const heading = displayNames.get(tool) ?? displayNames.get(stripVersionSuffix(tool))
+      toolsSection += `### ${heading ?? stripVersionSuffix(tool)}\n\n`
 
       console.log(`Getting info for tool: ${tool}`)
       const toolInfo = await getToolInfo(tool)
 
       if (toolInfo) {
         if (toolInfo.description && toolInfo.description !== 'No description available') {
-          const escapedToolDescription = toolInfo.description
-            .replace(/\{/g, '\\{')
-            .replace(/\}/g, '\\}')
+          const escapedToolDescription = escapeMdxProse(toolInfo.description)
           toolsSection += `${escapedToolDescription}\n\n`
         }
 
@@ -3086,16 +3091,7 @@ async function generateMarkdownForBlock(
         if (toolInfo.params.length > 0) {
           for (const param of toolInfo.params) {
             const escapedDescription = param.description
-              ? param.description
-                  .replace(/\|/g, '\\|')
-                  .replace(/\{/g, '\\{')
-                  .replace(/\}/g, '\\}')
-                  .replace(/\(/g, '\\(')
-                  .replace(/\)/g, '\\)')
-                  .replace(/\[/g, '\\[')
-                  .replace(/\]/g, '\\]')
-                  .replace(/</g, '&lt;')
-                  .replace(/>/g, '&gt;')
+              ? escapeMdxCell(param.description)
               : 'No description'
 
             toolsSection += `| \`${param.name}\` | ${param.type} | ${param.required ? 'Yes' : 'No'} | ${escapedDescription} |\n`
@@ -3128,16 +3124,7 @@ async function generateMarkdownForBlock(
               }
             }
 
-            const escapedDescription = description
-              .replace(/\|/g, '\\|')
-              .replace(/\{/g, '\\{')
-              .replace(/\}/g, '\\}')
-              .replace(/\(/g, '\\(')
-              .replace(/\)/g, '\\)')
-              .replace(/\[/g, '\\[')
-              .replace(/\]/g, '\\]')
-              .replace(/</g, '&lt;')
-              .replace(/>/g, '&gt;')
+            const escapedDescription = escapeMdxCell(description)
 
             toolsSection += `| \`${key}\` | ${type} | ${escapedDescription} |\n`
           }
@@ -3283,6 +3270,23 @@ function formatTriggerProviderName(provider: string): string {
 /**
  * Escape text for use inside an MDX table cell.
  */
+/**
+ * Escapes MDX-hostile characters in text emitted as a paragraph rather than a table cell.
+ *
+ * MDX reads `{` as an expression and `<` as the start of a JSX tag, so a tool description
+ * like `The copy is named "<original> - copy"` fails the docs build outright with
+ * "Expected a closing tag for `<original>`". Unlike {@link escapeMdxCell} this leaves
+ * pipes, parens and brackets alone — those are legal in prose, and escaping them would
+ * mangle markdown links.
+ */
+function escapeMdxProse(text: string): string {
+  return text
+    .replace(/\{/g, '\\{')
+    .replace(/\}/g, '\\}')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+}
+
 function escapeMdxCell(text: string): string {
   return text
     .replace(/\|/g, '\\|')
@@ -3309,7 +3313,6 @@ function resolveConstVariable(
 ): Record<string, any> {
   if (depth > 8) return {}
 
-  // Match `const varName = {` (with optional type annotation)
   const varRegex = new RegExp(`(?<![.\\w])const\\s+${varName}\\s*(?::[^=]+)?=\\s*\\{`)
 
   for (const content of [primaryContent, utilsContent]) {
@@ -3345,468 +3348,101 @@ function resolveConstVariable(
   return {}
 }
 
+/** Keys a `TriggerOutput` reserves for itself; everything else is a nested property. */
+const TRIGGER_OUTPUT_RESERVED_KEYS = new Set([
+  'type',
+  'description',
+  'condition',
+  'properties',
+  'items',
+])
+
 /**
- * Recursively resolve a trigger output builder function.
- * Handles the common pattern where builders spread other builders:
- *   `return { ...buildBaseOutputs(), fieldA: { type: 'string', ... } }`
- * Also handles variable spreads:
- *   `return { ...coreOutputs, ...deploymentOutputs }`
+ * Convert a trigger's registry `outputs` into the `{ type, description, properties }`
+ * shape the docs renderer walks.
  *
- * Searches for the function definition in `primaryContent` first, then `utilsContent`.
- * Recursion depth is capped to avoid infinite loops.
+ * A `TriggerOutput` expresses a nested object by simply omitting `type` and holding its
+ * children as sibling keys (`issue: { id: {...}, title: {...} }`), while the renderer only
+ * descends into `properties` on a node typed `object`/`json`. Handing it the raw registry
+ * value would print every nested group as a single `unknown` row with its children dropped.
+ *
+ * Classification is unambiguous: a node with a string `type` is a leaf, anything else is a
+ * group. No registry group carries a string `description` of its own, so a nested property
+ * genuinely named `description` is preserved rather than mistaken for the group's own text.
  */
-function resolveTriggerBuilderFunction(
-  funcName: string,
-  primaryContent: string,
-  utilsContent: string,
-  depth = 0
-): Record<string, any> {
-  if (depth > 8) return {}
+function normalizeTriggerOutputs(raw: Record<string, any>): Record<string, any> {
+  const normalized: Record<string, any> = {}
+  for (const [key, value] of Object.entries(raw)) {
+    if (key === 'condition') continue
+    if (typeof value !== 'object' || value === null) continue
+    normalized[key] = normalizeTriggerOutputNode(value)
+  }
+  return normalized
+}
 
-  const funcRegex = new RegExp(`(?:export\\s+)?function\\s+${funcName}\\s*\\(`)
-  let funcBody: string | null = null
+function normalizeTriggerOutputNode(node: Record<string, any>): Record<string, any> {
+  const type = typeof node.type === 'string' ? node.type : undefined
+  const description = typeof node.description === 'string' ? node.description : ''
 
-  for (const content of [primaryContent, utilsContent]) {
-    const funcMatch = funcRegex.exec(content)
-    if (!funcMatch) continue
-
-    const bodyStart = content.indexOf('{', funcMatch.index)
-    if (bodyStart === -1) continue
-
-    const bodyEnd = findMatchingClose(content, bodyStart)
-    if (bodyEnd === -1) continue
-
-    funcBody = content.substring(bodyStart + 1, bodyEnd - 1)
-    break
+  const inlineChildren: Record<string, any> = {}
+  for (const [key, value] of Object.entries(node)) {
+    const isOwnDescription = key === 'description' && typeof node.description === 'string'
+    if (isOwnDescription || (TRIGGER_OUTPUT_RESERVED_KEYS.has(key) && key !== 'description')) {
+      continue
+    }
+    if (typeof value !== 'object' || value === null) continue
+    inlineChildren[key] = value
   }
 
-  if (!funcBody) return {}
-
-  // Handle `return anotherFunc(...)` — full delegation to another builder,
-  // with or without arguments (argument values are ignored; only structure matters).
-  const returnFuncCallMatch = /\breturn\s+([a-z][a-zA-Z0-9_]*)\s*\(/.exec(funcBody.trim())
-  if (returnFuncCallMatch) {
-    return resolveTriggerBuilderFunction(
-      returnFuncCallMatch[1],
-      primaryContent,
-      utilsContent,
-      depth + 1
-    )
+  if (type === undefined) {
+    return { type: 'object', description, properties: normalizeTriggerOutputs(inlineChildren) }
   }
 
-  // Handle `return { ... }` — inline object literal
-  const returnMatch = /\breturn\s*\{/.exec(funcBody)
-  if (!returnMatch) return {}
-
-  const returnObjStart = funcBody.indexOf('{', returnMatch.index)
-  const returnObjEnd = findMatchingClose(funcBody, returnObjStart)
-  if (returnObjEnd === -1) return {}
-
-  const returnBody = funcBody.substring(returnObjStart + 1, returnObjEnd - 1).trim()
-
-  const result: Record<string, any> = {}
-
-  // Expand function-call spreads first: ...innerFuncName()
-  const spreadFuncRegex = /\.\.\.\s*(\w+)\s*\(\s*\)/g
-  let spreadMatch: RegExpExecArray | null
-  while ((spreadMatch = spreadFuncRegex.exec(returnBody)) !== null) {
-    const innerFuncName = spreadMatch[1]
-    const resolved = resolveTriggerBuilderFunction(
-      innerFuncName,
-      primaryContent,
-      utilsContent,
-      depth + 1
-    )
-    Object.assign(result, resolved)
+  const result: Record<string, any> = { type, description }
+  if (node.items && typeof node.items === 'object') {
+    const items = node.items as Record<string, any>
+    result.items =
+      items.properties && typeof items.properties === 'object'
+        ? { ...items, properties: normalizeTriggerOutputs(items.properties) }
+        : items
   }
-
-  // Expand variable spreads: ...varName (no parentheses — const references)
-  const spreadVarRegex = /\.\.\.\s*([a-zA-Z_]\w*)\b(?!\s*\()/g
-  let spreadVarMatch: RegExpExecArray | null
-  while ((spreadVarMatch = spreadVarRegex.exec(returnBody)) !== null) {
-    const varName = spreadVarMatch[1]
-    const resolved = resolveConstVariable(varName, primaryContent, utilsContent, depth + 1)
-    Object.assign(result, resolved)
+  const declaredProperties =
+    node.properties && typeof node.properties === 'object' ? node.properties : undefined
+  if (declaredProperties || Object.keys(inlineChildren).length > 0) {
+    result.properties = normalizeTriggerOutputs({ ...declaredProperties, ...inlineChildren })
   }
-
-  // Then parse any inline field definitions (strip all spread lines first)
-  const bodyWithoutSpreads = returnBody
-    .replace(/\.\.\.\s*\w+\s*\(\s*\)\s*,?\s*/g, '') // function call spreads
-    .replace(/\.\.\.\s*\w+\b(?!\s*\()\s*,?\s*/g, '') // variable spreads
-  const inlineOutputs = parseToolOutputsField(bodyWithoutSpreads)
-  Object.assign(result, inlineOutputs)
-
   return result
 }
 
 /**
- * Read every sibling module of a trigger file so identifiers it references —
- * builder functions and shared `outputs`/config constants alike — can be
- * resolved from source text. Triggers keep these in `utils.ts` or `shared.ts`
- * depending on the provider, so the whole directory is scanned rather than one
- * hard-coded filename.
+ * A trigger's user-facing configuration fields, in declaration order.
+ *
+ * Read from the evaluated registry rather than parsed out of source. Static parsing silently
+ * dropped every field whose builder assembled its array imperatively or took a description as
+ * a parameter — that is how all ten Jira triggers lost `webhookSecret` and `jqlFilter` — and
+ * a regex that recovered them also invented `fieldFilters` on the nine triggers that never
+ * declare it. Wrong config is worse than absent config, so this evaluates the real objects.
  */
-function readTriggerSiblingModules(triggerFile: string): string {
-  const dir = path.dirname(triggerFile)
-  if (!fs.existsSync(dir)) return ''
-  return fs
-    .readdirSync(dir)
-    .filter((f) => f.endsWith('.ts') && !f.includes('.test.') && path.join(dir, f) !== triggerFile)
-    .map((f) => {
-      try {
-        return fs.readFileSync(path.join(dir, f), 'utf-8')
-      } catch {
-        return ''
-      }
-    })
-    .join('\n')
-}
-
-/**
- * Resolve `outputs: SOME_CONSTANT` by locating the constant's object literal in
- * the trigger file or one of its siblings. Without this the generated page
- * silently loses the trigger's entire Output table the moment a provider
- * factors its outputs out into a shared constant.
- */
-function resolveTriggerOutputsConstant(
-  constName: string,
-  primaryContent: string,
-  siblingContent: string
-): Record<string, any> {
-  const declRegex = new RegExp(`(?:export\\s+)?const\\s+${constName}\\s*(?::[^=]+)?=\\s*\\{`)
-  for (const content of [primaryContent, siblingContent]) {
-    const declMatch = declRegex.exec(content)
-    if (!declMatch) continue
-    const openPos = content.indexOf('{', declMatch.index)
-    if (openPos === -1) continue
-    const closePos = findMatchingClose(content, openPos)
-    if (closePos === -1) continue
-    return parseToolOutputsField(content.substring(openPos + 1, closePos - 1).trim())
-  }
-  return {}
-}
-
-/**
- * Extract the outputs object from a TriggerConfig segment.
- * Handles inline `outputs: { ... }`, function-call patterns like
- * `outputs: buildIssueOutputs()`, and bare constant references like
- * `outputs: SLACK_TRIGGER_OUTPUTS`, resolving each from the trigger file
- * itself and its sibling modules.
- */
-function extractTriggerOutputs(
-  segment: string,
-  fileContent: string,
-  utilsContent: string
-): Record<string, any> {
-  // 1. Inline outputs: outputs: { ... }
-  const outputsMatch = /\boutputs\s*:\s*\{/.exec(segment)
-  if (outputsMatch) {
-    const openPos = segment.indexOf('{', outputsMatch.index + outputsMatch[0].length - 1)
-    if (openPos !== -1) {
-      const closePos = findMatchingClose(segment, openPos)
-      if (closePos !== -1) {
-        const outputsContent = segment.substring(openPos + 1, closePos - 1).trim()
-        return parseToolOutputsField(outputsContent)
-      }
-    }
-  }
-
-  // 2. Function-call outputs: outputs: buildFoo()
-  const funcCallMatch = /\boutputs\s*:\s*(\w+)\s*\(\s*\)/.exec(segment)
-  if (funcCallMatch) {
-    return resolveTriggerBuilderFunction(funcCallMatch[1], fileContent, utilsContent)
-  }
-
-  // 3. Constant reference: outputs: SLACK_TRIGGER_OUTPUTS
-  const constRefMatch = /\boutputs\s*:\s*([A-Za-z_$][\w$]*)\s*[,\n}]/.exec(segment)
-  if (constRefMatch) {
-    return resolveTriggerOutputsConstant(constRefMatch[1], fileContent, utilsContent)
-  }
-
-  return {}
-}
-
-/**
- * Lazy-loaded cache of all TypeScript files in `lib/webhooks/providers/`.
- * Used to resolve exported string constants that are imported by trigger utils files
- * (e.g. `GONG_JWT_PUBLIC_KEY_CONFIG_KEY` from `lib/webhooks/providers/gong.ts`).
- */
-let _webhookProviderConstantsCache: string | null = null
-function getWebhookProviderConstants(): string {
-  if (_webhookProviderConstantsCache === null) {
-    const dir = path.join(rootDir, 'apps/sim/lib/webhooks/providers')
-    if (fs.existsSync(dir)) {
-      _webhookProviderConstantsCache = fs
-        .readdirSync(dir)
-        .filter((f) => f.endsWith('.ts'))
-        .map((f) => fs.readFileSync(path.join(dir, f), 'utf-8'))
-        .join('\n')
-    } else {
-      _webhookProviderConstantsCache = ''
-    }
-  }
-  return _webhookProviderConstantsCache
-}
-
-/**
- * Try to resolve a SCREAMING_SNAKE_CASE constant to its string value by
- * searching in the given content AND the webhook provider constants cache.
- */
-function resolveConstStringValue(constName: string, content: string): string | null {
-  const pattern = new RegExp(`\\b${constName}\\s*=\\s*['"]([^'"]+)['"]`)
-  return pattern.exec(content)?.[1] ?? pattern.exec(getWebhookProviderConstants())?.[1] ?? null
-}
-
-/**
- * Parse a single SubBlockConfig object literal into a TriggerConfigField.
- * Returns null for blocks that should be skipped (UI-only IDs, text type, readOnly).
- * Accepts optional `resolverContent` to resolve const-reference field IDs.
- */
-/**
- * Read a quoted string property, matching the opening quote to its own closing
- * quote. A single `['"]…[^'"]+…['"]` character class ends the match at the
- * first quote of *either* kind, so an apostrophe inside a double-quoted string
- * ("Doesn't fire…") truncates the value mid-word.
- */
-function matchQuotedProperty(content: string, propName: string): string | undefined {
-  const match = new RegExp(`\\b${propName}\\s*:\\s*(?:'([^']*)'|"([^"]*)"|\`([^\`]*)\`)`).exec(
-    content
-  )
-  if (!match) return undefined
-  return match[1] ?? match[2] ?? match[3]
-}
-
-function parseSubBlockObject(
-  obj: string,
-  uiOnlyIds: Set<string>,
-  resolverContent?: string
-): TriggerConfigField | null {
-  let id: string | undefined = matchQuotedProperty(obj, 'id')
-
-  // Handle const-reference ids: `id: SCREAMING_CASE_IDENTIFIER`
-  if (!id) {
-    const constRefMatch = /\bid\s*:\s*([A-Z][A-Z0-9_]+)\b/.exec(obj)
-    if (constRefMatch) {
-      id = resolveConstStringValue(constRefMatch[1], resolverContent ?? '') ?? undefined
-    }
-  }
-
-  if (!id || uiOnlyIds.has(id)) return null
-
-  const type = matchQuotedProperty(obj, 'type')
-  if (type === 'text') return null
-  if (/\breadOnly\s*:\s*true/.test(obj)) return null
-
-  const title = matchQuotedProperty(obj, 'title')
-  const requiredMatch = /\brequired\s*:\s*(true)/.exec(obj)
-  const placeholder = matchQuotedProperty(obj, 'placeholder')
-
-  // Use title as description fallback so oauth-input and other fields without
-  // an explicit description still show something meaningful in the docs table.
-  const description = matchQuotedProperty(obj, 'description') ?? title
-
-  return {
-    id,
-    title: title ?? id,
-    type: type ?? 'short-input',
-    required: Boolean(requiredMatch),
-    placeholder,
-    description,
-  }
-}
-
-/**
- * Resolve a SubBlockConfig builder function to its field definitions.
- * Handles `return [...]`, `return {...}`, and `blocks.push(...)` patterns.
- * Searches `utilsContent` first, then `primaryContent`.
- */
-function resolveSubBlockBuilderFunction(
-  funcName: string,
-  utilsContent: string,
-  primaryContent?: string
-): TriggerConfigField[] {
-  const UI_ONLY_IDS = new Set(['webhookUrlDisplay', 'triggerInstructions', 'selectedTriggerId'])
-
-  for (const content of [utilsContent, primaryContent ?? '']) {
-    if (!content) continue
-    const funcRegex = new RegExp(`(?:export\\s+)?function\\s+${funcName}\\s*\\(`)
-    const funcMatch = funcRegex.exec(content)
-    if (!funcMatch) continue
-
-    // Find the closing ')' of the parameter list, then the '{' that opens the function body.
-    // Using just indexOf('{') would pick up '{' inside object-type parameters.
-    const openParen = content.indexOf('(', funcMatch.index)
-    if (openParen === -1) continue
-    const closeParen = findMatchingClose(content, openParen, '(', ')')
-    if (closeParen === -1) continue
-    const bodyStart = content.indexOf('{', closeParen)
-    if (bodyStart === -1) continue
-    const bodyEnd = findMatchingClose(content, bodyStart)
-    if (bodyEnd === -1) continue
-
-    const funcBody = content.substring(bodyStart + 1, bodyEnd - 1)
-
-    // Pattern 1: `return [...]`
-    const returnArrayMatch = /\breturn\s*\[/.exec(funcBody)
-    if (returnArrayMatch) {
-      const arrayStart = funcBody.indexOf('[', returnArrayMatch.index)
-      const arrayEnd = findMatchingClose(funcBody, arrayStart, '[', ']')
-      if (arrayEnd !== -1) {
-        return parseSubBlockArrayContent(
-          funcBody.substring(arrayStart + 1, arrayEnd - 1),
-          UI_ONLY_IDS,
-          content
-        )
-      }
-    }
-
-    // Pattern 2: `return { ... }` (single object)
-    const returnObjMatch = /\breturn\s*\{/.exec(funcBody)
-    if (returnObjMatch) {
-      const objStart = funcBody.indexOf('{', returnObjMatch.index)
-      const objEnd = findMatchingClose(funcBody, objStart)
-      if (objEnd !== -1) {
-        const field = parseSubBlockObject(
-          funcBody.substring(objStart, objEnd),
-          UI_ONLY_IDS,
-          content
-        )
-        return field ? [field] : []
-      }
-    }
-
-    // Pattern 3: `blocks.push({...})`
-    const pushFields: TriggerConfigField[] = []
-    const pushRegex = /\bblocks\.push\s*\(/g
-    let pushMatch: RegExpExecArray | null
-    while ((pushMatch = pushRegex.exec(funcBody)) !== null) {
-      const parenStart = pushMatch.index + pushMatch[0].length - 1
-      const parenEnd = findMatchingClose(funcBody, parenStart, '(', ')')
-      if (parenEnd === -1) continue
-      const pushArg = funcBody.substring(parenStart + 1, parenEnd - 1).trim()
-      if (pushArg.startsWith('{')) {
-        const field = parseSubBlockObject(pushArg, UI_ONLY_IDS, content)
-        if (field) pushFields.push(field)
-      }
-    }
-    if (pushFields.length > 0) return pushFields
-  }
-
-  return []
-}
-
-/**
- * Parse SubBlockConfig items from within an array body (between the brackets).
- * Handles inline `{...}` objects and function calls `funcName(...)`.
- */
-function parseSubBlockArrayContent(
-  arrayContent: string,
-  uiOnlyIds: Set<string>,
-  utilsContent: string
-): TriggerConfigField[] {
+function triggerConfigFields(trigger: RegistryTrigger | undefined): TriggerConfigField[] {
   const fields: TriggerConfigField[] = []
-  let i = 0
-
-  while (i < arrayContent.length) {
-    if (arrayContent[i] === '{') {
-      const j = findMatchingClose(arrayContent, i)
-      if (j === -1) break
-      const field = parseSubBlockObject(arrayContent.substring(i, j), uiOnlyIds, utilsContent)
-      if (field) fields.push(field)
-      i = j
-    } else if (/[a-zA-Z_]/.test(arrayContent[i])) {
-      // Possible function call: funcName(args)
-      const funcCallMatch = /^(\w+)\s*\(/.exec(arrayContent.substring(i))
-      if (funcCallMatch && utilsContent) {
-        const funcName = funcCallMatch[1]
-        if (funcName !== 'true' && funcName !== 'false' && funcName !== 'null') {
-          fields.push(...resolveSubBlockBuilderFunction(funcName, utilsContent))
-        }
-        // Advance past the function call's closing paren
-        const openIdx = arrayContent.indexOf('(', i + funcName.length)
-        if (openIdx !== -1) {
-          const closeIdx = findMatchingClose(arrayContent, openIdx, '(', ')')
-          i = closeIdx !== -1 ? closeIdx : openIdx + 1
-        } else {
-          i += funcName.length
-        }
-      } else {
-        i++
-      }
-    } else {
-      i++
-    }
+  for (const subBlock of trigger?.subBlocks ?? []) {
+    if (!subBlock.id || TRIGGER_UI_ONLY_IDS.has(subBlock.id)) continue
+    if (subBlock.type === 'text' || subBlock.readOnly === true) continue
+    fields.push({
+      id: subBlock.id,
+      title: subBlock.title ?? subBlock.id,
+      type: subBlock.type ?? 'short-input',
+      // Only an unconditional `true` counts. `required` is also allowed to be a
+      // condition object (`{ field, value }`), which makes the field required for
+      // some configurations and not others — "No" is the honest summary there.
+      required: subBlock.required === true,
+      placeholder: typeof subBlock.placeholder === 'string' ? subBlock.placeholder : undefined,
+      // Falling back to the title keeps oauth-input and other description-less
+      // fields from rendering an empty cell.
+      description: subBlock.description ?? subBlock.title,
+    })
   }
-
   return fields
-}
-
-/**
- * Extract user-facing configuration fields from a TriggerConfig subBlocks definition.
- * Handles both inline arrays (`subBlocks: [...]`) and builder function calls
- * (`subBlocks: buildXSubBlocks({...})`), resolving them from the trigger file and utils.ts.
- */
-function extractTriggerConfigFields(
-  segment: string,
-  primaryContent?: string,
-  utilsContent?: string
-): TriggerConfigField[] {
-  const UI_ONLY_IDS = new Set(['webhookUrlDisplay', 'triggerInstructions', 'selectedTriggerId'])
-  const allContent = utilsContent || primaryContent || ''
-
-  // Case 1: Inline subBlocks: [...]
-  const subBlocksMatch = /\bsubBlocks\s*:\s*\[/.exec(segment)
-  if (subBlocksMatch) {
-    const arrayStart = subBlocksMatch.index + subBlocksMatch[0].length - 1
-    const arrayEnd = findMatchingClose(segment, arrayStart, '[', ']')
-    if (arrayEnd === -1) return []
-    return parseSubBlockArrayContent(
-      segment.substring(arrayStart + 1, arrayEnd - 1),
-      UI_ONLY_IDS,
-      allContent
-    )
-  }
-
-  // Case 2: Builder function call — subBlocks: buildXFunc(...)
-  if (!allContent) return []
-  const builderCallMatch = /\bsubBlocks\s*:\s*(\w+)\s*\(/.exec(segment)
-  if (!builderCallMatch) return []
-
-  const funcName = builderCallMatch[1]
-
-  // Special case: buildTriggerSubBlocks — user config lives in the `extraFields` parameter
-  if (funcName === 'buildTriggerSubBlocks') {
-    const openParen = builderCallMatch.index + builderCallMatch[0].length - 1
-    const closeParen = findMatchingClose(segment, openParen, '(', ')')
-    if (closeParen === -1) return []
-
-    const argsBody = segment.substring(openParen + 1, closeParen - 1)
-    const extraFieldsMatch = /\bextraFields\s*:\s*/.exec(argsBody)
-    if (!extraFieldsMatch) return []
-
-    // Find first non-whitespace char after "extraFields:"
-    let valuePos = extraFieldsMatch.index + extraFieldsMatch[0].length
-    while (valuePos < argsBody.length && /\s/.test(argsBody[valuePos])) valuePos++
-
-    if (argsBody[valuePos] === '[') {
-      // extraFields: [...] — inline array, may contain function calls
-      const arrayEnd = findMatchingClose(argsBody, valuePos, '[', ']')
-      if (arrayEnd === -1) return []
-      return parseSubBlockArrayContent(
-        argsBody.substring(valuePos + 1, arrayEnd - 1),
-        UI_ONLY_IDS,
-        allContent
-      )
-    }
-
-    // extraFields: buildXFunc(args) — resolve the builder function
-    const extraFuncMatch = /^(\w+)\s*\(/.exec(argsBody.substring(valuePos))
-    if (!extraFuncMatch) return []
-    return resolveSubBlockBuilderFunction(extraFuncMatch[1], allContent)
-  }
-
-  // For all other builders, resolve the function body directly
-  return resolveSubBlockBuilderFunction(funcName, allContent)
 }
 
 /**
@@ -3820,14 +3456,11 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
   const triggerFiles = (await glob(`${TRIGGERS_PATH}/**/*.ts`)).filter(
     (f) => !SKIP.has(path.basename(f)) && !f.includes('.test.')
   )
+  const registryTriggers = await loadTriggerRegistry()
 
   for (const file of triggerFiles) {
     try {
       const content = fs.readFileSync(file, 'utf-8')
-
-      // Load sibling modules (utils.ts, shared.ts, …) so builder functions and
-      // shared output/config constants referenced by name still resolve.
-      const utilsContent = readTriggerSiblingModules(file)
 
       const exportRegex = /export\s+const\s+\w+\s*:\s*TriggerConfig\s*=\s*\{/g
       let exportMatch: RegExpExecArray | null
@@ -3854,6 +3487,7 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
         if (/\bdeprecated\s*:\s*true/.test(segment)) continue
 
         const polling = /\bpolling\s*:\s*true/.test(segment)
+        const registryTrigger = registryTriggers[idMatch[1]]
 
         registry.set(idMatch[1], {
           id: idMatch[1],
@@ -3861,8 +3495,8 @@ async function buildFullTriggerRegistry(): Promise<Map<string, TriggerFullInfo>>
           description: descMatch?.[1] ?? '',
           provider: providerMatch[1],
           polling,
-          outputs: extractTriggerOutputs(segment, content, utilsContent),
-          configFields: extractTriggerConfigFields(segment, content, utilsContent),
+          outputs: normalizeTriggerOutputs(registryTrigger?.outputs ?? {}),
+          configFields: triggerConfigFields(registryTrigger),
         })
       }
     } catch {
@@ -3960,7 +3594,6 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
   for (let i = 0; i < triggers.length; i++) {
     const trigger = triggers[i]
 
-    // Configuration table
     let configSection = ''
     if (trigger.configFields.length > 0) {
       configSection = '#### Configuration\n\n'
@@ -3974,7 +3607,6 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
       configSection += '\n'
     }
 
-    // Output table
     let outputSection = ''
     if (Object.keys(trigger.outputs).length > 0) {
       outputSection = '#### Output\n\n'
@@ -3987,9 +3619,7 @@ function buildTriggersSection(triggers: TriggerFullInfo[]): string {
     const separator = i < triggers.length - 1 ? '\n---\n\n' : ''
 
     triggersSection += `### ${trigger.name}\n\n`
-    const escapedTriggerDescription = trigger.description
-      .replace(/\{/g, '\\{')
-      .replace(/\}/g, '\\}')
+    const escapedTriggerDescription = escapeMdxProse(trigger.description)
     triggersSection += `${escapedTriggerDescription}\n\n`
     triggersSection += configSection
     triggersSection += outputSection
@@ -4171,15 +3801,12 @@ async function generateAllTriggerDocs(): Promise<void> {
 
 async function generateAllBlockDocs() {
   try {
-    // Copy icons from sim app to docs app
     copyIconsFile()
 
-    // Generate icon mappings from block definitions
     const docsIconMapping = await generateIconMapping({ includeHidden: true })
     const visibleIconMapping = await generateIconMapping({ includeHidden: false })
     writeIconMapping(docsIconMapping)
 
-    // Generate landing integrations page data (JSON + icon mapping)
     await writeIntegrationsJson(visibleIconMapping)
     writeIntegrationsIconMapping(visibleIconMapping)
 

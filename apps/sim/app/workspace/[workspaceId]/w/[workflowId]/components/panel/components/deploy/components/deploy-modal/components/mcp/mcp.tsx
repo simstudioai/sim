@@ -541,7 +541,7 @@ export function McpDeploy({
       ))}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Tool name
         </Label>
         <ChipInput
@@ -562,7 +562,7 @@ export function McpDeploy({
       </div>
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Description
         </Label>
         <Textarea
@@ -579,7 +579,7 @@ export function McpDeploy({
 
       {inputFormat.length > 0 && (
         <div>
-          <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+          <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
             Parameters ({inputFormat.length})
           </Label>
           <p className='mb-[6.5px] pl-0.5 text-[var(--text-secondary)] text-xs'>
@@ -593,7 +593,7 @@ export function McpDeploy({
               >
                 <div className='flex items-center justify-between bg-[var(--surface-4)] px-2.5 py-[5px]'>
                   <div className='flex min-w-0 flex-1 items-center gap-2'>
-                    <span className='block truncate font-medium text-[var(--text-tertiary)] text-sm'>
+                    <span className='block truncate text-[var(--text-tertiary)] text-sm'>
                       {field.name}
                     </span>
                     <Badge variant='type' size='sm'>
@@ -627,7 +627,7 @@ export function McpDeploy({
       )}
 
       <div>
-        <Label className='mb-[6.5px] block pl-0.5 font-medium text-[var(--text-primary)] text-small'>
+        <Label className='mb-[6.5px] block pl-0.5 text-[var(--text-primary)] text-small'>
           Servers
         </Label>
         <ChipCombobox

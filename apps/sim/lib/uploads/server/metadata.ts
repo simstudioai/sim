@@ -3,7 +3,7 @@ import { workspaceFiles } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
-import type { DbOrTx } from '@/lib/db/types'
+import type { DbOrTx, DbTransaction } from '@/lib/db/types'
 import { type StorageContext, toLegacyWorkspaceFileSize } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
@@ -172,6 +172,39 @@ async function insertFileMetadataWithExecutor(
     logger.error(`Failed to insert file metadata for key: ${key}`, error)
     throw error
   }
+}
+
+async function insertImmutableFileMetadataWithExecutor(
+  executor: DbOrTx,
+  options: FileMetadataInsertOptions
+): Promise<FileMetadataRecord> {
+  const { key, userId, workspaceId, context, originalName, contentType, size, folderId, id } =
+    options
+  const [inserted] = await executor
+    .insert(workspaceFiles)
+    .values({
+      id: id || generateId(),
+      key,
+      userId,
+      workspaceId: workspaceId || null,
+      folderId: folderId ?? null,
+      context,
+      originalName,
+      displayName: originalName,
+      contentType,
+      size: toLegacyWorkspaceFileSize(size),
+      sizeBytes: size,
+      deletedAt: null,
+      uploadedAt: new Date(),
+    })
+    .onConflictDoNothing()
+    .returning()
+
+  if (inserted) return inserted
+
+  const active = await findActiveFileMetadataByKey(executor, key)
+  if (!active) throw new ActiveFileMetadataKeyConflictError(key)
+  return resolveExistingFileMetadata(active, options)
 }
 
 /**
@@ -408,7 +441,15 @@ export interface KnowledgeBaseFileOwnership {
  * through here so they cannot drift.
  */
 export async function recordKnowledgeBaseFileOwnership(
-  ownership: KnowledgeBaseFileOwnership
+  ownership: KnowledgeBaseFileOwnership,
+  executor?: DbTransaction
 ): Promise<void> {
-  await insertImmutableFileMetadata({ ...ownership, context: 'knowledge-base' })
+  if (!executor) {
+    await insertImmutableFileMetadata({ ...ownership, context: 'knowledge-base' })
+    return
+  }
+  await insertImmutableFileMetadataWithExecutor(executor, {
+    ...ownership,
+    context: 'knowledge-base',
+  })
 }

@@ -7,6 +7,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import { projectResolvedModelInput } from '@/lib/execution/model-input-provenance'
 import type { BlockOutput } from '@/blocks/types'
 import { parseOptionalNumberInput } from '@/blocks/utils'
 import {
@@ -14,9 +15,13 @@ import {
   ToolNotAllowedError,
 } from '@/ee/access-control/utils/permission-check'
 import { BlockType } from '@/executor/constants'
+import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud/authoring/backend'
+import { runCloudPlanPi } from '@/executor/handlers/pi/cloud/plan/backend'
+import { runCloudReviewPi } from '@/executor/handlers/pi/cloud/review/backend'
 import type {
   PiBackendRun,
   PiCloudBranchRunParams,
+  PiCloudPlanRunParams,
   PiCloudReviewRunParams,
   PiCloudRunParams,
   PiLocalRunParams,
@@ -24,33 +29,31 @@ import type {
   PiRunParams,
   PiRunResult,
   PiSearchConfig,
-} from '@/executor/handlers/pi/backend'
-import { runCloudBranchPi, runCloudPi } from '@/executor/handlers/pi/cloud-backend'
-import { runCloudReviewPi } from '@/executor/handlers/pi/cloud-review-backend'
+} from '@/executor/handlers/pi/core/backend'
 import {
   appendPiMemory,
   loadPiMemory,
   type PiMemoryConfig,
   resolvePiSkills,
-} from '@/executor/handlers/pi/context'
-import { streamTextForEvent } from '@/executor/handlers/pi/events'
+} from '@/executor/handlers/pi/core/context'
+import { streamTextForEvent } from '@/executor/handlers/pi/core/events'
 import {
   computePiCost,
   PI_SEARCH_PROVIDERS,
   parsePiSearchProvider,
   resolvePiModelKey,
   resolvePiSearchKey,
-} from '@/executor/handlers/pi/keys'
-import { runLocalPi } from '@/executor/handlers/pi/local-backend'
+} from '@/executor/handlers/pi/core/keys'
+import { runLocalPi } from '@/executor/handlers/pi/local/backend'
+import { buildSimToolSpecs } from '@/executor/handlers/pi/local/sim-tools'
 import { buildPiSearchToolSpec } from '@/executor/handlers/pi/search/tool'
-import { buildSimToolSpecs } from '@/executor/handlers/pi/sim-tools'
 import type {
   BlockHandler,
   ExecutionContext,
   NormalizedBlockOutput,
   StreamingExecution,
 } from '@/executor/types'
-import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
 import { isPiSupportedProvider, resolvePiModelId } from '@/providers/pi-providers'
 import { getProviderFromModel } from '@/providers/utils'
 import type { SerializedBlock } from '@/serializer/types'
@@ -104,6 +107,7 @@ function parsePiMode(value: unknown): PiRunParams['mode'] {
   if (
     value === 'cloud' ||
     value === 'cloud_branch' ||
+    value === 'cloud_plan' ||
     value === 'cloud_review' ||
     value === 'local'
   ) {
@@ -163,14 +167,20 @@ export class PiBlockHandler implements BlockHandler {
     const mode = parsePiMode(inputs.mode)
     const resolvedTask = asOptString(inputs.task)
     if (!resolvedTask) throw new Error('Task is required')
-    const taskProjection = projectResolvedSecretModelContent(
-      resolvedTask,
-      ctx.resolvedSecretTraceRegistry
+    const taskProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { task: resolvedTask },
+      [['task']]
     )
-    if (!taskProjection.safe || typeof taskProjection.value !== 'string') {
-      throw new Error('Pi input could not be safely projected')
+    if (!taskProjection.complete || typeof taskProjection.value.task !== 'string') {
+      refuseResolvedSecretProjection({
+        site: 'pi.taskModelInput',
+        message: 'Pi input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'task',
+      })
     }
-    const task = taskProjection.value
+    const task = taskProjection.value.task
     const model = asOptString(inputs.model) ?? DEFAULT_MODEL
 
     const providerId = getProviderFromModel(model)
@@ -279,8 +289,21 @@ export class PiBlockHandler implements BlockHandler {
     const repo = asOptString(inputs.repo)
     const githubToken = asRawString(inputs.githubToken)
     if (!owner || !repo || !githubToken) {
-      const label = mode === 'cloud_branch' ? 'Update PR' : 'Create PR'
+      const label =
+        mode === 'cloud_branch' ? 'Update PR' : mode === 'cloud_plan' ? 'Plan' : 'Create PR'
       throw new Error(`${label} requires repository owner, name, and a GitHub token`)
+    }
+
+    if (mode === 'cloud_plan') {
+      const params: PiCloudPlanRunParams = {
+        ...contextualBase,
+        mode: 'cloud_plan',
+        owner,
+        repo,
+        githubToken,
+        baseBranch: asOptString(inputs.baseBranch),
+      }
+      return this.runPi(ctx, block, runCloudPlanPi, params, memoryConfig)
     }
     // A `switch` subblock reaches a handler as the string 'true' when its value came
     // through a variable reference, an API trigger payload, or a legacy serialized
@@ -366,8 +389,8 @@ export class PiBlockHandler implements BlockHandler {
    *
    * The host-side tool is built here rather than in a backend because it needs the
    * {@link ExecutionContext}, which backends never receive — they see only `{ onEvent, signal }`.
-   * Cloud authoring gets no host tool: it registers a sandbox extension instead, so a spec built
-   * here could never execute.
+   * Sandbox modes get no host tool: they register a sandbox extension instead, so a spec built here
+   * could never execute.
    */
   private async resolveSearch(
     ctx: ExecutionContext,
@@ -400,15 +423,38 @@ export class PiBlockHandler implements BlockHandler {
       throw error
     }
 
+    const rawSearchApiKey = inputs.searchApiKey
     const apiKey = resolvePiSearchKey({
       provider,
-      apiKey: asOptString(inputs.searchApiKey),
+      apiKey: asOptString(rawSearchApiKey),
     })
-
     const credentials = { provider, apiKey }
-    return mode === 'cloud' || mode === 'cloud_branch'
-      ? credentials
-      : { ...credentials, tool: buildPiSearchToolSpec(ctx, credentials, mode) }
+    if (mode === 'cloud' || mode === 'cloud_branch' || mode === 'cloud_plan') return credentials
+
+    const searchInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { searchApiKey: rawSearchApiKey },
+      [['searchApiKey']]
+    )
+    if (!searchInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'pi.searchApiKeyInput',
+        message: 'Pi search input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'searchApiKey',
+      })
+    }
+    const projectedApiKey = Object.is(searchInputProjection.value.searchApiKey, rawSearchApiKey)
+      ? apiKey
+      : resolvePiSearchKey({
+          provider,
+          apiKey: asOptString(searchInputProjection.value.searchApiKey),
+        })
+
+    return {
+      ...credentials,
+      tool: buildPiSearchToolSpec(ctx, credentials, mode, projectedApiKey),
+    }
   }
 
   private isContentSelectedForStreaming(ctx: ExecutionContext, block: SerializedBlock): boolean {
@@ -423,6 +469,7 @@ export class PiBlockHandler implements BlockHandler {
 
   private buildOutput(
     result: PiRunResult,
+    mode: PiRunParams['mode'],
     model: string,
     isBYOK: boolean,
     startTime: number,
@@ -433,8 +480,12 @@ export class PiBlockHandler implements BlockHandler {
     return {
       content: totals.finalText,
       model,
-      changedFiles: result.changedFiles ?? [],
-      diff: result.diff ?? '',
+      ...(mode === 'cloud_plan'
+        ? {}
+        : {
+            changedFiles: result.changedFiles ?? [],
+            diff: result.diff ?? '',
+          }),
       ...(result.prUrl ? { prUrl: result.prUrl } : {}),
       ...(result.branch ? { branch: result.branch } : {}),
       ...(result.reviewUrl ? { reviewUrl: result.reviewUrl } : {}),
@@ -489,6 +540,7 @@ export class PiBlockHandler implements BlockHandler {
           try {
             const result = await backend(params, {
               onEvent: (event) => {
+                if (params.mode === 'cloud_plan') return
                 const text = streamTextForEvent(event)
                 if (text) controller.enqueue(encoder.encode(text))
               },
@@ -498,9 +550,19 @@ export class PiBlockHandler implements BlockHandler {
               controller.error(new Error(result.totals.errorMessage))
               return
             }
+            if (params.mode === 'cloud_plan' && result.totals.finalText) {
+              controller.enqueue(encoder.encode(result.totals.finalText))
+            }
             Object.assign(
               output,
-              this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+              this.buildOutput(
+                result,
+                params.mode,
+                params.model,
+                params.isBYOK,
+                startTime,
+                startTimeISO
+              )
             )
             if (memoryConfig) {
               await appendPiMemory(
@@ -542,6 +604,13 @@ export class PiBlockHandler implements BlockHandler {
         result.memoryText ?? result.totals.finalText
       )
     }
-    return this.buildOutput(result, params.model, params.isBYOK, startTime, startTimeISO)
+    return this.buildOutput(
+      result,
+      params.mode,
+      params.model,
+      params.isBYOK,
+      startTime,
+      startTimeISO
+    )
   }
 }

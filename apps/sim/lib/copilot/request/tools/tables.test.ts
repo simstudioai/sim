@@ -26,6 +26,9 @@ vi.mock('@/lib/copilot/request/otel', () => ({
       addEvent: mocks.spanAddEvent,
     }),
 }))
+vi.mock('@/lib/table/application/rows', () => ({
+  ProjectedWireRowsValidationError: class ProjectedWireRowsValidationError extends Error {},
+}))
 
 import { FunctionExecute, Read as ReadTool } from '@/lib/copilot/generated/tool-catalog-v1'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
@@ -111,10 +114,14 @@ describe('automatic Copilot tool-output table persistence', () => {
       assertedWorkspaceId: 'workspace-1',
       sourceRows: rows,
       projectedRows: rows,
+      secretProvenance: {
+        mode: 'resolved_output',
+        registry: context.resolvedSecretTraceRegistry,
+      },
     })
   })
 
-  it('projects active secrets before handing rows to the application command', async () => {
+  it('hands raw rows and their trace registry to the authorized application command', async () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'OUTPUT_SECRET', plaintext: 'secret-value', encryptedValue: 'encrypted-secret' },
     ])
@@ -133,7 +140,8 @@ describe('automatic Copilot tool-output table persistence', () => {
       expect.anything(),
       expect.objectContaining({
         sourceRows: runtimeRows,
-        projectedRows: [{ name: '{{OUTPUT_SECRET}}', status: 'literal' }],
+        projectedRows: runtimeRows,
+        secretProvenance: { mode: 'resolved_output', registry },
       })
     )
     expect(runtimeRows).toEqual([{ name: 'secret-value', status: 'literal' }])
@@ -146,22 +154,23 @@ describe('automatic Copilot tool-output table persistence', () => {
     expect(laterRead.output).toEqual({ data: { rows: projectedRows } })
   })
 
-  it('rejects unavailable secret provenance before the application command', async () => {
+  it('delegates unavailable provenance handling to the application command', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     registry.markIncomplete()
 
-    await expect(
-      maybeWriteOutputToTable(
-        FunctionExecute.id,
-        { outputTable: 'table-1' },
-        { success: true, output: { result: [{ name: 'unknown' }] } },
-        buildContext({ resolvedSecretTraceRegistry: registry })
-      )
-    ).resolves.toEqual({
-      success: false,
-      error: 'Tool output could not be persisted safely because secret provenance was unavailable.',
-    })
-    expect(mocks.executeReplace).not.toHaveBeenCalled()
+    await maybeWriteOutputToTable(
+      FunctionExecute.id,
+      { outputTable: 'table-1' },
+      { success: true, output: { result: [{ name: 'unknown' }] } },
+      buildContext({ resolvedSecretTraceRegistry: registry })
+    )
+
+    expect(mocks.executeReplace).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        secretProvenance: { mode: 'resolved_output', registry },
+      })
+    )
   })
 
   it('preserves typed application validation for a correctable tool error', async () => {
@@ -278,6 +287,10 @@ describe('automatic Copilot file-read table persistence', () => {
         { name: 'Ada', age: '30' },
         { name: 'Grace', age: '40' },
       ],
+      secretProvenance: {
+        mode: 'resolved_output',
+        registry: context.resolvedSecretTraceRegistry,
+      },
     })
   })
 

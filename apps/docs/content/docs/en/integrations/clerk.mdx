@@ -34,7 +34,7 @@ Integrate Clerk authentication and user management into your workflow. Create, u
 
 ## Actions
 
-### `clerk_list_users`
+### List Users from Clerk
 
 List all users in your Clerk application with optional filtering and pagination
 
@@ -85,7 +85,7 @@ List all users in your Clerk application with optional filtering and pagination
 | `totalCount` | number | Total number of users matching the query |
 | `success` | boolean | Operation success status |
 
-### `clerk_get_user`
+### Get User from Clerk
 
 Retrieve a single user by their ID from Clerk
 
@@ -135,7 +135,7 @@ Retrieve a single user by their ID from Clerk
 | `unsafeMetadata` | json | Unsafe metadata \(modifiable from frontend\) |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_user`
+### Create User in Clerk
 
 Create a new user in your Clerk application
 
@@ -182,7 +182,7 @@ Create a new user in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
-### `clerk_update_user`
+### Update User in Clerk
 
 Update an existing user in your Clerk application
 
@@ -231,7 +231,7 @@ Update an existing user in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
-### `clerk_delete_user`
+### Delete User from Clerk
 
 Delete a user from your Clerk application
 
@@ -251,7 +251,7 @@ Delete a user from your Clerk application
 | `deleted` | boolean | Whether the user was deleted |
 | `success` | boolean | Operation success status |
 
-### `clerk_ban_user`
+### Ban User in Clerk
 
 Ban a user, preventing them from signing in
 
@@ -276,7 +276,7 @@ Ban a user, preventing them from signing in
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_unban_user`
+### Unban User in Clerk
 
 Remove a ban from a user, allowing them to sign in again
 
@@ -301,7 +301,7 @@ Remove a ban from a user, allowing them to sign in again
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_lock_user`
+### Lock User in Clerk
 
 Lock a user account, blocking sign-in attempts
 
@@ -326,7 +326,7 @@ Lock a user account, blocking sign-in attempts
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_unlock_user`
+### Unlock User in Clerk
 
 Unlock a previously locked user account
 
@@ -351,7 +351,7 @@ Unlock a previously locked user account
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_get_user_oauth_token`
+### Get User OAuth Access Token from Clerk
 
 Retrieve a user's OAuth access token for a connected external provider (e.g. Google, GitHub, Microsoft) obtained via Clerk SSO
 
@@ -377,7 +377,7 @@ Retrieve a user's OAuth access token for a connected external provider (e.g. Goo
 |   ↳ `publicMetadata` | json | Public metadata associated with the token |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_organizations`
+### List Organizations from Clerk
 
 List all organizations in your Clerk application with optional filtering
 
@@ -413,7 +413,7 @@ List all organizations in your Clerk application with optional filtering
 | `totalCount` | number | Total number of organizations |
 | `success` | boolean | Operation success status |
 
-### `clerk_get_organization`
+### Get Organization from Clerk
 
 Retrieve a single organization by ID or slug from Clerk
 
@@ -443,7 +443,7 @@ Retrieve a single organization by ID or slug from Clerk
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_organization`
+### Create Organization in Clerk
 
 Create a new organization in your Clerk application
 
@@ -478,7 +478,7 @@ Create a new organization in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
-### `clerk_update_organization`
+### Update Organization in Clerk
 
 Update an existing organization in your Clerk application
 
@@ -512,7 +512,7 @@ Update an existing organization in your Clerk application
 | `publicMetadata` | json | Public metadata |
 | `success` | boolean | Operation success status |
 
-### `clerk_delete_organization`
+### Delete Organization from Clerk
 
 Delete an organization from your Clerk application
 
@@ -532,7 +532,7 @@ Delete an organization from your Clerk application
 | `deleted` | boolean | Whether the organization was deleted |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_organization_memberships`
+### List Organization Memberships from Clerk
 
 List members of a Clerk organization with optional filtering and pagination
 
@@ -570,7 +570,7 @@ List members of a Clerk organization with optional filtering and pagination
 | `totalCount` | number | Total number of memberships |
 | `success` | boolean | Operation success status |
 
-### `clerk_add_organization_member`
+### Add Organization Member in Clerk
 
 Add a user as a member of a Clerk organization with a given role
 
@@ -604,7 +604,7 @@ Add a user as a member of a Clerk organization with a given role
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_update_organization_membership`
+### Update Organization Membership in Clerk
 
 Change a member's role within a Clerk organization
 
@@ -638,7 +638,7 @@ Change a member's role within a Clerk organization
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_remove_organization_member`
+### Remove Organization Member from Clerk
 
 Remove a member from a Clerk organization
 
@@ -671,7 +671,7 @@ Remove a member from a Clerk organization
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_organization_invitation`
+### Create Organization Invitation in Clerk
 
 Invite a user by email to join a Clerk organization with a given role
 
@@ -711,7 +711,7 @@ Invite a user by email to join a Clerk organization with a given role
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_organization_invitations`
+### List Organization Invitations from Clerk
 
 List pending and past invitations for a Clerk organization
 
@@ -750,7 +750,7 @@ List pending and past invitations for a Clerk organization
 | `totalCount` | number | Total number of invitations |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_sessions`
+### List Sessions from Clerk
 
 List sessions for a user or client in your Clerk application
 
@@ -783,7 +783,7 @@ List sessions for a user or client in your Clerk application
 | `totalCount` | number | Total number of sessions |
 | `success` | boolean | Operation success status |
 
-### `clerk_get_session`
+### Get Session from Clerk
 
 Retrieve a single session by ID from Clerk
 
@@ -810,7 +810,7 @@ Retrieve a single session by ID from Clerk
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_revoke_session`
+### Revoke Session in Clerk
 
 Revoke a session to immediately invalidate it
 
@@ -837,7 +837,7 @@ Revoke a session to immediately invalidate it
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_allowlist_identifiers`
+### List Allowlist Identifiers from Clerk
 
 List email/phone/web3-wallet identifiers on your Clerk instance allowlist
 
@@ -863,7 +863,7 @@ List email/phone/web3-wallet identifiers on your Clerk instance allowlist
 | `totalCount` | number | Total number of allowlist identifiers |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_allowlist_identifier`
+### Create Allowlist Identifier in Clerk
 
 Add an email, phone number, or web3 wallet to your Clerk instance allowlist
 
@@ -887,7 +887,7 @@ Add an email, phone number, or web3 wallet to your Clerk instance allowlist
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_delete_allowlist_identifier`
+### Delete Allowlist Identifier from Clerk
 
 Remove an identifier from your Clerk instance allowlist
 
@@ -907,7 +907,7 @@ Remove an identifier from your Clerk instance allowlist
 | `deleted` | boolean | Whether the identifier was deleted |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_blocklist_identifiers`
+### List Blocklist Identifiers from Clerk
 
 List email/phone/web3-wallet identifiers on your Clerk instance blocklist
 
@@ -930,7 +930,7 @@ List email/phone/web3-wallet identifiers on your Clerk instance blocklist
 | `totalCount` | number | Total number of blocklist identifiers |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_blocklist_identifier`
+### Create Blocklist Identifier in Clerk
 
 Add an email, phone number, or web3 wallet to your Clerk instance blocklist to prevent sign-ups
 
@@ -952,7 +952,7 @@ Add an email, phone number, or web3 wallet to your Clerk instance blocklist to p
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_delete_blocklist_identifier`
+### Delete Blocklist Identifier from Clerk
 
 Remove an identifier from your Clerk instance blocklist
 
@@ -972,7 +972,7 @@ Remove an identifier from your Clerk instance blocklist
 | `deleted` | boolean | Whether the identifier was deleted |
 | `success` | boolean | Operation success status |
 
-### `clerk_list_jwt_templates`
+### List JWT Templates from Clerk
 
 List custom JWT templates configured on your Clerk instance
 
@@ -999,7 +999,7 @@ List custom JWT templates configured on your Clerk instance
 | `totalCount` | number | Total number of JWT templates |
 | `success` | boolean | Operation success status |
 
-### `clerk_get_jwt_template`
+### Get JWT Template from Clerk
 
 Retrieve a single custom JWT template by ID from Clerk
 
@@ -1025,7 +1025,7 @@ Retrieve a single custom JWT template by ID from Clerk
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_create_actor_token`
+### Create Actor Token in Clerk
 
 Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for support tooling
 
@@ -1053,7 +1053,7 @@ Create an actor token to impersonate a user (God Mode / act-as-user), e.g. for s
 | `updatedAt` | number | Last update timestamp |
 | `success` | boolean | Operation success status |
 
-### `clerk_revoke_actor_token`
+### Revoke Actor Token in Clerk
 
 Revoke an actor token before it is used or expires
 

@@ -1,6 +1,6 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
-import { renderHelpConfirmationEmail } from '@/components/emails'
+import { getRequestConfirmationSubject, renderHelpConfirmationEmail } from '@/components/emails'
 import { helpFormBodySchema } from '@/lib/api/contracts/common'
 import { validationErrorResponse } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
@@ -130,7 +130,7 @@ ${message}
 
       await sendEmail({
         to: [email],
-        subject: `Your ${type} request has been received: ${subject}`,
+        subject: getRequestConfirmationSubject(subject, type),
         html: confirmationHtml,
         from: getFromEmailAddress(),
         replyTo: getHelpEmailAddress(),

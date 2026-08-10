@@ -34,7 +34,7 @@ Connect to any Redis instance to perform key-value, hash, list, and utility oper
 
 ## Actions
 
-### `redis_get`
+### Redis Get
 
 Get the value of a key from Redis.
 
@@ -52,7 +52,7 @@ Get the value of a key from Redis.
 | `key` | string | The key that was retrieved |
 | `value` | string | The value of the key, or null if the key does not exist |
 
-### `redis_set`
+### Redis Set
 
 Set the value of a key in Redis with an optional expiration time in seconds.
 
@@ -72,7 +72,7 @@ Set the value of a key in Redis with an optional expiration time in seconds.
 | `key` | string | The key that was set |
 | `result` | string | The result of the SET operation \(typically "OK"\) |
 
-### `redis_delete`
+### Redis Delete
 
 Delete a key from Redis.
 
@@ -90,7 +90,7 @@ Delete a key from Redis.
 | `key` | string | The key that was deleted |
 | `deletedCount` | number | Number of keys deleted \(0 if key did not exist, 1 if deleted\) |
 
-### `redis_keys`
+### Redis Keys
 
 List all keys matching a pattern in Redis. Avoid using on large databases in production; use the Redis Command tool with SCAN for large key spaces.
 
@@ -109,7 +109,7 @@ List all keys matching a pattern in Redis. Avoid using on large databases in pro
 | `keys` | array | List of keys matching the pattern |
 | `count` | number | Number of keys found |
 
-### `redis_command`
+### Redis Command
 
 Execute a raw Redis command as a JSON array (e.g. ["HSET", "key", "field", "value"]).
 
@@ -127,7 +127,7 @@ Execute a raw Redis command as a JSON array (e.g. ["HSET", "key", "field", "valu
 | `command` | string | The command that was executed |
 | `result` | json | The result of the command |
 
-### `redis_hset`
+### Redis HSET
 
 Set a field in a hash stored at a key in Redis.
 
@@ -148,7 +148,7 @@ Set a field in a hash stored at a key in Redis.
 | `field` | string | The field that was set |
 | `result` | number | Number of fields added \(1 if new, 0 if updated\) |
 
-### `redis_hget`
+### Redis HGET
 
 Get the value of a field in a hash stored at a key in Redis.
 
@@ -168,7 +168,7 @@ Get the value of a field in a hash stored at a key in Redis.
 | `field` | string | The field that was retrieved |
 | `value` | string | The field value, or null if the field or key does not exist |
 
-### `redis_hgetall`
+### Redis HGETALL
 
 Get all fields and values of a hash stored at a key in Redis.
 
@@ -187,7 +187,7 @@ Get all fields and values of a hash stored at a key in Redis.
 | `fields` | object | All field-value pairs in the hash as a key-value object. Empty object if the key does not exist. |
 | `fieldCount` | number | Number of fields in the hash |
 
-### `redis_hdel`
+### Redis HDEL
 
 Delete a field from a hash stored at a key in Redis.
 
@@ -207,7 +207,7 @@ Delete a field from a hash stored at a key in Redis.
 | `field` | string | The field that was deleted |
 | `deleted` | number | Number of fields removed \(1 if deleted, 0 if field did not exist\) |
 
-### `redis_incr`
+### Redis INCR
 
 Increment the integer value of a key by one in Redis.
 
@@ -225,7 +225,7 @@ Increment the integer value of a key by one in Redis.
 | `key` | string | The key that was incremented |
 | `value` | number | The new value after increment |
 
-### `redis_incrby`
+### Redis INCRBY
 
 Increment the integer value of a key by a given amount in Redis.
 
@@ -244,7 +244,7 @@ Increment the integer value of a key by a given amount in Redis.
 | `key` | string | The key that was incremented |
 | `value` | number | The new value after increment |
 
-### `redis_expire`
+### Redis EXPIRE
 
 Set an expiration time (in seconds) on a key in Redis.
 
@@ -263,7 +263,7 @@ Set an expiration time (in seconds) on a key in Redis.
 | `key` | string | The key that expiration was set on |
 | `result` | number | 1 if the timeout was set, 0 if the key does not exist |
 
-### `redis_ttl`
+### Redis TTL
 
 Get the remaining time to live (in seconds) of a key in Redis.
 
@@ -281,7 +281,7 @@ Get the remaining time to live (in seconds) of a key in Redis.
 | `key` | string | The key that was checked |
 | `ttl` | number | Remaining TTL in seconds. Positive integer if TTL set, -1 if no expiration, -2 if key does not exist. |
 
-### `redis_persist`
+### Redis PERSIST
 
 Remove the expiration from a key in Redis, making it persist indefinitely.
 
@@ -299,7 +299,7 @@ Remove the expiration from a key in Redis, making it persist indefinitely.
 | `key` | string | The key that was persisted |
 | `result` | number | 1 if the expiration was removed, 0 if the key does not exist or has no expiration |
 
-### `redis_lpush`
+### Redis LPUSH
 
 Prepend a value to a list stored at a key in Redis.
 
@@ -318,7 +318,7 @@ Prepend a value to a list stored at a key in Redis.
 | `key` | string | The list key |
 | `length` | number | Length of the list after the push |
 
-### `redis_rpush`
+### Redis RPUSH
 
 Append a value to the end of a list stored at a key in Redis.
 
@@ -337,7 +337,7 @@ Append a value to the end of a list stored at a key in Redis.
 | `key` | string | The list key |
 | `length` | number | Length of the list after the push |
 
-### `redis_lpop`
+### Redis LPOP
 
 Remove and return the first element of a list stored at a key in Redis.
 
@@ -355,7 +355,7 @@ Remove and return the first element of a list stored at a key in Redis.
 | `key` | string | The list key |
 | `value` | string | The removed element, or null if the list is empty |
 
-### `redis_rpop`
+### Redis RPOP
 
 Remove and return the last element of a list stored at a key in Redis.
 
@@ -373,7 +373,7 @@ Remove and return the last element of a list stored at a key in Redis.
 | `key` | string | The list key |
 | `value` | string | The removed element, or null if the list is empty |
 
-### `redis_llen`
+### Redis LLEN
 
 Get the length of a list stored at a key in Redis.
 
@@ -391,7 +391,7 @@ Get the length of a list stored at a key in Redis.
 | `key` | string | The list key |
 | `length` | number | The length of the list, or 0 if the key does not exist |
 
-### `redis_lrange`
+### Redis LRANGE
 
 Get a range of elements from a list stored at a key in Redis.
 
@@ -412,7 +412,7 @@ Get a range of elements from a list stored at a key in Redis.
 | `values` | array | List elements in the specified range |
 | `count` | number | Number of elements returned |
 
-### `redis_exists`
+### Redis EXISTS
 
 Check if a key exists in Redis.
 
@@ -430,7 +430,7 @@ Check if a key exists in Redis.
 | `key` | string | The key that was checked |
 | `exists` | boolean | Whether the key exists \(true\) or not \(false\) |
 
-### `redis_setnx`
+### Redis SETNX
 
 Set the value of a key in Redis only if the key does not already exist.
 

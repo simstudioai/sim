@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   fetchBuffer: vi.fn(),
   getFile: vi.fn(),
+  getSecretProvenance: vi.fn(),
   loadContext: vi.fn(),
   resolvePermission: vi.fn(),
 }))
@@ -22,6 +23,10 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   loadActiveWorkspaceFileContext: mocks.loadContext,
+}))
+
+vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  getBoundWorkspaceFileSecretProvenance: mocks.getSecretProvenance,
 }))
 
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
@@ -49,6 +54,7 @@ describe('readWorkspaceFileContent', () => {
     mocks.resolvePermission.mockResolvedValue('admin')
     mocks.getFile.mockResolvedValue(file)
     mocks.fetchBuffer.mockResolvedValue(Buffer.from('source'))
+    mocks.getSecretProvenance.mockResolvedValue({ status: 'exact', entries: [] })
   })
 
   it('authorizes the canonical file before performing a bounded content read', async () => {
@@ -70,6 +76,33 @@ describe('readWorkspaceFileContent', () => {
       throwOnError: true,
     })
     expect(mocks.fetchBuffer).toHaveBeenCalledWith(file, { maxBytes: 512 })
+    expect(mocks.getSecretProvenance).not.toHaveBeenCalled()
+  })
+
+  it('loads bound provenance only when requested after the authorized content read', async () => {
+    const secretProvenance = {
+      status: 'exact' as const,
+      entries: [{ encryptedValue: 'ciphertext', sourceUserId: 'user-1' }],
+    }
+    mocks.getSecretProvenance.mockResolvedValue(secretProvenance)
+
+    await expect(
+      readWorkspaceFileContent.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: {
+          fileId: 'file-1',
+          assertedWorkspaceId: 'workspace-1',
+          includeSecretProvenance: true,
+        },
+      })
+    ).resolves.toEqual({ file, content: Buffer.from('source'), secretProvenance })
+
+    expect(mocks.fetchBuffer).toHaveBeenCalledBefore(mocks.getSecretProvenance)
+    expect(mocks.getSecretProvenance).toHaveBeenCalledWith('workspace-1', {
+      fileId: 'file-1',
+      key: file.key,
+      context: 'workspace',
+    })
   })
 
   it('conceals an asserted-workspace mismatch before authorization or storage reads', async () => {

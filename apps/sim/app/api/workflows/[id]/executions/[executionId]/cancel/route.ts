@@ -8,6 +8,7 @@ import { and, eq, inArray } from 'drizzle-orm'
 import { type NextRequest, NextResponse } from 'next/server'
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { parseRequest } from '@/lib/api/server'
+import { WORKSPACE_KEY_SCOPE_DENIED } from '@/lib/api-key/policy-messages'
 import { checkHybridAuth } from '@/lib/auth/hybrid'
 import { releaseExecutionSlot } from '@/lib/billing/calculations/usage-reservation'
 import { getJobQueue } from '@/lib/core/async-jobs'
@@ -344,10 +345,7 @@ export const POST = withRouteHandler(
         auth.apiKeyType === 'workspace' &&
         workflowAuthorization.workflow?.workspaceId !== auth.workspaceId
       ) {
-        return NextResponse.json(
-          { error: 'API key is not authorized for this workspace' },
-          { status: 403 }
-        )
+        return NextResponse.json({ error: WORKSPACE_KEY_SCOPE_DENIED }, { status: 403 })
       }
 
       const execution = await db

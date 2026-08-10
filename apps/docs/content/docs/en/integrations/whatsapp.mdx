@@ -32,7 +32,7 @@ Integrate WhatsApp into the workflow. Send text, template, media, and interactiv
 
 ## Actions
 
-### `whatsapp_send_message`
+### WhatsApp Send Message
 
 Send a free-form text message through the WhatsApp Cloud API. Only works inside the 24-hour customer service window — use Send Template to start a conversation.
 
@@ -83,7 +83,7 @@ Send a free-form text message through the WhatsApp Cloud API. Only works inside 
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
-### `whatsapp_send_template`
+### WhatsApp Send Template
 
 Send a pre-approved WhatsApp template message. Required to start a conversation or to message a user outside the 24-hour customer service window.
 
@@ -135,7 +135,7 @@ Send a pre-approved WhatsApp template message. Required to start a conversation 
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
-### `whatsapp_send_media`
+### WhatsApp Send Media
 
 Send an image, document, video, audio, or sticker message. Accepts an uploaded file, a media ID, or a public link.
 
@@ -190,7 +190,7 @@ Send an image, document, video, audio, or sticker message. Accepts an uploaded f
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
-### `whatsapp_send_interactive`
+### WhatsApp Send Interactive
 
 Send an interactive WhatsApp message with reply buttons or a selectable list.
 
@@ -245,7 +245,7 @@ Send an interactive WhatsApp message with reply buttons or a selectable list.
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
-### `whatsapp_send_reaction`
+### WhatsApp Send Reaction
 
 React to a WhatsApp message with an emoji. Send an empty emoji to remove an existing reaction.
 
@@ -296,7 +296,7 @@ React to a WhatsApp message with an emoji. Send an empty emoji to remove an exis
 | `raw` | json | Full structured WhatsApp webhook payload |
 | `error` | string | Error information if sending fails |
 
-### `whatsapp_mark_read`
+### WhatsApp Mark As Read
 
 Mark a received WhatsApp message as read so the sender sees blue checkmarks, optionally showing a typing indicator.
 
@@ -314,7 +314,7 @@ Mark a received WhatsApp message as read so the sender sees blue checkmarks, opt
 | --------- | ---- | ----------- |
 | `success` | boolean | Whether the message was successfully marked as read |
 
-### `whatsapp_upload_media`
+### WhatsApp Upload Media
 
 Upload a file to WhatsApp and get a media ID for sending. Uploaded media is retained for 30 days and can back many sends.
 
@@ -334,7 +334,7 @@ Upload a file to WhatsApp and get a media ID for sending. Uploaded media is reta
 | `mimeType` | string | MIME type WhatsApp received the file as |
 | `size` | number | Size of the uploaded file in bytes |
 
-### `whatsapp_get_media`
+### WhatsApp Download Media
 
 Download media a customer sent you. Takes the media ID from an incoming WhatsApp message and stores the file in the workflow.
 

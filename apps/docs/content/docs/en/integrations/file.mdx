@@ -33,7 +33,7 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 
 ## Actions
 
-### `file_read`
+### File Read
 
 #### Input
 
@@ -48,7 +48,7 @@ Read workspace file objects, extract the text content of files, fetch and parse 
 | --------- | ---- | ----------- |
 | `files` | file[] | Workspace file objects |
 
-### `file_get_content`
+### File Get Content
 
 Extract the text content of one or more workspace files from selected file objects or canonical workspace file IDs.
 
@@ -65,7 +65,7 @@ Extract the text content of one or more workspace files from selected file objec
 | --------- | ---- | ----------- |
 | `contents` | array | Array of file text contents, one entry per file in input order |
 
-### `file_fetch`
+### File Fetch
 
 Fetch and parse a file from a URL with optional custom headers.
 
@@ -82,7 +82,7 @@ Fetch and parse a file from a URL with optional custom headers.
 | `files` | file[] | Fetched files as UserFile objects |
 | `combinedContent` | string | Combined content of all fetched files |
 
-### `file_write`
+### File Write
 
 Create a new workspace file. If a file with the same name already exists, a numeric suffix is added (e.g., "data (1).csv").
 
@@ -103,7 +103,7 @@ Create a new workspace file. If a file with the same name already exists, a nume
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
 
-### `file_append`
+### File Append
 
 Append content to an existing workspace file. The file must already exist. Content is added to the end of the file.
 
@@ -123,9 +123,9 @@ Append content to an existing workspace file. The file must already exist. Conte
 | `size` | number | File size in bytes |
 | `url` | string | URL to access the file |
 
-### `file_compress`
+### File Compress
 
-Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store.
+Compress one or more workspace files into a single .zip archive stored in the workspace, for bundling files to download, transfer, or store. Preserves the workspace folder structure of the selected files.
 
 #### Input
 
@@ -145,7 +145,7 @@ Compress one or more workspace files into a single .zip archive stored in the wo
 | `url` | string | URL to access the compressed archive |
 | `files` | file[] | Compressed archive file object, as a single-item array |
 
-### `file_decompress`
+### File Decompress
 
 Extract the contents of a .zip archive into the workspace, preserving the archive folder structure.
 
@@ -162,7 +162,7 @@ Extract the contents of a .zip archive into the workspace, preserving the archiv
 | --------- | ---- | ----------- |
 | `files` | file[] | Extracted workspace file objects |
 
-### `file_manage_sharing`
+### Manage Sharing
 
 Enable or disable the public share link for a workspace file, and set its access mode (public, password, email, or SSO). Idempotent: the public link stays stable across changes.
 

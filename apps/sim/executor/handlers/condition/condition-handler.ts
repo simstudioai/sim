@@ -22,6 +22,12 @@ const CONDITION_TIMEOUT_MS = 5000
  * Evaluates a single condition expression.
  * The resolver preserves legacy Condition expression substitution before this function executes the
  * resulting JavaScript through the shared function execution boundary.
+ *
+ * `blockData` is deliberately empty: the resolver already inlines every `<block.field>` reference
+ * into the expression before this runs, so shipping the run's accumulated block outputs would only
+ * inflate the request body. Sending them blew the 10MB body cap on wide subflows, where a single
+ * flat `blockStates` map holds every branch's outputs.
+ *
  * Returns true if condition is met, false otherwise.
  */
 async function evaluateConditionExpression(
@@ -36,7 +42,7 @@ async function evaluateConditionExpression(
     const contextSetup = `const context = ${JSON.stringify(evalContext)};`
     const code = `${contextSetup}\nreturn Boolean(${conditionExpression})`
 
-    const { blockData, blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
+    const { blockNameMapping, blockOutputSchemas } = collectBlockData(ctx, currentNodeId)
 
     const result = await executeTool(
       'function_execute',
@@ -45,7 +51,7 @@ async function evaluateConditionExpression(
         timeout: CONDITION_TIMEOUT_MS,
         envVars: normalizeStringRecord(ctx.environmentVariables),
         workflowVariables: normalizeWorkflowVariables(ctx.workflowVariables),
-        blockData,
+        blockData: {},
         blockNameMapping,
         blockOutputSchemas,
         _context: {

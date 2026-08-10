@@ -3,6 +3,8 @@ import { getInternalApiBaseUrl } from '@/lib/core/utils/urls'
 import {
   addModelInputProvenanceToRequest,
   createModelInputProvenanceRequestMetadata,
+  markModelInputProjected,
+  projectResolvedModelInput,
 } from '@/lib/execution/model-input-provenance'
 import {
   type AutoRoutingResult,
@@ -22,9 +24,10 @@ import {
 } from '@/executor/constants'
 import type { BlockHandler, ExecutionContext } from '@/executor/types'
 import { buildAuthHeaders } from '@/executor/utils/http'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type { ResolvedSecretInputPath } from '@/executor/utils/resolved-secret-trace-registry'
 import { resolveVertexCredential } from '@/executor/utils/vertex-credential'
 import { resolveProxiedModelCost } from '@/providers/cost-policy'
-import { collectProviderModelInputProvenanceValues } from '@/providers/model-input-provenance'
 import { isAutoModel, SIM_AUTO_MODEL_ID } from '@/providers/models'
 import type { ProviderRequest } from '@/providers/types'
 import { getProviderFromModel } from '@/providers/utils'
@@ -71,10 +74,24 @@ export class RouterBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput> {
+    const promptModelInputPaths: ResolvedSecretInputPath[] = [['prompt']]
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { prompt: inputs.prompt },
+      promptModelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'router.promptModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'prompt',
+      })
+    }
     const targetBlocks = this.getTargetBlocks(ctx, block)
 
     const routerConfig = {
-      prompt: inputs.prompt,
+      prompt: modelInputProjection.value.prompt,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
       vertexProject: inputs.vertexProject,
@@ -131,14 +148,16 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const headers = new Headers(await buildAuthHeaders(ctx.userId))
+      const modelInputMetadata = createModelInputProvenanceRequestMetadata(
+        modelInputProjection.registry,
+        promptModelInputPaths
+      )
       const requestBody = addModelInputProvenanceToRequest(
         { provider: providerId, ...providerRequest },
         headers,
-        createModelInputProvenanceRequestMetadata(
-          ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest, providerId)
-        )
+        modelInputMetadata
       )
+      if (modelInputMetadata) markModelInputProjected(headers)
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers,
@@ -226,8 +245,41 @@ export class RouterBlockHandler implements BlockHandler {
       throw new Error('No routes defined for router')
     }
 
+    const modelInputPaths: ResolvedSecretInputPath[] = [
+      ['context'],
+      ...(Array.isArray(inputs.routes)
+        ? inputs.routes.map((_, index) => ['routes', String(index), 'value'] as const)
+        : [['routes'] as const]),
+    ]
+    const modelInputProjection = projectResolvedModelInput(
+      ctx.resolvedSecretTraceRegistry,
+      { context: inputs.context, routes: inputs.routes },
+      modelInputPaths
+    )
+    if (!modelInputProjection.complete) {
+      refuseResolvedSecretProjection({
+        site: 'router.contextModelInput',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'context,routes',
+      })
+    }
+    const projectedRoutes = this.parseRoutes(modelInputProjection.value.routes)
+    if (projectedRoutes.length !== routes.length) {
+      refuseResolvedSecretProjection({
+        site: 'router.routeArity',
+        message: 'Router model input could not be safely projected',
+        registry: ctx.resolvedSecretTraceRegistry,
+        inputPath: 'routes',
+      })
+    }
+    const modelRoutes = routes.map((route, index) => ({
+      ...route,
+      value: projectedRoutes[index]?.value ?? route.value,
+    }))
+
     const routerConfig = {
-      context: inputs.context,
+      context: modelInputProjection.value.context,
       model: inputs.model || ROUTER.DEFAULT_MODEL,
       apiKey: inputs.apiKey,
       vertexProject: inputs.vertexProject,
@@ -243,7 +295,7 @@ export class RouterBlockHandler implements BlockHandler {
       if (ctx.userId) url.searchParams.set('userId', ctx.userId)
 
       const messages = [{ role: 'user', content: routerConfig.context }]
-      const systemPrompt = generateRouterV2Prompt(routerConfig.context, routes)
+      const systemPrompt = generateRouterV2Prompt(routerConfig.context, modelRoutes)
       const resolved = await this.resolveModel(
         ctx,
         block.id,
@@ -303,14 +355,16 @@ export class RouterBlockHandler implements BlockHandler {
       }
 
       const headers = new Headers(await buildAuthHeaders(ctx.userId))
+      const modelInputMetadata = createModelInputProvenanceRequestMetadata(
+        modelInputProjection.registry,
+        modelInputPaths
+      )
       const requestBody = addModelInputProvenanceToRequest(
         { provider: providerId, ...providerRequest },
         headers,
-        createModelInputProvenanceRequestMetadata(
-          ctx.resolvedSecretTraceRegistry,
-          collectProviderModelInputProvenanceValues(providerRequest, providerId)
-        )
+        modelInputMetadata
       )
+      if (modelInputMetadata) markModelInputProjected(headers)
       const response = await fetch(url.toString(), {
         method: 'POST',
         headers,
@@ -495,35 +549,45 @@ export class RouterBlockHandler implements BlockHandler {
   }
 
   private getTargetBlocks(ctx: ExecutionContext, block: SerializedBlock) {
-    return ctx.workflow?.connections
-      .filter((conn) => conn.source === block.id)
-      .map((conn) => {
-        const targetBlock = ctx.workflow?.blocks.find((b) => b.id === conn.target)
-        if (!targetBlock) {
-          throw new Error(`Target block ${conn.target} not found`)
-        }
+    const targetBlocks = []
+    const connections = ctx.workflow?.connections.filter((conn) => conn.source === block.id) ?? []
 
-        let systemPrompt = ''
-        if (isAgentBlockType(targetBlock.metadata?.id)) {
-          const paramsPrompt = targetBlock.config?.params?.systemPrompt
-          const inputsPrompt = targetBlock.inputs?.systemPrompt
-          systemPrompt =
-            (typeof paramsPrompt === 'string' ? paramsPrompt : '') ||
-            (typeof inputsPrompt === 'string' ? inputsPrompt : '') ||
-            ''
-        }
+    for (const conn of connections) {
+      const targetBlock = ctx.workflow?.blocks.find((candidate) => candidate.id === conn.target)
+      if (!targetBlock) {
+        throw new Error(`Target block ${conn.target} not found`)
+      }
 
-        return {
-          id: targetBlock.id,
-          type: targetBlock.metadata?.id,
-          title: targetBlock.metadata?.name,
-          description: targetBlock.metadata?.description,
-          subBlocks: {
-            ...targetBlock.config.params,
-            systemPrompt: systemPrompt,
-          },
-          currentState: ctx.blockStates.get(targetBlock.id)?.output,
-        }
+      let systemPrompt = ''
+      if (isAgentBlockType(targetBlock.metadata?.id)) {
+        const paramsPrompt = targetBlock.config?.params?.systemPrompt
+        const inputsPrompt = targetBlock.inputs?.systemPrompt
+        systemPrompt =
+          (typeof paramsPrompt === 'string' ? paramsPrompt : '') ||
+          (typeof inputsPrompt === 'string' ? inputsPrompt : '') ||
+          ''
+      }
+
+      const targetState = ctx.blockStates.get(targetBlock.id)
+      const stateProvenance = targetState?.resolvedSecretTraceProvenance
+      const currentState =
+        stateProvenance && (!stateProvenance.complete || stateProvenance.entries.length > 0)
+          ? undefined
+          : targetState?.output
+
+      targetBlocks.push({
+        id: targetBlock.id,
+        type: targetBlock.metadata?.id,
+        title: targetBlock.metadata?.name,
+        description: targetBlock.metadata?.description,
+        subBlocks: {
+          ...targetBlock.config.params,
+          systemPrompt,
+        },
+        currentState,
       })
+    }
+
+    return targetBlocks
   }
 }

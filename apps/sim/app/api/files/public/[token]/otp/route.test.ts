@@ -50,7 +50,10 @@ vi.mock('@/lib/core/security/otp', () => ({
   OTP_IP_RATE_LIMIT: { maxTokens: 10, refillRate: 10, refillIntervalMs: 1000 },
   OTP_EMAIL_RATE_LIMIT: { maxTokens: 3, refillRate: 3, refillIntervalMs: 1000 },
 }))
-vi.mock('@/components/emails', () => ({ renderOTPEmail: mockRenderOTPEmail }))
+vi.mock('@/components/emails', () => ({
+  getOtpSubject: (label: string) => `Verification code for ${label}`,
+  renderOTPEmail: mockRenderOTPEmail,
+}))
 vi.mock('@/lib/messaging/email/mailer', () => ({ sendEmail: mockSendEmail }))
 vi.mock('@/lib/core/rate-limiter', () => ({
   RateLimiter: class {

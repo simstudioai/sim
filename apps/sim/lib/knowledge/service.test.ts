@@ -1,7 +1,15 @@
 /**
  * @vitest-environment node
  */
-import { dbChainMockFns, permissionsMock, permissionsMockFns, resetDbChainMock } from '@sim/testing'
+import {
+  dbChainMockFns,
+  flattenMockConditions,
+  hasMockCondition,
+  permissionsMock,
+  permissionsMockFns,
+  resetDbChainMock,
+  schemaMock,
+} from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
@@ -33,6 +41,7 @@ vi.mock('@/lib/billing/core/usage', () => ({
 
 import { MAX_KNOWLEDGE_BASES_PER_WORKSPACE } from '@/lib/knowledge/constants'
 import {
+  getKnowledgeBases,
   getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
@@ -55,6 +64,58 @@ describe('getWorkspaceKnowledgeBases — bounded reads', () => {
       `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
     )
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+  })
+})
+
+/**
+ * The listing query authorizes on current workspace membership, never on stale creator
+ * identity: a user removed from a workspace must stop seeing knowledge bases they created
+ * there. The creator fallback exists only for legacy knowledge bases with no `workspaceId`.
+ */
+describe('getKnowledgeBases — creator fallback is scoped to legacy non-workspace KBs', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  /** Every disjunct that grants on `knowledgeBase.userId`, from the last select chain's WHERE. */
+  const capturedCreatorBranches = (): unknown[] => {
+    const [condition] = dbChainMockFns.where.mock.calls.at(-1) ?? []
+    const orNode = flattenMockConditions(condition).find((node) => node.type === 'or')
+    expect(orNode, 'WHERE clause has no or(...) branch').toBeDefined()
+    return (orNode?.conditions as unknown[]).filter((disjunct) =>
+      hasMockCondition(
+        disjunct,
+        (node) =>
+          node.type === 'eq' &&
+          node.left === schemaMock.knowledgeBase.userId &&
+          node.right === 'user-a'
+      )
+    )
+  }
+
+  /** The creator fallback must be the sole grant for legacy KBs and never reach workspace KBs. */
+  const expectCreatorBranchIsLegacyOnly = () => {
+    const branches = capturedCreatorBranches()
+    expect(branches).toHaveLength(1)
+    expect(
+      hasMockCondition(
+        branches[0],
+        (node) => node.type === 'isNull' && node.column === schemaMock.knowledgeBase.workspaceId
+      )
+    ).toBe(true)
+  }
+
+  it('requires workspaceId IS NULL on the creator branch when no workspace filter is given', async () => {
+    await getKnowledgeBases('user-a', undefined, 'all')
+
+    expectCreatorBranchIsLegacyOnly()
+  })
+
+  it('keeps the same guard on the workspace-filtered branch', async () => {
+    await getKnowledgeBases('user-a', 'ws-1', 'active')
+
+    expectCreatorBranchIsLegacyOnly()
   })
 })
 
@@ -107,7 +168,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
 
     await expect(
       updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'owner' })
-    ).resolves.not.toThrow()
+    ).resolves.toBeDefined()
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
   })
 

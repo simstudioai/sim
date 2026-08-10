@@ -71,7 +71,7 @@ export class ParallelOrchestrator {
     let branchCount: number
     let isEmpty = false
     const parentRegistry = ctx.resolvedSecretTraceRegistry
-    const resolutionRegistry = parentRegistry?.forkForToolInputValues([])
+    const resolutionRegistry = parentRegistry?.forkForInputPaths([])
     const resolutionCtx = resolutionRegistry
       ? { ...ctx, resolvedSecretTraceRegistry: resolutionRegistry }
       : ctx

@@ -244,6 +244,50 @@ const ERROR_EXTRACTORS: ErrorExtractorConfig[] = [
     },
   },
   {
+    id: 'dynatrace-errors',
+    description:
+      'Dynatrace ErrorEnvelope: {error: {code, message, constraintViolations[]}}. The violations name the offending selector or parameter, which the bare message does not',
+    examples: ['Dynatrace Environment API v2'],
+    extract: (errorInfo) => {
+      const error = errorInfo?.data?.error
+      if (!error || typeof error !== 'object') return undefined
+
+      const message = typeof error.message === 'string' ? error.message.trim() : ''
+      const violations = Array.isArray(error.constraintViolations)
+        ? error.constraintViolations
+            .map((violation: { path?: unknown; message?: unknown }) => {
+              const detail = typeof violation?.message === 'string' ? violation.message.trim() : ''
+              if (!detail) return ''
+              const path = typeof violation?.path === 'string' ? violation.path.trim() : ''
+              return path ? `${path}: ${detail}` : detail
+            })
+            .filter(Boolean)
+        : []
+
+      if (!message && violations.length === 0) return undefined
+      if (violations.length === 0) return message
+      return message ? `${message} (${violations.join('; ')})` : violations.join('; ')
+    },
+  },
+  {
+    id: 'smartlead-errors',
+    description:
+      'Smartlead error formats: {error} for domain errors, {message} for auth failures, and Joi validation payloads where {error} is only "Bad Request" and {message} carries the detail',
+    examples: ['Smartlead API'],
+    extract: (errorInfo) => {
+      const data = errorInfo?.data
+      if (!data || typeof data !== 'object') return undefined
+
+      const message = typeof data.message === 'string' ? data.message.trim() : ''
+      const error = typeof data.error === 'string' ? data.error.trim() : ''
+
+      // Joi validation: `error` is the generic "Bad Request", `message` names the field.
+      if (message && data.validation) return message
+      if (error) return error
+      return message || undefined
+    },
+  },
+  {
     id: 'posthog-errors',
     description: 'PostHog API error format with type/code/detail/attr fields',
     examples: ['PostHog API'],
@@ -331,6 +375,8 @@ export const ErrorExtractorId = {
   SOAP_FAULT: 'soap-fault',
   OAUTH_ERROR_DESCRIPTION: 'oauth-error-description',
   NESTED_ERROR_OBJECT: 'nested-error-object',
+  DYNATRACE_ERRORS: 'dynatrace-errors',
+  SMARTLEAD_ERRORS: 'smartlead-errors',
   POSTHOG_ERRORS: 'posthog-errors',
   PLAIN_TEXT_DATA: 'plain-text-data',
   HTTP_STATUS_TEXT: 'http-status-text',

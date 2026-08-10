@@ -6,13 +6,14 @@ import {
   BILLING_ATTRIBUTION_HEADER,
   serializeBillingAttributionHeader,
 } from '@/lib/billing/core/billing-attribution'
-import {
-  collectModelVisibleSchemaContent,
-  restoreModelVisibleSchemaValues,
-} from '@/lib/copilot/model-visible-schema'
 import { normalizeSecretMountPolicy } from '@/lib/copilot/secret-mount-policy'
 import { env } from '@/lib/core/config/env'
 import { isExecutionCancelled, isRedisCancellationEnabled } from '@/lib/execution/cancellation'
+import {
+  projectModelSchemaAnnotations,
+  projectResolvedModelInput,
+  selectModelSchemaInputPaths,
+} from '@/lib/execution/model-input-provenance'
 import { readUserFileContent } from '@/lib/execution/payloads/materialization.server'
 import {
   inspectPrivateToolMetadataEnvelope,
@@ -31,6 +32,7 @@ import {
   processSingleFileToUserFile,
   type RawFileInput,
 } from '@/lib/uploads/utils/file-utils'
+import { selectModelBoundFileInputPaths } from '@/lib/uploads/utils/model-input'
 import type { BlockOutput } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import { BlockType } from '@/executor/constants'
@@ -41,14 +43,18 @@ import type {
   StreamingExecution,
 } from '@/executor/types'
 import { buildAPIUrl, buildAuthHeaders, extractAPIErrorMessage } from '@/executor/utils/http'
-import {
-  isResolvedSecretModelContentUnchanged,
-  projectResolvedSecretModelContent,
-} from '@/executor/utils/resolved-secret-content-projection'
-import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
+import { refuseResolvedSecretProjection } from '@/executor/utils/resolved-secret-projection-refusal'
+import type {
+  ResolvedSecretInputPath,
+  ResolvedSecretTraceRegistry,
+} from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 
 const logger = createLogger('MothershipBlockHandler')
+
+const MOTHERSHIP_INPUT_REFUSAL = 'Mothership input could not be safely projected'
+const MOTHERSHIP_SKILL_SELECTOR_REFUSAL =
+  'Mothership skill selector could not be safely projected for display'
 const CANCELLATION_CHECK_INTERVAL_MS = 500
 const MAX_MOTHERSHIP_ATTACHMENT_BYTES = 10 * 1024 * 1024
 const MOTHERSHIP_EXECUTE_STREAM_HEADER = 'X-Mothership-Execute-Stream'
@@ -75,6 +81,17 @@ interface MothershipSkillContext {
   label: string
 }
 
+interface IndexedMothershipMcpToolSelection {
+  inputIndex: number
+  selection: MothershipMcpToolSelection
+}
+
+interface IndexedMothershipSkillContext {
+  inputIndex: number
+  context: MothershipSkillContext
+  hasExplicitLabel: boolean
+}
+
 type MothershipExecuteResult = {
   content?: string
   model?: string
@@ -92,67 +109,21 @@ type MothershipExecuteStreamEvent =
       Record<typeof RESOLVED_SECRET_PROVENANCE_FIELD, unknown>
     >)
 
-function projectMothershipPrompt(
-  prompt: string,
-  registry: ResolvedSecretTraceRegistry | undefined
-): string {
-  const projection = projectResolvedSecretModelContent(prompt, registry)
-  if (!projection.safe || typeof projection.value !== 'string') {
-    throw new Error('Mothership input could not be safely projected')
-  }
-  return projection.value
-}
-
-function projectMothershipMcpTools(
-  tools: unknown,
-  registry: ResolvedSecretTraceRegistry | undefined
-): MothershipMcpToolSelection[] {
+function selectIndexedMothershipMcpTools(tools: unknown): IndexedMothershipMcpToolSelection[] {
   if (!Array.isArray(tools)) return []
 
-  return tools.flatMap((candidate) => {
+  return tools.flatMap((candidate, inputIndex) => {
     if (!isPlainRecord(candidate) || candidate.type !== 'mcp') return []
     if (candidate.usageControl === 'none' || !isPlainRecord(candidate.params)) return []
 
     const { serverId, toolName } = candidate.params
-    if (
-      typeof serverId !== 'string' ||
-      !serverId ||
-      typeof toolName !== 'string' ||
-      !toolName ||
-      !isResolvedSecretModelContentUnchanged([serverId, toolName], registry)
-    ) {
+    if (typeof serverId !== 'string' || !serverId || typeof toolName !== 'string' || !toolName) {
       return []
     }
 
     const serverName =
       typeof candidate.params.serverName === 'string' ? candidate.params.serverName : undefined
     const schema = isPlainRecord(candidate.schema) ? candidate.schema : undefined
-    const schemaContent = schema
-      ? collectModelVisibleSchemaContent(schema)
-      : { projectedValues: [], guardedValues: [] }
-    if (!isResolvedSecretModelContentUnchanged(schemaContent.guardedValues, registry)) return []
-
-    const projection = projectResolvedSecretModelContent(
-      [serverName, schemaContent.projectedValues],
-      registry
-    )
-    if (!projection.safe || !Array.isArray(projection.value) || projection.value.length !== 2) {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
-    const [projectedServerName, projectedSchemaValues] = projection.value
-    if (serverName === undefined && projectedServerName !== undefined) {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
-    if (serverName !== undefined && typeof projectedServerName !== 'string') {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
-
-    const projectedSchema = schema
-      ? restoreModelVisibleSchemaValues(schema, projectedSchemaValues)
-      : undefined
-    if (projectedSchema !== undefined && !isPlainRecord(projectedSchema)) {
-      throw new Error('Mothership MCP tool metadata could not be safely projected')
-    }
 
     const usageControl =
       candidate.usageControl === 'auto' || candidate.usageControl === 'force'
@@ -161,54 +132,228 @@ function projectMothershipMcpTools(
     const selection: MothershipMcpToolSelection = {
       type: 'mcp',
       ...(usageControl ? { usageControl } : {}),
-      ...(projectedSchema ? { schema: projectedSchema } : {}),
+      ...(schema ? { schema } : {}),
       params: {
         serverId,
         toolName,
-        ...(projectedServerName !== undefined ? { serverName: projectedServerName } : {}),
+        ...(serverName !== undefined ? { serverName } : {}),
       },
     }
-    return [selection]
+    return [{ inputIndex, selection }]
   })
 }
 
-function projectMothershipSkillContexts(
+function selectMothershipMcpTools(tools: unknown): MothershipMcpToolSelection[] {
+  return selectIndexedMothershipMcpTools(tools).map(({ selection }) => selection)
+}
+
+function selectIndexedMothershipSkillContexts(
   skills: unknown,
-  registry: ResolvedSecretTraceRegistry | undefined
-): MothershipSkillContext[] {
+  privateSelectorIndexes: ReadonlySet<number> = new Set()
+): IndexedMothershipSkillContext[] {
   if (!Array.isArray(skills)) return []
 
-  const selected = skills.flatMap((candidate) => {
+  return skills.flatMap((candidate, inputIndex) => {
     if (!isPlainRecord(candidate) || typeof candidate.skillId !== 'string' || !candidate.skillId) {
       return []
     }
-    if (!isResolvedSecretModelContentUnchanged(candidate.skillId, registry)) return []
+    const explicitLabel = typeof candidate.name === 'string' ? candidate.name : undefined
+    const hasExplicitLabel = explicitLabel !== undefined
+    const label =
+      explicitLabel ??
+      (privateSelectorIndexes.has(inputIndex) ? `Skill ${inputIndex + 1}` : candidate.skillId)
     return [
       {
-        skillId: candidate.skillId,
-        label: typeof candidate.name === 'string' ? candidate.name : candidate.skillId,
+        inputIndex,
+        hasExplicitLabel,
+        context: {
+          kind: 'skill' as const,
+          skillId: candidate.skillId,
+          label,
+        },
       },
     ]
   })
-  const projection = projectResolvedSecretModelContent(
-    selected.map((skill) => skill.label),
-    registry
+}
+
+function selectMothershipSkillContexts(
+  skills: unknown,
+  privateSelectorIndexes: ReadonlySet<number>
+): MothershipSkillContext[] {
+  return selectIndexedMothershipSkillContexts(skills, privateSelectorIndexes).map(
+    ({ context }) => context
   )
-  if (!projection.safe) {
-    throw new Error('Mothership skill metadata could not be safely projected')
+}
+
+function selectPrivateMothershipSkillSelectors(
+  registry: ResolvedSecretTraceRegistry | undefined,
+  skills: unknown
+): {
+  inputIndexes: ReadonlySet<number>
+  inputPaths: readonly ResolvedSecretInputPath[]
+} {
+  if (!registry) return { inputIndexes: new Set(), inputPaths: [] }
+
+  const inputIndexes = new Set<number>()
+  const inputPaths: ResolvedSecretInputPath[] = []
+  for (const { inputIndex } of selectIndexedMothershipSkillContexts(skills)) {
+    const inputPath = ['skills', String(inputIndex), 'skillId'] as const
+    const provenance = registry.exportCommittedProvenanceForInputPaths([inputPath])
+    if (!provenance.complete) {
+      throw new Error('Mothership skill selector provenance is incomplete')
+    }
+    if (provenance.entries.length === 0) continue
+    inputIndexes.add(inputIndex)
+    inputPaths.push(inputPath)
   }
-  const projectedLabels = projection.value
-  if (!Array.isArray(projectedLabels) || projectedLabels.length !== selected.length) {
-    throw new Error('Mothership skill metadata could not be safely projected')
+  return { inputIndexes, inputPaths }
+}
+
+function forkMothershipRegistryWithoutPrivateSkillSelectors(
+  registry: ResolvedSecretTraceRegistry,
+  inputs: Record<string, unknown>,
+  privateSelectorIndexes: ReadonlySet<number>
+): ResolvedSecretTraceRegistry {
+  const retainedInputPaths: ResolvedSecretInputPath[] = []
+  for (const [key, value] of Object.entries(inputs)) {
+    if (key !== 'skills') {
+      retainedInputPaths.push([key])
+      continue
+    }
+    if (!Array.isArray(value)) continue
+    for (const [inputIndex, candidate] of value.entries()) {
+      if (!isPlainRecord(candidate)) continue
+      for (const candidateKey of Object.keys(candidate)) {
+        if (candidateKey === 'skillId' && privateSelectorIndexes.has(inputIndex)) continue
+        retainedInputPaths.push(['skills', String(inputIndex), candidateKey])
+      }
+    }
+  }
+  return registry.forkForInputPaths(retainedInputPaths)
+}
+
+function projectPrivateMothershipSkillSelectorsForDisplay(
+  registry: ResolvedSecretTraceRegistry,
+  skills: unknown,
+  privateSelectorIndexes: ReadonlySet<number>,
+  privateSelectorInputPaths: readonly ResolvedSecretInputPath[]
+): unknown {
+  if (!Array.isArray(skills) || privateSelectorIndexes.size === 0) return skills
+  const selectorRegistry = registry.forkForInputPaths(privateSelectorInputPaths)
+  const projection = selectorRegistry.projectResolvedInputSelection({ skills })
+  if (!projection.complete || !Array.isArray(projection.value.skills)) {
+    refuseResolvedSecretProjection({
+      site: 'mothership.skillSelectorDisplay',
+      message: MOTHERSHIP_SKILL_SELECTOR_REFUSAL,
+      registry: selectorRegistry,
+      inputPath: 'skills',
+    })
+  }
+  for (const inputIndex of privateSelectorIndexes) {
+    const source = skills[inputIndex]
+    const projected = projection.value.skills[inputIndex]
+    if (
+      !isPlainRecord(source) ||
+      !isPlainRecord(projected) ||
+      typeof source.skillId !== 'string' ||
+      typeof projected.skillId !== 'string'
+    ) {
+      refuseResolvedSecretProjection({
+        site: 'mothership.skillSelectorDisplayEntry',
+        message: MOTHERSHIP_SKILL_SELECTOR_REFUSAL,
+        registry: selectorRegistry,
+        inputPath: 'skills.skillId',
+      })
+    }
+  }
+  return projection.value.skills
+}
+
+function selectMothershipMetadataModelInputPaths(
+  tools: unknown,
+  skills: unknown
+): {
+  modelInputPaths: ResolvedSecretInputPath[]
+  structuralInputPaths: ResolvedSecretInputPath[]
+} {
+  const modelInputPaths: ResolvedSecretInputPath[] = []
+  const structuralInputPaths: ResolvedSecretInputPath[] = []
+
+  for (const { inputIndex, selection } of selectIndexedMothershipMcpTools(tools)) {
+    const root = ['tools', String(inputIndex)] as const
+    structuralInputPaths.push([...root, 'params', 'serverId'], [...root, 'params', 'toolName'])
+    if (selection.schema) {
+      const schemaPaths = selectModelSchemaInputPaths(selection.schema, [...root, 'schema'])
+      modelInputPaths.push(...schemaPaths.annotationInputPaths)
+      structuralInputPaths.push(...schemaPaths.semanticInputPaths)
+    }
+    if (selection.params.serverName !== undefined) {
+      modelInputPaths.push([...root, 'params', 'serverName'])
+    }
   }
 
-  return selected.map((skill, index) => {
-    const label = projectedLabels[index]
-    if (typeof label !== 'string') {
-      throw new Error('Mothership skill metadata could not be safely projected')
+  for (const { inputIndex, hasExplicitLabel } of selectIndexedMothershipSkillContexts(skills)) {
+    const root = ['skills', String(inputIndex)] as const
+    if (hasExplicitLabel) modelInputPaths.push([...root, 'name'])
+  }
+
+  return { modelInputPaths, structuralInputPaths }
+}
+
+function assertMothershipToolSchemaProjectionsAreSafe(
+  registry: ResolvedSecretTraceRegistry,
+  tools: unknown
+): void {
+  if (!Array.isArray(tools)) return
+  const projection = registry.projectResolvedInputSelection({ tools })
+  if (!projection.complete || !Array.isArray(projection.value.tools)) {
+    refuseResolvedSecretProjection({
+      site: 'mothership.toolSchemaProjection',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry,
+      inputPath: 'tools',
+    })
+  }
+
+  for (const { inputIndex, selection } of selectIndexedMothershipMcpTools(tools)) {
+    if (!selection.schema) continue
+    const projectedCandidate = projection.value.tools[inputIndex]
+    if (!isPlainRecord(projectedCandidate)) {
+      refuseResolvedSecretProjection({
+        site: 'mothership.toolSchemaProjectedEntry',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools.schema',
+      })
     }
-    return { kind: 'skill', skillId: skill.skillId, label }
-  })
+    const projectedSchema = projectedCandidate.schema ?? selection.schema
+    const schemaProjection = projectModelSchemaAnnotations(selection.schema, projectedSchema)
+    if (!schemaProjection.safe) {
+      refuseResolvedSecretProjection({
+        site: 'mothership.toolSchemaAnnotations',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry,
+        inputPath: 'tools.schema',
+      })
+    }
+  }
+}
+
+function assertMothershipStructuralInputsDoNotResolveSecrets(
+  registry: ResolvedSecretTraceRegistry,
+  inputPaths: readonly ResolvedSecretInputPath[]
+): void {
+  const provenance = registry.exportCommittedProvenanceForInputPaths(inputPaths)
+  if (!provenance.complete) {
+    refuseResolvedSecretProjection({
+      site: 'mothership.structuralInputProvenance',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry,
+    })
+  }
+  if (provenance.entries.length > 0) {
+    throw new Error('Mothership structural model inputs cannot contain secret references')
+  }
 }
 
 async function consumeMothershipProvenance(
@@ -216,8 +361,6 @@ async function consumeMothershipProvenance(
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<boolean> {
-  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
-
   const inspection = inspectPrivateToolMetadataEnvelope(
     response.headers,
     payload,
@@ -226,31 +369,35 @@ async function consumeMothershipProvenance(
   const provenance = payload[RESOLVED_SECRET_PROVENANCE_FIELD]
   payload[RESOLVED_SECRET_PROVENANCE_FIELD] = undefined
   if (inspection.status === 'unsupported') {
-    throw new Error('Mothership response does not support private provenance metadata')
+    return false
   }
   if (inspection.status === 'invalid') {
-    registry.markIncomplete()
+    registry?.markIncomplete()
     throw new Error('Mothership response provenance metadata is invalid')
   }
+
+  if (!registry) return false
 
   const imported = await registry.importProvenanceForValue(provenance, payload, { trusted: true })
   if (!imported) throw new Error('Mothership response provenance metadata is invalid')
   return true
 }
 
-function assertMothershipResponseCapability(
+function inspectMothershipResponseCapability(
   response: Response,
   registry: ResolvedSecretTraceRegistry | undefined
-): void {
-  if (!registry) throw new Error('Mothership model-egress provenance registry is unavailable')
-
+): boolean {
   const capability = inspectPrivateToolMetadataResponseCapability(
     response.headers,
     RESOLVED_SECRET_PROVENANCE_METADATA_V1
   )
-  if (capability.status === 'supported') return
-  if (capability.status === 'mismatched') registry.markIncomplete()
-  throw new Error('Mothership response does not support private provenance metadata')
+  if (capability.status === 'supported') return true
+  if (capability.status === 'unsupported') {
+    return false
+  }
+
+  registry?.markIncomplete()
+  throw new Error('Mothership response provenance metadata is invalid')
 }
 
 function parseMothershipExecuteStreamLine(line: string): MothershipExecuteStreamEvent | undefined {
@@ -306,15 +453,18 @@ async function readMothershipExecuteResponse(
   response: Response,
   registry?: ResolvedSecretTraceRegistry
 ): Promise<MothershipExecuteResult> {
-  assertMothershipResponseCapability(response, registry)
+  const expectsProvenance = inspectMothershipResponseCapability(response, registry)
   const contentType = response.headers.get('content-type') || ''
   if (!contentType.includes('application/x-ndjson')) {
     let result: MothershipExecuteResult
     try {
       result = (await response.json()) as MothershipExecuteResult
-    } catch {
-      registry?.markIncomplete()
-      throw new Error('Mothership response provenance metadata is invalid')
+    } catch (error) {
+      if (expectsProvenance) {
+        registry?.markIncomplete()
+        throw new Error('Mothership response provenance metadata is invalid')
+      }
+      throw error
     }
     await consumeMothershipProvenance(result, response, registry)
     return result
@@ -374,7 +524,9 @@ async function readMothershipExecuteResponse(
 
     return finalResult
   } finally {
-    if (!finalResult && !receivedTerminalProvenance) registry?.markIncomplete()
+    if (expectsProvenance && !finalResult && !receivedTerminalProvenance) {
+      registry?.markIncomplete()
+    }
     reader.releaseLock()
   }
 }
@@ -389,7 +541,7 @@ function createMothershipStreamingExecution(
     registry?: ResolvedSecretTraceRegistry
   } = {}
 ): StreamingExecution {
-  assertMothershipResponseCapability(response, options.registry)
+  const expectsProvenance = inspectMothershipResponseCapability(response, options.registry)
   if (!response.body) {
     throw new Error('Sim execution stream ended without a response body')
   }
@@ -468,15 +620,15 @@ function createMothershipStreamingExecution(
           throw new Error('Sim execution stream ended without a final result')
         }
 
-        if (!cancelled) {
-          controller.close()
-        }
+        if (!cancelled) controller.close()
       } catch (error) {
         if (!cancelled) {
           controller.error(error)
         }
       } finally {
-        if (!sawFinal && !receivedTerminalProvenance) options.registry?.markIncomplete()
+        if (expectsProvenance && !sawFinal && !receivedTerminalProvenance) {
+          options.registry?.markIncomplete()
+        }
         cleanup()
         reader?.releaseLock()
       }
@@ -507,6 +659,7 @@ function createMothershipStreamingExecution(
 
 async function buildMothershipFileAttachments(
   filesInput: unknown,
+  projectedFilesInput: unknown,
   ctx: ExecutionContext,
   requestId: string
 ): Promise<MothershipFileAttachment[] | undefined> {
@@ -517,6 +670,15 @@ async function buildMothershipFileAttachments(
 
   if (!ctx.userId) {
     throw new Error('Mothership file attachments require an authenticated user.')
+  }
+  const projectedFiles = normalizeFileInput(projectedFilesInput)
+  if (!projectedFiles || projectedFiles.length !== files.length) {
+    refuseResolvedSecretProjection({
+      site: 'mothership.fileAttachmentArity',
+      message: MOTHERSHIP_INPUT_REFUSAL,
+      registry: ctx.resolvedSecretTraceRegistry,
+      inputPath: 'files',
+    })
   }
 
   const userFiles = files.map((file) =>
@@ -529,7 +691,17 @@ async function buildMothershipFileAttachments(
   if (!modelSafe) throw new Error(MODEL_UNSAFE_WORKSPACE_FILE_ERROR_MESSAGE)
 
   const attachments: MothershipFileAttachment[] = []
-  for (const userFile of userFiles) {
+  for (let fileIndex = 0; fileIndex < userFiles.length; fileIndex++) {
+    const userFile = userFiles[fileIndex]
+    const rawFile = files[fileIndex]
+    const projectedFile = projectedFiles[fileIndex]
+    if (
+      isPlainRecord(rawFile) &&
+      isPlainRecord(projectedFile) &&
+      !Object.is(rawFile.base64, projectedFile.base64)
+    ) {
+      throw new Error('Mothership inline file content cannot contain secret references')
+    }
     const base64 = await readUserFileContent(userFile, {
       encoding: 'base64',
       userId: ctx.userId,
@@ -551,7 +723,11 @@ async function buildMothershipFileAttachments(
       throw new Error(`File type is not supported for Mothership attachments: ${userFile.name}`)
     }
 
-    attachments.push({ ...content, filename: userFile.name })
+    const projectedName = isPlainRecord(projectedFile) ? projectedFile.name : undefined
+    attachments.push({
+      ...content,
+      filename: typeof projectedName === 'string' ? projectedName : userFile.name,
+    })
   }
 
   return attachments
@@ -574,6 +750,28 @@ export class MothershipBlockHandler implements BlockHandler {
     block: SerializedBlock,
     inputs: Record<string, any>
   ): Promise<BlockOutput | StreamingExecution> {
+    const sourceRegistry = ctx.resolvedSecretTraceRegistry
+    const resultRegistry = sourceRegistry?.forkForInputPaths([])
+    ctx.errorResolvedSecretTraceRegistry = resultRegistry
+    const requestSkills = inputs.skills
+    const privateSkillSelectors = selectPrivateMothershipSkillSelectors(
+      sourceRegistry,
+      requestSkills
+    )
+    if (sourceRegistry && privateSkillSelectors.inputPaths.length > 0) {
+      inputs.skills = projectPrivateMothershipSkillSelectorsForDisplay(
+        sourceRegistry,
+        requestSkills,
+        privateSkillSelectors.inputIndexes,
+        privateSkillSelectors.inputPaths
+      )
+      ctx.resolvedSecretTraceRegistry = forkMothershipRegistryWithoutPrivateSkillSelectors(
+        sourceRegistry,
+        inputs,
+        privateSkillSelectors.inputIndexes
+      )
+    }
+
     // Without the key the mothership rejects every request, so fail with
     // something the workflow author can act on instead of a bare 401.
     if (!env.COPILOT_API_KEY) {
@@ -584,10 +782,40 @@ export class MothershipBlockHandler implements BlockHandler {
     if (!prompt || typeof prompt !== 'string') {
       throw new Error('Prompt input is required')
     }
+    const metadataInputPaths = selectMothershipMetadataModelInputPaths(inputs.tools, requestSkills)
+    if (ctx.resolvedSecretTraceRegistry) {
+      assertMothershipStructuralInputsDoNotResolveSecrets(
+        ctx.resolvedSecretTraceRegistry,
+        metadataInputPaths.structuralInputPaths
+      )
+      assertMothershipToolSchemaProjectionsAreSafe(ctx.resolvedSecretTraceRegistry, inputs.tools)
+    }
+    const modelInputPaths: ResolvedSecretInputPath[] = [
+      ['prompt'],
+      ...selectModelBoundFileInputPaths(inputs.files, ['files'], {
+        includeInlineBase64: true,
+        includeName: true,
+        parseSerializedFile: true,
+      }),
+      ...metadataInputPaths.modelInputPaths,
+    ]
+    const modelInputProjection = projectResolvedModelInput(
+      sourceRegistry,
+      { prompt, files: inputs.files, tools: inputs.tools, skills: requestSkills },
+      modelInputPaths
+    )
+    if (!modelInputProjection.complete || typeof modelInputProjection.value.prompt !== 'string') {
+      refuseResolvedSecretProjection({
+        site: 'mothership.modelInput',
+        message: MOTHERSHIP_INPUT_REFUSAL,
+        registry: sourceRegistry,
+        inputPath: 'prompt,files,tools,skills',
+      })
+    }
     const messages = [
       {
         role: 'user' as const,
-        content: projectMothershipPrompt(prompt, ctx.resolvedSecretTraceRegistry),
+        content: modelInputProjection.value.prompt,
       },
     ]
     const providedConversationId =
@@ -599,11 +827,16 @@ export class MothershipBlockHandler implements BlockHandler {
       secretScope: inputs.secretScope,
       mountedSecrets: inputs.mountedSecrets,
     })
-    const fileAttachments = await buildMothershipFileAttachments(inputs.files, ctx, requestId)
-    const mcpTools = projectMothershipMcpTools(inputs.tools, ctx.resolvedSecretTraceRegistry)
-    const skillContexts = projectMothershipSkillContexts(
-      inputs.skills,
-      ctx.resolvedSecretTraceRegistry
+    const mcpTools = selectMothershipMcpTools(modelInputProjection.value.tools)
+    const skillContexts = selectMothershipSkillContexts(
+      modelInputProjection.value.skills,
+      privateSkillSelectors.inputIndexes
+    )
+    const fileAttachments = await buildMothershipFileAttachments(
+      inputs.files,
+      modelInputProjection.value.files,
+      ctx,
+      requestId
     )
 
     const url = buildAPIUrl('/api/mothership/execute')
@@ -706,15 +939,17 @@ export class MothershipBlockHandler implements BlockHandler {
       })
 
       if (!response.ok) {
-        assertMothershipResponseCapability(response, ctx.resolvedSecretTraceRegistry)
-        let payload: MothershipExecuteResult
-        try {
-          payload = (await response.clone().json()) as MothershipExecuteResult
-        } catch {
-          ctx.resolvedSecretTraceRegistry?.markIncomplete()
-          throw new Error('Mothership response provenance metadata is invalid')
+        const expectsProvenance = inspectMothershipResponseCapability(response, resultRegistry)
+        if (expectsProvenance) {
+          let payload: MothershipExecuteResult
+          try {
+            payload = (await response.clone().json()) as MothershipExecuteResult
+          } catch {
+            resultRegistry?.markIncomplete()
+            throw new Error('Mothership response provenance metadata is invalid')
+          }
+          await consumeMothershipProvenance(payload, response, resultRegistry)
         }
-        await consumeMothershipProvenance(payload, response, ctx.resolvedSecretTraceRegistry)
         const errorMsg = await extractAPIErrorMessage(response)
         throw new Error(`Sim execution failed: ${errorMsg}`)
       }
@@ -727,14 +962,24 @@ export class MothershipBlockHandler implements BlockHandler {
             }
           },
           onDone: cleanupAbortListeners,
-          registry: ctx.resolvedSecretTraceRegistry,
+          registry: resultRegistry,
         })
+        streamingExecution.diagnosticResolvedSecretTraceRegistry = resultRegistry
+        if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
         cleanupImmediately = false
         return streamingExecution
       }
 
-      const result = await readMothershipExecuteResponse(response, ctx.resolvedSecretTraceRegistry)
-      return formatMothershipBlockOutput(result, chatId)
+      const result = await readMothershipExecuteResponse(response, resultRegistry)
+      const output = formatMothershipBlockOutput(result, chatId)
+      if (resultRegistry) ctx.resolvedSecretTraceRegistry = resultRegistry
+      return output
+    } catch (error) {
+      ctx.errorResolvedSecretTraceRegistry = resultRegistry
+      if (resultRegistry) {
+        ctx.resolvedSecretTraceRegistry = resultRegistry.forkForPropagatedEntries()
+      }
+      throw error
     } finally {
       if (cleanupImmediately) {
         cleanupAbortListeners()

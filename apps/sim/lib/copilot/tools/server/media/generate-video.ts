@@ -10,10 +10,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import {
-  assertOpaqueWorkspaceFileModelSafe,
-  projectServerToolModelInput,
-} from '@/lib/copilot/tools/server/model-input'
+import { assertOpaqueWorkspaceFileModelSafe } from '@/lib/copilot/tools/server/model-input'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { generateFalVideo } from '@/lib/media/falai-video'
@@ -66,10 +63,6 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
     }
 
     try {
-      const modelInput = projectServerToolModelInput(
-        { prompt: params.prompt, negativePrompt: params.negativePrompt },
-        context
-      )
       let imageDataUri: string | undefined
       const refPath = params.inputs?.files?.[0]?.path
       if (refPath) {
@@ -81,7 +74,7 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
             reference: refPath,
           }
         )
-        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord, context })
+        await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
         const { content: buffer } = await executeCopilotFileUseCase(
           context,
           readWorkspaceFileContent,
@@ -103,13 +96,13 @@ export const generateVideoServerTool: BaseServerTool<GenerateVideoArgs, Generate
       })
 
       const result = await generateFalVideo({
-        prompt: modelInput.prompt,
+        prompt: params.prompt,
         model: params.model,
         aspectRatio: params.aspectRatio,
         resolution: params.resolution,
         duration: params.duration,
         generateAudio: params.generateAudio,
-        negativePrompt: modelInput.negativePrompt,
+        negativePrompt: params.negativePrompt,
         promptOptimizer: params.promptOptimizer,
         imageDataUri,
       })

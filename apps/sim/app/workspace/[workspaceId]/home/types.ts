@@ -7,6 +7,7 @@ const RUN_SUBAGENT_ID = 'run'
 export type {
   MothershipResource,
   MothershipResourceType,
+  WorkspaceResourceRef,
 } from '@/lib/copilot/resources/types'
 
 /** Union of all valid context kind strings, derived from {@link ChatContext}. */

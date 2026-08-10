@@ -125,7 +125,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     )
   })
 
-  it('propagates the archive classification to every extracted byte stream', async () => {
+  it('marks extracted files unknown when an archive has secret provenance', async () => {
     const buffer = await buildZip({ 'one.txt': 'one', 'two.txt': 'two' })
     const secretProvenance = {
       status: 'exact' as const,
@@ -140,8 +140,32 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     expect(mockUpload).toHaveBeenCalledTimes(2)
     for (const call of mockUpload.mock.calls) {
-      expect(call[0].input).toEqual(expect.objectContaining({ secretProvenance }))
+      expect(call[0].input).toEqual(
+        expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      )
     }
+  })
+
+  it('preserves an exact-empty classification across extraction', async () => {
+    const buffer = await buildZip({ 'one.txt': 'one' })
+
+    await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      principal: TEST_PRINCIPAL,
+      secretProvenance: { status: 'exact', entries: [] },
+    })
+
+    expect(mockUpload).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: TEST_PRINCIPAL,
+        input: expect.objectContaining({
+          workspaceId: 'ws',
+          name: 'one.txt',
+          contentType: 'text/plain',
+          secretProvenance: { status: 'exact', entries: [] },
+        }),
+      })
+    )
   })
 
   it('rejects an archive with more central-directory records than the cap, before parsing', async () => {

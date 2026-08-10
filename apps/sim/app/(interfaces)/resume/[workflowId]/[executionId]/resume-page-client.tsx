@@ -185,9 +185,9 @@ export default function ResumeExecutionPage({
     executionId,
     selectedContextId ?? undefined
   )
-  const [selectedStatus, setSelectedStatus] =
-    useState<PausePointWithQueue['resumeStatus']>('paused')
-  const [queuePosition, setQueuePosition] = useState<number | null | undefined>(undefined)
+  const selectedStatus: PausePointWithQueue['resumeStatus'] =
+    selectedDetail?.pausePoint.resumeStatus ?? 'paused'
+  const queuePosition = selectedDetail?.pausePoint.queuePosition
   const resumeInputsRef = useRef<Record<string, string>>({})
   const [resumeInput, setResumeInput] = useState('')
   const [formValuesByContext, setFormValuesByContext] = useState<
@@ -440,10 +440,7 @@ export default function ResumeExecutionPage({
     []
   )
 
-  const selectedOperation = useMemo(
-    () => selectedDetail?.pausePoint.response?.data?.operation || 'human',
-    [selectedDetail]
-  )
+  const selectedOperation = selectedDetail?.pausePoint.response?.data?.operation || 'human'
   const isHumanMode = selectedOperation === 'human'
 
   const inputFormatFields = useMemo(
@@ -524,8 +521,6 @@ export default function ResumeExecutionPage({
 
   useEffect(() => {
     if (!selectedDetail) return
-    setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
-    setQueuePosition(selectedDetail.pausePoint.queuePosition)
     seedFormFromDetail(selectedDetail)
   }, [selectedDetail, seedFormFromDetail])
 
@@ -604,7 +599,6 @@ export default function ResumeExecutionPage({
         })
         if (!ok) {
           setError(payload.error || 'Failed to resume execution.')
-          setSelectedStatus(selectedDetail.pausePoint.resumeStatus)
           return
         }
         const nextStatus = payload.status === 'queued' ? 'queued' : 'resuming'
@@ -641,8 +635,6 @@ export default function ResumeExecutionPage({
             }
           }
         )
-        setSelectedStatus(nextStatus)
-        setQueuePosition(nextQueuePosition)
         setSelectedContextId((prev) => (prev !== selectedContextId ? prev : fallbackContextId))
         setMessage(
           payload.status === 'queued' ? 'Resume request queued.' : 'Resume started successfully.'
@@ -705,9 +697,7 @@ export default function ResumeExecutionPage({
       <Tooltip.Provider>
         <div className='flex flex-1 items-center justify-center p-6'>
           <div className='max-w-[400px] text-center'>
-            <h1 className='mb-2 font-medium text-[20px] text-[var(--text-primary)]'>
-              Execution Not Found
-            </h1>
+            <h1 className='mb-2 text-[20px] text-[var(--text-primary)]'>Execution Not Found</h1>
             <p className='mb-6 text-[14px] text-[var(--text-secondary)]'>
               This execution could not be located or has already completed.
             </p>
@@ -726,7 +716,7 @@ export default function ResumeExecutionPage({
         {/* Header */}
         <div className='mb-8 flex items-center justify-between'>
           <div>
-            <h1 className='font-medium text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
+            <h1 className='text-[20px] text-[var(--text-primary)]'>Paused Execution</h1>
             <p className='mt-1 text-[14px] text-[var(--text-secondary)]'>
               Select a pause point to review and resume
             </p>

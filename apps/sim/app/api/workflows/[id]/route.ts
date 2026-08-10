@@ -18,7 +18,10 @@ import {
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { captureServerEvent } from '@/lib/posthog/server'
-import { internalWorkflowSessionOrExecutorAuth } from '@/lib/workflows/api'
+import {
+  internalWorkflowReadAuth,
+  internalWorkflowSessionOrExecutorAuth,
+} from '@/lib/workflows/api'
 import { deleteWorkflow } from '@/lib/workflows/application/delete-workflow'
 import { readWorkflowDefinition } from '@/lib/workflows/application/read-workflow-definition'
 import { updateWorkflow, updateWorkflowPolicy } from '@/lib/workflows/application/update-workflow'
@@ -31,7 +34,7 @@ const workflowInternalRateLimit = internalRateLimits.none({
 
 export const GET = defineInternalJsonRoute({
   contract: getWorkflowStateContract,
-  auth: internalWorkflowSessionOrExecutorAuth,
+  auth: internalWorkflowReadAuth,
   operation: readWorkflowDefinition.operation,
   rateLimit: workflowInternalRateLimit,
   errorPolicy: internalPlainOrchestrationErrorPolicy,

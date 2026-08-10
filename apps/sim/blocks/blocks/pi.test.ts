@@ -18,7 +18,7 @@ vi.mock('@/lib/core/config/env', async (importOriginal) => {
 
 import { evaluateSubBlockCondition } from '@/lib/workflows/subblocks/visibility'
 import { PiBlock } from '@/blocks/blocks/pi'
-import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/keys'
+import { PI_SEARCH_PROVIDERS } from '@/executor/handlers/pi/core/keys'
 
 const searchProviderField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchProvider')
 const searchApiKeyField = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'searchApiKey')
@@ -86,14 +86,26 @@ describe('Pi block search fields', () => {
 })
 
 describe('Pi cloud authoring surface', () => {
-  it('offers Create PR, Update PR, Review Code, and Local Dev as top-level modes', () => {
+  it('offers Create PR, Update PR, Plan, Review Code, and Local Dev as top-level modes', () => {
     const mode = PiBlock.subBlocks.find((subBlock) => subBlock.id === 'mode')
     const options =
       typeof mode?.options === 'function'
         ? mode.options()
         : (mode?.options as Array<{ id: string }> | undefined)
 
-    expect(options?.map(({ id }) => id)).toEqual(['cloud', 'cloud_branch', 'cloud_review', 'local'])
+    expect(options?.map(({ id }) => id)).toEqual([
+      'cloud',
+      'cloud_branch',
+      'cloud_plan',
+      'cloud_review',
+      'local',
+    ])
+  })
+
+  it('documents each mode label with its serialized ID', () => {
+    expect(PiBlock.inputs.mode.description).toBe(
+      'Execution mode: Plan (cloud_plan), Create PR (cloud), Update PR (cloud_branch), Review Code (cloud_review), or Local Dev (local)'
+    )
   })
 
   it.each(['cloud', 'cloud_branch'])(
@@ -193,6 +205,64 @@ describe('Pi cloud authoring surface', () => {
       false
     )
     expect(evaluateSubBlockCondition(targetBranchField?.condition, { mode: 'local' })).toBe(false)
+  })
+
+  it('shows only shared planning inputs in Plan mode', () => {
+    for (const id of [
+      'task',
+      'model',
+      'apiKey',
+      'searchProvider',
+      'owner',
+      'repo',
+      'githubToken',
+      'baseBranch',
+      'skills',
+      'thinkingLevel',
+      'memoryType',
+    ]) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_plan' }), id).toBe(true)
+    }
+
+    for (const id of [
+      'targetBranch',
+      'babysitMode',
+      'reviewMentions',
+      'branchName',
+      'draft',
+      'prState',
+      'prTitle',
+      'prBody',
+      'pullNumber',
+      'reviewEvent',
+      'maxRounds',
+      'host',
+      'username',
+      'authMethod',
+      'password',
+      'privateKey',
+      'repoPath',
+      'port',
+      'passphrase',
+      'tools',
+    ]) {
+      const field = PiBlock.subBlocks.find((subBlock) => subBlock.id === id)
+      expect(evaluateSubBlockCondition(field?.condition, { mode: 'cloud_plan' }), id).toBe(false)
+    }
+
+    for (const id of ['changedFiles', 'diff', 'prUrl', 'branch', 'reviewUrl', 'commentsPosted']) {
+      expect(
+        evaluateSubBlockCondition(PiBlock.outputs[id]?.condition, { mode: 'cloud_plan' }),
+        id
+      ).toBe(false)
+    }
+    for (const id of ['content', 'model', 'tokens', 'cost', 'providerTiming']) {
+      expect(
+        evaluateSubBlockCondition(PiBlock.outputs[id]?.condition, { mode: 'cloud_plan' }),
+        id
+      ).toBe(true)
+    }
   })
 
   it('declares the target branch input and branch output for cloud authoring modes', () => {

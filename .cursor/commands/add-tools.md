@@ -144,12 +144,16 @@ export const {serviceName}{Action}Tool: ToolConfig<
 - Leave ordinary external API inputs and third-party results unchanged. Add provenance handling only
   when an exact field is proven to cross a Sim model, durable-storage, or internal-execution boundary.
 - Project AI-consumed text/structured fields with the smallest exact `request.modelInput` selector.
-- Reject resolved secrets in opaque model input sent directly to an external provider with
-  `request.opaqueModelInput`; never attach private metadata to an external URL or `directExecution`.
-- For authenticated internal routes, use `privateProvenance` for opaque model input or
-  `request.secretProvenance` for durable writes and execution handoffs. Authenticate first, validate
-  the exact selection and scope, strip the private envelope, then import or propagate provenance at
-  the receiving boundary. Preserve documented headerless legacy behavior.
+- Treat URLs, domains, resource IDs, and control fields as ordinary request values unless the exact
+  field is proven model-visible. For serialized external model content, project the serialized
+  top-level param through `request.modelInput` before the existing formatter parses it; do not add a
+  separate hard-rejection mechanism.
+- For authenticated internal routes, use `privateProvenance` for actual inline/raw model bytes or
+  `request.secretProvenance` for durable writes and execution handoffs. Do not treat a storage key,
+  path, signed URL, or remote URL as provenance for fetched bytes; authorize tracked stored bytes at
+  the owning model-egress boundary. Authenticate first, validate the exact selection and scope,
+  strip the private envelope, then import or propagate provenance at the receiving boundary.
+  Preserve documented headerless legacy behavior.
 - Never substitute secret plaintext into source, serialize plaintext provenance, hand-roll private
   headers, or blanket-sanitize tool results.
 - Add focused tests for named projection, identical unproven public text, malformed/incomplete

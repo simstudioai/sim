@@ -304,6 +304,44 @@ describe('Azure Blob Storage Client', () => {
         metadata: { simuploadid: 'receipt-1' },
       })
     })
+
+    it('reports an absent blob as null rather than raising', async () => {
+      /** Azure names the class in `name` and the reason in `code`. */
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('BlobNotFound'), {
+          name: 'RestError',
+          code: 'BlobNotFound',
+          statusCode: 404,
+        })
+      )
+
+      await expect(headBlobObject('workspace/superseded.md')).resolves.toBeNull()
+    })
+
+    it('raises when the container itself is missing', async () => {
+      /** Also a 404, but a misconfiguration — reporting absence would hide an outage. */
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('ContainerNotFound'), {
+          name: 'RestError',
+          code: 'ContainerNotFound',
+          statusCode: 404,
+        })
+      )
+
+      await expect(headBlobObject('workspace/file.txt')).rejects.toThrow('ContainerNotFound')
+    })
+
+    it('raises on a permission failure', async () => {
+      mockGetProperties.mockRejectedValueOnce(
+        Object.assign(new Error('AuthorizationFailure'), {
+          name: 'RestError',
+          code: 'AuthorizationFailure',
+          statusCode: 403,
+        })
+      )
+
+      await expect(headBlobObject('workspace/file.txt')).rejects.toThrow('AuthorizationFailure')
+    })
   })
 
   describe('deleteFromBlob', () => {
