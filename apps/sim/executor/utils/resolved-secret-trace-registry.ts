@@ -41,6 +41,28 @@ export type ResolvedSecretIncompletenessReason =
   | 'value-provenance-filter-incomplete'
   | 'durable-provenance-unknown'
   | 'durable-provenance-malformed'
+  | 'tool-input-not-enumerable'
+  | 'tool-params-transform-failed'
+  | 'structural-input-projection-incomplete'
+  | 'mothership-provenance-invalid'
+  | 'mothership-provenance-missing'
+  | 'client-tool-seal-failed'
+  | 'client-tool-completion-unavailable'
+  | 'client-tool-execution-untrusted'
+  | 'knowledge-result-provenance-unavailable'
+  | 'knowledge-response-capacity-exceeded'
+  | 'knowledge-row-content-mismatch'
+  | 'memory-crossing-capacity-exceeded'
+  | 'workspace-scope-missing'
+  | 'mounted-file-provenance-unavailable'
+  | 'table-snapshot-unsafe-for-mount'
+  | 'restored-provenance-untrusted'
+  | 'backfill-scope-mismatch'
+  | 'log-creation-skipped'
+  /**
+   * Only for a caller that has not been given a reason yet. A refusal reporting this names no
+   * guard, which is the state that made a production latch untraceable — prefer adding a literal.
+   */
   | 'unspecified'
 
 /**
@@ -68,6 +90,13 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'value-provenance-untrusted',
   'value-provenance-import-failed',
   'durable-provenance-malformed',
+  'tool-input-not-enumerable',
+  'tool-params-transform-failed',
+  'structural-input-projection-incomplete',
+  'mothership-provenance-invalid',
+  'client-tool-seal-failed',
+  'knowledge-row-content-mismatch',
+  'backfill-scope-mismatch',
 ])
 
 /**
@@ -77,6 +106,8 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
  */
 const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'constructed-incomplete',
+  /** A session that will not persist a log has nothing to vouch for; it fires on every such run. */
+  'log-creation-skipped',
 ])
 
 /**
@@ -1418,8 +1449,15 @@ export class ResolvedSecretTraceRegistry {
     return !this.complete || this.incompleteInputPaths.size > 0
   }
 
+  /**
+   * `reason` is required. It defaulted to `'unspecified'`, and every caller that took the default
+   * produced a latch naming no guard — which is exactly the state that made a production incident
+   * untraceable for a day. Making omission a compile error is what keeps the reason set honest as
+   * new guards are added; a caller that genuinely has nothing to say passes `'unspecified'` on
+   * purpose, where a reviewer can see it.
+   */
   markIncomplete(
-    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    reason: ResolvedSecretIncompletenessReason,
     context: MarkIncompleteContext = {}
   ): void {
     if (context.source) this.inheritIncompletenessReasonsFrom(context.source)
@@ -1870,7 +1908,7 @@ export class ResolvedSecretTraceRegistry {
 
   private markInputPathIncomplete(
     path: ResolvedSecretInputPath | undefined,
-    reason: ResolvedSecretIncompletenessReason = 'unspecified',
+    reason: ResolvedSecretIncompletenessReason,
     origin?: string
   ): void {
     if (!path || path.length === 0) {

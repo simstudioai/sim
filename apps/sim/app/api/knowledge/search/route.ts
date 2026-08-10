@@ -381,7 +381,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       results,
     })
     if (!resultProvenanceSnapshot.imported) {
-      resultSecretRegistry.markIncomplete()
+      resultSecretRegistry.markIncomplete('knowledge-result-provenance-unavailable')
       if (useReranker) {
         return NextResponse.json(
           { error: 'Knowledge result secret provenance is unavailable' },
@@ -608,7 +608,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           'knowledge'
         ))
       ) {
-        resultSecretRegistry.markIncomplete()
+        resultSecretRegistry.markIncomplete('knowledge-result-provenance-unavailable')
       }
     }
 

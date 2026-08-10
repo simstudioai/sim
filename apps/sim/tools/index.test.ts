@@ -1924,7 +1924,7 @@ describe('executeTool Function', () => {
 
   it('runs a private-provenance call from an incomplete parent without replacing its result', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const fetchMock = vi.mocked(global.fetch)
 
     const result = await executeTool(
@@ -1941,7 +1941,7 @@ describe('executeTool Function', () => {
   it('runs a private-provenance call when its input lineage cannot be bounded', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     const incompleteToolRegistry = registry.forkForToolCall()
-    incompleteToolRegistry.markIncomplete()
+    incompleteToolRegistry.markIncomplete('unspecified')
     vi.spyOn(registry, 'forkForInputPaths').mockReturnValue(incompleteToolRegistry)
     const fetchMock = vi.mocked(global.fetch)
 

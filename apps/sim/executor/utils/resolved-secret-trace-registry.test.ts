@@ -141,7 +141,7 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-value' }],
       scope,
     })
-    accumulator.markIncomplete()
+    accumulator.markIncomplete('unspecified')
     expect(accumulator.exportProvenance().entries).toEqual([])
   })
 })
@@ -1465,7 +1465,7 @@ describe('incompleteness diagnostics', () => {
   it('keeps an unaudited caller taking the default reason out of the error stream', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(mockLogger.error).not.toHaveBeenCalled()
     expect(mockLogger.warn).toHaveBeenCalledWith(

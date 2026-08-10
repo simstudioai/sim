@@ -950,7 +950,7 @@ describe('runCopilotLifecycle', () => {
 
   it('does not block ordinary initial Go payloads on unrelated incomplete provenance', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await runCopilotLifecycle(
       { message: 'possibly secret', messageId: 'stream-incomplete-projection' },

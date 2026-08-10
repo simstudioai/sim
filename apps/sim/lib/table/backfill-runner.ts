@@ -79,7 +79,7 @@ export async function createBackfillExecutionSecretRegistry(options: {
     provenance.scope?.workspaceId === options.workspaceId
   const registry = new ResolvedSecretTraceRegistry([], valid ? provenance.scope : undefined)
   if (!valid) {
-    registry.markIncomplete()
+    registry.markIncomplete('backfill-scope-mismatch')
     return registry
   }
   await registry.importProvenance(provenance, {

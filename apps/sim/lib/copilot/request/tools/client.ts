@@ -100,7 +100,7 @@ export async function waitForClientToolCompletion({
         : [null, null]
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
-        toolRegistry.markIncomplete()
+        toolRegistry.markIncomplete('client-tool-seal-failed')
       } else {
         const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
           origin: 'copilotToolClient.sealedContext',
@@ -243,18 +243,18 @@ export async function waitForWorkflowToolCompletion({
   try {
     completion = await waitForToolCompletion(toolCallId, timeoutMs, abortSignal)
     if (!completion) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
       return null
     }
 
     const executionId = getWorkflowToolCompletionExecutionId(completion.data)
     const deploymentError = getAsyncWorkflowDeploymentError(completion.data)
     if (completion.status === ASYNC_TOOL_CONFIRMATION_STATUS.background) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
     if (!workflowId || !executionId) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-completion-unavailable')
       const structuralStatus =
         completion.status === MothershipStreamV1ToolOutcome.success
           ? MothershipStreamV1ToolOutcome.error
@@ -279,12 +279,12 @@ export async function waitForWorkflowToolCompletion({
     }
 
     if (!trustedExecution) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-execution-untrusted')
       return structuralWorkflowCompletion(completion.status, workflowId, executionId)
     }
 
     if (!trustedExecution.contentAvailable) {
-      toolRegistry?.markIncomplete()
+      toolRegistry?.markIncomplete('client-tool-execution-untrusted')
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -297,7 +297,8 @@ export async function waitForWorkflowToolCompletion({
       toolRegistry.isPermanentlyIncomplete() ||
       !trustedExecution.provenance.complete
     ) {
-      if (!trustedExecution.provenance.complete) toolRegistry?.markIncomplete()
+      if (!trustedExecution.provenance.complete)
+        toolRegistry?.markIncomplete('source-provenance-incomplete')
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -317,9 +318,9 @@ export async function waitForWorkflowToolCompletion({
         },
         { trusted: true }
       )
-      if (!imported) toolRegistry.markIncomplete()
+      if (!imported) toolRegistry.markIncomplete('value-provenance-import-failed')
     } catch (error) {
-      toolRegistry.markIncomplete()
+      toolRegistry.markIncomplete('value-provenance-import-failed')
       logger.warn('Failed to import bound workflow provenance', {
         toolCallId,
         workflowId,

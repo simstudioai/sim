@@ -227,7 +227,7 @@ describe('PiBlockHandler', () => {
 
   it('fails closed when task provenance is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     await expect(
       handler.execute(
