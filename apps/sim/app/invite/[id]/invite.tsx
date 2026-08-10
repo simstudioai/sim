@@ -278,32 +278,28 @@ export default function Invite({ registrationDisabled }: InviteProps) {
   const { data: session, isPending } = useSession()
   const queryClient = useQueryClient()
   const [actionError, setActionError] = useState<InviteError | null>(null)
-  const [urlError, setUrlError] = useState<InviteError | null>(null)
   const [isAccepting, setIsAccepting] = useState(false)
   const [accepted, setAccepted] = useState(false)
-  const [isNewUser, setIsNewUser] = useState(false)
-  const [token, setToken] = useState<string | null>(null)
+  const [storedToken, setStoredToken] = useState<string | null>(null)
+
+  const isNewUser = searchParams.get('new') === 'true'
+  const errorReason = searchParams.get('error')
+  const urlError = errorReason ? getInviteError(errorReason) : null
+  const tokenFromQuery = searchParams.get('token')
+  /**
+   * Derived during render so the invitation query key is correct on the first
+   * commit; an effect-set token refetches under a second key whenever the
+   * session cache is already warm at mount.
+   */
+  const token = tokenFromQuery ?? storedToken
 
   useEffect(() => {
-    const errorReason = searchParams.get('error')
-    const isNew = searchParams.get('new') === 'true'
-    setIsNewUser(isNew)
-
-    const tokenFromQuery = searchParams.get('token')
     if (tokenFromQuery) {
-      setToken(tokenFromQuery)
       sessionStorage.setItem(inviteTokenStorageKey, tokenFromQuery)
-    } else {
-      const storedToken = sessionStorage.getItem(inviteTokenStorageKey)
-      if (storedToken) {
-        setToken(storedToken)
-      }
+      return
     }
-
-    if (errorReason) {
-      setUrlError(getInviteError(errorReason))
-    }
-  }, [searchParams, inviteId, inviteTokenStorageKey])
+    setStoredToken(sessionStorage.getItem(inviteTokenStorageKey))
+  }, [tokenFromQuery, inviteTokenStorageKey])
 
   const invitationQuery = useInvitationDetails(inviteId, token, session?.user?.id ?? null, {
     enabled: Boolean(session?.user),

@@ -46,21 +46,15 @@ function VerificationForm({
   const isInvalidOtp = status === 'error'
 
   const [countdown, setCountdown] = useState(0)
-  const [isResendDisabled, setIsResendDisabled] = useState(false)
 
   useEffect(() => {
-    if (countdown > 0) {
-      const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
-      return () => clearTimeout(timer)
-    }
-    if (countdown === 0 && isResendDisabled) {
-      setIsResendDisabled(false)
-    }
-  }, [countdown, isResendDisabled])
+    if (countdown <= 0) return
+    const timer = setTimeout(() => setCountdown((c) => c - 1), 1000)
+    return () => clearTimeout(timer)
+  }, [countdown])
 
   const handleResend = () => {
     resendCode()
-    setIsResendDisabled(true)
     setCountdown(30)
   }
 
@@ -128,7 +122,7 @@ function VerificationForm({
                   Resend in <span className='text-[var(--text-primary)]'>{countdown}s</span>
                 </span>
               ) : (
-                <AuthTextLink onClick={handleResend} disabled={isLoading || isResendDisabled}>
+                <AuthTextLink onClick={handleResend} disabled={isLoading}>
                   Resend
                 </AuthTextLink>
               )}
