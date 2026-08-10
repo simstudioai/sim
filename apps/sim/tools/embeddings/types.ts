@@ -2,7 +2,7 @@ import type { EmbeddingTaskTypeName } from '@/lib/api/contracts/tools/embeddings
 import type { ToolResponse } from '@/tools/types'
 
 export interface EmbeddingsParams {
-  apiKey: string
+  apiKey?: string
   input: string | string[]
   model?: string
   taskType?: EmbeddingTaskTypeName

@@ -11,10 +11,18 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
   DEFAULT_MODEL_BY_PROVIDER,
+  DEFAULT_OPENROUTER_EMBEDDING_MODEL,
   embed,
+  embedOpenRouter,
   findEmbeddingModelInfo,
   resolveDimensions,
 } from '@/lib/embeddings'
+import {
+  getOpenRouterEmbeddingModelMetadata,
+  type OpenRouterEmbeddingModelMetadata,
+  OpenRouterEmbeddingModelNotFoundError,
+} from '@/lib/embeddings/openrouter-model-catalog.server'
+import { normalizeOpenRouterEmbeddingModelId } from '@/lib/embeddings/openrouter-models'
 
 const logger = createLogger('EmbeddingsToolAPI')
 
@@ -63,7 +71,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   if (!parsed.success) return parsed.response
 
   const { provider, apiKey, model, input, taskType, dimensions } = parsed.data.body
-
   const texts = normalizeInput(input)
 
   /**
@@ -109,53 +116,102 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
-  const resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
-  const info = findEmbeddingModelInfo(resolvedModel)
-  if (!info) {
-    return NextResponse.json(
-      { success: false, error: `Unsupported embedding model: ${resolvedModel}` },
-      { status: 400 }
-    )
-  }
-  if (info.provider !== provider) {
-    return NextResponse.json(
-      {
-        success: false,
-        error: `Model ${resolvedModel} belongs to ${info.provider}, not ${provider}`,
-      },
-      { status: 400 }
-    )
+  let resolvedModel: string
+  let openRouterModelMetadata: OpenRouterEmbeddingModelMetadata | undefined
+  if (provider === 'openrouter') {
+    try {
+      resolvedModel = normalizeOpenRouterEmbeddingModelId(
+        model || DEFAULT_OPENROUTER_EMBEDDING_MODEL
+      )
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid OpenRouter embedding model') },
+        { status: 400 }
+      )
+    }
+    try {
+      openRouterModelMetadata = await getOpenRouterEmbeddingModelMetadata(resolvedModel)
+    } catch (error) {
+      const modelError = error instanceof OpenRouterEmbeddingModelNotFoundError
+      return NextResponse.json(
+        {
+          success: false,
+          error: getErrorMessage(
+            error,
+            modelError
+              ? 'Unsupported OpenRouter embedding model'
+              : 'Failed to load OpenRouter embedding model metadata'
+          ),
+        },
+        { status: modelError ? 400 : 502 }
+      )
+    }
+  } else {
+    resolvedModel = model || DEFAULT_MODEL_BY_PROVIDER[provider]
   }
 
-  /**
-   * Resolved here as well as inside `embed()` so an unsupported `dimensions`
-   * is reported as the client error it is. The block's dropdown constrains the
-   * field, but a reference expression can put any value on the wire.
-   */
-  try {
-    resolveDimensions(info, dimensions)
-  } catch (error) {
-    return NextResponse.json(
-      { success: false, error: getErrorMessage(error, 'Invalid dimensions') },
-      { status: 400 }
-    )
+  if (provider !== 'openrouter') {
+    const info = findEmbeddingModelInfo(resolvedModel)
+    if (!info) {
+      return NextResponse.json(
+        { success: false, error: `Unsupported embedding model: ${resolvedModel}` },
+        { status: 400 }
+      )
+    }
+    if (info.provider !== provider) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: `Model ${resolvedModel} belongs to ${info.provider}, not ${provider}`,
+        },
+        { status: 400 }
+      )
+    }
+
+    /**
+     * Resolved here as well as inside `embed()` so an unsupported `dimensions`
+     * is reported as the client error it is. The block's dropdown constrains the
+     * field, but a reference expression can put any value on the wire.
+     */
+    try {
+      resolveDimensions(info, dimensions)
+    } catch (error) {
+      return NextResponse.json(
+        { success: false, error: getErrorMessage(error, 'Invalid dimensions') },
+        { status: 400 }
+      )
+    }
   }
 
   logger.info(`Embedding ${texts.length} input(s) with ${provider}/${resolvedModel}`)
 
   try {
-    const result = await embed(texts, {
-      model: resolvedModel,
-      taskType,
-      dimensions,
-      apiKey,
-      /**
-       * Callers reach this route through a tool whose `request.modelInput`
-       * already projected `input` at the HTTP hop, so projecting again here
-       * would run the substitution over already-projected content.
-       */
-      projectInputs: null,
-    })
+    let result
+    if (provider === 'openrouter') {
+      if (!openRouterModelMetadata) {
+        throw new Error('OpenRouter embedding model metadata was not resolved')
+      }
+      result = await embedOpenRouter(texts, {
+        model: resolvedModel,
+        dimensions,
+        apiKey,
+        maxInputTokens: openRouterModelMetadata.maxInputTokens,
+        projectInputs: null,
+      })
+    } else {
+      result = await embed(texts, {
+        model: resolvedModel,
+        taskType,
+        dimensions,
+        apiKey,
+        /**
+         * Callers reach this route through a tool whose `request.modelInput`
+         * already projected `input` at the HTTP hop, so projecting again here
+         * would run the substitution over already-projected content.
+         */
+        projectInputs: null,
+      })
+    }
 
     return NextResponse.json({
       success: true,

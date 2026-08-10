@@ -104,6 +104,15 @@ function featureDetail(feature: FeatureStatus): string {
       if (feature.providerId === 'local') return 'Local parser (default)'
       if (feature.providerId === 'azure-mistral') return 'Azure Mistral OCR'
       return feature.providerId === 'mistral' ? 'Mistral OCR' : 'Not configured'
+    case 'knowledge-embeddings':
+      return feature.providerIds.length > 0
+        ? feature.providerIds
+            .map(
+              (id) =>
+                feature.providers.find((provider) => provider.id === id)?.label ?? titleCase(id)
+            )
+            .join(' → ')
+        : 'Not configured'
     case 'llm': {
       const configured = Object.values(feature.pools)
         .filter((pool) => pool.state === 'configured')
