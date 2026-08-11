@@ -30,6 +30,7 @@ vi.mock('@/lib/api/client/request', async (importOriginal) => ({
   requestJson: mockRequestJson,
 }))
 
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 
@@ -130,6 +131,7 @@ describe('useChat mount-settling send recovery', () => {
     mockRequestJson.mockResolvedValue({ chats: [] })
     useMothershipQueueStore.setState({ queues: {}, editing: {} })
     window.sessionStorage.clear()
+    window.localStorage.clear()
   })
 
   afterEach(() => {
@@ -141,7 +143,7 @@ describe('useChat mount-settling send recovery', () => {
     vi.clearAllMocks()
   })
 
-  it('restores a send the unmount cleanup aborted before the server received it', async () => {
+  it('re-persists an aborted chatless send as a handoff for the next mount', async () => {
     const { getResult, unmount } = renderUseChat()
 
     await act(async () => {
@@ -152,12 +154,16 @@ describe('useChat mount-settling send recovery', () => {
     // The dispatch claimed the queue head when the optimistic send applied.
     expect(allQueuedMessages()).toHaveLength(0)
 
-    // The cleanup abort (same code path a Suspense hide/reveal runs during
-    // mount-settling) fires while the POST is still awaiting the server.
+    // The cleanup abort (the same code path the mount-settling remount runs)
+    // fires while the POST is still awaiting the server. A chatless surface
+    // regenerates its queue key per mount, so recovery re-persists the send
+    // as a one-shot handoff for the next mount's consumer instead of
+    // restoring the dead instance's queue.
     unmount()
-    await waitFor(() => allQueuedMessages().length === 1)
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
 
-    expect(allQueuedMessages()[0].content).toBe('hello from the palette')
+    expect(allQueuedMessages()).toHaveLength(0)
+    expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('hello from the palette')
   })
 
   it('does not re-queue a send the server already received', async () => {
@@ -175,5 +181,6 @@ describe('useChat mount-settling send recovery', () => {
     })
 
     expect(allQueuedMessages()).toHaveLength(0)
+    expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
   })
 })

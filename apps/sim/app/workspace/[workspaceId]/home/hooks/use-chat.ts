@@ -82,6 +82,7 @@ import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import {
@@ -4505,6 +4506,27 @@ export function useChat(
         if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
           return
         }
+        /* A pending (chatless) surface regenerates its chat key per mount, and
+           the cleanup that aborted this send belongs to a full remount — a
+           queue restore would orphan the message under the dead instance's
+           key. Re-persist it as a one-shot handoff instead: the next mount's
+           consumer re-sends it. Chat-bound sends keep the queue restore (their
+           key is the stable chat id). Attachment payloads exceed what the
+           handoff carries, so they fall back to the queue restore. */
+        if (
+          restorableCleanupAbortRef.current &&
+          dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX) &&
+          !msg.fileAttachments?.length
+        ) {
+          MothershipHandoffStorage.store(
+            {
+              message: msg.content,
+              ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
+            },
+            workspaceId
+          )
+          return
+        }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
       }
 
@@ -4545,7 +4567,7 @@ export function useChat(
         userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
-    [startSendMessage]
+    [startSendMessage, workspaceId]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {
