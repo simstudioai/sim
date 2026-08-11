@@ -9,6 +9,7 @@ import {
   createWorkspaceFileFolder,
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
+  ensureWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
@@ -44,6 +45,17 @@ export interface CreateWorkspaceFileFolderInput {
 
 export interface CreateWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
+}
+
+export interface EnsureWorkspaceFileFolderPathInput {
+  workspaceId: string
+  /** Decoded folder names, outermost first. An empty list resolves to the root. */
+  pathSegments: string[]
+}
+
+export interface EnsureWorkspaceFileFolderPathResult {
+  /** Id of the deepest folder, or `null` when the path resolves to the root. */
+  folderId: string | null
 }
 
 export interface UpdateWorkspaceFileFolderInput {
@@ -148,6 +160,22 @@ async function executeCreateWorkspaceFileFolder(args: {
   return { folder }
 }
 
+async function executeEnsureWorkspaceFileFolderPath(args: {
+  principal: Parameters<typeof resolvePrincipalAttribution>[0]
+  input: EnsureWorkspaceFileFolderPathInput
+  context: FolderOperationContext
+}): Promise<EnsureWorkspaceFileFolderPathResult> {
+  const attribution = resolvePrincipalAttribution(args.principal, {
+    workspaceBillingOwnerUserId: args.context.billedAccountUserId,
+  })
+  const folderId = await ensureWorkspaceFileFolderPath({
+    workspaceId: args.context.workspaceId,
+    userId: attribution.attributedUserId,
+    pathSegments: args.input.pathSegments,
+  })
+  return { folderId }
+}
+
 async function executeUpdateWorkspaceFileFolder(args: {
   input: UpdateWorkspaceFileFolderInput
   context: FolderOperationContext
@@ -238,6 +266,20 @@ export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
   async afterSuccess({ context }) {
     await notifyWorkspaceFilesChanged(context.workspaceId)
   },
+})
+
+/**
+ * Idempotently materializes a whole folder chain, reusing every folder that already
+ * exists and creating only the missing ones. Unlike {@link createWorkspaceFileFolderOperation}
+ * — which creates exactly one leaf and fails on an existing path or a missing parent —
+ * this is the primitive for writers that materialize a tree (archive extraction, workspace
+ * import), where intermediate folders and repeat runs are expected rather than exceptional.
+ */
+export const ensureWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.createFolder,
+  resolveContext: (args: { input: EnsureWorkspaceFileFolderPathInput }) =>
+    resolveFolderContext(args),
+  execute: executeEnsureWorkspaceFileFolderPath,
 })
 
 export const updateWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({

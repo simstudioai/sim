@@ -7,7 +7,7 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -362,15 +362,15 @@ export async function decompressArchiveBufferToWorkspaceFiles(
       const folderKey = folderSegments.join('/')
       let folderId = folderIdCache.get(folderKey)
       if (folderId === undefined) {
-        if (folderSegments.length === 0) {
-          folderId = null
-        } else {
-          const result = await createWorkspaceFileFolderOperation.execute({
+        // Ensure-semantics, not create-semantics: an archive addresses every folder
+        // by its full chain, so intermediates must be materialized and any folder
+        // that already exists (from a sibling entry or an earlier extraction) reused.
+        folderId = (
+          await ensureWorkspaceFileFolderPathOperation.execute({
             principal,
-            input: { workspaceId, path: folderSegments.join('/') },
+            input: { workspaceId, pathSegments: folderSegments },
           })
-          folderId = result.folder.id
-        }
+        ).folderId
         folderIdCache.set(folderKey, folderId)
       }
 
@@ -384,7 +384,9 @@ export async function decompressArchiveBufferToWorkspaceFiles(
             name: leafName,
             contentType: mimeType,
             folderId,
-            exactName: true,
+            // Auto-suffix on collision: one leaf name that already exists must not
+            // roll back an otherwise valid extraction.
+            exactName: false,
             secretProvenance: extractedSecretProvenance,
           },
         })
