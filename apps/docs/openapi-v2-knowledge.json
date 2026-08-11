@@ -148,7 +148,7 @@
       "post": {
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
-        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -291,7 +291,7 @@
       "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
-        "description": "Update a knowledge base name, description, chunking configuration, or folder placement.",
+        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1242,7 +1242,7 @@
       "delete": {
         "operationId": "deleteKnowledgeDocument",
         "summary": "Delete Document",
-        "description": "Delete one document and its indexed chunks from a knowledge base.",
+        "description": "Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1329,7 +1329,7 @@
       "get": {
         "operationId": "listKnowledgeFolders",
         "summary": "List Folders",
-        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1441,7 +1441,7 @@
       "post": {
         "operationId": "createKnowledgeFolder",
         "summary": "Create Folder",
-        "description": "Create a folder in the knowledge-base folder tree.",
+        "description": "Create a folder in the knowledge-base folder tree. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1508,7 +1508,7 @@
       "patch": {
         "operationId": "relocateKnowledgeFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant paths.",
+        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,

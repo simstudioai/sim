@@ -53,12 +53,13 @@ export const v2WorkflowRunIdSchema = z
 /**
  * `X-Run-Id` is a **one-shot uniqueness claim, not an idempotency key.** The
  * first request to claim a value starts a run; every later request reusing it
- * is rejected with `409 EXECUTION_ID_CONFLICT` and the original result is never
+ * is rejected with a `409` carrying `error.details.code: "RUN_ID_CONFLICT"`, and
+ * the original result is never
  * replayed. Retry logic written against idempotency-key semantics either
  * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
  */
 const X_RUN_ID_DESCRIPTION =
-  'Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 `EXECUTION_ID_CONFLICT` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.'
+  'Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 and `error.details.code: "RUN_ID_CONFLICT"` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.'
 
 const X_SIM_VIA_DESCRIPTION =
   'Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`, which is how runaway recursion between workflows is stopped.'
@@ -72,7 +73,7 @@ export const v2ExecuteWorkflowHeadersSchema = z
     id: 'ExecuteWorkflowHeaders',
     title: 'Execute workflow headers',
     description:
-      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution. Reusing an `X-Run-Id` returns 409 `RUN_ID_CONFLICT`; it does not replay the earlier run. An `X-Sim-Via` chain at maximum depth returns 409 `CALL_CHAIN_DEPTH_EXCEEDED`.',
+      'Optional one-shot run-identifier claim and workflow call-chain marker for a workflow execution. Reusing an `X-Run-Id` returns 409 and `error.details.code: "RUN_ID_CONFLICT"`; it does not replay the earlier run. An `X-Sim-Via` chain at maximum depth returns 409 and `error.details.code: "CALL_CHAIN_DEPTH_EXCEEDED"`.',
   })
 export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
 

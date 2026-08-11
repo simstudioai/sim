@@ -357,7 +357,8 @@ const routes = [
     filesOperation({
       operationId: 'deleteFile',
       summary: 'Delete File',
-      description: 'Delete a workspace file and its stored bytes.',
+      description:
+        'Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in listings and is no longer readable through the API, and its stored bytes are never removed. An archived file can be restored from the workspace Recently Deleted settings; the v2 API exposes no restore operation.',
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'Deletion confirmation.' },
     }),
@@ -546,7 +547,8 @@ const routes = [
     filesOperation({
       operationId: 'getFileShare',
       summary: 'Get File Share',
-      description: 'Return the current public-share configuration for a file.',
+      description:
+        'Return the nullable current public-share configuration for a file. A file that has never been shared returns `data: null` rather than a 404; a share that was created and later disabled is still returned, with `isActive: false`.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Current nullable file-share state.' },
     }),
@@ -577,7 +579,7 @@ const routes = [
     filesOperation({
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
-      description: `Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      description: `Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The updated file share.' },
     }),
@@ -799,7 +801,7 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
   info: {
     title: 'Sim API v2 — Files & Audit Logs',
     description:
-      'Version 2 of the Sim REST API for workspace files and organization audit logs. Every endpoint uses the canonical v2 data, cursor-list, and error envelopes. Lists use opaque cursors, and rate-limit state is returned in response headers.',
+      'Version 2 of the Sim REST API for workspace files and organization audit logs. Lists use opaque cursors, and rate-limit state is returned in response headers. Download File streams raw bytes as `application/octet-stream`; every other response uses the canonical v2 data, cursor-list, or error envelope.',
     version: '2.0.0',
     contact: {
       name: 'Sim Support',

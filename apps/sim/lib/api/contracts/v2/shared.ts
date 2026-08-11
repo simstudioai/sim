@@ -11,6 +11,16 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - list:              `{ data: T[], nextCursor: string | null }`
  * - error:             `{ error: { code, message, details? } }`
  *
+ * Every documented v2 operation uses that family. The two exceptions are the
+ * local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}` and
+ * `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}` — which emit a bare
+ * `{ error: string }` body. They are authenticated by a short-lived upload
+ * token rather than an API key, are deliberately absent from the public
+ * OpenAPI specs (see `UNDOCUMENTED_V2_ROUTES` in
+ * `scripts/check-openapi-specs.ts`), and are only ever reached through a URL
+ * handed back by a documented operation, so no caller writes against them
+ * from docs.
+ *
  * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
  * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
  * accepts `limit` + `cursor` and can return a non-null `nextCursor`; a list
@@ -43,8 +53,10 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
- *   skills, `title` for custom tools, `displayName` for credentials. It never
- *   matches ids, descriptions, or content. `%` and `_` in the term are matched
+ *   skills, `title` for custom tools, `filename` for knowledge documents
+ *   (`GET /knowledge/{id}/documents`), and `displayName` for both credentials
+ *   and secrets (`GET /secrets`, where the secret's name *is* the credential
+ *   `displayName`). It never matches ids, descriptions, or content. `%` and `_` in the term are matched
  *   literally, not as wildcards. Empty is rejected rather than silently
  *   ignored — omit the param instead.
  * - **`sortBy` + `sortOrder`** ({@link v2SortFields}) — `sortBy` is a
@@ -89,10 +101,24 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
 
 /**
  * Canonical v2 timestamp: a strict ISO-8601 UTC instant, exactly what
- * `Date.prototype.toISOString()` emits. Use this for every timestamp on the v2
- * wire rather than a bare `z.string()` — a bare string renders as an untyped
- * `string` in the OpenAPI document, so generated clients hand callers a raw
- * string instead of a parsed date.
+ * `Date.prototype.toISOString()` emits.
+ *
+ * What this buys over a bare `z.string().meta({ format: 'date-time' })` is
+ * *runtime* validation, not documentation. Both render the same OpenAPI schema
+ * — `format: date-time` comes from the `meta`, so a generated client parses
+ * either one as a date — and roughly two dozen v2 fields use the bare form,
+ * including {@link v2FolderSchema} below and most of `contracts/v2/workflows.ts`.
+ * The real difference is that `.datetime()` also *asserts* the shape, and a v2
+ * response body is `.parse`d on the way out
+ * (`lib/api/server/routes/v2-json-route.ts`), so asserting a field a producer
+ * does not actually emit as ISO-8601 turns a successful read into a 500.
+ *
+ * Use this schema wherever every producer of the field provably emits
+ * `toISOString()` output — most commonly a `Date` column projected straight
+ * through. Keep the bare form for a value that is persisted as text,
+ * reconstructed from a third party, or otherwise may have drifted: the document
+ * is identical, and a lenient read beats a 500. Tightening an existing field
+ * means proving the producer first.
  */
 export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
 

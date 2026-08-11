@@ -112,9 +112,9 @@ const routes = [
     tableOperation({
       operationId: 'listTables',
       summary: 'List Tables',
-      description: `List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. ${FOLDER_TREE_TOO_LARGE}`,
+      description: `List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
-      success: { description: 'The tables in the workspace.' },
+      success: { description: 'A page of tables in the workspace.' },
     }),
     {
       query: documentedSchema(

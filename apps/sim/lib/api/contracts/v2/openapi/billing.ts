@@ -106,7 +106,7 @@ const routes = [
       operationId: 'listBillingLogs',
       summary: 'List Billing Logs',
       description:
-        'List the credit-denominated billing ledger with source filtering and opaque cursor pagination.',
+        'List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. Pass `period=all` for full history, or `period=custom` with `startDate` and `endDate` for a specific range.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'A page of usage events.' },
     }),

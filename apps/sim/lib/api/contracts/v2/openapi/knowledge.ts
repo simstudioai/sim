@@ -90,8 +90,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
-      description:
-        'Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404',
+      description: `Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge base.' },
     }),
@@ -146,8 +145,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'updateKnowledgeBase',
       summary: 'Update Knowledge Base',
-      description:
-        'Update a knowledge base name, description, chunking configuration, or folder placement.',
+      description: `Update a knowledge base name, description, chunking configuration, or folder placement. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated knowledge base.' },
     }),
@@ -509,7 +507,8 @@ const routes = [
     knowledgeOperation({
       operationId: 'deleteKnowledgeDocument',
       summary: 'Delete Document',
-      description: 'Delete one document and its indexed chunks from a knowledge base.',
+      description:
+        'Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Knowledge document deletion acknowledgement.' },
     }),
@@ -539,8 +538,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeFolders',
       summary: 'List Folders',
-      description:
-        'List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      description: `List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with \`nextCursor\` always null; there is no second page to fetch. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge-base folders.' },
     }),
@@ -564,7 +562,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'createKnowledgeFolder',
       summary: 'Create Folder',
-      description: 'Create a folder in the knowledge-base folder tree.',
+      description: `Create a folder in the knowledge-base folder tree. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge-base folder.' },
     }),
@@ -589,7 +587,7 @@ const routes = [
     knowledgeOperation({
       operationId: 'relocateKnowledgeFolder',
       summary: 'Rename or Move Folder',
-      description: 'Rename or move a folder and atomically rewrite descendant paths.',
+      description: `Rename or move a folder and atomically rewrite descendant paths. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The relocated knowledge-base folder.' },
     }),

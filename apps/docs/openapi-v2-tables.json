@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
+        "description": "List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -123,7 +123,7 @@
         ],
         "responses": {
           "200": {
-            "description": "The tables in the workspace.",
+            "description": "A page of tables in the workspace.",
             "headers": {
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
