@@ -744,10 +744,10 @@ export const billingIdempotency = new IdempotencyService({
  * browser drops the socket. Without this, a client that recovers an aborted
  * send has to choose between losing the message and duplicating the run.
  *
- * Storage is forced to Postgres for the same reason as {@link billingIdempotency}:
- * a missed dedup is a second LLM turn billed to the workspace, so the key must
- * not be evictable under Redis memory pressure. The added 1-5ms is invisible
- * next to the LLM call this request is about to make.
+ * Storage is forced to Postgres for the same reason Stripe webhook claims are
+ * (see `stripeWebhookIdempotency`): a missed deduplication is a second LLM turn
+ * billed to the workspace, so the key must not be evictable under Redis memory
+ * pressure. The added 1-5ms is invisible next to the LLM call that follows.
  *
  * `inProgressTtlSeconds` is short so a crashed pod cannot block a genuine retry
  * for the full hour, while completed sends stay deduplicated for it.
@@ -756,6 +756,5 @@ export const chatSendIdempotency = new IdempotencyService({
   namespace: 'chat-send',
   ttlSeconds: 60 * 60, // 1 hour
   inProgressTtlSeconds: 60,
-  retryFailures: true,
   forceStorage: 'database',
 })

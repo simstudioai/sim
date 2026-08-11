@@ -146,6 +146,43 @@ function renderUseChat(): {
 }
 
 /**
+ * As `renderUseChat`, but bound to an existing chat rather than chatless. The
+ * pathname has to match: the hook resets a chat-bound surface back to a fresh
+ * pending key when it finds itself on the home route.
+ */
+function renderUseChatInChat(chatId: string): {
+  getResult: () => ReturnType<typeof useChat>
+  unmount: () => void
+} {
+  navigationMocks.usePathname.mockReturnValue(`/workspace/ws-1/chat/${chatId}`)
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  mountedRoots.push(root)
+  let result: ReturnType<typeof useChat> | undefined
+
+  function Probe() {
+    result = useChat('ws-1', chatId)
+    return null
+  }
+
+  act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>{(<Probe />) as ReactNode}</QueryClientProvider>
+    )
+  })
+
+  return {
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    unmount: () => act(() => root.unmount()),
+  }
+}
+
+/**
  * Mounts a surface shaped like `home.tsx`: it drives `useChat` AND registers the
  * `mothership-send-message` listener that claims the event with
  * `preventDefault`. Unmounting it exercises whether the departing surface's own
@@ -260,6 +297,7 @@ async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void>
 describe('useChat remount send recovery', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', fetchStub)
+    navigationMocks.usePathname.mockReturnValue('/workspace/ws-1/home')
     state.postBehavior = 'hang'
     state.postBodies = []
     mockRequestJson.mockResolvedValue({ chats: [] })
@@ -443,5 +481,32 @@ describe('useChat remount send recovery', () => {
       expect(state.postBodies).toHaveLength(1)
       expect(state.postBodies[0].userMessageId).toBe('the-first-attempt')
     })
+  })
+
+  /**
+   * A withdrawn send belongs to the chat it was sent to. The cross-surface
+   * lanes deliver to whatever chat is mounted next, so routing a chat-bound
+   * send through them would drop the message into a different conversation —
+   * exactly what happens if the user switches chats mid-send. Its key is the
+   * stable chat id, so re-queueing under that key is the durable retry.
+   */
+  it('re-queues a withdrawn chat-bound send instead of following the user', async () => {
+    const { getResult, unmount } = renderUseChatInChat('chat-a')
+
+    await act(async () => {
+      void getResult().sendMessage('belongs to chat-a')
+    })
+    await waitFor(() => state.postBodies.length === 1)
+
+    unmount()
+    await waitFor(() => allQueuedMessages().length === 1)
+
+    const queues = useMothershipQueueStore.getState().queues
+    expect(Object.keys(queues)).toEqual(['chat-a'])
+    expect(queues['chat-a'][0].content).toBe('belongs to chat-a')
+    // Reused on the retry so the server deduplicates it.
+    expect(queues['chat-a'][0].resumeUserMessageId).toBe(state.postBodies[0].userMessageId)
+    // Must NOT have gone to the cross-surface handoff.
+    expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
   })
 })

@@ -148,7 +148,7 @@ describe('handleUnifiedChatPost', () => {
     resetDbChainMock()
     atomicallyClaimChatSend.mockResolvedValue({
       claimed: true,
-      normalizedKey: 'chat-send:mothership:msg-1:userId=user-1',
+      normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
       storageMethod: 'database',
       claimToken: 'claim-1',
     })
@@ -758,7 +758,7 @@ describe('handleUnifiedChatPost', () => {
     it('answers an already-claimed send with the chat the first attempt opened', async () => {
       atomicallyClaimChatSend.mockResolvedValue({
         claimed: false,
-        normalizedKey: 'chat-send:mothership:msg-1:userId=user-1',
+        normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
         storageMethod: 'database',
         existingResult: { success: true, status: 'completed', result: { chatId: 'chat-first' } },
       })
@@ -798,7 +798,7 @@ describe('handleUnifiedChatPost', () => {
         })
       )
 
-      expect(atomicallyClaimChatSend).toHaveBeenCalledWith('mothership', 'msg-1', {
+      expect(atomicallyClaimChatSend).toHaveBeenCalledWith('user-message', 'msg-1', {
         userId: 'user-1',
       })
     })
@@ -817,7 +817,7 @@ describe('handleUnifiedChatPost', () => {
       )
 
       expect(storeChatSendResult).toHaveBeenCalledWith(
-        'chat-send:mothership:msg-1:userId=user-1',
+        'chat-send:user-message:msg-1:userId=user-1',
         expect.objectContaining({ result: { chatId: 'chat-1' } }),
         'database',
         'claim-1'

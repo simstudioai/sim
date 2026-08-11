@@ -151,7 +151,7 @@ export interface SendMessageOptions {
  * when an unmount cleanup withdrew it — `userMessageId` is what a retry reuses
  * so the server deduplicates the two attempts.
  */
-type StartSendMessageResult = boolean | { kind: 'withdrawn_by_cleanup'; userMessageId: string }
+type StartSendMessageResult = boolean | { userMessageId: string }
 
 interface StartSendMessageOptions {
   /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
@@ -3905,7 +3905,7 @@ export function useChat(
                server deduplicates it against that turn instead of billing
                another one. */
             rollbackOptimisticSend()
-            return { kind: 'withdrawn_by_cleanup', userMessageId }
+            return { userMessageId }
           }
           return consumedByTranscript
         }
@@ -4031,14 +4031,29 @@ export function useChat(
       }
 
       const result = await startSendMessage(message, fileAttachments, contexts, options)
-      if (typeof result === 'object') {
-        handOffWithdrawnSend({
-          content: message,
-          fileAttachments,
-          contexts,
-          userMessageId: result.userMessageId,
-        })
+      if (typeof result !== 'object') return
+
+      /* An unmount cleanup withdrew the send. A chat-bound key is the stable
+         chat id, so re-queueing under the key this was sent to is the durable
+         retry — and keeps the message in that chat rather than following the
+         user into whichever one they opened next. Only a chatless surface,
+         whose key dies with the mount, goes to the cross-surface lanes. */
+      const withdrawn = {
+        content: message,
+        fileAttachments,
+        contexts,
+        userMessageId: result.userMessageId,
       }
+      if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        handOffWithdrawnSend(withdrawn)
+        return
+      }
+      useMothershipQueueStore
+        .getState()
+        .enqueue(
+          activeChatKey,
+          createQueuedMessage(message, fileAttachments, contexts, result.userMessageId)
+        )
     },
     [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
   )
@@ -4578,6 +4593,10 @@ export function useChat(
         useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
+      /* What actually went out. `msg` is the snapshot from when the dispatch was
+         scheduled; the send below uses the re-read live entry, so recovery
+         tracks that rather than assuming the two still match. */
+      let dispatched = msg
       const restoreQueuedMessage = (
         handoff?: QueuedSendHandoffSeed,
         withdrawnUserMessageId?: string
@@ -4604,15 +4623,15 @@ export function useChat(
            the queue itself is the durable retry. */
         if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
           handOffWithdrawnSend({
-            content: msg.content,
-            fileAttachments: msg.fileAttachments,
-            contexts: msg.contexts,
+            content: dispatched.content,
+            fileAttachments: dispatched.fileAttachments,
+            contexts: dispatched.contexts,
             userMessageId: withdrawnUserMessageId,
           })
           return
         }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
-          ...msg,
+          ...dispatched,
           ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
         })
       }
@@ -4631,6 +4650,7 @@ export function useChat(
         // Re-read live: the user may have applied an in-place edit (`replaceAt`)
         // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
+        dispatched = liveMsg
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
 
         const sendResult = await startSendMessage(

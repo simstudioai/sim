@@ -260,7 +260,10 @@ const ChatContextSchema = z
 
 const ChatMessageSchema = z.object({
   message: z.string().min(1, 'Message is required'),
-  userMessageId: z.string().optional(),
+  /* Bounded because it becomes part of a Postgres key in `chatSendIdempotency`;
+     a client-supplied id longer than the btree entry limit would throw there.
+     A generated id is 36 chars. */
+  userMessageId: z.string().max(128).optional(),
   chatId: z.string().optional(),
   workflowId: z.string().optional(),
   workspaceId: z.string().optional(),
@@ -945,26 +948,22 @@ async function resolveBranch(params: {
   }
 }
 
-/** Namespace-local provider segment for {@link chatSendIdempotency} keys. */
-const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'mothership'
+/** Names what the key identifies: `chat-send:user-message:<id>:userId=<id>`. */
+const CHAT_SEND_IDEMPOTENCY_PROVIDER = 'user-message'
 
 /**
  * Claims this send so a retry of it can be recognised.
  *
- * Fails open. Deduplication is an optimization here — it saves a duplicate chat
- * and a duplicate billed turn — whereas the send itself is the user's message,
- * and refusing it because a bookkeeping store is unreachable would take chat
- * down for everyone rather than degrade it. An unavailable store therefore
- * returns `undefined`, which sends normally with no claim to finalize.
+ * Fails open: a missed deduplication costs a duplicate chat and turn, but
+ * refusing the send loses the user's message. Returns `undefined` when the
+ * store is unreachable, which sends normally with no claim to finalize.
  *
- * The key is scoped to the caller: `userMessageId` is client-supplied, so an
- * unscoped one would let a user probe another's sends and read back their chat
- * id.
+ * The key is scoped to the caller — `userMessageId` is client-supplied, so an
+ * unscoped one would let a user probe another's sends for their chat id.
  */
 async function claimChatSend(
   userMessageId: string,
-  userId: string,
-  requestId: string
+  userId: string
 ): Promise<AtomicClaimResult | undefined> {
   try {
     return await chatSendIdempotency.atomicallyClaim(
@@ -973,18 +972,12 @@ async function claimChatSend(
       { userId }
     )
   } catch (error) {
-    logger.warn(`[${requestId}] Could not claim chat send; proceeding without deduplication`, {
+    logger.warn('Could not claim chat send; proceeding without deduplication', {
       userMessageId,
       error: getErrorMessage(error, 'Unknown error'),
     })
     return undefined
   }
-}
-
-/** Chat a previously-claimed send resolved to, when it got that far. */
-function claimedChatId(claim: AtomicClaimResult): string | undefined {
-  const chatId = claim.existingResult?.result?.chatId
-  return typeof chatId === 'string' && chatId ? chatId : undefined
 }
 
 /**
@@ -997,13 +990,10 @@ function claimedChatId(claim: AtomicClaimResult): string | undefined {
  * first attempt got far enough to resolve one, letting a chatless client adopt
  * it without a stream-to-chat lookup.
  */
-function duplicateChatSendResponse(
-  claim: AtomicClaimResult,
-  userMessageId: string,
-  requestId: string
-): NextResponse {
-  const chatId = claimedChatId(claim)
-  logger.info(`[${requestId}] Deduplicated a repeated chat send`, { userMessageId, chatId })
+function duplicateChatSendResponse(claim: AtomicClaimResult, userMessageId: string): NextResponse {
+  const claimed = claim.existingResult?.result?.chatId
+  const chatId = typeof claimed === 'string' && claimed ? claimed : undefined
+  logger.info('Deduplicated a repeated chat send', { userMessageId, chatId })
   return NextResponse.json(
     {
       error: 'This message was already sent.',
@@ -1018,13 +1008,8 @@ export async function handleUnifiedChatPost(req: NextRequest) {
   let actualChatId: string | undefined
   let userMessageId = ''
   let chatStreamLockAcquired = false
-  /* Held from the moment this send is claimed until the chat it belongs to is
-     recorded. Released on the error path so a failed send can be retried, and
-     deliberately NOT released once recorded — by then the chat exists and the
-     user message is persisted, so a retry must resolve to it rather than open
-     a second chat. */
+  /** Cleared once the chat is recorded against it, which makes it permanent. */
   let sendClaim: AtomicClaimResult | undefined
-  let sendClaimRecorded = false
   // Started once we've parsed the body (need userMessageId to stamp as
   // streamId). Every subsequent span (persistUserMessage,
   // createRunSegment, the whole SSE stream, etc.) nests under this
@@ -1059,9 +1044,9 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     const normalizedContexts = normalizeContexts(body.contexts) ?? []
     userMessageId = body.userMessageId || generateId()
 
-    sendClaim = await claimChatSend(userMessageId, authenticatedUserId, requestId)
+    sendClaim = await claimChatSend(userMessageId, authenticatedUserId)
     if (sendClaim?.claimed === false) {
-      return duplicateChatSendResponse(sendClaim, userMessageId, requestId)
+      return duplicateChatSendResponse(sendClaim, userMessageId)
     }
 
     otelRoot = startCopilotOtelRoot({
@@ -1156,13 +1141,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
         }
       }
 
-      /* Record the chat against this send as soon as it is known, the earliest
-         a retry can be answered with somewhere to go. From here the claim is
-         permanent: the user message lands moments later, so a retry must
-         resolve to this chat rather than open another. Failing to record only
-         costs deduplication, so it must not fail the send. */
+      /* Record the chat as soon as it is known — the earliest a retry can be
+         answered with somewhere to go. The claim becomes permanent here: the
+         user message lands moments later, so a retry must resolve to this chat
+         rather than open another. */
       if (sendClaim?.claimToken && actualChatId) {
-        sendClaimRecorded = await chatSendIdempotency
+        const recorded = await chatSendIdempotency
           .storeResult(
             sendClaim.normalizedKey,
             { success: true, status: 'completed', result: { chatId: actualChatId } },
@@ -1176,6 +1160,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             })
             return false
           })
+        if (recorded) sendClaim = undefined
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
@@ -1482,19 +1467,6 @@ export async function handleUnifiedChatPost(req: NextRequest) {
     if (chatStreamLockAcquired && actualChatId && userMessageId) {
       await releasePendingChatStream(actualChatId, userMessageId)
     }
-    // Nothing was recorded against this send, so let a retry of it through
-    // rather than deduplicating against a chat that was never opened. A failed
-    // release just leaves the claim to expire on its own short in-progress TTL.
-    if (sendClaim?.claimToken && !sendClaimRecorded) {
-      await chatSendIdempotency
-        .release(sendClaim.normalizedKey, sendClaim.storageMethod, sendClaim.claimToken)
-        .catch((releaseError) => {
-          logger.warn(`[${requestId}] Could not release the claim for a failed send`, {
-            userMessageId,
-            error: getErrorMessage(releaseError, 'Unknown error'),
-          })
-        })
-    }
     otelRoot?.finish('error', error)
 
     if (isZodError(error)) {
@@ -1524,5 +1496,20 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       },
       { status: 500 }
     )
+  } finally {
+    /* A claim still held here never recorded a chat — the send threw, or
+       returned early on a rejected branch or a missing chat. Release it so a
+       retry is treated as new rather than deduplicated against a chat that was
+       never opened. Must be `finally`: those early returns skip `catch`. */
+    if (sendClaim?.claimToken) {
+      await chatSendIdempotency
+        .release(sendClaim.normalizedKey, sendClaim.storageMethod, sendClaim.claimToken)
+        .catch((releaseError) => {
+          logger.warn('Could not release the claim for an unfinished send', {
+            userMessageId,
+            error: getErrorMessage(releaseError, 'Unknown error'),
+          })
+        })
+    }
   }
 }
