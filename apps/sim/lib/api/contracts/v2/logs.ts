@@ -10,6 +10,7 @@ import {
   v2FolderPathSchema,
   v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
+import type { PersistedWorkflowExecutionStatus } from '@/lib/logs/types'
 
 /**
  * v2 logs contracts. The query schemas are reused verbatim from v1 (the request
@@ -21,9 +22,30 @@ const v2LogCostSchema = z
   .object({ total: z.number().describe('Total execution cost in USD.') })
   .nullable()
   .describe('Cost charged for the run, or null when unavailable.')
+/**
+ * Every status the execution logger can persist, including the transient
+ * `redacting` state written while a finished run's output is scrubbed. The
+ * column is free text, so a value missing here fails the response parse and
+ * turns a single row into a 500 for the whole page. `_ExhaustiveLogStatus`
+ * makes a future addition to the persisted union a compile error instead.
+ */
+const V2_LOG_STATUSES = [
+  'pending',
+  'running',
+  'redacting',
+  'completed',
+  'failed',
+  'cancelled',
+] as const satisfies readonly PersistedWorkflowExecutionStatus[]
+
+type AssertNever<T extends never> = T
+type _ExhaustiveLogStatus = AssertNever<
+  Exclude<PersistedWorkflowExecutionStatus, (typeof V2_LOG_STATUSES)[number]>
+>
+
 export const v2LogStatusSchema = z
-  .enum(['pending', 'running', 'completed', 'failed', 'cancelled'])
-  .describe('Current execution status.')
+  .enum(V2_LOG_STATUSES)
+  .describe('Current execution status. `redacting` is transient while run output is scrubbed.')
 
 /** Execution `files` is a per-run jsonb array of attachment metadata. */
 const v2LogFilesSchema = z

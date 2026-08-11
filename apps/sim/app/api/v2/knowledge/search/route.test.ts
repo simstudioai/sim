@@ -158,7 +158,7 @@ describe('POST /api/v2/knowledge/search', () => {
 
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({
-      error: `Request body exceeds the maximum allowed size of ${V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES} bytes`,
+      error: { code: 'PAYLOAD_TOO_LARGE', message: 'Request body is too large' },
     })
     expect(mockSearch).not.toHaveBeenCalled()
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')

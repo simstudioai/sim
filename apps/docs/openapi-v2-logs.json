@@ -640,8 +640,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "completed", "failed", "cancelled"],
-            "description": "Current execution status."
+            "enum": ["pending", "running", "redacting", "completed", "failed", "cancelled"],
+            "description": "Current execution status. `redacting` is transient while run output is scrubbed."
           },
           "level": {
             "type": "string",
@@ -1028,8 +1028,8 @@
           },
           "status": {
             "type": "string",
-            "enum": ["pending", "running", "completed", "failed", "cancelled"],
-            "description": "Current execution status."
+            "enum": ["pending", "running", "redacting", "completed", "failed", "cancelled"],
+            "description": "Current execution status. `redacting` is transient while run output is scrubbed."
           },
           "level": {
             "type": "string",

@@ -25,6 +25,7 @@ export const POST = defineV2JsonRoute({
   parseOptions: {
     maxBodyBytes: V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES,
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
+    payloadTooLargeResponse: () => v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large'),
   },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,
