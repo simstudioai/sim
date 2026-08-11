@@ -13,7 +13,7 @@ export const POST = defineV2JsonRoute({
   operation: tableOperations.createImport,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ body }) => ({ body }),
   useCase: createTableImportUseCase,
   present: ({ import: tableImport }) => presentV2CreateTableImport(tableImport),

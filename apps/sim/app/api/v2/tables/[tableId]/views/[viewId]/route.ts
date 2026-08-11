@@ -32,7 +32,7 @@ export const GET = defineV2JsonRoute({
   useCase: readTableViewUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ ...params, workspaceId: query.workspaceId }),
   present: presentView,
 })
@@ -43,7 +43,7 @@ export const PATCH = defineV2JsonRoute({
   useCase: updateTableViewUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ ...params, ...body }),
   present: presentView,
 })
@@ -54,7 +54,7 @@ export const DELETE = defineV2JsonRoute({
   useCase: deleteTableViewUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ ...params, workspaceId: query.workspaceId }),
   present: ({ viewId }) => ({ data: { id: viewId } }),
 })

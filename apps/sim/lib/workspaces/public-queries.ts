@@ -117,9 +117,18 @@ export async function queryPublicWorkspaceMembers(
   const emailOrder = sql<string>`${user.email} COLLATE "C"`
   const emailCursor = options.afterEmail ? gt(emailOrder, options.afterEmail) : undefined
   const sourceLimit = options.limit + 1
-  const explicitMemberJoin = workspaceRow.organizationId
-    ? and(eq(member.userId, user.id), eq(member.organizationId, workspaceRow.organizationId))
-    : sql<boolean>`false`
+  const hasRelevantOrganizationMembership = workspaceRow.organizationId
+    ? sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${member}
+        WHERE ${member.userId} = ${user.id}
+          AND ${member.organizationId} = ${workspaceRow.organizationId}
+      )`
+    : sql<boolean>`EXISTS (
+        SELECT 1
+        FROM ${member}
+        WHERE ${member.userId} = ${user.id}
+      )`
 
   const explicitPromise = db
     .select({
@@ -129,11 +138,10 @@ export async function queryPublicWorkspaceMembers(
       image: user.image,
       role: permissions.permissionType,
       joinedAt: permissions.createdAt,
-      userOrganizationId: member.organizationId,
+      hasRelevantOrganizationMembership,
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .leftJoin(member, explicitMemberJoin)
     .where(
       and(
         eq(permissions.entityType, 'workspace'),
@@ -178,7 +186,9 @@ export async function queryPublicWorkspaceMembers(
       role: row.role,
       isExternal:
         row.userId !== workspaceRow.ownerId &&
-        row.userOrganizationId !== workspaceRow.organizationId,
+        (workspaceRow.organizationId
+          ? !row.hasRelevantOrganizationMembership
+          : row.hasRelevantOrganizationMembership),
       joinedAt: row.joinedAt,
     })
   }

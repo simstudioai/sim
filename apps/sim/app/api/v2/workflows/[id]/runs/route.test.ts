@@ -172,15 +172,15 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
     expect(mocks.listRuns).not.toHaveBeenCalled()
   })
 
-  it('returns forbidden for workflow authorization failures', async () => {
+  it('conceals workflow authorization failures as absence', async () => {
     mocks.listRuns.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await callGet()
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
     expect((await response.json()).error).toMatchObject({
-      code: 'FORBIDDEN',
-      message: 'Insufficient workspace permissions',
+      code: 'NOT_FOUND',
+      message: 'Workflow not found',
     })
   })
 

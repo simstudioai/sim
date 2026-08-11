@@ -21,7 +21,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.readRun,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.default,
+  errorPolicy: v2WorkflowErrorPolicies.concealRunAuthorization,
   mapInput: ({ params, query }) => ({
     workflowId: params.id,
     runId: params.runId,

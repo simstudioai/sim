@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ defineRoute: vi.fn((definition) => definition)
 
 vi.mock('@/lib/api/server/routes', () => ({
   createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
+  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-resource' })),
   defineV2JsonRoute: mocks.defineRoute,
   v2ApiKeyAuth: { kind: 'v2-api-key' },
   v2RateLimits: { publicApi: { kind: 'public-api' } },

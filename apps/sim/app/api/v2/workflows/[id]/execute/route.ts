@@ -245,7 +245,15 @@ export const POST = withRouteHandler(
           action: 'read',
         })
         if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
-          return v2Error('FORBIDDEN', 'Insufficient workspace permissions')
+          if (workflowAuthorization.status === 404) {
+            return v2Error('NOT_FOUND', 'Workflow not found')
+          }
+          if (workflowAuthorization.status === 403) {
+            return v2Error('FORBIDDEN', 'Insufficient workspace permissions')
+          }
+          throw new Error(
+            `Unexpected workflow authorization status: ${workflowAuthorization.status}`
+          )
         }
         result = await executeWorkflowService({
           workflowId,
@@ -305,7 +313,7 @@ export const POST = withRouteHandler(
         { headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
       )
     } catch (error) {
-      const classified = v2WorkflowErrorPolicies.default.render(error)
+      const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
       if (classified) return classified
       logger.error(`[${requestId}] v2 execute failed`, {
         workflowId,

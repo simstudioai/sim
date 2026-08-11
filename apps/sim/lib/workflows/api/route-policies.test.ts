@@ -9,6 +9,7 @@ import {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
+  WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 
@@ -30,17 +31,29 @@ import {
 describe('v2 workflow error policies', () => {
   it.each([
     new NoWorkspaceAccessError(),
-    new WorkspaceApiKeyAuthorizationError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
     new DelegatedWorkspaceAuthorizationError(),
+  ])('conceals cross-tenant workflow authorization failures', async (error) => {
+    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
+    expect(response?.status).toBe(404)
+    expect(await response?.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
+    })
+  })
+
+  it.each([
+    new WorkspaceApiKeyAuthorizationError(),
     new PrincipalKindAuthorizationError('workspace_api_key', 'workflows.deploy'),
-  ])('returns forbidden for workflow authorization failures', async (error) => {
-    const response = v2WorkflowErrorPolicies.default.render(error)
+  ])('preserves same-workspace principal policy failures as forbidden', async (error) => {
+    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
     expect(response?.status).toBe(403)
     expect(await response?.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
-  it('returns forbidden for the personal-api-key workspace policy failure', async () => {
-    const response = v2WorkflowErrorPolicies.default.render(new PersonalApiKeysDisabledError())
+  it('preserves the personal-api-key workspace policy failure as forbidden', async () => {
+    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(
+      new PersonalApiKeysDisabledError()
+    )
     expect(response?.status).toBe(403)
     expect(await response?.json()).toEqual({
       error: {
@@ -50,8 +63,18 @@ describe('v2 workflow error policies', () => {
     })
   })
 
-  it('preserves unrelated forbidden business errors', async () => {
-    const response = v2WorkflowErrorPolicies.default.render(
+  it('uses run-specific concealment text for canonical run operations', async () => {
+    const response = v2WorkflowErrorPolicies.concealRunAuthorization.render(
+      new NoWorkspaceAccessError()
+    )
+    expect(response?.status).toBe(404)
+    expect(await response?.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Run not found' },
+    })
+  })
+
+  it('does not conceal unrelated forbidden business errors', async () => {
+    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(
       new OrchestrationError('forbidden', 'Workflow transition is forbidden')
     )
     expect(response?.status).toBe(403)
@@ -61,7 +84,7 @@ describe('v2 workflow error policies', () => {
   })
 
   it('preserves genuine not-found failures', async () => {
-    const response = v2WorkflowErrorPolicies.default.render(
+    const response = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(
       new OrchestrationError('not_found', 'Workflow not found')
     )
     expect(response?.status).toBe(404)

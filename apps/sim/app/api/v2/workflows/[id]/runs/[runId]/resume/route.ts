@@ -104,7 +104,7 @@ export const POST = withRouteHandler(
         { headers }
       )
     } catch (error) {
-      const domainResponse = v2WorkflowErrorPolicies.default.render(error)
+      const domainResponse = v2WorkflowErrorPolicies.concealRunAuthorization.render(error)
       if (domainResponse) return domainResponse
       if (error instanceof ResumeWorkflowExecutionError) {
         if (!error.safeForPublicApi) throw error

@@ -121,16 +121,16 @@ describe('/api/v2/workflows/[id]', () => {
     })
   })
 
-  it('returns forbidden for absent workspace access', async () => {
+  it('conceals absent workspace access as workflow absence', async () => {
     mocks.readWorkflow.mockRejectedValue(new NoWorkspaceAccessError())
     const response = await GET(
       new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`),
       routeContext
     )
 
-    expect(response.status).toBe(403)
+    expect(response.status).toBe(404)
     expect(await response.json()).toMatchObject({
-      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
     })
   })
 

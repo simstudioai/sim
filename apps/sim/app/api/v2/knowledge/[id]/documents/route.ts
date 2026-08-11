@@ -71,7 +71,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => {
     const decodedCursor = query.cursor ? decodeCursor<{ offset: number }>(query.cursor) : null
     if (
@@ -106,7 +106,7 @@ export const POST = defineV2BodyLifecycleRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.uploadDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.documentUpload,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUploadAuthorization,
   admission: {
     mapInput: ({ params, query }) => ({
       knowledgeBaseId: params.id,

@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.read,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,
@@ -41,7 +41,7 @@ export const PATCH = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.update,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   parseOptions: {
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
@@ -66,7 +66,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.delete,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,

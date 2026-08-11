@@ -19,7 +19,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.listVersions,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.default,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   mapInput: ({ params, query }) => {
     const after = query.cursor ? decodeCursor<WorkflowVersionCursor>(query.cursor) : null
     if (query.cursor && (!after || !Number.isInteger(after.version) || after.version < 1)) {

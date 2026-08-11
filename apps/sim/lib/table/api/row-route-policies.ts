@@ -8,6 +8,6 @@ export const v2TableRowsErrorPolicy = {
     if (error instanceof TableRowsValidationError) {
       return v2Error('BAD_REQUEST', error.message, { details: error.details })
     }
-    return v2TableErrorPolicies.default.render(error)
+    return v2TableErrorPolicies.concealTableAuthorization.render(error)
   },
 } satisfies V2ErrorPolicy

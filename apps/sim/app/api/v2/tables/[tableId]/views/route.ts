@@ -19,7 +19,7 @@ export const GET = defineV2JsonRoute({
   useCase: listTableViewsUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   present: async ({ views }) => {
     const emailByUserId = await getUserEmailsByIds(
@@ -43,7 +43,7 @@ export const POST = defineV2JsonRoute({
   useCase: createTableViewUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: async ({ view }) => ({
     data: {

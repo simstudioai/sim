@@ -141,7 +141,7 @@ describe('v2 single-file routes', () => {
     })
   })
 
-  it('returns forbidden for download authorization failures', async () => {
+  it('conceals cross-workspace download authorization', async () => {
     mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await GET(
@@ -149,8 +149,8 @@ describe('v2 single-file routes', () => {
       context
     )
 
-    expect(response.status).toBe(403)
-    expect((await response.json()).error.code).toBe('FORBIDDEN')
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
   it('renames through the shared use case and v2 presenter', async () => {
@@ -170,7 +170,7 @@ describe('v2 single-file routes', () => {
     })
   })
 
-  it('maps rename conflicts and returns forbidden for absent workspace access', async () => {
+  it('maps rename conflicts and conceals absent workspace access', async () => {
     mocks.rename.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
     const conflict = await PATCH(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
@@ -183,7 +183,7 @@ describe('v2 single-file routes', () => {
     expect(conflict.status).toBe(409)
 
     mocks.rename.mockRejectedValueOnce(new NoWorkspaceAccessError())
-    const forbidden = await PATCH(
+    const concealed = await PATCH(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
@@ -191,7 +191,7 @@ describe('v2 single-file routes', () => {
       }),
       context
     )
-    expect(forbidden.status).toBe(403)
+    expect(concealed.status).toBe(404)
   })
 
   it('returns forbidden when the current workspace role cannot rename the file', async () => {

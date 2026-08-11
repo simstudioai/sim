@@ -15,7 +15,7 @@ export const POST = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.activateVersion,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.default,
+  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   parseOptions: {
     optionalJsonBody: true,
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),

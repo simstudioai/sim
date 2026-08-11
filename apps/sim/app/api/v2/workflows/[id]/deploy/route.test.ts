@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes', () => ({
   createInternalSessionOrExecutorAuth: vi.fn(() => ({ kind: 'internal-workflow' })),
+  createV2ResourceConcealmentPolicy: vi.fn(() => ({ kind: 'conceal-resource' })),
   defineV2JsonRoute: mocks.defineRoute,
   v2ApiKeyAuth: { kind: 'v2-api-key' },
   v2RateLimits: { publicApi: { kind: 'public-api' } },
@@ -32,7 +33,7 @@ describe('/api/v2/workflows/[id]/deploy route definitions', () => {
     expect(POST).toMatchObject({
       operation: workflowOperations.deploy,
       useCase: deployWorkflow,
-      errorPolicy: v2WorkflowErrorPolicies.default,
+      errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
       parseOptions: { optionalJsonBody: true },
     })
     expect(Reflect.get(POST, 'mapInput')({ params: { id: 'workflow-1' }, body: {} })).toEqual(
@@ -88,7 +89,7 @@ describe('/api/v2/workflows/[id]/deploy route definitions', () => {
     expect(DELETE).toMatchObject({
       operation: workflowOperations.undeploy,
       useCase: undeployWorkflow,
-      errorPolicy: v2WorkflowErrorPolicies.default,
+      errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
     })
     const body = Reflect.get(
       DELETE,

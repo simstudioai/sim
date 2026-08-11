@@ -1,7 +1,7 @@
 /**
  * @vitest-environment node
  */
-import type { SessionPrincipal } from '@sim/auth/principal'
+import type { SessionPrincipal, WorkspaceApiKeyPrincipal } from '@sim/auth/principal'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +21,7 @@ import {
   defineWorkspaceOperation,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
+  WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 
 const writeOperation = defineWorkspaceOperation({
@@ -34,6 +35,19 @@ const principal: SessionPrincipal = {
   kind: 'session',
   userId: 'user-1',
   sessionId: 'session-1',
+}
+
+const workspaceKeyOperation = defineWorkspaceOperation({
+  id: 'test.workspace-key-write',
+  minimumRole: 'write',
+  workspaceApiKey: 'allow',
+  principalKinds: ['workspace_api_key'],
+})
+
+const workspaceKeyPrincipal: WorkspaceApiKeyPrincipal = {
+  kind: 'workspace_api_key',
+  workspaceId: 'workspace-other',
+  keyId: 'key-1',
 }
 
 const context = {
@@ -69,5 +83,11 @@ describe('authorizeWorkspaceOperation', () => {
     await expect(
       authorizeWorkspaceOperation(principal, writeOperation, context)
     ).resolves.toBeUndefined()
+  })
+
+  it('classifies a workspace-key tenant mismatch separately from role denials', async () => {
+    await expect(
+      authorizeWorkspaceOperation(workspaceKeyPrincipal, workspaceKeyOperation, context)
+    ).rejects.toBeInstanceOf(WorkspaceApiKeyScopeAuthorizationError)
   })
 })

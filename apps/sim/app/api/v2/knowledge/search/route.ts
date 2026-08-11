@@ -14,7 +14,7 @@ export const POST = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.search,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.usage,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
   parseOptions: {
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },

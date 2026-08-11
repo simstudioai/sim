@@ -15,7 +15,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: fileOperations.readShare,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.default,
+  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: query.workspaceId,
@@ -29,7 +29,7 @@ export const PUT = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: fileOperations.updateShare,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.default,
+  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
   mapInput: ({ params, body }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: body.workspaceId,

@@ -1,4 +1,8 @@
-import { createInternalSessionOrExecutorAuth, type V2ErrorPolicy } from '@/lib/api/server/routes'
+import {
+  createInternalSessionOrExecutorAuth,
+  createV2ResourceConcealmentPolicy,
+  type V2ErrorPolicy,
+} from '@/lib/api/server/routes'
 import { TABLE_DELEGATION_AUDIENCE } from '@/lib/table/application/authorization'
 import { TableOperationError } from '@/lib/table/application/errors'
 import { TableLockedError } from '@/lib/table/mutation-locks'
@@ -36,4 +40,16 @@ export const v2TableErrorPolicies = {
   default: {
     render: renderTableError,
   } satisfies V2ErrorPolicy,
+  concealTableAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table not found',
+    render: renderTableError,
+  }),
+  concealImportAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table import not found',
+    render: renderTableError,
+  }),
+  concealExportAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Table export not found',
+    render: renderTableError,
+  }),
 } as const

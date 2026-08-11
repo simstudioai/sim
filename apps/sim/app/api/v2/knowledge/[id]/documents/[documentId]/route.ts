@@ -33,7 +33,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.readDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
@@ -71,7 +71,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.deleteDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.default,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,
