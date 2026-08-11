@@ -1815,7 +1815,15 @@ async function executeToolImplementation(
           ...contextParams,
           _context: {
             ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+            ...(scope.workflowId ? { workflowId: scope.workflowId } : {}),
+            ...(scope.userId ? { userId: scope.userId } : {}),
             ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            ...(scope.callChain ? { callChain: scope.callChain } : {}),
+            ...(scope.isDeployedContext !== undefined
+              ? { isDeployedContext: scope.isDeployedContext }
+              : {}),
+            ...(scope.billingAttribution ? { billingAttribution: scope.billingAttribution } : {}),
             requestId,
           },
         },
