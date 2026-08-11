@@ -32,22 +32,33 @@ const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
 
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
-export class WorkspaceFileFolderConflictError extends Error {
-  readonly code = 'FOLDER_CONFLICT' as const
-
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class rather than each
+ * adapter restating the translation. Carries the inherited `code: 'conflict'`; the old
+ * `'FOLDER_CONFLICT'` discriminator had no readers.
+ */
+export class WorkspaceFileFolderConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A folder named "${name}" already exists in this location`)
+    super('conflict', `A folder named "${name}" already exists in this location`)
+    this.name = 'WorkspaceFileFolderConflictError'
   }
 }
 
-export class WorkspaceFileMoveConflictError extends Error {
-  readonly code = 'FILE_MOVE_CONFLICT' as const
-
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class. Carries the inherited
+ * `code: 'conflict'`; the old `'FILE_MOVE_CONFLICT'` discriminator had no readers.
+ */
+export class WorkspaceFileMoveConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A file named "${name}" already exists in the destination folder`)
+    super('conflict', `A file named "${name}" already exists in the destination folder`)
+    this.name = 'WorkspaceFileMoveConflictError'
   }
 }
 
+/**
+ * An {@link OrchestrationError} so every surface reaches 404 by class. Carries the inherited
+ * `code: 'not_found'`; the old `'WORKSPACE_FILE_ITEMS_NOT_FOUND'` discriminator had no readers.
+ */
 export class WorkspaceFileItemsNotFoundError extends OrchestrationError {
   constructor(fileIds: string[], folderIds: string[]) {
     const parts = [
@@ -553,18 +564,31 @@ export async function createWorkspaceFileFolder(params: {
   return mapFolderWithPath(params.workspaceId, folder)
 }
 
+/**
+ * Outcome of {@link ensureWorkspaceFileFolderPath}. `createdFolderIds` lists only the
+ * folders this call actually inserted, outermost-first, so a caller that has to unwind
+ * a partial write can delete exactly what it added (reverse the list for deepest-first)
+ * without ever touching a folder that was merely reused.
+ */
+export interface EnsureWorkspaceFileFolderPathOutcome {
+  /** Id of the deepest folder, or `null` when the path resolves to the root. */
+  folderId: string | null
+  /** Ids inserted by this call, in creation order (parents before children). */
+  createdFolderIds: string[]
+}
+
 export async function ensureWorkspaceFileFolderPath(params: {
   workspaceId: string
   userId: string
   pathSegments: string[]
-}): Promise<string | null> {
-  if (params.pathSegments.length === 0) return null
+}): Promise<EnsureWorkspaceFileFolderPathOutcome> {
+  if (params.pathSegments.length === 0) return { folderId: null, createdFolderIds: [] }
 
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of
   // loading the workspace's entire folder table.
   const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments)
-  if (existing) return existing
+  if (existing) return { folderId: existing, createdFolderIds: [] }
 
   // Load all active folders once and build a lookup keyed by "name|parentId"
   // so we can resolve existing segments without a per-segment SELECT.
@@ -586,6 +610,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
   }
 
   let parentId: string | null = null
+  const createdFolderIds: string[] = []
 
   for (const rawSegment of params.pathSegments) {
     const name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
@@ -618,6 +643,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
         updatedAt: created.updatedAt,
       })
       parentId = created.id
+      createdFolderIds.push(created.id)
     } catch (error) {
       if (
         error instanceof WorkspaceFileFolderConflictError ||
@@ -643,7 +669,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
     }
   }
 
-  return parentId
+  return { folderId: parentId, createdFolderIds }
 }
 
 export async function updateWorkspaceFileFolder(params: {

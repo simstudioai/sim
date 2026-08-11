@@ -45,6 +45,23 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
 
+/**
+ * Overrides the global registry stub (which declares no sub-blocks) so the credential
+ * sanitizer has real `oauth-input` and `password: true` fields to act on.
+ */
+vi.mock('@/blocks/registry', () => ({
+  getBlock: () => ({
+    name: 'Slack',
+    subBlocks: [
+      { id: 'credential', type: 'oauth-input' },
+      { id: 'botToken', type: 'short-input', password: true },
+      { id: 'envToken', type: 'short-input', password: true },
+      { id: 'channel', type: 'short-input' },
+    ],
+    outputs: {},
+  }),
+}))
+
 import { getPublicLog } from '@/lib/logs/application/get-public-log'
 import { listPublicLogs } from '@/lib/logs/application/list-public-logs'
 
@@ -124,6 +141,43 @@ describe('public log application use cases', () => {
     )
     expect(result.workflowFolderPath).toBe('/agents')
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('redacts credential values from the run snapshot', async () => {
+    mocks.getLog.mockResolvedValueOnce({
+      ...log,
+      workflowState: {
+        blocks: {
+          'block-1': {
+            id: 'block-1',
+            type: 'slack',
+            subBlocks: {
+              credential: { id: 'credential', type: 'oauth-input', value: 'cred_9f2a' },
+              botToken: { id: 'botToken', type: 'short-input', value: 'xoxb-plaintext-secret' },
+              envToken: { id: 'envToken', type: 'short-input', value: '{{SLACK_TOKEN}}' },
+              channel: { id: 'channel', type: 'short-input', value: '#general' },
+            },
+          },
+        },
+        edges: [],
+      },
+    })
+
+    const result = await getPublicLog.execute({
+      principal: workspacePrincipal,
+      input: { runId: 'run-1' },
+    })
+
+    const subBlocks = (
+      result.log.workflowState as {
+        blocks: Record<string, { subBlocks: Record<string, { value: unknown }> }>
+      }
+    ).blocks['block-1'].subBlocks
+
+    expect(subBlocks.credential.value).toBeNull()
+    expect(subBlocks.botToken.value).toBeNull()
+    expect(subBlocks.envToken.value).toBe('{{SLACK_TOKEN}}')
+    expect(subBlocks.channel.value).toBe('#general')
   })
 
   it('passes the personal-key subject through as the projection reader', async () => {

@@ -1,7 +1,7 @@
 /**
  * Parser for Agiloft's `EWREST_` response format.
  *
- * Every `/ewws/EW*` operation answers with a body of JavaScript assignments
+ * The legacy `/ewws/EW*` operations answer with a body of JavaScript assignments
  * rather than JSON — the interface was designed to be `eval`-ed by a browser
  * client. The documented shapes are:
  *
@@ -18,7 +18,13 @@
  * accepted here.
  */
 
-const ASSIGNMENT = /^EWREST_(?<key>[^=\s]+)\s*=\s*'(?<value>[\s\S]*)';?$/
+/**
+ * Matches one `EWREST_key='value';` assignment anywhere in the body. Most
+ * responses put one per line, but EWActionButton documents both of its
+ * assignments on a single line, so the scan is not line-anchored. The value is
+ * non-greedy up to the closing `';` for the same reason.
+ */
+const ASSIGNMENT = /EWREST_(?<key>[^=\s']+)\s*=\s*'(?<value>[\s\S]*?)'\s*;/g
 
 /**
  * Parses a body into its raw `EWREST_` key/value pairs, preserving document
@@ -28,14 +34,9 @@ const ASSIGNMENT = /^EWREST_(?<key>[^=\s]+)\s*=\s*'(?<value>[\s\S]*)';?$/
 export function parseEwRest(body: string): Map<string, string> {
   const values = new Map<string, string>()
 
-  for (const rawLine of body.split(/\r?\n/)) {
-    const line = rawLine.trim()
-    if (!line) continue
-
-    const match = ASSIGNMENT.exec(line)
-    const key = match?.groups?.key
+  for (const match of body.matchAll(ASSIGNMENT)) {
+    const key = match.groups?.key
     if (!key) continue
-
     values.set(key, match.groups?.value ?? '')
   }
 
@@ -43,74 +44,19 @@ export function parseEwRest(body: string): Map<string, string> {
 }
 
 /**
- * True when the body carries at least one `EWREST_` assignment. Agiloft answers
- * some failures with HTTP 200 and a plain-text error, so callers use this to
- * tell "no data" apart from "not an EWREST response at all".
+ * Reads the `EWREST_id_length` / `EWREST_id_<n>` pairs EWSelect returns. A
+ * result of zero records is reported as `EWREST_id_length = '0';` with no
+ * indexed entries.
+ */
+/**
+ * True when the body carries at least one `EWREST_` assignment. Used where a
+ * binary payload is expected, since a refusal arrives as an assignment or
+ * plain text instead of file bytes.
  */
 export function isEwRestBody(body: string): boolean {
   return parseEwRest(body).size > 0
 }
 
-/**
- * Splits a parsed record into its ID and the remaining field values. EWRead and
- * EWUpdate both return the whole record with `id` among the fields.
- */
-export function toRecord(values: Map<string, string>): {
-  id: string | null
-  fields: Record<string, string>
-} {
-  const fields: Record<string, string> = {}
-  for (const [key, value] of values) {
-    fields[key] = value
-  }
-  return { id: fields.id ?? null, fields }
-}
-
-/**
- * Regroups the flat `EWREST_<field>_<index>` assignments EWSearch returns into
- * one object per record. `EWREST_length` gives the row count for the current
- * page; when it is absent the highest observed index is used instead so a
- * partial body still yields the rows it did contain.
- */
-export function toSearchRecords(values: Map<string, string>): {
-  records: Record<string, string>[]
-  count: number
-} {
-  const INDEXED = /^(?<field>.+)_(?<index>\d+)$/
-  const byIndex = new Map<number, Record<string, string>>()
-
-  for (const [key, value] of values) {
-    if (key === 'length' || key === 'id_length') continue
-
-    const match = INDEXED.exec(key)
-    const field = match?.groups?.field
-    if (!field) continue
-
-    const index = Number(match.groups?.index)
-    let record = byIndex.get(index)
-    if (!record) {
-      record = {}
-      byIndex.set(index, record)
-    }
-    record[field] = value
-  }
-
-  const declared = Number(values.get('length') ?? values.get('id_length'))
-  const count = Number.isFinite(declared) ? declared : byIndex.size
-
-  const records: Record<string, string>[] = []
-  for (const index of [...byIndex.keys()].sort((a, b) => a - b)) {
-    records.push(byIndex.get(index) as Record<string, string>)
-  }
-
-  return { records, count }
-}
-
-/**
- * Reads the `EWREST_id_length` / `EWREST_id_<n>` pairs EWSelect returns. A
- * result of zero records is reported as `EWREST_id_length = '0';` with no
- * indexed entries.
- */
 export function toRecordIds(values: Map<string, string>): {
   recordIds: string[]
   count: number
@@ -122,9 +68,11 @@ export function toRecordIds(values: Map<string, string>): {
     recordIds.push(id)
   }
 
-  const declared = Number(values.get('id_length'))
-  return {
-    recordIds,
-    count: Number.isFinite(declared) ? declared : recordIds.length,
-  }
+  /**
+   * Report what was actually parsed rather than the declared length. A
+   * declared count that disagrees with the rows present means the body was
+   * truncated, and returning the larger number would hide that from callers
+   * who compare `totalCount` against `recordIds.length`.
+   */
+  return { recordIds, count: recordIds.length }
 }

@@ -207,7 +207,19 @@ export const FILTER_OPS = [
 
 export const SORT_DIRECTIONS = ['asc', 'desc'] as const
 
-export const NAME_PATTERN = /^[a-z_][a-z0-9_]*$/i
+/**
+ * Identifier rule for table names, column names, and JSONB filter fields:
+ * an ASCII letter or underscore, then letters, digits, or underscores.
+ *
+ * Spelled with an explicit `A-Za-z` class and NO `i` flag on purpose. This
+ * source is published verbatim as a JSON Schema `pattern` in the v2 OpenAPI
+ * documents, and JSON Schema patterns carry no flags — a `/^[a-z_][a-z0-9_]*$/i`
+ * spelling round-trips as the case-SENSITIVE `^[a-z_][a-z0-9_]*$`, so every
+ * generated client would reject names the server accepts (`Sales`,
+ * `subscriptionPlan`). The two spellings match exactly the same strings at
+ * runtime; only the published form differs.
+ */
+export const NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*$/
 
 export const USER_TABLE_ROWS_SQL_NAME = 'user_table_rows'
 

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Sim API v2 — Files & Audit Logs",
-    "description": "Version 2 of the Sim REST API for workspace files and organization audit logs. Every endpoint uses the canonical v2 data, cursor-list, and error envelopes. Lists use opaque cursors, and rate-limit state is returned in response headers.",
+    "description": "Version 2 of the Sim REST API for workspace files and organization audit logs. Lists use opaque cursors, and rate-limit state is returned in response headers. Download File streams raw bytes as `application/octet-stream`; every other response uses the canonical v2 data, cursor-list, or error envelope.",
     "version": "2.0.0",
     "contact": {
       "name": "Sim Support",
@@ -154,6 +154,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -281,6 +284,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -355,6 +361,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -658,7 +667,7 @@
       "delete": {
         "operationId": "deleteFile",
         "summary": "Delete File",
-        "description": "Delete a workspace file and its stored bytes.",
+        "description": "Archive a workspace file. This is a soft delete: the row is retained with a deletion timestamp, the file stops appearing in listings and is no longer readable through the API, and its stored bytes are never removed. An archived file can be restored from the workspace Recently Deleted settings; the v2 API exposes no restore operation.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -896,7 +905,7 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1065,7 +1074,7 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1112,6 +1121,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1204,7 +1216,7 @@
       "get": {
         "operationId": "getFileShare",
         "summary": "Get File Share",
-        "description": "Return the current public-share configuration for a file.",
+        "description": "Return the nullable current public-share configuration for a file. A file that has never been shared returns `data: null` rather than a 404; a share that was created and later disabled is still returned, with `isActive: false`.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1277,10 +1289,10 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or update a server-tokenized public share. Disabling retains its token and configuration for later re-enablement.",
+        "description": "Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. Two enabling combinations are rejected outright with a 400 instead of being partially applied: 'password' when neither a password is supplied nor one is already stored, and 'email' or 'sso' when the resulting allowedEmails would be empty because none was supplied and none is stored. On a file that has never been shared there is nothing stored to fall back on, so enabling any mode other than 'public' must carry its credential in the same request. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1505,7 +1517,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1600,9 +1612,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1631,7 +1640,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The created folder.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -1837,7 +1846,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -1978,7 +1987,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -2003,7 +2012,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2039,6 +2048,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -2121,12 +2140,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "File size in bytes.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the file.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2192,7 +2211,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2272,7 +2291,7 @@
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -2731,12 +2750,12 @@
           "size": {
             "type": "number",
             "minimum": 0,
-            "description": "File size in bytes.",
+            "description": "Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.",
             "examples": [1024]
           },
           "type": {
             "type": "string",
-            "description": "MIME type of the file.",
+            "description": "MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.",
             "examples": ["text/csv"]
           },
           "key": {
@@ -2980,7 +2999,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3117,10 +3136,10 @@
         "title": "Move files request",
         "description": "Files and destination selected for a bulk move."
       },
-      "V2GetFileShareResult": {
+      "V2GetFileShareResponse": {
         "type": "object",
         "properties": {
-          "share": {
+          "data": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/V2FileShare"
@@ -3129,20 +3148,7 @@
                 "type": "null"
               }
             ],
-            "description": "Current public share, or null when the file has never been shared."
-          }
-        },
-        "required": ["share"],
-        "additionalProperties": false,
-        "title": "File share result",
-        "description": "The nullable public-share state for a file."
-      },
-      "V2GetFileShareResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2GetFileShareResult"
+            "description": "Response data."
           }
         },
         "required": ["data"],
@@ -3152,45 +3158,28 @@
         "examples": [
           {
             "data": {
-              "share": {
-                "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                "token": "share-token-example",
-                "url": "https://www.sim.ai/f/share-token-example",
-                "isActive": true,
-                "resourceType": "file",
-                "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
-                "authType": "public",
-                "hasPassword": false,
-                "allowedEmails": []
-              }
+              "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+              "token": "share-token-example",
+              "url": "https://www.sim.ai/f/share-token-example",
+              "isActive": true,
+              "resourceType": "file",
+              "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "authType": "public",
+              "hasPassword": false,
+              "allowedEmails": []
             }
           },
           {
-            "data": {
-              "share": null
-            }
+            "data": null
           }
         ]
-      },
-      "V2UpsertFileShareResult": {
-        "type": "object",
-        "properties": {
-          "share": {
-            "description": "Updated public share.",
-            "$ref": "#/components/schemas/V2FileShare"
-          }
-        },
-        "required": ["share"],
-        "additionalProperties": false,
-        "title": "Updated file share",
-        "description": "The updated public-share state for a file."
       },
       "V2UpsertFileShareResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2UpsertFileShareResult"
+            "$ref": "#/components/schemas/V2FileShare"
           }
         },
         "required": ["data"],
@@ -3200,17 +3189,15 @@
         "examples": [
           {
             "data": {
-              "share": {
-                "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                "token": "share-token-example",
-                "url": "https://www.sim.ai/f/share-token-example",
-                "isActive": true,
-                "resourceType": "file",
-                "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
-                "authType": "public",
-                "hasPassword": false,
-                "allowedEmails": []
-              }
+              "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+              "token": "share-token-example",
+              "url": "https://www.sim.ai/f/share-token-example",
+              "isActive": true,
+              "resourceType": "file",
+              "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "authType": "public",
+              "hasPassword": false,
+              "allowedEmails": []
             }
           }
         ]
@@ -3276,7 +3263,7 @@
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file."
+            "description": "Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413."
           },
           "encoding": {
             "default": "utf-8",
@@ -3421,7 +3408,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3429,25 +3416,12 @@
         "title": "File folder list response",
         "description": "Workspace file folders in the current page."
       },
-      "V2FileFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "description": "Created or relocated folder.",
-            "$ref": "#/components/schemas/V2Folder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "File folder data",
-        "description": "A created or relocated file folder."
-      },
       "FileFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2FileFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],

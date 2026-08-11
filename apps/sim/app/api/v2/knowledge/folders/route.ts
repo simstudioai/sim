@@ -54,7 +54,7 @@ export const POST = defineV2JsonRoute({
   },
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path, source: 'api' }),
   useCase: createKnowledgeFolder,
-  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
+  present: ({ folder }) => ({ data: toFolderPathView(folder, folder.path) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -73,7 +73,7 @@ export const PATCH = defineV2JsonRoute({
     source: 'api',
   }),
   useCase: relocateKnowledgeFolder,
-  present: ({ folder }) => ({ data: { folder: toFolderPathView(folder, folder.path) } }),
+  present: ({ folder }) => ({ data: toFolderPathView(folder, folder.path) }),
 })
 
 export const DELETE = defineV2JsonRoute({

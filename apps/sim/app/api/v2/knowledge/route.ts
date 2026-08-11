@@ -86,6 +86,6 @@ export const POST = defineV2JsonRoute({
     }
   },
   present: async ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: await toV2KnowledgeBase(knowledgeBase, folderPath) },
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })

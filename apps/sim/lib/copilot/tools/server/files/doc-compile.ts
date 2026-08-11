@@ -505,7 +505,7 @@ async function compileDocInLegacySandbox(
 ): Promise<CompiledDocResult> {
   const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
   if (!format) {
-    throw new DocCompileUserError('Document is still being generated')
+    throw new DocCompileUserError('Document is still being generated', { pending: true })
   }
 
   const cacheKey = sha256Hex(`.${fmt.ext}${args.source}${args.workspaceId}`)
@@ -751,12 +751,12 @@ export async function resolveServableDocBytes(args: {
       filePrincipal,
     })
     if (stored) return stored
-    throw new DocCompileUserError('Document is still being generated')
+    throw new DocCompileUserError('Document is still being generated', { pending: true })
   }
 
   // Reaches here only for xlsx, which has no isolated-vm fallback. Returning these
   // bytes would expose generation source as a spreadsheet.
-  if (!format) throw new DocCompileUserError('Document is still being generated')
+  if (!format) throw new DocCompileUserError('Document is still being generated', { pending: true })
 
   const cacheKey = sha256Hex(`${ext}${source}${workspaceId ?? ''}`)
   const cached = compiledDocCache.get(cacheKey)

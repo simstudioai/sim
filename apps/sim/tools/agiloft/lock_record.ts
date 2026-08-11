@@ -54,8 +54,7 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description:
-        'Unlock only: release a lock held by another user. Requires membership in the admin group.',
+      description: 'Unlock only: release a lock held by another user.',
     },
   },
 
@@ -88,6 +87,11 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
     id: {
       type: 'string',
       description: 'Record ID',
+    },
+    tableId: {
+      type: 'number',
+      description: 'Numeric system identifier of the table holding the record',
+      optional: true,
     },
     lockStatus: {
       type: 'string',

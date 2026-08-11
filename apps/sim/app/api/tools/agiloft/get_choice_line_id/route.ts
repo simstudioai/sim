@@ -8,8 +8,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseEwRest } from '@/tools/agiloft/ewrest'
 import type { AgiloftGetChoiceLineIdResponse } from '@/tools/agiloft/types'
-import { buildGetChoiceLineIdUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildGetChoiceLineIdUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftGetChoiceLineIdResponse>(
+    const result = await executeEwRequest<AgiloftGetChoiceLineIdResponse>(
       params,
       (base) => ({
         url: buildGetChoiceLineIdUrl(base, params),
@@ -65,21 +65,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { choiceLineId: null },
-            error: `Agiloft error: ${response.status} - ${body}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(body)}`,
           }
         }
 
-        /**
-         * The docs state only that EWGetChoiceLineId "returns the ID of the
-         * choice list element" without naming the assignment key, so the first
-         * numeric EWREST_ value is taken rather than guessing a key name.
-         */
-        let choiceLineId: number | null = null
-        for (const value of parseEwRest(body).values()) {
-          const parsedValue = Number(value)
-          if (value.trim() !== '' && Number.isFinite(parsedValue)) {
-            choiceLineId = parsedValue
-            break
+        /** Documented response: EWREST_choiceLineId = '1'; */
+        const raw = parseEwRest(body).get('choiceLineId')
+        const parsedId = Number(raw)
+        const choiceLineId =
+          raw !== undefined && raw.trim() !== '' && Number.isFinite(parsedId) ? parsedId : null
+
+        if (raw === undefined) {
+          return {
+            success: false,
+            output: { choiceLineId: null },
+            error: `Agiloft did not return a choice line ID for "${params.value}" in field "${params.fieldName}": ${body.trim() || '(empty response)'}`,
           }
         }
 
@@ -87,7 +87,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { choiceLineId: null },
-            error: `No choice line ID found for value "${params.value}" in field "${params.fieldName}": ${body.trim() || '(empty response)'}`,
+            error: `Agiloft returned a non-numeric choice line ID for "${params.value}" in field "${params.fieldName}": "${raw}"`,
           }
         }
 

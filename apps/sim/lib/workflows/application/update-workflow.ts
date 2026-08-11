@@ -146,7 +146,9 @@ async function executeWorkflowUpdate(args: {
     input.folderId !== undefined
       ? {
           folderId: input.folderId,
-          index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow'),
+          index: await loadActiveFolderPathIndex(context.workspaceId, 'workflow', undefined, {
+            maxRows: MAX_FOLDERS_PER_WORKSPACE,
+          }),
         }
       : input.folderPath === undefined
         ? undefined

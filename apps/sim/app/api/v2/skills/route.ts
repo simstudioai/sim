@@ -48,5 +48,5 @@ export const POST = defineV2JsonRoute({
       { groups: { workspace: input.workspaceId } }
     )
   },
-  present: ({ skill }) => ({ data: { skill: toV2Skill(skill) } }),
+  present: ({ skill }) => ({ data: toV2Skill(skill) }),
 })

@@ -17,8 +17,8 @@ import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/querie
 import {
   CSV_IMPORT_PROXY_BODY_CAP_BYTES,
   normalizeColumn,
+  orchestrationErrorResponse,
   rootErrorMessage,
-  rowWriteErrorResponse,
 } from '@/app/api/table/utils'
 import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
@@ -30,9 +30,16 @@ import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
  * only the HTTP envelope is upgraded.
  */
 
-/** ISO-serializes a `Date | string` timestamp from the table service layer. */
+/**
+ * ISO-serializes a `Date | string` timestamp from the table service layer.
+ *
+ * Every current producer is a drizzle select over a `timestamp` column, so the
+ * value arrives as a `Date`. The string branch normalizes rather than passing the
+ * value through: the v2 contract promises a strict ISO-8601 instant, and a raw
+ * Postgres literal (`2026-01-15 10:30:00+00`) would fail response validation.
+ */
 function toIso(value: Date | string): string {
-  return value instanceof Date ? value.toISOString() : String(value)
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString()
 }
 
 /**
@@ -250,12 +257,12 @@ export function v2TableOrchestrationError(
 
 /**
  * Maps a known user-facing row-write failure (schema/size/unique/limit) to a v2
- * `BAD_REQUEST`, reusing v1's {@link rowWriteErrorResponse} classifier as the
+ * `BAD_REQUEST`, reusing v1's {@link orchestrationErrorResponse} classifier as the
  * single source of truth for which messages are safe to surface. Returns `null`
  * for unrecognized errors so the caller logs and returns a generic 500.
  */
 export function v2RowWriteError(error: unknown): NextResponse | null {
-  if (!rowWriteErrorResponse(error)) return null
+  if (!orchestrationErrorResponse(error)) return null
   return v2Error('BAD_REQUEST', rootErrorMessage(error))
 }
 

@@ -22,6 +22,11 @@ export interface ExecuteWorkflowInput {
   requestHeaders: Headers
   includeThinking?: boolean
   includeToolCalls?: boolean
+  /**
+   * Workflow call chain for this hop, already extended with the target workflow
+   * id by the surface adapter. Carries the recursion guard across API hops.
+   */
+  callChain?: string[]
 }
 
 function authenticatesExecutionCredentials(principal: Principal): boolean {
@@ -43,6 +48,7 @@ export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
       triggerType: 'api',
       requestId: input.requestId,
       executionId: input.executionId,
+      callChain: input.callChain,
       useAuthenticatedUserAsActor: authenticatesExecutionCredentials(principal),
       workflowRecord: context.workflow,
       includeFileBase64: input.includeFileBase64,

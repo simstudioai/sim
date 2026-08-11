@@ -104,6 +104,10 @@ export const agiloftSearchRecordsTool: ToolConfig<
   },
 
   outputs: {
+    truncated: {
+      type: 'boolean',
+      description: 'True when more records were returned upstream than this call reports',
+    },
     records: {
       type: 'json',
       description: 'Array of matching records with their field values',
@@ -111,7 +115,7 @@ export const agiloftSearchRecordsTool: ToolConfig<
     totalCount: {
       type: 'number',
       description:
-        'Number of records reported by EWSearch. When paginating this is the count for the current page, not the whole result set.',
+        'Number of records in this response. Not a total match count — compare with `truncated`.',
     },
     page: {
       type: 'number',

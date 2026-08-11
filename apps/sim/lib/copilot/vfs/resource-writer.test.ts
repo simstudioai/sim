@@ -53,7 +53,10 @@ import {
 describe('resource writer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-id')
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-id',
+      createdFolderIds: [],
+    })
     mocks.admitCreateWorkspaceFile.mockResolvedValue(undefined)
   })
 
@@ -107,7 +110,10 @@ describe('resource writer', () => {
   })
 
   it('auto-creates missing parent folders for plain workspace file creates', async () => {
-    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('folder-nested')
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'folder-nested',
+      createdFolderIds: [],
+    })
     mocks.createWorkspaceFileBufferByPath.execute.mockResolvedValue({
       id: 'file-report',
       name: 'summary.csv',

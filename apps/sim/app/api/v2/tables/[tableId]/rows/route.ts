@@ -14,7 +14,7 @@ import {
   updateTableRows,
 } from '@/lib/table/application/rows'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
 import { toApiRow } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +30,7 @@ export const GET = defineV2JsonRoute({
     tableId: params.tableId,
     assertedWorkspaceId: query.workspaceId,
     limit: query.limit,
-    offset: query.cursor ? (decodeCursor<{ offset: number }>(query.cursor)?.offset ?? 0) : 0,
+    offset: decodeOffsetCursor(query.cursor),
   }),
   useCase: listTableRows,
   present: ({ table, rows, nextOffset }) => {
@@ -61,12 +61,14 @@ export const POST = defineV2JsonRoute({
           tableId: params.tableId,
           assertedWorkspaceId: body.workspaceId,
           data: body.data,
+          afterRowId: body.afterRowId,
+          beforeRowId: body.beforeRowId,
         },
   useCase: createTableRows,
   present: (result) => {
     const toNamedRow = namedRowMapper(result.table.schema.columns)
     return result.kind === 'single'
-      ? { data: { row: toApiRow(result.row, toNamedRow) } }
+      ? { data: toApiRow(result.row, toNamedRow) }
       : {
           data: {
             rows: result.rows.map((row) => toApiRow(row, toNamedRow)),

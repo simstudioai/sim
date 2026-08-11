@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { v2TimestampSchema } from '@/lib/api/contracts/v2/shared'
 
 export const v2UploadStatusSchema = z.enum([
   'uploading',
@@ -82,7 +83,7 @@ export const v2UploadPartUrlSchema = z
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the part upload.'),
-    expiresAt: z.string().datetime().describe('ISO 8601 expiration time for the signed URL.'),
+    expiresAt: v2TimestampSchema.describe('ISO 8601 expiration time for the signed URL.'),
   })
   .meta({
     id: 'V2UploadPartUrl',

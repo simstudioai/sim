@@ -6,10 +6,13 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { parseEwRest, toRecord } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildUpdateRecordUrl, recordUrlLengthError } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { alrestRecordUrl } from '@/tools/agiloft/utils'
+import {
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,52 +68,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const oversized = recordUrlLengthError(params.instanceUrl, (base) =>
-      buildUpdateRecordUrl(base, params, fieldValues)
-    )
-    if (oversized) {
-      return NextResponse.json({
-        success: false,
-        output: { id: null, fields: {} },
-        error: oversized,
-      })
-    }
-
-    const result = await executeAgiloftRequest<AgiloftRecordResponse>(
+    const result = await executeAlrestRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: buildUpdateRecordUrl(base, params, fieldValues),
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        url: alrestRecordUrl(base, params.table, params.recordId),
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(fieldValues),
       }),
       async (response) => {
-        const body = await response.text()
+        const record = await readAlrestJson<Record<string, unknown>>(response)
+        const id = record?.id ?? params.recordId.trim()
 
-        if (!response.ok) {
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${body}`,
-          }
+        return {
+          success: true,
+          output: { id: String(id), fields: record ?? {} },
         }
-
-        /** EWUpdate echoes the whole record back as EWREST_ assignments. */
-        const values = parseEwRest(body)
-        if (values.size === 0) {
-          return {
-            success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft returned no record data: ${body.trim() || '(empty response)'}`,
-          }
-        }
-
-        const { id, fields } = toRecord(values)
-        return { success: true, output: { id, fields } }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error updating Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

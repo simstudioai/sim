@@ -90,6 +90,7 @@ export const agiloftRunActionButtonTool: ToolConfig<
     },
     callbackId: {
       type: 'string',
+      optional: true,
       description:
         'Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID',
     },

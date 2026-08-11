@@ -45,12 +45,19 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
         visibility: 'user-or-llm',
         description: 'ID of the record to delete',
       },
+      substituteIds: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'Comma-separated IDs of records that adopt the dependants of the deleted record. Read only when the delete rule is REPLACE_WITH_ANOTHER.',
+      },
       deleteRule: {
         type: 'string',
         required: false,
         visibility: 'user-or-llm',
         description:
-          'How to treat records that depend on this one: ERROR_IF_DEPENDANTS (default — fails rather than cascading), APPLY_DELETE_WHERE_POSSIBLE, DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK, APPLY_UNLINK, or UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE',
+          'How to treat records that depend on this one: ERROR_IF_DEPENDANTS (default — fails rather than cascading), APPLY_DELETE_WHERE_POSSIBLE, DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK, APPLY_UNLINK, UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE, or REPLACE_WITH_ANOTHER',
       },
     },
 
@@ -66,6 +73,7 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
         table: params.table,
         recordId: params.recordId,
         deleteRule: params.deleteRule,
+        substituteIds: params.substituteIds,
       }),
     },
 

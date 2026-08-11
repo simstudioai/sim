@@ -11,6 +11,8 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
 vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 vi.mock('@/lib/credentials/access', () => ({
+  canUseCredential: (access: { hasWorkspaceAccess: boolean; member: unknown; isAdmin: boolean }) =>
+    access.hasWorkspaceAccess && (Boolean(access.member) || access.isAdmin),
   getCredentialActorContext: vi.fn().mockResolvedValue({
     credential: {
       id: 'test-vertex-credential-id',

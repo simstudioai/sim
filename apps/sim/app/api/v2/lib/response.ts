@@ -2,7 +2,11 @@ import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
-import { asOrchestrationError, type OrchestrationErrorCode } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  OrchestrationError,
+  type OrchestrationErrorCode,
+} from '@/lib/core/orchestration/types'
 import type { RateLimitResult, WorkspaceAccessError } from '@/app/api/v1/middleware'
 
 /**
@@ -156,6 +160,24 @@ export function decodeCursor<T = Record<string, unknown>>(cursor: string): T | n
   } catch {
     return null
   }
+}
+
+/**
+ * Reads back an offset cursor minted by `encodeCursor({ offset })`.
+ *
+ * An absent cursor means page one. A cursor that is not valid base64-JSON, or
+ * that does not carry a non-negative integer `offset`, is rejected rather than
+ * coerced to 0: silently restarting at page one while the caller believes it is
+ * paging forward makes a paging client loop over the first page forever. The v2
+ * error policies render the thrown validation error as the canonical 400.
+ */
+export function decodeOffsetCursor(cursor: string | undefined): number {
+  if (!cursor) return 0
+  const offset = decodeCursor<{ offset?: unknown }>(cursor)?.offset
+  if (typeof offset !== 'number' || !Number.isInteger(offset) || offset < 0) {
+    throw new OrchestrationError('validation', 'Invalid cursor')
+  }
+  return offset
 }
 
 /**

@@ -2,11 +2,14 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
+  RESOURCE_CONFLICT_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   v2CancelWorkflowRunContract,
@@ -99,7 +102,7 @@ const QUEUED_RUN_EXAMPLE = {
   },
 } as const
 
-const BASE_ERRORS = [
+const WORKSPACE_ERRORS = [
   'BadRequest',
   'Unauthorized',
   'Forbidden',
@@ -108,8 +111,11 @@ const BASE_ERRORS = [
   'ServiceUnavailable',
 ] as const satisfies readonly ErrorResponseId[]
 
-const RESOURCE_ERRORS = [...BASE_ERRORS, 'NotFound'] as const satisfies readonly ErrorResponseId[]
-const MUTATION_ERRORS = [
+const RESOURCE_ERRORS = [
+  ...WORKSPACE_ERRORS,
+  'NotFound',
+] as const satisfies readonly ErrorResponseId[]
+const RESOURCE_MUTATION_ERRORS = [
   ...RESOURCE_ERRORS,
   'Conflict',
   'Locked',
@@ -169,9 +175,8 @@ const routes = [
     workflowOperation({
       operationId: 'listWorkflows',
       summary: 'List Workflows',
-      description:
-        'List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination.',
-      errors: BASE_ERRORS,
+      description: `List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A page of workflows.'),
     }),
     {
@@ -190,8 +195,8 @@ const routes = [
     workflowOperation({
       operationId: 'createWorkflowV2',
       summary: 'Create Workflow',
-      description: 'Create a workflow in a workspace root or canonical workflow folder.',
-      errors: [...BASE_ERRORS, 'Conflict', 'Locked'],
+      description: `Create a workflow in a workspace root or canonical workflow folder. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow.'),
     }),
     {
@@ -210,8 +215,8 @@ const routes = [
     workflowOperation({
       operationId: 'getWorkflow',
       summary: 'Get Workflow',
-      description: 'Get a workflow with its variables and deployed API-trigger inputs.',
-      errors: RESOURCE_ERRORS,
+      description: `Get a workflow with its variables and deployed API-trigger inputs. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The requested workflow.'),
     }),
     {
@@ -230,8 +235,8 @@ const routes = [
     workflowOperation({
       operationId: 'updateWorkflowV2',
       summary: 'Update Workflow',
-      description: 'Rename, describe, or move a workflow to a canonical folder path.',
-      errors: MUTATION_ERRORS,
+      description: `Rename, describe, or move a workflow to a canonical folder path. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The updated workflow.'),
     }),
     {
@@ -324,9 +329,8 @@ const routes = [
     workflowOperation({
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description:
-        'Create and asynchronously activate a deployment version. Poll the workflow until the lifecycle attempt reaches a terminal state.',
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
+      description: `Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries \`latestDeploymentAttempt\` for the accepted attempt, but \`GET /workflows/{id}\` does not expose that field — poll activation with \`isDeployed\` and \`deployedAt\` on the workflow, or with \`isActive\` on \`GET /workflows/{id}/versions\`. Returns 409 when the deployment would conflict with an existing webhook path. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
     {
@@ -341,11 +345,22 @@ const routes = [
           {
             data: {
               id: WORKFLOW_ID,
-              isDeployed: true,
-              deployedAt: '2026-06-12T10:30:00.000Z',
+              isDeployed: false,
+              deployedAt: null,
               warnings: [],
               activeDeployment: null,
-              latestDeploymentAttempt: null,
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK3QW4M6X2R9T7B5C0V1',
+                deploymentVersionId: 'depver_01J8ZK3QW4M6X2R9T7B5C0V2',
+                version: 3,
+                action: 'deploy',
+                status: 'preparing',
+                isCurrent: true,
+                readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:30:00.000Z',
+                activatedAt: null,
+                error: null,
+              },
               version: 3,
             },
           },
@@ -358,7 +373,7 @@ const routes = [
     workflowOperation({
       operationId: 'undeployWorkflow',
       summary: 'Undeploy Workflow',
-      description: 'Deactivate the currently serving workflow version.',
+      description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
       errors: [...RESOURCE_ERRORS, 'Locked'],
       success: jsonSuccess('The workflow was undeployed.'),
     }),
@@ -389,8 +404,7 @@ const routes = [
     workflowOperation({
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description:
-        'Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied.',
+      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
       errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
@@ -406,11 +420,22 @@ const routes = [
           {
             data: {
               id: WORKFLOW_ID,
-              isDeployed: true,
-              deployedAt: '2026-06-12T10:30:00.000Z',
+              isDeployed: false,
+              deployedAt: null,
               warnings: [],
               activeDeployment: null,
-              latestDeploymentAttempt: null,
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK4RX5N7Y3S0U8D6E1W2',
+                deploymentVersionId: 'depver_01J8ZK4RX5N7Y3S0U8D6E1W3',
+                version: 2,
+                action: 'activate',
+                status: 'activating',
+                isCurrent: true,
+                readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:30:00.000Z',
+                activatedAt: null,
+                error: null,
+              },
               version: 2,
             },
           },
@@ -423,9 +448,8 @@ const routes = [
     workflowOperation({
       operationId: 'exportWorkflow',
       summary: 'Export Workflow',
-      description:
-        'Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import.',
-      errors: RESOURCE_ERRORS,
+      description: `Export a portable, secret-sanitized workflow. Workspace-scoped bindings must be selected again after import. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow export payload.'),
     }),
     {
@@ -460,7 +484,7 @@ const routes = [
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
       description: 'Create a workflow from a portable export object, bare state, or JSON string.',
-      errors: [...MUTATION_ERRORS, 'PayloadTooLarge'],
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
     {
@@ -492,7 +516,7 @@ const routes = [
       operationId: 'executeWorkflowV2',
       summary: 'Execute Workflow',
       description:
-        'Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key.',
+        'Execute a deployed workflow synchronously, asynchronously, or as Server-Sent Events. Public workflows permit anonymous synchronous and streaming execution; asynchronous execution requires an API key. A synchronous run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"` rather than an HTTP error, so branch on `status`. The optional `X-Run-Id` header is a one-shot uniqueness claim, not an idempotency key: reusing a value returns 409 with `error.details.code: "RUN_ID_CONFLICT"` and never replays the earlier run. Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.',
       errors: [
         'BadRequest',
         'Unauthorized',
@@ -502,6 +526,7 @@ const routes = [
         'RunIdConflict',
         'PayloadTooLarge',
         'RateLimited',
+        'ClientClosedRequest',
         'InternalError',
         'ServiceUnavailable',
       ],
@@ -533,7 +558,8 @@ const routes = [
     workflowRunOperation({
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
-      description: 'List recorded runs of a workflow with filtering and opaque cursor pagination.',
+      description:
+        'List recorded runs of a workflow with filtering and opaque cursor pagination. Ordering deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so direction is carried by the single `order` param.',
       errors: RESOURCE_ERRORS,
       success: jsonSuccess('A page of workflow runs.'),
     }),
@@ -571,7 +597,7 @@ const routes = [
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
       description: 'Get current workflow run state, optionally including final and block outputs.',
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The workflow run status.'),
     }),
     {
@@ -610,7 +636,7 @@ const routes = [
       summary: 'Resume Workflow Run',
       description:
         'Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.',
-      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge', 'Locked'],
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {
           200: {
@@ -636,8 +662,9 @@ const routes = [
     workflowRunOperation({
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
-      description: 'Request cancellation of a running, queued, or paused workflow run.',
-      errors: RESOURCE_ERRORS,
+      description:
+        'Request cancellation of a running, queued, or paused workflow run. Cancelling a run that has already reached a terminal state succeeds with no effect rather than returning an error. The `reason` field is present on every response, including full successes — `recorded` is the success value; it is not a partial-failure marker. A run produced by a table workflow group is a 409 when its cell can no longer accept the cancellation, because the run and its cell must reach the cancelled state together.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The cancellation outcome.'),
     }),
     {
@@ -668,8 +695,9 @@ const routes = [
     workflowOperation({
       operationId: 'listWorkflowsFolders',
       summary: 'List Workflow Folders',
-      description: 'List canonical workflow folders in a workspace.',
-      errors: BASE_ERRORS,
+      description:
+        'List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),
     {
@@ -694,7 +722,7 @@ const routes = [
       operationId: 'createWorkflowsFolder',
       summary: 'Create Workflow Folder',
       description: 'Create a canonical workflow folder in a workspace.',
-      errors: MUTATION_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow folder.'),
     }),
     {
@@ -710,7 +738,7 @@ const routes = [
         'CreateWorkflowFolderResponse',
         'Create workflow folder response',
         'The created workflow folder.',
-        [{ data: { folder: WORKFLOW_FOLDER_EXAMPLE } }]
+        [{ data: WORKFLOW_FOLDER_EXAMPLE }]
       ),
     }
   ),
@@ -720,7 +748,7 @@ const routes = [
       operationId: 'relocateWorkflowsFolder',
       summary: 'Rename or Move Workflow Folder',
       description: 'Rename or move a workflow folder and its descendants to a canonical path.',
-      errors: MUTATION_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The relocated workflow folder.'),
     }),
     {
@@ -742,7 +770,7 @@ const routes = [
         'RelocateWorkflowFolderResponse',
         'Relocate workflow folder response',
         'The relocated workflow folder.',
-        [{ data: { folder: { ...WORKFLOW_FOLDER_EXAMPLE, name: 'Support', path: '/Support' } } }]
+        [{ data: { ...WORKFLOW_FOLDER_EXAMPLE, name: 'Support', path: '/Support' } }]
       ),
     }
   ),
@@ -752,7 +780,7 @@ const routes = [
       operationId: 'deleteWorkflowsFolder',
       summary: 'Delete Workflow Folder',
       description: 'Delete a workflow folder, optionally including its descendants and workflows.',
-      errors: MUTATION_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The workflow folder was deleted.'),
     }),
     {

@@ -603,6 +603,49 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockReleaseExecutionIdClaim).toHaveBeenCalled()
   })
 
+  it('rejects a call chain at the depth limit on the keyed and anonymous paths', async () => {
+    const maxChain = Array.from({ length: 25 }, (_, i) => `wf-${i}`).join(',')
+
+    const keyed = await callExecute({ input: {} }, { 'X-Sim-Via': maxChain })
+    expect(keyed.status).toBe(409)
+    const keyedBody = await keyed.json()
+    expect(keyedBody.error.code).toBe('CONFLICT')
+    expect(keyedBody.error.message).toContain('Maximum workflow call chain depth (25) exceeded')
+
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': maxChain })
+    expect(anonymous.status).toBe(409)
+    expect((await anonymous.json()).error.code).toBe('CONFLICT')
+
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    expect(mockExecuteWorkflowCore).not.toHaveBeenCalled()
+  })
+
+  it('propagates an incoming call chain into the execution instead of resetting it', async () => {
+    const keyed = await callExecute({ input: {} }, { 'X-Sim-Via': 'wf-a, wf-b' })
+    expect(keyed.status).toBe(200)
+    expect(mockExecuteWorkflowCore.mock.calls[0][0].snapshot.metadata.callChain).toEqual([
+      'wf-a',
+      'wf-b',
+      'workflow-1',
+    ])
+
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    const anonymous = await callPublicExecute({ input: {} }, { 'X-Sim-Via': 'wf-a, wf-b' })
+    expect(anonymous.status).toBe(200)
+    expect(mockExecuteWorkflowCore.mock.calls[1][0].snapshot.metadata.callChain).toEqual([
+      'wf-a',
+      'wf-b',
+      'workflow-1',
+    ])
+  })
+
   it('returns a safe error when canonical workflow lookup fails', async () => {
     dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockRejectedValueOnce(new Error('database connection details'))

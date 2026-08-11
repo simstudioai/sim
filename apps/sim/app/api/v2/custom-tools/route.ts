@@ -39,5 +39,5 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2OrchestrationErrorPolicy,
   mapInput: ({ body }) => ({ ...body, source: 'api' as const }),
   useCase: createWorkspaceCustomToolUseCase,
-  present: ({ tool }) => ({ data: { customTool: toV2CustomTool(tool) } }),
+  present: ({ tool }) => ({ data: toV2CustomTool(tool) }),
 })

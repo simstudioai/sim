@@ -51,7 +51,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   present: async ({ table, folderPath }) => ({
-    data: { table: await toApiTable(table, folderPath) },
+    data: await toApiTable(table, folderPath),
   }),
 })
 
@@ -68,7 +68,7 @@ export const PATCH = defineV2JsonRoute({
     if (!result.table || result.folderPath === null) {
       throw new Error('Updated table is missing from the authoritative result')
     }
-    return { data: { table: await toApiTable(result.table, result.folderPath) } }
+    return { data: await toApiTable(result.table, result.folderPath) }
   },
 })
 

@@ -116,7 +116,7 @@ describe('/api/v2/skills/[id]', () => {
     const response = await GET(request('GET'), context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.skill.content).toBe(skill.content)
+    expect((await response.json()).data.content).toBe(skill.content)
     expect(mocks.get).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: { workspaceId: WORKSPACE_ID, skillId: skill.id },

@@ -63,10 +63,14 @@ export const DELETE = defineV2JsonRoute({
       latestDeploymentAttempt: null,
     },
   }),
+  /**
+   * Telemetry only. `workflowOperations.undeploy` denies a workspace API key at
+   * admission, so a non-personal principal cannot reach here — and this hook runs
+   * after the undeploy has already committed, so asserting the invariant here
+   * would report a succeeded undeploy as a 500 rather than catching anything.
+   */
   onSuccess: ({ principal, result }) => {
-    if (principal.kind !== 'personal_api_key') {
-      throw new Error('Admin undeployment unexpectedly admitted a workspace API key')
-    }
+    if (principal.kind !== 'personal_api_key') return
     captureServerEvent(
       principal.userId,
       'workflow_undeployed',

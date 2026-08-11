@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listKnowledgeBases",
         "summary": "List Knowledge Bases",
-        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope.",
+        "description": "List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope. The bounded workspace set is returned in one page with `nextCursor` always null; there is no second page to fetch. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -128,6 +128,12 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -142,7 +148,7 @@
       "post": {
         "operationId": "createKnowledgeBase",
         "summary": "Create Knowledge Base",
-        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration.",
+        "description": "Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -186,6 +192,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
@@ -208,7 +217,7 @@
       "get": {
         "operationId": "getKnowledgeBase",
         "summary": "Get Knowledge Base",
-        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found.",
+        "description": "Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -256,11 +265,17 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -276,7 +291,7 @@
       "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
-        "description": "Update a knowledge base name, description, chunking configuration, or folder placement.",
+        "description": "Update a knowledge base name, description, chunking configuration, or folder placement. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -338,6 +353,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -620,6 +638,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1123,9 +1144,6 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1201,6 +1219,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -1221,7 +1242,7 @@
       "delete": {
         "operationId": "deleteKnowledgeDocument",
         "summary": "Delete Document",
-        "description": "Delete one document and its indexed chunks from a knowledge base.",
+        "description": "Remove one document from a knowledge base. What that means depends on the document. A directly uploaded document is deleted outright along with its indexed chunks. A connector-backed document is instead excluded: its row survives, marked excluded and disabled so it stops being searchable and a later connector sync does not re-add it, and its embeddings are not deleted. Either way the document no longer appears in listings or search results.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1308,7 +1329,7 @@
       "get": {
         "operationId": "listKnowledgeFolders",
         "summary": "List Folders",
-        "description": "List folders in the knowledge-base folder tree with filtering and sorting.",
+        "description": "List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "parameters": [
           {
@@ -1403,8 +1424,8 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1420,7 +1441,7 @@
       "post": {
         "operationId": "createKnowledgeFolder",
         "summary": "Create Folder",
-        "description": "Create a folder in the knowledge-base folder tree.",
+        "description": "Create a folder in the knowledge-base folder tree. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1470,6 +1491,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1484,7 +1508,7 @@
       "patch": {
         "operationId": "relocateKnowledgeFolder",
         "summary": "Rename or Move Folder",
-        "description": "Rename or move a folder and atomically rewrite descendant paths.",
+        "description": "Rename or move a folder and atomically rewrite descendant paths. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Knowledge Bases"],
         "requestBody": {
           "required": true,
@@ -1533,6 +1557,9 @@
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1621,6 +1648,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1640,7 +1670,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -1756,7 +1786,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -1781,7 +1811,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -1817,6 +1847,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -2059,7 +2099,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2067,24 +2107,12 @@
         "title": "Knowledge base list response",
         "description": "A cursor-paginated page of knowledge bases."
       },
-      "V2KnowledgeBaseData": {
-        "type": "object",
-        "properties": {
-          "knowledgeBase": {
-            "$ref": "#/components/schemas/V2KnowledgeBase"
-          }
-        },
-        "required": ["knowledgeBase"],
-        "additionalProperties": false,
-        "title": "Knowledge base data",
-        "description": "A single knowledge base payload."
-      },
       "V2KnowledgeBaseResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeBaseData"
+            "$ref": "#/components/schemas/V2KnowledgeBase"
           }
         },
         "required": ["data"],
@@ -2448,13 +2476,13 @@
           },
           "topK": {
             "default": 10,
-            "description": "Maximum number of search results to return.",
+            "description": "Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.",
             "type": "number",
             "minimum": 1,
             "maximum": 100
           },
           "tagFilters": {
-            "description": "Structured tag filters; supported only for one knowledge base.",
+            "description": "Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. With a single knowledge base, an unknown tag name is simply ignored.",
             "type": "array",
             "items": {
               "$ref": "#/components/schemas/V2KnowledgeSearchTagFilter"
@@ -2582,7 +2610,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2590,24 +2618,12 @@
         "title": "Knowledge document list response",
         "description": "A cursor-paginated page of knowledge documents."
       },
-      "V2KnowledgeDocumentSummaryData": {
-        "type": "object",
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
-          }
-        },
-        "required": ["document"],
-        "additionalProperties": false,
-        "title": "Knowledge document summary data",
-        "description": "A knowledge document upload acknowledgement."
-      },
       "V2KnowledgeDocumentSummaryResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeDocumentSummaryData"
+            "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
           }
         },
         "required": ["data"],
@@ -3176,24 +3192,12 @@
         "title": "Knowledge document",
         "description": "Full document detail including processing state and connector provenance."
       },
-      "V2KnowledgeDocumentData": {
-        "type": "object",
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/V2KnowledgeDocument"
-          }
-        },
-        "required": ["document"],
-        "additionalProperties": false,
-        "title": "Knowledge document data",
-        "description": "A single knowledge document payload."
-      },
       "V2KnowledgeDocumentResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeDocumentData"
+            "$ref": "#/components/schemas/V2KnowledgeDocument"
           }
         },
         "required": ["data"],
@@ -3251,7 +3255,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3259,24 +3263,12 @@
         "title": "Knowledge folder list response",
         "description": "A cursor-paginated page of knowledge-base folders."
       },
-      "V2KnowledgeFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "$ref": "#/components/schemas/V2Folder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "Knowledge folder data",
-        "description": "A single knowledge-base folder payload."
-      },
       "V2KnowledgeFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],

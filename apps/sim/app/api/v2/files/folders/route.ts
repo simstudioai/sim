@@ -54,7 +54,7 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ body }) => ({ workspaceId: body.workspaceId, path: body.path }),
   useCase: createWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
+  present: ({ folder }) => ({ data: toV2Folder(folder) }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -69,7 +69,7 @@ export const PATCH = defineV2JsonRoute({
     destinationPath: body.destinationPath,
   }),
   useCase: updateWorkspaceFileFolderOperation,
-  present: ({ folder }) => ({ data: { folder: toV2Folder(folder) } }),
+  present: ({ folder }) => ({ data: toV2Folder(folder) }),
 })
 
 export const DELETE = defineV2JsonRoute({

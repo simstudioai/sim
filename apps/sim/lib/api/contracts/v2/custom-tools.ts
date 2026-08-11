@@ -10,6 +10,7 @@ import {
   v2DataResponse,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -81,8 +82,8 @@ export const v2CustomToolSchema = z
     schema: v2CustomToolDeclarationSchema,
     /** The tool's implementation body, executed in Sim's sandboxed function runtime. */
     code: z.string().describe('Tool implementation executed in the sandboxed function runtime.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the tool was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the tool was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was last updated.'),
   })
   .meta({
     id: 'V2CustomTool',
@@ -90,18 +91,6 @@ export const v2CustomToolSchema = z
     description: 'A workspace custom tool and its callable function declaration.',
   })
 export type V2CustomTool = z.output<typeof v2CustomToolSchema>
-
-/** `{ customTool }` payload for single-tool reads and mutations. */
-export const v2CustomToolDataSchema = z
-  .object({
-    customTool: v2CustomToolSchema.describe('The custom tool.'),
-  })
-  .meta({
-    id: 'V2CustomToolData',
-    title: 'Custom tool data',
-    description: 'A single workspace custom tool payload.',
-  })
-export type V2CustomToolData = z.output<typeof v2CustomToolDataSchema>
 
 export const v2CustomToolDeleteDataSchema = z
   .object({
@@ -190,7 +179,7 @@ export const v2CreateCustomToolContract = defineRouteContract({
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
     status: 201,
   },
 })
@@ -202,7 +191,7 @@ export const v2GetCustomToolContract = defineRouteContract({
   query: v2CustomToolWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 
@@ -213,7 +202,7 @@ export const v2UpdateCustomToolContract = defineRouteContract({
   body: v2UpdateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 

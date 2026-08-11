@@ -149,18 +149,6 @@ export const v2McpServerSchema = z
   })
 export type V2McpServer = z.output<typeof v2McpServerSchema>
 
-/** `{ mcpServer }` payload for single-server reads and mutations. */
-export const v2McpServerDataSchema = z
-  .object({
-    mcpServer: v2McpServerSchema.describe('The MCP server.'),
-  })
-  .meta({
-    id: 'V2McpServerData',
-    title: 'MCP server data',
-    description: 'A single public MCP server payload.',
-  })
-export type V2McpServerData = z.output<typeof v2McpServerDataSchema>
-
 /** Delete acknowledgement — the id of the server that was deleted. */
 export const v2McpServerDeleteDataSchema = z
   .object({
@@ -210,7 +198,10 @@ export const v2CreateMcpServerBodySchema = z
       .describe('Optional server description.'),
     transport: mcpTransportSchema
       .optional()
-      .describe('Transport used to communicate with the server. Defaults to `streamable-http`.'),
+      .describe(
+        'Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.'
+      )
+      .meta({ default: 'streamable-http' }),
     url: v2McpServerUrlSchema,
     authType: mcpAuthTypeSchema
       .optional()
@@ -226,18 +217,25 @@ export const v2CreateMcpServerBodySchema = z
       .min(1000, 'timeout must be at least 1000ms')
       .max(300000, 'timeout must be at most 300000ms')
       .optional()
-      .describe('Per-request timeout in milliseconds. Defaults to 30000.'),
+      .describe(
+        'Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.'
+      )
+      .meta({ default: 30_000 }),
     retries: z
       .number()
       .int('retries must be an integer')
       .min(0, 'retries cannot be negative')
       .max(10, 'retries must be at most 10')
       .optional()
-      .describe('Number of retries per request. Defaults to 3.'),
+      .describe('Number of retries per request. Applied server-side as 3 when omitted on create.')
+      .meta({ default: 3 }),
     enabled: z
       .boolean()
       .optional()
-      .describe('Whether the server tools are available to workflows. Defaults to true.'),
+      .describe(
+        'Whether the server tools are available to workflows. Applied server-side as true when omitted on create.'
+      )
+      .meta({ default: true }),
     oauthClientId: z
       .string()
       .max(512, 'oauthClientId is too long')
@@ -294,7 +292,7 @@ export const v2CreateMcpServerContract = defineRouteContract({
   body: v2CreateMcpServerBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
     status: 201,
   },
 })
@@ -306,7 +304,7 @@ export const v2GetMcpServerContract = defineRouteContract({
   query: v2McpServerWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
   },
 })
 
@@ -317,7 +315,7 @@ export const v2UpdateMcpServerContract = defineRouteContract({
   body: v2UpdateMcpServerBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
   },
 })
 
