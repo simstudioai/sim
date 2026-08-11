@@ -9,7 +9,6 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type {
   SearchBlockItem,
   SearchData,
-  SearchDocItem,
   SearchModalState,
   SearchToolOperationItem,
 } from './types'
@@ -19,7 +18,6 @@ const initialData: SearchData = {
   tools: [],
   triggers: [],
   toolOperations: [],
-  docs: [],
   isInitialized: false,
 }
 
@@ -88,7 +86,6 @@ export const useSearchModalStore = create<SearchModalState>()(
 
         const regularBlocks: SearchBlockItem[] = []
         const tools: SearchBlockItem[] = []
-        const docs: SearchDocItem[] = []
 
         for (const block of filteredAllBlocks) {
           if (block.hideFromToolbar) continue
@@ -107,15 +104,6 @@ export const useSearchModalStore = create<SearchModalState>()(
             regularBlocks.push(searchItem)
           } else if (block.category === 'tools') {
             tools.push(searchItem)
-          }
-
-          if (block.docsLink) {
-            docs.push({
-              id: `docs-${block.type}`,
-              name: block.name,
-              icon: block.icon,
-              href: block.docsLink,
-            })
           }
         }
 
@@ -192,7 +180,6 @@ export const useSearchModalStore = create<SearchModalState>()(
             tools,
             triggers,
             toolOperations,
-            docs,
             isInitialized: true,
           },
         })

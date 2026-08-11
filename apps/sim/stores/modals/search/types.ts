@@ -31,16 +31,6 @@ export interface SearchToolOperationItem {
 }
 
 /**
- * Represents a doc item in the search results.
- */
-export interface SearchDocItem {
-  id: string
-  name: string
-  icon: ComponentType<{ className?: string }>
-  href: string
-}
-
-/**
  * Pre-computed search data that is initialized on app load.
  */
 export interface SearchData {
@@ -48,36 +38,8 @@ export interface SearchData {
   tools: SearchBlockItem[]
   triggers: SearchBlockItem[]
   toolOperations: SearchToolOperationItem[]
-  docs: SearchDocItem[]
   isInitialized: boolean
 }
-
-/**
- * Every result group the search modal can render, in render order. Used to
- * restrict the palette to a subset of sections when opened for a specific
- * intent (e.g. a drag-release that should only offer canvas-insertable items).
- */
-export const SEARCH_SECTIONS = [
-  'actions',
-  'connectedAccounts',
-  'integrations',
-  'blocks',
-  'tools',
-  'triggers',
-  // Resource groups follow the sidebar's top-down order.
-  'chats',
-  'tables',
-  'files',
-  'knowledgeBases',
-  'workflows',
-  'toolOperations',
-  'workspaces',
-  'docs',
-  'pages',
-] as const
-
-/** A single search-modal result group. */
-export type SearchSection = (typeof SEARCH_SECTIONS)[number]
 
 /**
  * Context handed to the palette when it is opened to complete an edge

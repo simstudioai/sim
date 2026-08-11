@@ -47,8 +47,6 @@ export interface TaskItem {
   id: string
   name: string
   href: string
-  /** Owning folder names, root first. Set for tables and knowledge bases. */
-  folderPath?: string[]
   /** Formatted last-activity date shown as trailing metadata. Set for chats. */
   date?: string
 }
@@ -58,6 +56,7 @@ export interface TaskItem {
  * folder it came from — a name is only unique within its folder.
  */
 export interface FolderedItem extends TaskItem {
+  /** Owning folder names, root first. */
   folderPath?: string[]
 }
 
@@ -169,7 +168,7 @@ export interface SearchModalProps {
   chats?: TaskItem[]
   tables?: FolderedItem[]
   files?: FileItem[]
-  knowledgeBases?: TaskItem[]
+  knowledgeBases?: FolderedItem[]
   logs?: LogItem[]
   integrations?: IntegrationSearchItem[]
   connectedAccounts?: IntegrationSearchItem[]
@@ -227,7 +226,7 @@ export type SearchEntry =
   | { section: 'connectedAccounts' | 'integrations'; score: number; item: IntegrationSearchItem }
   | { section: 'chats'; score: number; item: TaskItem }
   | { section: 'workflows'; score: number; item: WorkflowItem }
-  | { section: 'tables' | 'knowledgeBases'; score: number; item: TaskItem }
+  | { section: 'tables' | 'knowledgeBases'; score: number; item: FolderedItem }
   | { section: 'files'; score: number; item: FileItem }
   | { section: 'logs'; score: number; item: LogItem }
   | { section: 'workspaces'; score: number; item: WorkspaceItem }
@@ -243,9 +242,9 @@ export interface SearchEntryHandlers {
   onSelectIntegration: (item: IntegrationSearchItem) => void
   onSelectChat: (item: TaskItem) => void
   onSelectWorkflow: (item: WorkflowItem) => void
-  onSelectTable: (item: TaskItem) => void
+  onSelectTable: (item: FolderedItem) => void
   onSelectFile: (item: FileItem) => void
-  onSelectKnowledgeBase: (item: TaskItem) => void
+  onSelectKnowledgeBase: (item: FolderedItem) => void
   onSelectLog: (item: LogItem) => void
   onSelectWorkspace: (item: WorkspaceItem) => void
   onSelectPage: (item: PageItem) => void
@@ -256,28 +255,11 @@ export function getGlobalSearchResults(
   entriesBySection: Partial<Record<SearchSection, readonly SearchEntry[]>>,
   sections: readonly SearchSection[]
 ): SearchEntry[] {
-  const sectionOrder = new Map(sections.map((section, index) => [section, index]))
-  const rankedMatches: Array<{ entry: SearchEntry; originalIndex: number }> = []
-  let originalIndex = 0
-
-  const compare = (
-    a: { entry: SearchEntry; originalIndex: number },
-    b: { entry: SearchEntry; originalIndex: number }
-  ) =>
-    b.entry.score - a.entry.score ||
-    (sectionOrder.get(a.entry.section) ?? sections.length) -
-      (sectionOrder.get(b.entry.section) ?? sections.length) ||
-    a.originalIndex - b.originalIndex
-
-  for (const section of sections) {
-    for (const entry of entriesBySection[section] ?? []) {
-      rankedMatches.push({ entry, originalIndex })
-      originalIndex += 1
-    }
-  }
-
-  rankedMatches.sort(compare)
-  return rankedMatches.map(({ entry }) => entry)
+  /* Flattening in section order makes the spec-stable sort's tie-break the
+     section order (then within-section order) with no explicit comparator. */
+  return sections
+    .flatMap((section) => entriesBySection[section] ?? [])
+    .sort((a, b) => b.score - a.score)
 }
 
 /**
@@ -463,12 +445,6 @@ const SECTION_MATCH_TIER = 2_000_000
 export const PAGE_MATCH_TIER = 3_000_000
 
 /**
- * Ranks an item by its name first, falling back to secondary text (ids, aliases,
- * option labels) only when the name doesn't match — a name match always wins, so
- * an exact name hit isn't diluted by a long secondary string ("Agent" beats
- * "Pi Coding Agent" for the query "agent").
- */
-/**
  * Matches a query against secondary search text: a space-separated list of
  * entries where multi-word phrases are kebab-cased into single tokens (see
  * `toSearchToken`). Whole-string matching keeps the exact/prefix/substring and
@@ -477,16 +453,34 @@ export const PAGE_MATCH_TIER = 3_000_000
  * "send-message") but never assemble itself across unrelated entries
  * ("whatsapp" must not match "wealthbox-write-contact match snap up").
  */
+/**
+ * Secondary-text strings are stable catalog data (block/tool/operation search
+ * values), so their word splits are cached — the palette re-matches every
+ * miss on every keystroke, and re-splitting dominated that loop.
+ */
+const secondaryTextWords = new Map<string, string[]>()
+
 function matchSecondaryText(extra: string, query: string): FuzzyResult {
   const whole = fuzzyMatch(extra, query, { scatter: false })
   let best = whole.matched ? whole : NO_MATCH
-  for (const word of extra.split(/\s+/)) {
+  let words = secondaryTextWords.get(extra)
+  if (!words) {
+    words = extra.split(/\s+/)
+    secondaryTextWords.set(extra, words)
+  }
+  for (const word of words) {
     const byWord = fuzzyMatch(word, query)
     if (byWord.matched && (!best.matched || byWord.score > best.score)) best = byWord
   }
   return best
 }
 
+/**
+ * Ranks an item by its name first, falling back to secondary text (ids, aliases,
+ * option labels) only when the name doesn't match — a name match always wins, so
+ * an exact name hit isn't diluted by a long secondary string ("Agent" beats
+ * "Pi Coding Agent" for the query "agent").
+ */
 function scoreItem(name: string, search: string, getExtra?: () => string | undefined): FuzzyResult {
   const byName = fuzzyMatch(name, search)
   if (byName.matched) {

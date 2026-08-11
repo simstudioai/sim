@@ -2,7 +2,7 @@
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, cn } from '@sim/emcn'
-import { Search, X } from '@sim/emcn/icons'
+import { X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import { useParams } from 'next/navigation'
@@ -490,7 +490,6 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
           </CommandFadedList>
           <CommandSearch
             ref={inputRef}
-            surface='canvas'
             autoFocus
             aria-label='Search blocks'
             value={search}

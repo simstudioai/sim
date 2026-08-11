@@ -6,6 +6,7 @@ import { cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
 import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
+import { HEX_COLOR_REGEX } from '@/lib/branding'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { getTileIconColorClass } from '@/blocks/icon-color'
@@ -26,15 +27,12 @@ function ItemMeta({ meta }: ItemMetaProps) {
 
 interface ItemFolderPathProps {
   folderPath: string[]
-  className?: string
 }
 
 /** Trailing folder-path receipt whose head segments yield space to the leaf. */
-function ItemFolderPath({ folderPath, className }: ItemFolderPathProps) {
+function ItemFolderPath({ folderPath }: ItemFolderPathProps) {
   return (
-    <span
-      className={cn('ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small', className)}
-    >
+    <span className='ml-auto flex min-w-0 pl-2 text-[var(--text-subtle)] text-small'>
       {folderPath.length > 1 && (
         <>
           <span className='min-w-0 truncate [flex-shrink:9999]'>
@@ -59,8 +57,6 @@ function sameFolderPath(prev?: string[], next?: string[]): boolean {
 interface ShortcutHintProps {
   shortcut: string
 }
-
-const WORKSPACE_COLOR_REGEX = /^#[\da-f]{6}$/i
 
 function ShortcutHint({ shortcut }: ShortcutHintProps) {
   const commandIndex = shortcut.indexOf('⌘')
@@ -228,7 +224,7 @@ export const MemoizedFileItem = memo(
         {meta ? (
           <ItemMeta meta={meta} />
         ) : folderPath && folderPath.length > 0 ? (
-          <ItemFolderPath folderPath={folderPath} className='font-base' />
+          <ItemFolderPath folderPath={folderPath} />
         ) : null}
       </Command.Item>
     )
@@ -278,8 +274,7 @@ export const MemoizedWorkspaceItem = memo(
     logoUrl?: string | null
     color?: string
   } & ResultMetaProps) {
-    const backgroundColor =
-      color && WORKSPACE_COLOR_REGEX.test(color) ? color : 'var(--brand-accent)'
+    const backgroundColor = color && HEX_COLOR_REGEX.test(color) ? color : 'var(--brand-accent)'
 
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>

@@ -3,6 +3,7 @@
 import {
   type KeyboardEvent as ReactKeyboardEvent,
   useCallback,
+  useDeferredValue,
   useEffect,
   useMemo,
   useRef,
@@ -102,7 +103,7 @@ const MAX_SEARCH_RESULTS = 50
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 
-interface SearchModalContentProps extends Omit<SearchModalProps, 'open'> {}
+type SearchModalContentProps = Omit<SearchModalProps, 'open'>
 
 export function SearchModal({ open, ...props }: SearchModalProps) {
   const [mounted, setMounted] = useState(false)
@@ -577,6 +578,12 @@ function SearchModalContent({
   ])
 
   const [search, setSearch] = useState('')
+  /**
+   * Ranking runs against the deferred query: the full cross-section re-rank
+   * (1000+ rows on the canvas) would otherwise block every keystroke's
+   * commit. Handlers keep reading the live value via `searchRef`.
+   */
+  const deferredSearch = useDeferredValue(search)
   /** Tab-toggled ask mode: Enter hands the typed query to Sim as a new chat. */
   const [askMode, setAskMode] = useState(false)
   const searchRef = useRef(search)
@@ -593,7 +600,6 @@ function SearchModalContent({
   }, [visuallyOpen])
 
   const handleSearchChange = useCallback((value: string) => {
-    searchRef.current = value
     setSearch(value)
     requestAnimationFrame(() => {
       if (listRef.current) listRef.current.scrollTop = 0
@@ -887,8 +893,51 @@ function SearchModalContent({
     onOpenChangeRef.current(false)
   }, [])
 
+  const onCanvas = pageContext === 'workflow'
+  const actionsByGroup = useMemo(() => {
+    const available = actions.filter(
+      (action) => action.context === 'global' || action.context === pageContext
+    )
+    return {
+      page: pageContext
+        ? available.filter((action) => getActionGroupLabel(action) === 'Actions')
+        : [],
+      sim: available.filter((action) => getActionGroupLabel(action) === 'Sim'),
+    }
+  }, [actions, pageContext])
+  const availableBlocks = useMemo(
+    () =>
+      onCanvas
+        ? blocks.filter(
+            (block) => !block.sourceWorkflowId || block.sourceWorkflowId !== currentWorkflowId
+          )
+        : [],
+    [onCanvas, blocks, currentWorkflowId]
+  )
+  const availableTools = useMemo(
+    () =>
+      onCanvas
+        ? tools.filter(
+            (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
+          )
+        : [],
+    [onCanvas, tools, currentWorkflowId]
+  )
+  /** Palette triggers carry a display suffix; `baseName` keeps the true name rankable. */
+  const displayTriggers = useMemo(
+    () =>
+      onCanvas
+        ? triggers.map((trigger) => ({
+            ...trigger,
+            baseName: trigger.name,
+            name: trigger.name.endsWith('Trigger') ? trigger.name : `${trigger.name} Trigger`,
+          }))
+        : [],
+    [onCanvas, triggers]
+  )
+
   const entriesBySection = useMemo((): Record<SearchSection, SearchEntry[]> => {
-    const query = search.trim()
+    const query = deferredSearch.trim()
     const rank = <T,>(
       section: SearchSection,
       items: T[],
@@ -896,40 +945,16 @@ function SearchModalContent({
       toExtra?: (item: T) => string | undefined
     ) =>
       query
-        ? scoreSectionItems(section, items, toValue, search, toExtra, MAX_RESULTS_PER_GROUP)
+        ? scoreSectionItems(section, items, toValue, deferredSearch, toExtra, MAX_RESULTS_PER_GROUP)
         : items.map((item) => ({ item, score: 0 }))
-    const availableActions = actions.filter(
-      (action) => action.context === 'global' || action.context === pageContext
-    )
     const rankActionGroup = (items: ActionItem[], groupLabel: ActionGroupLabel) =>
       query
-        ? scoreActions(items, search, MAX_RESULTS_PER_GROUP, groupLabel)
+        ? scoreActions(items, deferredSearch, MAX_RESULTS_PER_GROUP, groupLabel)
         : items.map((item) => ({ item, score: 0 }))
-    const pageGroupLabel = pageContext ? ('Actions' as const) : null
     const rankedActions = [
-      ...(pageGroupLabel
-        ? rankActionGroup(
-            availableActions.filter((action) => getActionGroupLabel(action) === pageGroupLabel),
-            pageGroupLabel
-          )
-        : []),
-      ...rankActionGroup(
-        availableActions.filter((action) => getActionGroupLabel(action) === 'Sim'),
-        'Sim'
-      ),
+      ...(pageContext ? rankActionGroup(actionsByGroup.page, 'Actions') : []),
+      ...rankActionGroup(actionsByGroup.sim, 'Sim'),
     ]
-
-    const onCanvas = pageContext === 'workflow'
-    const availableBlocks = onCanvas
-      ? blocks.filter(
-          (block) => !block.sourceWorkflowId || block.sourceWorkflowId !== currentWorkflowId
-        )
-      : []
-    const availableTools = onCanvas
-      ? tools.filter(
-          (tool) => !tool.sourceWorkflowId || tool.sourceWorkflowId !== currentWorkflowId
-        )
-      : []
 
     return {
       actions: rankedActions.map(({ item, score }) => ({ section: 'actions', item, score })),
@@ -941,13 +966,7 @@ function SearchModalContent({
       ).map(({ item, score }) => ({ section: 'blocks', item, score })),
       triggers: rank(
         'triggers',
-        onCanvas
-          ? triggers.map((trigger) => ({
-              ...trigger,
-              baseName: trigger.name,
-              name: trigger.name.endsWith('Trigger') ? trigger.name : `${trigger.name} Trigger`,
-            }))
-          : [],
+        displayTriggers,
         (item) => item.name,
         (item) => `${toSearchToken(item.name)} ${item.id}`
       ).map(({ item, score }) => ({
@@ -1025,14 +1044,14 @@ function SearchModalContent({
       })),
     }
   }, [
-    search,
-    actions,
+    deferredSearch,
+    actionsByGroup,
     pageContext,
-    blocks,
-    tools,
-    triggers,
+    onCanvas,
+    availableBlocks,
+    availableTools,
+    displayTriggers,
     toolOperations,
-    currentWorkflowId,
     integrations,
     connectedAccounts,
     chats,
@@ -1052,15 +1071,15 @@ function SearchModalContent({
    * page's own entity section is hoisted directly under `actions`, the rest
    * keep the canonical order.
    */
+  const hoistedSection = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
   const orderedSections = useMemo((): SearchSection[] => {
-    const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
-    if (!hoisted) return [...SEARCH_SECTIONS]
+    if (!hoistedSection) return [...SEARCH_SECTIONS]
     return [
       'actions',
-      hoisted,
-      ...SEARCH_SECTIONS.filter((section) => section !== 'actions' && section !== hoisted),
+      hoistedSection,
+      ...SEARCH_SECTIONS.filter((section) => section !== 'actions' && section !== hoistedSection),
     ]
-  }, [pageContext])
+  }, [hoistedSection])
   const searchResults = useMemo(
     () =>
       isSearching
@@ -1070,6 +1089,7 @@ function SearchModalContent({
   )
   const askSimLabel = searchQuery ? `New Chat: ${searchQuery}` : 'Start a new chat'
   const sectionGroups = useMemo(() => {
+    if (isSearching) return []
     const actionEntriesByLabel = (label: ActionGroupLabel) =>
       entriesBySection.actions.filter(
         (entry) => entry.section === 'actions' && getActionGroupLabel(entry.item) === label
@@ -1079,17 +1099,15 @@ function SearchModalContent({
       heading: SECTION_LABELS[section],
       entries: entriesBySection[section],
     })
-    const pageGroupLabel = pageContext ? ('Actions' as const) : null
-    const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
 
     const canvasSections = new Set<SearchSection>(CANVAS_SECTIONS)
     const groups = [
-      ...(pageGroupLabel
+      ...(pageContext
         ? [
             {
               key: 'page-actions',
-              heading: pageGroupLabel,
-              entries: actionEntriesByLabel(pageGroupLabel),
+              heading: 'Actions',
+              entries: actionEntriesByLabel('Actions'),
             },
           ]
         : []),
@@ -1098,10 +1116,11 @@ function SearchModalContent({
         heading: 'Sim',
         entries: actionEntriesByLabel('Sim'),
       },
-      ...(hoisted ? [entityGroup(hoisted)] : []),
+      ...(hoistedSection ? [entityGroup(hoistedSection)] : []),
       ...CANVAS_SECTIONS.map(entityGroup),
       ...SEARCH_SECTIONS.filter(
-        (section) => section !== 'actions' && section !== hoisted && !canvasSections.has(section)
+        (section) =>
+          section !== 'actions' && section !== hoistedSection && !canvasSections.has(section)
       ).map(entityGroup),
     ]
 
@@ -1115,7 +1134,7 @@ function SearchModalContent({
       remaining = 0
       return truncated
     })
-  }, [entriesBySection, pageContext])
+  }, [entriesBySection, pageContext, hoistedSection, isSearching])
 
   const entryHandlers = useMemo(
     (): SearchEntryHandlers => ({
@@ -1230,7 +1249,6 @@ function SearchModalContent({
               </CommandFadedList>
               <CommandSearch
                 ref={inputRef}
-                surface='palette'
                 cycleResultsOnTab={!isChatEnabled}
                 autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}

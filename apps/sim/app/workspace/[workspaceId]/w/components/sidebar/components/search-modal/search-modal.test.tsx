@@ -19,7 +19,6 @@ const { mockPush, mockSearchState } = vi.hoisted(() => ({
       tools: [] as unknown[],
       triggers: [] as unknown[],
       toolOperations: [] as unknown[],
-      docs: [] as unknown[],
       isInitialized: true,
     },
   },

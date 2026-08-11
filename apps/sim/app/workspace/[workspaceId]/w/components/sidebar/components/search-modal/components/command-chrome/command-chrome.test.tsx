@@ -51,7 +51,7 @@ describe('CommandFadedList', () => {
       root.render(
         <Command>
           <CommandFadedList fade='palette' />
-          <CommandSearch surface='palette' aria-label='Search' />
+          <CommandSearch aria-label='Search' />
         </Command>
       )
     })
@@ -67,7 +67,7 @@ describe('CommandFadedList', () => {
     act(() => {
       root.render(
         <Command loop>
-          <CommandSearch surface='palette' aria-label='Search' cycleResultsOnTab />
+          <CommandSearch aria-label='Search' cycleResultsOnTab />
           <CommandFadedList fade='palette'>
             <Command.Item value='first'>First</Command.Item>
             <Command.Item value='second'>Second</Command.Item>

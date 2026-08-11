@@ -1137,12 +1137,17 @@ export const Sidebar = memo(function Sidebar({
 
   const { data: fetchedCredentials = [] } = useWorkspaceCredentials({
     workspaceId,
-    enabled: !permissionConfig.hideIntegrationsTab && searchModalPageContext !== 'workflow',
+    enabled:
+      isSearchModalOpen &&
+      !permissionConfig.hideIntegrationsTab &&
+      searchModalPageContext !== 'workflow',
   })
 
   const isOnLogsPage =
     searchModalPageContext === 'logs' || searchModalPageContext === 'logsDashboard'
-  const logsPages = useLogsList(workspaceId, SEARCH_MODAL_LOG_FILTERS, { enabled: isOnLogsPage })
+  const logsPages = useLogsList(workspaceId, SEARCH_MODAL_LOG_FILTERS, {
+    enabled: isSearchModalOpen && isOnLogsPage,
+  })
   const searchModalLogs = useMemo((): LogItem[] => {
     const rows = logsPages.data?.pages[0]?.logs ?? []
     return rows.map((log) => ({

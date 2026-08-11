@@ -14,7 +14,6 @@ type CommandInputProps = ComponentPropsWithoutRef<typeof Command.Input>
 type CommandListProps = ComponentPropsWithoutRef<typeof Command.List>
 
 interface CommandSearchProps extends Omit<CommandInputProps, 'className'> {
-  surface: 'canvas' | 'palette'
   cycleResultsOnTab?: boolean
   /** Trailing slot after the input (e.g. a mode hint). Non-interactive. */
   endAdornment?: ReactNode
@@ -24,12 +23,8 @@ interface CommandFadedListProps extends CommandListProps {
   fade: 'canvas' | 'palette'
 }
 
-const SEARCH_SURFACE_CLASSNAME = {
-  canvas:
-    'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]',
-  palette:
-    'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]',
-} as const
+const SEARCH_SURFACE_CLASSNAME =
+  'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]'
 
 /**
  * The palette hides its scrollbar (`scrollbar-none` at the call site), so it
@@ -46,10 +41,7 @@ const LIST_FADE_CLASSNAME = {
 
 /** Borderless search field layered over a fading command-result list. */
 export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
-  function CommandSearch(
-    { surface, cycleResultsOnTab = false, endAdornment, onKeyDown, ...props },
-    ref
-  ) {
+  function CommandSearch({ cycleResultsOnTab = false, endAdornment, onKeyDown, ...props }, ref) {
     const handleKeyDown = (event: KeyboardEvent<HTMLInputElement>) => {
       onKeyDown?.(event)
       if (!cycleResultsOnTab || event.defaultPrevented || event.key !== 'Tab') return
@@ -68,7 +60,7 @@ export const CommandSearch = forwardRef<HTMLInputElement, CommandSearchProps>(
       <div
         className={cn(
           'nodrag nopan absolute inset-x-[3px] top-[3px] z-20 flex h-12 cursor-text items-center gap-2 rounded-t-[13px] px-2.5 pb-2',
-          SEARCH_SURFACE_CLASSNAME[surface]
+          SEARCH_SURFACE_CLASSNAME
         )}
       >
         <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />

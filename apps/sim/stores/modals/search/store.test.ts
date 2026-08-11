@@ -69,7 +69,6 @@ describe('search modal store', () => {
         tools: [],
         triggers: [],
         toolOperations: [],
-        docs: [],
         isInitialized: false,
       },
     })
