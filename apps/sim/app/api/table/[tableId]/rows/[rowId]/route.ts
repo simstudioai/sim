@@ -27,7 +27,6 @@ import {
   checkAccess,
   orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
-  rowWriteErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 
@@ -211,7 +210,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: RowR
       rows: [updatedRow],
     })
   } catch (error) {
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error updating row:`, error)

@@ -154,8 +154,8 @@ export interface TableOrchestrationFailure {
  * counterpart of {@link orchestrationErrorResponse} for the functions that
  * return a failure instead of throwing one.
  *
- * Every table route must go through this rather than reading `outcome.error`
- * itself, for two reasons the per-route spellings kept getting wrong:
+ * Routes go through this rather than reading `outcome.error` themselves, for
+ * two reasons the per-route spellings kept getting wrong:
  *
  * - An unclassified failure carries whatever text the fault happened to have —
  *   a driver's failed SQL and its bound parameters — so it renders `fallback`
@@ -176,12 +176,6 @@ export function orchestrationOutcomeErrorResponse(
     { status: statusForOrchestrationError(outcome.errorCode) }
   )
 }
-
-/**
- * {@link orchestrationErrorResponse} under the name the row-write routes call
- * it by. Row writes have no classification rules of their own any more.
- */
-export const rowWriteErrorResponse = orchestrationErrorResponse
 
 /**
  * Next.js buffers the request body for the proxy and silently truncates it past this

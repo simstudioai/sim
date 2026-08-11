@@ -6,9 +6,9 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import type { ColumnDefinition } from '@/lib/table/types'
 import {
+  orchestrationErrorResponse,
   orchestrationOutcomeErrorResponse,
   rootErrorMessage,
-  rowWriteErrorResponse,
   tableFilterError,
 } from '@/app/api/table/utils'
 
@@ -34,9 +34,9 @@ describe('rootErrorMessage', () => {
   })
 })
 
-describe('rowWriteErrorResponse', () => {
+describe('orchestrationErrorResponse', () => {
   it('passes the plan row-limit error through as a 400', async () => {
-    const response = rowWriteErrorResponse(new TableRowLimitError(10000))
+    const response = orchestrationErrorResponse(new TableRowLimitError(10000))
     expect(response?.status).toBe(400)
     const body = await response?.json()
     expect(body.error).toBe(
@@ -45,7 +45,7 @@ describe('rowWriteErrorResponse', () => {
   })
 
   it('passes a classified validation failure through as 400', async () => {
-    const response = rowWriteErrorResponse(
+    const response = orchestrationErrorResponse(
       new OrchestrationError('validation', 'Value for column "email" must be unique')
     )
     expect(response?.status).toBe(400)
@@ -55,24 +55,26 @@ describe('rowWriteErrorResponse', () => {
 
   it('answers the code the failure carries, not one derived from its wording', () => {
     expect(
-      rowWriteErrorResponse(new OrchestrationError('not_found', 'Row not found'))?.status
+      orchestrationErrorResponse(new OrchestrationError('not_found', 'Row not found'))?.status
     ).toBe(404)
     // The phrase that used to force a 400 no longer decides anything.
     expect(
-      rowWriteErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))?.status
+      orchestrationErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))
+        ?.status
     ).toBe(409)
   })
 
   it('unwraps a classified failure drizzle wrapped in a query error', () => {
     expect(
-      rowWriteErrorResponse(wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad')))
-        ?.status
+      orchestrationErrorResponse(
+        wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad'))
+      )?.status
     ).toBe(400)
   })
 
   it('returns null for unknown errors so callers keep their generic 500', () => {
-    expect(rowWriteErrorResponse(new Error('connection refused'))).toBeNull()
-    expect(rowWriteErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
+    expect(orchestrationErrorResponse(new Error('connection refused'))).toBeNull()
+    expect(orchestrationErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
   })
 })
 

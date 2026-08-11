@@ -17,8 +17,8 @@ import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/querie
 import {
   CSV_IMPORT_PROXY_BODY_CAP_BYTES,
   normalizeColumn,
+  orchestrationErrorResponse,
   rootErrorMessage,
-  rowWriteErrorResponse,
 } from '@/app/api/table/utils'
 import { v2Error, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
 
@@ -257,12 +257,12 @@ export function v2TableOrchestrationError(
 
 /**
  * Maps a known user-facing row-write failure (schema/size/unique/limit) to a v2
- * `BAD_REQUEST`, reusing v1's {@link rowWriteErrorResponse} classifier as the
+ * `BAD_REQUEST`, reusing v1's {@link orchestrationErrorResponse} classifier as the
  * single source of truth for which messages are safe to surface. Returns `null`
  * for unrecognized errors so the caller logs and returns a generic 500.
  */
 export function v2RowWriteError(error: unknown): NextResponse | null {
-  if (!rowWriteErrorResponse(error)) return null
+  if (!orchestrationErrorResponse(error)) return null
   return v2Error('BAD_REQUEST', rootErrorMessage(error))
 }
 
