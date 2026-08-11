@@ -10,6 +10,7 @@ import {
   getServiceConfigByProviderId,
   getServiceConfigByServiceId,
   parseProvider,
+  providerIdsForService,
 } from './utils'
 
 describe('getAllOAuthServices', () => {
@@ -719,5 +720,31 @@ describe('getMissingRequiredScopes', () => {
     const missing = getMissingRequiredScopes(credential)
 
     expect(missing).toEqual([])
+  })
+})
+
+describe('providerIdsForService', () => {
+  it('widens a service primary id to its alternate authorization servers', () => {
+    // The SQL counterpart to credentialProviderMatchesService: the block
+    // picker queries by 'salesforce', and a sandbox credential is stored under
+    // 'salesforce-sandbox'. Without the widening it is filtered out at the DB
+    // and never reaches the picker, however correct the in-memory resolvers.
+    expect(providerIdsForService('salesforce')).toEqual(['salesforce', 'salesforce-sandbox'])
+  })
+
+  it('does not widen an alternate server id back into the primary', () => {
+    expect(providerIdsForService('salesforce-sandbox')).toEqual(['salesforce-sandbox'])
+  })
+
+  it('does not widen a service-account id into the OAuth family', () => {
+    // Broadening here would leak OAuth credentials into a service-account query.
+    expect(providerIdsForService('salesforce-service-account')).toEqual([
+      'salesforce-service-account',
+    ])
+  })
+
+  it('returns a single-id list for providers with no alternate server', () => {
+    expect(providerIdsForService('hubspot')).toEqual(['hubspot'])
+    expect(providerIdsForService('not-a-real-provider')).toEqual(['not-a-real-provider'])
   })
 })

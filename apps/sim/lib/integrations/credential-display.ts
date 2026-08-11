@@ -63,9 +63,10 @@ const SERVICE_ACCOUNT_PROVIDER_IDS: ReadonlySet<string> = new Set(
  * `OAUTH_PROVIDERS`, which is wasted work to repeat per lookup (same reasoning
  * as `SERVICE_ACCOUNT_INTEGRATIONS` in `oauth-service.ts`).
  *
- * Indexing under both ids a service answers to is the predicate
- * {@link credentialProviderMatchesService} expressed as a map, so the two can
- * never disagree.
+ * Indexing under every id a service answers to — its OAuth provider id, its
+ * service-account provider id, and any additional authorization server — is
+ * the predicate {@link credentialProviderMatchesService} expressed as a map,
+ * so the two can never disagree.
  */
 const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly Integration[]> = (() => {
   const index = new Map<string, Integration[]>()
@@ -82,6 +83,9 @@ const INTEGRATIONS_BY_CREDENTIAL_PROVIDER: ReadonlyMap<string, readonly Integrat
     if (!service) continue
     add(service.providerId, integration)
     add(service.serviceAccountProviderId, integration)
+    for (const extraProviderId of service.additionalProviderIds ?? []) {
+      add(extraProviderId, integration)
+    }
   }
 
   return index

@@ -1,7 +1,10 @@
+import { createPrivateKey, type KeyObject } from 'crypto'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { SignJWT } from 'jose'
 import {
   normalizeSalesforceMyDomainHost,
+  resolveSalesforceAuthMethod,
   SALESFORCE_MY_DOMAIN_HOST_REGEX,
 } from '@/lib/credentials/client-credential-accounts/descriptors'
 import type {
@@ -29,6 +32,18 @@ import {
 const SALESFORCE_TOKEN_TTL_SECONDS = 600
 
 const IDENTITY_STEP = 'salesforce_identity'
+
+const TOKEN_MINT_STEP = 'salesforce_token_mint'
+
+/**
+ * Lifetime of the signed assertion, not of the access token it buys.
+ * Salesforce rejects an `exp` more than 5 minutes ahead of *its* clock, so a
+ * short window bounds replay while leaving room for clock skew between Sim and
+ * Salesforce.
+ */
+const JWT_ASSERTION_LIFETIME_SECONDS = 180
+
+const JWT_BEARER_GRANT_TYPE = 'urn:ietf:params:oauth:grant-type:jwt-bearer'
 
 const logger = createLogger('SalesforceServiceAccountMinter')
 
@@ -189,22 +204,179 @@ async function fetchSalesforceIdentity(
 }
 
 /**
- * Mints a Salesforce access token via the OAuth 2.0 Client Credentials Flow
- * against the org's own My Domain token endpoint
- * (`https://{host}/services/oauth2/token` — login.salesforce.com hard-rejects
- * this grant). Credentials ride in the form body (client_secret_post) with no
- * scope parameter (Salesforce doesn't support scopes on this endpoint; grants
- * come from the Connected App config). The host is SSRF-guarded against the
- * My Domain allowlist before any outbound fetch.
+ * Loads a pasted PEM private key. Accepts both PKCS#8
+ * (`-----BEGIN PRIVATE KEY-----`, what OpenSSL 3 emits) and PKCS#1
+ * (`-----BEGIN RSA PRIVATE KEY-----`, what OpenSSL 1.x emits) because
+ * Salesforce's own `openssl` recipe produces whichever the operator's OpenSSL
+ * defaults to. An encrypted key is rejected explicitly rather than surfacing
+ * OpenSSL's opaque "bad decrypt" — Sim collects no passphrase to unlock one.
+ */
+function loadSalesforcePrivateKey(privateKeyPem: string): KeyObject {
+  if (/ENCRYPTED PRIVATE KEY/.test(privateKeyPem)) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'jwt_key_load',
+      reason:
+        'private key is passphrase-protected — decrypt it first (openssl rsa -in server.pass.key -out server.key)',
+    })
+  }
+  try {
+    const key = createPrivateKey(privateKeyPem)
+    if (key.asymmetricKeyType !== 'rsa') {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'jwt_key_load',
+        reason: `Salesforce requires an RSA key for RS256, received ${key.asymmetricKeyType ?? 'an unrecognized key type'}`,
+      })
+    }
+    return key
+  } catch (error) {
+    if (error instanceof TokenServiceAccountValidationError) throw error
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'jwt_key_load',
+      reason: 'private key is not a readable PEM key',
+    })
+  }
+}
+
+/**
+ * Builds the RS256-signed assertion Salesforce exchanges for an access token.
+ *
+ * `aud` is the org's own My Domain URL rather than `login.salesforce.com` /
+ * `test.salesforce.com`. Salesforce ended legacy hostname redirections in
+ * Spring '26, and External Client Apps now reject the generic sandbox host
+ * with `app_not_found` because it cannot identify which org the app is
+ * installed in. The My Domain URL is valid for both Connected Apps and
+ * External Client Apps, in production and in sandboxes, so it is the only
+ * audience that works across all four combinations — and it means the stored
+ * host alone determines the environment, with nothing left to infer.
+ * Salesforce's own CLI recommends the My Domain login URL for the same reason.
+ *
+ * @see https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_jwt_flow.htm&type=5
+ */
+function buildSalesforceJwtAssertion(
+  consumerKey: string,
+  username: string,
+  host: string,
+  privateKey: KeyObject
+): Promise<string> {
+  return new SignJWT()
+    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+    .setIssuer(consumerKey)
+    .setSubject(username)
+    .setAudience(`https://${host}`)
+    .setExpirationTime(Math.floor(Date.now() / 1000) + JWT_ASSERTION_LIFETIME_SECONDS)
+    .sign(privateKey)
+}
+
+/**
+ * Maps a JWT-bearer token error to an operator-facing hint. Salesforce
+ * collapses every JWT failure into HTTP 400 `invalid_grant`, distinguishing
+ * them only by `error_description`, so the description is the sole signal for
+ * which half of the setup is wrong.
+ */
+function salesforceJwtErrorHint(body: string): string | undefined {
+  try {
+    const parsed = JSON.parse(body) as { error?: string; error_description?: string }
+    const description = (parsed.error_description ?? '').toLowerCase()
+    if (parsed.error === 'app_not_found') {
+      return 'the app is not installed in this org — check the My Domain host and that the consumer key belongs to that org'
+    }
+    if (description.includes('user hasn’t approved') || description.includes("hasn't approved")) {
+      return 'the run-as user has not approved the app — set its OAuth policy to "Admin approved users are pre-authorized" and assign the user a permitted profile or permission set'
+    }
+    if (description.includes('audience')) {
+      return 'the app rejected the audience — confirm the My Domain host matches the org the app is installed in'
+    }
+    if (description.includes('invalid assertion') || description.includes('invalid signature')) {
+      return 'the assertion signature did not verify — the uploaded certificate does not match this private key'
+    }
+    if (description.includes('user not found') || description.includes('invalid username')) {
+      return 'the run-as username does not exist in this org, or is inactive'
+    }
+    if (description.includes('client identifier') || parsed.error === 'invalid_client_id') {
+      return 'the consumer key is invalid for this org'
+    }
+    return undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
+ * Builds the token-request form body for the selected grant, and the hint
+ * mapper that reads the failures that grant can produce.
+ *
+ * Client credentials posts the consumer key + secret directly
+ * (client_secret_post) with no scope parameter — Salesforce doesn't support
+ * scopes on this endpoint; grants come from the app config. JWT bearer posts a
+ * signed assertion instead, and carries no client secret at all.
+ */
+async function buildSalesforceTokenRequest(
+  fields: ClientCredentialAccountFields,
+  host: string
+): Promise<{ body: string; hintFor: (body: string) => string | undefined }> {
+  if (resolveSalesforceAuthMethod(fields.authMethod) === 'jwt_bearer') {
+    const consumerKey = fields.clientId.trim()
+    const username = fields.username?.trim()
+    const privateKeyPem = fields.privateKey?.trim()
+    if (!username || !privateKeyPem) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'jwt_field_validation',
+        host,
+        reason: 'JWT bearer requires both a run-as username and a private key',
+      })
+    }
+    const assertion = await buildSalesforceJwtAssertion(
+      consumerKey,
+      username,
+      host,
+      loadSalesforcePrivateKey(privateKeyPem)
+    )
+    return {
+      body: new URLSearchParams({
+        grant_type: JWT_BEARER_GRANT_TYPE,
+        assertion,
+      }).toString(),
+      hintFor: salesforceJwtErrorHint,
+    }
+  }
+
+  const clientSecret = fields.clientSecret?.trim()
+  if (!clientSecret) {
+    throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+      step: 'client_credentials_field_validation',
+      host,
+      reason: 'client credentials requires a consumer secret',
+    })
+  }
+  return {
+    body: new URLSearchParams({
+      grant_type: 'client_credentials',
+      client_id: fields.clientId,
+      client_secret: clientSecret,
+    }).toString(),
+    hintFor: salesforceErrorHint,
+  }
+}
+
+/**
+ * Mints a Salesforce access token against the org's own My Domain token
+ * endpoint (`https://{host}/services/oauth2/token`), using either the OAuth
+ * 2.0 Client Credentials Flow or the JWT Bearer Flow depending on the
+ * credential's `authMethod`. login.salesforce.com hard-rejects the
+ * client-credentials grant, and Spring '26 made the My Domain host the only
+ * audience an External Client App accepts, so both grants target the org host.
+ * It is SSRF-guarded against the My Domain allowlist before any outbound
+ * fetch, and — because the assertion's `aud` is that same validated host — the
+ * guard also bounds where a signed assertion can be replayed.
  *
  * Salesforce reports every credential/configuration failure as HTTP 400 with
  * `{ error, error_description }` (invalid_client_id, invalid_client,
- * invalid_grant), so 4xx maps to `invalid_credentials` — except transient
- * 429/408 throttling statuses, which map to `provider_unavailable` alongside
- * 5xx/network failures (never blame the credentials for provider-side
- * throttling). A host that fails DNS resolution maps to `site_not_found`
- * (the pasted My Domain host is wrong, not Salesforce down). The response
- * carries no `expires_in` and no refresh token — see
+ * invalid_grant, app_not_found), so 4xx maps to `invalid_credentials` — except
+ * transient 429/408 throttling statuses, which map to `provider_unavailable`
+ * alongside 5xx/network failures (never blame the credentials for
+ * provider-side throttling). A host that fails DNS resolution maps to
+ * `site_not_found` (the pasted My Domain host is wrong, not Salesforce down).
+ * Neither grant returns `expires_in` or a refresh token — see
  * {@link SALESFORCE_TOKEN_TTL_SECONDS}.
  */
 export async function mintSalesforceServiceAccountToken(
@@ -221,18 +393,16 @@ export async function mintSalesforceServiceAccountToken(
     })
   }
 
+  const { body: requestBody, hintFor } = await buildSalesforceTokenRequest(fields, host)
+
   const res = await fetchProvider(
     `https://${host}/services/oauth2/token`,
     {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        grant_type: 'client_credentials',
-        client_id: fields.clientId,
-        client_secret: fields.clientSecret,
-      }).toString(),
+      body: requestBody,
     },
-    'salesforce_token_mint',
+    TOKEN_MINT_STEP,
     {
       dnsFailureCode: 'site_not_found',
       dnsFailureReason: 'host does not resolve — check the My Domain host',
@@ -242,25 +412,25 @@ export async function mintSalesforceServiceAccountToken(
   if (!res.ok) {
     const body = await readProviderErrorSnippet(res)
     if (res.status >= 400 && res.status < 500 && !isTransientProviderStatus(res.status)) {
-      const hint = salesforceErrorHint(body)
+      const hint = hintFor(body)
       throw new TokenServiceAccountValidationError('invalid_credentials', res.status, {
-        step: 'salesforce_token_mint',
+        step: TOKEN_MINT_STEP,
         host,
         body,
         ...(hint ? { hint } : {}),
       })
     }
     throw new TokenServiceAccountValidationError('provider_unavailable', res.status, {
-      step: 'salesforce_token_mint',
+      step: TOKEN_MINT_STEP,
       host,
       body,
     })
   }
 
-  const payload = await parseProviderJson<SalesforceTokenResponse>(res, 'salesforce_token_mint')
+  const payload = await parseProviderJson<SalesforceTokenResponse>(res, TOKEN_MINT_STEP)
   if (typeof payload.access_token !== 'string' || !payload.access_token) {
     throw new TokenServiceAccountValidationError('provider_unavailable', 502, {
-      step: 'salesforce_token_mint',
+      step: TOKEN_MINT_STEP,
       host,
       reason: 'token response missing access_token',
     })

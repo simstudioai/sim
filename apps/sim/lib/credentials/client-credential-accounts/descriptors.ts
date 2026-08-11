@@ -15,7 +15,21 @@
 export const CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE = 'client_credential_account' as const
 
 /** Contract field ids a client-credential connect modal collects. */
-export type ClientCredentialAccountFieldId = 'clientId' | 'clientSecret' | 'orgId' | 'dataCenter'
+export type ClientCredentialAccountFieldId =
+  | 'clientId'
+  | 'clientSecret'
+  | 'orgId'
+  | 'dataCenter'
+  | 'authMethod'
+  | 'privateKey'
+  | 'username'
+
+/**
+ * The field id that selects between a descriptor's auth methods. A descriptor
+ * declaring it must also set `defaultAuthMethod`, or every branch-specific
+ * field resolves to hidden.
+ */
+export const AUTH_METHOD_FIELD_ID = 'authMethod' as const satisfies ClientCredentialAccountFieldId
 
 export interface ClientCredentialAccountOption {
   value: string
@@ -28,6 +42,22 @@ export interface ClientCredentialAccountField {
   placeholder: string
   /** Rendered with SecretInput and never echoed back. */
   secret: boolean
+  /**
+   * Renders a multi-line control instead of a single-line one. Required for
+   * PEM-encoded material (a private key spans ~28 newline-separated lines and
+   * is unreadable — and unverifiable by eye — in a single-line input). A
+   * `secret` field that is also `multiline` renders as a plain textarea rather
+   * than a masked input; the modal never prefills a secret, so masking would
+   * only hide the user's own paste from them.
+   */
+  multiline?: boolean
+  /**
+   * Auth methods this field belongs to, for descriptors offering more than one
+   * (Salesforce: client credentials vs JWT bearer). The field is hidden, and
+   * skipped by validation, unless the selected method appears in this list.
+   * Absent means the field belongs to every branch.
+   */
+  requiredForAuthMethods?: readonly string[]
   /**
    * Field the connect modal may submit empty; excluded from
    * {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} so create/reconnect
@@ -65,6 +95,11 @@ export interface ClientCredentialAccountDescriptor {
    */
   connectNoun: string
   fields: ClientCredentialAccountField[]
+  /**
+   * Grant used when no `authMethod` is submitted or stored. Required on any
+   * descriptor carrying an `authMethod` field; meaningless without one.
+   */
+  defaultAuthMethod?: string
   /** Sim setup guide, docked bottom-left of the connect modal. */
   docsUrl: string
   /** Optional one-line caveat rendered in the connect modal. */
@@ -92,6 +127,37 @@ export type ClientCredentialAccountProviderId =
  */
 export const SALESFORCE_MY_DOMAIN_HOST_REGEX =
   /^[a-z0-9][a-z0-9-]*(--[a-z0-9]+)?(\.(sandbox|develop|scratch|demo|patch|trailblaze|free))?\.my\.salesforce\.com$/
+
+/**
+ * Server-to-server grants a Salesforce integration app can authenticate with.
+ * `client_credentials` posts a consumer key + secret; `jwt_bearer` posts an
+ * RS256-signed assertion and names the user to run as, so it needs no shared
+ * secret at all. This list is the only allowlist — every consumer resolves
+ * against it through {@link resolveSalesforceAuthMethod}.
+ * @see https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_jwt_flow.htm&type=5
+ */
+const SALESFORCE_AUTH_METHOD_OPTIONS: ReadonlyArray<ClientCredentialAccountOption> = [
+  { value: 'client_credentials', label: 'Client credentials (consumer secret)' },
+  { value: 'jwt_bearer', label: 'JWT bearer (private key)' },
+]
+
+/**
+ * Client-credentials stays the default so credentials created before the JWT
+ * branch existed — whose stored blob carries no `authMethod` — keep minting
+ * exactly as they did.
+ */
+export const SALESFORCE_DEFAULT_AUTH_METHOD = 'client_credentials'
+
+/** A Salesforce username is an email-shaped login, not necessarily a real mailbox. */
+export const SALESFORCE_USERNAME_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+
+/**
+ * A PEM private key header, in either container `crypto.createPrivateKey`
+ * accepts. Catches the common mix-up of pasting `server.crt` (the certificate
+ * that belongs in Salesforce) instead of `server.key`, which would otherwise
+ * only surface as an opaque failed mint.
+ */
+export const SALESFORCE_PRIVATE_KEY_REGEX = /-----BEGIN (RSA )?PRIVATE KEY-----/
 
 /**
  * Normalizes a pasted My Domain value to a bare host: strips the protocol,
@@ -284,6 +350,14 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
     connectNoun: 'integration user app',
     fields: [
       {
+        id: 'authMethod',
+        label: 'Authentication method',
+        placeholder: 'Select a method',
+        secret: false,
+        optional: true,
+        options: SALESFORCE_AUTH_METHOD_OPTIONS,
+      },
+      {
         id: 'clientId',
         label: 'Consumer key',
         placeholder: 'Paste the consumer key',
@@ -294,6 +368,30 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         label: 'Consumer secret',
         placeholder: 'Paste the consumer secret',
         secret: true,
+        optional: true,
+        requiredForAuthMethods: ['client_credentials'],
+      },
+      {
+        id: 'privateKey',
+        label: 'Private key',
+        placeholder: '-----BEGIN PRIVATE KEY-----',
+        secret: true,
+        multiline: true,
+        optional: true,
+        requiredForAuthMethods: ['jwt_bearer'],
+        hintPattern: SALESFORCE_PRIVATE_KEY_REGEX,
+        hintMessage: 'Expected a PEM private key (server.key), not the certificate.',
+        hint: 'Must match the certificate uploaded to the app.',
+      },
+      {
+        id: 'username',
+        label: 'Run as username',
+        placeholder: 'integration.user@yourorg.com',
+        secret: false,
+        optional: true,
+        requiredForAuthMethods: ['jwt_bearer'],
+        hintPattern: SALESFORCE_USERNAME_REGEX,
+        hintMessage: 'Expected a Salesforce username, which is email-shaped (user@example.com).',
       },
       {
         id: 'orgId',
@@ -306,9 +404,10 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
           'Expected a My Domain host like yourorg.my.salesforce.com, yourorg--sbx.sandbox.my.salesforce.com, or yourorg-dev-ed.develop.my.salesforce.com.',
       },
     ],
+    defaultAuthMethod: SALESFORCE_DEFAULT_AUTH_METHOD,
     docsUrl: 'https://docs.sim.ai/integrations/salesforce-service-account',
     helpText:
-      'Every call executes as the Connected App\'s "Run As" user, so deactivating or freezing that user stops all runs. Without the "openid" scope the connection still works, but Sim cannot record which user it authenticates as.',
+      'Every call runs as one integration user, so deactivating or freezing that user stops all runs. Without the "openid" scope the connection still works, but Sim cannot record which user it authenticates as.',
   },
   [ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID]: {
     providerId: ZOHO_DESK_SERVICE_ACCOUNT_PROVIDER_ID,
@@ -369,6 +468,73 @@ export const CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: Record<
     descriptor.fields.filter((field) => !field.optional).map((field) => field.id),
   ])
 )
+
+/**
+ * Resolves a submitted or stored `authMethod` to one the descriptor actually
+ * offers, falling back to its `defaultAuthMethod`. Returns `undefined` for
+ * single-grant providers, whose fields are never method-conditional.
+ *
+ * Resolving (rather than reading the raw value) is what makes credentials
+ * created before the field existed keep working: their blob carries no
+ * `authMethod`, and the default is the grant they were created with.
+ */
+export function resolveClientCredentialAuthMethod(
+  descriptor: ClientCredentialAccountDescriptor,
+  authMethod: string | undefined
+): string | undefined {
+  const options = descriptor.fields.find((field) => field.id === AUTH_METHOD_FIELD_ID)?.options
+  if (!options) return undefined
+  const trimmed = authMethod?.trim()
+  return options.some((option) => option.value === trimmed) ? trimmed : descriptor.defaultAuthMethod
+}
+
+/**
+ * Splits a descriptor's fields for one auth method: `visible` is what the
+ * connect modal renders, `required` is what must be non-empty to submit.
+ *
+ * A field with no `requiredForAuthMethods` belongs to every branch and is
+ * required unless marked `optional`; a branch-specific field is both hidden
+ * and skipped by validation on the other branches. Resolves the method once,
+ * so callers never re-resolve per field.
+ *
+ * The static {@link CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS} map above
+ * cannot express this — it feeds a contract schema that validates one shape
+ * per provider — so the branch-specific requirement is enforced by the
+ * server-side secret builder and mirrored by the connect modal's submit gate.
+ */
+export function partitionClientCredentialFields(
+  descriptor: ClientCredentialAccountDescriptor,
+  authMethod: string | undefined
+): { visible: ClientCredentialAccountField[]; required: ClientCredentialAccountField[] } {
+  const resolved = resolveClientCredentialAuthMethod(descriptor, authMethod)
+  const visible: ClientCredentialAccountField[] = []
+  const required: ClientCredentialAccountField[] = []
+  for (const field of descriptor.fields) {
+    if (field.requiredForAuthMethods) {
+      if (resolved === undefined || !field.requiredForAuthMethods.includes(resolved)) continue
+      visible.push(field)
+      required.push(field)
+      continue
+    }
+    visible.push(field)
+    if (!field.optional) required.push(field)
+  }
+  return { visible, required }
+}
+
+/**
+ * Resolves an auth method against the Salesforce descriptor's own option list,
+ * for the minter — which holds only the raw stored value and must agree with
+ * the validation that gated the credential at create time.
+ */
+export function resolveSalesforceAuthMethod(authMethod: string | undefined): string {
+  return (
+    resolveClientCredentialAuthMethod(
+      CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS[SALESFORCE_SERVICE_ACCOUNT_PROVIDER_ID],
+      authMethod
+    ) ?? SALESFORCE_DEFAULT_AUTH_METHOD
+  )
+}
 
 export function isClientCredentialAccountProviderId(
   value: string | null | undefined

@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { fetchWithRetry, VALIDATE_RETRY_OPTIONS } from '@/lib/knowledge/documents/utils'
+import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { salesforceConnectorMeta } from '@/connectors/salesforce/meta'
 import type { ConnectorConfig, ExternalDocument, ExternalDocumentList } from '@/connectors/types'
 import { htmlToPlainText, parseTagDate } from '@/connectors/utils'
@@ -11,8 +12,13 @@ const logger = createLogger('SalesforceConnector')
  * Salesforce serves the userinfo endpoint at the org's authentication host.
  * Tokens issued at test.salesforce.com (sandbox) are rejected at login.salesforce.com,
  * so we try each host in order and cache the working one in syncContext.
+ *
+ * Derived from the shared connector host map so a new authorization server
+ * reaches this probe automatically. The connector receives only an access
+ * token — not the credential's provider id — so it cannot pick the host
+ * up front the way the OAuth token route can.
  */
-const USERINFO_HOSTS = ['https://login.salesforce.com', 'https://test.salesforce.com'] as const
+const USERINFO_HOSTS = Object.values(SALESFORCE_LOGIN_HOSTS).map((host) => `https://${host}`)
 const USERINFO_PATH = '/services/oauth2/userinfo'
 const API_VERSION = 'v62.0'
 const PAGE_SIZE = 200

@@ -41,6 +41,19 @@ afterAll(resetEnvironmentUtilsMock)
 
 vi.mock('@/lib/oauth', () => ({
   getAllOAuthServices: getAllOAuthServicesMock,
+  // Real implementation: the tool resolves a credential's provider id to its
+  // service through this, including alternate authorization servers.
+  credentialProviderMatchesService: (
+    credentialProviderId: string,
+    service: {
+      providerId: string
+      serviceAccountProviderId?: string
+      additionalProviderIds?: readonly string[]
+    }
+  ) =>
+    service.providerId === credentialProviderId ||
+    service.serviceAccountProviderId === credentialProviderId ||
+    (service.additionalProviderIds?.includes(credentialProviderId) ?? false),
 }))
 
 vi.mock('@/lib/integrations/availability.server', () => ({

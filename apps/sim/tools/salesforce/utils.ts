@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isSalesforceLoginOrigin } from '@/lib/oauth/salesforce'
 
 const logger = createLogger('SalesforceUtils')
 
@@ -27,7 +28,7 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
         if (match) return match[1]
       } else if (decoded.sub) {
         const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-        if (match && match[1] !== 'https://login.salesforce.com') return match[1]
+        if (match && !isSalesforceLoginOrigin(match[1])) return match[1]
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

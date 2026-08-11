@@ -16,7 +16,11 @@ import type { ServiceAccountPrincipal } from '@/lib/credentials/principal'
 /** Raw fields a client-credential minter receives (already trimmed). */
 export interface ClientCredentialAccountFields {
   clientId: string
-  clientSecret: string
+  /**
+   * Absent only when the provider's selected {@link authMethod} authenticates
+   * with key material instead of a shared secret (Salesforce JWT bearer).
+   */
+  clientSecret?: string
   /**
    * Provider-specific org identifier (Zoom Account ID, Box Enterprise ID,
    * Salesforce My Domain host, Zoho Desk organization ID).
@@ -28,6 +32,20 @@ export interface ClientCredentialAccountFields {
    * ignores it, and a blank value keeps the provider's default region.
    */
   dataCenter?: string
+  /**
+   * Which grant the provider's minter should use, for providers that offer
+   * more than one. Only Salesforce does (`client_credentials` | `jwt_bearer`);
+   * every other minter ignores it. Absent means the provider's default, which
+   * is what credentials created before the field existed carry.
+   */
+  authMethod?: string
+  /**
+   * PEM private key signing the assertion, for key-based grants (Salesforce
+   * JWT bearer). Mutually exclusive with {@link clientSecret} in practice.
+   */
+  privateKey?: string
+  /** Username a key-based grant authenticates as (Salesforce JWT `sub`). */
+  username?: string
 }
 
 /** Identity derived from a successful mint, used at connect time. */
@@ -122,10 +140,15 @@ export interface ClientCredentialAccountSecretBlob {
   type: typeof CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE
   providerId: string
   clientId: string
-  clientSecret: string
+  /** Absent on key-based credentials, which carry a {@link privateKey} instead. */
+  clientSecret?: string
   orgId: string
   /** Optional region selector; absent on every credential created before it existed. */
   dataCenter?: string
+  /** Absent on every credential created before multi-grant support existed. */
+  authMethod?: string
+  privateKey?: string
+  username?: string
   metadata?: Record<string, string>
 }
 
@@ -143,12 +166,13 @@ export function parseClientCredentialAccountSecretBlob(
   if (typeof parsed !== 'object' || parsed === null) {
     throw malformed
   }
+  // Requiring `clientSecret` outright would reject every key-based credential.
   if (
     parsed.type !== CLIENT_CREDENTIAL_ACCOUNT_SECRET_TYPE ||
     parsed.providerId !== expectedProviderId ||
     !parsed.clientId ||
-    !parsed.clientSecret ||
-    !parsed.orgId
+    !parsed.orgId ||
+    (!parsed.clientSecret && !parsed.privateKey)
   ) {
     throw malformed
   }

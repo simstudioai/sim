@@ -12,6 +12,7 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
+import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
 import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getCredential,
@@ -25,11 +26,6 @@ import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 export const dynamic = 'force-dynamic'
 
 const logger = createLogger('OAuthTokenAPI')
-
-const SALESFORCE_INSTANCE_URL_REGEX = /__sf_instance__:([^\s]+)/
-// Stop at a comma or whitespace: better-auth persists Zoho's scopes comma-joined
-// (no spaces), so a greedy `\S+` would swallow the whole scope list into the host.
-// The Desk base URL itself never contains a comma or space.
 
 /**
  * Get an access token for a specific credential
@@ -287,13 +283,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      let instanceUrl: string | undefined
-      if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
-        if (instanceMatch) {
-          instanceUrl = instanceMatch[1]
-        }
-      }
+      const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
+        ? extractSalesforceInstanceUrl(credential.scope)
+        : undefined
 
       // Zoho Desk persists its data-center-specific REST base URL in the scope
       // string (derived from the token response api_domain) so callers never
@@ -410,14 +402,9 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
-      // For Salesforce, extract instanceUrl from the scope field
-      let instanceUrl: string | undefined
-      if (credential.providerId === 'salesforce' && credential.scope) {
-        const instanceMatch = credential.scope.match(SALESFORCE_INSTANCE_URL_REGEX)
-        if (instanceMatch) {
-          instanceUrl = instanceMatch[1]
-        }
-      }
+      const instanceUrl = isSalesforceOAuthProviderId(credential.providerId)
+        ? extractSalesforceInstanceUrl(credential.scope)
+        : undefined
 
       // Zoho Desk persists its data-center-specific REST base URL in the scope
       // string (derived from the token response api_domain) so callers never

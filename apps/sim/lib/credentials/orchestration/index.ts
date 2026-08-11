@@ -71,13 +71,17 @@ async function readStoredSecretBlob(credentialId: string): Promise<Record<string
 }
 
 /**
- * The `dataCenter` already stored in a service-account blob. Used on reconnect
- * so a non-secret regional selector survives a secret rotation that does not
- * resubmit it; undefined lets the provider's own default apply.
+ * A non-secret string field already stored in a service-account blob. Used on
+ * reconnect so a selector the modal did not resubmit (the Zoho data center,
+ * the Salesforce auth method and run-as username) survives a secret rotation;
+ * undefined lets the provider's own default apply.
  */
-function readStoredDataCenter(blob: Record<string, unknown> | null): string | undefined {
-  const dataCenter = blob?.dataCenter
-  return typeof dataCenter === 'string' && dataCenter ? dataCenter : undefined
+function readStoredField(
+  blob: Record<string, unknown> | null,
+  field: 'dataCenter' | 'authMethod' | 'username'
+): string | undefined {
+  const value = blob?.[field]
+  return typeof value === 'string' && value ? value : undefined
 }
 
 /**
@@ -130,6 +134,9 @@ export interface PerformUpdateCredentialParams extends CredentialActorParams {
   clientSecret?: string
   orgId?: string
   dataCenter?: string
+  authMethod?: string
+  privateKey?: string
+  username?: string
 }
 
 export interface PerformCredentialResult {
@@ -190,7 +197,10 @@ export async function performUpdateCredential(
       params.clientId !== undefined ||
       params.clientSecret !== undefined ||
       params.orgId !== undefined ||
-      params.dataCenter !== undefined
+      params.dataCenter !== undefined ||
+      params.authMethod !== undefined ||
+      params.privateKey !== undefined ||
+      params.username !== undefined
     let rotatedSlackBotUserId: string | undefined
     let rotatedAuditMetadata: Record<string, string> | undefined
     if (hasRotationSecret && access.credential.type === 'service_account') {
@@ -202,8 +212,10 @@ export async function performUpdateCredential(
       // like the Zoho data center would be silently dropped, moving an EU/IN/AU
       // credential back to the US accounts server. Carry the stored value forward
       // when the caller did not supply one.
-      const needsStoredDataCenter =
-        params.dataCenter === undefined && isClientCredentialAccountProviderId(providerId)
+      const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
+      const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
+      const needsStoredAuthMethod = params.authMethod === undefined && isClientCredentialProvider
+      const needsStoredUsername = params.username === undefined && isClientCredentialProvider
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)
@@ -216,7 +228,7 @@ export async function performUpdateCredential(
 
       // One read + decrypt at most, and only for the providers that can use it.
       const storedBlob =
-        needsStoredDataCenter || needsStoredIdentity
+        needsStoredDataCenter || needsStoredAuthMethod || needsStoredUsername || needsStoredIdentity
           ? await readStoredSecretBlob(access.credential.id)
           : null
 
@@ -230,7 +242,14 @@ export async function performUpdateCredential(
           clientId: params.clientId,
           clientSecret: params.clientSecret,
           orgId: params.orgId,
-          dataCenter: needsStoredDataCenter ? readStoredDataCenter(storedBlob) : params.dataCenter,
+          dataCenter: needsStoredDataCenter
+            ? readStoredField(storedBlob, 'dataCenter')
+            : params.dataCenter,
+          authMethod: needsStoredAuthMethod
+            ? readStoredField(storedBlob, 'authMethod')
+            : params.authMethod,
+          privateKey: params.privateKey,
+          username: needsStoredUsername ? readStoredField(storedBlob, 'username') : params.username,
         })
         updates.encryptedServiceAccountKey = secret.encryptedServiceAccountKey
         rotatedSlackBotUserId = secret.botUserId

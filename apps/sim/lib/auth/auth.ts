@@ -97,6 +97,12 @@ import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
 import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  isSalesforceLoginOrigin,
+  isSalesforceOAuthProviderId,
+  SALESFORCE_LOGIN_HOSTS,
+  withSalesforceInstanceScope,
+} from '@/lib/oauth/salesforce'
 import { extractSlackTeamId, fanOutSlackTokenChain } from '@/lib/oauth/slack'
 import { clearDeadFlag } from '@/lib/oauth/terminal-errors'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
@@ -154,6 +160,38 @@ const trustedProxies = (env.AUTH_TRUSTED_PROXIES ?? '')
   .split(',')
   .map((entry) => entry.trim())
   .filter(Boolean)
+
+/**
+ * Resolves the org's API instance URL for a freshly linked Salesforce account.
+ *
+ * The token response never carries `instance_url`, but `/services/oauth2/userinfo`
+ * returns a `profile` URL rooted at the org's own host. A response still rooted
+ * at the login host means userinfo answered for the authorization server rather
+ * than an org, which is not an instance URL — hence the guard.
+ *
+ * @returns The instance URL origin, or undefined when it cannot be determined
+ * (the caller then leaves `scope` untouched rather than storing a wrong host).
+ */
+async function fetchSalesforceInstanceUrl(
+  providerId: string,
+  accessToken: string
+): Promise<string | undefined> {
+  const loginHost = SALESFORCE_LOGIN_HOSTS[providerId]
+  if (!loginHost) return undefined
+  try {
+    const response = await fetch(`https://${loginHost}/services/oauth2/userinfo`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    })
+    if (!response.ok) return undefined
+    const data = await response.json()
+    if (typeof data.profile !== 'string') return undefined
+    const origin = new URL(data.profile).origin
+    return isSalesforceLoginOrigin(origin) ? undefined : origin
+  } catch (error) {
+    logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
+    return undefined
+  }
+}
 
 export const auth = betterAuth({
   baseURL: getBaseUrl(),
@@ -352,30 +390,13 @@ export const auth = betterAuth({
         before: async (account) => {
           const modifiedAccount = { ...account }
 
-          if (account.providerId === 'salesforce' && account.accessToken) {
-            try {
-              const response = await fetch(
-                'https://login.salesforce.com/services/oauth2/userinfo',
-                {
-                  headers: {
-                    Authorization: `Bearer ${account.accessToken}`,
-                  },
-                }
-              )
-
-              if (response.ok) {
-                const data = await response.json()
-
-                if (data.profile) {
-                  const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                  if (match && match[1] !== 'https://login.salesforce.com') {
-                    const instanceUrl = match[1]
-                    modifiedAccount.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                  }
-                }
-              }
-            } catch (error) {
-              logger.error('Failed to fetch Salesforce instance URL', { error })
+          if (account.accessToken && isSalesforceOAuthProviderId(account.providerId)) {
+            const instanceUrl = await fetchSalesforceInstanceUrl(
+              account.providerId,
+              account.accessToken
+            )
+            if (instanceUrl) {
+              modifiedAccount.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
             }
           }
 
@@ -548,7 +569,7 @@ export const auth = betterAuth({
             )
           }
 
-          if (account.providerId === 'salesforce') {
+          if (isSalesforceOAuthProviderId(account.providerId)) {
             const updates: {
               accessTokenExpiresAt?: Date
               scope?: string
@@ -559,29 +580,12 @@ export const auth = betterAuth({
             }
 
             if (account.accessToken) {
-              try {
-                const response = await fetch(
-                  'https://login.salesforce.com/services/oauth2/userinfo',
-                  {
-                    headers: {
-                      Authorization: `Bearer ${account.accessToken}`,
-                    },
-                  }
-                )
-
-                if (response.ok) {
-                  const data = await response.json()
-
-                  if (data.profile) {
-                    const match = data.profile.match(/^(https:\/\/[^/]+)/)
-                    if (match && match[1] !== 'https://login.salesforce.com') {
-                      const instanceUrl = match[1]
-                      updates.scope = `__sf_instance__:${instanceUrl} ${account.scope}`
-                    }
-                  }
-                }
-              } catch (error) {
-                logger.error('Failed to fetch Salesforce instance URL', { error })
+              const instanceUrl = await fetchSalesforceInstanceUrl(
+                account.providerId,
+                account.accessToken
+              )
+              if (instanceUrl) {
+                updates.scope = withSalesforceInstanceScope(instanceUrl, account.scope)
               }
             }
 
