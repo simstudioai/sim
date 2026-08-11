@@ -3,6 +3,7 @@ import { defineI18nUI } from 'fumadocs-ui/i18n'
 import { DocsLayout } from 'fumadocs-ui/layouts/docs'
 import { RootProvider } from 'fumadocs-ui/provider/next'
 import { Geist_Mono, Inter } from 'next/font/google'
+import { ThemeProvider } from 'next-themes'
 import {
   SidebarFolder,
   SidebarItem,
@@ -96,34 +97,41 @@ export default async function Layout({ children, params }: LayoutProps) {
         />
       </head>
       <body className='flex min-h-screen flex-col font-sans'>
-        <RootProvider i18n={provider(lang)}>
-          <Navbar />
-          <DocsLayout
-            tree={source.pageTree[lang]}
-            nav={{
-              title: <SimWordmark className='h-[18px]' />,
-            }}
-            sidebar={{
-              tabs: false,
-              defaultOpenLevel: 0,
-              collapsible: false,
-              footer: null,
-              banner: null,
-              prefetch: false,
-              components: {
-                Item: SidebarItem,
-                Folder: SidebarFolder,
-                Separator: SidebarSeparator,
-              },
-            }}
-            containerProps={{
-              className: '!pt-0',
-            }}
-          >
-            {children}
-          </DocsLayout>
-          <Footer />
-        </RootProvider>
+        <ThemeProvider
+          attribute='class'
+          defaultTheme='system'
+          enableSystem
+          disableTransitionOnChange
+        >
+          <RootProvider i18n={provider(lang)} theme={{ enabled: false }}>
+            <Navbar />
+            <DocsLayout
+              tree={source.pageTree[lang]}
+              nav={{
+                title: <SimWordmark className='h-[18px]' />,
+              }}
+              sidebar={{
+                tabs: false,
+                defaultOpenLevel: 0,
+                collapsible: false,
+                footer: null,
+                banner: null,
+                prefetch: false,
+                components: {
+                  Item: SidebarItem,
+                  Folder: SidebarFolder,
+                  Separator: SidebarSeparator,
+                },
+              }}
+              containerProps={{
+                className: '!pt-0',
+              }}
+            >
+              {children}
+            </DocsLayout>
+            <Footer />
+          </RootProvider>
+        </ThemeProvider>
       </body>
     </html>
   )
