@@ -32,87 +32,85 @@ faq:
     a: "As an egress boundary. Content bound for a model provider is projected the same way trace content is, because that content leaves Sim's infrastructure, may be retained by the provider, and can be echoed back into a later turn under prompt injection."
 ---
 
-Every agent run that touches a third-party API has the same shape: a credential gets resolved out of workspace configuration, substituted into a request, and sent somewhere. What happens after that is the interesting part.
+Every agent run that touches a third-party API has the same shape. A credential comes out of workspace configuration, gets substituted into a request, and goes somewhere. That part is easy. What happens afterwards is the part worth thinking about.
 
-Consider a run that calls Stripe with an expired key. The key is substituted into the request. The API returns a 401 and the error body quotes part of the request back. The agent hands that error to the model so it can decide what to do next. The model writes a summary. The execution logger records the exchange. A Function block writes a file. A later block reads the file.
+Say a run calls Stripe and the key has expired. The API returns a 401, and the error body quotes part of the request back at you. The agent passes that error to the model so it can decide what to do next, and the model writes a short summary of what went wrong. The execution logger records the whole exchange. A Function block later in the run writes a file. A block after that reads the file.
 
-That is one secret and seven hops, and most of those hops end somewhere a person, a model, or a database will eventually read. [Sensitive information disclosure](https://genai.owasp.org/llmrisk/llm02-insecure-output-handling/) is the second entry in the 2025 OWASP Top 10 for LLM Applications, and the leak surfaces it names are exactly these: prompts, responses, logs, cached conversations, and integrations with external tools.
+One credential, seven hops, and most of them end somewhere a person, a model, or a database is going to read. [Sensitive information disclosure](https://genai.owasp.org/llmrisk/llm02-insecure-output-handling/) is the second entry in the 2025 OWASP Top 10 for LLM Applications, and the leak surfaces it names are exactly the ones in that paragraph: prompts, responses, logs, cached conversations, and integrations with external tools.
 
-The usual mitigation is pattern matching. [LangSmith](https://docs.langchain.com/langsmith/mask-inputs-outputs) offers rule-based masking with regex patterns for API keys and tokens. [Langfuse](https://langfuse.com/docs/observability/features/masking) lets you supply a masking function that runs over every event before data leaves your process. Both are reasonable designs for a library that receives an opaque payload and has to make a judgment about it.
+The usual way to handle this is to look for things that resemble secrets. [LangSmith](https://docs.langchain.com/langsmith/mask-inputs-outputs) gives you rule-based masking with regex patterns for API keys and tokens. [Langfuse](https://langfuse.com/docs/observability/features/masking) lets you supply a masking function that runs over every event before data leaves your process. If you are a library handed an opaque payload, that is a sensible design — pattern matching is the only information you have.
 
-We had a different constraint. Sim resolves the credential itself, so at the moment a secret enters an execution we know its exact bytes, which variable it came from, and which block asked for it. Matching a pattern against a value we already have is strictly worse than matching the value.
+We were in a different position, and it took us a while to notice how different. Sim resolves the credential itself. At the moment a secret enters an execution we already know its exact bytes, which variable it came from, and which block asked for it. Guessing at a value you are holding is strictly worse than comparing against it.
 
-The goal is not maximum redaction. A system that blanks anything it cannot prove safe produces logs nobody can debug with, and a debugging tool that hides the failure is not much of a tool. A system that redacts only what it happens to recognize produces logs that leak. Useful sits between those, and most of the design decisions below are about finding that line and then being precise about which side of it a given case falls on.
-
-This post covers how a secret gets labeled, how the label survives tool calls and storage, where the label gets checked, what the system actually guarantees, and the one part that turned out to be much harder than expected.
+That does not mean the answer is to redact as much as possible. Blank out anything you cannot prove is safe and you get logs nobody can debug with, which defeats the point of having logs at all. Redact only what you happen to recognize and you get logs that leak. The useful system lives between those two, and most of what follows is about finding that line and being precise about which side of it a given case falls on.
 
 ## Architecture Overview
 
-Each workflow execution carries a **resolved-secret registry**. It holds a catalog of the credentials available to that run and a set of entries that have been *activated*. Everything else in the system reads from it.
+Each workflow execution carries a **resolved-secret registry**: a catalog of the credentials available to that run, plus the subset that have actually been *activated*. Everything else reads from it.
 
 The lifecycle has three stages.
 
 ![Activation, propagation and projection across an agent run](/blog/secret-provenance/lifecycle.png)
 
-**Activation** happens when a `{{STRIPE_KEY}}` reference in a block resolves to the actual key. The registry only activates an entry if the value that appeared at runtime matches the configured value exactly. A credential that exists in the workspace but was never used by this run stays inert — it is never matched against this run's content at all. This keeps the active set equal to the set of secrets the run genuinely touched, which matters both for correctness and for how much work the matcher does.
+**Activation** happens when a `{{STRIPE_KEY}}` reference in a block resolves into the real key. The registry only activates that entry if the value that showed up at runtime matches the configured value exactly.
 
-**Propagation** carries the label with the value. Through a tool call into a third-party API and back through the response. Through a Function block into the sandbox and out through whatever it returns. Into a file the agent writes, and out again when a later block reads that file.
+**Propagation** carries the label along with the value — through a tool call into a third-party API and back through its response, through a Function block into the sandbox and out through whatever it returns, into a file the agent writes and out again when a later block reads it.
 
-**Projection** is the check. Before content becomes a trace span, part of a prompt, or a line in a log stream, known secret values are replaced with the name they came from. The Stripe key renders as `{{STRIPE_KEY}}`.
+**Projection** is the check. Before content becomes a trace span, part of a prompt, or a line in a log stream, any known secret value in it is replaced with the name it came from. The Stripe key shows up as `{{STRIPE_KEY}}`.
 
-The practical effect is that a trace stays useful. You can see that the 401 came from the request carrying `{{STRIPE_KEY}}` — enough to tell you which credential to rotate, without printing it.
+The point of all this is that the trace stays useful. You can still see that the 401 came from the request carrying `{{STRIPE_KEY}}`, which tells you which credential to rotate. You just cannot see the credential.
 
-## Activation Requires Proof
+## Activation: Proving a Secret Was Actually Used
 
-The registry does not activate an entry because a name appeared somewhere. It activates when the resolved runtime value equals the configured catalog value.
+The registry does not activate an entry because a name turned up somewhere. It activates when the resolved runtime value equals the configured one.
 
-This sounds pedantic and is the reason the system is usable. Without it, every secret in the workspace would be a candidate literal on every run, the matcher would grow with workspace size rather than run scope, and a run that touched nothing sensitive would still pay to have all of its content scanned against every credential the team owns.
+That sounds like a pedantic distinction, and it is the reason the whole thing stays workable. Without it, every credential in the workspace would be a candidate on every run. The matcher would grow with the size of your workspace rather than the scope of the run, and a workflow that touched nothing sensitive would still pay to have all of its output scanned against every key your team owns. With it, the active set is exactly the secrets this run genuinely used.
 
-The resolver records activation at the exact input path where the substitution happened, which means the registry knows not just *that* a secret was used but *where*. When a tool call finishes, its registry merges back into the turn-scoped registry, so provenance accumulates in the order the run actually executed rather than being computed at the end from a snapshot.
+The resolver also records *where* the substitution happened, not just that it did. When a tool call finishes, its registry merges back into the turn-scoped one, so provenance accumulates in the order the run actually executed rather than being reconstructed at the end from a snapshot.
 
-## Where Projection Runs
+## Projection: The Four Places Data Leaves
 
-There are four categories of boundary, and they behave differently enough to be worth listing.
+Boundaries fall into four categories, and they behave differently enough to be worth taking one at a time.
 
-**Model egress.** Content bound for a model provider is projected before it is formatted into a request. We treat the model as a network boundary rather than an internal component. The content leaves our infrastructure, it may be retained on the other side, and under prompt injection an attacker's objective is frequently to get the model to repeat something it holds. Deciding this early matters, because retrofitting it means auditing every path by which a string reaches a prompt.
+**The model.** Content bound for a model provider is projected before it is formatted into a request. We treat the model as a network boundary, not an internal component — the content leaves our infrastructure, it may be retained on the other side, and under prompt injection an attacker's whole objective is often to get the model to repeat something it is holding. This is worth deciding early. Retrofitting it later means auditing every path by which a string can reach a prompt, and there are more of those than you think.
 
-**Traces and diagnostics.** Execution traces, block inputs and outputs, provider timings, tool call arguments, and error diagnostics are all projected before they are persisted or shown. Error paths get particular attention: a stack trace or a provider error body will quote whatever it was given.
+**Traces and diagnostics.** Execution traces, block inputs and outputs, provider timings, tool call arguments, error diagnostics — all projected before they are persisted or displayed. Error paths deserve particular suspicion here, because a stack trace or a provider error body will happily quote whatever it was handed.
 
-**Durable storage.** Files, table cells, knowledge base documents and agent memory outlive the run that produced them. If provenance stopped at the end of an execution, a secret written in one run and read in another would launder itself through storage. So durable writes carry an encrypted provenance record and a version marker alongside the content. A `NULL` marker means the row predates the system and is treated as legacy; a set marker means the record must match. Content whose provenance cannot be established is `unknown`, which is a distinct state from clean rather than a synonym for it.
+**Durable storage.** Files, table cells, knowledge base documents and agent memory all outlive the run that produced them. If provenance stopped at the end of an execution, a secret written in one run and read back in another would launder itself through storage. So durable writes carry an encrypted provenance record and a version marker alongside the content. An empty marker means the row predates the system and is treated as legacy; a set marker means the record has to match. Content whose provenance cannot be established is marked `unknown`, which is deliberately a different state from clean rather than a synonym for it.
 
-The surfaces do not all enforce that state at the same strictness yet. Workspace files refuse an unknown classification outright; the remaining durable surfaces are being brought up to the same bar one at a time, behind configuration, because turning refusal on everywhere at once would reject a large volume of rows written before any of this existed.
+Not every surface enforces that state at the same strictness yet. Workspace files refuse an unknown classification outright; the others are being brought up to the same bar one at a time, behind configuration, because switching refusal on everywhere at once would reject a large volume of rows written before any of this existed.
 
-**Tool results.** A tool result crossing back into the model is projected with the same machinery, and the projection runs against the JSON-normalized value so that a secret typed as a number, a boolean, or a nested field is handled rather than only top-level strings.
+**Tool results.** A result crossing back into the model goes through the same machinery, against the JSON-normalized value rather than the raw string, so a secret that arrives as a number, a boolean, or a nested field is handled rather than only the top-level strings.
 
-## Failure Means Silence
+## Failing Closed
 
-Every boundary fails closed.
+Every one of those boundaries fails closed.
 
-If provenance for a piece of content cannot be fully established — the registry is incomplete, a value cannot be materialized, a projection budget is exceeded — the content is withheld rather than shown. A trace span keeps its structure, timings, block identity and status, and loses its payload. A tool result is withheld from the model. A diagnostic degrades to its error type and a flag for whether a stack existed.
+When provenance for a piece of content cannot be fully established — the registry is incomplete, a value cannot be materialized, a size budget is exceeded — the content is withheld instead of shown. A trace span keeps its structure, timings, block identity and status, and loses its payload. A tool result is withheld from the model. A diagnostic degrades to its error type and a note about whether a stack existed.
 
-This is occasionally irritating. It is also the only behavior that makes the guarantee mean anything, because a system that fails open under uncertainty leaks precisely when it is most confused about what it is holding.
+This is annoying often enough that it is worth defending. A system that fails open under uncertainty leaks at exactly the moment it is least sure what it is holding, which is the worst possible time to be generous.
 
-One subtlety worth calling out: the check that verifies a projection has to be built with the same configuration as the projection it verifies. It answers "did I substitute what I promised to substitute," not "does this content contain anything interesting." If the verifier reads a wider match set than the substituter, it demands replacements the substituter deliberately declined, and the result is that correct content gets dropped. The two are a promise and a check, and they have to agree.
+There is one subtlety here that cost us a round of debugging. The check that verifies a projection has to be built with the same configuration as the projection it verifies. It is answering "did I substitute what I promised to substitute," not "does this content contain anything interesting." Give the verifier a wider view than the substituter and it starts demanding replacements the substituter deliberately declined to make, and perfectly correct content gets dropped. The two are a promise and a check, and they have to agree on the terms.
 
-## Prior Art
+## Prior Art: Taint Tracking, Inverted
 
-None of the underlying theory is new. What is new is the runtime.
+None of the theory here is new. What is new is the runtime it is pointed at.
 
-Dorothy Denning formalized this class of system in 1976 in [A Lattice Model of Secure Information Flow](https://dl.acm.org/doi/10.1145/360051.360056): classify data, define which flows between classes are permitted, verify programs against the structure. Myers and Liskov extended it in 1997 with the [decentralized label model](https://www.cs.cornell.edu/andru/papers/iflow-sosp97/paper.html), which added controlled *declassification* — a way for labeled data to be released in a form that no longer carries the sensitive content.
+Dorothy Denning formalized this class of system in 1976 in [A Lattice Model of Secure Information Flow](https://dl.acm.org/doi/10.1145/360051.360056): classify data, define which flows between classes are allowed, verify programs against that structure. Myers and Liskov extended it in 1997 with the [decentralized label model](https://www.cs.cornell.edu/andru/papers/iflow-sosp97/paper.html), which added the piece that makes it practical — controlled *declassification*, a way to release labeled data in a form that no longer carries the sensitive part.
 
-The most widely deployed implementation is probably Perl's [taint mode](https://perldoc.perl.org/perlsec), shipping since the 1990s. Perl marks external input as tainted, propagates the mark through every expression the value touches, and refuses to let tainted data reach a shell, a file operation, or a subprocess. Its propagation rule is deliberately conservative: "if an expression contains tainted data, any subexpression may be considered tainted, even if the value of the subexpression is not itself affected by the tainted data."
+The most widely deployed version is probably Perl's [taint mode](https://perldoc.perl.org/perlsec), which has been shipping since the 1990s. Perl marks external input as tainted, propagates that mark through every expression the value touches, and refuses to let tainted data reach a shell, a file operation, or a subprocess. Its propagation rule is deliberately paranoid: "if an expression contains tainted data, any subexpression may be considered tainted, even if the value of the subexpression is not itself affected by the tainted data."
 
-Secret provenance is the same shape with the polarity inverted. Perl taints untrusted input and guards dangerous operations. We label trusted secrets and guard outbound boundaries. Substituting `{{STRIPE_KEY}}` for a raw value is a declassification step in the Myers–Liskov sense: a deliberate, labeled transformation that lets the data out in a form that carries no secret.
+What we have is the same shape with the polarity flipped. Perl taints untrusted input and guards dangerous operations. We label trusted secrets and guard outbound boundaries. And swapping in `{{STRIPE_KEY}}` for a raw value is declassification in the Myers–Liskov sense: a deliberate, labeled transformation that lets the data out in a form that no longer carries the secret.
 
-## The Matching Problem
+## The Matching Problem: What Counts as an Occurrence
 
-The hard part was not the architecture. It was deciding what counts as an occurrence.
+The architecture was not the hard part. The hard part was deciding what counts as an occurrence of a secret.
 
-The obvious implementation replaces every occurrence of a secret's bytes anywhere they appear. That works until a secret is short. A workspace variable whose value happened to be `test` matched inside the word "latest," and a trace line reading `the latest news` was rendered as `the la{{Test}} news`. We shipped that. It is a good bug to have shipped, because the fix forced a precise answer to a question we had been answering implicitly: when is a substring match plausibly a coincidence?
+The obvious implementation replaces the secret's bytes everywhere they appear, and it works fine until a secret is short. One of ours was the word `test`. It matched inside the word "latest," and a trace line reading `the latest news` came out as `the la{{Test}} news`. We shipped that, and it was a useful thing to ship, because it forced us to answer a question we had been answering implicitly: when is a substring match plausibly a coincidence?
 
-Our first attempt was entropy, since that is the measure secret scanners use. [detect-secrets](https://github.com/Yelp/detect-secrets/blob/master/detect_secrets/plugins/high_entropy_strings.py) ships thresholds of 4.5 bits per character for base64 and 3.0 for hex. Gitleaks treats entropy as a modifier on a regex match rather than a standalone signal.
+Our first instinct was entropy, since that is what secret scanners use. [detect-secrets](https://github.com/Yelp/detect-secrets/blob/master/detect_secrets/plugins/high_entropy_strings.py) ships thresholds of 4.5 bits per character for base64 and 3.0 for hex, and Gitleaks treats entropy as a modifier on a regex match rather than a signal on its own.
 
-Importing that was a mistake, and the measurements were not close. Shannon entropy computed over a value's own character distribution describes how varied the string is, which is a different question from whether an accidental match is possible. Real credentials score badly:
+Borrowing that turned out to be a mistake, and not a close one. Shannon entropy over a value's own characters tells you how varied the string is, which is a genuinely different question from whether an accidental match is possible. Run it against real credentials and it falls apart:
 
 | value | bits/char |
 |---|---|
@@ -121,23 +119,29 @@ Importing that was a mistake, and the measurements were not close. Shannon entro
 | zero-padded cloud key id | 1.02 |
 | repeated-block hex, 32 chars | 2.16 |
 
-Random values are not much better, because the entropy of a short sample is a biased estimate of the distribution it was drawn from. At a 3.0 bits/char threshold, 46% of random 12-character hex values and 74% of random 16-digit values fall below the line. An entropy gate tuned to catch `test` would have stopped protecting a large share of genuine credentials.
+Randomly generated values do not fare much better, because the entropy of a short sample is a biased estimate of the distribution it came from. At a 3.0 threshold, 46% of random 12-character hex values and 74% of random 16-digit values fall below the line. An entropy gate tuned tightly enough to catch `test` would have quietly stopped protecting a large share of genuine credentials.
 
-Length is the property that actually matters. A short value can appear inside ordinary text; a long one effectively cannot.
+Length is the property that actually matters. A short value can turn up inside ordinary text; a long one effectively cannot.
 
-Our first fix used length as a floor for matches inside a larger token, and kept a second tier below it: a short literal was still substituted whenever the hit landed on a word boundary — standing alone, delimited, or as the whole value — on the theory that those positions made it unambiguous.
+Our first fix used length as a floor for matches inside a larger token, but kept a second tier below it. A short value was still substituted when the match stood on its own — alone in a field, delimited, or as the entire value — on the theory that those positions made it unambiguous.
 
-That tier was wrong, and production said so twice. It rewrote `_raw_idx = 7` into `_raw_idx = {{WEEKLY_OWNWORK_TTL}}` for the one shard whose index happened to collide with a TTL variable. It turned two thousand boolean `had_error` cells into `[REDACTED_SECRET]` because an `*_ENABLED` variable held `false`. Each got patched with a per-value exception list, which is the shape of a rule that does not hold.
+That tier held until it didn't, and both times it broke the same way: a variable whose value was too ordinary to be distinctive.
 
-Position is not the variable that matters. A hit on `7` is uninformative wherever it sits, because the value space is ten. The tier is gone, the exception lists went with it, and one constant governs the question:
+The first was a small number, the kind of thing you store as a retry limit or a page size. It sits alone in a field, which is precisely the position the tier trusted. So every unrelated occurrence of that same number elsewhere in the run got rewritten into a variable name, and the trace became misleading in exactly the places where a number mattered.
 
-**A literal of eight characters or more is substituted everywhere it appears. A literal shorter than that is never substituted at all.**
+The second was worse. A feature-flag variable held `false`, and boolean columns are full of `false`. A single run rewrote thousands of legitimate cells into a redaction marker, and what had been in them was gone from the log for good.
 
-The floor is applied where literals are turned into matchers, so it governs detection and substitution alike — a value that short is not rewritten out of content, and is not recorded into durable provenance as something a later read must redact.
+Both were patched with per-value exception lists. A rule that needs an exception list is telling you something, and what it was telling us is that position was never the variable that mattered. Knowing a `7` stands alone rather than sitting inside a longer number tells you nothing about whether it is the secret, because there are only ten things it could have been.
 
-## What This Actually Guarantees
+So the tier is gone, the exception lists went with it, and one constant governs the question:
 
-The eight-character floor sounds like a hole until you check it against the things the secrets system exists to hold.
+**A value of eight characters or more is substituted everywhere it appears. A value shorter than that is never substituted at all.**
+
+The floor is applied where values are turned into matchers, so it governs detection and substitution alike. Something that short is not rewritten out of content, and is not recorded into durable provenance as something a later read has to redact either.
+
+## What the Floor Actually Protects
+
+Eight characters sounds like a hole until you check it against the things people actually put in a secrets system.
 
 | stored value | length | substituted anywhere |
 |---|---|---|
@@ -151,37 +155,37 @@ The eight-character floor sounds like a hole until you check it against the thin
 
 ![Which values clear the eight-character substitution floor](/blog/secret-provenance/length-floor.png)
 
-Every credential class the secrets system exists to hold clears the floor, so every one is substituted at any offset in any surrounding text. What lands below the floor is flags, environment names, short test values, single characters — and the occasional genuinely short secret, which is the accepted cost.
+Every credential class the system exists to hold clears the floor comfortably, which means every one of them is substituted at any offset, in any surrounding text. What falls below it is flags, environment names, short test values, single characters — and occasionally a genuinely short secret, which is the part we are choosing to give up.
 
-It is accepted because substitution cannot really hide a value that small. An observer who can read the surrounding text can enumerate a space of ten, or of a hundred. Redacting `7` does not protect the `7`; it only destroys the line it appeared in. The floor buys log fidelity at a price that was already close to zero.
+That choice is easier than it looks, because substitution cannot really hide a value that small anyway. Anyone who can read the surrounding text can enumerate a space of ten, or a hundred. Redacting a single digit does not protect the digit; it just destroys the line it appeared in. The floor buys back log fidelity at a price that was already close to zero.
 
-That is the balance the design aims at. Not "every byte that might be sensitive is gone," which takes the logs with it and, as the `had_error` cells showed, does not even reliably protect anything. Something narrower and checkable: the credential classes worth protecting are protected unconditionally, the trace stays readable, and the cases we decline to redact are ones we can name.
+Which is the balance the whole design is aiming at. Not "every byte that might be sensitive is gone" — that takes the logs with it, and as the flag variable showed, it does not reliably protect anything either. Something narrower and checkable instead: the credential classes worth protecting are protected unconditionally, the trace stays readable, and the cases we decline to redact are ones we can name out loud.
 
-One further limit is worth stating rather than hiding. Matching is on exact bytes, so a value *derived* from a secret — a hash, a signature, a base64 re-encoding — is not the secret's bytes and is not caught. That is a property of the design, not an oversight.
+One more limit belongs in that list rather than in a footnote. Matching is on exact bytes, so a value *derived* from a secret — a hash, a signature, a base64 re-encoding — is not the secret's bytes and is not caught. That is a property of the approach, not an oversight.
 
-## Silence About Content, Not About Cause
+## Explaining a Refusal
 
-Failing closed is the right behavior for content and the wrong behavior for diagnostics, and keeping those apart took a second pass.
+Failing closed is right for content and wrong for diagnostics, and separating those took us a second pass.
 
-Incompleteness is one-way. Once any guard trips, the registry stays incomplete for the rest of the run, and every model projection after it refuses. That is correct — a registry that cannot account for what it holds should not be trusted to sanitize anything. But the refusal surfaced to the user as a single fixed sentence, and the guard that caused it may have tripped many frames, or a whole process, earlier. Any guard could set the flag and none recorded which.
+Incompleteness is one-way by design. Once any guard trips, the registry stays incomplete for the rest of the run and every model projection after it refuses. That part is correct: a registry that cannot account for what it holds has no business claiming it sanitized anything. The problem was what the user saw. Every refusal surfaced as the same fixed sentence, and the guard responsible might have tripped many frames — or a whole process — earlier. Any guard could set the flag, and none of them recorded that it had.
 
-Two changes fixed that without widening what reaches the user. Each guard now sets a named reason when it latches the registry, so the cause is recoverable after the fact rather than inferred. Originating causes log at error, because they permanently fail the run; guards that merely carry an upstream fault forward log at warn, so one fault does not read as several.
+Two changes fixed that without widening what reaches the user. Guards now set a named reason when they latch the registry, so the cause can be recovered afterwards instead of inferred. Originating causes log at error, since they permanently fail the run; guards that are only carrying an upstream fault forward log at warn, so one fault does not read like several.
 
-And each boundary that refuses reports the site that refused, using a stable identifier the call site chooses rather than one derived from the stack, so it survives refactors and stays greppable. Reporting is deduplicated per registry — an agent projects tool input on every iteration of its loop, and a latched registry would otherwise emit one line per iteration for the same underlying fault.
+Each boundary that refuses also reports which boundary it was, using a stable identifier the call site picks rather than one derived from the stack, so it survives refactors and stays greppable. That reporting is deduplicated per registry, because an agent projects tool input on every iteration of its loop and a latched registry would otherwise emit an identical line for every one of them.
 
-The general form: a system that fails closed owes its operator an explanation, and the explanation belongs at the point of refusal, where the failing boundary and the original cause are both still in hand.
+The general version of this: a system that fails closed owes its operator an explanation, and the explanation belongs at the point of refusal, where the failing boundary and the original cause are both still in hand.
 
 ## Conclusion
 
-The thing that makes this tractable is not the matching machinery. It is that the runtime resolved the variable, called the tool, invoked the model, and wrote the file, so it knows the chain. A masking hook in an observability SDK sees a payload at the moment it is handed over and nothing about where the bytes came from, which is why pattern matching is the only option available to it.
+What makes any of this tractable is not the matching machinery — that part is fiddly but ordinary. It is that the runtime resolved the variable, called the tool, invoked the model, and wrote the file, so it knows the chain. A masking hook in an observability SDK sees a payload at the moment you hand it over and nothing at all about where those bytes came from, which is why pattern matching is the only move available to it.
 
 If you are building something similar, the decisions that mattered most for us:
 
-- Activate on proof, not on name. Verify the resolved value against the configured value, so the tracked set is the run's actual secrets rather than everything the workspace holds.
-- Treat the model as egress, not as an internal component. It is much cheaper to decide this before there are fifty paths into a prompt.
-- Prefer one rule you can state in a sentence to a tiered one with exceptions. A rule that needs a per-value exception list is telling you it does not hold.
-- Fail closed at every boundary, and make the degraded state structurally useful — a trace with timings and no payload is still worth having. Then make the refusal itself explain which boundary refused and why.
-- Be suspicious of entropy as a proxy for anything. Measure it against your real credentials before trusting it.
+- Activate on proof, not on name. Verify the resolved value against the configured one, so what you track is the run's actual secrets rather than everything the workspace happens to hold.
+- Treat the model as egress rather than as an internal component. It is far cheaper to decide that before there are fifty paths into a prompt.
+- Prefer one rule you can state in a sentence over a tiered one with exceptions. A rule that needs a per-value exception list is telling you it does not hold.
+- Fail closed everywhere, and make the degraded state structurally useful — a trace with timings and no payload is still worth having. Then make the refusal itself say which boundary refused, and why.
+- Be suspicious of entropy as a proxy for anything. Measure it against your own credentials before you trust it.
 
 ---
 
