@@ -580,6 +580,15 @@
           "200": {
             "description": "The file bytes.",
             "headers": {
+              "Content-Type": {
+                "$ref": "#/components/headers/Content-Type"
+              },
+              "Content-Disposition": {
+                "$ref": "#/components/headers/Content-Disposition"
+              },
+              "Content-Length": {
+                "$ref": "#/components/headers/Content-Length"
+              },
               "X-RateLimit-Limit": {
                 "$ref": "#/components/headers/X-RateLimit-Limit"
               },
@@ -1762,6 +1771,31 @@
       }
     },
     "headers": {
+      "Content-Type": {
+        "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.",
+        "schema": {
+          "type": "string",
+          "title": "Content type",
+          "description": "MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable."
+        }
+      },
+      "Content-Disposition": {
+        "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames.",
+        "schema": {
+          "type": "string",
+          "title": "Content disposition",
+          "description": "Attachment disposition containing sanitized and RFC 5987 encoded filenames."
+        }
+      },
+      "Content-Length": {
+        "description": "File size in bytes.",
+        "schema": {
+          "type": "string",
+          "pattern": "^(0|[1-9]\\d*)$",
+          "title": "Content length",
+          "description": "File size in bytes."
+        }
+      },
       "X-RateLimit-Limit": {
         "description": "Maximum requests allowed in the current window.",
         "schema": {

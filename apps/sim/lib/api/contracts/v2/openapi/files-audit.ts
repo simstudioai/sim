@@ -116,26 +116,32 @@ function documentedSchema<S extends z.ZodType | undefined>(
 function filesOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
     errors: readonly ErrorResponseId[]
-    success: Omit<OpenApiOperationMetadata['success'], 'headers'>
+    success: OpenApiOperationMetadata['success']
   }
 ): OpenApiOperationMetadata {
   return {
     ...operation,
     tags: ['Files'],
-    success: { ...operation.success, headers: RATE_LIMIT_HEADERS },
+    success: {
+      ...operation.success,
+      headers: [...(operation.success.headers ?? []), ...RATE_LIMIT_HEADERS],
+    },
   }
 }
 
 function auditOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
     errors: readonly ErrorResponseId[]
-    success: Omit<OpenApiOperationMetadata['success'], 'headers'>
+    success: OpenApiOperationMetadata['success']
   }
 ): OpenApiOperationMetadata {
   return {
     ...operation,
     tags: ['Audit Logs'],
-    success: { ...operation.success, headers: RATE_LIMIT_HEADERS },
+    success: {
+      ...operation.success,
+      headers: [...(operation.success.headers ?? []), ...RATE_LIMIT_HEADERS],
+    },
   }
 }
 
@@ -357,6 +363,7 @@ const routes = [
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: {
         description: 'The file bytes.',
+        headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],
         contentTypes: ['application/octet-stream'],
       },
     }),
@@ -857,6 +864,31 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
     },
   },
   headers: {
+    'Content-Type': {
+      schema: z.string().meta({
+        id: 'ContentTypeHeader',
+        title: 'Content type',
+        description:
+          'MIME type of the file, defaulting to application/octet-stream when the stored type is unavailable.',
+      }),
+    },
+    'Content-Disposition': {
+      schema: z.string().meta({
+        id: 'ContentDispositionHeader',
+        title: 'Content disposition',
+        description: 'Attachment disposition containing sanitized and RFC 5987 encoded filenames.',
+      }),
+    },
+    'Content-Length': {
+      schema: z
+        .string()
+        .regex(/^(0|[1-9]\d*)$/)
+        .meta({
+          id: 'ContentLengthHeader',
+          title: 'Content length',
+          description: 'File size in bytes.',
+        }),
+    },
     'X-RateLimit-Limit': {
       schema: z.number().int().nonnegative().meta({
         id: 'RateLimitLimitHeader',

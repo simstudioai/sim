@@ -326,4 +326,16 @@ describe('OpenAPI generator', () => {
 
     expect(recursive?.schema).toMatchObject({ type: 'string', default: 'false' })
   })
+
+  it('documents binary download response headers', () => {
+    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const operation = getOperation(spec, '/api/v2/files/{fileId}', 'get')
+    const response = (operation.responses as JsonObject)['200'] as JsonObject
+
+    expect(response.headers).toMatchObject({
+      'Content-Type': { $ref: '#/components/headers/Content-Type' },
+      'Content-Disposition': { $ref: '#/components/headers/Content-Disposition' },
+      'Content-Length': { $ref: '#/components/headers/Content-Length' },
+    })
+  })
 })
