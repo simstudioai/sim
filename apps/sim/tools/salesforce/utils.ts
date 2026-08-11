@@ -29,8 +29,18 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
       // `sub` be tried rather than short-circuiting the whole lookup.
       for (const claim of [decoded.profile, decoded.sub]) {
         if (typeof claim !== 'string') continue
-        const origin = claim.match(/^(https:\/\/[^/]+)/)?.[1]
-        if (origin && !isSalesforceLoginOrigin(origin)) return origin
+        // `URL` rather than a hand-rolled prefix regex: it normalizes away
+        // userinfo, default ports, and case, so the origin compared against the
+        // login-host set is the same one a fetch would actually use.
+        let origin: string
+        try {
+          const url = new URL(claim)
+          if (url.protocol !== 'https:') continue
+          origin = url.origin
+        } catch {
+          continue
+        }
+        if (!isSalesforceLoginOrigin(origin)) return origin
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

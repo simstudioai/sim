@@ -286,11 +286,23 @@ function buildSalesforceJwtAssertion(
   )
 }
 
-/** Government Cloud orgs authenticate at a dedicated audience; everyone else uses My Domain. */
+/**
+ * Government Cloud orgs authenticate at a dedicated audience; everyone else
+ * uses My Domain.
+ *
+ * Matched on the exact GovCloud host (or a subdomain of it) rather than a
+ * `gs1` prefix: `sfdx-core`'s other GovCloud signal is the org's
+ * `createdOrgInstance`, which we never see, and a prefix test would misroute
+ * an ordinary org that merely starts with those characters — breaking a setup
+ * that works today. A miss here simply falls back to My Domain, which is the
+ * behaviour before this branch existed.
+ */
+const SALESFORCE_GOV_CLOUD_HOST = 'gs1.my.salesforce.com'
+
 function salesforceJwtAudience(host: string): string {
-  return host.startsWith('gs1.') || host.startsWith('gs1-')
-    ? 'https://gs1.salesforce.com'
-    : `https://${host}`
+  const isGovCloud =
+    host === SALESFORCE_GOV_CLOUD_HOST || host.endsWith(`.${SALESFORCE_GOV_CLOUD_HOST}`)
+  return isGovCloud ? 'https://gs1.salesforce.com' : `https://${host}`
 }
 
 /**
@@ -298,6 +310,11 @@ function salesforceJwtAudience(host: string): string {
  * collapses every JWT failure into HTTP 400 `invalid_grant`, distinguishing
  * them only by `error_description`, so the description is the sole signal for
  * which half of the setup is wrong.
+ *
+ * Substring matching is safe here precisely because the result only ever
+ * decorates a log line: the thrown code is `invalid_credentials` either way,
+ * so an unrecognized wording degrades to "no hint" and never changes
+ * behaviour. Prefer the structured `error` field wherever Salesforce sets one.
  */
 function salesforceJwtErrorHint(body: string): string | undefined {
   try {
@@ -317,9 +334,6 @@ function salesforceJwtErrorHint(body: string): string | undefined {
     }
     if (description.includes('invalid assertion') || description.includes('invalid signature')) {
       return 'the assertion signature did not verify — the uploaded certificate does not match this private key'
-    }
-    if (description.includes('user not found') || description.includes('invalid username')) {
-      return 'the run-as username does not exist in this org, or is inactive'
     }
     if (description.includes('client identifier') || parsed.error === 'invalid_client_id') {
       return 'the consumer key is invalid for this org'

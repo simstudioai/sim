@@ -429,14 +429,33 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
       .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
       .mockResolvedValueOnce(jsonResponse(403, {}))
 
-    await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, orgId: 'gs1-acme.my.salesforce.com' })
+    await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, orgId: 'gs1.my.salesforce.com' })
 
     const [url, init] = mockFetch.mock.calls[0]
     const assertion = new URLSearchParams(init.body as string).get('assertion') as string
     const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString())
     expect(claims.aud).toBe('https://gs1.salesforce.com')
     // The token still POSTs to the org's own host — only the audience differs.
-    expect(url).toBe('https://gs1-acme.my.salesforce.com/services/oauth2/token')
+    expect(url).toBe('https://gs1.my.salesforce.com/services/oauth2/token')
+  })
+
+  it('does NOT treat an ordinary org whose name merely starts with gs1 as Government Cloud', async () => {
+    // A prefix test would misroute this org to the GovCloud audience and break
+    // a setup that works today. Only the real GovCloud host may be rewritten.
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken({
+      ...JWT_FIELDS,
+      orgId: 'gs1-widgets.my.salesforce.com',
+    })
+
+    const assertion = new URLSearchParams(mockFetch.mock.calls[0][1].body as string).get(
+      'assertion'
+    ) as string
+    const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString())
+    expect(claims.aud).toBe('https://gs1-widgets.my.salesforce.com')
   })
 
   it('carries an iat claim, matching every mainstream Salesforce implementation', async () => {
