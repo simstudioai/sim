@@ -7,7 +7,7 @@ import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
 
 export const metadata: Metadata = {
-  title: 'Knowledge Base',
+  title: 'Knowledge bases',
 }
 
 /**

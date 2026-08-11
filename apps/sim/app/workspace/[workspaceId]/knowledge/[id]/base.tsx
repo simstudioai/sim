@@ -444,7 +444,7 @@ export function KnowledgeBase({
   /**
    * Breadcrumb leaf label. Falls back to the canonical '…' placeholder while
    * the name loads (mirroring loading.tsx) instead of duplicating the root
-   * "Knowledge Base" crumb.
+   * "Knowledge bases" crumb.
    */
   const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
@@ -872,7 +872,7 @@ export function KnowledgeBase({
 
   const breadcrumbs: BreadcrumbItem[] = [
     {
-      label: 'Knowledge Base',
+      label: 'Knowledge bases',
       icon: Database,
       onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
     },
@@ -1182,7 +1182,7 @@ export function KnowledgeBase({
       <Resource onContextMenu={handleEmptyContextMenu}>
         <Resource.Header
           icon={Database}
-          title='Knowledge Base'
+          title='Knowledge bases'
           breadcrumbs={breadcrumbs}
           actions={[
             ...headerActions,

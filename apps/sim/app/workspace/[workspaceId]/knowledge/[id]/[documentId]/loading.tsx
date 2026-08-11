@@ -19,7 +19,7 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New chunk', icon: Plus, variant: 'primary' }]
 
 const BREADCRUMBS: BreadcrumbItem[] = [
-  { label: 'Knowledge Base', icon: Database, onClick: noop },
+  { label: 'Knowledge bases', icon: Database, onClick: noop },
   { label: '…', icon: Database },
   { label: '…', terminal: true },
 ]

@@ -510,7 +510,7 @@ export function Document({
     () =>
       combinedError
         ? [
-            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
             {
               label: knowledgeBaseCrumbLabel,
               icon: Database,
@@ -519,7 +519,7 @@ export function Document({
             { label: 'Error' },
           ]
         : [
-            { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+            { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
             {
               label: knowledgeBaseCrumbLabel,
               icon: Database,
@@ -989,7 +989,7 @@ export function Document({
 
   const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
       {
         label: knowledgeBaseCrumbLabel,
         icon: Database,
@@ -1022,7 +1022,7 @@ export function Document({
 
   const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
     () => [
-      { label: 'Knowledge Base', icon: Database, onClick: handleNavToKB },
+      { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
       {
         label: knowledgeBaseCrumbLabel,
         icon: Database,

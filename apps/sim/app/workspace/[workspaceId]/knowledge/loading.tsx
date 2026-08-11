@@ -26,7 +26,7 @@ export default function KnowledgeLoading() {
   return (
     <ResourceChromeFallback
       icon={Database}
-      title='Knowledge Base'
+      title='Knowledge bases'
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search knowledge bases...'
