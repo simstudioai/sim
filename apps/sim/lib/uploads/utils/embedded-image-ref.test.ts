@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
-  embeddedFileRefKey,
   extractEmbeddedFileRef,
   extractEmbeddedFileRefs,
-  replaceEmbeddedFileRefs,
 } from '@/lib/uploads/utils/embedded-image-ref'
 
 const KEY = 'workspace/W1/1700000000000-deadbeefdeadbeef-photo.png'
@@ -33,13 +31,6 @@ describe('extractEmbeddedFileRef', () => {
   })
 })
 
-describe('embeddedFileRefKey', () => {
-  it('keeps storage keys and file ids in distinct map namespaces', () => {
-    expect(embeddedFileRefKey({ key: KEY })).toBe(`key:${KEY}`)
-    expect(embeddedFileRefKey({ fileId: 'wf_abc' })).toBe('id:wf_abc')
-  })
-})
-
 describe('extractEmbeddedFileRefs', () => {
   it('collects de-duplicated keys and ids from a document via the shared parser', () => {
     const content = `
@@ -48,7 +39,6 @@ describe('extractEmbeddedFileRefs', () => {
       ![c](/workspace/W1/files/4bdaf6c4-072e-464e-891d-b6af3b5fe2cc)
       ![dup](/api/files/serve/s3/${ENCODED})
       ![ext](https://cdn.example.com/x.png)
-      ![absolute](https://sim.ai/api/files/view/wf_external)
       ![pub](/api/files/serve/profile-pictures%2Fu1%2Favatar.png)
     `
     const { keys, ids } = extractEmbeddedFileRefs(content)
@@ -67,27 +57,5 @@ describe('extractEmbeddedFileRefs', () => {
     )
     const { keys: k, ids: d } = extractEmbeddedFileRefs([...ids, ...keys].join(' '))
     expect(k.length + d.length).toBe(50)
-  })
-})
-
-describe('replaceEmbeddedFileRefs', () => {
-  it('rewrites key and id spellings without touching absolute URLs', () => {
-    const content = [
-      `![key](/api/files/serve/${ENCODED}?context=workspace)`,
-      '![id](/api/files/view/wf_abc)',
-      '![absolute](https://sim.ai/api/files/view/wf_abc)',
-    ].join('\n')
-    const replacements = new Map([
-      [`key:${KEY}`, './assets/key.png'],
-      ['id:wf_abc', './assets/id.png'],
-    ])
-
-    expect(replaceEmbeddedFileRefs(content, replacements)).toBe(
-      [
-        '![key](./assets/key.png)',
-        '![id](./assets/id.png)',
-        '![absolute](https://sim.ai/api/files/view/wf_abc)',
-      ].join('\n')
-    )
   })
 })

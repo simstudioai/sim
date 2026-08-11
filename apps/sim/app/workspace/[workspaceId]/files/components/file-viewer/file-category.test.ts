@@ -12,11 +12,6 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
     const lastDot = filename.lastIndexOf('.')
     return lastDot !== -1 ? filename.slice(lastDot + 1).toLowerCase() : ''
   },
-  isMarkdownFile: (file: { type?: string | null; name: string }): boolean => {
-    if (file.type === 'text/markdown' || file.type === 'text/x-markdown') return true
-    const extension = file.name.split('.').at(-1)?.toLowerCase()
-    return extension === 'md' || extension === 'markdown'
-  },
 }))
 
 import { resolveFileCategory } from './file-category'
@@ -26,7 +21,6 @@ describe('resolveFileCategory — MIME type routing', () => {
     it.each([
       'text/plain',
       'text/markdown',
-      'text/x-markdown',
       'application/json',
       'application/x-yaml',
       'text/csv',
@@ -136,7 +130,7 @@ describe('resolveFileCategory — MIME type routing', () => {
 
 describe('resolveFileCategory — extension fallback', () => {
   describe('text-editable extensions', () => {
-    it.each(['md', 'markdown', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm', 'svg', 'mmd'])(
+    it.each(['md', 'txt', 'json', 'yaml', 'yml', 'csv', 'html', 'htm', 'svg', 'mmd'])(
       '.%s → text-editable',
       (ext) => {
         expect(resolveFileCategory(null, `file.${ext}`)).toBe('text-editable')

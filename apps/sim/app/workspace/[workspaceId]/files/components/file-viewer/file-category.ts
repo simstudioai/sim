@@ -1,7 +1,8 @@
-import { getFileExtension, isMarkdownFile } from '@/lib/uploads/utils/file-utils'
+import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { SUPPORTED_CODE_EXTENSIONS } from '@/lib/uploads/utils/validation'
 
 const TEXT_EDITABLE_MIME_TYPES = new Set([
+  'text/markdown',
   'text/plain',
   'application/json',
   'application/x-yaml',
@@ -22,6 +23,7 @@ const TEXT_EDITABLE_MIME_TYPES = new Set([
 ])
 
 const TEXT_EDITABLE_EXTENSIONS = new Set([
+  'md',
   'txt',
   'json',
   'yaml',
@@ -126,7 +128,6 @@ export type FileCategory =
   | 'unsupported'
 
 export function resolveFileCategory(mimeType: string | null, filename: string): FileCategory {
-  if (isMarkdownFile({ type: mimeType, name: filename })) return 'text-editable'
   if (mimeType && TEXT_EDITABLE_MIME_TYPES.has(mimeType)) return 'text-editable'
   if (mimeType && IFRAME_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'iframe-previewable'
   if (mimeType && IMAGE_PREVIEWABLE_MIME_TYPES.has(mimeType)) return 'image-previewable'

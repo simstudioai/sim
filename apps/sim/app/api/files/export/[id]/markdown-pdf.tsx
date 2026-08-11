@@ -16,10 +16,19 @@ import {
 import type { JSONContent } from '@tiptap/core'
 import sharp from 'sharp'
 import { parseServerMarkdownToDoc } from '@/lib/collab-doc/server-markdown'
-import { embeddedFileRefKey, extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
+import {
+  type EmbeddedFileRef,
+  extractEmbeddedFileRef,
+} from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 
 type PdfImage = { data: Buffer; format: 'png' }
+type ResolvedPdfImageRef = Exclude<EmbeddedFileRef, null>
+
+/** PDF-local map key for either embedded workspace-image reference spelling. */
+export function markdownPdfImageKey(ref: ResolvedPdfImageRef): string {
+  return 'key' in ref ? `key:${ref.key}` : `id:${ref.fileId}`
+}
 
 interface GlyphFont {
   hasGlyphForCodePoint(codePoint: number): boolean
@@ -426,7 +435,7 @@ function renderImage(
 ): ReactNode {
   const src = stringAttr(node, 'src') ?? ''
   const ref = extractEmbeddedFileRef(src)
-  const image = ref ? images.get(embeddedFileRefKey(ref)) : undefined
+  const image = ref ? images.get(markdownPdfImageKey(ref)) : undefined
   if (!image) {
     const alt = stringAttr(node, 'alt')
     return (
