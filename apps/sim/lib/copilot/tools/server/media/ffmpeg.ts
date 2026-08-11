@@ -8,6 +8,7 @@ import { Ffmpeg } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
+  resolveServerToolAbortSignal,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
@@ -74,19 +75,6 @@ interface FfmpegResult {
   vfsPath?: string
   downloadUrl?: string
   probe?: unknown
-}
-
-/**
- * A transcode outlives its request unless the child process is killed, so both
- * the transport abort and the explicit user stop must reach FFmpeg — checking
- * them only between steps leaves a cancelled turn burning cores.
- */
-function resolveFfmpegAbortSignal(context: ServerToolContext): AbortSignal | undefined {
-  const signals = [context.abortSignal, context.userStopSignal].filter(
-    (signal): signal is AbortSignal => Boolean(signal)
-  )
-  if (signals.length === 0) return undefined
-  return signals.length === 1 ? signals[0] : AbortSignal.any(signals)
 }
 
 export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
@@ -180,7 +168,9 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
           loopToVideo: params.loopToVideo,
           format: params.format,
         },
-        { signal: resolveFfmpegAbortSignal(context) }
+        // A transcode outlives its request unless the child is killed, so the
+        // cancellation signal must reach FFmpeg itself, not just the steps around it.
+        { signal: resolveServerToolAbortSignal(context) }
       )
 
       // probe reports metadata only — no file written.
