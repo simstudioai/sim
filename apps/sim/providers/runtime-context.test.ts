@@ -295,16 +295,16 @@ describe('provider runtime context', () => {
 
   it('projects only the active preset secret for the exact configured tool instance', async () => {
     const sourceRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'ACTIVE', plaintext: 'x', encryptedValue: 'encrypted-active' },
-      { name: 'UNUSED', plaintext: 'true', encryptedValue: 'encrypted-unused' },
+      { name: 'ACTIVE', plaintext: 'xxxxxxxx', encryptedValue: 'encrypted-active' },
+      { name: 'UNUSED', plaintext: 'truetrue', encryptedValue: 'encrypted-unused' },
     ])
     const sourcePath = ['tools', '0', 'params', 'apiKey'] as const
-    sourceRegistry.recordResolvedAtInputPath('ACTIVE', 'x', sourcePath)
-    sourceRegistry.recordResolvedInputProjection(sourcePath, 'x', '{{ACTIVE}}')
+    sourceRegistry.recordResolvedAtInputPath('ACTIVE', 'xxxxxxxx', sourcePath)
+    sourceRegistry.recordResolvedInputProjection(sourcePath, 'xxxxxxxx', '{{ACTIVE}}')
     const runtimeRegistry = sourceRegistry.forkForInputPaths([])
     const tool = {
       id: 'duplicate-tool',
-      params: { apiKey: 'x' },
+      params: { apiKey: 'xxxxxxxx' },
       parameters: { type: 'object', properties: {}, required: [] },
       paramsTransform: (params: Record<string, unknown>) => ({ token: params.apiKey }),
     }
@@ -313,7 +313,7 @@ describe('provider runtime context', () => {
       sourcePath: ['tools', '0', 'params'],
       projectedParams: { apiKey: '{{ACTIVE}}' },
     })
-    const rawResult = { success: true, output: { reflected: 'x', ordinary: 'true' } }
+    const rawResult = { success: true, output: { reflected: 'xxxxxxxx', ordinary: 'true' } }
     mockExecuteTool.mockResolvedValueOnce(rawResult)
 
     const execution = await runWithProviderRuntimeContext(
@@ -329,25 +329,27 @@ describe('provider runtime context', () => {
       reflected: '{{ACTIVE}}',
       ordinary: 'true',
     })
-    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).toEqual(expect.objectContaining({ token: 'x' }))
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).toEqual(
+      expect.objectContaining({ token: 'xxxxxxxx' })
+    )
     expect(mockExecuteTool.mock.calls.at(-1)?.[1]).not.toHaveProperty(
       '__resolvedSecretTraceProvenance'
     )
     expect(runtimeRegistry.getActiveMatches()).toEqual([
-      { plaintext: 'x', replacement: '{{ACTIVE}}' },
+      { plaintext: 'xxxxxxxx', replacement: '{{ACTIVE}}' },
     ])
   })
 
   it('does not carry a prior low-entropy preset into a later duplicate tool instance', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'FIRST', plaintext: 'x', encryptedValue: 'encrypted-first' },
+      { name: 'FIRST', plaintext: 'xxxxxxxx', encryptedValue: 'encrypted-first' },
     ])
     const firstPath = ['tools', '0', 'params', 'apiKey'] as const
-    registry.recordResolvedAtInputPath('FIRST', 'x', firstPath)
-    registry.recordResolvedInputProjection(firstPath, 'x', '{{FIRST}}')
+    registry.recordResolvedAtInputPath('FIRST', 'xxxxxxxx', firstPath)
+    registry.recordResolvedInputProjection(firstPath, 'xxxxxxxx', '{{FIRST}}')
     const firstTool = {
       id: 'duplicate-tool',
-      params: { apiKey: 'x' },
+      params: { apiKey: 'xxxxxxxx' },
       parameters: { type: 'object', properties: {}, required: [] },
     }
     const secondTool = {
@@ -366,7 +368,7 @@ describe('provider runtime context', () => {
       projectedParams: { query: 'safe' },
     })
     mockExecuteTool
-      .mockResolvedValueOnce({ success: true, output: { value: 'x' } })
+      .mockResolvedValueOnce({ success: true, output: { value: 'xxxxxxxx' } })
       .mockResolvedValueOnce({ success: true, output: { value: 'Box' } })
 
     const executions = await runWithProviderRuntimeContext(
@@ -387,14 +389,14 @@ describe('provider runtime context', () => {
 
   it('does not activate a configured preset that the deterministic transform drops', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'DROPPED', plaintext: 'x', encryptedValue: 'encrypted-dropped' },
+      { name: 'DROPPED', plaintext: 'xxxxxxxx', encryptedValue: 'encrypted-dropped' },
     ])
     const sourcePath = ['tools', '0', 'params', 'inactive'] as const
-    registry.recordResolvedAtInputPath('DROPPED', 'x', sourcePath)
-    registry.recordResolvedInputProjection(sourcePath, 'x', '{{DROPPED}}')
+    registry.recordResolvedAtInputPath('DROPPED', 'xxxxxxxx', sourcePath)
+    registry.recordResolvedInputProjection(sourcePath, 'xxxxxxxx', '{{DROPPED}}')
     const tool = {
       id: 'conditional-tool',
-      params: { inactive: 'x', query: 'safe' },
+      params: { inactive: 'xxxxxxxx', query: 'safe' },
       parameters: { type: 'object', properties: {}, required: [] },
       paramsTransform: (params: Record<string, unknown>) => ({ query: params.query }),
     }
@@ -483,7 +485,7 @@ describe('provider runtime context', () => {
     expect(result.output).toBe('{{TOKEN}}')
   })
 
-  it.each(['123'])(
+  it.each(['12345678'])(
     'leaves non-model resource metadata untouched while projecting content (%s)',
     async (secret) => {
       const registry = new ResolvedSecretTraceRegistry([
@@ -495,7 +497,7 @@ describe('provider runtime context', () => {
           success: true,
           output: {
             value: `Result ${secret}`,
-            converted: secret === '123' ? 123 : true,
+            converted: secret === '12345678' ? 12345678 : true,
           },
           resources: [
             {

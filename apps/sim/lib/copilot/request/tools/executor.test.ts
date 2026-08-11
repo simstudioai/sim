@@ -161,7 +161,7 @@ describe('buildToolExecutionContext', () => {
 
   it('isolates one tool from a sibling secret activation and merges settled provenance', () => {
     const parentRegistry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'secret', encryptedValue: 'encrypted-secret' },
+      { name: 'TOKEN', plaintext: 'secretvalue', encryptedValue: 'encrypted-secret' },
     ])
     const completeSiblingActivation = parentRegistry.beginPendingActivation()
     const executionContext: ExecutionContext = {
@@ -175,11 +175,11 @@ describe('buildToolExecutionContext', () => {
 
     expect(toolRegistry).not.toBe(parentRegistry)
     expect(toolRegistry?.isComplete()).toBe(true)
-    expect(toolRegistry?.recordResolved('TOKEN', 'secret')).toBe(true)
+    expect(toolRegistry?.recordResolved('TOKEN', 'secretvalue')).toBe(true)
     parentRegistry.mergeToolCallRegistry(toolRegistry!)
     completeSiblingActivation()
     expect(parentRegistry.getActiveMatches()).toEqual([
-      { plaintext: 'secret', replacement: '{{TOKEN}}' },
+      { plaintext: 'secretvalue', replacement: '{{TOKEN}}' },
     ])
   })
 })

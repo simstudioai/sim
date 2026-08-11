@@ -369,7 +369,7 @@ describe('maybeWriteOutputToFile', () => {
   })
 
   it('reuses serialized provenance for output files with the same format', async () => {
-    const secret = 'a"b'
+    const secret = 'aaaa"bbbb'
     const registry = new ResolvedSecretTraceRegistry(
       [{ name: 'CSV_SECRET', plaintext: secret, encryptedValue: 'encrypted-csv-secret' }],
       { userId: 'user-1', workspaceId: 'workspace-1' }
