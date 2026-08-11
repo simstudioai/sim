@@ -7,11 +7,9 @@ import type {
 } from '@/app/workspace/[workspaceId]/components/resource/components/resource-header'
 
 /**
- * The only thing a breadcrumb trail needs from a folder tree node. Structural rather than
- * `WorkflowFolder` so the Files tree builds its trail through this same code path instead of
- * forking one: file folders live in the same `folder` table, but they are served by their own
- * routes and carry their own row type (see the `servedFolderResourceTypeSchema` docs in
- * `@/lib/api/contracts/folders` for why that split exists and is staying).
+ * Structural rather than `WorkflowFolder` so the Files tree — same `folder` table, own routes
+ * and row type (see `servedFolderResourceTypeSchema` in `@/lib/api/contracts/folders`) — shares
+ * this code path instead of forking it.
  */
 export interface BreadcrumbFolder {
   id: string
@@ -19,18 +17,16 @@ export interface BreadcrumbFolder {
   parentId: string | null
 }
 
+const EMPTY_CHAIN: never[] = []
+
 /**
- * Root-first ancestor chain for a breadcrumb trail, that folder last. Empty at the workspace
- * root — and empty for a chain that does not reach the root, where {@link folderAncestorChain}
- * would hand back the part it walked.
+ * Root-first ancestor chain, that folder last, or empty when it does not reach the root —
+ * where {@link folderAncestorChain} would hand back the part it walked.
  *
- * A header falls back to the root title rather than rendering a trail that silently skips a
- * level: a partial path is not a shorter path, it is a wrong one, claiming the deepest folder
- * it resolved sits at the workspace root. A chain is complete exactly when its first element
- * has no parent, which also rejects a cycle (the DB permits one between constraint checks).
- *
- * `folderById` must therefore be the complete tree — see `FolderAncestors.foldersResolved`;
- * a partially loaded map reads as an orphan and collapses.
+ * A partial path is not a shorter path, it is a wrong one: it claims the deepest folder it
+ * resolved sits at the workspace root. Falling back to the root title is the honest render.
+ * Completeness is `chain[0].parentId === null`, which also rejects a cycle. Callers must pass
+ * the complete tree — see `FolderAncestors.foldersResolved`.
  */
 export function breadcrumbFolderChain<T extends BreadcrumbFolder>(
   folderId: string | null | undefined,
@@ -40,10 +36,8 @@ export function breadcrumbFolderChain<T extends BreadcrumbFolder>(
   return chain.length === 0 || chain[0].parentId === null ? chain : EMPTY_CHAIN
 }
 
-const EMPTY_CHAIN: never[] = []
-
 interface FolderBreadcrumbItemsBase {
-  /** Root crumb label — the page's own name ("Knowledge Base", "Tables"). */
+  /** Root crumb label — the page's own name ("Knowledge bases", "Tables"). */
   rootLabel: string
   rootIcon?: ElementType
   /** Root-first ancestor chain, from {@link folderAncestorChain}. */
@@ -84,17 +78,13 @@ export type FolderBreadcrumbItemsOptions =
 const NO_TRAILING_CRUMBS: BreadcrumbItem[] = []
 
 /**
- * Converts a folder ancestor chain into the `BreadcrumbItem[]` that `Resource.Header`
- * renders, for a list page (`Tables / Reports`) or a detail page (`Tables / Reports / Q3`).
+ * Builds the `BreadcrumbItem[]` for a list page (`Tables / Reports`) or a detail page
+ * (`Tables / Reports / Q3`).
  *
  * A plain builder rather than a component: `Resource.Header` already owns every piece of
  * breadcrumb chrome — the root-crumb "Path" popover, segment width allocation, overflow
- * tooltips, and the rule that a single-element trail renders as a plain page title. A
- * sibling crumb component would have to fork all of it, which is exactly what this shared
- * directory exists to prevent.
- *
- * The trail always starts with the root crumb, so a list page at the workspace root returns
- * length 1 and the header renders the page title unchanged.
+ * tooltips, and the rule that a single-element trail renders as a plain page title. A sibling
+ * crumb component would have to fork all of it, which is what this directory exists to prevent.
  */
 export function folderBreadcrumbItems(options: FolderBreadcrumbItemsOptions): BreadcrumbItem[] {
   const { rootLabel, rootIcon, breadcrumbs, onNavigate } = options

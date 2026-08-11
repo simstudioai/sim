@@ -135,7 +135,7 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const { workspaceId } = useParams()
+  const workspaceId = useParams().workspaceId as string
   const router = useRouter()
   const [
     {
@@ -154,7 +154,7 @@ export function Document({
   /** The base's folder trail, so this route's header matches the base's and the list's. */
   const { ancestors: folderChain } = useFolderAncestors({
     resourceType: 'knowledge_base',
-    workspaceId: workspaceId as string,
+    workspaceId,
     folderId: knowledgeBase?.folderId,
   })
 
@@ -504,14 +504,12 @@ export function Document({
   )
 
   /**
-   * Confirms before a crumb navigates away from an unsaved chunk. A route change unmounts the
-   * editor, so the edit is gone with no way back — the same reason the in-page transitions go
-   * through {@link guardDirtyAction}.
+   * Confirms before a crumb navigates away from an unsaved chunk — a route change unmounts the
+   * editor, so the edit is gone with no way back.
    *
-   * Gated on the editor actually being open, not on `isDirty` alone: `UnsavedChangesModal`
-   * mounts only alongside the editor, and `isDirty` outlives it when the editor is unmounted
-   * by a URL change rather than by `closeEditor` (browser Back off an edited chunk). Guarding
-   * unconditionally would then raise a modal nothing renders, leaving the crumb dead.
+   * Gated on the editor being open rather than on `isDirty` alone: `UnsavedChangesModal` mounts
+   * only alongside the editor, but `isDirty` outlives a URL-driven unmount (browser Back off an
+   * edited chunk), where guarding would raise a modal nothing renders and deaden the crumb.
    */
   const guardRouteChange = useCallback(
     (navigate: () => void) => {
@@ -524,7 +522,7 @@ export function Document({
   const handleNavToFolder = useCallback(
     (folderId: string | null) => {
       guardRouteChange(() =>
-        router.push(folderedResourceListHref('knowledge_base', workspaceId as string, folderId))
+        router.push(folderedResourceListHref('knowledge_base', workspaceId, folderId))
       )
     },
     [guardRouteChange, router, workspaceId]

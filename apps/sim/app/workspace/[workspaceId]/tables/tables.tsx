@@ -134,7 +134,7 @@ export function Tables() {
   const {
     currentFolderId,
     setCurrentFolderId,
-    breadcrumbs: folderChain,
+    ancestors: folderChain,
     folders,
     folderById,
     foldersResolved,

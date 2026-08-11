@@ -203,11 +203,17 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const { currentFolderId, setCurrentFolderId, breadcrumbs, folders, folderById, foldersResolved } =
-    useFolderNavigation({
-      resourceType: FOLDER_RESOURCE_TYPE,
-      workspaceId,
-    })
+  const {
+    currentFolderId,
+    setCurrentFolderId,
+    ancestors: breadcrumbs,
+    folders,
+    folderById,
+    foldersResolved,
+  } = useFolderNavigation({
+    resourceType: FOLDER_RESOURCE_TYPE,
+    workspaceId,
+  })
 
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()

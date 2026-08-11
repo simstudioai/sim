@@ -1744,15 +1744,12 @@ export function Files() {
   )
 
   /**
-   * The trail while a file's content loads. Reuses the open folder from the URL, so arriving
-   * from a list page inside `A/B` holds `Files / A / B / …` instead of collapsing to
-   * `Files / …` and jumping back out once the file lands. A cold deep-link carries no
-   * `?folderId=`, and the file whose folder it would name has not loaded yet, so that case
-   * still starts at the root.
+   * The trail while a file's content loads. Holds the URL's open folder so arriving from a
+   * list page inside `A/B` doesn't collapse to `Files / …` and jump back out once the file
+   * lands; a cold deep-link has no `?folderId=` and no loaded file, so it starts at the root.
    *
-   * Rendered only on the file *detail* route, so its folder crumbs leave this path through
-   * the router exactly as {@link fileDetailBreadcrumbs} does — the nuqs setter would append
-   * `?folderId=` to the still-open file's own URL and go nowhere.
+   * Renders on the file *detail* route, so its crumbs navigate through the router like
+   * {@link fileDetailBreadcrumbs} — a nuqs write would only requery this file's own URL.
    */
   const loadingBreadcrumbs = useMemo(
     (): BreadcrumbItem[] =>

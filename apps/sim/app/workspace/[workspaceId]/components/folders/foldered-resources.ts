@@ -25,10 +25,9 @@ export interface FolderedResourceHeaderMeta {
 /**
  * The per-resource facts a foldered header needs, in one place.
  *
- * Each of these was previously restated at every surface that renders the resource — the list
- * page, the detail page, and (for knowledge bases) the document and chunk views — which is how
- * the same trail ends up with a different label or icon depending on which page you reached it
- * from. Adding a foldered resource is an entry here plus its pages, never a fifth literal.
+ * Each was previously restated at every surface rendering that resource — list page, detail
+ * page, and for knowledge bases the document and chunk views — which is how one trail ends up
+ * labelled differently depending on which page you reached it from.
  */
 export const FOLDERED_RESOURCE_HEADERS: Record<
   FolderedHeaderResourceType,

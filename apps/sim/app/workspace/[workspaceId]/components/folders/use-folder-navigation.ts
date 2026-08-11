@@ -7,38 +7,20 @@ import {
   folderNavParsers,
   folderNavUrlKeys,
 } from '@/app/workspace/[workspaceId]/components/folders/search-params'
-import { useFolderAncestors } from '@/app/workspace/[workspaceId]/components/folders/use-folder-ancestors'
-import type { WorkflowFolder } from '@/stores/folders/types'
+import {
+  type FolderAncestors,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders/use-folder-ancestors'
 
 export interface UseFolderNavigationOptions {
   resourceType: ServedFolderResourceType
   workspaceId?: string
 }
 
-export interface FolderNavigation {
+export interface FolderNavigation extends FolderAncestors {
   /** The open folder, or `null` at the workspace root. */
   currentFolderId: string | null
   setCurrentFolderId: (folderId: string | null) => void
-  /**
-   * Root-first ancestor chain of the open folder, the open folder last. Empty at the root,
-   * and empty while the folder list is still loading or when the id no longer resolves (a
-   * deleted folder or a stale bookmark) — callers fall back to the root listing rather than
-   * rendering a broken trail.
-   */
-  breadcrumbs: WorkflowFolder[]
-  /** Every active folder in this resource's tree, as returned by the folders API. */
-  folders: WorkflowFolder[]
-  folderById: Map<string, WorkflowFolder>
-  /**
-   * Whether `folders`/`folderById` can be trusted to be the COMPLETE set for this workspace.
-   *
-   * Deliberately exposed instead of `isLoading`, which is a footgun here: it is false for a
-   * disabled query (no `workspaceId`), false for an errored one, and — because `useFolders`
-   * sets `keepPreviousData` — false while the previous workspace's folders are still on screen
-   * during a switch. A caller deciding "this resource's `folderId` does not resolve, so treat it
-   * as an orphan" off `isLoading` would dump every foldered row at the root in all three.
-   */
-  foldersResolved: boolean
 }
 
 /**
@@ -59,11 +41,12 @@ export function useFolderNavigation({
     folderNavUrlKeys
   )
 
-  const { ancestors, folders, folderById, foldersResolved } = useFolderAncestors({
+  const ancestry = useFolderAncestors({
     resourceType,
     workspaceId,
     folderId: currentFolderId,
   })
+  const { folderById, foldersResolved } = ancestry
 
   const setCurrentFolderId = useCallback(
     (folderId: string | null) => {
@@ -96,12 +79,5 @@ export function useFolderNavigation({
     void setFolderParams({ folderId: null }, { history: 'replace' })
   }, [foldersResolved, currentFolderId, folderById, setFolderParams])
 
-  return {
-    currentFolderId,
-    setCurrentFolderId,
-    breadcrumbs: ancestors,
-    folders,
-    folderById,
-    foldersResolved,
-  }
+  return { ...ancestry, currentFolderId, setCurrentFolderId }
 }
