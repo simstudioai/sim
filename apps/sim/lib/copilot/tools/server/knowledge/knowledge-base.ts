@@ -296,7 +296,7 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             results,
           })
           if (!resultProvenance.imported) {
-            resultRegistry.markIncomplete()
+            resultRegistry.markIncomplete('knowledge-result-provenance-unavailable')
             throw new Error('Knowledge result secret provenance is unavailable')
           }
 

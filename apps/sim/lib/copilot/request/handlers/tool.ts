@@ -235,7 +235,7 @@ export async function prePersistClientExecutableToolCall(
         toolInput: data.arguments,
       })
     } catch (error) {
-      execContext.resolvedSecretTraceRegistry.markIncomplete()
+      execContext.resolvedSecretTraceRegistry.markIncomplete('client-tool-seal-failed')
       logger.warn('Failed to seal client tool provenance', {
         toolCallId: data.toolCallId,
         error: getErrorMessage(error),

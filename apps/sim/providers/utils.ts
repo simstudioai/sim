@@ -1570,7 +1570,7 @@ export function prepareToolExecution(
       try {
         projectedToolParams = tool.paramsTransform(projectedToolParams)
       } catch {
-        inputRegistry.markIncomplete()
+        inputRegistry.markIncomplete('tool-params-transform-failed')
         projectedToolParams = undefined
       }
     }

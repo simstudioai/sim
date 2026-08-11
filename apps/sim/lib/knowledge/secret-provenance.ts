@@ -458,7 +458,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
     documents.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS ||
     chunks.length > MAX_KNOWLEDGE_RESPONSE_PROVENANCE_ROWS
   ) {
-    options.registry.markIncomplete()
+    options.registry.markIncomplete('knowledge-response-capacity-exceeded')
     return false
   }
 
@@ -480,14 +480,14 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
   const documentById = new Map(documentRows.map((row) => [row.id, row]))
   const chunkById = new Map(chunkRows.map((row) => [row.id, row]))
   if (documentById.size !== documentIds.length || chunkById.size !== chunkIds.length) {
-    options.registry.markIncomplete()
+    options.registry.markIncomplete('knowledge-row-missing')
     return false
   }
 
   for (const item of documents) {
     const row = documentById.get(item.id)
     if (!row) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-missing')
       return false
     }
     const source = createKnowledgeDocumentSourceValue(row)
@@ -496,7 +496,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
       createKnowledgeDocumentSourceValue(item.source)
     )
     if (!actualSourceHash || !expectedSourceHash || actualSourceHash !== expectedSourceHash) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-content-mismatch')
       return false
     }
     const provenance = filterKnowledgeDocumentMetadataSecretProvenance(
@@ -513,7 +513,7 @@ export async function importKnowledgePersistedResponseSecretProvenance(options: 
   for (const item of chunks) {
     const row = chunkById.get(item.id)
     if (!row || row.documentId !== item.documentId || row.content !== item.content) {
-      options.registry.markIncomplete()
+      options.registry.markIncomplete('knowledge-row-content-mismatch')
       return false
     }
     const provenance = readBoundKnowledgeEmbeddingSecretProvenance(row)

@@ -141,7 +141,7 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
       entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-value' }],
       scope,
     })
-    accumulator.markIncomplete()
+    accumulator.markIncomplete('unspecified')
     expect(accumulator.exportProvenance().entries).toEqual([])
   })
 })
@@ -1443,6 +1443,81 @@ describe('incompleteness diagnostics', () => {
     expect(reasons).not.toContain('value-provenance-filter-incomplete')
   })
 
+  it.each([
+    'tool-input-not-enumerable',
+    'tool-params-transform-failed',
+    'structural-input-projection-incomplete',
+    'mothership-provenance-invalid',
+    'client-tool-seal-failed',
+    'knowledge-row-missing',
+    'knowledge-row-content-mismatch',
+    'mothership-response-unreadable',
+    'structural-input-root-unprojected',
+    'backfill-checkpoint-unusable',
+  ] as const)('reports %s at error, since it cannot trip on a healthy run', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    'mothership-provenance-missing',
+    'client-tool-completion-missing',
+    'client-tool-completion-deferred',
+    'client-tool-completion-unidentified',
+    'client-tool-execution-untrusted',
+    'client-tool-content-unavailable',
+    'knowledge-result-provenance-unavailable',
+    'knowledge-response-capacity-exceeded',
+    'memory-crossing-capacity-exceeded',
+    'workspace-scope-missing',
+    'mounted-file-provenance-unavailable',
+    'table-snapshot-unsafe-for-mount',
+    'restored-provenance-untrusted',
+    'backfill-checkpoint-absent',
+    'client-tool-seal-absent',
+  ] as const)('reports %s at warn, since it is reachable without a fault', (reason) => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
+
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason })
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The taxonomy's rule is that an error reason cannot trip on a healthy run. A backfill walking
+   * historical rows hits the no-checkpoint case on essentially every legacy row, so classifying it
+   * as a fault would put one error line per row into the stream this split exists to protect.
+   */
+  it('separates an absent checkpoint from an unusable one, so a backfill cannot flood errors', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-absent')
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-absent' })
+    )
+
+    vi.clearAllMocks()
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-unusable')
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-unusable' })
+    )
+  })
+
+  it('does not report a log-less session at all, since it fires on every such run', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('log-creation-skipped')
+
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+  })
+
   it('reports an incoming incomplete bundle at warn, since no catalog was ever on offer', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
@@ -1465,7 +1540,7 @@ describe('incompleteness diagnostics', () => {
   it('keeps an unaudited caller taking the default reason out of the error stream', () => {
     const registry = new ResolvedSecretTraceRegistry([], scope)
 
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(mockLogger.error).not.toHaveBeenCalled()
     expect(mockLogger.warn).toHaveBeenCalledWith(

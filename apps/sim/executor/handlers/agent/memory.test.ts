@@ -278,7 +278,7 @@ describe('Memory', () => {
 
     it('persists raw memory with unknown lineage when provenance is unavailable', async () => {
       const registry = new ResolvedSecretTraceRegistry()
-      registry.markIncomplete()
+      registry.markIncomplete('unspecified')
       const appendMessage = vi
         .spyOn(memoryService as any, 'appendMessage')
         .mockResolvedValue(undefined)
@@ -293,7 +293,7 @@ describe('Memory', () => {
 
     it('seeds raw memory with unknown lineage when provenance is unavailable', async () => {
       const registry = new ResolvedSecretTraceRegistry()
-      registry.markIncomplete()
+      registry.markIncomplete('unspecified')
       const seedMemoryRecord = vi
         .spyOn(memoryService as any, 'seedMemoryRecord')
         .mockResolvedValue(undefined)

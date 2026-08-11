@@ -427,7 +427,7 @@ async function importRowsForModel(
   const registry = context.resolvedSecretTraceRegistry
   if (!registry) return
   if (!context.workspaceId) {
-    registry.markIncomplete()
+    registry.markIncomplete('workspace-scope-missing')
     return
   }
 

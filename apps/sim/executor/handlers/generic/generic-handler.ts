@@ -199,7 +199,8 @@ export class GenericBlockHandler implements BlockHandler {
         boundary && boundary.paths.length > 0 && registry?.hasResolvedInputProjections()
           ? registry.projectResolvedInputSelections(inputs)
           : undefined
-      if (projectedInputs?.complete === false) registry?.markIncomplete()
+      if (projectedInputs?.complete === false)
+        registry?.markIncomplete('structural-input-projection-incomplete')
 
       if (projectedInputs?.complete && boundary && tool && registry) {
         for (const projection of projectedInputs.values) {
@@ -233,7 +234,7 @@ export class GenericBlockHandler implements BlockHandler {
               continue
             }
             if (boundary.requiredProjectionRoots.has(projection.path[0])) {
-              registry.markIncomplete()
+              registry.markIncomplete('structural-input-root-unprojected')
             }
             continue
           }

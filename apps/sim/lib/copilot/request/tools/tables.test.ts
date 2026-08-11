@@ -379,7 +379,7 @@ describe('maybeWriteOutputToTable', () => {
 
   it('persists raw rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await maybeWriteOutputToTable(
       FunctionExecute.id,
@@ -678,7 +678,7 @@ describe('maybeWriteReadCsvToTable', () => {
 
   it('imports raw CSV rows with unknown provenance when lineage is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await maybeWriteReadCsvToTable(
       ReadTool.id,

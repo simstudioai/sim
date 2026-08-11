@@ -335,7 +335,7 @@ describe('projectToolResultForCopilot', () => {
       'incomplete',
       (() => {
         const registry = createRegistry()
-        registry.markIncomplete()
+        registry.markIncomplete('unspecified')
         return registry
       })(),
     ],

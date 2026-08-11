@@ -1288,7 +1288,7 @@ describe('executeProviderRequest — caller-prepared model input', () => {
 
   it('does not make provider execution depend on registry completeness', async () => {
     const incomplete = new ResolvedSecretTraceRegistry()
-    incomplete.markIncomplete()
+    incomplete.markIncomplete('unspecified')
 
     await executeProviderRequest(
       'anthropic',

@@ -118,9 +118,9 @@ async function importMountedWorkspaceFileProvenance(args: {
       },
       registry: args.registry,
     })
-    if (!imported) args.registry.markIncomplete()
+    if (!imported) args.registry.markIncomplete('mounted-file-provenance-unavailable')
   } catch {
-    args.registry.markIncomplete()
+    args.registry.markIncomplete('mounted-file-provenance-unavailable')
   }
 }
 
@@ -464,9 +464,10 @@ export async function resolveInputFiles(
             workspaceId,
             rowsVersion: snapshot.version,
           })
-          if (!safeForModelMount) resolvedSecretTraceRegistry.markIncomplete()
+          if (!safeForModelMount)
+            resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
         } catch {
-          resolvedSecretTraceRegistry.markIncomplete()
+          resolvedSecretTraceRegistry.markIncomplete('table-snapshot-unsafe-for-mount')
         }
 
         if (hasCloudStorage()) {
@@ -538,7 +539,7 @@ export async function resolveInputFiles(
           })
         }
       } catch {
-        resolvedSecretTraceRegistry.markIncomplete('unspecified', {
+        resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete', {
           origin: 'copilotFunctionExecute.result',
         })
       }
@@ -572,9 +573,13 @@ async function importMountedProvenance(
       trusted: true,
     })
     if (!imported)
-      target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
+      target.markIncomplete('value-provenance-import-failed', {
+        origin: 'copilotFunctionExecute.crossing',
+      })
   } catch {
-    target.markIncomplete('unspecified', { origin: 'copilotFunctionExecute.crossing' })
+    target.markIncomplete('value-provenance-import-failed', {
+      origin: 'copilotFunctionExecute.crossing',
+    })
   }
 }
 

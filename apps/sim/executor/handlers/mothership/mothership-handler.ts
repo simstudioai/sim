@@ -372,7 +372,7 @@ async function consumeMothershipProvenance(
     return false
   }
   if (inspection.status === 'invalid') {
-    registry?.markIncomplete()
+    registry?.markIncomplete('mothership-provenance-invalid')
     throw new Error('Mothership response provenance metadata is invalid')
   }
 
@@ -399,7 +399,7 @@ function inspectMothershipResponseCapability(
     return false
   }
 
-  registry?.markIncomplete()
+  registry?.markIncomplete('mothership-provenance-invalid')
   throw new Error('Mothership response provenance metadata is invalid')
 }
 
@@ -464,7 +464,7 @@ async function readMothershipExecuteResponse(
       result = (await response.json()) as MothershipExecuteResult
     } catch (error) {
       if (expectsProvenance) {
-        registry?.markIncomplete()
+        registry?.markIncomplete('mothership-response-unreadable')
         throw new Error('Mothership response provenance metadata is invalid')
       }
       throw error
@@ -528,7 +528,7 @@ async function readMothershipExecuteResponse(
     return finalResult
   } finally {
     if (expectsProvenance && !finalResult && !receivedTerminalProvenance) {
-      registry?.markIncomplete()
+      registry?.markIncomplete('mothership-provenance-missing')
     }
     reader.releaseLock()
   }
@@ -630,7 +630,7 @@ function createMothershipStreamingExecution(
         }
       } finally {
         if (expectsProvenance && !sawFinal && !receivedTerminalProvenance) {
-          options.registry?.markIncomplete()
+          options.registry?.markIncomplete('mothership-provenance-missing')
         }
         cleanup()
         reader?.releaseLock()
@@ -948,7 +948,7 @@ export class MothershipBlockHandler implements BlockHandler {
           try {
             payload = (await response.clone().json()) as MothershipExecuteResult
           } catch {
-            resultRegistry?.markIncomplete()
+            resultRegistry?.markIncomplete('mothership-response-unreadable')
             throw new Error('Mothership response provenance metadata is invalid')
           }
           await consumeMothershipProvenance(payload, response, resultRegistry)
