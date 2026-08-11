@@ -31,8 +31,7 @@ export const v1ListAuditLogsQuerySchema = z.object({
   includeDeparted: z
     .enum(['true', 'false'])
     .transform((value) => value === 'true')
-    .optional()
-    .default(false),
+    .prefault('false'),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   cursor: z.string().optional(),
 })

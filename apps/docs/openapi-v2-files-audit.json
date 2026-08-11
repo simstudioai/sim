@@ -930,6 +930,7 @@
             "description": "Include actions by users who have left the organization.",
             "schema": {
               "description": "Include actions by users who have left the organization.",
+              "default": "false",
               "type": "string",
               "enum": ["true", "false"]
             }
