@@ -55,7 +55,6 @@ import {
 import { Cursors } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/cursors/cursors'
 import { ErrorBoundary } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/error/index'
 import { WorkflowSearchReplace } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/search-replace/workflow-search-replace'
-import { WorkflowControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import {
   useAutoLayout,
   useCanvasContextMenu,
@@ -4769,7 +4768,6 @@ const WorkflowContent = React.memo(
 
                 {!embedded && (
                   <>
-                    <WorkflowControls />
                     <Suspense fallback={null}>
                       <LazyChat />
                     </Suspense>
