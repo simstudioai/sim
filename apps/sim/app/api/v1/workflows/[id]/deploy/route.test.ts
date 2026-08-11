@@ -2,7 +2,7 @@
  * @vitest-environment node
  *
  * Tests for POST/DELETE /api/v1/workflows/[id]/deploy — verifies auth,
- * workspace admin permission enforcement, optional body handling, and the
+ * workspace write permission enforcement, optional body handling, and the
  * mapping of orchestration results to v1 API responses.
  */
 
@@ -121,7 +121,7 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
 
-  it('masks missing admin permission as 404', async () => {
+  it('masks missing write permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )
@@ -133,7 +133,7 @@ describe('POST /api/v1/workflows/[id]/deploy', () => {
       expect.objectContaining({ allowed: true }),
       'user-1',
       'ws-1',
-      'admin'
+      'write'
     )
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
@@ -277,7 +277,7 @@ describe('DELETE /api/v1/workflows/[id]/deploy', () => {
     )
   })
 
-  it('masks missing admin permission as 404', async () => {
+  it('masks missing write permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )

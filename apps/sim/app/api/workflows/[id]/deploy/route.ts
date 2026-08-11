@@ -111,7 +111,7 @@ export const POST = withRouteHandler(
         error,
         session,
         workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
+      } = await validateWorkflowPermissions(id, requestId, 'write')
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
@@ -183,7 +183,7 @@ export const PATCH = withRouteHandler(
         error,
         session,
         workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
+      } = await validateWorkflowPermissions(id, requestId, 'write')
       if (error) {
         return createErrorResponse(error.message, error.status)
       }
@@ -247,7 +247,7 @@ export const DELETE = withRouteHandler(
         error,
         session,
         workflow: workflowData,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
+      } = await validateWorkflowPermissions(id, requestId, 'write')
       if (error) {
         return createErrorResponse(error.message, error.status)
       }

@@ -11,7 +11,7 @@ export const deploymentsUndeployTool: ToolConfig<
   id: 'deployments_undeploy',
   name: 'Undeploy Workflow',
   description:
-    'Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires admin permission on the workflow’s workspace.',
+    'Take a deployed workflow offline. API execution stops and schedules, webhooks, and other deployment side effects are removed. Requires write permission on the workflow’s workspace.',
   version: '1.0.0',
 
   params: {

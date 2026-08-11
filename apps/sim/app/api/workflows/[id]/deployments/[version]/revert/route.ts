@@ -26,7 +26,7 @@ export const POST = withRouteHandler(
         error,
         session,
         workflow: workflowRecord,
-      } = await validateWorkflowPermissions(id, requestId, 'admin')
+      } = await validateWorkflowPermissions(id, requestId, 'write')
       if (error) {
         return createErrorResponse(error.message, error.status)
       }

@@ -1409,7 +1409,7 @@ export const CreateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['name'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
 }
 
 export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
@@ -1424,7 +1424,7 @@ export const DeleteWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -1525,7 +1525,7 @@ export const DeployApi: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -1671,7 +1671,7 @@ export const DeployChat: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -1882,7 +1882,7 @@ export const DeployMcp: ToolCatalogEntry = {
     },
     required: ['deploymentType', 'deploymentStatus'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -3381,7 +3381,7 @@ export const LoadDeployment: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
 }
 
 export const LoadIntegrationTool: ToolCatalogEntry = {
@@ -3855,7 +3855,7 @@ export const PromoteToLive: ToolCatalogEntry = {
     },
     required: ['version'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -4116,7 +4116,7 @@ export const Redeploy: ToolCatalogEntry = {
       'examples',
     ],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
   requiresApproval: true,
 }
 
@@ -5033,7 +5033,7 @@ export const UpdateWorkspaceMcpServer: ToolCatalogEntry = {
     },
     required: ['serverId'],
   },
-  requiredPermission: 'admin',
+  requiredPermission: 'write',
 }
 
 export const UserTable: ToolCatalogEntry = {

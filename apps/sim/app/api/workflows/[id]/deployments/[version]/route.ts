@@ -70,13 +70,7 @@ export const PATCH = withRouteHandler(
       const { id, version } = parsed.data.params
       const { name, description, isActive } = parsed.data.body
 
-      // Activation requires admin permission, other updates require write
-      const requiredPermission = isActive ? 'admin' : 'write'
-      const { error, session } = await validateWorkflowPermissions(
-        id,
-        requestId,
-        requiredPermission
-      )
+      const { error, session } = await validateWorkflowPermissions(id, requestId, 'write')
       if (error) {
         return createErrorResponse(error.message, error.status)
       }

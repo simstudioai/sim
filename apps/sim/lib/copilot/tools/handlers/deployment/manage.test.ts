@@ -102,7 +102,7 @@ describe('executeLoadDeployment', () => {
       workflowId: 'wf-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'write')
     expect(performRevertToVersionMock).toHaveBeenCalledWith({
       workflowId: 'wf-1',
       version: 7,
@@ -195,7 +195,7 @@ describe('executePromoteToLive', () => {
       toolCallId: 'call-1',
     } as ExecutionContext)
 
-    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'admin')
+    expect(ensureWorkflowAccessMock).toHaveBeenCalledWith('wf-1', 'user-1', 'write')
     expect(performActivateVersionMock).toHaveBeenCalledWith({
       workflowId: 'wf-1',
       version: 3,

@@ -28,7 +28,7 @@ export async function checkWorkflowAccessForChatCreation(
   const authorization = await authorizeWorkflowByWorkspacePermission({
     workflowId,
     userId,
-    action: 'admin',
+    action: 'write',
   })
 
   if (!authorization.workflow) {
@@ -71,7 +71,7 @@ export async function checkChatAccess(
   const authorization = await authorizeWorkflowByWorkspacePermission({
     workflowId: chatRecord.workflowId,
     userId,
-    action: 'admin',
+    action: 'write',
   })
 
   return authorization.allowed

@@ -45,15 +45,15 @@ export async function authenticateDeploymentToolRequest(
 /**
  * Verifies the user holds the required workspace permission on the target
  * workflow and that the workflow belongs to the calling workspace. Deployment
- * mutations require `admin`, reads require `read`, matching the UI deploy
+ * mutations require `write`, reads require `read`, matching the UI deploy
  * routes. The workspace binding keeps workflow-driven executions (schedules,
- * webhooks) from reaching into other workspaces the actor administers.
+ * webhooks) from reaching into other workspaces the actor can edit.
  */
 export async function authorizeDeploymentWorkflow(
   userId: string,
   workflowId: string,
   workspaceId: string,
-  action: 'read' | 'admin'
+  action: 'read' | 'write' | 'admin'
 ): Promise<
   { ok: true; workflow: AuthorizedDeploymentWorkflow } | { ok: false; response: NextResponse }
 > {

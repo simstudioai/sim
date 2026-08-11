@@ -6,7 +6,7 @@ export const deploymentsDeployTool: ToolConfig<DeploymentsDeployParams, Deployme
     id: 'deployments_deploy',
     name: 'Deploy Workflow',
     description:
-      'Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires admin permission on the workflow’s workspace.',
+      'Deploy a workflow’s current draft state, creating a new deployment version and making it live for API execution. Requires write permission on the workflow’s workspace.',
     version: '1.0.0',
 
     params: {

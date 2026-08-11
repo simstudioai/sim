@@ -217,7 +217,7 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
     expect(response.status).toBe(404)
   })
 
-  it('masks missing admin permission as 404', async () => {
+  it('masks missing write permission as 404', async () => {
     mockValidateWorkspaceAccess.mockResolvedValue(
       NextResponse.json({ error: 'Access denied' }, { status: 403 })
     )
@@ -229,7 +229,7 @@ describe('POST /api/v1/workflows/[id]/rollback', () => {
       expect.objectContaining({ allowed: true }),
       'user-1',
       'ws-1',
-      'admin'
+      'write'
     )
     expect(mockPerformActivateVersion).not.toHaveBeenCalled()
   })

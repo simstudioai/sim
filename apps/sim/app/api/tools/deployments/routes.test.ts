@@ -112,7 +112,7 @@ describe('POST /api/tools/deployments/deploy', () => {
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })
 
-  it('requires admin permission on the workflow workspace', async () => {
+  it('requires write permission on the workflow workspace', async () => {
     workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
       allowed: false,
       status: 403,
@@ -129,7 +129,7 @@ describe('POST /api/tools/deployments/deploy', () => {
     expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
       userId: 'user-1',
-      action: 'admin',
+      action: 'write',
     })
     expect(mockPerformFullDeploy).not.toHaveBeenCalled()
   })

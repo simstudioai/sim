@@ -241,7 +241,7 @@ export async function executeCreateWorkspaceMcpServer(
     if (!workspaceId) {
       return { success: false, error: 'workspaceId is required' }
     }
-    await ensureWorkspaceAccess(workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
 
     const name = params.name?.trim()
     if (!name) {
@@ -348,7 +348,7 @@ export async function executeDeleteWorkspaceMcpServer(
       return { success: false, error: 'MCP server not found' }
     }
 
-    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'admin')
+    await ensureWorkspaceAccess(existing.workspaceId, context.userId, 'write')
 
     const result = await performDeleteWorkflowMcpServer({
       serverId,
@@ -499,7 +499,7 @@ export async function executeLoadDeployment(
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
       workflowId,
       context.userId,
-      'admin'
+      'write'
     )
     const result = await performRevertToVersion({
       workflowId,
@@ -556,7 +556,7 @@ export async function executePromoteToLive(
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
       workflowId,
       context.userId,
-      'admin'
+      'write'
     )
     const result = await performActivateVersion({
       workflowId,

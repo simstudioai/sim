@@ -153,7 +153,7 @@ export async function executeDeployApi(
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
       workflowId,
       context.userId,
-      'admin'
+      'write'
     )
 
     if (action === 'undeploy') {
@@ -573,7 +573,7 @@ export async function executeDeployMcp(
     const { workflow: workflowRecord } = await ensureWorkflowAccess(
       workflowId,
       context.userId,
-      'admin'
+      'write'
     )
     const workspaceId = workflowRecord.workspaceId
     if (!workspaceId) {
@@ -853,7 +853,7 @@ export async function executeRedeploy(
           'versionName is required. Provide a short human-readable label for this deployment version.',
       }
     }
-    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
+    await ensureWorkflowAccess(workflowId, context.userId, 'write')
 
     const result = await performFullDeploy({
       workflowId,

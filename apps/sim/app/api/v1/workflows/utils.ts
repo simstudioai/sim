@@ -8,7 +8,7 @@ function workflowNotFoundResponse(): NextResponse {
 
 /**
  * Resolves the target workflow for a v1 deployment mutation: loads the active
- * record and verifies the caller's admin permission on its workspace. Access
+ * record and verifies the caller's write permission on its workspace. Access
  * failures are masked as 404, matching the v1 workflow read surface so
  * unauthorized callers cannot probe workflow existence.
  */
@@ -29,7 +29,7 @@ export async function resolveV1DeploymentWorkflow(
     rateLimit,
     userId,
     workflow.workspaceId,
-    'admin'
+    'write'
   )
   if (accessError) {
     return { ok: false, response: workflowNotFoundResponse() }

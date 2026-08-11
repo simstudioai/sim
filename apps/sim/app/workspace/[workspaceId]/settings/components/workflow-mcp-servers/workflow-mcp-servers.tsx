@@ -86,6 +86,7 @@ function ServerDetailView({
   onDelete,
   isDeleting,
 }: ServerDetailViewProps) {
+  const workspacePermissions = useUserPermissionsContext()
   const { data, isLoading, error } = useWorkflowMcpServer(workspaceId, serverId)
   const { data: deployedWorkflows = [], isLoading: isLoadingWorkflows } =
     useDeployedWorkflows(workspaceId)
@@ -99,7 +100,8 @@ function ServerDetailView({
 
   const existingKeyNames = (apiKeysData?.workspaceKeys ?? []).map((key) => key.name)
   const allowPersonalApiKeys = false
-  const canManageWorkspaceKeys = canManage
+  /** Managing this server only needs `write`, but minting a workspace key needs `admin`. */
+  const canManageWorkspaceKeys = workspacePermissions.canAdmin
   const defaultKeyType = 'workspace'
 
   const addToWorkspaceMutation = useCreateMcpServer()
@@ -609,7 +611,7 @@ function ServerDetailView({
                     {!server.isPublic && (
                       <p className='mt-2 text-[var(--text-muted)] text-caption'>
                         Replace $SIM_API_KEY with your API key
-                        {canManage && (
+                        {canManageWorkspaceKeys && (
                           <>
                             , or{' '}
                             <button
@@ -852,7 +854,7 @@ function ServerDetailView({
           />
         </ChipModal>
       )}
-      {canManage && (
+      {canManageWorkspaceKeys && (
         <CreateApiKeyModal
           open={showCreateApiKeyModal}
           onOpenChange={setShowCreateApiKeyModal}

@@ -53,7 +53,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
   })
 
   const isEmpty = !hasBlocks()
-  const canDeploy = userPermissions.canAdmin
+  const canDeploy = userPermissions.canEdit
   const isDisabled =
     disabled ||
     isDeploying ||
@@ -80,7 +80,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
       return 'Cannot deploy an empty workflow'
     }
     if (!canDeploy) {
-      return 'Admin permissions required'
+      return 'Write permissions required'
     }
     if (disabled) {
       return 'Workflow is locked'

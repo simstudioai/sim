@@ -421,7 +421,7 @@ export interface WorkflowBlockViewProps {
   childIsDeployed?: boolean | null
   childNeedsRedeploy?: boolean
   isDeploying?: boolean
-  canAdmin?: boolean
+  canDeploy?: boolean
   onDeployChild?: () => void
 
   /** Schedule badge state — editor-only; omit in read-only contexts. */
@@ -525,7 +525,7 @@ export function WorkflowBlockView({
   childIsDeployed,
   childNeedsRedeploy,
   isDeploying,
-  canAdmin,
+  canDeploy,
   onDeployChild,
   shouldShowScheduleBadge,
   scheduleIsDisabled,
@@ -994,7 +994,7 @@ export function WorkflowBlockView({
                   <Tooltip.Trigger asChild>
                     <Badge
                       variant={!childIsDeployed ? 'red' : 'amber'}
-                      className={canAdmin ? 'cursor-pointer' : 'cursor-not-allowed'}
+                      className={canDeploy ? 'cursor-pointer' : 'cursor-not-allowed'}
                       dot
                       onClick={(e) => {
                         e.stopPropagation()
@@ -1006,8 +1006,8 @@ export function WorkflowBlockView({
                   </Tooltip.Trigger>
                   <Tooltip.Content>
                     <span className='text-sm'>
-                      {!canAdmin
-                        ? 'Admin permission required to deploy'
+                      {!canDeploy
+                        ? 'Write permission required to deploy'
                         : !childIsDeployed
                           ? 'Click to deploy'
                           : 'Click to redeploy'}
