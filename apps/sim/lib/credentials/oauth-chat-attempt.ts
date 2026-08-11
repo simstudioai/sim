@@ -43,6 +43,15 @@ export interface OAuthChatAttempt {
   workspaceId: string
   providerId: string
   baseProviderId: string
+  /**
+   * See {@link OAuthCredentialTarget.additionalProviderIds}. Persisted on the
+   * attempt because the post-connect verification leg re-reads the stored
+   * attempt rather than the live target — without it, a credential from an
+   * alternate authorization server would not register as "connected".
+   * Absent on attempts written before this existed; those simply match as they
+   * did, and attempts expire after {@link OAUTH_CHAT_ATTEMPT_MAX_AGE_MS}.
+   */
+  additionalProviderIds?: readonly string[]
   displayName: string
   controlId: string
   credentialId?: string
@@ -56,6 +65,8 @@ interface CreateOAuthChatAttemptInput {
   workspaceId: string
   providerId: string
   baseProviderId: string
+  /** See {@link OAuthCredentialTarget.additionalProviderIds}. */
+  additionalProviderIds?: readonly string[]
   displayName: string
   controlId: string
   credentialId?: string

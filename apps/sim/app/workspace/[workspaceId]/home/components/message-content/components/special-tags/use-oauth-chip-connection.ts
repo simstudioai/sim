@@ -479,6 +479,7 @@ export function useOAuthChipConnection({
         workspaceId,
         providerId,
         baseProviderId,
+        additionalProviderIds: credentialTarget.additionalProviderIds,
         displayName,
         controlId,
         credentialId: reconnectCredentialId,

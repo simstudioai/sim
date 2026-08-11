@@ -139,10 +139,12 @@ export function ClientCredentialAccountModal({
   const visibleFields = mustRestateAuthMethod
     ? visible.filter((field) => !field.requiredForAuthMethods)
     : visible
-  // Markers always reflect the descriptor's real requirements, so `clientId`
-  // and the host don't lose their asterisk while the method is unset. Submit is
-  // gated separately below — picking a method is what unblocks it.
+  // Markers reflect the descriptor's real requirements, so `clientId` and the
+  // host keep their asterisk while the method is unset — plus the picker itself
+  // while it is the thing blocking submit, so the greyed button has a visible
+  // cause.
   const requiredFieldIds = new Set(required.map((field) => field.id))
+  if (mustRestateAuthMethod) requiredFieldIds.add(AUTH_METHOD_FIELD_ID)
   /**
    * On a create the form already behaves as the descriptor's default grant, so
    * the picker shows it rather than an empty placeholder implying no choice.
