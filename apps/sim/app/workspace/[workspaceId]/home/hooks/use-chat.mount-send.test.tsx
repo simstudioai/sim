@@ -1,0 +1,183 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * Regression tests for the mount-settling send loss: a send started on a
+ * fresh chat surface used to be silently dropped when React ran the unmount
+ * cleanup mid-flight (a Suspense hide/reveal cycles every effect shortly
+ * after Home mounts), aborting the fetch before it dispatched. The fix routes
+ * idle sends through the durable message queue and restores the queued entry
+ * when the cleanup abort strikes before the server received the request.
+ */
+import { act, type ReactNode } from 'react'
+import { sleep } from '@sim/utils/helpers'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+
+const { mockRequestJson, navigationMocks } = vi.hoisted(() => ({
+  mockRequestJson: vi.fn(),
+  navigationMocks: {
+    usePathname: vi.fn(() => '/workspace/ws-1/home'),
+    useRouter: vi.fn(() => ({ push: vi.fn(), replace: vi.fn(), prefetch: vi.fn() })),
+    useSearchParams: vi.fn(() => new URLSearchParams()),
+  },
+}))
+
+vi.mock('next/navigation', () => navigationMocks)
+
+vi.mock('@/lib/api/client/request', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/api/client/request')>()),
+  requestJson: mockRequestJson,
+}))
+
+import { useChat } from '@/app/workspace/[workspaceId]/home/hooks/use-chat'
+import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
+
+interface NetworkState {
+  /** How the chat POST behaves for the next call. */
+  postBehavior: 'hang' | 'accept'
+  postCalls: number
+}
+
+const state: NetworkState = { postBehavior: 'hang', postCalls: 0 }
+
+/** An SSE response whose stream ends immediately without a terminal event. */
+function emptySseResponse(): Response {
+  const stream = new ReadableStream<Uint8Array>({
+    start(controller) {
+      controller.close()
+    },
+  })
+  return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
+}
+
+function abortError(): Error {
+  const error = new Error('Aborted')
+  error.name = 'AbortError'
+  return error
+}
+
+async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  const url = String(input instanceof Request ? input.url : input)
+
+  if (url.includes('/api/mothership/chat') && init?.method === 'POST') {
+    state.postCalls++
+    if (state.postBehavior === 'accept') return emptySseResponse()
+    return new Promise<Response>((_, reject) => {
+      const signal = init?.signal
+      if (!signal) return
+      if (signal.aborted) {
+        reject(abortError())
+        return
+      }
+      signal.addEventListener('abort', () => reject(abortError()), { once: true })
+    })
+  }
+
+  return new Response(JSON.stringify({ error: 'not found' }), { status: 404 })
+}
+
+const mountedRoots: Root[] = []
+let queryClient: QueryClient
+
+function renderUseChat(): {
+  getResult: () => ReturnType<typeof useChat>
+  unmount: () => void
+} {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  mountedRoots.push(root)
+  let result: ReturnType<typeof useChat> | undefined
+
+  function Probe() {
+    result = useChat('ws-1', undefined)
+    return null
+  }
+
+  act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>{(<Probe />) as ReactNode}</QueryClientProvider>
+    )
+  })
+
+  return {
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    unmount: () => act(() => root.unmount()),
+  }
+}
+
+/** Every queued message across all chat keys, flattened. */
+function allQueuedMessages() {
+  return Object.values(useMothershipQueueStore.getState().queues).flat()
+}
+
+async function waitFor(predicate: () => boolean, budgetMs = 2000): Promise<void> {
+  const deadline = Date.now() + budgetMs
+  while (!predicate()) {
+    if (Date.now() > deadline) throw new Error('waitFor timed out')
+    await act(async () => {
+      await sleep(10)
+    })
+  }
+}
+
+describe('useChat mount-settling send recovery', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', fetchStub)
+    state.postBehavior = 'hang'
+    state.postCalls = 0
+    mockRequestJson.mockResolvedValue({ chats: [] })
+    useMothershipQueueStore.setState({ queues: {}, editing: {} })
+    window.sessionStorage.clear()
+  })
+
+  afterEach(() => {
+    for (const root of mountedRoots.splice(0)) {
+      act(() => root.unmount())
+    }
+    queryClient?.clear()
+    vi.unstubAllGlobals()
+    vi.clearAllMocks()
+  })
+
+  it('restores a send the unmount cleanup aborted before the server received it', async () => {
+    const { getResult, unmount } = renderUseChat()
+
+    await act(async () => {
+      void getResult().sendMessage('hello from the palette')
+    })
+    await waitFor(() => state.postCalls === 1)
+
+    // The dispatch claimed the queue head when the optimistic send applied.
+    expect(allQueuedMessages()).toHaveLength(0)
+
+    // The cleanup abort (same code path a Suspense hide/reveal runs during
+    // mount-settling) fires while the POST is still awaiting the server.
+    unmount()
+    await waitFor(() => allQueuedMessages().length === 1)
+
+    expect(allQueuedMessages()[0].content).toBe('hello from the palette')
+  })
+
+  it('does not re-queue a send the server already received', async () => {
+    state.postBehavior = 'accept'
+    const { getResult, unmount } = renderUseChat()
+
+    await act(async () => {
+      void getResult().sendMessage('already accepted')
+    })
+    await waitFor(() => state.postCalls === 1)
+
+    unmount()
+    await act(async () => {
+      await sleep(50)
+    })
+
+    expect(allQueuedMessages()).toHaveLength(0)
+  })
+})

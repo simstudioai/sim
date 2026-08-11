@@ -1343,6 +1343,12 @@ export function useChat(
   const queueDispatchActionsRef = useRef<QueueDispatchAction[]>([])
   const queueDispatchTaskRef = useRef<Promise<void> | null>(null)
   const queueDispatchEpochRef = useRef(0)
+  /**
+   * Set when the in-flight dispatch was killed by the unmount cleanup before
+   * reaching the server. Lets the restore path re-queue the message across the
+   * epoch bump that same cleanup performs.
+   */
+  const restorableCleanupAbortRef = useRef(false)
   const queueDispatchLoopRef = useRef<() => Promise<void>>(async () => {})
   const enqueueQueueDispatchRef = useRef<(action: QueueDispatchActionInput) => Promise<void>>(
     async () => {}
@@ -3465,6 +3471,8 @@ export function useChat(
         : undefined
 
       let consumedByTranscript = false
+      let sendReachedServer = false
+      let sendAbortSignal: AbortSignal | null = null
 
       setError(null)
       setTransportStreaming()
@@ -3697,6 +3705,7 @@ export function useChat(
         }
         const abortController = new AbortController()
         abortControllerRef.current = abortController
+        sendAbortSignal = abortController.signal
 
         const resourceAttachments = buildResourceAttachments(
           resourcesRef.current,
@@ -3725,6 +3734,7 @@ export function useChat(
           }),
           signal: abortController.signal,
         })
+        sendReachedServer = true
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -3823,7 +3833,19 @@ export function useChat(
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
+        if (err instanceof Error && err.name === 'AbortError') {
+          if (sendAbortSignal?.reason === 'unmount:client_cleanup' && !sendReachedServer) {
+            /* The mount-settling effect cycle (Suspense hide/reveal) ran the
+               unmount cleanup while this send was still pre-dispatch. Nothing
+               reached the server, so the send is fully recoverable: withdraw
+               the optimistic pair and report not-consumed so the queued entry
+               is restored and re-dispatched when effects re-run. */
+            rollbackOptimisticSend()
+            restorableCleanupAbortRef.current = true
+            return false
+          }
+          return consumedByTranscript
+        }
         if (isStreamSchemaValidationError(err)) {
           setError(err.message)
           if (gen !== undefined && streamGenRef.current === gen) {
@@ -3912,9 +3934,15 @@ export function useChat(
         return
       }
 
-      await startSendMessage(message, fileAttachments, contexts)
+      /* Even an idle-path send goes through the durable queue: a direct
+         startSendMessage has no backing entry, so the cleanup abort that runs
+         when a Suspense hide/reveal cycles effects during mount-settling would
+         silently drop it. The dispatch loop claims the head immediately, so
+         the message never renders as queued. */
+      queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+      void enqueueQueueDispatchRef.current({ type: 'send_head' })
     },
-    [workspaceId, startSendMessage, createQueuedMessage]
+    [workspaceId, createQueuedMessage]
   )
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -4461,7 +4489,10 @@ export function useChat(
           clearQueuedSendHandoffState(msg.id)
         }
         clearQueuedSendHandoffClaim(msg.id)
-        if (!removedFromQueue || options.epoch !== queueDispatchEpochRef.current) {
+        if (!removedFromQueue) {
+          return
+        }
+        if (options.epoch !== queueDispatchEpochRef.current && !restorableCleanupAbortRef.current) {
           return
         }
         // If the user explicitly removed this message during dispatch, honor
@@ -4487,6 +4518,7 @@ export function useChat(
         // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
+        restorableCleanupAbortRef.current = false
         const consumed = await startSendMessage(
           liveMsg.content,
           liveMsg.fileAttachments,
@@ -4502,6 +4534,7 @@ export function useChat(
       } catch {
         restoreQueuedMessage(activeQueuedSendHandoff)
       } finally {
+        restorableCleanupAbortRef.current = false
         setDispatchingHeadId((current) => (current === msg.id ? null : current))
         queuedMessageDispatchIdsRef.current.delete(msg.id)
         userRemovedDuringDispatchRef.current.delete(msg.id)
