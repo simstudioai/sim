@@ -97,6 +97,7 @@ import type { ChatContext } from '@/stores/panel'
 
 /** Ties the omnibox to its listbox for assistive tech. */
 const SUGGESTIONS_LIST_ID = 'browser-url-suggestions'
+const NEW_TAB_CONFIRM_TIMEOUT_MS = 10_000
 const EMPTY_BROWSER_TABS: BrowserTabState[] = []
 
 const suggestionRowId = (index: number) => `${SUGGESTIONS_LIST_ID}-${index}`
@@ -301,6 +302,32 @@ export function shouldOpenUrlSuggestions(
   return activeOverlay === 'suggestions' && suggestionCount > 0
 }
 
+/** New tabs submit the best suggestion; existing pages submit their current URL. */
+export function initialUrlSuggestionIndex(
+  pageUrl: string | undefined,
+  suggestionCount: number
+): number | null {
+  if (suggestionCount === 0) return null
+  return !pageUrl || pageUrl === 'about:blank' ? 0 : null
+}
+
+/** A new-tab request is complete only after the authoritative strip grows and activates a new id. */
+export function hasConfirmedBrowserTabCreation(
+  previousActiveTabId: string | null,
+  previousTabCount: number,
+  activeTabId: string | null,
+  tabCount: number
+): boolean {
+  return tabCount > previousTabCount && activeTabId !== null && activeTabId !== previousActiveTabId
+}
+
+interface PendingNewTabFocus {
+  scopeId: string
+  previousActiveTabId: string | null
+  previousTabCount: number
+  timeoutId: number
+}
+
 export function BrowserSession({
   visible,
   scopeId,
@@ -347,6 +374,9 @@ export function BrowserSession({
   const fillButtonRef = useRef<HTMLButtonElement>(null)
   const toolbarMenuButtonRef = useRef<HTMLButtonElement>(null)
   const omniboxFocusRafRef = useRef<number | null>(null)
+  const pendingNewTabFocusRef = useRef<PendingNewTabFocus | null>(null)
+  const visibleRef = useRef(visible)
+  visibleRef.current = visible
   const { removeResource } = useMothershipResources()
   const { navigateToSettings } = useSettingsNavigation()
 
@@ -389,10 +419,12 @@ export function BrowserSession({
   const [fillAvailable, setFillAvailable] = useState(false)
   /** Accounts the active page can accept, loaded only when its key menu opens. */
   const [fillOptions, setFillOptions] = useState<BrowserCredentialMetadata[]>([])
-  /** Hosts worth suggesting: signed into, holding a saved password, or imported. */
+  /** Visited hosts worth suggesting, optionally decorated by imported credentials. */
   const [suggestionCorpus, setSuggestionCorpus] = useState<UrlSuggestion[]>([])
-  /** Defaults to the best-ranked row whenever the visible result set changes. */
+  /** Highlighted row, or null when Enter should submit the omnibox text. */
   const [activeSuggestion, setActiveSuggestion] = useState<number | null>(null)
+  /** Page URL captured when the current omnibox edit began. */
+  const [suggestionOriginUrl, setSuggestionOriginUrl] = useState('')
   /** Whether the user has asked to see suggestions for the current omnibox edit. */
   const [suggestionsVisible, setSuggestionsVisible] = useState(false)
   /** Empty on initial focus; follows the typed text once the user edits it. */
@@ -496,16 +528,54 @@ export function BrowserSession({
     setSuggestionsVisible(mode === 'select')
     setSuggestionQuery(mode === 'select' ? '' : null)
     setActiveSuggestion(null)
+    setSuggestionOriginUrl(mode === 'clear' ? '' : pageUrlRef.current)
     setUrlDraft(mode === 'clear' ? '' : pageUrlRef.current)
     if (omniboxFocusRafRef.current !== null) {
       cancelAnimationFrame(omniboxFocusRafRef.current)
     }
     omniboxFocusRafRef.current = requestAnimationFrame(() => {
       omniboxFocusRafRef.current = null
+      if (!visibleRef.current) return
       urlInputRef.current?.focus()
       urlInputRef.current?.select()
     })
   }, [])
+
+  const clearPendingNewTabFocus = useCallback((pending?: PendingNewTabFocus): boolean => {
+    const current = pendingNewTabFocusRef.current
+    if (!current || (pending && current !== pending)) return false
+    window.clearTimeout(current.timeoutId)
+    pendingNewTabFocusRef.current = null
+    return true
+  }, [])
+
+  // New shells acknowledge tab creation directly; older installed shells only
+  // publish the resulting strip. Both paths land here so neither clears the
+  // current page's omnibox before a distinct tab actually exists.
+  useEffect(() => {
+    const pending = pendingNewTabFocusRef.current
+    if (
+      !pending ||
+      pending.scopeId !== scopeId ||
+      !hasConfirmedBrowserTabCreation(
+        pending.previousActiveTabId,
+        pending.previousTabCount,
+        activeTabId,
+        tabs.length
+      )
+    ) {
+      return
+    }
+    if (!clearPendingNewTabFocus(pending)) return
+    if (visible) focusOmnibox('clear')
+  }, [activeTabId, clearPendingNewTabFocus, focusOmnibox, scopeId, tabs.length, visible])
+
+  useEffect(() => {
+    return () => {
+      const pending = pendingNewTabFocusRef.current
+      if (pending?.scopeId === scopeId) clearPendingNewTabFocus(pending)
+    }
+  }, [clearPendingNewTabFocus, scopeId])
 
   useEffect(() => onBrowserOmniboxFocus(focusOmnibox, scopeId), [focusOmnibox, scopeId])
 
@@ -772,8 +842,8 @@ export function BrowserSession({
   )
 
   useEffect(() => {
-    setActiveSuggestion(suggestions.length > 0 ? 0 : null)
-  }, [suggestions])
+    setActiveSuggestion(initialUrlSuggestionIndex(suggestionOriginUrl, suggestions.length))
+  }, [suggestionOriginUrl, suggestions])
 
   // The suggestion list is renderer UI that extends over the native page.
   // Keep the page's exact captured frame underneath it while it is open so
@@ -794,6 +864,7 @@ export function BrowserSession({
       setSuggestionsVisible(false)
       setSuggestionQuery(null)
       setActiveSuggestion(null)
+      setSuggestionOriginUrl('')
       urlInputRef.current?.blur()
     },
     [scopeId]
@@ -819,27 +890,41 @@ export function BrowserSession({
     setSuggestionsVisible(false)
     setSuggestionQuery(null)
     setActiveSuggestion(null)
-    const previousActiveTabId = activeTabId
-    const previousTabCount = tabs.length
+    setSuggestionOriginUrl('')
+    clearPendingNewTabFocus()
+    const pending: PendingNewTabFocus = {
+      scopeId,
+      previousActiveTabId: activeTabId,
+      previousTabCount: tabs.length,
+      timeoutId: 0,
+    }
+    pending.timeoutId = window.setTimeout(() => {
+      if (clearPendingNewTabFocus(pending)) {
+        toast.error('Could not open a new browser tab. Please try again.')
+      }
+    }, NEW_TAB_CONFIRM_TIMEOUT_MS)
+    pendingNewTabFocusRef.current = pending
     void openBrowserTab(scopeId)
       .then((state) => {
-        // Older shells use a tab-state push as their acknowledgement. Do not
-        // clear the current tab's omnibox while that fire-and-forget fallback
-        // is still unresolved.
+        // Older shells resolve null and confirm through the tab-state effect.
         if (!state) return
-        if (state.tabs.length <= previousTabCount || state.activeTabId === previousActiveTabId) {
+        if (
+          !hasConfirmedBrowserTabCreation(
+            pending.previousActiveTabId,
+            pending.previousTabCount,
+            state.activeTabId,
+            state.tabs.length
+          )
+        ) {
           throw new Error('The desktop browser did not create a distinct tab.')
         }
-        setUrlDraft('')
-        requestAnimationFrame(() => {
-          urlInputRef.current?.focus()
-          urlInputRef.current?.select()
-        })
       })
       .catch(() => {
-        toast.error('Could not open a new browser tab. Please try again.')
+        if (clearPendingNewTabFocus(pending)) {
+          toast.error('Could not open a new browser tab. Please try again.')
+        }
       })
-  }, [activeTabId, scopeId, tabs.length])
+  }, [activeTabId, clearPendingNewTabFocus, scopeId, tabs.length])
 
   /**
    * Opens the shell's native account chooser under the key icon. Called
@@ -999,7 +1084,10 @@ export function BrowserSession({
                   }
                   onPointerDown={(event) => {
                     setSuggestionsVisible(true)
-                    if (document.activeElement !== event.currentTarget) setSuggestionQuery('')
+                    if (document.activeElement !== event.currentTarget) {
+                      setSuggestionOriginUrl(pageState?.url ?? '')
+                      setSuggestionQuery('')
+                    }
                   }}
                   onChange={(event) => {
                     setSuggestionsVisible(true)
@@ -1011,6 +1099,7 @@ export function BrowserSession({
                   }}
                   onFocus={(event) => {
                     setUrlDraft((current) => current ?? pageState?.url ?? '')
+                    setSuggestionOriginUrl(pageState?.url ?? '')
                     setSuggestionQuery('')
                     selectFocusedOmniboxOnNextFrame(event.currentTarget)
                   }}
@@ -1020,6 +1109,7 @@ export function BrowserSession({
                     setSuggestionQuery(null)
                     setUrlDraft(null)
                     setActiveSuggestion(null)
+                    setSuggestionOriginUrl('')
                   }}
                   onKeyDown={(event) => {
                     event.stopPropagation()

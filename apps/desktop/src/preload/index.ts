@@ -185,6 +185,10 @@ const api: SimDesktopApi = {
       scopeId: string
     ): Promise<BrowserToolResponse> =>
       ipcRenderer.invoke('browser-agent:execute-tool', toolCallId, tool, params, scopeId),
+    cancelTool: (toolCallId: string, scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:cancel-tool', toolCallId, scopeId),
+    cancelActiveTool: (scopeId: string): Promise<boolean> =>
+      ipcRenderer.invoke('browser-agent:cancel-active-tool', scopeId),
     panelAction: (action: BrowserPanelAction, scopeId: string): void => {
       ipcRenderer.send('browser-agent:panel-action', action, scopeId)
     },

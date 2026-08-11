@@ -26,6 +26,10 @@ import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain } from 'electron'
 import {
+  type BrowserToolQueueBoundary,
+  cancelActiveTool,
+  cancelTool,
+  captureBrowserToolQueueBoundary,
   clearBrowsingData,
   disposeBrowserScope,
   executeTool,
@@ -746,12 +750,53 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
-      handler: (scope, tool, params) => {
-        if (typeof scope !== 'string' || typeof tool !== 'string' || !isBrowserToolName(tool)) {
+      handler: (scope, toolCallId, tool, params, authorizationBoundary) => {
+        if (
+          typeof scope !== 'string' ||
+          typeof toolCallId !== 'string' ||
+          typeof tool !== 'string' ||
+          !isBrowserToolName(tool)
+        ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
         const toolParams = isRecordLike(params) ? params : {}
-        return executeTool(scope, tool, toolParams)
+        return executeTool(
+          scope,
+          tool,
+          toolParams,
+          toolCallId,
+          authorizationBoundary as BrowserToolQueueBoundary | undefined
+        )
+      },
+    },
+    'browser-agent:cancel-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, toolCallId, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (
+          !scope ||
+          typeof toolCallId !== 'string' ||
+          toolCallId.length < 1 ||
+          toolCallId.length > 256
+        ) {
+          return false
+        }
+        return cancelTool(scope, toolCallId)
+      },
+    },
+    'browser-agent:cancel-active-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? cancelActiveTool(scope) : false
       },
     },
     'browser-agent:get-tabs-state': {
@@ -1691,6 +1736,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         let handlerArgs = args
         if (channel === 'browser-agent:execute-tool') {
           const requestedTool = args[1]
+          const requestedScope = parseDesktopScope(args[3])
+          const authorizationBoundary = requestedScope
+            ? captureBrowserToolQueueBoundary(requestedScope)
+            : undefined
           const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
           if (
             !authorization ||
@@ -1703,7 +1752,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
               error: 'This browser action is not an authorized pending Copilot tool call.',
             }
           }
-          handlerArgs = [authorization.chatId, authorization.toolName, authorization.args]
+          handlerArgs = [
+            authorization.chatId,
+            args[0],
+            authorization.toolName,
+            authorization.args,
+            authorizationBoundary,
+          ]
         }
         if (channel === 'terminal:execute-tool') {
           const requestedTool = args[1]

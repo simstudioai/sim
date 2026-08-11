@@ -10,7 +10,7 @@ import {
   useState,
 } from 'react'
 import type { BrowserTabState } from '@sim/browser-protocol'
-import { TabStrip, type TabStripItem, toast } from '@sim/emcn'
+import { cn, TabStrip, type TabStripItem, toast } from '@sim/emcn'
 import { Globe, Loader } from '@sim/emcn/icons'
 import { ThinkingLoader } from '@/components/ui'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
@@ -19,6 +19,7 @@ import { getDesktopBridge } from '@/lib/desktop'
 import {
   browserTabHostname,
   browserTabTitle,
+  shouldShowBrowserTabSpinner,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 
@@ -42,32 +43,38 @@ interface BrowserTabStripProps {
 
 function BrowserTabIcon({ tab }: { tab: BrowserTabState }) {
   const hostname = browserTabHostname(tab.url)
+  const [loadedHostname, setLoadedHostname] = useState<string | null>(null)
   const [failedHostname, setFailedHostname] = useState<string | null>(null)
-  const showFallback = !hostname || failedHostname === hostname
+  const faviconLoaded = Boolean(hostname && loadedHostname === hostname)
+  const faviconFailed = Boolean(hostname && failedHostname === hostname)
+  const showSpinner = shouldShowBrowserTabSpinner(tab.loading, hostname, loadedHostname)
 
-  if (tab.loading) {
-    return (
-      <span className='flex size-[16px] shrink-0 items-center justify-center'>
+  return (
+    <span className='relative flex size-[16px] shrink-0 items-center justify-center'>
+      {hostname && !faviconFailed && (
+        <img
+          key={hostname}
+          src={faviconUrl(hostname, 32)}
+          alt=''
+          className={cn(
+            'size-[16px] rounded-[3px]',
+            !faviconLoaded && 'pointer-events-none absolute opacity-0'
+          )}
+          onLoad={() => setLoadedHostname(hostname)}
+          onError={() => setFailedHostname(hostname)}
+        />
+      )}
+      {showSpinner ? (
         <Loader
           animate
           className='size-[14px] text-[var(--text-icon)]'
           strokeWidth={2}
           style={{ animationDuration: '650ms' }}
         />
-      </span>
-    )
-  }
-
-  return showFallback ? (
-    <Globe className='size-[12px] shrink-0 text-[var(--text-icon)]' />
-  ) : (
-    <img
-      key={hostname}
-      src={faviconUrl(hostname, 32)}
-      alt=''
-      className='size-[16px] shrink-0 rounded-[3px]'
-      onError={() => setFailedHostname(hostname)}
-    />
+      ) : !faviconLoaded || faviconFailed ? (
+        <Globe className='size-[12px] text-[var(--text-icon)]' />
+      ) : null}
+    </span>
   )
 }
 
@@ -109,12 +116,17 @@ export function BrowserTabStrip({
         return {
           id: tab.tabId,
           title: browserTabTitle(tab),
-          icon: isAutomationRunning ? (
-            <span className='flex size-[16px] shrink-0 items-center justify-center'>
-              <ThinkingLoader size={14} startVariant='corners' />
+          icon: (
+            <span className='relative flex size-[16px] shrink-0 items-center justify-center'>
+              <span className={cn(isAutomationRunning && 'invisible')}>
+                <BrowserTabIcon tab={tab} />
+              </span>
+              {isAutomationRunning && (
+                <span className='absolute inset-0 flex items-center justify-center'>
+                  <ThinkingLoader size={14} startVariant='corners' />
+                </span>
+              )}
             </span>
-          ) : (
-            <BrowserTabIcon tab={tab} />
           ),
           active: tab.tabId === activeTabId,
           attention:

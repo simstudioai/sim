@@ -36,6 +36,10 @@ interface BrowserSessionState {
   setTabsState: (state: BrowserTabsState) => void
   setAgentRunActive: (scopeId: string, runId: string, active: boolean) => void
   clearAgentRuns: (scopeId: string) => void
+  clearAgentRunIds: (
+    runIds: readonly string[],
+    options?: { hardResetScopeIds?: readonly string[] }
+  ) => void
   reorderTab: (scopeId: string, tabId: string, targetIndex: number) => void
   setSessionAlive: (alive: boolean, scopeId: string) => void
 }
@@ -319,6 +323,38 @@ export const useBrowserSessionStore = create<BrowserSessionState>()(
                 }
           )
         ),
+      clearAgentRunIds: (runIds, options) =>
+        set((state) => {
+          const ids = new Set(runIds)
+          const hardResetScopes = new Set(options?.hardResetScopeIds ?? [])
+          if (ids.size === 0 && hardResetScopes.size === 0) return {}
+          let changed = false
+          const sessions = Object.fromEntries(
+            Object.entries(state.sessions).map(([id, session]) => {
+              const agentRunIds = session.agentRunIds.filter((runId) => !ids.has(runId))
+              const hardResetActivity = hardResetScopes.has(id)
+              if (agentRunIds.length === session.agentRunIds.length && !hardResetActivity) {
+                return [id, session]
+              }
+              changed = true
+              return [
+                id,
+                {
+                  ...session,
+                  agentRunIds,
+                  ...(hardResetActivity
+                    ? { automationActive: false, automationNeedsAttention: false }
+                    : {}),
+                  automationTabId:
+                    agentRunIds.length === 0 && (hardResetActivity || !session.automationActive)
+                      ? null
+                      : session.automationTabId,
+                },
+              ]
+            })
+          )
+          return changed ? { sessions } : {}
+        }),
       reorderTab: (scopeId, tabId, targetIndex) =>
         set((state) =>
           withSession(state, scopeId, (current) => {

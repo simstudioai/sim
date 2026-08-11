@@ -148,6 +148,10 @@ export interface SimDesktopBrowserAgentApi {
     params: Record<string, unknown>,
     scopeId: string
   ): Promise<BrowserToolResponse>
+  /** Cancel one exact in-flight tool. Optional for compatibility with older shells. */
+  cancelTool?(toolCallId: string, scopeId: string): Promise<boolean>
+  /** Cancel the currently active tool in a scope after renderer state was lost. */
+  cancelActiveTool?(scopeId: string): Promise<boolean>
   /** Browser-chrome commands from the panel (URL bar, back, reload, takeover hand-back). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
   /**

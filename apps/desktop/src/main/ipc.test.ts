@@ -669,6 +669,64 @@ describe('registerIpcHandlers', () => {
     )
   })
 
+  it('routes exact browser-tool cancellation without waiting for authorization', async () => {
+    const { invoke } = collectHandlers()
+    const cancel = vi.spyOn(browserDriver, 'cancelTool').mockReturnValue(true)
+    const cancelActive = vi.spyOn(browserDriver, 'cancelActiveTool').mockReturnValue(true)
+    const handler = invoke.get('browser-agent:cancel-tool')
+    const activeHandler = invoke.get('browser-agent:cancel-active-tool')
+
+    await expect(handler?.(appEvent, 'tool-1', 'chat-1')).resolves.toBe(true)
+    expect(cancel).toHaveBeenCalledWith('chat-1', 'tool-1')
+    await expect(activeHandler?.(appEvent, 'chat-reloaded')).resolves.toBe(true)
+    expect(cancelActive).toHaveBeenCalledWith('chat-reloaded')
+    await expect(handler?.(evilEvent, 'tool-2', 'chat-1')).resolves.toBe(false)
+    await expect(activeHandler?.(evilEvent, 'chat-reloaded')).resolves.toBe(false)
+    expect(cancel).toHaveBeenCalledTimes(1)
+    expect(cancelActive).toHaveBeenCalledTimes(1)
+    cancel.mockRestore()
+    cancelActive.mockRestore()
+  })
+
+  it('rejects a browser tool authorized after its scope cancellation boundary', async () => {
+    const { invoke } = collectHandlers()
+    const executeHandler = invoke.get('browser-agent:execute-tool')
+    const cancelActiveHandler = invoke.get('browser-agent:cancel-active-tool')
+    let resolveAuthorization: (response: Response) => void = () => {}
+    const fetchAuthorization = vi.fn(
+      () =>
+        new Promise<Response>((resolve) => {
+          resolveAuthorization = resolve
+        })
+    )
+    const delayedEvent = {
+      senderFrame: { url: `${APP}/workspace/ws1` },
+      sender: { session: { fetch: fetchAuthorization } },
+    }
+
+    const execution = executeHandler?.(
+      delayedEvent,
+      'tool-delayed-authorization',
+      'browser_open_tab',
+      {},
+      'chat-delayed-authorization'
+    )
+    await Promise.resolve()
+    await cancelActiveHandler?.(delayedEvent, 'chat-delayed-authorization')
+    resolveAuthorization(
+      Response.json({
+        chatId: 'chat-delayed-authorization',
+        toolName: 'browser_open_tab',
+        args: {},
+      })
+    )
+
+    await expect(execution).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
   it('routes terminal tools by the server-authorized chat, not renderer scope', async () => {
     const { invoke } = collectHandlers()
     const executeTool = vi.spyOn(deps.terminal, 'executeTool').mockResolvedValue({ ok: true })

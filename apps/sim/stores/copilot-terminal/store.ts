@@ -17,6 +17,8 @@ export interface CopilotTerminalSessionData {
   tabs: TerminalTabsState
   /** Exact terminal targeted by each currently running agent command. */
   agentCommandTerminalIds: Record<string, string>
+  /** Remount key for immediately settling activity chrome at a stream boundary. */
+  activityResetEpoch: number
   /** Live PTYs were stopped while the restart descriptor was retained. */
   suspended: boolean
 }
@@ -32,18 +34,28 @@ export interface CopilotTerminalSessionData {
 interface CopilotTerminalState {
   activeScopeId: string | null
   sessions: Record<string, CopilotTerminalSessionData>
+  /** Recently hard-settled tool ids whose delayed native starts must be ignored. */
+  settledAgentCommandIds: string[]
   activateScope: (scopeId: string) => void
   migrateScope: (fromScopeId: string, toScopeId: string) => void
   discardScope: (scopeId: string) => void
   suspendScope: (scopeId: string) => void
   setTabs: (tabs: ScopedTerminalTabsState) => void
   applyCommandEvent: (event: ScopedTerminalCommandEvent) => void
+  clearAgentCommands: (
+    scopeId: string,
+    toolCallIds: readonly string[],
+    options: { hardResetActivity: boolean }
+  ) => void
 }
+
+const MAX_SETTLED_AGENT_COMMAND_IDS = 256
 
 function createInitialSession(): CopilotTerminalSessionData {
   return {
     tabs: { tabs: [], activeTerminalId: null },
     agentCommandTerminalIds: {},
+    activityResetEpoch: 0,
     suspended: false,
   }
 }
@@ -105,6 +117,7 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
     (set) => ({
       activeScopeId: null,
       sessions: {},
+      settledAgentCommandIds: [],
       activateScope: (scopeId) =>
         set((state) => activateScopedSession(state, scopeId, createInitialSession)),
       migrateScope: (fromScopeId, toScopeId) =>
@@ -124,6 +137,7 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
             return {
               tabs: { tabs: [], activeTerminalId: null },
               agentCommandTerminalIds: {},
+              activityResetEpoch: (current.activityResetEpoch ?? 0) + 1,
               suspended: true,
             }
           })
@@ -150,7 +164,10 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
         set((state) => {
           const toolCallId = event.toolCallId
           if (!toolCallId) return {}
-          return withSession(state, event.scopeId, (current) => {
+          const settledIds = state.settledAgentCommandIds ?? []
+          const wasHardSettled = settledIds.includes(toolCallId)
+          if (event.phase === 'start' && wasHardSettled) return {}
+          const sessionUpdate = withSession(state, event.scopeId, (current) => {
             if (current.suspended) return current
             if (event.phase === 'start') {
               if (current.agentCommandTerminalIds[toolCallId] === event.terminalId) return current
@@ -167,6 +184,55 @@ export const useCopilotTerminalStore = create<CopilotTerminalState>()(
               current.agentCommandTerminalIds
             return { ...current, agentCommandTerminalIds }
           })
+          if (!wasHardSettled) return sessionUpdate
+          return {
+            ...sessionUpdate,
+            settledAgentCommandIds: settledIds.filter((settledId) => settledId !== toolCallId),
+          }
+        }),
+      clearAgentCommands: (scopeId, toolCallIds, options) =>
+        set((state) => {
+          const ids = new Set(toolCallIds)
+          const previousSettledIds = state.settledAgentCommandIds ?? []
+          const settledAgentCommandIds = [
+            ...previousSettledIds.filter((toolCallId) => !ids.has(toolCallId)),
+            ...ids,
+          ].slice(-MAX_SETTLED_AGENT_COMMAND_IDS)
+          let changed = false
+          const sessions = Object.fromEntries(
+            Object.entries(state.sessions).map(([id, session]) => {
+              const agentCommandTerminalIds = Object.fromEntries(
+                Object.entries(session.agentCommandTerminalIds).filter(
+                  ([toolCallId]) => !ids.has(toolCallId)
+                )
+              )
+              const commandsChanged =
+                Object.keys(agentCommandTerminalIds).length !==
+                Object.keys(session.agentCommandTerminalIds).length
+              const resetActivity = options.hardResetActivity && (id === scopeId || commandsChanged)
+              if (!commandsChanged && !resetActivity) return [id, session]
+              changed = true
+              return [
+                id,
+                {
+                  ...session,
+                  agentCommandTerminalIds,
+                  ...(resetActivity
+                    ? { activityResetEpoch: (session.activityResetEpoch ?? 0) + 1 }
+                    : {}),
+                },
+              ]
+            })
+          )
+          const settledChanged =
+            settledAgentCommandIds.length !== previousSettledIds.length ||
+            settledAgentCommandIds.some(
+              (toolCallId, index) => toolCallId !== previousSettledIds[index]
+            )
+          return {
+            ...(changed ? { sessions } : {}),
+            ...(settledChanged ? { settledAgentCommandIds } : {}),
+          }
         }),
     }),
     { name: 'copilot-terminal-store' }

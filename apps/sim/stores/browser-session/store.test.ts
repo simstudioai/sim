@@ -288,6 +288,38 @@ describe('browser session store', () => {
     expect(getBrowserSession('chat-test').automationTabId).toBeNull()
   })
 
+  it('hard-settles an old stream without clearing a newer browser run', () => {
+    const store = useBrowserSessionStore.getState()
+    store.setTabsState({
+      scopeId: 'chat-test',
+      activeTabId: 'tab-1',
+      automationTabId: 'tab-1',
+      automationActive: true,
+      automationNeedsAttention: true,
+      tabs: [
+        {
+          tabId: 'tab-1',
+          title: 'Current page',
+          url: 'https://example.com',
+          loading: false,
+          active: true,
+          pinned: false,
+        },
+      ],
+    })
+    store.setAgentRunActive('chat-test', 'browser-run-old', true)
+    store.setAgentRunActive('chat-test', 'browser-run-new', true)
+
+    store.clearAgentRunIds(['browser-run-old'], { hardResetScopeIds: ['chat-test'] })
+
+    expect(getBrowserSession('chat-test')).toMatchObject({
+      agentRunIds: ['browser-run-new'],
+      automationTabId: 'tab-1',
+      automationActive: false,
+      automationNeedsAttention: false,
+    })
+  })
+
   it('replaces a pristine durable bucket created before pending migration finishes', () => {
     const store = useBrowserSessionStore.getState()
     store.setPageState({

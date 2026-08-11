@@ -6,6 +6,8 @@ import {
   browserPanelSnapshotStyle,
   browserSelectionContext,
   clearOmniboxSelection,
+  hasConfirmedBrowserTabCreation,
+  initialUrlSuggestionIndex,
   resolveUrlBarInput,
   selectFocusedOmniboxOnNextFrame,
   shouldOpenUrlSuggestions,
@@ -175,6 +177,30 @@ describe('shouldOpenUrlSuggestions', () => {
   it('stays closed with nothing to suggest, however the frame is owned', () => {
     expect(shouldOpenUrlSuggestions('suggestions', 0)).toBe(false)
     expect(shouldOpenUrlSuggestions(null, 0)).toBe(false)
+  })
+})
+
+describe('initialUrlSuggestionIndex', () => {
+  it('selects the first suggestion on a new tab', () => {
+    expect(initialUrlSuggestionIndex('', 3)).toBe(0)
+    expect(initialUrlSuggestionIndex('about:blank', 3)).toBe(0)
+  })
+
+  it('leaves existing pages unselected so Enter submits the current URL', () => {
+    expect(initialUrlSuggestionIndex('https://sim.ai', 3)).toBeNull()
+  })
+
+  it('selects nothing when there are no suggestions', () => {
+    expect(initialUrlSuggestionIndex('', 0)).toBeNull()
+  })
+})
+
+describe('hasConfirmedBrowserTabCreation', () => {
+  it('requires both a larger strip and a distinct active tab', () => {
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 2)).toBe(true)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-1', 2)).toBe(false)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, 'tab-2', 1)).toBe(false)
+    expect(hasConfirmedBrowserTabCreation('tab-1', 1, null, 2)).toBe(false)
   })
 })
 

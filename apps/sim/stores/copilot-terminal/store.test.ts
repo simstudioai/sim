@@ -31,14 +31,10 @@ function activateTestScope() {
 
 describe('copilot terminal store', () => {
   beforeEach(() => {
-    const session = {
-      tabs: { tabs: [], activeTerminalId: null },
-      agentCommandTerminalIds: {},
-      suspended: false,
-    }
     useCopilotTerminalStore.setState({
       activeScopeId: null,
       sessions: {},
+      settledAgentCommandIds: [],
     })
   })
 
@@ -234,8 +230,61 @@ describe('copilot terminal store', () => {
     expect(getCopilotTerminalSession('chat-a')).toEqual({
       tabs: { tabs: [], activeTerminalId: null },
       agentCommandTerminalIds: {},
+      activityResetEpoch: 1,
       suspended: true,
     })
+  })
+
+  it('stale-settles exact commands without resetting a newer command in the same chat', () => {
+    const store = useCopilotTerminalStore.getState()
+    store.activateScope(TEST_SCOPE)
+    store.applyCommandEvent({
+      scopeId: TEST_SCOPE,
+      terminalId: 't1',
+      phase: 'start',
+      command: 'old',
+      toolCallId: 'tool-old',
+    })
+    store.applyCommandEvent({
+      scopeId: TEST_SCOPE,
+      terminalId: 't1',
+      phase: 'start',
+      command: 'new',
+      toolCallId: 'tool-new',
+    })
+
+    store.clearAgentCommands(TEST_SCOPE, ['tool-old'], { hardResetActivity: false })
+
+    expect(getCopilotTerminalSession(TEST_SCOPE)).toMatchObject({
+      agentCommandTerminalIds: { 'tool-new': 't1' },
+      activityResetEpoch: 0,
+    })
+  })
+
+  it('ignores a delayed native start after its stream hard-settles', () => {
+    const store = useCopilotTerminalStore.getState()
+    store.activateScope(TEST_SCOPE)
+
+    store.clearAgentCommands(TEST_SCOPE, ['tool-late'], { hardResetActivity: true })
+    expect(getCopilotTerminalSession(TEST_SCOPE).activityResetEpoch).toBe(1)
+    store.applyCommandEvent({
+      scopeId: TEST_SCOPE,
+      terminalId: 't1',
+      phase: 'start',
+      command: 'late',
+      toolCallId: 'tool-late',
+    })
+
+    expect(getCopilotTerminalSession(TEST_SCOPE).agentCommandTerminalIds).toEqual({})
+
+    store.applyCommandEvent({
+      scopeId: TEST_SCOPE,
+      terminalId: 't1',
+      phase: 'end',
+      command: 'late',
+      toolCallId: 'tool-late',
+    })
+    expect(useCopilotTerminalStore.getState().settledAgentCommandIds).not.toContain('tool-late')
   })
 
   it('clears suspension on explicit activation, including the already-active scope', () => {

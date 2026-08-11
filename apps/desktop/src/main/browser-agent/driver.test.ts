@@ -176,6 +176,150 @@ describe('executeTool', () => {
     }
   })
 
+  it('cancels the exact takeover and clears its attention state immediately', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const takeover = driver.executeTool(
+        'chat-test',
+        'browser_request_takeover',
+        { reason: 'Please finish in the browser' },
+        'tool-takeover'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(session.getTabsState().automationNeedsAttention).toBe(true)
+
+      expect(driver.cancelTool('chat-test', 'tool-takeover')).toBe(true)
+      expect(session.getTabsState().automationNeedsAttention).toBe(false)
+      await vi.advanceTimersByTimeAsync(1_500)
+
+      await expect(takeover).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(
+        driver.executeTool('chat-test', 'browser_list_tabs', {}, 'tool-takeover')
+      ).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled before it started'),
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('does not let cancelled takeover cleanup clear a newer takeover', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const firstTakeover = driver.executeTool(
+        'chat-test',
+        'browser_request_takeover',
+        { reason: 'First handoff' },
+        'tool-takeover-first'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+
+      expect(driver.cancelTool('chat-test', 'tool-takeover-first')).toBe(true)
+      await expect(firstTakeover).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+
+      const secondTakeover = driver.executeTool(
+        'chat-test',
+        'browser_request_takeover',
+        { reason: 'Second handoff' },
+        'tool-takeover-second'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(session.getTabsState().automationNeedsAttention).toBe(true)
+
+      // Let the detached first takeover observe cancellation and run finally.
+      await vi.advanceTimersByTimeAsync(1_500)
+      expect(session.getTabsState().automationNeedsAttention).toBe(true)
+
+      await driver.handlePanelAction('chat-test', { action: 'takeover-done' })
+      await vi.advanceTimersByTimeAsync(1_500)
+      await expect(secondTakeover).resolves.toMatchObject({
+        ok: true,
+        result: { completed: true },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('honors cancellation that arrives before the authorized tool invocation', async () => {
+    expect(driver.cancelTool('chat-test', 'tool-before-authorization')).toBe(true)
+
+    await expect(
+      driver.executeTool('chat-test', 'browser_list_tabs', {}, 'tool-before-authorization')
+    ).resolves.toMatchObject({
+      ok: false,
+      error: expect.stringContaining('cancelled before it started'),
+    })
+  })
+
+  it('settles native automation activity immediately when an active tool is cancelled', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-waiting'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      expect(session.getTabsState().automationActive).toBe(true)
+
+      expect(driver.cancelActiveTool('chat-test')).toBe(true)
+      await vi.advanceTimersByTimeAsync(0)
+      expect(session.getTabsState().automationActive).toBe(false)
+      await expect(waiting).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('cancels queued pre-boundary tools while allowing later browser work', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const waiting = driver.executeTool(
+        'chat-test',
+        'browser_wait_for',
+        { timeoutMs: 120_000 },
+        'tool-active'
+      )
+      await vi.advanceTimersByTimeAsync(0)
+      const queuedOpen = driver.executeTool('chat-test', 'browser_open_tab', {}, 'tool-queued')
+
+      expect(driver.cancelActiveTool('chat-test')).toBe(true)
+
+      await expect(waiting).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled'),
+      })
+      await expect(queuedOpen).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('cancelled before it started'),
+      })
+      expect(session.getTabsState().tabs).toHaveLength(1)
+
+      await expect(
+        driver.executeTool('chat-test', 'browser_open_tab', {}, 'tool-after-boundary')
+      ).resolves.toMatchObject({ ok: true })
+      expect(session.getTabsState().tabs).toHaveLength(2)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('releases an abandoned takeover when a newer browser action arrives', async () => {
     await driver.executeTool('chat-test', 'browser_open_tab', {})
     vi.useFakeTimers()

@@ -23,6 +23,7 @@ import {
   NATIVE_SURFACE_OCCLUSION_PREPARE_EVENT,
   TabStrip,
   type TabStripItem,
+  type TabStripSelectionSource,
   toast,
 } from '@sim/emcn'
 import { TerminalWindow } from '@sim/emcn/icons'
@@ -35,7 +36,6 @@ import { type IBufferRange, Terminal } from '@xterm/xterm'
 import { useTheme } from 'next-themes'
 import '@xterm/xterm/css/xterm.css'
 import type { TerminalTabState, TerminalTabsState } from '@sim/terminal-protocol'
-import { ThinkingLoader } from '@/components/ui'
 import { SIM_RESOURCE_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { TERMINAL_SESSION_RESOURCE_ID } from '@/lib/copilot/resources/types'
 import { getDesktopBridge } from '@/lib/desktop'
@@ -67,6 +67,7 @@ import {
 } from '@/lib/terminal/transport'
 import { useMothershipResources } from '@/app/workspace/[workspaceId]/home/components/mothership-resources-context'
 import { TerminalContextMenu } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-context-menu'
+import { TerminalTabIcon } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/terminal-session/terminal-tab-icon'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { useDesktopPreferenceMutation } from '@/hooks/use-desktop-preference-mutation'
@@ -78,6 +79,12 @@ const EMPTY_TERMINAL_TABS: TerminalTabsState = { tabs: [], activeTerminalId: nul
 const EMPTY_AGENT_COMMAND_TERMINAL_IDS: Record<string, string> = {}
 const TERMINAL_BASE_FONT_SIZE = 12
 const TERMINAL_ZOOM_BOUNDS = { min: 50, max: 300 } as const
+
+/** Fits xterm to its current host while preserving the addon's method binding. */
+function fitTerminal(addon: FitAddon): void {
+  const fitToHost = addon.fit.bind(addon)
+  fitToHost()
+}
 
 /**
  * Radix keeps closed menus mounted for their exit animation. A full-screen
@@ -508,8 +515,7 @@ const TerminalView = memo(function TerminalView({
         // not that it shrank. Fitting to that would resize the pty to nonsense.
         if (!onscreenRef.current || host.clientWidth <= 0 || host.clientHeight <= 0) return
         try {
-          // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon method, not a focused test.
-          fitAddon.fit()
+          fitTerminal(fitAddon)
         } catch {
           // Zero-sized while animating; the next observation refits.
         }
@@ -560,8 +566,8 @@ const TerminalView = memo(function TerminalView({
     const frame = requestAnimationFrame(() => {
       if (host.clientWidth <= 0 || host.clientHeight <= 0) return
       try {
-        // biome-ignore lint/suspicious/noFocusedTests: xterm FitAddon method, not a focused test.
-        fitRef.current?.fit()
+        const fitAddon = fitRef.current
+        if (fitAddon) fitTerminal(fitAddon)
       } catch {
         // Panel still animating; the ResizeObserver refits.
       }
@@ -762,6 +768,9 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
   const agentCommandTerminalIds = useCopilotTerminalStore(
     (state) => state.sessions[scopeId]?.agentCommandTerminalIds ?? EMPTY_AGENT_COMMAND_TERMINAL_IDS
   )
+  const activityResetEpoch = useCopilotTerminalStore(
+    (state) => state.sessions[scopeId]?.activityResetEpoch ?? 0
+  )
   const { tabs, activeTerminalId } = tabsState
   const agentCommandTargets = useMemo(
     () => new Set(Object.values(agentCommandTerminalIds)),
@@ -890,17 +899,16 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
         // is not naming yet, so hovering gives the whole picture: where the
         // shell is, and what it is doing there.
         tooltip: terminalTooltip(tab),
-        icon: isAgentCommandRunning ? (
-          <span className='flex size-[12px] shrink-0 items-center justify-center'>
-            <ThinkingLoader size={12} startVariant='corners' />
-          </span>
-        ) : (
-          <TerminalWindow className='size-[12px] shrink-0 text-[var(--text-icon)]' />
+        icon: (
+          <TerminalTabIcon
+            key={`${tab.terminalId}:${activityResetEpoch}`}
+            active={isAgentCommandRunning}
+          />
         ),
         active: tab.terminalId === activeTerminalId,
       }
     })
-  }, [tabs, activeTerminalId, agentCommandTargets, settledCommands])
+  }, [tabs, activeTerminalId, agentCommandTargets, activityResetEpoch, settledCommands])
 
   const [contextTerminalId, setContextTerminalId] = useState<string | null>(null)
   const {
@@ -945,8 +953,10 @@ export function TerminalSession({ visible, scopeId }: TerminalSessionProps) {
       })
   }, [scopeId])
   const handleSwitch = useCallback(
-    (terminalId: string) => {
-      setFocusRequest((current) => ({ terminalId, nonce: current.nonce + 1 }))
+    (terminalId: string, source?: TabStripSelectionSource) => {
+      if (source !== 'keyboard') {
+        setFocusRequest((current) => ({ terminalId, nonce: current.nonce + 1 }))
+      }
       void switchTerminal(terminalId, scopeId).catch(() => {
         toast.error('Could not switch terminals. Please try again.')
       })

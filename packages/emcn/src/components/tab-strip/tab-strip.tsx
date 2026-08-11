@@ -51,9 +51,12 @@ export interface TabStripItem {
   attention?: boolean
 }
 
+/** How a tab selection was initiated. */
+export type TabStripSelectionSource = 'pointer' | 'keyboard'
+
 export interface TabStripProps {
   tabs: TabStripItem[]
-  onSelect: (id: string) => void
+  onSelect: (id: string, source?: TabStripSelectionSource) => void
   /** Omit to make tabs uncloseable. Never offered for a pinned tab. */
   onClose?: (id: string) => void
   /** Omit to hide the new-tab button. */
@@ -128,7 +131,7 @@ export function tabDropIndex(
 
 interface TabProps {
   tab: TabStripItem
-  onSelect: (id: string) => void
+  onSelect: (id: string, source?: TabStripSelectionSource) => void
   onClose?: (id: string) => void
   onContextMenu?: (event: ReactMouseEvent<HTMLDivElement>, id: string) => void
   onKeyDown: (event: ReactKeyboardEvent<HTMLButtonElement>, id: string) => void
@@ -229,7 +232,7 @@ const Tab = forwardRef<HTMLDivElement, TabProps>(function Tab(
               tab.active &&
                 'hover-hover:!border-[var(--border)] hover-hover:!bg-[var(--bg)] hover-hover:!text-[var(--text-primary)] hover-hover:!brightness-100 hover-hover:!opacity-100 relative z-10 border-[var(--border)] bg-[var(--bg)] text-[var(--text-primary)] transition-none'
             )}
-            onClick={() => onSelect(tab.id)}
+            onClick={() => onSelect(tab.id, 'pointer')}
             onKeyDown={(event) => onKeyDown(event, tab.id)}
           >
             {tab.icon}
@@ -543,7 +546,7 @@ export function TabStrip({
       }
       if (!target) return
       event.preventDefault()
-      onSelect(target.id)
+      onSelect(target.id, 'keyboard')
       focusTab(target.id)
     },
     [focusTab, onClose, onSelect, tabs]

@@ -27,7 +27,11 @@ import {
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import { initBrowserAgentTransport, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import {
+  cancelActiveBrowserTools,
+  initBrowserAgentTransport,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -97,6 +101,16 @@ import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
 import {
+  captureResourceActivityScope,
+  clearResourceActivityScope,
+  clearTrackedResourceActivity,
+  createResourceActivityTracker,
+  excludeActivityOwnedBy,
+  type ResourceActivityTracker,
+  setTrackedBrowserRun,
+  trackTerminalToolCall,
+} from '@/app/workspace/[workspaceId]/home/hooks/resource-activity'
+import {
   applyTurnTerminal,
   createStreamLoopContext,
   dispatchStreamEvent,
@@ -114,7 +128,6 @@ import { getTopInsertionSortOrder } from '@/hooks/queries/utils/top-insertion-so
 import { getWorkflowById, getWorkflows } from '@/hooks/queries/utils/workflow-cache'
 import { workflowKeys } from '@/hooks/queries/workflows'
 import { useExecutionStream } from '@/hooks/use-execution-stream'
-import { useBrowserSessionStore } from '@/stores/browser-session/store'
 import { useExecutionStore } from '@/stores/execution/store'
 import { useMothershipQueueStore } from '@/stores/mothership-queue/store'
 import type {
@@ -1459,6 +1472,7 @@ export function useChat(
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
+  const resourceActivityTrackerRef = useRef<ResourceActivityTracker | null>(null)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
@@ -1648,11 +1662,29 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const activeActivityTracker = resourceActivityTrackerRef.current
+      if (activeActivityTracker?.generation === streamGenRef.current) {
+        if (wasPending) {
+          // Do not switch writes to the durable bucket until its async native
+          // + renderer migration has completed; pre-populating it makes the
+          // scoped-store migration treat the destination as conflicting.
+          activeActivityTracker.scopeIds.add(resolvedDesktopScopeId)
+        } else {
+          captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+        }
+      }
       const migrateDesktopResources = wasPending
         ? migrateDesktopChatScopes(pendingDesktopScopeId, resolvedDesktopScopeId)
         : Promise.resolve()
       void migrateDesktopResources
         .then(() => {
+          if (
+            wasPending &&
+            activeActivityTracker?.generation === streamGenRef.current &&
+            resourceActivityTrackerRef.current === activeActivityTracker
+          ) {
+            captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+          }
           // Migration crosses IPC. The user can select another chat while it
           // is in flight, so re-read the live selection before activating;
           // the value captured above is only valid for the synchronous state
@@ -1900,40 +1932,87 @@ export function useChat(
     onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
   }, [addResource])
 
+  const getResourceActivityTracker = useCallback(
+    (generation: number, targetChatId?: string) => {
+      let tracker = resourceActivityTrackerRef.current
+      if (!tracker || tracker.generation !== generation) {
+        const isCurrentGeneration = generation === streamGenRef.current
+        tracker = createResourceActivityTracker(
+          generation,
+          [activeTurnRef.current?.desktopScopeId ?? desktopScopeIdRef.current],
+          {
+            captureExisting: isCurrentGeneration,
+          }
+        )
+        if (isCurrentGeneration) {
+          resourceActivityTrackerRef.current = tracker
+        }
+      }
+      if (targetChatId) {
+        const targetScopeId = desktopChatScopeId(workspaceId, targetChatId)
+        if (
+          tracker.generation === streamGenRef.current &&
+          resourceActivityTrackerRef.current === tracker
+        ) {
+          captureResourceActivityScope(tracker, targetScopeId)
+        } else {
+          tracker.scopeIds.add(targetScopeId)
+          tracker.currentScopeId = targetScopeId
+        }
+      }
+      return tracker
+    },
+    [workspaceId]
+  )
+
+  const clearResourceActivity = useCallback(
+    (tracker: ResourceActivityTracker, captureCurrentScope: boolean) => {
+      const isCurrentBoundary =
+        captureCurrentScope &&
+        tracker.generation === streamGenRef.current &&
+        resourceActivityTrackerRef.current === tracker
+      if (isCurrentBoundary) {
+        captureResourceActivityScope(tracker, desktopScopeIdRef.current)
+        if (chatIdRef.current) {
+          captureResourceActivityScope(tracker, desktopChatScopeId(workspaceId, chatIdRef.current))
+        }
+      }
+      const currentTracker = resourceActivityTrackerRef.current
+      if (!isCurrentBoundary && currentTracker && currentTracker !== tracker) {
+        excludeActivityOwnedBy(tracker, currentTracker)
+      }
+      if (isCurrentBoundary) {
+        // The native tool may outlive an SSE reader or its AbortController.
+        // Fire cancellation without delaying the stream boundary below.
+        void cancelActiveBrowserTools(new Set(tracker.scopeIds))
+      }
+      clearTrackedResourceActivity(tracker, { hardResetActivity: isCurrentBoundary })
+      if (resourceActivityTrackerRef.current === tracker) {
+        resourceActivityTrackerRef.current = null
+      }
+    },
+    [workspaceId]
+  )
+
   const startClientBrowserTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string,
+      signal?: AbortSignal
+    ) => {
       if (!isBrowserToolName(toolName)) {
         return
       }
       openBrowserResource()
       // Replay/exactly-once guarding lives in executeBrowserToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run an action).
-      executeBrowserToolOnClient(
-        toolCallId,
-        toolName,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
     },
     [openBrowserResource]
   )
-
-  const startBrowserAgentRun = useCallback(
-    (runId: string) => {
-      openBrowserResource()
-      useBrowserSessionStore.getState().setAgentRunActive(desktopScopeIdRef.current, runId, true)
-    },
-    [openBrowserResource]
-  )
-
-  const endBrowserAgentRun = useCallback((runId: string) => {
-    useBrowserSessionStore.getState().setAgentRunActive(desktopScopeIdRef.current, runId, false)
-  }, [])
-
-  const clearBrowserAgentRuns = useCallback(() => {
-    useBrowserSessionStore.getState().clearAgentRuns(desktopScopeIdRef.current)
-  }, [])
 
   const openTerminalResource = useCallback(() => {
     addResource({
@@ -1945,19 +2024,20 @@ export function useChat(
   }, [addResource])
 
   const startClientTerminalTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string
+    ) => {
       if (!isTerminalToolName(toolName)) {
         return
       }
       openTerminalResource()
       // Replay/exactly-once guarding lives in executeTerminalToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(
-        toolCallId,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeTerminalToolOnClient(toolCallId, toolArgs, scopeId, eventTs)
     },
     [openTerminalResource]
   )
@@ -2193,6 +2273,15 @@ export function useChat(
       activeStreamId !== locallyTerminalStreamIdRef.current &&
       !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)
 
+    if (
+      !sendingRef.current &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
+    ) {
+      const hydratedScopeId = desktopChatScopeId(workspaceId, chatHistory.id)
+      clearResourceActivityScope(hydratedScopeId)
+      void cancelActiveBrowserTools([hydratedScopeId])
+    }
+
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
     }
@@ -2373,6 +2462,41 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
+      const streamAbortSignal = abortControllerRef.current?.signal
+      const activityTracker = getResourceActivityTracker(
+        expectedGen ?? streamGenRef.current,
+        options?.targetChatId
+      )
+      const activityScopeId = () => activityTracker.currentScopeId
+      const startBrowserAgentRunForStream = (runId: string) => {
+        openBrowserResource()
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, true)
+      }
+      const endBrowserAgentRunForStream = (runId: string) => {
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, false)
+      }
+      const startClientBrowserToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, streamAbortSignal)
+      }
+      const startClientTerminalToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        trackTerminalToolCall(activityTracker, scopeId, toolCallId)
+        startClientTerminalTool(toolCallId, toolName, toolArgs, scopeId, eventTs)
+      }
+      const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
         workspaceId,
         queryClient,
@@ -2389,11 +2513,11 @@ export function useChat(
         removeResource,
         startClientWorkflowTool,
         startClientLocalFilesystemTool,
-        startClientBrowserTool,
-        startClientTerminalTool,
-        startBrowserAgentRun,
-        endBrowserAgentRun,
-        clearBrowserAgentRuns,
+        startClientBrowserTool: startClientBrowserToolForStream,
+        startClientTerminalTool: startClientTerminalToolForStream,
+        startBrowserAgentRun: startBrowserAgentRunForStream,
+        endBrowserAgentRun: endBrowserAgentRunForStream,
+        clearBrowserAgentRuns: clearStreamResourceActivity,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2433,7 +2557,6 @@ export function useChat(
       }
       streamReaderRef.current = reader
 
-      let readFailed = false
       try {
         await readSSELines(reader, {
           onData: (raw) => {
@@ -2474,12 +2597,12 @@ export function useChat(
             if (state.sawCompleteEvent) return true
           },
         })
-      } catch (error) {
-        readFailed = true
-        throw error
       } finally {
-        if (readFailed || state.sawStreamError) {
-          clearBrowserAgentRuns()
+        // A transport read failure may reconnect this same generation. Keep
+        // its exact resource activity alive until a terminal stream event or
+        // finalize/Stop establishes the real boundary.
+        if (state.sawStreamError) {
+          clearStreamResourceActivity()
           state.browserAgentRunIds.clear()
         }
         if (state.sawStreamError && !state.sawCompleteEvent) {
@@ -2517,9 +2640,9 @@ export function useChat(
       startClientLocalFilesystemTool,
       startClientBrowserTool,
       startClientTerminalTool,
-      startBrowserAgentRun,
-      endBrowserAgentRun,
-      clearBrowserAgentRuns,
+      getResourceActivityTracker,
+      clearResourceActivity,
+      openBrowserResource,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
@@ -3485,6 +3608,10 @@ export function useChat(
         })
       }
       reconcileTerminalPreviewSessions()
+      const completedActivityTracker = resourceActivityTrackerRef.current
+      if (completedActivityTracker?.generation === streamGenRef.current) {
+        clearResourceActivity(completedActivityTracker, true)
+      }
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
       clearActiveTurn()
@@ -3497,6 +3624,7 @@ export function useChat(
       notifyTurnEnded({ error: isError })
     },
     [
+      clearResourceActivity,
       clearActiveTurn,
       invalidateChatQueries,
       notifyTurnEnded,
@@ -4367,7 +4495,22 @@ export function useChat(
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
       locallyTerminalStreamIdRef.current = sid
-      useBrowserSessionStore.getState().clearAgentRuns(desktopScopeIdRef.current)
+      const stopActivityTracker =
+        resourceActivityTrackerRef.current?.generation === streamGenRef.current
+          ? resourceActivityTrackerRef.current
+          : getResourceActivityTracker(streamGenRef.current, activeChatId)
+      captureResourceActivityScope(stopActivityTracker, desktopScopeIdRef.current)
+      if (chatIdRef.current) {
+        captureResourceActivityScope(
+          stopActivityTracker,
+          desktopChatScopeId(workspaceId, chatIdRef.current)
+        )
+      }
+      clearResourceActivity(stopActivityTracker, true)
+
+      // Establish the stream boundary immediately after synchronous activity
+      // settlement. Native cancellation above is deliberately fire-and-forget,
+      // so a slow shell cannot delay the server-side abort below.
       streamGenRef.current++
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})
@@ -4563,6 +4706,7 @@ export function useChat(
     },
     [
       cancelActiveWorkflowExecutions,
+      cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
       persistPartialResponse,
@@ -4571,7 +4715,9 @@ export function useChat(
       resetEphemeralPreviewState,
       upsertChatHistory,
       adoptResolvedChatId,
+      clearResourceActivity,
       clearActiveTurn,
+      getResourceActivityTracker,
       setTransportIdle,
       workspaceId,
     ]

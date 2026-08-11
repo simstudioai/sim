@@ -69,7 +69,7 @@ describe('TabStrip interactions', () => {
         new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true })
       )
     })
-    expect(onSelect).toHaveBeenCalledWith('two')
+    expect(onSelect).toHaveBeenCalledWith('two', 'keyboard')
     expect(document.activeElement).toBe(tabButton('two'))
 
     act(() => {
@@ -77,7 +77,7 @@ describe('TabStrip interactions', () => {
         new KeyboardEvent('keydown', { key: 'Home', bubbles: true, cancelable: true })
       )
     })
-    expect(onSelect).toHaveBeenLastCalledWith('pinned')
+    expect(onSelect).toHaveBeenLastCalledWith('pinned', 'keyboard')
 
     act(() => {
       tabButton('two').dispatchEvent(
@@ -85,6 +85,15 @@ describe('TabStrip interactions', () => {
       )
     })
     expect(onClose).toHaveBeenCalledWith('two')
+  })
+
+  it('identifies pointer selection separately from keyboard navigation', () => {
+    const onSelect = vi.fn()
+    mount(renderStrip(tabs, onSelect))
+
+    act(() => tabButton('two').click())
+
+    expect(onSelect).toHaveBeenCalledWith('two', 'pointer')
   })
 
   it('closes an unpinned tab with the middle mouse button', () => {

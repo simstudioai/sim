@@ -114,8 +114,16 @@ interface DriverScopeState {
   takeoverActive: boolean
   takeoverDone: boolean
   takeoverResponse: string | null
+  /** Invocation that currently owns the shared takeover response state. */
+  takeoverInvocationEpoch: number | null
   /** Monotonic browser-tool invocation id used to supersede an abandoned takeover. */
   toolInvocationEpoch: number
+  /** Exact client tool currently at the head of this scope's serialized queue. */
+  activeToolCallId: string | null
+  /** Rejects the active queue entry while its underlying Chromium work winds down. */
+  activeToolCancel: (() => void) | null
+  /** Invalidates every invocation already queued when a scope-level cancel establishes a boundary. */
+  toolQueueCancellationEpoch: number
   lastTabsStateFingerprint: string | null
   toolQueue: Promise<unknown>
   /** True while activation is the only operation that has touched this scope. */
@@ -132,13 +140,23 @@ interface DriverScopeState {
   toolExecutionEpoch: number
 }
 
+/** Captures the native queue boundary before an async authorization round trip. */
+export interface BrowserToolQueueBoundary {
+  scopeId: string
+  cancellationEpoch: number
+}
+
 function createDriverScopeState(): DriverScopeState {
   return {
     pendingNotices: [],
     takeoverActive: false,
     takeoverDone: false,
     takeoverResponse: null,
+    takeoverInvocationEpoch: null,
     toolInvocationEpoch: 0,
+    activeToolCallId: null,
+    activeToolCancel: null,
+    toolQueueCancellationEpoch: 0,
     lastTabsStateFingerprint: null,
     toolQueue: Promise.resolve(),
     activationOnly: true,
@@ -158,6 +176,22 @@ function invalidateSnapshot(state = driverScopeState()): void {
 
 const driverScopeStates = new Map<string, DriverScopeState>()
 const driverScopeAliases = new Map<string, string>()
+const CANCELLED_TOOL_TTL_MS = 5 * 60_000
+const MAX_CANCELLED_TOOL_TOMBSTONES = 256
+const cancelledToolCallIds = new Map<string, number>()
+
+function pruneCancelledToolCallIds(now = Date.now()): void {
+  for (const [toolCallId, expiresAt] of cancelledToolCallIds) {
+    if (expiresAt > now && cancelledToolCallIds.size <= MAX_CANCELLED_TOOL_TOMBSTONES) break
+    cancelledToolCallIds.delete(toolCallId)
+  }
+}
+
+function isToolCallCancelled(toolCallId: string | undefined): boolean {
+  if (!toolCallId) return false
+  pruneCancelledToolCallIds()
+  return cancelledToolCallIds.has(toolCallId)
+}
 
 function resolveDriverScopeId(scopeId: string): string {
   let resolved = scopeId
@@ -177,6 +211,19 @@ function driverScopeState(scopeId = session.getBrowserScopeId()): DriverScopeSta
     driverScopeStates.set(resolved, state)
   }
   return state
+}
+
+export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  return {
+    scopeId: resolvedScopeId,
+    cancellationEpoch: driverScopeState(resolvedScopeId).toolQueueCancellationEpoch,
+  }
+}
+
+function isBrowserToolQueueBoundaryCurrent(boundary: BrowserToolQueueBoundary): boolean {
+  const state = driverScopeStates.get(resolveDriverScopeId(boundary.scopeId))
+  return state?.toolQueueCancellationEpoch === boundary.cancellationEpoch
 }
 
 function recordNotice(notice: string): void {
@@ -313,6 +360,7 @@ export function initDriver(
   // first tab push as a duplicate.
   driverScopeStates.clear()
   driverScopeAliases.clear()
+  cancelledToolCallIds.clear()
   // The serialization chain, too. A takeover from the previous session can sit
   // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
   // leaving the old chain head in place would queue the new session's first
@@ -1644,6 +1692,7 @@ async function runTakeover(purpose: string | undefined, invocationEpoch: number)
   state.takeoverActive = true
   state.takeoverDone = false
   state.takeoverResponse = null
+  state.takeoverInvocationEpoch = invocationEpoch
   session.setAutomationNeedsAttention(true)
 
   const startedAt = Date.now()
@@ -1673,10 +1722,16 @@ async function runTakeover(purpose: string | undefined, invocationEpoch: number)
       }
     }
   } finally {
-    session.setAutomationNeedsAttention(false)
-    state.takeoverActive = false
-    state.takeoverDone = false
-    state.takeoverResponse = null
+    // Cancellation releases the serialized tool queue before this polling
+    // loop observes its superseding epoch. Never let that delayed cleanup
+    // erase a newer takeover that has already claimed the same scope state.
+    if (state.takeoverInvocationEpoch === invocationEpoch) {
+      session.setAutomationNeedsAttention(false)
+      state.takeoverActive = false
+      state.takeoverDone = false
+      state.takeoverResponse = null
+      state.takeoverInvocationEpoch = null
+    }
   }
 }
 
@@ -2987,7 +3042,9 @@ function withNotices(result: unknown): unknown {
 export async function executeTool(
   scopeId: string,
   tool: BrowserToolName,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  toolCallId?: string,
+  authorizationBoundary?: BrowserToolQueueBoundary
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (session.isBrowserScopeSuspended(resolvedScopeId)) {
@@ -2999,7 +3056,21 @@ export async function executeTool(
   const state = driverScopeState(resolvedScopeId)
   state.activationOnly = false
   const invocationEpoch = ++state.toolInvocationEpoch
+  const queueCancellationEpoch = state.toolQueueCancellationEpoch
   const run = async () => {
+    if (
+      (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
+      queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
+      isToolCallCancelled(toolCallId)
+    ) {
+      throw new ToolError('This browser action was cancelled before it started.')
+    }
+    state.activeToolCallId = toolCallId ?? null
+    let cancelActiveExecution: () => void = () => {}
+    const cancellation = new Promise<never>((_resolve, reject) => {
+      cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+    })
+    state.activeToolCancel = cancelActiveExecution
     return await session.withBrowserScope(resolvedScopeId, async () => {
       logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
       const keepHiddenPageActive = tool !== 'browser_request_takeover'
@@ -3022,19 +3093,23 @@ export async function executeTool(
           executionDeadline,
           invocationEpoch
         )
-        return withNotices(
-          await (watchdogMs === null
+        const guardedExecution =
+          watchdogMs === null
             ? execution
             : raceAgainstWatchdog(execution, watchdogMs, () => {
                 if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                 if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
                   invalidateSnapshot(state)
                 }
-              }))
-        )
+              })
+        return withNotices(await Promise.race([guardedExecution, cancellation]))
       } finally {
         if (keepHiddenPageActive) {
           session.setAutomationActive(false)
+        }
+        if (state.activeToolCancel === cancelActiveExecution) {
+          state.activeToolCallId = null
+          state.activeToolCancel = null
         }
       }
     })
@@ -3055,6 +3130,40 @@ export async function executeTool(
     logger.warn('Browser tool failed', { tool, error: message })
     return { ok: false, error: message }
   }
+}
+
+/**
+ * Cancels one exact browser tool, including a cancellation that arrives while
+ * its authorization IPC is still in flight. The bounded tombstone lets that
+ * later invocation observe the stop without retaining call ids indefinitely.
+ */
+export function cancelTool(scopeId: string, toolCallId: string): boolean {
+  pruneCancelledToolCallIds()
+  cancelledToolCallIds.set(toolCallId, Date.now() + CANCELLED_TOOL_TTL_MS)
+  pruneCancelledToolCallIds()
+
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (!state || state.activeToolCallId !== toolCallId) return true
+
+  state.toolInvocationEpoch++
+  state.toolExecutionEpoch++
+  state.activeToolCancel?.()
+  void session.withBrowserScope(resolvedScopeId, () => {
+    session.setAutomationActive(false)
+    session.setAutomationNeedsAttention(false)
+  })
+  return true
+}
+
+/** Cancels the active tool and every older invocation already queued for this scope. */
+export function cancelActiveTool(scopeId: string): boolean {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (!state) return false
+  state.toolQueueCancellationEpoch++
+  const toolCallId = state.activeToolCallId
+  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : false
 }
 
 /** Browser-chrome commands from the panel header; fire-and-forget. */

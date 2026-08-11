@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   browserTabHostname,
   browserTabTitle,
+  shouldShowBrowserTabSpinner,
 } from '@/app/workspace/[workspaceId]/home/components/mothership-view/components/resource-content/components/browser-session/browser-tab-label'
 
 // Drop-index and title-truncation behaviour moved to the shared TabStrip in
@@ -40,5 +41,24 @@ describe('browserTabTitle', () => {
 
   it('keeps a resolved title when one is available', () => {
     expect(browserTabTitle({ ...tab, title: '  Sim Docs  ' })).toBe('Sim Docs')
+  })
+})
+
+describe('shouldShowBrowserTabSpinner', () => {
+  it('uses a spinner while a blank tab has no favicon', () => {
+    expect(shouldShowBrowserTabSpinner(true, null, null)).toBe(true)
+  })
+
+  it('keeps a known favicon visible while its page loads', () => {
+    expect(shouldShowBrowserTabSpinner(true, 'sim.ai', 'sim.ai')).toBe(false)
+  })
+
+  it('keeps spinning until a new hostname favicon loads', () => {
+    expect(shouldShowBrowserTabSpinner(true, 'sim.ai', null)).toBe(true)
+    expect(shouldShowBrowserTabSpinner(true, 'sim.ai', 'docs.sim.ai')).toBe(true)
+  })
+
+  it('never spins after loading finishes', () => {
+    expect(shouldShowBrowserTabSpinner(false, null, null)).toBe(false)
   })
 })
