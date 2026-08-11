@@ -7,10 +7,10 @@ import { toError } from '@sim/utils/errors'
 import type { WorkBook } from 'xlsx'
 import { assertOoxmlPreviewWithinLimits } from '@/lib/file-parsers/ooxml-preview-guard'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
 import { useDocPreviewBinary } from './use-doc-preview-binary'
-import { useHorizontalWheelScroll } from './use-horizontal-wheel-scroll'
 
 const logger = createLogger('XlsxPreview')
 

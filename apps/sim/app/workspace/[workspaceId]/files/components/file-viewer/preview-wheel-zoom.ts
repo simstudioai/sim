@@ -27,6 +27,20 @@ function verticalDeltaOf(event: WheelEvent): number {
 }
 
 /**
+ * Rough pixel height of one wheel "line". A wheel delta is only in pixels when `deltaMode`
+ * says so — Firefox reports mouse wheels in lines — while scroll offsets are always pixels,
+ * so a three-line notch added raw would move the table three pixels.
+ */
+const WHEEL_LINE_HEIGHT_PX = 16
+
+/** Convert a wheel delta to pixels. `pageSize` is the container extent along that axis. */
+function toPixels(delta: number, event: WheelEvent, pageSize: number): number {
+  if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) return delta * WHEEL_LINE_HEIGHT_PX
+  if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) return delta * pageSize
+  return delta
+}
+
+/**
  * Scroll `container` for a wheel gesture carrying a horizontal component. No-op when the
  * gesture is purely vertical or the container has nothing to scroll sideways, leaving the
  * event to scroll natively.
@@ -40,8 +54,8 @@ function applyHorizontalWheel(container: HTMLElement, event: WheelEvent): void {
   if (horizontalDelta === 0 || container.scrollWidth <= container.clientWidth) return
 
   event.preventDefault()
-  container.scrollLeft += horizontalDelta
-  container.scrollTop += verticalDeltaOf(event)
+  container.scrollLeft += toPixels(horizontalDelta, event, container.clientWidth)
+  container.scrollTop += toPixels(verticalDeltaOf(event), event, container.clientHeight)
 }
 
 /**

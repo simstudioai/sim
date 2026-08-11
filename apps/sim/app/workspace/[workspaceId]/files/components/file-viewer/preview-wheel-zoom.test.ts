@@ -71,6 +71,22 @@ describe('bindPreviewHorizontalWheel', () => {
     expect(container.scrollTop).toBe(0)
   })
 
+  /**
+   * `deltaMode` is not always pixels — Firefox reports mouse wheels in lines — while scroll
+   * offsets always are, so a three-line notch added raw would move the table three pixels.
+   */
+  it('converts a line-mode delta to pixels', () => {
+    wheel(container, { deltaX: 3, deltaY: 0, deltaMode: WheelEvent.DOM_DELTA_LINE })
+
+    expect(container.scrollLeft).toBe(48)
+  })
+
+  it('converts a page-mode delta to the container width', () => {
+    wheel(container, { deltaX: 1, deltaY: 0, deltaMode: WheelEvent.DOM_DELTA_PAGE })
+
+    expect(container.scrollLeft).toBe(1000)
+  })
+
   it('leaves a plain vertical wheel alone so the container still scrolls down', () => {
     const event = wheel(container, { deltaX: 0, deltaY: 120 })
 

@@ -2,11 +2,11 @@
 
 import { memo } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
-import { useHorizontalWheelScroll } from './use-horizontal-wheel-scroll'
 
 /**
  * Read-only preview for a CSV that is too large to load fully into the editor. Streams only the

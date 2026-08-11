@@ -4,10 +4,10 @@ import { memo, useEffect, useMemo, useRef, useState } from 'react'
 import '@sim/emcn/components/code/code.css'
 import { CSV_PREVIEW_MAX_ROWS } from '@/lib/api/contracts/workspace-file-table'
 import { getFileExtension } from '@/lib/uploads/utils/file-utils'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
-import { useHorizontalWheelScroll } from './use-horizontal-wheel-scroll'
 import { ZoomablePreview } from './zoomable-preview'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
