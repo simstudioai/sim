@@ -73,7 +73,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     // reaches here on a 2xx — so match against that payload rather than issuing
     // the same request again through the cached resolver.
     const cloudId =
-      params?.cloudId ?? selectAtlassianCloudId(await response.json(), params?.domain ?? '', 'Jira')
+      params?.cloudId || selectAtlassianCloudId(await response.json(), params?.domain ?? '', 'Jira')
     const projectKey = await resolveProjectKey(cloudId, params!.accessToken, params!.projectId)
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(projectKey)) {
       throw new Error(
