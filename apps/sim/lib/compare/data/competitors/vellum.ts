@@ -907,7 +907,7 @@ export const vellumProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Not publicly documented: no admin-configurable session lifetime cap or idle timeout is documented for Vellum workspaces. The docs index lists four security pages (Data Privacy and Storage, HMAC Authentication, RBAC, Static IPs) and two organization-settings pages (Manage Organization Access, Data Retention Policies), none of which describe session length, inactivity expiry, or forced re-authentication; the only admin-configurable access controls documented are workspace roles and domain-based automatic join.',
+          'No: no admin-configurable session lifetime cap or idle timeout is documented for Vellum workspaces on any deployment mode. The docs index lists four security pages (Data Privacy and Storage, HMAC Authentication, RBAC, Static IPs) and two organization-settings pages (Manage Organization Access, Data Retention Policies), none of which describe session length, inactivity expiry, or forced re-authentication; the only admin-configurable access controls documented are workspace roles and domain-based automatic join.',
         detail:
           'The Manage Organization Access page covers only domain-based automatic join and the verified-domain list. The Data Privacy and Storage page references RBAC and HMAC authentication for API access but says nothing about interactive session duration. No first-party SAML/OIDC setup page exists either, so an inherited IdP session policy cannot be confirmed as available.',
         shortValue: 'No documented session lifetime or idle timeout controls',

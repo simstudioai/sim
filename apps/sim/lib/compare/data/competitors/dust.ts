@@ -928,7 +928,7 @@ export const dustProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Not publicly documented: Dust documents SAML SSO with workspace-wide enforcement and SCIM provisioning on the Enterprise plan, but no admin-configurable absolute session lifetime or idle timeout, and no fixed session length is published either',
+          'No: no admin-configurable absolute session lifetime or idle timeout is documented anywhere, and no fixed session length is published either. Dust documents SAML SSO with workspace-wide enforcement and SCIM provisioning on the Enterprise plan, but enforcing SSO governs which login methods are accepted rather than how long a signed-in session lasts, so session length in practice follows whatever the upstream third-party identity provider enforces at re-authentication, which is not a Dust-owned policy',
         detail:
           "Dust's workspace governance docs describe the admin surface under Admin > People & Security as managing security settings, user access, identity verification, and provisioning; neither those pages nor the SSO/SAML pages describe a session-duration, idle-timeout, or forced re-authentication setting. Enforcing SSO restricts which login methods are accepted (users can no longer sign in with social accounts) rather than how long a signed-in session lasts, so session length in practice follows whatever the upstream identity provider enforces at re-authentication.",
         shortValue: 'No documented session-lifetime or idle-timeout setting',

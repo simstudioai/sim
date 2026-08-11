@@ -684,10 +684,10 @@ export const simProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          'Yes: named sandboxes a workspace maintains and a Function block selects, each declaring a language, its pip or npm dependencies, optional Debian/APT system packages, and optional managed CLI tools from a catalog grouped by cloud, Kubernetes, infrastructure, deployment, data and storage, and security tools; on sim.ai they require an active Max or Enterprise plan',
+          'Yes: on sim.ai this requires an active Max or Enterprise plan, and it works through named sandboxes a workspace maintains and a Function block selects, each declaring a language, its pip or npm dependencies, optional Debian/APT system packages, and optional managed CLI tools from a catalog grouped by cloud, Kubernetes, infrastructure, deployment, data and storage, and security tools',
         detail:
           'Only workspace admins can create or edit sandboxes, in Settings → Sandboxes. On sim.ai each specification is prebuilt into a reusable image so runs pay no install cost; a self-hosted deployment using Daytona installs the dependencies, system packages, and managed CLI tools inside the sandbox at the start of every run instead, and prebuilt images require E2B. Two sandboxes with the same language, dependency list, system packages, and managed CLI tools share one build. Every managed CLI entry uses a pinned, integrity-checked vendor artifact. Self-hosted deployments turn sandboxes on with SANDBOXES_ENABLED, and additionally need a remote execution provider and a dedicated Function base image configured. With no sandbox selected, remote code runs on the dedicated Function base; import-free JavaScript stays in the local isolated runtime and ignores the sandbox selection either way.',
-        shortValue: 'Named sandboxes: packages, system packages, managed CLIs',
+        shortValue: 'Named sandboxes (Max/Enterprise): packages, system packages, CLIs',
         confidence: 'verified',
         sources: [
           {
@@ -1024,7 +1024,7 @@ export const simProfile: CompetitorProfile = {
           'Yes: Enterprise organization owners and admins can set a max session lifetime (1 to 8,760 hours from sign-in, regardless of activity) and an idle timeout (48 to 8,760 hours without activity), applied to every member on every device',
         detail:
           'Both limits are optional; leaving them empty keeps the default of 30-day sessions that extend automatically while a member stays active. A separate "Sign out all members" action immediately revokes every member session in the organization except the admin\'s own, for use after a security incident or an offboarding wave. The 48-hour idle floor exists because session activity is recorded at most once per day, so a shorter window could sign out members who are actively working.',
-        shortValue: 'Max session lifetime and idle timeout, applied org-wide',
+        shortValue: 'Enterprise: max session lifetime and idle timeout, org-wide',
         confidence: 'verified',
         sources: [
           {

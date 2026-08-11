@@ -594,7 +594,7 @@ export const stackaiProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          'Partial: at the package layer only. The newer Code Node exposes a Dependencies field, documented as "a list of package names that get installed into the sandbox before your code runs," so builders declare third-party Python/TypeScript packages per node. The deprecated Python Code node it replaces is a fixed image restricted to a vendor-curated set of pre-imported libraries.',
+          'Yes: at the package layer only. The newer Code Node exposes a Dependencies field, documented as "a list of package names that get installed into the sandbox before your code runs," so builders declare third-party Python/TypeScript packages per node. The deprecated Python Code node it replaces is a fixed image restricted to a vendor-curated set of pre-imported libraries.',
         detail:
           'Code Node runs in an isolated sandbox with /home/user as the working directory; StackAI\'s docs contrast it with the Python Code node as "Allows importing custom libraries" versus "Restricted to pre-imported libraries." That older node\'s fixed set covers pandas, numpy, requests, BeautifulSoup, matplotlib, plotly, pypdf, sklearn, tiktoken, and weaviate among others, with no way to add to it. Dependency declaration is package-level only — StackAI does not document declaring OS-level system packages or preinstalled CLI binaries, and dependencies add sandbox startup time. Sandbox isolation is provided by E2B, which runs each execution as an isolated VM.',
         shortValue: 'Packages only: per-node dependencies on the Code Node',
@@ -846,10 +846,10 @@ export const stackaiProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          "Not publicly documented: no admin-configurable session lifetime or idle timeout appears in StackAI's public documentation. Its Authentication and MFA page covers password login, org-wide MFA enforcement, and SSO, and the Feature Access page enumerating org-level admin settings (MFA, LLM access, app/tool availability, knowledge bases, advanced features) lists no session control.",
+          "No: no admin-configurable session lifetime or idle timeout appears in StackAI's public documentation. Its Authentication and MFA page covers password login, org-wide MFA enforcement, and SSO, and the Feature Access page enumerating org-level admin settings (MFA, LLM access, app/tool availability, knowledge bases, advanced features) lists no session control.",
         detail:
           "Where SSO is used, StackAI states MFA enforcement happens at the identity provider, so an organization's effective re-authentication cadence is inherited from its upstream IdP rather than set in StackAI. No fixed session length is published either, and the Trust Center lists access-control and termination policies without any session-timeout control.",
-        shortValue: 'Not publicly documented',
+        shortValue: 'No documented session lifetime or idle timeout control',
         confidence: 'estimated',
         sources: [
           {

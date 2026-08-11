@@ -697,10 +697,10 @@ export const makeProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          "Partial: Enterprise-only and at the package layer. The Make Code module has an 'Additional dependencies (Enterprise plans only)' field under Advanced settings where third-party JavaScript/Python packages are declared by name (Make's own example adds axios, then requires it in the code) and installed before the code runs. On Core, Pro, and Teams the runtime is a fixed image limited to Make's standard libraries: moment, moment-timezone, and lodash for JavaScript, and pendulum, toolz, and requests for Python. Make's documentation lists no field for OS-level system packages, custom container images, or preinstalled CLI binaries on any plan.",
+          "Yes: on Enterprise plans only, and at the package layer. The Make Code module has an 'Additional dependencies (Enterprise plans only)' field under Advanced settings where third-party JavaScript/Python packages are declared by name (Make's own example adds axios, then requires it in the code) and installed before the code runs. On Core, Pro, and Teams the runtime is a fixed image limited to Make's standard libraries: moment, moment-timezone, and lodash for JavaScript, and pendulum, toolz, and requests for Python. Make's documentation lists no field for OS-level system packages, custom container images, or preinstalled CLI binaries on any plan.",
         detail:
           'Per the Make Code app documentation, declared dependencies are installed before execution and are not shared between multiple Code modules. The sandbox itself is sized by plan rather than by the user: 1 CPU, 512 MB RAM, and a 30-second maximum execution time on Core/Pro/Teams, rising to 2 CPUs, 1024 MB RAM, and 300 seconds on Enterprise. Runtimes are pinned by Make (Python 3.12.11, Node 20.19.4) rather than chosen per module, and because Make is cloud-only with no self-hosted engine, there is no path to bake a custom runtime image. Make documents the Code app as being in open beta, noting that both functionality and pricing may change.',
-        shortValue: 'Packages only: declared npm/PyPI dependencies, Enterprise plans',
+        shortValue: 'Yes: declared npm/PyPI packages only, Enterprise plans',
         confidence: 'verified',
         sources: [
           { url: 'https://apps.make.com/code', label: 'Make Code app docs', asOf: '2026-08-10' },

@@ -981,10 +981,10 @@ export const openClawProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Not applicable: there is no signed-in session to bound. The Gateway authenticates callers with a static shared secret (`gateway.auth` token or password, or a trusted-proxy header mode), and the security docs document no session expiry, idle timeout, or time-bound signed session; every authenticated caller holds operator-level access until the secret is rotated.',
+          'No: OpenClaw has no signed-in session concept to bound, so this is a category difference rather than a missing setting. The Gateway authenticates callers with a static shared secret (`gateway.auth` token or password, or a trusted-proxy header mode), and the security docs document no session expiry, idle timeout, or time-bound signed session; every authenticated caller holds operator-level access until the secret is rotated.',
         detail:
           'The `session.reset` settings that do exist govern conversation context, not authentication: `session.reset.mode` of `"daily"` (`atHour`, default 4) or `"idle"` (`idleMinutes`) starts a fresh chat session, and cron jobs get a fresh conversation session per run. The docs state `sessionKey` is "a routing selector, not an authorization token," and recommend separate Gateway instances per trust boundary rather than session controls inside one shared instance.',
-        shortValue: 'No signed-in session: static shared-secret operator auth',
+        shortValue: 'No: no signed-in session; static shared-secret operator auth',
         confidence: 'verified',
         sources: [
           {

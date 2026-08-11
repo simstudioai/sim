@@ -1099,10 +1099,11 @@ export const microsoftCopilotProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Partial: at the Microsoft identity and Power Platform layers rather than in Copilot Studio itself. Microsoft Entra ID Conditional Access sign-in frequency policies let an admin set how long a user can access a resource before signing in again (or require reauthentication every time), and a Power Platform admin can separately turn on Session Expiration (60 to 1,440 minutes) plus an Inactivity timeout (minimum 5 minutes) per environment under Settings > Product > Privacy + Security',
+          'Yes: configured at the Microsoft identity and Power Platform layers rather than in Copilot Studio itself. Microsoft Entra ID Conditional Access sign-in frequency policies let an admin set how long a user can access a resource before signing in again (or require reauthentication every time), and a Power Platform admin can separately turn on Session Expiration (60 to 1,440 minutes) plus an Inactivity timeout (minimum 5 minutes) per environment under Settings > Product > Privacy + Security',
         detail:
           "Copilot Studio exposes no admin-configurable user-session-lifetime setting of its own and inherits the tenant Entra ID session policy, whose default is a rolling 90-day sign-in frequency window with a 90-day refresh-token expiration. The per-environment Session Expiration and Inactivity timeout settings override that default Entra behavior for the environment, though Microsoft documents them against Dataverse-backed customer engagement apps rather than the Copilot Studio maker portal specifically, and lists apps (including Power Apps canvas apps) that don't enforce them. Conditional Access requires a Microsoft Entra ID P1 or P2 license.",
-        shortValue: 'Via Entra Conditional Access and per-environment timeouts',
+        shortValue:
+          'Yes: via Entra Conditional Access and per-environment Power Platform timeouts, not Copilot Studio itself',
         confidence: 'verified',
         sources: [
           {

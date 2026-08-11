@@ -935,10 +935,10 @@ export const langchainProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Partial: self-hosted LangSmith only. An operator sets the maximum session length via the OAUTH_SESSION_MAX_SEC environment variable when using OAuth 2.0/SSO, or BASIC_AUTH_JWT_EXPIRATION_SECONDS when using basic authentication, both defaulting to 28800 seconds (8 hours). No equivalent admin-configurable session control is documented for LangSmith Cloud.',
+          'Yes: on self-hosted LangSmith deployments only, where an operator sets the maximum session length via the OAUTH_SESSION_MAX_SEC environment variable when using OAuth 2.0/SSO, or BASIC_AUTH_JWT_EXPIRATION_SECONDS when using basic authentication, both defaulting to 28800 seconds (8 hours). No equivalent admin-configurable session control is documented for LangSmith Cloud.',
         detail:
           'Both settings are an absolute cap on session lifetime from sign-in; no separate inactivity/idle timeout is documented. On the cloud product, LangChain support states that after a SAML assertion is validated the session token (a JWT) is issued by LangSmith\'s own auth layer rather than the IdP, and that this "is by design and is not configurable", so an upstream IdP session policy does not govern the resulting LangSmith session either.',
-        shortValue: 'Self-hosted env vars (8h default); not configurable on cloud',
+        shortValue: 'Yes, self-hosted env vars (8h default); not configurable on cloud',
         confidence: 'verified',
         sources: [
           {

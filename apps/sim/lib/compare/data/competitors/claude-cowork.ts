@@ -647,10 +647,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          'Partial: shell commands and any code Claude writes run in an isolated sandbox (a dedicated Linux VM for local sessions, a per-session temporary sandbox on Anthropic-managed infrastructure for cloud sessions), and within a session Claude can itself install dependencies at run time from approved package managers (npm/registry.npmjs.org, PyPI/files.pythonhosted.org, GitHub, crates.io, Yarn). What an administrator configures is the org-wide network-egress policy rather than the environment: Team and Enterprise organization owners choose, in Organization settings > Capabilities, between network access off (Claude "operates with pre-installed packages only"), package managers only, package managers plus an admin-specified domain allowlist, or all domains except Anthropic\'s legal blocklist.',
+          'Yes: at the package layer only, and driven by the agent rather than a declared environment. Shell commands and any code Claude writes run in an isolated sandbox (a dedicated Linux VM for local sessions, a per-session temporary sandbox on Anthropic-managed infrastructure for cloud sessions), and within a session Claude can itself install dependencies at run time from approved package managers (npm/registry.npmjs.org, PyPI/files.pythonhosted.org, GitHub, crates.io, Yarn). What an administrator configures is the org-wide network-egress policy rather than the environment: Team and Enterprise organization owners choose, in Organization settings > Capabilities, between network access off (Claude "operates with pre-installed packages only"), package managers only, package managers plus an admin-specified domain allowlist, or all domains except Anthropic\'s legal blocklist.',
         detail:
           'The configuration surface is an org-wide network-egress policy plus run-time installs the agent performs itself, not a declared environment: there is no manifest of packages, no OS/system-package list, no preinstalled-CLI selection, and no custom base image or Dockerfile for the sandbox, and Anthropic does not publish the preinstalled package set for Cowork sandboxes. Network settings apply when a session is created, so changing them mid-conversation requires starting a new one.',
-        shortValue: 'Partial: agent installs packages at run time; environment not declarable',
+        shortValue: 'Yes: agent installs packages at run time; environment not declarable',
         confidence: 'verified',
         sources: [
           {
@@ -928,10 +928,10 @@ export const claudeCoworkProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Partial: the setting is available only to "Admins and Owners of Enterprise plans and Console Admins," who can enable a shortened session length of 1, 7, 14, or 28 days (Console Admins get 1, 3, or 7 days), after which "users will need to sign in again after the specified period, even if they\'ve been actively using Claude." This is an absolute lifetime cap from sign-in, not an inactivity timeout, and no idle timeout is documented.',
+          'Yes: on Enterprise plans only. The setting is available only to "Admins and Owners of Enterprise plans and Console Admins," who can enable a shortened session length of 1, 7, 14, or 28 days (Console Admins get 1, 3, or 7 days), after which "users will need to sign in again after the specified period, even if they\'ve been actively using Claude." This is an absolute lifetime cap from sign-in, not an inactivity timeout, and no idle timeout is documented.',
         detail:
           "Because the control is Enterprise/Console-gated, administrators on other plans cannot set a session lifetime at all; with the setting disabled, sessions return to the default behavior of remaining active as long as the user stays active, with no documented idle timeout. Because one session spans all of a user's organizations, the shortest configured duration across them applies. Disabling the setting does not retroactively extend sessions already scheduled to expire.",
-        shortValue: 'Partial: Enterprise/Console only, 1/7/14/28-day absolute cap',
+        shortValue: 'Yes: Enterprise/Console only, 1/7/14/28-day absolute cap',
         confidence: 'verified',
         sources: [
           {

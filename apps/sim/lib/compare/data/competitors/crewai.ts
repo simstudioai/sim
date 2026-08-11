@@ -656,10 +656,10 @@ export const crewaiProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          'Partial: CrewAI no longer ships a sandbox of its own. The Docker-backed CodeInterpreterTool was removed from crewai-tools in April 2026 and the docs now direct users to a third-party sandbox service, so the execution environment is configured in that provider. What remains first-party is AMP deployment: a deployed crew installs whatever the project declares in pyproject.toml/uv.lock, including private-registry packages.',
+          'Yes: at the package layer on CrewAI AMP, where a deployed crew installs whatever the project declares in pyproject.toml/uv.lock, including private-registry packages. There is no first-party sandbox to configure: the Docker-backed CodeInterpreterTool was removed from crewai-tools in April 2026 and the docs now direct users to a third-party sandbox service, so image and resource configuration happen in that provider instead.',
         detail:
           "The CodeInterpreterTool page now carries a deprecation warning stating that the tool 'has been removed from crewai-tools' and that the allow_code_execution and code_execution_mode parameters on Agent are also deprecated, directing users to a dedicated sandbox service (E2B or Modal) instead; CERT/CC VU#221883 records the same vendor statement, that the tool including its Docker sandbox and its restricted-Python fallback was removed in response to code-execution vulnerabilities. In its place crewai-tools ships wrappers for third-party sandboxes (e2b_sandbox_tool, daytona_sandbox_tool), so image, package, and resource configuration follow that provider's model and account rather than CrewAI's. Separately, a crew deployed to CrewAI AMP is built from the repository's own pyproject.toml with a required uv.lock, so the deployed runtime contains the packages the developer declared, including packages from a private registry configured through [[tool.uv.index]] plus UV_INDEX_*_USERNAME/PASSWORD environment variables. Outside AMP, CrewAI is a Python library with no sandbox of its own: crew code runs in whatever interpreter and virtualenv the developer starts it in, so the dependency set is fully theirs to control and equally unisolated.",
-        shortValue: 'Partial, AMP deploy dependencies; code sandbox delegated to E2B/Daytona',
+        shortValue: 'Yes, AMP deploy dependencies only; code sandbox delegated to E2B/Daytona',
         confidence: 'verified',
         sources: [
           {
@@ -937,7 +937,7 @@ export const crewaiProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          "Not publicly documented: no admin-configurable session lifetime or idle timeout appears in CrewAI AMP's public docs; the SSO, RBAC, and self-hosted configuration pages name no session control",
+          'No: no admin-configurable session lifetime or idle timeout is documented for CrewAI AMP on any deployment mode; the SSO, RBAC, and self-hosted Helm configuration pages name no session control, and CrewAI does not document where session length is set. The identity providers it lists (WorkOS, Microsoft Entra ID, Okta, Auth0, Keycloak) are third-party, so any timeout configured there comes from the IdP rather than from CrewAI. The open-source framework has no user accounts or sign-in at all.',
         detail:
           "CrewAI's platform SSO page documents WorkOS (the SaaS default), Microsoft Entra ID, Okta, Auth0, and Keycloak as identity providers and delegates MFA enforcement to the IdP, but names no session-lifetime, absolute-cap, or inactivity-timeout setting; the RBAC permission matrix likewise covers default_settings and organization_settings without a session control. The self-hosted Helm chart's WorkOS variables (WORKOS_CLIENT_ID, WORKOS_AUTHKIT_DOMAIN, WORKOS_COOKIE_PASSWORD, WORKOS_API_KEY) document credentials and cookie encryption but no lifetime or expiry setting. CrewAI does not document where session length is controlled, and no session-duration behavior is stated either way. The open-source framework has no user accounts or sign-in at all, so the question does not apply to it.",
         shortValue: 'No documented session-lifetime or idle-timeout setting',

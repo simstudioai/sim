@@ -663,10 +663,10 @@ export const retoolProfile: CompetitorProfile = {
       },
       codeSandboxRuntime: {
         value:
-          'Partial: the dependency set of a workflow Code block is user-configurable, but only at the package layer. In the workflow editor\'s Libraries tab, "Add Python library" picks from Retool\'s built-in library set, and "Modify requirements.txt" declares an arbitrary list of public PyPI packages with pinned versions; the JavaScript equivalent adds public npm packages via "Modify package.json". Package-level configuration only: there is no documented way to declare OS-level system packages or preinstalled CLI binaries for the runtime.',
+          'Yes: the dependency set of a workflow Code block is user-configurable, though only at the package layer. In the workflow editor\'s Libraries tab, "Add Python library" picks from Retool\'s built-in library set, and "Modify requirements.txt" declares an arbitrary list of public PyPI packages with pinned versions; the JavaScript equivalent adds public npm packages via "Modify package.json". Package-level configuration only: there is no documented way to declare OS-level system packages or preinstalled CLI binaries for the runtime.',
         detail:
           'Beyond the preloaded set (Lodash, Moment.js, UUID, Numbro, and PapaParse are the JavaScript libraries Retool documents by name; the Python built-in set is not enumerated in the docs, which describe "built-in support for many popular libraries" and expose the list only through an interactive browser), builders add their own dependencies per workflow. Private npm/PyPI registries are self-hosted only and require a configured code-executor service, the container that runs user-defined JavaScript and Python with installed custom libraries; Retool sandboxes environment creation with NsJail, which needs privileged container access, and self-hosted operators can disable that sandboxing entirely with CONTAINER_UNPRIVILEGED_MODE.',
-        shortValue: 'Packages only: per-workflow PyPI and npm libraries',
+        shortValue: 'Yes, packages only: per-workflow PyPI and npm libraries',
         confidence: 'verified',
         sources: [
           {
@@ -973,10 +973,10 @@ export const retoolProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Partial: an absolute session lifetime cap is configurable, but the cloud control is coarse and lives inside SSO settings. Toggling "Use short session" in the organization\'s Single Sign On settings drops the session length from one week to 12 hours. Self-hosted deployments get finer control through SESSION_DURATION_MINUTES, which sets an arbitrary custom session duration in minutes (default 10080, or 720 when USE_SHORT_SESSIONS is true). No inactivity or idle timeout is documented.',
+          'Yes: an absolute session lifetime cap is configurable, though the cloud control is coarse and lives inside SSO settings. Toggling "Use short session" in the organization\'s Single Sign On settings drops the session length from one week to 12 hours. Self-hosted deployments get finer control through SESSION_DURATION_MINUTES, which sets an arbitrary custom session duration in minutes (default 10080, or 720 when USE_SHORT_SESSIONS is true). No inactivity or idle timeout is documented.',
         detail:
           "The documented policy is an absolute cap measured from sign-in, not an idle timer, so an active or idle browser session persists until the cap expires. Cloud orgs choose between the two fixed values (one week or 12 hours); only self-hosted operators can specify a duration of their own. Retool's pricing page lists Custom SSO (SAML/OpenID) under Enterprise and does not list Google SSO at any tier, and Retool's documentation does not state which plans can reach the short-session toggle. A Retool staff member states on the community forum that configuring Google SSO, which exposes the same short-session control, does not require the Enterprise plan; that is not confirmed in Retool's official documentation.",
-        shortValue: 'Absolute cap only, coarse on cloud; no idle timeout',
+        shortValue: 'Yes, absolute cap only, coarse on cloud; no idle timeout',
         confidence: 'estimated',
         sources: [
           {

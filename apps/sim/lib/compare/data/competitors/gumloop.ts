@@ -980,10 +980,10 @@ export const gumloopProfile: CompetitorProfile = {
       },
       sessionPolicy: {
         value:
-          'Not publicly documented: no admin-configurable session lifetime or idle timeout appears in Gumloop\'s public documentation. The only primary-source statement is a single bullet on the Enterprise SSO page listing "Session Management: Configurable session timeouts and secure token handling." No admin setting name, configuration steps, default session lifetime, idle-timeout value, or absolute-cap value is published anywhere in Gumloop\'s docs, security page, or trust center.',
+          'No: no admin-configurable session lifetime or idle timeout appears in Gumloop\'s public documentation. The only primary-source statement is a single bullet on the Enterprise SSO page listing "Session Management: Configurable session timeouts and secure token handling." No admin setting name, configuration steps, default session lifetime, idle-timeout value, or absolute-cap value is published anywhere in Gumloop\'s docs, security page, or trust center, so a buyer has no documented control to rely on.',
         detail:
           "The bullet sits in a Security & Compliance list introduced as \"Gumloop's SSO implementation follows industry security standards\", alongside SOC 2 Type II certification, SAML 2.0 and TLS 1.3 entries that are compliance assurances rather than admin-configurable settings, so it does not establish a customer-facing control. The same page documents its actual admin controls in detail, including per-direction SCIM mapping-table toggles, name-based mapping mode, and named audit events, but describes no session setting; it gates SAML and SCIM settings to the Admin organization role and an Enterprise subscription, so any such control would be Enterprise-tier. Gumloop's public security page and trust center make no mention of session lifetime, idle timeout, or forced re-authentication. Because SAML SSO is available, organizations can also inherit re-authentication frequency from their upstream IdP, but that is the IdP's policy rather than a Gumloop-enforced one.",
-        shortValue: 'Single SSO-page bullet cites configurable timeouts; no setting documented',
+        shortValue: 'No: no documented session lifetime or idle-timeout setting',
         confidence: 'estimated',
         sources: [
           {
