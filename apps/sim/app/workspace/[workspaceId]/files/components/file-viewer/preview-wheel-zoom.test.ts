@@ -1,0 +1,98 @@
+/**
+ * @vitest-environment jsdom
+ *
+ * A mouse whose wheel reports only `deltaY` has no native gesture for reaching a preview
+ * table's horizontal overflow short of dragging the scrollbar, so the tabular previews bind
+ * `bindPreviewHorizontalWheel`. It must move the container on a horizontal gesture, stay out
+ * of the way otherwise, and — unlike the zooming variant — leave ctrl/cmd+wheel to the browser
+ * so page zoom still works over a table.
+ */
+import { beforeEach, describe, expect, it } from 'vitest'
+import { bindPreviewHorizontalWheel } from '@/app/workspace/[workspaceId]/files/components/file-viewer/preview-wheel-zoom'
+
+/** jsdom does no layout, so scrollWidth/clientWidth are stubbed to model an overflowing container. */
+function makeContainer({ scrollWidth = 2000, clientWidth = 1000 } = {}): HTMLElement {
+  const el = document.createElement('div')
+  Object.defineProperty(el, 'scrollWidth', { value: scrollWidth, configurable: true })
+  Object.defineProperty(el, 'clientWidth', { value: clientWidth, configurable: true })
+  el.scrollLeft = 0
+  document.body.appendChild(el)
+  return el
+}
+
+function wheel(el: HTMLElement, init: WheelEventInit): WheelEvent {
+  const event = new WheelEvent('wheel', { bubbles: true, cancelable: true, ...init })
+  el.dispatchEvent(event)
+  return event
+}
+
+describe('bindPreviewHorizontalWheel', () => {
+  let container: HTMLElement
+  let unbind: () => void
+
+  beforeEach(() => {
+    document.body.innerHTML = ''
+    container = makeContainer()
+    unbind = bindPreviewHorizontalWheel(container)
+  })
+
+  it("scrolls by a trackpad's horizontal delta", () => {
+    const event = wheel(container, { deltaX: 120, deltaY: 0 })
+
+    expect(container.scrollLeft).toBe(120)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('maps shift+wheel to horizontal for a vertical-only mouse', () => {
+    const event = wheel(container, { deltaX: 0, deltaY: 120, shiftKey: true })
+
+    expect(container.scrollLeft).toBe(120)
+    expect(event.defaultPrevented).toBe(true)
+  })
+
+  it('leaves a plain vertical wheel alone so the container still scrolls down', () => {
+    const event = wheel(container, { deltaX: 0, deltaY: 120 })
+
+    expect(container.scrollLeft).toBe(0)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  /** Zoom is the browser's here — the tabular previews have no zoom of their own. */
+  it.each([
+    ['ctrl', { ctrlKey: true }],
+    ['cmd', { metaKey: true }],
+  ])('leaves %s+wheel to the browser', (_label, modifier) => {
+    const event = wheel(container, { deltaX: 120, deltaY: 0, ...modifier })
+
+    expect(container.scrollLeft).toBe(0)
+    expect(event.defaultPrevented).toBe(false)
+  })
+
+  it('does nothing when the container has no horizontal overflow', () => {
+    const fitted = makeContainer({ scrollWidth: 1000, clientWidth: 1000 })
+    const unbindFitted = bindPreviewHorizontalWheel(fitted)
+
+    const event = wheel(fitted, { deltaX: 120, deltaY: 0 })
+
+    expect(fitted.scrollLeft).toBe(0)
+    expect(event.defaultPrevented).toBe(false)
+    unbindFitted()
+  })
+
+  it('stops scrolling once unbound', () => {
+    unbind()
+
+    wheel(container, { deltaX: 120, deltaY: 0 })
+
+    expect(container.scrollLeft).toBe(0)
+  })
+
+  it('scrolls a child gesture, since the listener captures', () => {
+    const cell = document.createElement('td')
+    container.appendChild(cell)
+
+    wheel(cell, { deltaX: 80, deltaY: 0 })
+
+    expect(container.scrollLeft).toBe(80)
+  })
+})

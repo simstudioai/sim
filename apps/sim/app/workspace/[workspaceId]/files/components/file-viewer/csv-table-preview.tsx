@@ -6,6 +6,7 @@ import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { PreviewError, PreviewLoadingFrame, resolvePreviewError } from './preview-shared'
+import { useHorizontalWheelScroll } from './use-horizontal-wheel-scroll'
 
 /**
  * Read-only preview for a CSV that is too large to load fully into the editor. Streams only the
@@ -19,6 +20,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const version = Number(new Date(file.updatedAt)) || file.size
   const {
     data,
@@ -42,7 +44,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   }
 
   return (
-    <div className='flex flex-1 flex-col overflow-auto p-6'>
+    <div ref={scrollRef} className='flex flex-1 flex-col overflow-auto p-6'>
       <DataTable headers={data.headers} rows={data.rows} />
     </div>
   )

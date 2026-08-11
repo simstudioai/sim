@@ -7,6 +7,7 @@ import { getFileExtension } from '@/lib/uploads/utils/file-utils'
 import { type CsvImportFileDescriptor, useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
 import { MermaidDiagram } from './mermaid-diagram'
+import { useHorizontalWheelScroll } from './use-horizontal-wheel-scroll'
 import { ZoomablePreview } from './zoomable-preview'
 
 type PreviewType = 'markdown' | 'html' | 'csv' | 'svg' | 'mermaid' | null
@@ -264,6 +265,7 @@ const CsvPreview = memo(function CsvPreview({
   file: CsvImportFileDescriptor
   readOnly?: boolean
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const { headers, rows, truncated } = useMemo(() => parseCsv(content), [content])
   useCsvTruncationImport(workspaceId, file, truncated, readOnly)
 
@@ -276,7 +278,7 @@ const CsvPreview = memo(function CsvPreview({
   }
 
   return (
-    <div className='min-h-0 flex-1 overflow-auto p-6'>
+    <div ref={scrollRef} className='min-h-0 flex-1 overflow-auto p-6'>
       <DataTable headers={headers} rows={rows} />
     </div>
   )
