@@ -3,14 +3,13 @@
 import { memo, useCallback, useRef, useState } from 'react'
 import {
   Button,
-  ChevronDown,
+  ChipSwitch,
   Cursor,
   Hand,
   Popover,
   PopoverAnchor,
   PopoverContent,
   PopoverItem,
-  PopoverTrigger,
   Redo,
   Tooltip,
   Undo,
@@ -30,6 +29,19 @@ import { useUndoRedoStore } from '@/stores/undo-redo'
 import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 
 const logger = createLogger('WorkflowControls')
+
+const CANVAS_MODE_OPTIONS = [
+  {
+    value: 'cursor',
+    label: <span className='sr-only'>Pointer</span>,
+    icon: Cursor,
+  },
+  {
+    value: 'hand',
+    label: <span className='sr-only'>Hand</span>,
+    icon: Hand,
+  },
+] as const
 
 /**
  * Header controls for navigating workflow history.
@@ -111,7 +123,6 @@ export const WorkflowControls = memo(function WorkflowControls() {
   ])
 
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number } | null>(null)
-  const [isCanvasModeOpen, setIsCanvasModeOpen] = useState(false)
   const menuRef = useRef<HTMLDivElement>(null)
 
   const handleContextMenu = (e: React.MouseEvent) => {
@@ -135,61 +146,13 @@ export const WorkflowControls = memo(function WorkflowControls() {
 
   return (
     <>
-      <div
-        className='flex h-[36px] flex-shrink-0 items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
-        onContextMenu={handleContextMenu}
-      >
-        {/* Canvas Mode Selector */}
-        <Popover
-          open={isCanvasModeOpen}
-          onOpenChange={setIsCanvasModeOpen}
-          variant='secondary'
-          size='sm'
-        >
-          <Tooltip.Root>
-            <PopoverTrigger asChild>
-              <div className='flex cursor-pointer items-center gap-1'>
-                <Tooltip.Trigger asChild>
-                  <Button className='size-[28px] rounded-md p-0' variant='active'>
-                    {mode === 'hand' ? (
-                      <Hand className='size-[14px]' />
-                    ) : (
-                      <Cursor className='size-[14px]' />
-                    )}
-                  </Button>
-                </Tooltip.Trigger>
-                <Button className='-m-1 !p-1.5 group' variant='ghost'>
-                  <ChevronDown
-                    className={`size-[14px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
-                  />
-                </Button>
-              </div>
-            </PopoverTrigger>
-            <Tooltip.Content side='top'>{mode === 'hand' ? 'Mover' : 'Pointer'}</Tooltip.Content>
-          </Tooltip.Root>
-          <PopoverContent side='top' sideOffset={8} maxWidth={100} minWidth={100}>
-            <PopoverItem
-              onClick={() => {
-                setMode('hand')
-                setIsCanvasModeOpen(false)
-              }}
-            >
-              <Hand className='size-3' />
-              <span>Mover</span>
-            </PopoverItem>
-            <PopoverItem
-              onClick={() => {
-                setMode('cursor')
-                setIsCanvasModeOpen(false)
-              }}
-            >
-              <Cursor className='size-3' />
-              <span>Pointer</span>
-            </PopoverItem>
-          </PopoverContent>
-        </Popover>
-
-        <div className='mx-1 h-[20px] w-px bg-[var(--border)]' />
+      <div className='flex flex-shrink-0 items-center gap-0.5' onContextMenu={handleContextMenu}>
+        <ChipSwitch
+          options={CANVAS_MODE_OPTIONS}
+          value={mode}
+          onChange={setMode}
+          aria-label='Canvas interaction mode'
+        />
 
         <Tooltip.Root>
           <Tooltip.Trigger asChild>
