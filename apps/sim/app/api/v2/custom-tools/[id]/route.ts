@@ -4,9 +4,9 @@ import {
   v2UpdateCustomToolContract,
 } from '@/lib/api/contracts/v2/custom-tools'
 import {
+  createV2ResourceConcealmentPolicy,
   defineV2JsonRoute,
   v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { customToolOperations } from '@/lib/custom-tools/application/operations'
@@ -20,13 +20,17 @@ import { toV2CustomTool } from '@/app/api/v2/custom-tools/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const customToolResourceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Custom tool not found',
+})
+
 /** GET /api/v2/custom-tools/[id] — Fetch a single custom tool. */
 export const GET = defineV2JsonRoute({
   contract: v2GetCustomToolContract,
   operation: customToolOperations.read,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: customToolResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, toolId: params.id }),
   useCase: getWorkspaceCustomToolUseCase,
   present: ({ tool }) => ({ data: { customTool: toV2CustomTool(tool) } }),
@@ -38,7 +42,7 @@ export const PATCH = defineV2JsonRoute({
   operation: customToolOperations.update,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: customToolResourceErrorPolicy,
   mapInput: ({ params, body }) => ({
     ...body,
     toolId: params.id,
@@ -54,7 +58,7 @@ export const DELETE = defineV2JsonRoute({
   operation: customToolOperations.delete,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: customToolResourceErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: query.workspaceId,
     toolId: params.id,

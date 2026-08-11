@@ -7017,7 +7017,7 @@
           "size": {
             "type": "integer",
             "minimum": 1,
-            "maximum": 26214400,
+            "maximum": 5368709120,
             "description": "Exact CSV file size in bytes."
           }
         },

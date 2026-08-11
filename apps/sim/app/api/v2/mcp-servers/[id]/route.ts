@@ -4,9 +4,9 @@ import {
   v2UpdateMcpServerContract,
 } from '@/lib/api/contracts/v2/mcp-servers'
 import {
+  createV2ResourceConcealmentPolicy,
   defineV2JsonRoute,
   v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
@@ -21,13 +21,17 @@ import { toV2McpServer } from '@/app/api/v2/mcp-servers/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const mcpServerResourceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'MCP server not found',
+})
+
 /** GET /api/v2/mcp-servers/[id] — Fetch a single MCP server. */
 export const GET = defineV2JsonRoute({
   contract: v2GetMcpServerContract,
   operation: mcpServerOperations.read,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, serverId: params.id }),
   useCase: getMcpServerUseCase,
   present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
@@ -39,7 +43,7 @@ export const PATCH = defineV2JsonRoute({
   operation: mcpServerOperations.update,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, body }) => ({ ...body, serverId: params.id, source: 'api' as const }),
   useCase: updateMcpServerUseCase,
   present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
@@ -51,7 +55,7 @@ export const DELETE = defineV2JsonRoute({
   operation: mcpServerOperations.delete,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: query.workspaceId,
     serverId: params.id,

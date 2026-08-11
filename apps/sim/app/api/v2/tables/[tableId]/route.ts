@@ -61,7 +61,7 @@ export const PATCH = defineV2JsonRoute({
   useCase: updateTableUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: async (result) => {
     rethrowUpdateFailure(result)
@@ -78,7 +78,7 @@ export const DELETE = defineV2JsonRoute({
   useCase: deleteTableUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.default,
+  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   onSuccess: ({ result }) => {
     captureServerEvent(

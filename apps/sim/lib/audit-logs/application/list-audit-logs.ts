@@ -4,6 +4,7 @@ import {
   type AuditLogFilterParams,
   buildFilterConditions,
   buildOrgScopeCondition,
+  decodeAuditLogCursor,
   getOrgWorkspaceIds,
   queryAuditLogs,
 } from '@/lib/audit-logs/query'
@@ -23,6 +24,9 @@ export const listAuditLogs = defineAuthorizedAuditLogUseCase({
   operation: auditLogOperations.list,
   organizationId: (input: ListAuditLogsInput) => input.organizationId,
   execute: async ({ input, context }): Promise<ListAuditLogsResult> => {
+    if (input.cursor && !decodeAuditLogCursor(input.cursor)) {
+      throw new OrchestrationError('validation', 'Invalid audit-log cursor')
+    }
     const orgWorkspaceIds = await getOrgWorkspaceIds(context.organizationId)
     if (input.filters.workspaceId && !orgWorkspaceIds.includes(input.filters.workspaceId)) {
       throw new OrchestrationError('validation', 'workspaceId does not belong to your organization')

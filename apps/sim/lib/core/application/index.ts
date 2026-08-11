@@ -24,6 +24,7 @@ export {
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,
   WorkspaceApiKeyAuthorizationError,
+  WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application/workspace-authorization'
 export {
   defineWorkspaceOperation,

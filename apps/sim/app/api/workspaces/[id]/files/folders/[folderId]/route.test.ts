@@ -29,6 +29,7 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
+import { WorkspaceFileItemsNotFoundError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST as RESTORE } from '@/app/api/workspaces/[id]/files/folders/[folderId]/restore/route'
 import { DELETE, PATCH } from '@/app/api/workspaces/[id]/files/folders/[folderId]/route'
 
@@ -114,6 +115,19 @@ describe('/api/workspaces/[id]/files/folders/[folderId]', () => {
       input: { workspaceId: WORKSPACE_ID, folderId: FOLDER_ID },
       request: expect.anything(),
     })
+  })
+
+  it('returns not found when deleting an already archived folder', async () => {
+    mocks.deleteFolder.mockRejectedValueOnce(new WorkspaceFileItemsNotFoundError([], [FOLDER_ID]))
+
+    const response = await DELETE(request('DELETE'), context)
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      success: false,
+      error: `Workspace file items not found (folders: ${FOLDER_ID})`,
+    })
+    expect(mocks.captureServerEvent).not.toHaveBeenCalled()
   })
 
   it('restores a folder through the shared use case', async () => {

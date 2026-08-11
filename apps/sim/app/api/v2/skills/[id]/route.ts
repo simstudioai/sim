@@ -4,9 +4,9 @@ import {
   v2UpdateSkillContract,
 } from '@/lib/api/contracts/v2/skills'
 import {
+  createV2ResourceConcealmentPolicy,
   defineV2JsonRoute,
   v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
   v2RateLimits,
 } from '@/lib/api/server/routes'
 import { captureServerEvent } from '@/lib/posthog/server'
@@ -21,13 +21,17 @@ import { toV2Skill } from '@/app/api/v2/skills/utils'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+const skillResourceErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Skill not found',
+})
+
 /** GET /api/v2/skills/[id] — Fetch a single skill, including its body. */
 export const GET = defineV2JsonRoute({
   contract: v2GetSkillContract,
   operation: skillOperations.read,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: skillResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, skillId: params.id }),
   useCase: getSkillUseCase,
   present: ({ skill }) => ({ data: { skill: toV2Skill(skill) } }),
@@ -39,7 +43,7 @@ export const PATCH = defineV2JsonRoute({
   operation: skillOperations.update,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: skillResourceErrorPolicy,
   mapInput: ({ params, body }) => ({
     ...body,
     skillId: params.id,
@@ -69,7 +73,7 @@ export const DELETE = defineV2JsonRoute({
   operation: skillOperations.delete,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: skillResourceErrorPolicy,
   mapInput: ({ params, query }) => ({
     workspaceId: query.workspaceId,
     skillId: params.id,

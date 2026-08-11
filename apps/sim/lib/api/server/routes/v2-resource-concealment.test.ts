@@ -10,6 +10,7 @@ import {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
+  WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
@@ -59,16 +60,15 @@ const policies: Array<{
   },
 ]
 
-const resourceAuthorizationErrors = [
+const crossTenantAuthorizationErrors = [
   new NoWorkspaceAccessError(),
-  new WorkspaceApiKeyAuthorizationError(),
+  new WorkspaceApiKeyScopeAuthorizationError(),
   new DelegatedWorkspaceAuthorizationError(),
-  new PrincipalKindAuthorizationError('workspace_api_key', 'resources.read'),
 ]
 
 describe.each(policies)('$domain resource concealment', ({ policy, notFoundMessage }) => {
-  it.each(resourceAuthorizationErrors)(
-    'conceals typed resource authorization: %s',
+  it.each(crossTenantAuthorizationErrors)(
+    'conceals cross-tenant authorization: %s',
     async (error) => {
       const response = policy.render(error)
       expect(response?.status).toBe(404)
@@ -95,6 +95,15 @@ describe.each(policies)('$domain resource concealment', ({ policy, notFoundMessa
     await expect(response?.json()).resolves.toEqual({
       error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
     })
+  })
+
+  it.each([
+    new WorkspaceApiKeyAuthorizationError(),
+    new PrincipalKindAuthorizationError('workspace_api_key', 'resources.read'),
+  ])('preserves same-workspace principal policy denial as forbidden: %s', async (error) => {
+    const response = policy.render(error)
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
   it('does not classify generic forbidden errors by message', async () => {

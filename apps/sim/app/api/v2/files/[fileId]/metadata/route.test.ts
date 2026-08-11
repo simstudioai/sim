@@ -113,7 +113,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect(mocks.readMetadata).not.toHaveBeenCalled()
   })
 
-  it('conceals an authorization failure as not found', async () => {
+  it('conceals cross-workspace authorization as not found', async () => {
     mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)

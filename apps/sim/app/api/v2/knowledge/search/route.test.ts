@@ -70,13 +70,14 @@ describe('POST /api/v2/knowledge/search', () => {
     })
   })
 
-  it('delegates normalized IDs through the semantic operation', async () => {
+  it('delegates normalized IDs and the selected search mode through the semantic operation', async () => {
     const request = buildRequest(
       JSON.stringify({
         workspaceId: WORKSPACE_ID,
         knowledgeBaseIds: 'kb-1',
         query: 'hello',
         topK: 10,
+        searchMode: 'hybrid',
       })
     )
 
@@ -91,6 +92,7 @@ describe('POST /api/v2/knowledge/search', () => {
         query: 'hello',
         topK: 10,
         tagFilters: undefined,
+        searchMode: 'hybrid',
       },
       request,
     })

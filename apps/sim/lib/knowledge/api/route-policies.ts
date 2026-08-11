@@ -78,21 +78,31 @@ const v2KnowledgeUsageErrorPolicy = {
   },
 } satisfies V2ErrorPolicy
 
+const v2KnowledgeDocumentUploadErrorPolicy = {
+  render(error) {
+    if (error instanceof KnowledgeDocumentUnsupportedMediaTypeError) {
+      return v2Error('UNSUPPORTED_MEDIA_TYPE', error.message)
+    }
+    if (isPayloadSizeLimitError(error)) {
+      return v2Error('PAYLOAD_TOO_LARGE', error.message)
+    }
+    return v2KnowledgeUsageErrorPolicy.render(error)
+  },
+} satisfies V2ErrorPolicy
+
 export const v2KnowledgeErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
   usage: v2KnowledgeUsageErrorPolicy,
-  documentUpload: {
-    render(error) {
-      if (error instanceof KnowledgeDocumentUnsupportedMediaTypeError) {
-        return v2Error('UNSUPPORTED_MEDIA_TYPE', error.message)
-      }
-      if (isPayloadSizeLimitError(error)) {
-        return v2Error('PAYLOAD_TOO_LARGE', error.message)
-      }
-      return v2KnowledgeUsageErrorPolicy.render(error)
-    },
-  } satisfies V2ErrorPolicy,
+  documentUpload: v2KnowledgeDocumentUploadErrorPolicy,
   concealKnowledgeBaseAuthorization: createV2ResourceConcealmentPolicy({
     notFoundMessage: 'Knowledge base not found',
+  }),
+  concealKnowledgeBaseUsageAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base not found',
+    render: v2KnowledgeUsageErrorPolicy.render,
+  }),
+  concealKnowledgeBaseUploadAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Knowledge base not found',
+    render: v2KnowledgeDocumentUploadErrorPolicy.render,
   }),
 } as const

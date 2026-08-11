@@ -276,18 +276,16 @@ describe('authorized workflow CRUD and version reads', () => {
     expect(mocks.recordAudit).not.toHaveBeenCalled()
   })
 
-  it('binds workspace keys to canonical workflow scope before protected reads', async () => {
-    mocks.resolveWorkflowContext.mockRejectedValue(new Error('canonical mismatch'))
-
+  it('returns forbidden when a workspace key does not match canonical workflow scope', async () => {
     await expect(
       readWorkflow.execute({
         principal: { ...workspacePrincipal, workspaceId: 'workspace-other' },
         input: { workflowId: WORKFLOW_ID },
       })
-    ).rejects.toThrow('canonical mismatch')
+    ).rejects.toMatchObject({ code: 'forbidden' })
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: 'workspace-other',
+      assertedWorkspaceId: undefined,
     })
     expect(mocks.loadSnapshot).not.toHaveBeenCalled()
   })
@@ -327,7 +325,7 @@ describe('authorized workflow CRUD and version reads', () => {
 
     expect(mocks.resolveWorkflowContext).toHaveBeenCalledWith({
       workflowId: WORKFLOW_ID,
-      assertedWorkspaceId: WORKSPACE_ID,
+      assertedWorkspaceId: undefined,
     })
     expect(mocks.resolvePermission).toHaveBeenCalledWith('user-1', WORKSPACE_ID, null, undefined, {
       forUpdate: undefined,
