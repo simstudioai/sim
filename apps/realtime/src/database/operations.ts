@@ -1011,6 +1011,7 @@ async function handleBlocksOperationTx(
               horizontalHandles: sql`excluded.horizontal_handles`,
               advancedMode: sql`excluded.advanced_mode`,
               triggerMode: sql`excluded.trigger_mode`,
+              errorEnabled: sql`excluded.error_enabled`,
               retry: sql`excluded.retry`,
               locked: sql`excluded.locked`,
               height: sql`excluded.height`,
