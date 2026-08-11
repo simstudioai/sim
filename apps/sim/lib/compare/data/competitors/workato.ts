@@ -728,6 +728,31 @@ export const workatoProfile: CompetitorProfile = {
           },
         ],
       },
+      codeSandboxRuntime: {
+        value:
+          'No: every Workato code surface runs on a fixed, Workato-controlled image with a vendor-curated dependency set. The Python snippets connector runs Python 3.9 or later with the standard library plus a published list of preinstalled packages (pandas, NumPy, requests, lxml, openpyxl, pypdf, bcrypt, msoffcrypto, pytz, xlrd among others) and states that user-provided libraries are not supported; the JavaScript snippets connector runs Node.js 20.11.0 with node_fetch, lodash, gRPC, and Google Protobuf preinstalled and carries the same restriction. There is no package-install step, no OS-level package declaration, and no selection of preinstalled CLI binaries.',
+        detail:
+          'The Ruby Connector SDK moved custom connector code into isolated containers in March 2025, which removed the older Ruby method whitelist and gave developers Ruby 2.7 built-in libraries plus a documented set of 14 gems available in the SDK container (jwt, nokogiri, rest-client, aws-sigv4 and others). That widened what the fixed image contains but did not make it configurable: the docs describe no mechanism for a developer to add a gem. Because Workato is SaaS-only with no self-hostable execution engine, there is also no customer-built container image to fall back on.',
+        shortValue: 'No: fixed images with curated, non-extendable packages',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/connectors/python.html',
+            label: 'Python snippets by Workato | Workato Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.workato.com/connectors/javascript.html',
+            label: 'JavaScript snippets by Workato | Workato Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.workato.com/developing-connectors/sdk/sdk-reference/whitelist-removal.html',
+            label: 'Full access to Ruby | Workato Docs',
+            asOf: '2026-08-10',
+          },
+        ],
+      },
       apiPublishing: {
         value:
           'Yes: Workato supports "API recipes" built on its API Platform, which expose a recipe as a REST API endpoint that external users, other recipes, or integrated systems can call to access and exchange data',
@@ -1046,6 +1071,26 @@ export const workatoProfile: CompetitorProfile = {
             url: 'https://docs.workato.com/user-accounts-and-teams/saml-role-sync.html',
             label: 'Workato Docs: SAML role sync',
             asOf: '2026-07-02',
+          },
+        ],
+      },
+      sessionPolicy: {
+        value:
+          'Yes: a workspace-wide session timeout duration is set by admins under Workspace admin > Settings > Workspace > General, documented as "the time of inactivity after which users are logged out." Workato\'s security FAQs state the default is seven days and the value is configurable from 15 minutes to 14 days.',
+        detail:
+          'This is an inactivity/idle timeout applied across the workspace, not a separate absolute session lifetime cap measured from sign-in; Workato documents no second control for maximum session age. The setting sits in the general workspace admin settings rather than being gated to a specific security add-on in the documentation.',
+        shortValue: 'Yes: workspace idle timeout, 15 minutes to 14 days',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.workato.com/en/workspace-admin-settings.html',
+            label: 'Workato Docs: Workspace admin settings',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.workato.com/security/security-faqs.html',
+            label: 'Workato Docs: Security FAQs',
+            asOf: '2026-08-10',
           },
         ],
       },
