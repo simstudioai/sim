@@ -221,7 +221,6 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
               disabled={workflowLocked}
             />
             <Chip
-              className='h-[32px]'
               variant={isExecuting ? undefined : 'primary'}
               active={isExecuting}
               onClick={isExecuting ? cancelWorkflow : () => runWorkflow()}
@@ -230,25 +229,20 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
               leftAdornment={
                 <span
                   aria-hidden='true'
-                  className='inline-flex size-5 flex-shrink-0 items-center justify-center overflow-visible'
+                  className='inline-flex size-[14px] flex-shrink-0 items-center justify-center overflow-visible'
                 >
                   <ThinkingLoader
                     variant={isExecuting ? undefined : 'play'}
                     startVariant='play'
                     startHoldMs={140}
-                    size={20}
+                    size={14}
                     morphDurationMs={isExecuting ? 650 : 180}
                     tone='inherit'
                   />
                 </span>
               }
             >
-              <span className='inline-grid'>
-                <span aria-hidden='true' className='invisible col-start-1 row-start-1'>
-                  Stop
-                </span>
-                <span className='col-start-1 row-start-1'>{isExecuting ? 'Stop' : 'Run'}</span>
-              </span>
+              {isExecuting ? 'Stop' : 'Run'}
             </Chip>
           </div>
         </div>
