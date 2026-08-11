@@ -1,7 +1,4 @@
-import { db } from '@sim/db'
-import { member } from '@sim/db/schema'
-import { isOrgAdminRole } from '@sim/platform-authz/workspace'
-import { and, eq } from 'drizzle-orm'
+import { isOrganizationAdminOrOwner } from '@/lib/workspaces/permissions/utils'
 
 /**
  * Canonical workspace state needed to decide payer-billing authority.
@@ -26,14 +23,7 @@ export async function canUserManageWorkspaceBilling(
   userId: string
 ): Promise<boolean> {
   if (context.workspaceOrganizationId) {
-    const [membership] = await db
-      .select({ role: member.role })
-      .from(member)
-      .where(
-        and(eq(member.organizationId, context.workspaceOrganizationId), eq(member.userId, userId))
-      )
-      .limit(1)
-    return isOrgAdminRole(membership?.role)
+    return isOrganizationAdminOrOwner(userId, context.workspaceOrganizationId)
   }
 
   return context.billedAccountUserId === userId

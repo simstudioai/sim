@@ -24,11 +24,11 @@ const mocks = vi.hoisted(() => ({
   getUsageLogs: vi.fn(),
   getWorkspaceUsageLogs: vi.fn(),
   recordAudit: vi.fn(),
-  canManageWorkspaceBilling: vi.fn(),
+  canUserManageWorkspaceBilling: vi.fn(),
 }))
 
 vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
-  canUserManageWorkspaceBilling: mocks.canManageWorkspaceBilling,
+  canUserManageWorkspaceBilling: mocks.canUserManageWorkspaceBilling,
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -99,7 +99,7 @@ describe('billing application use cases', () => {
     vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
-    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
     mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 1, limit: 10, isExceeded: false })
     mocks.checkAttributedBlocks.mockResolvedValue({ blocked: false })
     mocks.toUsageLimitSubscription.mockReturnValue(null)
@@ -188,7 +188,7 @@ describe('billing application use cases', () => {
 
     expect(result.credits).toBeNull()
     expect(result.storage).toBeNull()
-    expect(mocks.canManageWorkspaceBilling).not.toHaveBeenCalled()
+    expect(mocks.canUserManageWorkspaceBilling).not.toHaveBeenCalled()
   })
 
   it('never reads the payer storage pool it may not disclose', async () => {
@@ -216,7 +216,7 @@ describe('billing application use cases', () => {
 
   it('withholds the payer pool from a workspace member who cannot manage billing', async () => {
     mocks.resolvePermission.mockResolvedValue('read')
-    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
 
     const result = await getBillingStatus.execute({
       principal: personalPrincipal,
@@ -226,12 +226,12 @@ describe('billing application use cases', () => {
     expect(result.credits).toBeNull()
     expect(result.storage).toBeNull()
     expect(result).toMatchObject({ workspaceId: 'workspace-1', plan: 'free', status: 'active' })
-    expect(mocks.canManageWorkspaceBilling).toHaveBeenCalledWith(workspaceContext, 'user-1')
+    expect(mocks.canUserManageWorkspaceBilling).toHaveBeenCalledWith(workspaceContext, 'user-1')
   })
 
   it('withholds the payer pool from a workspace admin who cannot manage billing', async () => {
     mocks.resolvePermission.mockResolvedValue('admin')
-    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
 
     const result = await getBillingStatus.execute({
       principal: personalPrincipal,
@@ -243,7 +243,7 @@ describe('billing application use cases', () => {
   })
 
   it('still reports an exceeded payer limit without disclosing the pool', async () => {
-    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
     mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 40, limit: 10, isExceeded: true })
 
     const result = await getBillingStatus.execute({
@@ -256,7 +256,7 @@ describe('billing application use cases', () => {
   })
 
   it('projects the payer pool to a member who can manage billing', async () => {
-    mocks.canManageWorkspaceBilling.mockResolvedValue(true)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(true)
 
     const result = await getBillingStatus.execute({
       principal: personalPrincipal,
@@ -272,7 +272,7 @@ describe('billing application use cases', () => {
   })
 
   it('always reports the account-scoped pool the caller owns', async () => {
-    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.canUserManageWorkspaceBilling.mockResolvedValue(false)
     mocks.getSubscription.mockResolvedValue({ plan: 'pro' })
     mocks.deriveBillingContext.mockReturnValue({
       billingEntity: { type: 'user', id: 'user-1' },

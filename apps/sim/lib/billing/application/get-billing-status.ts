@@ -66,6 +66,14 @@ function storageStatus(usedBytes: number, limitBytes: number): BillingStorageSta
   }
 }
 
+function creditsStatus(usage: { currentUsage: number; limit: number }): BillingCreditsStatus {
+  return {
+    used: dollarsToCredits(usage.currentUsage),
+    limit: dollarsToCredits(usage.limit),
+    remaining: dollarsToCredits(usage.limit - usage.currentUsage),
+  }
+}
+
 /**
  * Resolves whether a caller may read the resolved payer's pooled allowances.
  *
@@ -89,15 +97,15 @@ function storageStatus(usedBytes: number, limitBytes: number): BillingStorageSta
  * A workspace key still reads the plan, period, and standing it needs to
  * monitor the workspace, including `limit_exceeded` and `billing_blocked`.
  */
-function canReadPayerPool(
+async function canReadPayerPool(
   principal: BillingReadPrincipal,
   workspace: WorkspaceBillingAuthorityContext
 ): Promise<boolean> {
-  if (principal.kind !== 'personal_api_key') return Promise.resolve(false)
+  if (principal.kind !== 'personal_api_key') return false
   return canUserManageWorkspaceBilling(workspace, principal.userId)
 }
 
-/** Reads the payer's storage pool. Only called once disclosure is authorized. */
+/** Only invoked once payer-pool disclosure is authorized. */
 async function resolvePayerStorage(workspaceId: string): Promise<BillingStorageStatus> {
   const storageContext = await resolveStorageBillingContext(workspaceId)
   const usedBytes = await getStorageUsageForBillingContext(storageContext)
@@ -128,13 +136,7 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
         period: attribution.billingPeriod,
         plan: attribution.payerSubscription?.plan ?? 'free',
         status: block.blocked ? 'billing_blocked' : usage.isExceeded ? 'limit_exceeded' : 'active',
-        credits: canViewPayerPool
-          ? {
-              used: dollarsToCredits(usage.currentUsage),
-              limit: dollarsToCredits(usage.limit),
-              remaining: dollarsToCredits(usage.limit - usage.currentUsage),
-            }
-          : null,
+        credits: canViewPayerPool ? creditsStatus(usage) : null,
         storage,
       }
     }
@@ -163,11 +165,7 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
           : usage.isExceeded
             ? 'limit_exceeded'
             : 'active',
-      credits: {
-        used: dollarsToCredits(usage.currentUsage),
-        limit: dollarsToCredits(usage.limit),
-        remaining: dollarsToCredits(usage.limit - usage.currentUsage),
-      },
+      credits: creditsStatus(usage),
       storage: storageStatus(storageUsedBytes, storageLimitBytes),
     }
   },
