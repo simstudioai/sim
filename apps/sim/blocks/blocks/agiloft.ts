@@ -660,7 +660,7 @@ export const AgiloftBlock: BlockConfig = {
     records: {
       type: 'json',
       description: 'Array of matching records',
-      condition: { field: 'operation', value: 'search_records' },
+      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
     },
     totalCount: {
       type: 'number',
@@ -773,8 +773,11 @@ export const AgiloftBlock: BlockConfig = {
     },
     callbackId: {
       type: 'string',
-      description: 'Callback identifier Agiloft returns for the asynchronous action-button run',
-      condition: { field: 'operation', value: 'run_action_button' },
+      description: 'Callback identifier for an asynchronous call, to pass to Async Status',
+      condition: {
+        field: 'operation',
+        value: ['run_action_button', 'async_status', 'upsert_record'],
+      },
     },
     statusCode: {
       type: 'number',

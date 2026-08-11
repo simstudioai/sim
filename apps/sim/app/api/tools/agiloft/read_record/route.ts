@@ -11,6 +11,7 @@ import { alrestRecordUrl, alrestSearchUrl, parseFieldList } from '@/tools/agilof
 import {
   type AgiloftRequestConfig,
   executeAlrestRequest,
+  isAgiloftRefusal,
   readAlrestJson,
 } from '@/tools/agiloft/utils.server'
 
@@ -138,6 +139,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error reading Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

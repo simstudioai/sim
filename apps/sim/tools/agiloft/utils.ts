@@ -234,6 +234,26 @@ export function buildUpsertRecordBody(
 
   for (const [field, value] of Object.entries(data)) {
     if (value === undefined || value === null) continue
+
+    /**
+     * Multi-value fields are encoded as repeated key/value pairs, not as a
+     * joined string. Objects have no documented encoding at all, and
+     * String()-ing one silently writes "[object Object]" into the record.
+     */
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (entry === undefined || entry === null) continue
+        fields.push([field, String(entry)])
+      }
+      continue
+    }
+
+    if (typeof value === 'object') {
+      throw new TypeError(
+        `Field "${field}" is an object, which Agiloft has no encoding for. Use a string, a number, or an array of values.`
+      )
+    }
+
     fields.push([field, String(value)])
   }
 

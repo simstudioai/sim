@@ -551,3 +551,81 @@ describe('review round 2 fixes', () => {
     expect(data.output.id).toBe('123')
   })
 })
+
+describe('review round 3 fixes', () => {
+  it('reports an Agiloft refusal as a non-retryable failure, not a 500', async () => {
+    arrange(
+      res({ json: { success: false, errors: [{ message: 'Field contract_title1 is required' }] } })
+    )
+
+    const response = await POST(createMockRequest('POST', { ...baseBody, data: '{"a":"b"}' }))
+
+    /**
+     * The tool runner retries 500s, and retrying a refused create can duplicate
+     * a record — a refusal must come back as a settled failure.
+     */
+    expect(response.status).toBe(200)
+    const data = (await response.json()) as { success: boolean; error?: string }
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('Field contract_title1 is required')
+  })
+
+  it('tells the user what to do when EWTable login needs a table', async () => {
+    const { POST: LIST } = await import('@/app/api/tools/agiloft/list_tables/route')
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({
+        ok: false,
+        status: 400,
+        text: 'EWWrongDataException has occurred: One has to specify $table, $KB, $lang parameters',
+      })
+    )
+
+    const response = await LIST(
+      createMockRequest('POST', {
+        instanceUrl: baseBody.instanceUrl,
+        knowledgeBase: baseBody.knowledgeBase,
+        login: baseBody.login,
+        password: baseBody.password,
+      })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('requires a table name to authenticate')
+  })
+
+  it('encodes a multi-value upsert field as repeated pairs, not a joined string', async () => {
+    const { POST: UPSERT } = await import('@/app/api/tools/agiloft/upsert_record/route')
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      res({ status: 200, text: "EWREST_id='353';" })
+    )
+
+    await UPSERT(
+      createMockRequest('POST', {
+        ...baseBody,
+        match: 'ext_id',
+        data: '{"contactMethod":["phone","email"]}',
+      })
+    )
+
+    const body = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[0][2].body as string
+    expect(new URLSearchParams(body).getAll('contactMethod')).toEqual(['phone', 'email'])
+  })
+
+  it('refuses an object field value rather than writing [object Object]', async () => {
+    const { POST: UPSERT } = await import('@/app/api/tools/agiloft/upsert_record/route')
+
+    const response = await UPSERT(
+      createMockRequest('POST', {
+        ...baseBody,
+        match: 'ext_id',
+        data: '{"nested":{"a":1}}',
+      })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('has no encoding for')
+    expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+})

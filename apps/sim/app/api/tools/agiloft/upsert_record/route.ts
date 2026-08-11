@@ -69,13 +69,24 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
+    let body: string
+    try {
+      body = buildUpsertRecordBody(params, fieldValues)
+    } catch (error) {
+      return NextResponse.json({
+        success: false,
+        output: { id: null, created: false, callbackId: null },
+        error: toError(error).message,
+      })
+    }
+
     const result = await executeEwRequest<AgiloftUpsertRecordResponse>(
       params,
       (base) => ({
         url: buildUpsertRecordUrl(base),
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: buildUpsertRecordBody(params, fieldValues),
+        body,
       }),
       async (response) => {
         const body = await response.text()

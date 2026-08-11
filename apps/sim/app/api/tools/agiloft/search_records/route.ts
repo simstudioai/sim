@@ -9,7 +9,11 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftSearchResponse } from '@/tools/agiloft/types'
 import { AGILOFT_MAX_SEARCH_RECORDS, alrestSearchUrl, parseFieldList } from '@/tools/agiloft/utils'
-import { executeAlrestRequest, readAlrestJson } from '@/tools/agiloft/utils.server'
+import {
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -95,6 +99,19 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { records: [], totalCount: 0, page: 0, limit: 0, truncated: false },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error searching Agiloft records:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

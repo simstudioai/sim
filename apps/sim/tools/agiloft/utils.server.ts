@@ -204,6 +204,17 @@ export interface AlrestEnvelope<T> {
 export class AgiloftAlrestError extends Error {}
 
 /**
+ * True for an upstream refusal Agiloft already decided on — a validation error,
+ * a permission denial, a conflicting match.
+ *
+ * These must not surface as HTTP 500: the tool runner treats 500 as retryable,
+ * and retrying a refused create can duplicate a record rather than converge.
+ */
+export function isAgiloftRefusal(error: unknown): error is AgiloftAlrestError {
+  return error instanceof AgiloftAlrestError
+}
+
+/**
  * Parses an alrest envelope, throwing `AgiloftAlrestError` when the call failed
  * — whether it failed by status code, by `success: false`, or by returning
  * something that is not JSON at all.

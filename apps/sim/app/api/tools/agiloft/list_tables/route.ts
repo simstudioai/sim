@@ -6,9 +6,17 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { AgiloftListTablesResponse, AgiloftTableField } from '@/tools/agiloft/types'
+import type {
+  AgiloftListTablesParams,
+  AgiloftListTablesResponse,
+  AgiloftTableField,
+} from '@/tools/agiloft/types'
 import { buildListTablesUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest, readAlrestJson } from '@/tools/agiloft/utils.server'
+import {
+  executeAgiloftRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -34,6 +42,7 @@ interface EwTableResult {
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
+  let params: AgiloftListTablesParams | undefined
 
   try {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
@@ -65,13 +74,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       }
     )
     if (!parsed.success) return parsed.response
-    const params = parsed.data.body
+    const listParams = parsed.data.body
+    params = listParams
 
     /** EWTable must run under EWLogin or OAuth authorization. */
     const result = await executeAgiloftRequest<AgiloftListTablesResponse>(
-      params,
+      listParams,
       (base) => ({
-        url: buildListTablesUrl(base, params),
+        url: buildListTablesUrl(base, listParams),
         method: 'GET',
         headers: { Accept: 'application/json' },
       }),
@@ -108,6 +118,33 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    /**
+     * EWTable is knowledge-base scoped, but some instances reject EWLogin
+     * without a $table. When that happens there is nothing to fall back to, so
+     * say what the caller can actually do about it.
+     */
+    if (!params?.table && /\$table/.test(toError(error).message)) {
+      return NextResponse.json({
+        success: false,
+        output: { tables: [], totalCount: 0 },
+        error:
+          'This Agiloft instance requires a table name to authenticate. Put any known table in the Table field — it also narrows the result to that table.',
+      })
+    }
+
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { tables: [], totalCount: 0 },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error listing Agiloft tables:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
