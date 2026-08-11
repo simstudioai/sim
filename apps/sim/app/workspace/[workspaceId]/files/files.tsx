@@ -103,6 +103,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -1680,6 +1681,16 @@ export function Files() {
     if (!canEdit || uploading) return
     fileInputRef.current?.click()
   }, [canEdit, uploading])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'files-upload', handler: () => handleUploadClick() },
+    { id: 'files-new-file', handler: () => void handleCreateFile() },
+    { id: 'files-new-folder', handler: () => void handleCreateFolder() },
+    { id: 'file-download', handler: () => handleDownloadSelected() },
+    { id: 'file-rename', handler: () => handleStartHeaderRename() },
+    { id: 'file-share', handler: () => handleShareSelected() },
+    { id: 'file-delete', handler: () => handleDeleteSelected() },
+  ])
 
   const searchConfig: SearchConfig = {
     value: urlSearchTerm,

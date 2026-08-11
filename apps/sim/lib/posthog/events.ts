@@ -575,10 +575,8 @@ export interface PostHogEventMap {
       | 'table'
       | 'file'
       | 'knowledge_base'
+      | 'log'
       | 'page'
-      | 'docs'
-      | 'connected_account'
-      | 'integration'
       | 'action'
     query_length: number
     workspace_id: string

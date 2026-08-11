@@ -66,6 +66,10 @@ import {
   buildConnectedAccountSearchItems,
   buildIntegrationSearchItems,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/integration-search-items'
+import type {
+  LogItem,
+  PageActionContext,
+} from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
@@ -95,6 +99,7 @@ import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 import { useFolderMap, useFolders } from '@/hooks/queries/folders'
 import { useKnowledgeBasesQuery } from '@/hooks/queries/kb/knowledge'
+import { type LogFilters, useLogsList } from '@/hooks/queries/logs'
 import type { MothershipChatMetadata } from '@/hooks/queries/mothership-chats'
 import {
   useDeleteMothershipChat,
@@ -115,6 +120,7 @@ import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { SIDEBAR_WIDTH } from '@/stores/constants'
 import { useFolderStore } from '@/stores/folders/store'
 import type { WorkflowFolder } from '@/stores/folders/types'
+import { useFilterStore } from '@/stores/logs/filters/store'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import { useProvidersStore } from '@/stores/providers'
 import { useSettingsDirtyStore } from '@/stores/settings/dirty/store'
@@ -130,6 +136,27 @@ const logger = createLogger('Sidebar')
 const EMPTY_CHATS: MothershipChatMetadata[] = []
 /** Stable identity while a folder list loads, so the search-row memos don't churn. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
+
+/** Recent runs shown in the palette's Logs section on the logs pages. */
+const SEARCH_MODAL_LOG_FILTERS: LogFilters = {
+  timeRange: 'All time',
+  level: 'all',
+  workflowIds: [],
+  folderIds: [],
+  triggers: [],
+  searchQuery: '',
+  limit: 50,
+  sortBy: 'date',
+  sortOrder: 'desc',
+}
+
+/** Short run/activity date for palette row receipts (logs, chats). */
+const SEARCH_MODAL_DATE_FORMAT = new Intl.DateTimeFormat(undefined, {
+  month: 'short',
+  day: 'numeric',
+  hour: 'numeric',
+  minute: '2-digit',
+})
 
 const SLACK_COMMUNITY_URL =
   'https://join.slack.com/t/sim-ott9864/shared_invite/zt-43lp8tc5v-0qrrqHGBKUsvQlpoouH~TA'
@@ -424,7 +451,7 @@ export const Sidebar = memo(function Sidebar({
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
   const { workspace: routeWorkspace } = useWorkspaceHostContext()
-  const { canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
+  const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
   const {
     config: permissionConfig,
     filterBlocks,
@@ -771,6 +798,8 @@ export const Sidebar = memo(function Sidebar({
         name: workspace.name,
         href: `/workspace/${workspace.id}/w`,
         isCurrent: workspace.id === workspaceId,
+        logoUrl: workspace.logoUrl,
+        color: workspace.color,
       })),
     [workspaces, workspaceId]
   )
@@ -867,6 +896,7 @@ export const Sidebar = memo(function Sidebar({
       fetchedChats.map((t) => ({
         ...t,
         href: `/workspace/${workspaceId}/chat/${t.id}`,
+        date: SEARCH_MODAL_DATE_FORMAT.format(t.updatedAt),
       })),
     [fetchedChats, workspaceId]
   )
@@ -1078,13 +1108,57 @@ export const Sidebar = memo(function Sidebar({
   }, [])
 
   const isOnSettingsPage = pathname?.startsWith(`/workspace/${workspaceId}/settings`) ?? false
-  const isOnIntegrationsPage =
-    pathname?.startsWith(`/workspace/${workspaceId}/integrations`) ?? false
+
+  const logsViewMode = useFilterStore((state) => state.viewMode)
+
+  /**
+   * Page whose registered palette commands are currently invocable. Matches
+   * only routes that mount the registering component: list pages exactly, and
+   * detail roots as a single path segment (deeper routes don't mount them).
+   */
+  const searchModalPageContext = useMemo((): PageActionContext | null => {
+    if (!pathname) return null
+    if (workflowId) return 'workflow'
+    const base = `/workspace/${workspaceId}`
+    const detailSegment = (prefix: string): string | null => {
+      if (!pathname.startsWith(prefix)) return null
+      const rest = pathname.slice(prefix.length)
+      return rest && !rest.includes('/') ? rest : null
+    }
+    if (pathname === `${base}/tables`) return 'tables'
+    if (detailSegment(`${base}/tables/`)) return 'tableDetail'
+    if (pathname === `${base}/files`) return 'files'
+    if (detailSegment(`${base}/files/`)) return 'fileDetail'
+    if (pathname === `${base}/knowledge`) return 'knowledge'
+    if (detailSegment(`${base}/knowledge/`)) return 'knowledgeBase'
+    if (pathname === `${base}/logs`) return logsViewMode === 'dashboard' ? 'logsDashboard' : 'logs'
+    return null
+  }, [pathname, workspaceId, workflowId, logsViewMode])
 
   const { data: fetchedCredentials = [] } = useWorkspaceCredentials({
     workspaceId,
-    enabled: isOnIntegrationsPage && !permissionConfig.hideIntegrationsTab,
+    enabled:
+      isSearchModalOpen &&
+      !permissionConfig.hideIntegrationsTab &&
+      searchModalPageContext !== 'workflow',
   })
+
+  const isOnLogsPage =
+    searchModalPageContext === 'logs' || searchModalPageContext === 'logsDashboard'
+  const logsPages = useLogsList(workspaceId, SEARCH_MODAL_LOG_FILTERS, {
+    enabled: isSearchModalOpen && isOnLogsPage,
+  })
+  const searchModalLogs = useMemo((): LogItem[] => {
+    const rows = logsPages.data?.pages[0]?.logs ?? []
+    return rows.map((log) => ({
+      id: log.id,
+      name: log.workflow?.name || log.jobTitle || 'Unknown workflow',
+      href: log.executionId
+        ? `/workspace/${workspaceId}/logs?executionId=${log.executionId}`
+        : `/workspace/${workspaceId}/logs`,
+      date: SEARCH_MODAL_DATE_FORMAT.format(new Date(log.createdAt)),
+    }))
+  }, [logsPages.data, workspaceId])
 
   const searchModalIntegrations = useMemo(
     () =>
@@ -1297,7 +1371,8 @@ export const Sidebar = memo(function Sidebar({
       {
         id: 'open-search',
         handler: () => {
-          openSearchModal()
+          const searchModal = useSearchModalStore.getState()
+          searchModal.setOpen(!searchModal.isOpen)
         },
       },
       {
@@ -1851,11 +1926,12 @@ export const Sidebar = memo(function Sidebar({
         tables={searchModalTables}
         files={searchModalFiles}
         knowledgeBases={searchModalKnowledgeBases}
+        logs={searchModalLogs}
         integrations={searchModalIntegrations}
         connectedAccounts={searchModalConnectedAccounts}
-        isOnWorkflowPage={!!workflowId}
-        isOnIntegrationsPage={isOnIntegrationsPage}
+        pageContext={searchModalPageContext}
         canEdit={canEdit}
+        canAdmin={canAdmin}
         onCreateWorkflow={handleCreateWorkflow}
         onCreateFolder={handleCreateFolder}
         onImportWorkflow={handleImportWorkflow}

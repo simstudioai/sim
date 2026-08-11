@@ -46,6 +46,7 @@ import {
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -1032,6 +1033,17 @@ export function Tables() {
       toast.error(getErrorMessage(err, 'Failed to create folder'), { duration: 5000 })
     }
   }, [workspaceId, folders, currentFolderId, createFolderAsync, setSearchTerm, startFolderRename])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'tables-new-table', handler: () => void handleCreateTable() },
+    { id: 'tables-new-folder', handler: () => void handleCreateFolder() },
+    {
+      id: 'tables-import-csv',
+      handler: () => {
+        if (!uploading) csvInputRef.current?.click()
+      },
+    },
+  ])
 
   const headerActions: ResourceAction[] = useMemo(
     () => [

@@ -36,6 +36,7 @@ import {
 } from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { ImportCsvDialog } from '@/app/workspace/[workspaceId]/tables/components/import-csv-dialog'
 import { ImportProgressMenu } from '@/app/workspace/[workspaceId]/tables/components/import-progress-menu'
@@ -1067,6 +1068,34 @@ export function Table({
       toast.error('Failed to export table')
     }
   }, [tableData, workspaceId])
+
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'table-new-column',
+      handler: () => {
+        if (!userPermissions.canEdit) return
+        if (tableDataRef.current?.locks.schemaLocked) {
+          showBlockedToast('add-column')
+          return
+        }
+        handleAddColumnOfType('string')
+      },
+    },
+    {
+      id: 'table-export-csv',
+      handler: () => {
+        if (!tableDataRef.current?.rowCount) return
+        void handleExportCsv()
+      },
+    },
+    {
+      id: 'table-import-csv',
+      handler: () => {
+        if (!userPermissions.canEdit || tableDataRef.current?.locks.insertLocked) return
+        onRequestImportCsv()
+      },
+    },
+  ])
 
   const columnOptions = useMemo<ColumnOption[]>(
     () =>
