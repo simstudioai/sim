@@ -118,7 +118,7 @@ describe('canonical folder paths', () => {
       }).recursive
     ).toBe(true)
     expect(
-      v2DeleteFolderQuerySchema.safeParse({ workspaceId: 'workspace-1', path: '/Reports' }).success
+      v2DeleteFolderQuerySchema.parse({ workspaceId: 'workspace-1', path: '/Reports' }).recursive
     ).toBe(false)
   })
 })

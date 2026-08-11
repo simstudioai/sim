@@ -143,7 +143,7 @@ describe('/api/v2/tables/[tableId]/groups', () => {
     })
   })
 
-  it('conceals denied table access on group mutations', async () => {
+  it('preserves generic denied table access on group mutations as forbidden', async () => {
     mocks.update.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Forbidden'))
 
     const response = await PATCH(
@@ -151,8 +151,8 @@ describe('/api/v2/tables/[tableId]/groups', () => {
       context
     )
 
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.message).toBe('Table not found')
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.message).toBe('Forbidden')
   })
 
   it('returns authoritative surviving columns after deletion', async () => {

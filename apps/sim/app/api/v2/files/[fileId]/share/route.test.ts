@@ -157,14 +157,14 @@ describe('GET /api/v2/files/[fileId]/share', () => {
     expect(mocks.getShare).not.toHaveBeenCalled()
   })
 
-  it('conceals authorization failures as not found', async () => {
+  it('preserves generic authorization failures as forbidden', async () => {
     mocks.getShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
 
     const response = await callGet()
     const body = await response.json()
 
-    expect(response.status).toBe(404)
-    expect(body.error.code).toBe('NOT_FOUND')
+    expect(response.status).toBe(403)
+    expect(body.error.code).toBe('FORBIDDEN')
     expect(mocks.getShare).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: { fileId: FILE_ID, assertedWorkspaceId: WORKSPACE_ID },
@@ -251,13 +251,13 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
     })
   })
 
-  it('conceals forbidden updates as not found', async () => {
+  it('preserves generic forbidden updates as forbidden', async () => {
     mocks.updateShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
 
     const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
 
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 
   it('returns the rate-limit response when denied', async () => {

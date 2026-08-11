@@ -17,6 +17,8 @@ describe('knowledge operation registry', () => {
       'knowledge.update',
       'knowledge.delete',
       'knowledge.bulk_delete',
+      'knowledge.vfs.rename',
+      'knowledge.vfs.delete',
       'knowledge.search',
       'knowledge.folders.list',
       'knowledge.folders.create',

@@ -77,10 +77,15 @@ describe('performCreateWorkspaceFile', () => {
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
       WORKSPACE_ID,
       USER_ID,
-      expect.objectContaining({ length: 0 }),
+      Buffer.alloc(0),
       'untitled.md',
       'text/markdown',
-      { folderId: null, exactName: true }
+      {
+        folderId: null,
+        folderPath: undefined,
+        exactName: true,
+        secretProvenance: { status: 'exact', entries: [] },
+      }
     )
     expect(result).toEqual({ success: true, file: CREATED_FILE })
     expect(mockRecordAudit).toHaveBeenCalledWith(
@@ -130,7 +135,12 @@ describe('performCreateWorkspaceFile', () => {
       content,
       'ready.md',
       'text/markdown; charset=utf-8',
-      { folderId: 'folder-1', exactName: false }
+      {
+        folderId: 'folder-1',
+        folderPath: undefined,
+        exactName: false,
+        secretProvenance: { status: 'exact', entries: [] },
+      }
     )
     expect(result).toEqual({ success: true, file })
   })

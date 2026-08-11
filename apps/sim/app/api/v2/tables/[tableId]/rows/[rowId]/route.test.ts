@@ -153,12 +153,12 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     )
   })
 
-  it('conceals a forbidden canonical lookup as not found', async () => {
+  it('preserves a generic forbidden canonical lookup as forbidden', async () => {
     mocks.readRow.mockRejectedValue(new OrchestrationError('forbidden', 'Forbidden'))
 
     const response = await GET(request('GET'), CONTEXT)
 
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 })

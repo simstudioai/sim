@@ -15,6 +15,7 @@ import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
 import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
+  getBoundWorkspaceFileSecretProvenance,
   mergeWorkspaceFileSecretProvenance,
   type WorkspaceFileSecretProvenance,
 } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
@@ -104,27 +105,27 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
             reference: filePath,
           }
         )
-        const { content: buffer, secretProvenance: fileProvenance } =
-          await executeCopilotFileUseCase(
-            context,
-            readWorkspaceFileContent,
-            {
-              fileId: fileRecord.id,
-              assertedWorkspaceId: workspaceId,
-              maxBytes: MAX_MEDIA_BYTES,
-              includeSecretProvenance: true,
-            },
-            { fileId: fileRecord.id }
-          )
-        if (!fileProvenance) {
-          throw new Error('Authorized media read did not return requested secret provenance')
-        }
+        const fileProvenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, {
+          fileId: fileRecord.id,
+          key: fileRecord.key,
+          context: fileRecord.storageContext ?? 'workspace',
+        })
+        inputRequiresOpaqueError ||=
+          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
+        const { content: buffer } = await executeCopilotFileUseCase(
+          context,
+          readWorkspaceFileContent,
+          {
+            fileId: fileRecord.id,
+            assertedWorkspaceId: workspaceId,
+            maxBytes: MAX_MEDIA_BYTES,
+          },
+          { fileId: fileRecord.id }
+        )
         totalInputBytes += buffer.length
         if (totalInputBytes > MAX_MEDIA_BYTES) {
           throw new Error(`Input files exceed the ${MAX_MEDIA_BYTES} byte limit`)
         }
-        inputRequiresOpaqueError ||=
-          fileProvenance.status === 'unknown' || fileProvenance.entries.length > 0
         inputProvenances.push(fileProvenance)
         mediaFiles.push({
           buffer,

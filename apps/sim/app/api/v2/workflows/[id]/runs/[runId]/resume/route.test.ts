@@ -11,12 +11,35 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/api/server/routes', () => {
   class V2RouteInfrastructureError extends Error {}
+  const renderOrchestrationError = (error: unknown) => {
+    const candidate = error as { code?: string; message?: string; name?: string }
+    if (candidate.code === 'not_found') {
+      return Response.json(
+        { error: { code: 'NOT_FOUND', message: candidate.message ?? 'Not found' } },
+        { status: 404 }
+      )
+    }
+    if (candidate.name === 'PersonalApiKeysDisabledError') {
+      return Response.json(
+        {
+          error: {
+            code: 'FORBIDDEN',
+            message: candidate.message ?? 'Personal API keys are not allowed for this workspace',
+          },
+        },
+        { status: 403 }
+      )
+    }
+    return null
+  }
   return {
     admitV2Request: mocks.admit,
+    createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
+    createV2ResourceConcealmentPolicy: vi.fn(() => ({ render: renderOrchestrationError })),
     V2RouteInfrastructureError,
     v2ApiKeyAuth: { kind: 'v2-api-key' },
     v2RateLimits: { publicApi: { kind: 'public-api' } },
-    v2OrchestrationErrorPolicy: { render: () => null },
+    v2OrchestrationErrorPolicy: { render: renderOrchestrationError },
   }
 })
 

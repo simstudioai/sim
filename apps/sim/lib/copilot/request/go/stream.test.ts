@@ -41,6 +41,24 @@ vi.mock('@/lib/workspace-files/application/list-workspace-files', () => ({
   listAllWorkspaceFiles: { execute: listAllWorkspaceFilesMock },
 }))
 
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: (
+    context: { userId: string; workspaceId: string; toolCallId: string },
+    useCase: { execute: (args: unknown) => unknown },
+    input: unknown
+  ) =>
+    useCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: context.userId,
+        workspaceId: context.workspaceId,
+        delegationId: context.toolCallId,
+      },
+      input,
+    }),
+}))
+
 vi.mock('@/lib/copilot/tools/server/files/file-preview', async () => {
   const actual = await vi.importActual<
     typeof import('@/lib/copilot/tools/server/files/file-preview')

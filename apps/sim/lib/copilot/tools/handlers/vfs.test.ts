@@ -200,10 +200,7 @@ describe('vfs handlers oversize policy', () => {
     vfs.readFileContent.mockResolvedValue(placeholder)
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/weird/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/weird/content' }, GREP_CTX)
 
     expect(result.success).toBe(false)
     expect(result.error).toBe(placeholder.content)
@@ -217,10 +214,7 @@ describe('vfs handlers oversize policy', () => {
     vfs.readFileContent.mockResolvedValue({ content, totalLines: 1 })
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/notes.md/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/notes.md/content' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect((result.output as { content?: string })?.content).toBe(content)
@@ -239,10 +233,7 @@ describe('vfs handlers oversize policy', () => {
     vfs.readFileContent.mockResolvedValue(placeholder)
     getOrMaterializeVFS.mockResolvedValue(vfs)
 
-    const result = await executeVfsRead(
-      { path: 'files/bomb.png/content' },
-      { userId: 'user-1', workflowId: 'wf-1', workspaceId: 'ws-1' }
-    )
+    const result = await executeVfsRead({ path: 'files/bomb.png/content' }, GREP_CTX)
 
     expect(result.success).toBe(true)
     expect((result.output as { content?: string })?.content).toBe(content)

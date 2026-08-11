@@ -1761,7 +1761,27 @@ async function executeToolImplementation(
     if (normalizedToolId === 'workflow_executor') {
       logger.info(`[${requestId}] Running workflow tool ${toolId} in-process`)
       const { runWorkflowTool } = await import('@/executor/handlers/workflow/workflow-tool-runner')
-      const result = await runWorkflowTool(contextParams)
+      const result = await runWorkflowTool(
+        {
+          ...contextParams,
+          _context: {
+            ...(contextParams._context as Record<string, unknown> | undefined),
+            ...(scope.workspaceId ? { workspaceId: scope.workspaceId } : {}),
+            ...(scope.workflowId ? { workflowId: scope.workflowId } : {}),
+            ...(scope.userId ? { userId: scope.userId } : {}),
+            ...(scope.executionId ? { executionId: scope.executionId } : {}),
+            ...(scope.callChain ? { callChain: scope.callChain } : {}),
+            ...(scope.isDeployedContext !== undefined
+              ? { isDeployedContext: scope.isDeployedContext }
+              : {}),
+            ...(scope.billingAttribution ? { billingAttribution: scope.billingAttribution } : {}),
+          },
+        },
+        {
+          abortSignal: effectiveSignal,
+          resolvedSecretTraceRegistry,
+        }
+      )
       const endTime = new Date()
       return {
         ...result,

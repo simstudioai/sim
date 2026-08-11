@@ -54,6 +54,12 @@ vi.mock('@/lib/realtime/notify', () => ({
   notifyWorkspaceFilesChanged: vi.fn(async () => undefined),
 }))
 
+vi.mock('@/lib/public-shares/share-manager', () => ({
+  getShareForResource: vi.fn().mockResolvedValue(null),
+  getSharesForResources: vi.fn().mockResolvedValue(new Map()),
+  ShareValidationError: class ShareValidationError extends Error {},
+}))
+
 vi.mock('@sim/platform-authz/workspace', () => ({
   permissionSatisfies: (permission: string | null, required: string) =>
     permission === 'admin' ||
@@ -439,7 +445,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'new.txt',
       'text/plain',
       {
+        exactName: false,
         folderId: null,
+        folderPath: undefined,
         secretProvenance: { status: 'unknown' },
       }
     )
@@ -619,7 +627,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'child.txt',
       'text/plain',
       {
+        exactName: true,
         folderId: null,
+        folderPath: undefined,
         secretProvenance: { status: 'unknown' },
       }
     )

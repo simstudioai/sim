@@ -90,6 +90,7 @@ vi.mock('@/lib/billing/storage/limits', () => ({
   getStorageUsageForBillingContext: mockGetStorageUsageForBillingContext,
   getUserStorageLimit: mockGetUserStorageLimit,
   getUserStorageUsage: mockGetUserStorageUsage,
+  StorageLimitExceededError: class StorageLimitExceededError extends Error {},
   // No FREE_STORAGE_LIMIT_GB opt-in in these tests, so enforcement === billing.
   isStorageEnforcementEnabled: () => envFlagsMock.isBillingEnabled,
 }))

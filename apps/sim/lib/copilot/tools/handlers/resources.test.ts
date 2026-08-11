@@ -46,6 +46,42 @@ vi.mock('@/lib/knowledge/application/knowledge-bases', () => ({
   },
 }))
 
+vi.mock('@/lib/copilot/application/execute-file-use-case', () => ({
+  executeCopilotFileUseCase: (
+    context: { userId: string; workspaceId: string; toolCallId: string },
+    useCase: { execute: (args: unknown) => unknown },
+    input: unknown
+  ) =>
+    useCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: context.userId,
+        workspaceId: context.workspaceId,
+        delegationId: context.toolCallId,
+      },
+      input,
+    }),
+}))
+
+vi.mock('@/lib/copilot/application/execute-knowledge-use-case', () => ({
+  executeCopilotKnowledgeUseCase: (
+    context: { userId: string; workspaceId: string; toolCallId: string },
+    useCase: { execute: (args: unknown) => unknown },
+    input: unknown
+  ) =>
+    useCase.execute({
+      principal: {
+        kind: 'delegated',
+        serviceId: 'copilot',
+        subjectUserId: context.userId,
+        workspaceId: context.workspaceId,
+        delegationId: context.toolCallId,
+      },
+      input,
+    }),
+}))
+
 vi.mock('@/lib/logs/service', () => ({
   getLogById: vi.fn(),
 }))

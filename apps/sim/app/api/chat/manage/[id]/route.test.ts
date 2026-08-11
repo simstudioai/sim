@@ -23,14 +23,16 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckChatAccess, mockValidateChatDeployAuth } = vi.hoisted(() => ({
-  mockCheckChatAccess: vi.fn(),
-  mockValidateChatDeployAuth: vi.fn(),
-}))
+const { mockCheckChatAccess, mockCheckNeedsRedeployment, mockValidateChatDeployAuth } = vi.hoisted(
+  () => ({
+    mockCheckChatAccess: vi.fn(),
+    mockCheckNeedsRedeployment: vi.fn(),
+    mockValidateChatDeployAuth: vi.fn(),
+  })
+)
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
-const mockCheckNeedsRedeployment = workflowsApiUtilsMockFns.mockCheckNeedsRedeployment
 const mockEncryptSecret = encryptionMockFns.mockEncryptSecret
 const mockPerformFullDeploy = workflowsOrchestrationMockFns.mockPerformFullDeploy
 const mockPerformChatUndeploy = workflowsOrchestrationMockFns.mockPerformChatUndeploy
@@ -56,6 +58,9 @@ vi.mock('@/ee/access-control/utils/permission-check', () => {
 })
 vi.mock('@/lib/workflows/persistence/utils', () => workflowsPersistenceUtilsMock)
 vi.mock('@/lib/workflows/orchestration', () => workflowsOrchestrationMock)
+vi.mock('@/lib/workflows/deployment-status', () => ({
+  checkNeedsRedeployment: mockCheckNeedsRedeployment,
+}))
 
 import { DELETE, GET, PATCH } from '@/app/api/chat/manage/[id]/route'
 import { ChatDeployAuthNotAllowedError } from '@/ee/access-control/utils/permission-check'

@@ -11,6 +11,7 @@ import {
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
 import { classifyExecutionError } from '@/executor/utils/errors'
 import { parseJSON } from '@/executor/utils/json'
+import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
 import type { ToolResponse } from '@/tools/types'
 
@@ -46,12 +47,18 @@ interface WorkflowToolParams {
  * in `output` so parent workflows can route on `error.code` and report a
  * reproducible handle to the workflow's provider.
  */
-export async function runWorkflowTool(params: WorkflowToolParams): Promise<ToolResponse> {
+export async function runWorkflowTool(
+  params: WorkflowToolParams,
+  options: {
+    abortSignal?: AbortSignal
+    resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  } = {}
+): Promise<ToolResponse> {
   if (!params.workflowId) {
     return { success: false, output: {}, error: 'Missing workflowId' }
   }
 
-  const ctx = buildCustomBlockExecutionContext(params._context ?? {})
+  const ctx = buildCustomBlockExecutionContext(params._context ?? {}, options)
   const block: SerializedBlock = {
     id: generateId(),
     position: { x: 0, y: 0 },
