@@ -15,6 +15,7 @@ export interface ResolvedInlineImage {
   key: string
   contentType: string
   filename: string
+  size: number
 }
 
 /**
@@ -30,12 +31,19 @@ export async function resolveWorkspaceInlineImage(
 ): Promise<ResolvedInlineImage | null> {
   if (ref.fileId) {
     const file = await getWorkspaceFile(workspaceId, ref.fileId)
-    return file ? { key: file.key, contentType: file.type, filename: file.name } : null
+    return file
+      ? { key: file.key, contentType: file.type, filename: file.name, size: file.size }
+      : null
   }
   if (ref.key) {
     const record = await getFileMetadataByKey(ref.key, 'workspace')
     if (!record || record.workspaceId !== workspaceId) return null
-    return { key: record.key, contentType: record.contentType, filename: record.originalName }
+    return {
+      key: record.key,
+      contentType: record.contentType,
+      filename: record.originalName,
+      size: record.size,
+    }
   }
   return null
 }

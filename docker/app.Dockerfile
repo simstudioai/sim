@@ -165,6 +165,11 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules/y-protocols ./node_modu
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/sharp ./node_modules/sharp
 COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@img ./node_modules/@img
 
+# Markdown PDF export resolves bundled Unicode fallbacks through these packages at runtime. The
+# standalone tracer does not reliably retain fonts referenced through require.resolve, so copy the
+# font packages explicitly just like the other runtime assets above.
+COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@fontsource ./node_modules/@fontsource
+
 # Copy the isolated-vm worker script
 COPY --from=builder --chown=nextjs:nodejs /app/apps/sim/lib/execution/isolated-vm-worker.cjs ./apps/sim/lib/execution/isolated-vm-worker.cjs
 

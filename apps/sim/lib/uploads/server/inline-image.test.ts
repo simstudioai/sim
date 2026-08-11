@@ -21,6 +21,7 @@ describe('resolveWorkspaceInlineImage', () => {
       key: 'workspace/ws-1/x.png',
       type: 'image/png',
       name: 'x.png',
+      size: 123,
     })
     const out = await resolveWorkspaceInlineImage('ws-1', { fileId: 'wf_a' })
     expect(mockGetWorkspaceFile).toHaveBeenCalledWith('ws-1', 'wf_a')
@@ -28,6 +29,7 @@ describe('resolveWorkspaceInlineImage', () => {
       key: 'workspace/ws-1/x.png',
       contentType: 'image/png',
       filename: 'x.png',
+      size: 123,
     })
   })
 
@@ -42,12 +44,14 @@ describe('resolveWorkspaceInlineImage', () => {
       workspaceId: 'ws-1',
       contentType: 'image/png',
       originalName: 'x.png',
+      size: 456,
     })
     const out = await resolveWorkspaceInlineImage('ws-1', { key: 'workspace/ws-1/x.png' })
     expect(out).toEqual({
       key: 'workspace/ws-1/x.png',
       contentType: 'image/png',
       filename: 'x.png',
+      size: 456,
     })
   })
 

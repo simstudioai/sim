@@ -10,17 +10,24 @@
 
 /** A reference parsed from an embed `src`: a workspace storage key, a workspace file id, or neither. */
 export type EmbeddedFileRef = { key: string } | { fileId: string } | null
+export type ResolvedEmbeddedFileRef = Exclude<EmbeddedFileRef, null>
 
 /** Hard cap on embedded images resolved from one document — bounds export bundles and the cascade. */
 export const MAX_EMBEDDED_IMAGES = 50
 
 /**
  * Candidate embed URL substrings in document text: a serve URL, a view URL, or the in-app workspace
- * path. The captured run stops at whitespace/quote/paren/angle/query so authoritative parsing is left
- * to {@link extractEmbeddedFileRef}.
+ * path. A required start/delimiter prevents matching the path portion of an absolute URL; the captured
+ * run stops at Markdown/HTML delimiters so authoritative parsing is left to
+ * {@link extractEmbeddedFileRef}.
  */
 const EMBED_URL_RE =
-  /(?:\/api\/files\/(?:serve|view)\/|\/workspace\/[A-Za-z0-9-]+\/files\/)[^\s)"'<>?]*/g
+  /(^|[\s("'<>])((?:\/api\/files\/(?:serve|view)\/|\/workspace\/[A-Za-z0-9-]+\/files\/)[^\s)"'<>]*)/gm
+
+/** Stable map key shared by routes and renderers for either supported reference spelling. */
+export function embeddedFileRefKey(ref: ResolvedEmbeddedFileRef): string {
+  return 'key' in ref ? `key:${ref.key}` : `id:${ref.fileId}`
+}
 
 /**
  * Parse a single embed `src` into the workspace file it references, normalizing the spellings the
@@ -65,11 +72,23 @@ export function extractEmbeddedFileRefs(content: string): { keys: string[]; ids:
   const keys = new Set<string>()
   const ids = new Set<string>()
   for (const match of content.matchAll(EMBED_URL_RE)) {
-    const ref = extractEmbeddedFileRef(match[0])
+    const ref = extractEmbeddedFileRef(match[2])
     if (!ref) continue
     if ('key' in ref) keys.add(ref.key)
     else ids.add(ref.fileId)
     if (keys.size + ids.size >= MAX_EMBEDDED_IMAGES) break
   }
   return { keys: [...keys], ids: [...ids] }
+}
+
+/** Rewrite authorized embedded references while leaving external and unmatched URLs untouched. */
+export function replaceEmbeddedFileRefs(
+  content: string,
+  replacements: ReadonlyMap<string, string>
+): string {
+  return content.replace(EMBED_URL_RE, (_match, prefix: string, candidate: string) => {
+    const ref = extractEmbeddedFileRef(candidate)
+    const replacement = ref ? replacements.get(embeddedFileRefKey(ref)) : undefined
+    return `${prefix}${replacement ?? candidate}`
+  })
 }

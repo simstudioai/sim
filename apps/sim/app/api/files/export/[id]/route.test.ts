@@ -11,21 +11,23 @@ const {
   mockGetFileMetadataById,
   mockVerifyFileAccess,
   mockDownloadFile,
-  mockExtractEmbeddedImageIds,
+  mockResolveWorkspaceInlineImage,
   mockRenderMarkdownPdf,
   mockEnforceUserRateLimit,
   mockRecordAudit,
   mockCaptureServerEvent,
+  MockMarkdownPdfLimitError,
 } = vi.hoisted(() => ({
   mockCheckAuth: vi.fn(),
   mockGetFileMetadataById: vi.fn(),
   mockVerifyFileAccess: vi.fn(),
   mockDownloadFile: vi.fn(),
-  mockExtractEmbeddedImageIds: vi.fn(),
+  mockResolveWorkspaceInlineImage: vi.fn(),
   mockRenderMarkdownPdf: vi.fn(),
   mockEnforceUserRateLimit: vi.fn(),
   mockRecordAudit: vi.fn(),
   mockCaptureServerEvent: vi.fn(),
+  MockMarkdownPdfLimitError: class extends Error {},
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({ checkSessionOrInternalAuth: mockCheckAuth }))
@@ -34,11 +36,12 @@ vi.mock('@/lib/uploads/server/metadata', () => ({
 }))
 vi.mock('@/app/api/files/authorization', () => ({ verifyFileAccess: mockVerifyFileAccess }))
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
-vi.mock('@/lib/copilot/tools/server/files/embedded-image-refs', () => ({
-  extractEmbeddedImageIds: mockExtractEmbeddedImageIds,
+vi.mock('@/lib/uploads/server/inline-image', () => ({
+  resolveWorkspaceInlineImage: mockResolveWorkspaceInlineImage,
 }))
 vi.mock('@/app/api/files/export/[id]/markdown-pdf', () => ({
   renderMarkdownPdf: mockRenderMarkdownPdf,
+  MarkdownPdfLimitError: MockMarkdownPdfLimitError,
 }))
 vi.mock('@/lib/core/rate-limiter/route-helpers', () => ({
   enforceUserRateLimit: mockEnforceUserRateLimit,
@@ -66,16 +69,17 @@ function request(format?: 'pdf') {
   )
 }
 
-function assetRecord(id: string, size: number) {
+function inlineImage(id: string, size = 1 * MB) {
   return {
-    id,
     key: `workspace/ws-1/${id}`,
-    originalName: `${id}.png`,
+    filename: id.endsWith('.png') ? id : `${id}.png`,
     contentType: 'image/png',
-    context: 'workspace',
     size,
-    workspaceId: 'ws-1',
   }
+}
+
+function markdownWithIds(...ids: string[]): Buffer {
+  return Buffer.from(ids.map((id) => `![${id}](/api/files/view/${id})`).join('\n'))
 }
 
 describe('markdown export bundling', () => {
@@ -83,21 +87,22 @@ describe('markdown export bundling', () => {
     vi.clearAllMocks()
     mockCheckAuth.mockResolvedValue({ success: true, userId: 'user-1' })
     mockVerifyFileAccess.mockResolvedValue(true)
-    mockGetFileMetadataById.mockImplementation(async (id: string) =>
-      id === DOC_ID
-        ? {
-            id: DOC_ID,
-            key: 'workspace/ws-1/doc.md',
-            originalName: 'doc.md',
-            contentType: 'text/markdown',
-            context: 'workspace',
-            size: 1024,
-            workspaceId: 'ws-1',
-          }
-        : assetRecord(id, 1 * MB)
+    mockGetFileMetadataById.mockResolvedValue({
+      id: DOC_ID,
+      key: 'workspace/ws-1/doc.md',
+      originalName: 'doc.md',
+      contentType: 'text/markdown',
+      context: 'workspace',
+      size: 1024,
+      workspaceId: 'ws-1',
+    })
+    mockResolveWorkspaceInlineImage.mockImplementation(
+      async (_workspaceId: string, ref: { fileId?: string; key?: string }) => {
+        const id = ref.fileId ?? ref.key?.split('/').at(-1) ?? 'image'
+        return inlineImage(id)
+      }
     )
     mockDownloadFile.mockResolvedValue(Buffer.from('# Doc\n'))
-    mockExtractEmbeddedImageIds.mockReturnValue([])
     mockRenderMarkdownPdf.mockResolvedValue(Buffer.from('%PDF-generated'))
     mockEnforceUserRateLimit.mockResolvedValue(null)
   })
@@ -145,11 +150,22 @@ describe('markdown export bundling', () => {
     expect(mockRenderMarkdownPdf).not.toHaveBeenCalled()
   })
 
+  it('returns a clear rejection when the parsed document exceeds renderer limits', async () => {
+    mockRenderMarkdownPdf.mockRejectedValue(
+      new MockMarkdownPdfLimitError('This document is too complex to export as PDF.')
+    )
+
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('too complex')
+    expect(mockRecordAudit).not.toHaveBeenCalled()
+  })
+
   it('passes only authorized, readable embedded images to the PDF renderer', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['good', 'secret', 'broken'])
     mockVerifyFileAccess.mockImplementation(async (key: string) => !key.endsWith('secret'))
     mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
-      if (key.endsWith('doc.md')) return Buffer.from('![image](/api/files/view/good)')
+      if (key.endsWith('doc.md')) return markdownWithIds('good', 'secret', 'broken')
       if (key.endsWith('broken')) throw new Error('storage down')
       return Buffer.from('png-bytes')
     })
@@ -158,12 +174,30 @@ describe('markdown export bundling', () => {
 
     expect(response.status).toBe(200)
     const images = mockRenderMarkdownPdf.mock.calls[0][0].images as Map<string, Buffer>
-    expect(Array.from(images.keys())).toEqual(['good'])
-    expect(images.get('good')).toEqual(Buffer.from('png-bytes'))
+    expect(Array.from(images.keys())).toEqual(['id:good'])
+    expect(images.get('id:good')).toEqual(Buffer.from('png-bytes'))
+  })
+
+  it('resolves the key-based image URL emitted by the Files editor', async () => {
+    const key = 'workspace/ws-1/editor-image.png'
+    mockDownloadFile.mockImplementation(async ({ key: requestedKey }: { key: string }) =>
+      requestedKey.endsWith('doc.md')
+        ? Buffer.from(`![image](/api/files/serve/${encodeURIComponent(key)}?context=workspace)`)
+        : Buffer.from('png-bytes')
+    )
+
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(200)
+    expect(mockResolveWorkspaceInlineImage).toHaveBeenCalledWith('ws-1', { key })
+    const images = mockRenderMarkdownPdf.mock.calls[0][0].images as Map<string, Buffer>
+    expect(images.get(`key:${key}`)).toEqual(Buffer.from('png-bytes'))
   })
 
   it('records an image-containing PDF as one downloaded file', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['image-1'])
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds('image-1') : Buffer.from('png-bytes')
+    )
 
     await GET(request('pdf'), context)
 
@@ -181,7 +215,9 @@ describe('markdown export bundling', () => {
   })
 
   it('keeps image-containing ZIP telemetry bulk', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['image-1'])
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds('image-1') : Buffer.from('png-bytes')
+    )
 
     await GET(request(), context)
 
@@ -213,19 +249,9 @@ describe('markdown export bundling', () => {
   })
 
   it('rejects on declared asset bytes before downloading any of them', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['a', 'b', 'c'])
-    mockGetFileMetadataById.mockImplementation(async (id: string) =>
-      id === DOC_ID
-        ? {
-            id: DOC_ID,
-            key: 'workspace/ws-1/doc.md',
-            originalName: 'doc.md',
-            contentType: 'text/markdown',
-            context: 'workspace',
-            size: 1024,
-            workspaceId: 'ws-1',
-          }
-        : assetRecord(id, 100 * MB)
+    mockDownloadFile.mockResolvedValue(markdownWithIds('a', 'b', 'c'))
+    mockResolveWorkspaceInlineImage.mockImplementation(
+      async (_workspaceId: string, ref: { fileId: string }) => inlineImage(ref.fileId, 100 * MB)
     )
 
     const response = await GET(request(), context)
@@ -238,8 +264,9 @@ describe('markdown export bundling', () => {
 
   it('counts the document body against the export limit, not just its assets', async () => {
     // Assets alone sit under the cap; the body is what carries the bundle over it.
-    mockExtractEmbeddedImageIds.mockReturnValue(['a'])
-    mockDownloadFile.mockResolvedValue(Buffer.alloc(250 * MB))
+    const body = Buffer.alloc(250 * MB)
+    markdownWithIds('a').copy(body)
+    mockDownloadFile.mockResolvedValue(body)
 
     const response = await GET(request(), context)
 
@@ -248,8 +275,6 @@ describe('markdown export bundling', () => {
   })
 
   it('caps the document body read rather than loading it unbounded', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue([])
-
     await GET(request(), context)
 
     const bodyCall = mockDownloadFile.mock.calls.find(([options]) => options.key.endsWith('doc.md'))
@@ -276,7 +301,6 @@ describe('markdown export bundling', () => {
   })
 
   it('reports an oversized body as a size rejection, not a server error', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue([])
     mockDownloadFile.mockRejectedValue(
       new PayloadSizeLimitError({ label: 'storage file download', maxBytes: 1 })
     )
@@ -289,7 +313,9 @@ describe('markdown export bundling', () => {
   })
 
   it('caps each asset download rather than trusting its declared size', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['a'])
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds('a') : Buffer.from('asset')
+    )
 
     await GET(request(), context)
 
@@ -300,7 +326,9 @@ describe('markdown export bundling', () => {
   })
 
   it('uses a smaller per-asset limit for PDF rendering', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['a'])
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds('a') : Buffer.from('asset')
+    )
 
     await GET(request('pdf'), context)
 
@@ -311,19 +339,9 @@ describe('markdown export bundling', () => {
   })
 
   it('rejects PDF source material above its aggregate input limit', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['a', 'b'])
-    mockGetFileMetadataById.mockImplementation(async (id: string) =>
-      id === DOC_ID
-        ? {
-            id: DOC_ID,
-            key: 'workspace/ws-1/doc.md',
-            originalName: 'doc.md',
-            contentType: 'text/markdown',
-            context: 'workspace',
-            size: 1024,
-            workspaceId: 'ws-1',
-          }
-        : assetRecord(id, 30 * MB)
+    mockDownloadFile.mockResolvedValue(markdownWithIds('a', 'b'))
+    mockResolveWorkspaceInlineImage.mockImplementation(
+      async (_workspaceId: string, ref: { fileId: string }) => inlineImage(ref.fileId, 30 * MB)
     )
 
     const response = await GET(request('pdf'), context)
@@ -334,10 +352,37 @@ describe('markdown export bundling', () => {
     expect(mockRenderMarkdownPdf).not.toHaveBeenCalled()
   })
 
+  it('enforces the aggregate PDF budget against downloaded bytes, not only metadata', async () => {
+    const ids = ['a', 'b', 'c', 'd', 'e', 'f']
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds(...ids) : Buffer.alloc(10 * MB)
+    )
+
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(200)
+    const images = mockRenderMarkdownPdf.mock.calls[0][0].images as Map<string, Buffer>
+    expect(images.size).toBe(4)
+  })
+
+  it('rewrites the editor key URL when producing a Markdown asset ZIP', async () => {
+    const key = 'workspace/ws-1/editor-image.png'
+    mockDownloadFile.mockImplementation(async ({ key: requestedKey }: { key: string }) =>
+      requestedKey.endsWith('doc.md')
+        ? Buffer.from(`![image](/api/files/serve/${encodeURIComponent(key)}?context=workspace)`)
+        : Buffer.from('png-bytes')
+    )
+
+    const response = await GET(request(), context)
+
+    const zip = await JSZip.loadAsync(Buffer.from(await response.arrayBuffer()))
+    expect(await zip.file('doc.md')?.async('string')).toBe('![image](./assets/editor-image.png)')
+    expect(zip.file('assets/editor-image.png')).not.toBeNull()
+  })
+
   it('drops an unreadable asset instead of failing the whole export', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['good', 'bad'])
     mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
-      if (key.endsWith('doc.md')) return Buffer.from('# Doc\n![x](/api/files/view/good)\n')
+      if (key.endsWith('doc.md')) return markdownWithIds('good', 'bad')
       if (key.endsWith('bad')) throw new Error('storage down')
       return Buffer.from('png-bytes')
     })
@@ -351,8 +396,10 @@ describe('markdown export bundling', () => {
   })
 
   it('skips an asset the caller cannot read', async () => {
-    mockExtractEmbeddedImageIds.mockReturnValue(['secret'])
     mockVerifyFileAccess.mockImplementation(async (key: string) => !key.endsWith('secret'))
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) =>
+      key.endsWith('doc.md') ? markdownWithIds('secret') : Buffer.from('asset')
+    )
 
     const response = await GET(request(), context)
 
