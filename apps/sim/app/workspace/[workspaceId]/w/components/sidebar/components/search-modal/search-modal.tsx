@@ -41,6 +41,7 @@ import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
@@ -84,7 +85,6 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
-import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
@@ -844,12 +844,12 @@ function SearchModalContent({
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
     if (!sentToMountedHome) {
-      /* Prefill (not auto-send) via the same seam as the integrations "Explore"
-         showcase: seed the chat input on the freshly mounted home surface. The
-         MothershipHandoffStorage auto-send path drops sends started during
-         Home's mount-settling window (use-chat's cleanup abort), so the message
-         would silently vanish. */
-      if (!storeCuratedPrompt(query)) {
+      /* One-shot auto-send handoff: Home's mount consumer sends it on arrival,
+         so both routes deliver the raw query identically. use-chat's queued
+         send dispatch now survives the mount-settling effect cycle that used
+         to silently abort programmatic sends (the old reason this was a
+         prefill). */
+      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
         logger.warn('Failed to persist command palette query for a new chat', {
           workspaceId,
         })

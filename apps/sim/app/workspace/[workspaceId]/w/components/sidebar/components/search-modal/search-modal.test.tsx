@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -40,15 +40,6 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 
 vi.mock('@/lib/posthog/client', () => ({
   captureEvent: vi.fn(),
-}))
-
-/**
- * The real implementation runs the integration matcher over the block
- * registry (globally mocked in jsdom); the palette only needs the store
- * side effect, so delegate straight to LandingPromptStorage.
- */
-vi.mock('@/blocks/integration-matcher', () => ({
-  storeCuratedPrompt: (prompt: string) => LandingPromptStorage.store(prompt),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({
@@ -172,7 +163,10 @@ describe('SearchModal', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home')
-    expect(LandingPromptStorage.consume()).toBe('plan our Slack launch week')
+    expect(MothershipHandoffStorage.consume('workspace-1')).toEqual({
+      message: 'plan our Slack launch week',
+      contexts: [],
+    })
   })
 
   it('returns to search results when Tab is pressed again in ask mode', async () => {
@@ -304,7 +298,7 @@ describe('SearchModal', () => {
 
       expect(receivedMessages).toEqual(['summarize this workspace'])
       expect(mockPush).not.toHaveBeenCalled()
-      expect(LandingPromptStorage.consume()).toBeNull()
+      expect(MothershipHandoffStorage.consume('workspace-1')).toBeNull()
     } finally {
       window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handleMessage)
     }
@@ -700,7 +694,7 @@ describe('SearchModal', () => {
 
   it('keeps the palette open when the query handoff cannot be persisted', async () => {
     const onOpenChange = vi.fn()
-    const storeSpy = vi.spyOn(LandingPromptStorage, 'store').mockReturnValue(false)
+    const storeSpy = vi.spyOn(MothershipHandoffStorage, 'store').mockReturnValue(false)
 
     try {
       await act(async () => {
