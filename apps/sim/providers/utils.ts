@@ -1570,10 +1570,7 @@ export function prepareToolExecution(
     throw new Error('Agent tool input environment references could not be safely resolved')
   }
   const resolvedModelParams = modelReferenceResolution?.value ?? modelParams
-  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams) as Record<
-    string,
-    any
-  >
+  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams)
   const inputProvenance = getProviderToolInputProvenance(tool)
   let inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
   if (modelReferenceResolution?.matched) {
@@ -1587,10 +1584,7 @@ export function prepareToolExecution(
     throw new Error('Agent tool input environment references could not be safely resolved')
   }
   let projectedToolParams = inputRegistry
-    ? (mergeToolParameters(
-        inputProvenance?.projectedParams ?? tool.params ?? {},
-        modelParams
-      ) as Record<string, any>)
+    ? mergeToolParameters(inputProvenance?.projectedParams ?? tool.params ?? {}, modelParams)
     : undefined
 
   if (tool.paramsTransform) {
