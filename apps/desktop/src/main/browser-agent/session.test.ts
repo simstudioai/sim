@@ -1701,6 +1701,48 @@ describe('browser-agent session', () => {
     expect(contents.loadURL).not.toHaveBeenCalled()
   })
 
+  it('keeps agent popups in the background and context-menu links user-owned', () => {
+    const onTabCreated = vi.fn()
+    session = freshSession(win, { onTabCreated })
+    const sourceTab = session.ensureTab()
+    const source = (sourceTab.view as unknown as MockView).webContents
+    onTabCreated.mockClear()
+    session.setAutomationActive(true)
+
+    const openWindow = source.setWindowOpenHandler.mock.calls[0]?.[0] as (details: {
+      url: string
+    }) => { action: string }
+    openWindow({ url: 'https://agent-popup.example/' })
+    const agentPopup = session.automationTab()
+    expect(agentPopup).not.toBeNull()
+    expect(session.activeTab()).toBe(sourceTab)
+    expect(onTabCreated).toHaveBeenLastCalledWith(agentPopup?.view.webContents)
+
+    const contextMenu = source.on.mock.calls.find(
+      ([eventName]) => eventName === 'context-menu'
+    )?.[1] as (event: unknown, params: unknown) => void
+    contextMenu(
+      {},
+      {
+        selectionText: '',
+        linkURL: 'https://context-link.example/',
+        isEditable: false,
+        editFlags: { canPaste: false },
+      }
+    )
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
+      | MenuItemConstructorOptions[]
+      | undefined
+    template
+      ?.find((item) => item.label === 'Open Link in New Tab')
+      ?.click?.({} as never, undefined as never, {} as never)
+
+    const userTab = session.activeTab()
+    expect(userTab).not.toBe(sourceTab)
+    expect(session.automationTab()).toBe(agentPopup)
+    expect(onTabCreated).toHaveBeenLastCalledWith(userTab?.view.webContents)
+  })
+
   it('blocks controlled pages from moving or resizing the desktop window', () => {
     const tab = session.ensureTab()
     const contents = (tab.view as unknown as MockView).webContents

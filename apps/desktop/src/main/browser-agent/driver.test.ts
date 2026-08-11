@@ -144,6 +144,90 @@ describe('executeTool', () => {
     expect(second.result).toMatchObject({ tabs: [] })
   })
 
+  it('keeps a takeover pending when the clock advances beyond twelve hours', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    const now = vi.spyOn(Date, 'now').mockReturnValue(0)
+    try {
+      let settled = false
+      const takeover = driver
+        .executeTool('chat-test', 'browser_request_takeover', {
+          reason: 'Please finish in the browser',
+        })
+        .then((result) => {
+          settled = true
+          return result
+        })
+
+      await vi.advanceTimersByTimeAsync(0)
+      now.mockReturnValue(13 * 60 * 60 * 1000)
+      await vi.advanceTimersByTimeAsync(1_500)
+      expect(settled).toBe(false)
+
+      await driver.handlePanelAction('chat-test', { action: 'takeover-done' })
+      await vi.advanceTimersByTimeAsync(1_500)
+      await expect(takeover).resolves.toMatchObject({
+        ok: true,
+        result: { completed: true },
+      })
+    } finally {
+      now.mockRestore()
+      vi.useRealTimers()
+    }
+  })
+
+  it('releases an abandoned takeover when a newer browser action arrives', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const takeover = driver.executeTool('chat-test', 'browser_request_takeover', {
+        reason: 'Please finish in the browser',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      const listTabs = driver.executeTool('chat-test', 'browser_list_tabs', {})
+      await vi.advanceTimersByTimeAsync(1_500)
+
+      await expect(takeover).resolves.toMatchObject({
+        ok: false,
+        error: expect.stringContaining('superseded by a newer browser action'),
+      })
+      await expect(listTabs).resolves.toMatchObject({
+        ok: true,
+        result: { tabs: expect.any(Array) },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('returns a free-text takeover instruction to the browser agent', async () => {
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    vi.useFakeTimers()
+    try {
+      const takeover = driver.executeTool('chat-test', 'browser_request_takeover', {
+        reason: 'Please pick a match in the draw',
+      })
+      await vi.advanceTimersByTimeAsync(0)
+
+      await driver.handlePanelAction('chat-test', {
+        action: 'takeover-done',
+        takeoverResponse: 'Open the second match',
+      })
+      await vi.advanceTimersByTimeAsync(1_500)
+
+      await expect(takeover).resolves.toMatchObject({
+        ok: true,
+        result: {
+          completed: true,
+          userInstruction: 'Open the second match',
+        },
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('publishes a settled tab when the main frame finishes before subresources', async () => {
     const onPageState = vi.fn()
     const onTabsState = vi.fn()
@@ -198,6 +282,74 @@ describe('executeTool', () => {
     session.switchTab('1')
 
     expect(refreshAvailability).toHaveBeenCalledWith(true)
+  })
+
+  it('keeps target-blank initiation user-owned while automation is active', async () => {
+    driver = freshDriver()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const source = session.requireTab().view.webContents
+    session.setAutomationActive(true)
+    const beforeMouse = (source.on as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([eventName]) => eventName === 'before-mouse-event'
+    )?.[1] as (event: unknown, mouse: { type: string }) => void
+    beforeMouse({}, { type: 'mouseDown' })
+    const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
+      url: string
+    }) => { action: string }
+
+    expect(openWindow({ url: 'https://user-popup.example/' })).toEqual({ action: 'deny' })
+    const popup = session.activeTab()?.view.webContents
+    if (!popup) throw new Error('Expected user popup tab')
+    expect(session.automationTab()?.view.webContents).toBe(source)
+    expect(popup.loadURL).toHaveBeenCalledWith('https://user-popup.example/')
+  })
+
+  it('keeps agent-opened target-blank tabs agent-owned after dispatch ends', async () => {
+    driver = freshDriver()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const source = session.requireTab().view.webContents
+    session.setAutomationActive(true)
+    const openWindow = vi.mocked(source.setWindowOpenHandler).mock.calls[0]?.[0] as (details: {
+      url: string
+    }) => { action: string }
+
+    expect(openWindow({ url: 'https://agent-popup.example/' })).toEqual({ action: 'deny' })
+    const popup = session.requireAutomationTab().view.webContents
+    expect(session.activeTab()?.view.webContents).toBe(source)
+    session.setAutomationActive(false)
+    expect(session.automationTab()?.view.webContents).toBe(popup)
+    expect(popup.loadURL).toHaveBeenCalledWith('https://agent-popup.example/')
+  })
+
+  it('keeps context-menu new tabs user-owned while automation is active', async () => {
+    driver = freshDriver()
+    await driver.executeTool('chat-test', 'browser_open_tab', {})
+    const source = session.requireTab().view.webContents
+    session.setAutomationActive(true)
+    vi.mocked(Menu.buildFromTemplate).mockClear()
+    const contextMenu = (source.on as unknown as ReturnType<typeof vi.fn>).mock.calls.find(
+      ([eventName]) => eventName === 'context-menu'
+    )?.[1] as (event: unknown, params: unknown) => void
+    contextMenu(
+      {},
+      {
+        selectionText: '',
+        linkURL: 'https://context-link.example/',
+        isEditable: false,
+        editFlags: { canPaste: false },
+      }
+    )
+    const template = vi.mocked(Menu.buildFromTemplate).mock.calls.at(-1)?.[0] as
+      | MenuItemConstructorOptions[]
+      | undefined
+    template
+      ?.find((item) => item.label === 'Open Link in New Tab')
+      ?.click?.({} as never, undefined as never, {} as never)
+
+    const popup = session.activeTab()?.view.webContents
+    if (!popup) throw new Error('Expected context-menu tab')
+    expect(session.automationTab()?.view.webContents).toBe(source)
+    expect(popup.loadURL).toHaveBeenCalledWith('https://context-link.example/')
   })
 
   it('builds the native toolbar menu and routes renderer-owned actions back to its chat', async () => {

@@ -1061,10 +1061,10 @@ export function stopFindInActiveTab(focusPage: boolean): void {
  * inside the browser resource rather than spawn a native window, and both are
  * reached from an untrusted page, so the scheme is checked here once.
  */
-function openTabWithUrl(url: string): void {
+function openTabWithUrl(url: string, agentOwned: boolean): void {
   if (!/^https?:\/\//i.test(url)) return
   try {
-    const tab = currentScope.automationActive ? addAutomationTab() : addTab()
+    const tab = agentOwned ? addAutomationTab() : addTab()
     void tab.view.webContents.loadURL(url).catch(() => {})
   } catch (error) {
     logger.warn('Could not open a link in a new browser tab', {
@@ -1103,7 +1103,7 @@ function createTabView(): WebContentsView {
   configureAgentPartition(contents.session)
   attachAgentContextMenu(contents, {
     addToChat: (text) => withBrowserScope(scopeId, () => addPageSelectionToChat(contents, text)),
-    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url)),
+    openTab: (url) => withBrowserScope(scopeId, () => openTabWithUrl(url, false)),
     defaultZoomFactor: getBrowserDefaultZoomFactor,
   })
 
@@ -1157,7 +1157,7 @@ function createTabView(): WebContentsView {
   // Keep popups inside the browser resource: http(s) window.open and
   // target=_blank requests become a new internal tab, never a native window.
   contents.setWindowOpenHandler((details) => {
-    withBrowserScope(scopeId, () => openTabWithUrl(details.url))
+    withBrowserScope(scopeId, () => openTabWithUrl(details.url, agentOwnsPopupFrom(contents)))
     return { action: 'deny' }
   })
 
@@ -2193,4 +2193,12 @@ export function automationTabClaimedByUser(): boolean {
     currentScope.activeTabId !== null &&
     currentScope.activeTabId === currentScope.automationTabId
   )
+}
+
+/** Keeps page-created tabs with the input owner that opened them. */
+function agentOwnsPopupFrom(contents: WebContents): boolean {
+  if (isDispatchingAgentInput(contents)) return true
+  if (automationTab()?.view.webContents !== contents) return false
+  if (automationTabClaimedByUser()) return false
+  return currentScope.automationActive
 }

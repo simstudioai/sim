@@ -75,6 +75,31 @@ describe('executeBrowserToolOnClient', () => {
     })
   })
 
+  it('preserves a takeover instruction and waits without a renderer deadline', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({
+      completed: true,
+      userInstruction: 'Open the second match',
+    })
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_request_takeover', {
+      reason: 'Please pick a match',
+    })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please pick a match' },
+      null,
+      CHAT_SCOPE
+    )
+    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+      completed: true,
+      userInstruction: 'Open the second match',
+    })
+  })
+
   // The copilot serializes a result carrying this `attachment` shape into a
   // real image content block, so the data URL has to be reshaped rather than
   // passed through — an inline data URL would be charged against the tool

@@ -393,6 +393,41 @@ describe('stripToolResultOutput', () => {
     })
   })
 
+  it('keeps only the answered browser takeover instruction for its question recap', () => {
+    const message: PersistedMessage = {
+      id: 'msg-takeover',
+      role: 'assistant',
+      content: '',
+      timestamp: '2026-01-01T00:00:00.000Z',
+      contentBlocks: [
+        {
+          type: 'tool',
+          phase: 'call',
+          toolCall: {
+            id: 'takeover-1',
+            name: 'browser_request_takeover',
+            state: 'success',
+            result: {
+              success: true,
+              output: {
+                completed: true,
+                elapsedMs: 5_000,
+                userInstruction: '  Open the second match  ',
+              },
+            },
+          },
+        },
+      ],
+    }
+
+    const stripped = stripToolResultOutput(message)
+    expect(stripped.contentBlocks?.[0].toolCall?.result).toEqual({
+      success: true,
+      output: { userInstruction: 'Open the second match' },
+    })
+    expect(stripToolResultOutput(stripped)).toBe(stripped)
+  })
+
   it('returns the same reference when there is nothing to strip', () => {
     const noBlocks: PersistedMessage = {
       id: 'u',

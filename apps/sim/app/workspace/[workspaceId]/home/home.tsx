@@ -274,6 +274,8 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
   )
 
   const { mothershipRef, handleResizePointerDown, clearWidth } = useMothershipResize(desktopScopeId)
+  const effectiveActiveResourceIdRef = useRef(activeResourceId)
+  effectiveActiveResourceIdRef.current = activeResourceId
   const resourceAttentionChatIdRef = useRef(resolvedChatId)
 
   const collapseResource = useCallback(() => {
@@ -291,6 +293,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
         next.delete(resourceId)
         return next
       })
+      if (effectiveActiveResourceIdRef.current === resourceId) return
+      effectiveActiveResourceIdRef.current = resourceId
+      activeResourceParamRef.current = resourceId
       setActiveResourceId(resourceId)
     },
     [setActiveResourceId]

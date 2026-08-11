@@ -148,7 +148,7 @@ export interface SimDesktopBrowserAgentApi {
     params: Record<string, unknown>,
     scopeId: string
   ): Promise<BrowserToolResponse>
-  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover Done). */
+  /** Browser-chrome commands from the panel (URL bar, back, reload, takeover hand-back). */
   panelAction(action: BrowserPanelAction, scopeId: string): void
   /**
    * Create and activate a blank tab, returning the authoritative list.

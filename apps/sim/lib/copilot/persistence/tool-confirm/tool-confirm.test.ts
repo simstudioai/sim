@@ -184,4 +184,48 @@ describe('copilot orchestrator persistence', () => {
       timestamp: '2026-01-01T00:00:01.000Z',
     })
   })
+
+  it('keeps a no-deadline human wait alive until confirmation arrives', async () => {
+    vi.useFakeTimers()
+    try {
+      row = {
+        status: 'pending',
+        error: null,
+        result: null,
+        updatedAt: new Date('2026-01-01T00:00:00.000Z'),
+      }
+      let settled = false
+      const waitPromise = waitForToolConfirmation('tool-1', null, undefined, {
+        acceptStatus: (status) =>
+          status === 'success' || status === 'error' || status === 'cancelled',
+      }).then((result) => {
+        settled = true
+        return result
+      })
+
+      await vi.advanceTimersByTimeAsync(24 * 60 * 60 * 1000)
+      expect(settled).toBe(false)
+
+      row = {
+        status: 'completed',
+        error: null,
+        result: { ok: true },
+        updatedAt: new Date('2026-01-02T00:00:00.000Z'),
+      }
+      publishToolConfirmation({
+        toolCallId: 'tool-1',
+        status: 'success',
+        timestamp: '2026-01-02T00:00:00.000Z',
+      })
+
+      await expect(waitPromise).resolves.toEqual({
+        status: 'success',
+        message: undefined,
+        data: { ok: true },
+        timestamp: '2026-01-02T00:00:00.000Z',
+      })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
 })

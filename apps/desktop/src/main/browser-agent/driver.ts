@@ -72,7 +72,6 @@ const NAVIGATION_SETTLE_MS = 400
 const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
 const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 const TAKEOVER_POLL_MS = 1_500
-const TAKEOVER_MAX_MS = 12 * 60 * 60 * 1000
 /**
  * Hard ceiling on any single tool execution (takeover excepted): whatever
  * goes wrong, the Sim side always gets a response. Sits above the longest
@@ -114,6 +113,9 @@ interface DriverScopeState {
   pendingNotices: string[]
   takeoverActive: boolean
   takeoverDone: boolean
+  takeoverResponse: string | null
+  /** Monotonic browser-tool invocation id used to supersede an abandoned takeover. */
+  toolInvocationEpoch: number
   lastTabsStateFingerprint: string | null
   toolQueue: Promise<unknown>
   /** True while activation is the only operation that has touched this scope. */
@@ -135,6 +137,8 @@ function createDriverScopeState(): DriverScopeState {
     pendingNotices: [],
     takeoverActive: false,
     takeoverDone: false,
+    takeoverResponse: null,
+    toolInvocationEpoch: 0,
     lastTabsStateFingerprint: null,
     toolQueue: Promise.resolve(),
     activationOnly: true,
@@ -182,8 +186,8 @@ function recordNotice(notice: string): void {
 }
 
 /**
- * True while browser_request_takeover waits on the user. The Done chip on the
- * chat's takeover tool row completes it via the `takeover-done` panel action;
+ * True while browser_request_takeover waits on the user. The question card on
+ * the chat's takeover tool row completes it via the `takeover-done` panel action;
  * the state lives here (session-level, not in the page) so it survives
  * navigations and tab switches.
  */
@@ -1628,27 +1632,31 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
 
 /**
  * Hands control to the user: the page is already natively interactive in the
- * panel, and the chat's takeover tool row shows the reason with a Done chip.
- * The tool resolves when that chip sends the `takeover-done` panel action.
+ * panel, and the chat's takeover tool row shows the reason as a question.
+ * The tool resolves when that question sends the `takeover-done` panel action.
  * Nothing is injected into the page, so nothing covers page content and the
  * pending state survives navigations.
  */
-async function runTakeover(purpose: string | undefined): Promise<unknown> {
+async function runTakeover(purpose: string | undefined, invocationEpoch: number): Promise<unknown> {
   const tab = session.ensureAutomationTab()
   const contents = tab.view.webContents
   const state = driverScopeState()
   state.takeoverActive = true
   state.takeoverDone = false
+  state.takeoverResponse = null
   session.setAutomationNeedsAttention(true)
 
   const startedAt = Date.now()
   try {
-    while (Date.now() - startedAt < TAKEOVER_MAX_MS) {
+    for (;;) {
       await sleep(TAKEOVER_POLL_MS)
       if (!session.hasSession() || contents.isDestroyed()) {
         throw new ToolError(
           'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
         )
+      }
+      if (state.toolInvocationEpoch !== invocationEpoch) {
+        throw new ToolError('The browser takeover was superseded by a newer browser action.')
       }
       if (state.takeoverDone) {
         if (purpose === 'sign_in') {
@@ -1657,14 +1665,18 @@ async function runTakeover(purpose: string | undefined): Promise<unknown> {
             knownSessions?.noteSignInCompleted(activeContents.getURL())
           }
         }
-        return { completed: true, elapsedMs: Date.now() - startedAt }
+        return {
+          completed: true,
+          elapsedMs: Date.now() - startedAt,
+          ...(state.takeoverResponse ? { userInstruction: state.takeoverResponse } : {}),
+        }
       }
     }
-    throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
   } finally {
     session.setAutomationNeedsAttention(false)
     state.takeoverActive = false
     state.takeoverDone = false
+    state.takeoverResponse = null
   }
 }
 
@@ -1672,7 +1684,8 @@ async function executeToolInner(
   tool: BrowserToolName,
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
-  executionDeadline?: number
+  executionDeadline: number | undefined,
+  invocationEpoch: number
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -2945,7 +2958,7 @@ async function executeToolInner(
       // The reason renders in the chat's tool row, not here — but require it
       // so the model always tells the user why control was handed over.
       requireStr(params, 'reason')
-      return await runTakeover(str(params, 'purpose'))
+      return await runTakeover(str(params, 'purpose'), invocationEpoch)
     }
 
     default: {
@@ -2985,6 +2998,7 @@ export async function executeTool(
   }
   const state = driverScopeState(resolvedScopeId)
   state.activationOnly = false
+  const invocationEpoch = ++state.toolInvocationEpoch
   const run = async () => {
     return await session.withBrowserScope(resolvedScopeId, async () => {
       logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
@@ -3001,7 +3015,13 @@ export async function executeTool(
             throw new ToolError('This browser action expired before it could dispatch input.')
           }
         }
-        const execution = executeToolInner(tool, params, assertCurrentExecution, executionDeadline)
+        const execution = executeToolInner(
+          tool,
+          params,
+          assertCurrentExecution,
+          executionDeadline,
+          invocationEpoch
+        )
         return withNotices(
           await (watchdogMs === null
             ? execution
@@ -3045,12 +3065,16 @@ export async function handlePanelAction(
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (session.isBrowserScopeSuspended(resolvedScopeId)) return
   return await session.withBrowserScope(resolvedScopeId, async () => {
-    // The Done chip on the chat's takeover tool row: hands control back to the
+    // The question card on the chat's takeover tool row hands control back to the
     // agent. Meaningful only while a takeover is actually waiting.
     if (action.action === 'takeover-done') {
       const state = driverScopeState()
       if (state.takeoverActive) {
         session.returnAutomationTabToAgent()
+        state.takeoverResponse =
+          typeof action.takeoverResponse === 'string' && action.takeoverResponse.trim()
+            ? action.takeoverResponse.trim()
+            : null
         state.takeoverDone = true
       }
       return

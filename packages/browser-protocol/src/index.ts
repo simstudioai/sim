@@ -136,7 +136,7 @@ export interface BrowserPanelSnapshot {
 
 /**
  * Browser-chrome commands from the panel header (URL bar, back/forward,
- * reload) plus `takeover-done`, sent by the Done chip on the chat's
+ * reload) plus `takeover-done`, sent by the question card on the chat's
  * `browser_request_takeover` tool row when the user finishes a
  * hand-control-back request. Page interactions need no protocol — the user
  * acts on the real embedded page directly, and its right-click menu is native
@@ -161,6 +161,8 @@ export interface BrowserPanelAction {
   url?: string
   /** Stable tab id for `duplicate-tab`, `switch-tab`, and `close-tab`. */
   tabId?: string
+  /** Optional free-text instruction submitted with `takeover-done`. */
+  takeoverResponse?: string
 }
 
 /** Live state of the active page, pushed to the panel header. */

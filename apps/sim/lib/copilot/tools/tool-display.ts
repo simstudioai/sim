@@ -1064,6 +1064,13 @@ export function getToolCompletedTitle(title: string): string | undefined {
  * running/error row remains truthful; every successful renderer calls this to
  * project the corresponding completed title from the canonical verb map.
  */
-export function getToolStatusDisplayTitle(title: string, status: string): string {
+export function getToolStatusDisplayTitle(
+  title: string,
+  status: string,
+  toolName?: string
+): string {
+  if (status === 'success' && toolName === 'browser_request_takeover') {
+    return 'Resumed browser control'
+  }
   return status === 'success' ? (getToolCompletedTitle(title) ?? title) : title
 }
