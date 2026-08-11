@@ -1,4 +1,4 @@
 interface:
-  display_name: "Migrate Application Operation"
-  short_description: "Share one operation across API and tool surfaces"
-  default_prompt: "Use $migrate-application-operation to migrate one resource operation across internal APIs, public APIs, Copilot, and other tools."
+  display_name: "Create Or Migrate Application Operation"
+  short_description: "Share one protected operation across surfaces"
+  default_prompt: "Use $migrate-application-operation to create or migrate one protected resource operation across internal APIs, public APIs, Copilot, and other tools."
