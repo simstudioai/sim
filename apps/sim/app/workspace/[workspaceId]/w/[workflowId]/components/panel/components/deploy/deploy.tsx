@@ -83,7 +83,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
         /* The palette can't render a disabled state for this action yet, so a
            gated invocation reports the same reason the button's tooltip shows. */
         if (isRegistryLoading || isDisabled) {
-          toast(isRegistryLoading ? 'Workflow is still loading' : getTooltipText())
+          toast({ message: isRegistryLoading ? 'Workflow is still loading' : getTooltipText() })
           return
         }
         void onDeployClick()
