@@ -11,15 +11,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  * and the folder/file layers, not in the extractor's own arithmetic. The fake
  * therefore enforces the real rules:
  *
- * - folder paths are validated with the production {@link parseFolderPath} family,
- *   so a non-canonical path (no leading slash, unencoded segment) throws exactly
- *   as `requireNonRootFolderPath` does in `workspace-file-folder-manager`;
- * - `createWorkspaceFileFolderOperation` creates ONE leaf and rejects an existing
- *   path or a missing parent, mirroring `createWorkspaceFileFolderAtPath`;
+ * - folder keys are built with the production {@link buildFolderPath}, so a segment
+ *   that needs encoding is rejected or encoded exactly as the folder layer would;
  * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
  *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
  */
-const { store, mockUpload, mockDelete, mockCreateFolder, mockEnsureFolder } = vi.hoisted(() => ({
+const { store, mockUpload, mockDelete, mockEnsureFolder } = vi.hoisted(() => ({
   store: {
     folderIdByPath: new Map<string, string>(),
     fileKeys: new Set<string>(),
@@ -27,11 +24,9 @@ const { store, mockUpload, mockDelete, mockCreateFolder, mockEnsureFolder } = vi
   },
   mockUpload: vi.fn(),
   mockDelete: vi.fn(),
-  mockCreateFolder: vi.fn(),
   mockEnsureFolder: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
-  createWorkspaceFileFolderOperation: { execute: mockCreateFolder },
   ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
 }))
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
@@ -45,7 +40,7 @@ vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
   },
 }))
 
-import { buildFolderPath, requireNonRootFolderPath } from '@/lib/folders/paths'
+import { buildFolderPath } from '@/lib/folders/paths'
 import {
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES,
@@ -124,20 +119,6 @@ beforeEach(() => {
   store.folderIdByPath.clear()
   store.fileKeys.clear()
   store.sequence = 0
-
-  mockCreateFolder.mockImplementation(async ({ input }: { input: { path: string } }) => {
-    const segments = requireNonRootFolderPath(input.path)
-    if (store.folderIdByPath.has(input.path)) {
-      throw new Error(`A folder named "${segments[segments.length - 1]}" already exists`)
-    }
-    const parentPath = buildFolderPath(segments.slice(0, -1))
-    if (parentPath !== '/' && !store.folderIdByPath.has(parentPath)) {
-      throw new Error('Parent folder not found')
-    }
-    const id = `folder_${++store.sequence}`
-    store.folderIdByPath.set(input.path, id)
-    return { folder: { id, path: input.path } }
-  })
 
   mockEnsureFolder.mockImplementation(async ({ input }: { input: { pathSegments: string[] } }) => {
     let folderId: string | null = null

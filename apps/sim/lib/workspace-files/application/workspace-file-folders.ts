@@ -272,8 +272,8 @@ export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
  * Idempotently materializes a whole folder chain, reusing every folder that already
  * exists and creating only the missing ones. Unlike {@link createWorkspaceFileFolderOperation}
  * — which creates exactly one leaf and fails on an existing path or a missing parent —
- * this is the primitive for writers that materialize a tree (archive extraction, workspace
- * import), where intermediate folders and repeat runs are expected rather than exceptional.
+ * this is the primitive for writers that materialize a tree (archive extraction), where
+ * intermediate folders and repeat runs are expected rather than exceptional.
  */
 export const ensureWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
   operation: fileOperations.createFolder,
