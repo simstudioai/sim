@@ -733,3 +733,29 @@ export const billingIdempotency = new IdempotencyService({
   ttlSeconds: 60 * 60, // 1 hour
   forceStorage: 'database',
 })
+
+/**
+ * Dedupes a chat send by its client-generated `userMessageId`, so re-sending
+ * one is safe.
+ *
+ * The client cannot tell whether a request it aborted reached the server: the
+ * chat route never reads `request.signal`, so an accepted request creates the
+ * chat, persists the user message, and runs the (billed) turn even after the
+ * browser drops the socket. Without this, a client that recovers an aborted
+ * send has to choose between losing the message and duplicating the run.
+ *
+ * Storage is forced to Postgres for the same reason as {@link billingIdempotency}:
+ * a missed dedup is a second LLM turn billed to the workspace, so the key must
+ * not be evictable under Redis memory pressure. The added 1-5ms is invisible
+ * next to the LLM call this request is about to make.
+ *
+ * `inProgressTtlSeconds` is short so a crashed pod cannot block a genuine retry
+ * for the full hour, while completed sends stay deduplicated for it.
+ */
+export const chatSendIdempotency = new IdempotencyService({
+  namespace: 'chat-send',
+  ttlSeconds: 60 * 60, // 1 hour
+  inProgressTtlSeconds: 60,
+  retryFailures: true,
+  forceStorage: 'database',
+})
