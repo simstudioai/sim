@@ -97,7 +97,6 @@ const MAX_PDF_IMAGE_BYTES = 12 * 1024 * 1024
 const MAX_PDF_TOTAL_IMAGE_BYTES = 32 * 1024 * 1024
 const MAX_PDF_DOCUMENT_NODES = 20_000
 const MAX_PDF_TOP_LEVEL_BLOCKS = 3_000
-const MAX_UNBREAKABLE_TABLE_HEIGHT = 620
 const PDF_TABLE_CONTENT_WIDTH = 499
 
 Font.register({
@@ -157,11 +156,6 @@ interface MarkdownDocumentProps {
 interface FontRun {
   family: string
   text: string
-}
-
-interface TableChunk {
-  rows: JSONContent[]
-  unbreakable: boolean
 }
 
 const styles = StyleSheet.create({
@@ -256,14 +250,20 @@ function fontRuns(value: string): FontRun[] {
         ? undefined
         : (staticFallbackFonts.find(({ glyphs }) => glyphs.hasGlyphForCodePoint(codePoint)) ??
           (unifont.glyphs.hasGlyphForCodePoint(codePoint) ? unifont : undefined))
-    const family =
-      codePoint !== undefined && geistGlyphs.hasGlyphForCodePoint(codePoint)
-        ? 'Geist'
-        : (fallback?.family ?? 'Unifont')
+    const hasGeistGlyph = codePoint !== undefined && geistGlyphs.hasGlyphForCodePoint(codePoint)
+    const unsupported = !hasGeistGlyph && !fallback
+    const family = !hasGeistGlyph && fallback ? fallback.family : 'Geist'
     return {
       family,
       neutral: /^[\p{N}\p{P}\p{Z}\s]$/u.test(character),
-      text: family === 'Geist' || fallback ? character : '�',
+      // React PDF/fontkit does not shape astral emoji correctly from bundled monochrome fonts and
+      // cannot embed the platform's color font. Preserve unsupported emoji as an explicit code-point
+      // label instead of silently corrupting it into an unrelated glyph or replacement character.
+      text: !unsupported
+        ? character
+        : codePoint !== undefined && codePoint > 0xffff
+          ? `[emoji U+${codePoint.toString(16).toUpperCase()}]`
+          : '�',
     }
   })
 
@@ -486,50 +486,9 @@ function renderList(
   )
 }
 
-function estimateTableRowHeight(row: JSONContent, columnCount: number): number {
-  const columnWidth = PDF_TABLE_CONTENT_WIDTH / Math.max(columnCount, 1)
-  const charactersPerLine = Math.max(8, Math.floor(columnWidth / 4.8))
-  const lines = Math.max(
-    1,
-    ...(row.content ?? []).map((cell) =>
-      Math.ceil(Math.max(nodeText(cell).length, 1) / charactersPerLine)
-    )
-  )
-  return 10 + lines * 12.5
-}
-
-function chunkTableRows(header: JSONContent, rows: JSONContent[]): TableChunk[] {
-  const columnCount = header.content?.length ?? rows[0]?.content?.length ?? 1
-  const headerHeight = estimateTableRowHeight(header, columnCount)
-  if (rows.length === 0) {
-    return [{ rows: [], unbreakable: headerHeight <= MAX_UNBREAKABLE_TABLE_HEIGHT }]
-  }
-
-  const chunks: TableChunk[] = []
-  let current: JSONContent[] = []
-  let currentHeight = headerHeight
-
-  const flush = () => {
-    if (current.length === 0) return
-    chunks.push({ rows: current, unbreakable: currentHeight <= MAX_UNBREAKABLE_TABLE_HEIGHT })
-    current = []
-    currentHeight = headerHeight
-  }
-
-  for (const row of rows) {
-    const rowHeight = estimateTableRowHeight(row, columnCount)
-    if (current.length > 0 && currentHeight + rowHeight > MAX_UNBREAKABLE_TABLE_HEIGHT) flush()
-    current.push(row)
-    currentHeight += rowHeight
-    if (rowHeight + headerHeight > MAX_UNBREAKABLE_TABLE_HEIGHT) flush()
-  }
-  flush()
-  return chunks
-}
-
 function renderTableRow(row: JSONContent, key: string, header: boolean): ReactNode {
   return (
-    <View key={key} style={styles.tableRow} wrap={false}>
+    <View key={key} minPresenceAhead={header ? 16 : undefined} style={styles.tableRow}>
       {(row.content ?? []).map((cell, index) => (
         <Text
           key={`${key}-${index}`}
@@ -552,20 +511,13 @@ function renderTable(node: JSONContent, key: string): ReactNode {
   if (rows.length === 0) return null
   const firstRow = rows[0]
   const hasHeader = firstRow.content?.some((cell) => cell.type === 'tableHeader') ?? false
-  const header = hasHeader ? firstRow : { type: 'tableRow', content: [] }
-  const bodyRows = hasHeader ? rows.slice(1) : rows
-  const chunks = hasHeader
-    ? chunkTableRows(header, bodyRows)
-    : [{ rows: bodyRows, unbreakable: false }]
-
-  return chunks.map((chunk, index) => (
-    <View key={`${key}-${index}`} style={styles.table} wrap={!chunk.unbreakable}>
-      {hasHeader ? renderTableRow(header, `${key}-${index}-header`, true) : null}
-      {chunk.rows.map((row, rowIndex) =>
-        renderTableRow(row, `${key}-${index}-row-${rowIndex}`, false)
+  return (
+    <View key={key} style={styles.table}>
+      {rows.map((row, index) =>
+        renderTableRow(row, `${key}-row-${index}`, hasHeader && index === 0)
       )}
     </View>
-  ))
+  )
 }
 
 function renderBlock(
@@ -647,7 +599,7 @@ async function normalizeImages(
   images: ReadonlyMap<string, Buffer>
 ): Promise<Map<string, PdfImage>> {
   const normalized = new Map<string, PdfImage>()
-  let totalInputPixels = 0
+  let totalDecodedInputPixels = 0
   let totalOutputPixels = 0
   let totalImageBytes = 0
 
@@ -663,11 +615,10 @@ async function normalizeImages(
       const inputPixels = metadata.width * metadata.height
       if (
         !Number.isSafeInteger(inputPixels) ||
-        totalInputPixels + inputPixels > MAX_PDF_TOTAL_INPUT_PIXELS
+        totalDecodedInputPixels + inputPixels > MAX_PDF_TOTAL_INPUT_PIXELS
       ) {
         continue
       }
-      totalInputPixels += inputPixels
 
       const scale = Math.min(
         1,
@@ -689,6 +640,11 @@ async function normalizeImages(
         })
         .png()
         .toBuffer()
+      // Count the expensive decode once it has happened even when the encoded PNG is later rejected;
+      // output pixels/bytes below count only images retained for React PDF layout. This distinction
+      // prevents repeated rejected images from escaping the CPU/memory budget without penalizing images
+      // skipped before decoding.
+      totalDecodedInputPixels += inputPixels
       if (
         data.length > MAX_PDF_IMAGE_BYTES ||
         totalImageBytes + data.length > MAX_PDF_TOTAL_IMAGE_BYTES

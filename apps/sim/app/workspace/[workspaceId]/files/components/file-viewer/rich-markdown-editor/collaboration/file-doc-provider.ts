@@ -7,6 +7,7 @@ import {
   FILE_DOC_MESSAGE_TYPE,
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
+  type FlushFileDocResult,
   type JoinFileDocError,
   type JoinFileDocSuccess,
   toFileDocBytes,
@@ -45,6 +46,29 @@ interface FileDocProviderEvents {
  * relay's seed-fetch timeout — see `FILE_DOC_TIMEOUTS` and its ordering test.
  */
 const READINESS_DEADLINE_MS = FILE_DOC_TIMEOUTS.readinessDeadlineMs
+
+/**
+ * Wait for the realtime relay to persist every file-doc update emitted before this call. Exports read
+ * the durable file blob, so editable clients use this acknowledgement immediately before requesting an
+ * export rather than racing the relay's normal edit debounce.
+ */
+export function flushFileDocForExport(socket: Socket | null, fileId: string): Promise<void> {
+  if (!socket?.connected) {
+    return Promise.reject(new Error('Connect to realtime before exporting your latest changes.'))
+  }
+
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error('Timed out while saving the latest document changes.'))
+    }, FILE_DOC_TIMEOUTS.flushAckMs)
+
+    socket.emit(FILE_DOC_EVENTS.FLUSH, { fileId }, (result: FlushFileDocResult) => {
+      clearTimeout(timer)
+      if (result.ok) resolve()
+      else reject(new Error(result.error))
+    })
+  })
+}
 
 /**
  * Live-provider counts per file, per shared socket. Two surfaces in one tab (the Files editor and the

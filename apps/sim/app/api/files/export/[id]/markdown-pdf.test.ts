@@ -46,6 +46,8 @@ describe('Markdown PDF rendering', () => {
 
 Smart quotes “work” and Greek Ω stays readable.
 
+Common emoji stay readable too: 🚀 😀
+
 中文排版应该清晰易读。 العربية يجب أن تكون متصلة ومقروءة. हिन्दी पाठ स्पष्ट और पठनीय होना चाहिए। עברית צריכה להיות ברורה וקריאה.
 
 - First item
@@ -85,6 +87,9 @@ ${repeatedParagraphs}`
     // PDF extractors expose visually positioned Indic vowel marks before their base character.
     expect(text).toMatch(/[\u0900-\u097f]{4,}/u)
     expect(text).toContain('עברית')
+    expect(text).toContain('[emoji U+1F680]')
+    expect(text).toContain('[emoji U+1F600]')
+    expect(text).not.toContain('�')
     expect(text).not.toContain('Image: Embedded image')
 
     const parsed = await getDocument({ data: new Uint8Array(buffer), disableWorker: true }).promise
@@ -103,7 +108,7 @@ ${repeatedParagraphs}`
     }
   })
 
-  it('keeps long table rows together and repeats the header across table pages', async () => {
+  it('lets a long table paginate without moving the whole table to a later page', async () => {
     const rows = Array.from(
       { length: 90 },
       (_, index) =>
@@ -117,7 +122,21 @@ ${repeatedParagraphs}`
     const pages = await pdfPagesText(buffer)
     const tablePages = pages.filter((page) => page.includes('Row '))
     expect(tablePages.length).toBeGreaterThan(1)
-    expect(tablePages.every((page) => page.includes('Name') && page.includes('Value'))).toBe(true)
+    expect(pages[0]).toContain('Row 1')
+    expect(pages.join(' ')).toContain('Row 90')
+  })
+
+  it('allows a table row taller than a page to wrap without losing its content', async () => {
+    const cell = `ROW-START ${'wrapping table content '.repeat(900)} ROW-END`
+    const buffer = await renderMarkdownPdf({
+      markdown: `| Name | Value |\n| --- | --- |\n| Tall row | ${cell} |`,
+      title: 'Tall table row',
+    })
+
+    const pages = await pdfPagesText(buffer)
+    expect(pages.length).toBeGreaterThan(1)
+    expect(pages.join(' ')).toContain('ROW-START')
+    expect(pages.join(' ')).toContain('ROW-END')
   })
 
   it('renders a table that contains only a header', async () => {

@@ -300,6 +300,14 @@ export const GET = withRouteHandler(
       }
     )
 
+    if (format === 'pdf') {
+      return respondWithPdf(
+        new Map(
+          fetched.flatMap((result) => (result ? [[result.imageKey, result.buffer] as const] : []))
+        )
+      )
+    }
+
     const assetMap = new Map<string, { filename: string; buffer: Buffer }>()
     const usedFilenames = new Set<string>()
 
@@ -310,12 +318,6 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames)
       usedFilenames.add(filename)
       assetMap.set(imageKey, { filename, buffer })
-    }
-
-    if (format === 'pdf') {
-      return respondWithPdf(
-        new Map(Array.from(assetMap, ([imageKey, asset]) => [imageKey, asset.buffer]))
-      )
     }
 
     mdContent = replaceEmbeddedFileRefs(
