@@ -273,7 +273,7 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "operationId": "updateKnowledgeBase",
         "summary": "Update Knowledge Base",
         "description": "Update a knowledge base name, description, chunking configuration, or folder placement.",

@@ -10,7 +10,7 @@ import {
   fetchServableWorkspaceFileBuffer,
   getWorkspaceFile,
 } from '@/lib/uploads/contexts/workspace'
-import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
 import {
   checkRateLimit,

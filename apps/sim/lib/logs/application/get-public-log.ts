@@ -2,7 +2,7 @@ import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import { getPublicWorkflowLog, getPublicWorkflowLogScope } from '@/lib/logs/public-queries'
 import {
   type ActiveWorkspaceApplicationContext,
@@ -36,7 +36,7 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
     return { ...workspace, executionId: scope.executionId, workflowId: scope.workflowId }
   },
   authorizationOptions: {},
-  execute: async ({ context }): Promise<GetPublicLogResult> => {
+  execute: async ({ principal, context }): Promise<GetPublicLogResult> => {
     const log = await getPublicWorkflowLog(
       { column: 'executionId', value: context.executionId },
       context.workspaceId
@@ -45,12 +45,13 @@ export const getPublicLog = defineAuthorizedWorkspaceUseCase({
       throw new OrchestrationError('not_found', 'Log not found')
     }
     const folderIndex = await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
-    const executionData = await materializeExecutionData(
+    const executionData = await materializeExecutionDataForDisplay(
       log.executionData as Record<string, unknown> | null,
       {
         workspaceId: context.workspaceId,
         workflowId: log.workflowId,
         executionId: log.executionId,
+        userId: principal.kind === 'personal_api_key' ? principal.userId : undefined,
       }
     )
     if (log.workflowUserId && !log.workflowOwnerEmail) {

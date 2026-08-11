@@ -4,7 +4,7 @@ import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/co
 import { ROOT_FOLDER_PATH } from '@/lib/folders/paths'
 import { loadActiveFolderPathIndex } from '@/lib/folders/queries'
 import { logOperations } from '@/lib/logs/application/operations'
-import { materializeExecutionData } from '@/lib/logs/execution/trace-store'
+import { materializeExecutionDataForDisplay } from '@/lib/logs/execution/trace-store'
 import type { LogFilters } from '@/lib/logs/public-filters'
 import { listPublicWorkflowLogs } from '@/lib/logs/public-queries'
 import { loadActiveWorkspaceApplicationContext } from '@/lib/workspaces/application/workspace-context'
@@ -42,7 +42,7 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
     return context
   },
   authorizationOptions: {},
-  execute: async ({ input, context }): Promise<ListPublicLogsResult> => {
+  execute: async ({ principal, input, context }): Promise<ListPublicLogsResult> => {
     const folderIndex = input.folderPaths
       ? await loadActiveFolderPathIndex(context.workspaceId, 'workflow')
       : null
@@ -65,17 +65,19 @@ export const listPublicLogs = defineAuthorizedWorkspaceUseCase({
       folderScope: input.folderPaths ? { includesRoot, folderIds: folderIds ?? [] } : undefined,
     })
 
+    const userId = principal.kind === 'personal_api_key' ? principal.userId : undefined
     const items = needsMaterialization
       ? await mapWithConcurrency(data, MATERIALIZE_CONCURRENCY, async (log) => {
           if (!log.executionData) return { log }
           return {
             log,
-            executionData: await materializeExecutionData(
+            executionData: await materializeExecutionDataForDisplay(
               log.executionData as Record<string, unknown>,
               {
                 workspaceId: log.workspaceId,
                 workflowId: log.workflowId,
                 executionId: log.executionId,
+                userId,
               }
             ),
           }

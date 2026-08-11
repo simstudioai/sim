@@ -76,7 +76,7 @@ export const POST = defineV2JsonRoute({
   },
 })
 
-export const PUT = defineV2JsonRoute({
+export const PATCH = defineV2JsonRoute({
   contract: v2UpdateRowsByFilterContract,
   operation: tableOperations.updateRows,
   auth: v2ApiKeyAuth,

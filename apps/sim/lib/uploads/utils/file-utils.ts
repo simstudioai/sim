@@ -261,6 +261,22 @@ export function isRenderableDocumentName(fileName: string): boolean {
   return RENDERABLE_DOCUMENT_EXTENSIONS.has(getFileExtension(fileName))
 }
 
+/**
+ * True when a stored file must be resolved to its rendered artifact before being
+ * handed out. The recorded content type is the authoritative signal — a genuinely
+ * uploaded `.pdf` carries `application/pdf` and must NOT be routed through the
+ * generation-source path — so the extension is consulted only for records that
+ * carry no type at all.
+ */
+export function needsRenderedArtifact(
+  contentType: string | null | undefined,
+  fileName: string
+): boolean {
+  return contentType
+    ? isGeneratedDocumentSourceType(contentType)
+    : isRenderableDocumentName(fileName)
+}
+
 const ARCHIVE_EXTENSIONS = new Set<string>(SUPPORTED_ARCHIVE_EXTENSIONS)
 
 /**

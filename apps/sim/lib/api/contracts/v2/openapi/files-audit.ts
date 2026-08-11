@@ -324,8 +324,9 @@ const routes = [
     filesOperation({
       operationId: 'downloadFile',
       summary: 'Download File',
-      description: 'Download the current file bytes from a workspace.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound'],
+      description:
+        'Download the current file bytes from a workspace. A generated document is served as its compiled artifact, so it returns `409` while that artifact is still compiling and `413` if it renders past the size ceiling.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
       success: {
         description: 'The file bytes.',
         headers: ['Content-Type', 'Content-Disposition', 'Content-Length'],

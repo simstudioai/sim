@@ -12,10 +12,15 @@
  * 2. v2 conventions: every published operation is under `/api/v2/`, documents
  *    401, 429, and 503, and resolves every documented 4xx/5xx response to the
  *    canonical error envelope `{ error: { code, message } }`.
- * 3. Contract cross-check: every contract exported from
- *    `lib/api/contracts/v2/*` must be documented, every documented `/api/v2/`
- *    operation must have a contract, and for each pair the query params,
- *    body fields, and response fields are diffed via `z.toJSONSchema`.
+ * 3. Contract cross-check: every route contract anywhere under
+ *    `lib/api/contracts/**` whose path is under `/api/v2/` must be documented
+ *    (or listed in `UNDOCUMENTED_V2_ROUTES` with a reason), every documented
+ *    `/api/v2/` operation must have a contract, and for each pair the query
+ *    params, body fields, and response fields are diffed via
+ *    `z.toJSONSchema`. The sweep is recursive and rooted at the whole
+ *    contracts tree, not the flat `v2/` directory — a contract in a
+ *    subdirectory, or one that lives beside its non-v2 siblings, must never
+ *    be able to escape coverage by virtue of where its file sits.
  * 4. Examples: documented request/response examples are parsed with the
  *    matching contract's actual Zod schemas — a doc example that the runtime
  *    would reject fails the build.
@@ -29,9 +34,26 @@ import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
-const V2_CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
+const CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts')
 
 const SPEC_FILES = OPENAPI_SPEC_FILES
+
+/**
+ * `/api/v2/` routes that are deliberately absent from the public OpenAPI
+ * specs, each with the reason it is not public API surface. Anything not
+ * listed here fails the build, so an undocumented v2 route is always a
+ * conscious, reviewed decision rather than an accident of file layout.
+ *
+ * A stale entry — one whose contract no longer exists, or which has since
+ * been documented — also fails, so the list cannot rot into a blanket
+ * exemption.
+ */
+const UNDOCUMENTED_V2_ROUTES: Readonly<Record<string, string>> = {
+  'PUT /api/v2/uploads/{uploadId}':
+    'Local-storage data plane for a signed whole-object upload. Authenticated by the short-lived upload-token minted by the documented session-create operation, not by an API key; carries no v2 feature gate and returns bare error bodies rather than the canonical v2 envelope. The URL is handed to the client by the session response and is never constructed from docs.',
+  'PUT /api/v2/uploads/{uploadId}/parts/{partNumber}':
+    'Local-storage data plane for a signed multipart part upload. Authenticated by a per-part signed `token` query param minted by the documented part-URL operation, not by an API key; same non-canonical envelope and self-describing URL as the whole-object PUT above.',
+}
 
 /**
  * Every operation removed with the unversioned core specification has a
@@ -109,15 +131,31 @@ function isContract(value: unknown): value is ContractLike {
 const contractKey = (c: ContractLike) =>
   `${c.method.toUpperCase()} ${c.path.replace(/\[([^\]]+)\]/g, '{$1}')}`
 
+/** Every non-test `.ts` file under `dir`, recursively, in stable order. */
+function listContractFiles(dir: string): string[] {
+  const files: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true }).sort((a, b) =>
+    a.name.localeCompare(b.name)
+  )) {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) {
+      if (entry.name === '__tests__') continue
+      files.push(...listContractFiles(full))
+    } else if (entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')) {
+      files.push(full)
+    }
+  }
+  return files
+}
+
+/** Every `/api/v2/` route contract exported anywhere in the contracts tree. */
 async function loadContracts(): Promise<Map<string, { name: string; contract: ContractLike }>> {
   const registry = new Map<string, { name: string; contract: ContractLike }>()
-  const files = readdirSync(V2_CONTRACTS_DIR)
-    .filter((f) => f.endsWith('.ts') && f !== 'shared.ts')
-    .map((f) => path.join(V2_CONTRACTS_DIR, f))
-  for (const file of files) {
+  for (const file of listContractFiles(CONTRACTS_DIR)) {
     const mod = (await import(file)) as Record<string, unknown>
     for (const [name, value] of Object.entries(mod)) {
       if (!isContract(value)) continue
+      if (!value.path.startsWith('/api/v2/')) continue
       const key = contractKey(value)
       const existing = registry.get(key)
       if (existing) {
@@ -659,8 +697,20 @@ for (const specFile of SPEC_FILES) {
 }
 
 for (const [key, { name }] of registry) {
-  if (!documentedKeys.has(key)) {
-    errors.push(`registry: ${name} (${key}) is not documented in any OpenAPI spec`)
+  if (documentedKeys.has(key) || key in UNDOCUMENTED_V2_ROUTES) continue
+  errors.push(`registry: ${name} (${key}) is not documented in any OpenAPI spec`)
+}
+
+for (const [key, reason] of Object.entries(UNDOCUMENTED_V2_ROUTES)) {
+  if (!reason.trim()) {
+    errors.push(`undocumented v2 allowlist: ${key} needs a reason explaining why it is not public`)
+  }
+  if (!registry.has(key)) {
+    errors.push(`undocumented v2 allowlist: ${key} matches no contract — remove the stale entry`)
+  } else if (documentedKeys.has(key)) {
+    errors.push(
+      `undocumented v2 allowlist: ${key} is documented after all — remove it from the allowlist`
+    )
   }
 }
 
@@ -733,6 +783,7 @@ if (errors.length > 0) {
   for (const message of errors) console.error(`  - ${message}`)
   process.exit(1)
 }
+const exemptCount = Object.keys(UNDOCUMENTED_V2_ROUTES).length
 console.log(
-  `OpenAPI spec validation passed: ${SPEC_FILES.length} specs, ${documentedKeys.size} operations, ${registry.size} contracts cross-checked.`
+  `OpenAPI spec validation passed: ${SPEC_FILES.length} specs, ${documentedKeys.size} operations, ${registry.size} contracts cross-checked (${exemptCount} explicitly undocumented).`
 )

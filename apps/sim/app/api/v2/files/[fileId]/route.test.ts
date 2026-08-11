@@ -111,6 +111,8 @@ describe('v2 single-file routes', () => {
     mocks.download.mockResolvedValue({
       file: fileRecord(),
       stream: new Blob(['id,name\n']).stream(),
+      contentType: 'text/csv',
+      contentLength: 'id,name\n'.length,
     })
     mocks.rename.mockResolvedValue({ file: fileRecord({ name: 'renamed.csv' }) })
     mocks.deleteFile.mockResolvedValue({
