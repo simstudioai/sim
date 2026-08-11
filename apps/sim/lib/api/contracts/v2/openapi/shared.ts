@@ -40,7 +40,8 @@ export const ERROR_RESPONSES = {
   Conflict: { status: 409, description: 'The request conflicts with current resource state.' },
   RunIdConflict: {
     status: 409,
-    description: 'The run identifier is already associated with a different request.',
+    description:
+      'The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.',
     headers: ['X-Run-Id'],
   },
   Gone: { status: 410, description: 'The requested generated resource has expired.' },

@@ -40,6 +40,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/route'
 
@@ -173,6 +174,26 @@ describe('/api/v2/tables/[tableId]', () => {
 
     expect(response.status).toBe(404)
     expect((await response.json()).error.details).toEqual({ applied: ['name'] })
+  })
+
+  it('conceals a typed authorization failure on every verb, not just the read', async () => {
+    mocks.read.mockRejectedValueOnce(new NoWorkspaceAccessError())
+    mocks.update.mockRejectedValueOnce(new NoWorkspaceAccessError())
+    mocks.remove.mockRejectedValueOnce(new NoWorkspaceAccessError())
+
+    const responses = await Promise.all([
+      GET(request('GET'), context),
+      PATCH(request('PATCH', { workspaceId: WORKSPACE_ID, name: 'Renamed' }), context),
+      DELETE(request('DELETE'), context),
+    ])
+
+    for (const response of responses) {
+      expect(response.status).toBe(404)
+      expect((await response.json()).error).toEqual({
+        code: 'NOT_FOUND',
+        message: 'Table not found',
+      })
+    }
   })
 
   it('keeps delete analytics surface-specific after authoritative success', async () => {

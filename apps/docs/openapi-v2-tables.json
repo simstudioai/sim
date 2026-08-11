@@ -152,6 +152,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -212,6 +215,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1437,9 +1443,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "413": {
-            "$ref": "#/components/responses/PayloadTooLarge"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2467,6 +2470,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
@@ -3329,6 +3335,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -3694,7 +3703,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -4981,22 +4990,20 @@
       "V2DeleteRowData": {
         "type": "object",
         "properties": {
-          "deletedCount": {
-            "type": "number",
-            "description": "Number of deleted rows."
-          },
-          "deletedRowIds": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            },
+          "id": {
+            "type": "string",
             "description": "Identifier of the deleted row."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the row was deleted."
           }
         },
-        "required": ["deletedCount", "deletedRowIds"],
+        "required": ["id", "deleted"],
         "additionalProperties": false,
         "title": "Delete row data",
-        "description": "Result of a single-row deletion."
+        "description": "Row deletion acknowledgement."
       },
       "V2DeleteTableRowResponse": {
         "type": "object",
@@ -5009,7 +5016,7 @@
         "required": ["data"],
         "additionalProperties": false,
         "title": "Delete table row response",
-        "description": "Deleted row count and identifier."
+        "description": "Row deletion acknowledgement."
       },
       "V2UpsertRowData": {
         "type": "object",

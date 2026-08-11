@@ -61,6 +61,6 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: deleteTableRow,
   present: ({ deletedRowId }) => ({
-    data: { deletedCount: 1, deletedRowIds: [deletedRowId] },
+    data: { id: deletedRowId, deleted: true as const },
   }),
 })

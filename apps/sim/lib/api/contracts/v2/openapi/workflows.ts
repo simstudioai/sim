@@ -176,7 +176,7 @@ const routes = [
       operationId: 'listWorkflows',
       summary: 'List Workflows',
       description: `List workflows in a workspace with folder and deployment filters, search, sorting, and opaque cursor pagination. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...WORKSPACE_ERRORS, 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A page of workflows.'),
     }),
     {
@@ -195,8 +195,8 @@ const routes = [
     workflowOperation({
       operationId: 'createWorkflowV2',
       summary: 'Create Workflow',
-      description: 'Create a workflow in a workspace root or canonical workflow folder.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict', 'Locked'],
+      description: `Create a workflow in a workspace root or canonical workflow folder. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow.'),
     }),
     {
@@ -345,11 +345,22 @@ const routes = [
           {
             data: {
               id: WORKFLOW_ID,
-              isDeployed: true,
-              deployedAt: '2026-06-12T10:30:00.000Z',
+              isDeployed: false,
+              deployedAt: null,
               warnings: [],
               activeDeployment: null,
-              latestDeploymentAttempt: null,
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK3QW4M6X2R9T7B5C0V1',
+                deploymentVersionId: 'depver_01J8ZK3QW4M6X2R9T7B5C0V2',
+                version: 3,
+                action: 'deploy',
+                status: 'preparing',
+                isCurrent: true,
+                readiness: { webhooks: 'pending', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:30:00.000Z',
+                activatedAt: null,
+                error: null,
+              },
               version: 3,
             },
           },
@@ -409,11 +420,22 @@ const routes = [
           {
             data: {
               id: WORKFLOW_ID,
-              isDeployed: true,
-              deployedAt: '2026-06-12T10:30:00.000Z',
+              isDeployed: false,
+              deployedAt: null,
               warnings: [],
               activeDeployment: null,
-              latestDeploymentAttempt: null,
+              latestDeploymentAttempt: {
+                id: 'depop_01J8ZK4RX5N7Y3S0U8D6E1W2',
+                deploymentVersionId: 'depver_01J8ZK4RX5N7Y3S0U8D6E1W3',
+                version: 2,
+                action: 'activate',
+                status: 'activating',
+                isCurrent: true,
+                readiness: { webhooks: 'ready', schedules: 'ready', mcp: 'not_applicable' },
+                requestedAt: '2026-06-12T10:30:00.000Z',
+                activatedAt: null,
+                error: null,
+              },
               version: 2,
             },
           },
@@ -575,7 +597,7 @@ const routes = [
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
       description: 'Get current workflow run state, optionally including final and block outputs.',
-      errors: RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: jsonSuccess('The workflow run status.'),
     }),
     {
@@ -614,7 +636,7 @@ const routes = [
       summary: 'Resume Workflow Run',
       description:
         'Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.',
-      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge', 'Locked'],
+      errors: [...RESOURCE_ERRORS, 'UsageLimitExceeded', 'Conflict', 'PayloadTooLarge'],
       success: {
         byStatus: {
           200: {
@@ -675,7 +697,7 @@ const routes = [
       summary: 'List Workflow Folders',
       description:
         'List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
-      errors: [...WORKSPACE_ERRORS, 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),
     {

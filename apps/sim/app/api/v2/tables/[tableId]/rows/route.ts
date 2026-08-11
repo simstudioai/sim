@@ -61,6 +61,8 @@ export const POST = defineV2JsonRoute({
           tableId: params.tableId,
           assertedWorkspaceId: body.workspaceId,
           data: body.data,
+          afterRowId: body.afterRowId,
+          beforeRowId: body.beforeRowId,
         },
   useCase: createTableRows,
   present: (result) => {

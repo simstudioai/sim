@@ -57,11 +57,15 @@ export const v2FileSchema = z
     size: z
       .number()
       .nonnegative()
-      .describe('File size in bytes.')
+      .describe(
+        'Size in bytes of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source rather than the rendered document, so this does not predict how many bytes `GET /files/{fileId}` returns — that endpoint serves the compiled artifact, which is typically much larger.'
+      )
       .meta({ examples: [1024] }),
     type: z
       .string()
-      .describe('MIME type of the file.')
+      .describe(
+        'MIME type of the stored file. For a generated document (docx, pptx, pdf, xlsx) the stored file is the generation source, so this describes the source and not what `GET /files/{fileId}` serves — that endpoint returns the compiled artifact under the rendered document type.'
+      )
       .meta({ examples: ['text/csv'] }),
     key: z
       .string()

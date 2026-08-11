@@ -113,7 +113,7 @@ const routes = [
       operationId: 'listTables',
       summary: 'List Tables',
       description: `List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. ${FOLDER_TREE_TOO_LARGE}`,
-      errors: [...WORKSPACE_ERRORS, 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The tables in the workspace.' },
     }),
     {
@@ -137,7 +137,7 @@ const routes = [
       operationId: 'createTable',
       summary: 'Create Table',
       description: 'Create a table with a typed column schema and optional folder placement.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict', 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
       success: { description: 'The created table.' },
     }),
     {
@@ -571,7 +571,7 @@ const routes = [
         v2DeleteTableRowContract.response.schema,
         'V2DeleteTableRowResponse',
         'Delete table row response',
-        'Deleted row count and identifier.'
+        'Row deletion acknowledgement.'
       ),
     }
   ),
@@ -620,7 +620,7 @@ const routes = [
       summary: 'Query Rows',
       description:
         'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination.',
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
     {
@@ -1060,7 +1060,7 @@ const routes = [
       summary: 'Create Table Import',
       description:
         'Create a durable CSV import. Upload sources receive signed transfer instructions; workspace-file sources begin processing directly.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict', 'Locked', 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
       success: { description: 'The created table import and optional transfer instructions.' },
     }),
     {
@@ -1398,7 +1398,7 @@ const routes = [
       summary: 'List Folders',
       description:
         'List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
-      errors: [...WORKSPACE_ERRORS, 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The table folders.' },
     }),
     {

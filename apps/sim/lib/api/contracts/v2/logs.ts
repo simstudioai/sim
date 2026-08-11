@@ -31,6 +31,30 @@ const v2LogFilesSchema = z
   .nullable()
   .describe('Files attached to the run, or null when none are recorded.')
 
+/**
+ * The graph as executed, sourced from the run's snapshot row. Declared loose because the
+ * snapshot is a stored jsonb blob whose interior evolves with the block registry, and the
+ * response is re-parsed on the way out — a strict shape would silently strip block fields a
+ * diagnostic consumer depends on, or reject an older snapshot outright. `null` when the run's
+ * snapshot has aged out of retention.
+ *
+ * Looseness means the response parse cannot enforce redaction: credential values are nulled in
+ * the `getPublicLog` use case, which is the single point of truth for what this field may carry.
+ */
+const v2LogWorkflowStateSchema = z
+  .object({})
+  .catchall(
+    z
+      .unknown()
+      .describe(
+        'One top-level snapshot section — `blocks`, `edges`, `loops`, `parallels`, or `variables` — passed through as stored.'
+      )
+  )
+  .nullable()
+  .describe(
+    'Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input` values and `password: true` sub-block values are null, while `{{VAR}}` environment-variable references are preserved. Null when no snapshot is retained.'
+  )
+
 const v2LogWorkflowSummarySchema = z.object({
   id: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
   name: z.string().describe('Workflow name.'),
@@ -121,8 +145,7 @@ export const v2LogDetailSchema = z
         deleted: z.boolean().describe('Whether the workflow has been deleted.'),
       })
       .describe('Workflow snapshot associated with the execution.'),
-    /** Workflow state snapshot captured for this execution. */
-    workflowState: z.unknown().describe('Workflow state snapshot captured for the run.'),
+    workflowState: v2LogWorkflowStateSchema,
     /** Materialized block-level execution trace spans. */
     traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
     /** Materialized final output, when the execution produced one. */

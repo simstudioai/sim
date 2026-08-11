@@ -122,7 +122,7 @@ const routes = [
       summary: 'List Files',
       description:
         'List workspace files with search, sorting, folder filtering, and opaque cursor pagination.',
-      errors: WORKSPACE_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'A page of workspace files.' },
     }),
     {
@@ -181,7 +181,7 @@ const routes = [
       summary: 'Create File Upload',
       description:
         'Create a resumable upload session and receive either a signed PUT URL or multipart instructions.',
-      errors: WORKSPACE_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The created upload session and transfer instructions.' },
     }),
     {

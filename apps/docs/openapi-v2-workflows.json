@@ -165,6 +165,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
           },
@@ -182,7 +185,7 @@
       "post": {
         "operationId": "createWorkflowV2",
         "summary": "Create Workflow",
-        "description": "Create a workflow in a workspace root or canonical workflow folder.",
+        "description": "Create a workflow in a workspace root or canonical workflow folder. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -226,8 +229,14 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "409": {
             "$ref": "#/components/responses/Conflict"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -1046,6 +1055,16 @@
               "pattern": "^[A-Za-z0-9._:-]+$",
               "examples": ["run_8f14e45f-ceea-467f-a"]
             }
+          },
+          {
+            "name": "x-sim-via",
+            "in": "header",
+            "required": false,
+            "description": "Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`, which is how runaway recursion between workflows is stopped.",
+            "schema": {
+              "description": "Comma-separated workflow identifiers describing the workflow-to-workflow call chain that led to this request. Each hop appends its own workflow id, and Sim sets it automatically when one workflow calls another; supply it yourself only when relaying an existing chain. A chain already at the maximum depth is rejected with 409 and `error.details.code: \"CALL_CHAIN_DEPTH_EXCEEDED\"`, which is how runaway recursion between workflows is stopped.",
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -1385,6 +1404,9 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1510,9 +1532,6 @@
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
-          },
-          "423": {
-            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1703,6 +1722,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -2075,7 +2097,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -3128,11 +3150,26 @@
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-              "isDeployed": true,
-              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "isDeployed": false,
+              "deployedAt": null,
               "warnings": [],
               "activeDeployment": null,
-              "latestDeploymentAttempt": null,
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK3QW4M6X2R9T7B5C0V1",
+                "deploymentVersionId": "depver_01J8ZK3QW4M6X2R9T7B5C0V2",
+                "version": 3,
+                "action": "deploy",
+                "status": "preparing",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "pending",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:30:00.000Z",
+                "activatedAt": null,
+                "error": null
+              },
               "version": 3
             }
           }
@@ -3352,11 +3389,26 @@
           {
             "data": {
               "id": "3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36",
-              "isDeployed": true,
-              "deployedAt": "2026-06-12T10:30:00.000Z",
+              "isDeployed": false,
+              "deployedAt": null,
               "warnings": [],
               "activeDeployment": null,
-              "latestDeploymentAttempt": null,
+              "latestDeploymentAttempt": {
+                "id": "depop_01J8ZK4RX5N7Y3S0U8D6E1W2",
+                "deploymentVersionId": "depver_01J8ZK4RX5N7Y3S0U8D6E1W3",
+                "version": 2,
+                "action": "activate",
+                "status": "activating",
+                "isCurrent": true,
+                "readiness": {
+                  "webhooks": "ready",
+                  "schedules": "ready",
+                  "mcp": "not_applicable"
+                },
+                "requestedAt": "2026-06-12T10:30:00.000Z",
+                "activatedAt": null,
+                "error": null
+              },
               "version": 2
             }
           }

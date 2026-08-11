@@ -295,16 +295,16 @@ export const v2DeleteRowsDataSchema = z
   })
 export type V2DeleteRowsData = z.output<typeof v2DeleteRowsDataSchema>
 
-/** Single-row delete payload — mirrors the bulk shape's required fields. */
+/** Single-row delete payload — mirrors every other v2 single-resource delete. */
 export const v2DeleteRowDataSchema = z
   .object({
-    deletedCount: z.number().describe('Number of deleted rows.'),
-    deletedRowIds: z.array(z.string()).describe('Identifier of the deleted row.'),
+    id: z.string().describe('Identifier of the deleted row.'),
+    deleted: z.literal(true).describe('Confirms that the row was deleted.'),
   })
   .meta({
     id: 'V2DeleteRowData',
     title: 'Delete row data',
-    description: 'Result of a single-row deletion.',
+    description: 'Row deletion acknowledgement.',
   })
 export type V2DeleteRowData = z.output<typeof v2DeleteRowDataSchema>
 

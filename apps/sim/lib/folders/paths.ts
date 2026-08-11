@@ -134,6 +134,20 @@ export function folderNameFromPath(path: string): string {
   return segments[segments.length - 1]
 }
 
+/**
+ * Runs a path helper over STORED rows. Those helpers classify their failures as
+ * caller input, which is wrong here — the caller supplied nothing. Rethrowing as
+ * a hierarchy fault keeps corruption a 500 and out of the client's face.
+ */
+function overStoredRows<T>(read: () => T): T {
+  try {
+    return read()
+  } catch (error) {
+    if (error instanceof FolderPathError) throw new FolderHierarchyError(error.message)
+    throw error
+  }
+}
+
 /** Builds a lossless, fail-fast bidirectional index over one active resource folder tree. */
 export function buildFolderPathIndex<Row extends FolderPathRow>(
   rows: readonly Row[]
@@ -159,13 +173,14 @@ export function buildFolderPathIndex<Row extends FolderPathRow>(
 
     visiting.add(folderId)
     const parentPath = row.parentId ? resolvePath(row.parentId) : ROOT_FOLDER_PATH
-    const path =
+    const path = overStoredRows(() =>
       parentPath === ROOT_FOLDER_PATH
         ? `/${encodeFolderPathSegment(row.name)}`
         : `${parentPath}/${encodeFolderPathSegment(row.name)}`
+    )
     visiting.delete(folderId)
 
-    parseFolderPath(path)
+    overStoredRows(() => parseFolderPath(path))
     const duplicateId = idByPath.get(path)
     if (duplicateId && duplicateId !== folderId) {
       throw new FolderHierarchyError(`Folder hierarchy contains duplicate path: ${path}`)
