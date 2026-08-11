@@ -181,10 +181,10 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
   })
 
-  it('updates every filter match without an implicit limit', async () => {
+  it('walks every update match in bounded pages when no operation limit is supplied', async () => {
     await updateRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, data: { name: 'x' } }, 'req-1')
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.UPDATE_BATCH_SIZE)
   })
 
   it('orders the match query when deleteRowsByFilter has a limit', async () => {
@@ -193,10 +193,10 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
   })
 
-  it('deletes every filter match without an implicit limit', async () => {
+  it('walks every delete match in bounded pages when no operation limit is supplied', async () => {
     await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 0 } } }, 'req-1')
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
-    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.DELETE_PAGE_SIZE)
   })
 })
 

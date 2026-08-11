@@ -10,9 +10,9 @@ import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import {
-  type ActiveKnowledgeBaseContext,
-  resolveActiveKnowledgeBaseContext,
+  type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeConnectorContext,
+  resolveActiveKnowledgeResourceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import {
@@ -101,12 +101,19 @@ function requireSuccessfulOutcome<T extends object>(
   throw new OrchestrationError(outcome.errorCode, outcome.error)
 }
 
-function connectorTarget(context: ActiveKnowledgeBaseContext) {
+function connectorTarget(context: ActiveKnowledgeResourceBaseContext) {
   return {
     id: context.knowledgeBaseId,
     name: context.knowledgeBase.name,
-    workspaceId: context.workspaceId,
+    workspaceId: context.workspaceId ?? null,
   }
+}
+
+function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBaseContext): string {
+  if (!context.workspaceId) {
+    throw new OrchestrationError('conflict', 'Knowledge base is missing workspace billing context')
+  }
+  return context.workspaceId
 }
 
 async function resolveConnectorCredentialAccessToken(input: {
@@ -188,7 +195,7 @@ async function validateConnectorSourceConfig(input: {
 export const listKnowledgeConnectors = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listConnectors,
   resolveContext: ({ input }: { input: ListKnowledgeConnectorsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ context }) {
     const connectors = await db
       .select()
@@ -226,9 +233,10 @@ export const readKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
 export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.createConnector,
   resolveContext: ({ input }: { input: CreateKnowledgeConnectorInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ principal, input, context, request }) {
     const requestId = generateRequestId()
+    const workspaceId = requireConnectorWorkspaceId(context)
     const actingUserId = resolveKnowledgeAttributedUserId(principal, context)
     const outcome = await performCreateKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
@@ -237,11 +245,11 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       apiKey: input.apiKey,
       sourceConfig: input.sourceConfig,
       syncIntervalMinutes: input.syncIntervalMinutes,
-      resolveBillingAttribution: () => input.resolveBillingAttribution(context.workspaceId),
+      resolveBillingAttribution: () => input.resolveBillingAttribution(workspaceId),
       resolveAccessToken: (credentialId) =>
         resolveConnectorCredentialAccessToken({
           credentialId,
-          workspaceId: context.workspaceId,
+          workspaceId,
           actingUserId,
           requestId,
         }),
@@ -253,7 +261,7 @@ export const createKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       recordProductAnalytics: false,
     })
     requireSuccessfulOutcome(outcome, 'Knowledge connector creation failed')
-    return { connector: outcome.connector, workspaceId: context.workspaceId }
+    return { connector: outcome.connector, workspaceId }
   },
   projectAudit: ({ input, context, result }) => ({
     action: AuditAction.CONNECTOR_CREATED,
@@ -283,14 +291,16 @@ export const updateKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
       updates: input.updates,
-      validateSourceConfig: (connector, sourceConfig) =>
-        validateConnectorSourceConfig({
+      validateSourceConfig: (connector, sourceConfig) => {
+        const workspaceId = requireConnectorWorkspaceId(context)
+        return validateConnectorSourceConfig({
           connector,
           sourceConfig,
-          workspaceId: context.workspaceId,
+          workspaceId,
           actingUserId,
           requestId,
-        }),
+        })
+      },
       userId: actingUserId,
       source: input.source ?? 'agent',
       requestId,
@@ -371,10 +381,11 @@ export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
   resolveContext: ({ input }: { input: SyncKnowledgeConnectorInput }) =>
     resolveActiveKnowledgeConnectorContext(input),
   async execute({ principal, input, context, request }) {
+    const workspaceId = requireConnectorWorkspaceId(context)
     const outcome = await performSyncKnowledgeConnector({
       knowledgeBase: connectorTarget(context),
       connectorId: context.connectorId,
-      resolveBillingAttribution: () => input.resolveBillingAttribution(context.workspaceId),
+      resolveBillingAttribution: () => input.resolveBillingAttribution(workspaceId),
       rehydrate: input.rehydrate,
       userId: resolveKnowledgeAttributedUserId(principal, context),
       source: input.source ?? 'agent',
@@ -386,7 +397,7 @@ export const syncKnowledgeConnector = defineAuthorizedKnowledgeUseCase({
     requireSuccessfulOutcome(outcome, 'Knowledge connector sync failed')
     return {
       knowledgeBaseId: context.knowledgeBaseId,
-      workspaceId: context.workspaceId,
+      workspaceId,
       connectorId: context.connectorId,
       connectorType: context.connector.connectorType,
     }

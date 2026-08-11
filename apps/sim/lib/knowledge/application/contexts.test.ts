@@ -40,6 +40,7 @@ import {
   loadKnowledgeWorkspaceAuthorizationContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeConnectorContext,
+  resolveActiveKnowledgeResourceContext,
   resolveActiveKnowledgeTagContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
   resolveKnowledgeWorkspaceContext,
@@ -92,6 +93,62 @@ describe('knowledge application contexts', () => {
     await expect(
       resolveActiveKnowledgeBaseContext({ knowledgeBaseId: 'knowledge-1' })
     ).rejects.toBe(failure)
+  })
+
+  it('resolves a legacy personal knowledge base only through the resource context', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      id: 'legacy-knowledge',
+      userId: 'owner-1',
+      workspaceId: null,
+    })
+
+    await expect(
+      resolveActiveKnowledgeResourceContext({ knowledgeBaseId: 'legacy-knowledge' })
+    ).resolves.toMatchObject({
+      knowledgeBaseId: 'legacy-knowledge',
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'owner-1',
+    })
+    expect(mocks.loadWorkspace).not.toHaveBeenCalled()
+  })
+
+  it('does not let a workspace assertion address a legacy personal knowledge base', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      id: 'legacy-knowledge',
+      userId: 'owner-1',
+      workspaceId: null,
+    })
+
+    await expect(
+      resolveActiveKnowledgeResourceContext({
+        knowledgeBaseId: 'legacy-knowledge',
+        assertedWorkspaceId: 'workspace-1',
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+  })
+
+  it('keeps legacy personal ownership on canonical child contexts', async () => {
+    mocks.getDocumentById.mockResolvedValueOnce({
+      id: 'legacy-document',
+      knowledgeBaseId: 'legacy-knowledge',
+    })
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      id: 'legacy-knowledge',
+      userId: 'owner-1',
+      workspaceId: null,
+    })
+
+    await expect(
+      resolveCanonicalActiveKnowledgeDocumentContext({
+        knowledgeBaseId: 'legacy-knowledge',
+        documentId: 'legacy-document',
+      })
+    ).resolves.toMatchObject({
+      documentId: 'legacy-document',
+      knowledgeBaseId: 'legacy-knowledge',
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'owner-1',
+    })
   })
 
   describe('canonical child resources', () => {

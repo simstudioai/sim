@@ -26,6 +26,7 @@ import {
   requestsPrivateToolMetadata,
 } from '@/lib/execution/private-tool-metadata'
 import { isSupportedFileType, parseBuffer } from '@/lib/file-parsers'
+import { buildFolderPath } from '@/lib/folders/paths'
 import { getSharesForResources, ShareValidationError } from '@/lib/public-shares/share-manager'
 import {
   ArchiveError,
@@ -766,7 +767,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           input: {
             workspaceId,
             fileIds: [fileId],
-            targetFolderPath: pathSegments.join('/'),
+            targetFolderPath: buildFolderPath(pathSegments),
           },
           request,
         })

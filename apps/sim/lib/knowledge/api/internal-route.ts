@@ -236,10 +236,10 @@ export const internalKnowledgeAnalytics = {
     result:
       | {
           kind: 'single'
-          workspaceId: string
+          workspaceId?: string
           data: { knowledgeBaseId: string; mimeType: string; fileSize: number }
         }
-      | { kind: 'bulk'; workspaceId: string; data: { total: number }; knowledgeBaseId?: string }
+      | { kind: 'bulk'; workspaceId?: string; data: { total: number }; knowledgeBaseId?: string }
   }): void {
     const userId = internalKnowledgeActorUserId(principal)
     const documentCount = result.kind === 'bulk' ? result.data.total : 1
@@ -261,12 +261,12 @@ export const internalKnowledgeAnalytics = {
       'knowledge_base_document_uploaded',
       {
         knowledge_base_id: knowledgeBaseId,
-        workspace_id: result.workspaceId,
+        workspace_id: result.workspaceId ?? '',
         document_count: documentCount,
         upload_type: result.kind,
       },
       {
-        groups: { workspace: result.workspaceId },
+        ...(result.workspaceId ? { groups: { workspace: result.workspaceId } } : {}),
         setOnce: { first_document_uploaded_at: new Date().toISOString() },
       }
     )

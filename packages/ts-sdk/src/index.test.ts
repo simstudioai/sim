@@ -186,7 +186,7 @@ describe('SimStudioClient', () => {
         status: 200,
         json: vi.fn().mockResolvedValue(failed),
         headers: { get: vi.fn().mockReturnValue(null) },
-      } as any)
+      })
 
       await expect(client.executeWorkflow('workflow-id', {})).rejects.toMatchObject({
         name: 'SimStudioError',

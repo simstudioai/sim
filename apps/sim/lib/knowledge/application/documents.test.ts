@@ -54,6 +54,7 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
   resolveActiveKnowledgeBaseContext: mocks.resolveKnowledgeBase,
+  resolveActiveKnowledgeResourceContext: mocks.resolveKnowledgeBase,
   resolveActiveKnowledgeDocumentContext: mocks.resolveDocument,
   resolveCanonicalActiveKnowledgeDocumentContext: mocks.resolveCanonicalDocument,
 }))
@@ -168,6 +169,48 @@ describe('knowledge document application use cases', () => {
     expect(mocks.resolvePermission.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getDocuments.mock.invocationCallOrder[0]
     )
+  })
+
+  it('lets the owner list documents in a legacy personal knowledge base', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+    })
+
+    await expect(
+      listKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+        input: { knowledgeBaseId: 'legacy-knowledge' },
+      })
+    ).resolves.toMatchObject({ workspaceId: undefined })
+
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.getDocuments).toHaveBeenCalledWith(
+      'legacy-knowledge',
+      expect.any(Object),
+      expect.any(String)
+    )
+    expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('conceals legacy personal documents from a non-owner', async () => {
+    mocks.resolveKnowledgeBase.mockResolvedValueOnce({
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId: 'user-1',
+      knowledgeBaseId: 'legacy-knowledge',
+      knowledgeBase: { id: 'legacy-knowledge', name: 'Personal docs', userId: 'user-1' },
+    })
+
+    await expect(
+      listKnowledgeDocuments.execute({
+        principal: { kind: 'session', userId: 'other-user', sessionId: 'session-2' },
+        input: { knowledgeBaseId: 'legacy-knowledge' },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.getDocuments).not.toHaveBeenCalled()
   })
 
   it('resolves current workspace-key billing while retaining key audit attribution', async () => {

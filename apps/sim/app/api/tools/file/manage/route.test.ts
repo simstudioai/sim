@@ -15,6 +15,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenance,
   mockLoadActiveWorkspaceContext,
   mockLoadActiveWorkspaceFileContext,
+  mockMoveWorkspaceFileItems,
   mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
   mockGetWorkspaceFile,
@@ -31,6 +32,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockLoadActiveWorkspaceContext: vi.fn(),
   mockLoadActiveWorkspaceFileContext: vi.fn(),
+  mockMoveWorkspaceFileItems: vi.fn(),
   mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
@@ -93,6 +95,12 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   ensureWorkspaceFileFolderPathOperation: {
     execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
+  moveWorkspaceFileItemsOperation: {
+    execute: (...args: unknown[]) => mockMoveWorkspaceFileItems(...args),
   },
 }))
 
@@ -206,6 +214,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     }))
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
     mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
+    mockMoveWorkspaceFileItems.mockResolvedValue({ moved: 1 })
     mockUploadWorkspaceFile.mockResolvedValue({
       id: 'new-file',
       name: 'new.txt',
@@ -419,6 +428,31 @@ describe('POST /api/tools/file/manage content provenance', () => {
         folderPath: undefined,
         secretProvenance: { status: 'exact', entries: [] },
       }
+    )
+  })
+
+  it.each([
+    ['Reports & Plans/2026', '/Reports%20%26%20Plans/2026'],
+    ['', '/'],
+  ])('moves files to the canonical folder path for %j', async (targetFolder, expectedPath) => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'move',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        targetFolder,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockMoveWorkspaceFileItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          workspaceId: 'workspace-1',
+          fileIds: ['file-1'],
+          targetFolderPath: expectedPath,
+        },
+      })
     )
   })
 

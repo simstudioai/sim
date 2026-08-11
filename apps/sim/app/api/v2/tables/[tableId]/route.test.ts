@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   remove: vi.fn(),
   capture: vi.fn(),
   getUserEmailsByIds: vi.fn(),
+  getMaxRowsPerTable: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
@@ -38,6 +39,9 @@ vi.mock('@/lib/table/application/tables', () => ({
 vi.mock('@/lib/users/queries', () => ({
   getUserEmailsByIds: mocks.getUserEmailsByIds,
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
+vi.mock('@/lib/table/billing', () => ({
+  getMaxRowsPerTable: mocks.getMaxRowsPerTable,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -107,6 +111,7 @@ describe('/api/v2/tables/[tableId]', () => {
     mocks.operationRate.mockResolvedValue(rate)
     mocks.gate.mockResolvedValue(null)
     mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
+    mocks.getMaxRowsPerTable.mockResolvedValue(5000)
     mocks.read.mockResolvedValue({ table, folderPath: '/' })
     mocks.update.mockResolvedValue({
       table,
@@ -132,6 +137,7 @@ describe('/api/v2/tables/[tableId]', () => {
     expect((await response.json()).data.table).toMatchObject({
       id: 'table-1',
       ownerEmail: 'owner@example.com',
+      maxRows: 5000,
     })
     expect(mocks.read).toHaveBeenCalledWith({
       principal,
@@ -150,6 +156,7 @@ describe('/api/v2/tables/[tableId]', () => {
     expect((await response.json()).data.table).toMatchObject({
       name: 'Contacts',
       ownerEmail: 'owner@example.com',
+      maxRows: 5000,
     })
   })
 
