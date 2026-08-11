@@ -60,7 +60,8 @@ export const AgiloftBlock: BlockConfig = {
           { text: ', up to', field: 'limit', after: 'records' },
         ],
         nlp_search: [
-          { text: 'Find records matching', field: 'nlpQuery', core: true },
+          { text: 'Search', field: 'knowledgeBase', core: true },
+          { text: 'for', field: 'nlpQuery' },
           { text: ', returning', field: 'fields' },
         ],
         select_records: [
