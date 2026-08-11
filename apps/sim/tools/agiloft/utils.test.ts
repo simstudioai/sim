@@ -14,6 +14,7 @@ import {
   buildSavedSearchUrl,
   buildSelectRecordsUrl,
   describeAgiloftError,
+  detectAttachmentMimeType,
   ewCredentialBody,
   parseFieldList,
 } from '@/tools/agiloft/utils'
@@ -205,5 +206,24 @@ describe('attach overwrite', () => {
       'a.pdf'
     )
     expect(off).not.toContain('overwrite')
+  })
+})
+
+describe('detectAttachmentMimeType', () => {
+  const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31])
+
+  it('recovers the real type when Agiloft says octet-stream', () => {
+    expect(detectAttachmentMimeType(pdf, 'application/octet-stream')).toBe('application/pdf')
+    expect(detectAttachmentMimeType(pdf, '')).toBe('application/pdf')
+  })
+
+  it('keeps a specific header rather than second-guessing it', () => {
+    expect(detectAttachmentMimeType(pdf, 'application/pdf; charset=binary')).toBe('application/pdf')
+  })
+
+  it('falls back to octet-stream for bytes it does not recognise', () => {
+    expect(detectAttachmentMimeType(new Uint8Array([1, 2, 3, 4]), '')).toBe(
+      'application/octet-stream'
+    )
   })
 })

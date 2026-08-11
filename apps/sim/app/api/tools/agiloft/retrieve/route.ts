@@ -12,6 +12,7 @@ import {
   AGILOFT_MAX_ATTACHMENT_BYTES,
   buildRetrieveAttachmentUrl,
   describeAgiloftError,
+  detectAttachmentMimeType,
 } from '@/tools/agiloft/utils'
 import { resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
 
@@ -134,6 +135,11 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         mimeType: contentType,
       })
 
+      /**
+       * Agiloft labels most attachments application/octet-stream whatever they
+       * are, so downstream consumers keyed on the header mis-handle them.
+       */
+      const mimeType = detectAttachmentMimeType(fileBuffer, contentType)
       const base64Data = fileBuffer.toString('base64')
 
       return NextResponse.json({
@@ -141,7 +147,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         output: {
           file: {
             name: fileName,
-            mimeType: contentType,
+            mimeType,
             data: base64Data,
             size: fileBuffer.length,
           },

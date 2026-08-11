@@ -116,6 +116,37 @@ export const AGILOFT_MAX_SEARCH_RECORDS = 200
  * body into a JSON response, so peak memory is several times the file size;
  * without a cap it inherits the shared 100 MiB default.
  */
+/**
+ * Content types Agiloft actually serves attachments with are unreliable — most
+ * come back as application/octet-stream regardless of what the file is — so the
+ * type is recovered from the leading bytes instead of the header.
+ */
+const MAGIC_BYTES: Array<{ signature: number[]; mimeType: string }> = [
+  { signature: [0x25, 0x50, 0x44, 0x46], mimeType: 'application/pdf' }, // %PDF
+  { signature: [0x50, 0x4b, 0x03, 0x04], mimeType: 'application/zip' }, // PK.. (also docx/xlsx)
+  { signature: [0xff, 0xd8, 0xff], mimeType: 'image/jpeg' },
+  { signature: [0x89, 0x50, 0x4e, 0x47], mimeType: 'image/png' },
+  { signature: [0x47, 0x49, 0x46, 0x38], mimeType: 'image/gif' },
+  { signature: [0xd0, 0xcf, 0x11, 0xe0], mimeType: 'application/msword' }, // legacy OLE
+]
+
+/**
+ * Returns the type implied by the file's own bytes, falling back to the header
+ * when nothing matches. A header that already says something specific is kept.
+ */
+export function detectAttachmentMimeType(bytes: Uint8Array, headerType: string): string {
+  const normalized = headerType.split(';')[0].trim().toLowerCase()
+  const headerIsVague = !normalized || normalized === 'application/octet-stream'
+
+  for (const { signature, mimeType } of MAGIC_BYTES) {
+    if (signature.every((byte, index) => bytes[index] === byte)) {
+      return headerIsVague ? mimeType : normalized
+    }
+  }
+
+  return normalized || 'application/octet-stream'
+}
+
 export const AGILOFT_MAX_ATTACHMENT_BYTES = 25 * 1024 * 1024
 
 /**
