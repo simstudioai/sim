@@ -154,6 +154,8 @@ describe('IdempotencyService in-progress deadlines', () => {
 
     const conflictOptions = dbChainMockFns.onConflictDoUpdate.mock.calls[0]?.[0]
     const setWhere = JSON.stringify(conflictOptions?.setWhere)
+    expect(setWhere).toContain('json_typeof')
+    expect(setWhere).not.toContain('jsonb_typeof')
     expect(setWhere).toContain('IS DISTINCT FROM')
     expect(setWhere).toContain('in-progress')
   })
@@ -229,7 +231,8 @@ describe('IdempotencyService in-progress deadlines', () => {
       service.executeWithIdempotency('provider', 'delivery-retry-db', vi.fn())
     ).resolves.toBe('new-owner-result')
 
-    const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
-    expect(JSON.stringify(condition)).toContain('retry me')
+    const condition = JSON.stringify(dbChainMockFns.where.mock.calls.at(-1)?.[0])
+    expect(condition).toContain('retry me')
+    expect(condition.match(/::jsonb/g)).toHaveLength(2)
   })
 })

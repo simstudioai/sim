@@ -327,7 +327,7 @@ export class IdempotencyService {
     const expiredBefore = new Date(now.getTime() - this.config.ttlSeconds * 1000)
     const inProgressClaimExpired = sql`COALESCE(
       CASE
-        WHEN jsonb_typeof(${idempotencyKey.result} -> 'inProgressExpiresAt') = 'number'
+        WHEN json_typeof(${idempotencyKey.result} -> 'inProgressExpiresAt') = 'number'
           THEN (${idempotencyKey.result} ->> 'inProgressExpiresAt')::double precision
       END,
       EXTRACT(EPOCH FROM ${idempotencyKey.createdAt}) * 1000 + ${this.config.inProgressTtlSeconds * 1000}
@@ -548,7 +548,7 @@ export class IdempotencyService {
       : fence?.observedResult
         ? and(
             eq(idempotencyKey.key, normalizedKey),
-            sql`${idempotencyKey.result} = ${JSON.stringify(fence.observedResult)}::jsonb`
+            sql`${idempotencyKey.result}::jsonb = ${JSON.stringify(fence.observedResult)}::jsonb`
           )
         : eq(idempotencyKey.key, normalizedKey)
     const deleted = await db
