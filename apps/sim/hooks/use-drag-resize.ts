@@ -15,8 +15,16 @@ interface UseDragResizeOptions {
    * every custom-property write recalculates the whole tree (~150x slower).
    * Captured once on drag start; a `null` return falls back to
    * `document.documentElement`.
+   *
+   * Return an ARRAY when consumers live in sibling subtrees with no useful
+   * common ancestor — the toast stack is portalled to `<body>`, so it shares
+   * one only with `:root`. Writing each subtree separately keeps the scoped
+   * recalc and, more importantly, keeps those consumers tracking the drag live;
+   * a consumer left off this list reads the stale `:root` value and only
+   * catches up when the drag commits. Elements that are absent (`null`) or
+   * repeated are ignored.
    */
-  getTarget: () => HTMLElement | null
+  getTarget: () => HTMLElement | null | (HTMLElement | null)[]
   /**
    * Maps a pointer position to the clamped target dimension, or `null` to
    * ignore the move. Runs at most once per animation frame (before the write,
@@ -90,7 +98,13 @@ export function useDragResize(options: UseDragResizeOptions) {
     const handle = e.currentTarget
     const pointerId = e.pointerId
     const { cssVar } = optionsRef.current
-    const target = optionsRef.current.getTarget() ?? document.documentElement
+    const resolved = optionsRef.current.getTarget()
+    const targets = [
+      ...new Set((Array.isArray(resolved) ? resolved : [resolved]).filter((el) => el !== null)),
+    ]
+    if (targets.length === 0) targets.push(document.documentElement)
+    /** Liveness is judged on the primary target — the one the drag resizes. */
+    const target = targets[0]
     document.body.style.cursor = optionsRef.current.cursor
     document.body.style.userSelect = 'none'
     handle.setPointerCapture?.(pointerId)
@@ -100,7 +114,7 @@ export function useDragResize(options: UseDragResizeOptions) {
     let lastApplied: number | null = null
 
     const applyValue = (value: number) => {
-      target.style.setProperty(cssVar, `${value}px`)
+      for (const el of targets) el.style.setProperty(cssVar, `${value}px`)
       lastApplied = value
       optionsRef.current.onApply?.(value)
     }
@@ -144,7 +158,9 @@ export function useDragResize(options: UseDragResizeOptions) {
       }
       if (lastApplied !== null) {
         optionsRef.current.commit(lastApplied)
-        if (target !== document.documentElement) target.style.removeProperty(cssVar)
+        for (const el of targets) {
+          if (el !== document.documentElement) el.style.removeProperty(cssVar)
+        }
       }
       optionsRef.current.onEnd?.()
     }

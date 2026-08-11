@@ -590,6 +590,15 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                   aria-live='polite'
                   aria-label='Notifications'
                   data-native-surface-overlay=''
+                  /*
+                   * The stack is portalled to `<body>`, so it shares no ancestor
+                   * with the panel or terminal it insets by. A resize drag writes
+                   * `--panel-width` / `--terminal-height` to each consuming
+                   * subtree rather than to `:root`; this attribute is how it
+                   * finds this one, and without it the stack would hold the
+                   * pre-drag position until the drag commits.
+                   */
+                  data-toast-viewport=''
                   className='fixed z-[var(--z-toast)] m-0 list-none p-0'
                   exit={{
                     opacity: 0,

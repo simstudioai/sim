@@ -13,9 +13,18 @@ function computePanelWidth(ev: PointerEvent): number {
   return Math.min(Math.max(newWidth, PANEL_WIDTH.MIN), maxWidth)
 }
 
-/** The `.panel-container` element sizes itself from `--panel-width`. */
-function getPanelContainer(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('.panel-container')
+/**
+ * Every subtree that reads `--panel-width`: the `.panel-container` the drag
+ * resizes, and the toast stack, which insets its right edge by the same
+ * variable but is portalled to `<body>` and so shares no ancestor with it.
+ * Writing both keeps the notifications tracking the drag frame by frame instead
+ * of jumping once it commits.
+ */
+function getPanelWidthConsumers(): (HTMLElement | null)[] {
+  return [
+    document.querySelector<HTMLElement>('.panel-container'),
+    document.querySelector<HTMLElement>('[data-toast-viewport]'),
+  ]
 }
 
 /**
@@ -33,7 +42,7 @@ export function usePanelResize() {
   return useDragResize({
     cursor: 'ew-resize',
     cssVar: '--panel-width',
-    getTarget: getPanelContainer,
+    getTarget: getPanelWidthConsumers,
     compute: computePanelWidth,
     commit: setPanelWidth,
   })

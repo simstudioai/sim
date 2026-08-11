@@ -13,9 +13,18 @@ function computeTerminalHeight(ev: PointerEvent): number {
   return Math.min(Math.max(newHeight, TERMINAL_HEIGHT.MIN), maxHeight)
 }
 
-/** The `.terminal-container` element sizes itself from `--terminal-height`. */
-function getTerminalContainer(): HTMLElement | null {
-  return document.querySelector<HTMLElement>('.terminal-container')
+/**
+ * Every subtree that reads `--terminal-height`: the `.terminal-container` the
+ * drag resizes, and the toast stack, which insets its bottom by the same
+ * variable but is portalled to `<body>` and so shares no ancestor with it.
+ * Writing both keeps the notifications tracking the drag frame by frame instead
+ * of jumping once it commits.
+ */
+function getTerminalHeightConsumers(): (HTMLElement | null)[] {
+  return [
+    document.querySelector<HTMLElement>('.terminal-container'),
+    document.querySelector<HTMLElement>('[data-toast-viewport]'),
+  ]
 }
 
 /**
@@ -49,7 +58,7 @@ export function useTerminalResize() {
   return useDragResize({
     cursor: 'ns-resize',
     cssVar: '--terminal-height',
-    getTarget: getTerminalContainer,
+    getTarget: getTerminalHeightConsumers,
     compute: computeTerminalHeight,
     commit: setTerminalHeight,
     onApply: syncExpandedThreshold,
