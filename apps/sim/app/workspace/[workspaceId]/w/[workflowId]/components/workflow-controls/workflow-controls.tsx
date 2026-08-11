@@ -7,6 +7,7 @@ import {
   Cursor,
   chipHoverSurfaceClass,
   cn,
+  disclosureChevronClass,
   Hand,
   Popover,
   PopoverAnchor,
@@ -108,9 +109,12 @@ export const WorkflowControls = memo(function WorkflowControls() {
                     )}
                   </Button>
                 </Tooltip.Trigger>
-                <Button className='-m-1 !p-1.5 group' variant='ghost'>
+                <Button
+                  variant='ghost'
+                  className={cn('size-[20px] rounded-sm p-0', chipHoverSurfaceClass)}
+                >
                   <ChevronDown
-                    className={`size-[14px] text-[var(--text-muted)] transition-transform duration-100 group-hover:text-[var(--text-secondary)] ${isCanvasModeOpen ? 'rotate-180' : ''}`}
+                    className={cn(disclosureChevronClass, isCanvasModeOpen && 'rotate-180')}
                   />
                 </Button>
               </div>
