@@ -58,7 +58,7 @@ describe('skill lifecycle built-in name collision', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUpsertSkills.mockResolvedValue({ touched: [{ id: SKILL_ID, name: 'x' }] })
-    mockGetSkillById.mockImplementation(async () => skillRow(BUILTIN_NAME))
+    mockGetSkillById.mockResolvedValue(skillRow(BUILTIN_NAME))
   })
 
   it('allows an update that re-sends an existing built-in-colliding name unchanged', async () => {
