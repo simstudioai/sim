@@ -44,7 +44,7 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The running hatch: the squares' own rhythm, sheared right, scrolling.
+ * The running hatch: the squares' own rhythm, sheared left, scrolling.
  *
  * Indeterminate, not a progress fill — it spans the whole run and the pattern
  * marches (`animate-running-hatch-scroll` shifts the background by exactly one
@@ -61,15 +61,15 @@ const ACTION_BUTTON_STYLES = [
  * One element spanning the row has one gradient and therefore one phase, which
  * is what lets the 24/2 rhythm hold all the way along.
  *
- * Stops are measured along the 105° axis rather than horizontally, so both carry
- * a `sin(105°)` factor: 24px of mark is 23.18px of stop, and the 26px pitch is
+ * Stops are measured along the 75° axis rather than horizontally, so both carry
+ * a `sin(75°)` factor: 24px of mark is 23.18px of stop, and the 26px pitch is
  * 25.11px of period. Writing 24/26 directly would render ~3.5% wide and drift
  * out of the squares' rhythm across the row.
  *
  * `--surface-2` is the same fill the slots used; only where it is painted moved.
  */
 const RUNNING_FILL =
-  'bg-[repeating-linear-gradient(105deg,var(--surface-2)_0_23.18px,transparent_23.18px_25.11px)]'
+  'bg-[repeating-linear-gradient(75deg,var(--surface-2)_0_23.18px,transparent_23.18px_25.11px)]'
 
 /** Left edge of the fill: clears the run/stop button, which stays live mid-run. */
 const RUNNING_FILL_INSET_SWELL = 'left-[42px]'
@@ -333,15 +333,19 @@ export const ActionBar = memo(
         isSwell &&
           actionId === 'delete' &&
           "!w-[40px] [clip-path:path('M16.25_0A8_8_0_0_1_22.4_2.88L36.59_19.9A2.5_2.5_0_0_1_34.66_24L4_24A4_4_0_0_1_0_20L0_4A4_4_0_0_1_4_0Z')] [&_svg]:-translate-x-[6px] [&_svg]:translate-y-px",
+        /*
+         * A bystander card's actions dim mid-run because they are not available
+         * — but `run` is Stop while the workflow runs, and `canStopWorkflow` is
+         * true on every card, running or not. Dimming it styled a live control
+         * as a dead one: it recovered full opacity only once the pointer was
+         * already on it, so it read as unclickable right up until you clicked.
+         * It keeps the ordinary resting and hover chrome instead.
+         */
         isWorkflowRunning &&
-          !isRunning && [
+          !isRunning &&
+          actionId !== 'run' && [
             '!bg-transparent !opacity-25',
-            actionId === 'run'
-              ? [
-                  'hover-hover:!bg-[var(--surface-2)] hover-hover:!text-[var(--text-primary)] hover-hover:!opacity-100',
-                  'focus-visible:!bg-[var(--surface-2)] focus-visible:!text-[var(--text-primary)] focus-visible:!opacity-100',
-                ]
-              : 'hover-hover:!bg-transparent dark:hover-hover:!bg-transparent',
+            'hover-hover:!bg-transparent dark:hover-hover:!bg-transparent',
           ],
         /* The hatch is painted across the row, not per slot — a slot only clears
            itself out of its way. */
