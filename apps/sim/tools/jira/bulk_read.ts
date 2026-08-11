@@ -1,6 +1,7 @@
+import { selectAtlassianCloudId } from '@/lib/atlassian/discovery'
 import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { extractAdfText, normalizeDomain } from '@/tools/jira/utils'
+import { extractAdfText } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
@@ -68,25 +69,11 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       return project?.key || refTrimmed
     }
 
-    const resolveCloudId = async () => {
-      if (params?.cloudId) return params.cloudId
-      const accessibleResources = await response.json()
-      if (!Array.isArray(accessibleResources) || accessibleResources.length === 0) {
-        throw new Error('No Jira resources found')
-      }
-      const normalizedInput = normalizeDomain(params?.domain ?? '')
-      const matchedResource = accessibleResources.find(
-        (r: { url: string }) => r.url.toLowerCase().replace(/\/+$/, '') === normalizedInput
-      )
-      if (matchedResource) return matchedResource.id
-      if (accessibleResources.length === 1) return accessibleResources[0].id
-      throw new Error(
-        `Could not match Jira domain "${params?.domain}" to any accessible resource. ` +
-          `Available sites: ${accessibleResources.map((r: { url: string }) => r.url).join(', ')}`
-      )
-    }
-
-    const cloudId = await resolveCloudId()
+    // The dispatcher's configured request IS the discovery call, and it only
+    // reaches here on a 2xx — so match against that payload rather than issuing
+    // the same request again through the cached resolver.
+    const cloudId =
+      params?.cloudId || selectAtlassianCloudId(await response.json(), params?.domain ?? '', 'Jira')
     const projectKey = await resolveProjectKey(cloudId, params!.accessToken, params!.projectId)
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(projectKey)) {
       throw new Error(
