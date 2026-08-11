@@ -370,7 +370,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (!handoff) return
     if (handoff.message) {
-      sendMessage(handoff.message, undefined, handoff.contexts)
+      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts)
       return
     }
     const contexts = handoff.contexts ?? []

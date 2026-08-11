@@ -4506,26 +4506,22 @@ export function useChat(
            the cleanup that aborted this send belongs to a full remount — a
            queue restore would orphan the message under the dead instance's
            key. Deliver to the replacement surface instead: its send listener
-           is live by the time this microtask executes, and the event carries
-           attachments. When nothing claims it (a real navigation away), a
-           one-shot handoff covers attachment-less sends for the next mount;
-           attachment payloads exceed what the handoff carries and fall back to
-           the queue restore. Chat-bound sends always keep the queue restore
-           (their key is the stable chat id). */
+           is live by the time this microtask executes. When nothing claims the
+           event (a real navigation away), a one-shot handoff covers the next
+           mount; both lanes carry attachments. Chat-bound sends keep the queue
+           restore — their key is the stable chat id. */
         if (recoverableCleanupAbort && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
-          if (sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments)) {
-            return
-          }
-          if (!msg.fileAttachments?.length) {
+          if (!sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments)) {
             MothershipHandoffStorage.store(
               {
                 message: msg.content,
                 ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
+                ...(msg.fileAttachments?.length ? { fileAttachments: msg.fileAttachments } : {}),
               },
               workspaceId
             )
-            return
           }
+          return
         }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
       }

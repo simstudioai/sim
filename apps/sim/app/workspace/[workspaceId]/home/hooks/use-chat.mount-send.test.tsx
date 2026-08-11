@@ -178,10 +178,17 @@ describe('useChat mount-settling send recovery', () => {
   })
 
   it('re-persists an aborted chatless send as a handoff for the next mount', async () => {
+    const attachment = {
+      id: 'file-2',
+      key: 'uploads/file-2',
+      filename: 'report.pdf',
+      media_type: 'application/pdf',
+      size: 99,
+    }
     const { getResult, unmount } = renderUseChat()
 
     await act(async () => {
-      void getResult().sendMessage('hello from the palette')
+      void getResult().sendMessage('hello from the palette', [attachment])
     })
     await waitFor(() => state.postCalls === 1)
 
@@ -197,7 +204,9 @@ describe('useChat mount-settling send recovery', () => {
     await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
 
     expect(allQueuedMessages()).toHaveLength(0)
-    expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('hello from the palette')
+    const handoff = MothershipHandoffStorage.consume('ws-1')
+    expect(handoff?.message).toBe('hello from the palette')
+    expect(handoff?.fileAttachments).toEqual([attachment])
   })
 
   it('does not re-queue a send the server already received', async () => {

@@ -4,6 +4,7 @@
  */
 
 import { createLogger } from '@sim/logger'
+import type { FileAttachmentForApi } from '@/app/workspace/[workspaceId]/home/types'
 import type { ChatContext } from '@/stores/panel'
 
 const logger = createLogger('BrowserStorage')
@@ -307,6 +308,8 @@ export interface MothershipHandoff {
   message?: string
   /** Structured contexts to attach — e.g. a `logs` mention tagging a run. */
   contexts?: ChatContext[]
+  /** Already-uploaded attachment references riding along with the message. */
+  fileAttachments?: FileAttachmentForApi[]
 }
 
 interface StoredHandoff extends MothershipHandoff {
@@ -353,6 +356,7 @@ export class MothershipHandoffStorage {
       contexts: message
         ? contexts
         : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
+      ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
       workspaceId,
       timestamp: Date.now(),
     })
@@ -409,7 +413,13 @@ export class MothershipHandoffStorage {
       return null
     }
 
-    return { ...(data.message ? { message: data.message } : {}), contexts }
+    return {
+      ...(data.message ? { message: data.message } : {}),
+      contexts,
+      ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
+        ? { fileAttachments: data.fileAttachments }
+        : {}),
+    }
   }
 
   static clear(): boolean {
