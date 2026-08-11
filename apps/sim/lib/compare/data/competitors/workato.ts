@@ -717,10 +717,22 @@ export const workatoProfile: CompetitorProfile = {
       },
       customCodeSteps: {
         value:
-          'Not documented whether recipes support inline custom-code steps (e.g. Ruby/JS snippets). Workato offers a Ruby-based Custom SDK for building custom connectors instead, a related but separate capability',
-        shortValue: 'Unclear; Ruby SDK exists for custom connectors',
-        confidence: 'estimated',
+          'Yes: recipes run inline custom code through the Python snippets and JavaScript snippets connectors, alongside a separate Ruby-based Custom SDK for authoring custom connectors',
+        detail:
+          'The snippets connectors execute code as a recipe step, on Python 3.9 or later and Node.js 20.11.0 respectively. The Ruby SDK is a distinct capability for building reusable connectors rather than adding a code step to a recipe.',
+        shortValue: 'Python and JavaScript snippet connectors run inline code',
+        confidence: 'verified',
         sources: [
+          {
+            url: 'https://docs.workato.com/connectors/python.html',
+            label: 'Python snippets by Workato | Workato Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.workato.com/connectors/javascript.html',
+            label: 'JavaScript snippets by Workato | Workato Docs',
+            asOf: '2026-08-10',
+          },
           {
             url: 'https://docs.workato.com/developing-connectors.html',
             label: 'Universal connectors | Workato Docs',

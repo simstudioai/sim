@@ -644,11 +644,22 @@ export const retoolProfile: CompetitorProfile = {
         sources: [],
       },
       customCodeSteps: {
-        value: 'Unknown',
-        detail: 'Not publicly documented.',
-        shortValue: 'Not publicly documented',
-        confidence: 'unknown',
-        sources: [],
+        value:
+          'Yes: a workflow Code block runs custom Python or JavaScript as a step, with the language chosen per block',
+        shortValue: 'Code block runs custom Python or JavaScript',
+        confidence: 'verified',
+        sources: [
+          {
+            url: 'https://docs.retool.com/workflows/guides/blocks/python',
+            label: 'Execute Python with the Code block | Retool Docs',
+            asOf: '2026-08-10',
+          },
+          {
+            url: 'https://docs.retool.com/workflows/guides/blocks/javascript',
+            label: 'Execute JavaScript with the Code block | Retool Docs',
+            asOf: '2026-08-10',
+          },
+        ],
       },
       codeSandboxRuntime: {
         value:
