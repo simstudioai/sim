@@ -71,7 +71,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   mapInput: ({ params, query }) => {
     const decodedCursor = query.cursor ? decodeCursor<{ offset: number }>(query.cursor) : null
     if (

@@ -17,7 +17,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.read,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: readWorkflow,
   present: ({ workflow, workspaceId, folderPath, inputs }) => ({
@@ -44,7 +44,7 @@ export const PATCH = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.update,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ params, body }) => ({ workflowId: params.id, ...body }),
   useCase: updateWorkflow,
   present: ({ workflow, workspaceId, folderPath, deployment }) => ({
@@ -69,7 +69,7 @@ export const DELETE = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.delete,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: deleteWorkflow,
   present: ({ workflowId }) => ({ data: { id: workflowId, deleted: true as const } }),

@@ -94,7 +94,7 @@ describe('GET /api/v2/logs/[runId]', () => {
     })
   })
 
-  it('conceals canonical workspace authorization as log not-found', async () => {
+  it('returns forbidden for canonical workspace authorization failures', async () => {
     mocks.execute.mockRejectedValueOnce(
       new OrchestrationError('forbidden', 'Workspace API key cannot perform this operation')
     )
@@ -103,9 +103,9 @@ describe('GET /api/v2/logs/[runId]', () => {
       params: Promise.resolve({ runId: 'run-1' }),
     })
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(403)
     expect(await response.json()).toMatchObject({
-      error: { code: 'NOT_FOUND', message: 'Log not found' },
+      error: { code: 'FORBIDDEN', message: 'Workspace API key cannot perform this operation' },
     })
   })
 

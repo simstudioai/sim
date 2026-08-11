@@ -4,6 +4,10 @@ const ALL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
   delegatedServices: ['copilot'],
 } as const
+const HUMAN_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'delegated'],
+  delegatedServices: ['copilot'],
+} as const
 
 export const mcpServerOperations = {
   list: defineWorkspaceOperation({
@@ -15,8 +19,8 @@ export const mcpServerOperations = {
   discoverTools: defineWorkspaceOperation({
     id: 'mcp_servers.tools.discover',
     minimumRole: 'read',
-    workspaceApiKey: 'allow',
-    ...ALL_PRINCIPAL_POLICY,
+    workspaceApiKey: 'deny',
+    ...HUMAN_PRINCIPAL_POLICY,
   }),
   listWorkflowDeployments: defineWorkspaceOperation({
     id: 'mcp_servers.workflow_deployments.list',

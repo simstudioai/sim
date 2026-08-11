@@ -19,7 +19,7 @@ export const PUT = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: fileOperations.updateContent,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  errorPolicy: v2FileErrorPolicies.default,
   parseOptions: {
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
     maxBodyBytes: MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,

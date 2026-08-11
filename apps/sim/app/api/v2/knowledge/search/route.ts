@@ -26,6 +26,7 @@ export const POST = defineV2JsonRoute({
     query: body.query,
     topK: body.topK,
     tagFilters: body.tagFilters,
+    searchMode: body.searchMode,
   }),
   useCase: searchKnowledge,
   present: (result) => ({ data: result }),

@@ -67,6 +67,7 @@ describe('queryPublicWorkspaceMembers', () => {
     ])
     expect(page?.nextEmail).toBeNull()
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(11)
+    expect(dbChainMockFns.leftJoin).toHaveBeenCalledWith(schemaMock.member, expect.anything())
   })
 
   it('returns null when the workspace is not active', async () => {

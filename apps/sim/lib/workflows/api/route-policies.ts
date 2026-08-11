@@ -1,7 +1,6 @@
 import type { Principal } from '@sim/auth/principal'
 import {
   createInternalSessionOrExecutorAuth,
-  createV2ResourceConcealmentPolicy,
   type InternalAuthPolicy,
   type InternalErrorPolicy,
   InternalUnauthenticatedError,
@@ -25,12 +24,6 @@ export const v2WorkflowErrorPolicies = {
       return v2CaughtOrchestrationError(error)
     },
   } satisfies V2ErrorPolicy,
-  concealWorkflowAuthorization: createV2ResourceConcealmentPolicy({
-    notFoundMessage: 'Workflow not found',
-  }),
-  concealRunAuthorization: createV2ResourceConcealmentPolicy({
-    notFoundMessage: 'Run not found',
-  }),
 } as const
 
 export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({

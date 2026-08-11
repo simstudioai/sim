@@ -196,15 +196,15 @@ describe('v2 run detail and cancel adapters', () => {
     expect(body.data.paused).not.toHaveProperty('pausedExecutionId')
   })
 
-  it('conceals canonical run authorization failures as absence', async () => {
+  it('returns forbidden for canonical run authorization failures', async () => {
     mocks.readRun.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await callStatus()
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(403)
     expect((await response.json()).error).toMatchObject({
-      code: 'NOT_FOUND',
-      message: 'Run not found',
+      code: 'FORBIDDEN',
+      message: 'Insufficient workspace permissions',
     })
   })
 

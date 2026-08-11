@@ -16,7 +16,7 @@ export const GET = defineV2JsonRoute({
   operation: tableOperations.readExport,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealExportAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     exportId: params.exportId,
     workspaceId: query.workspaceId,
@@ -30,7 +30,7 @@ export const DELETE = defineV2JsonRoute({
   operation: tableOperations.cancelExport,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealExportAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     exportId: params.exportId,
     workspaceId: query.workspaceId,

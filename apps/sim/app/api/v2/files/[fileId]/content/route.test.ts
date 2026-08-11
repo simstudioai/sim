@@ -115,7 +115,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
 
     const response = await callPut('{not-json')
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(403)
     expect(mocks.admit).toHaveBeenCalledWith(auth.principal, FILE_ID)
     expect(mocks.updateContent).not.toHaveBeenCalled()
   })

@@ -408,7 +408,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
-  it('masks a workspace-key/workflow mismatch as 404', async () => {
+  it('returns forbidden for a workspace-key/workflow mismatch', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: {
         kind: 'workspace_api_key',
@@ -423,8 +423,8 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
 
     const res = await callExecute({ input: {} })
 
-    expect(res.status).toBe(404)
-    expect((await res.json()).error.code).toBe('NOT_FOUND')
+    expect(res.status).toBe(403)
+    expect((await res.json()).error.code).toBe('FORBIDDEN')
   })
 
   it('rejects personal keys when the workspace disallows them', async () => {

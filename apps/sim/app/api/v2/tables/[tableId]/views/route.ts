@@ -19,7 +19,7 @@ export const GET = defineV2JsonRoute({
   useCase: listTableViewsUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   present: async ({ views }) => {
     const emailByUserId = await getUserEmailsByIds(

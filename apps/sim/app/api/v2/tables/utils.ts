@@ -192,17 +192,6 @@ export function v2CsvBodyCapError(request: { headers: Headers }): NextResponse |
 }
 
 /**
- * Renders a failed {@link checkAccess} result on a MUTATION path: a missing
- * table stays 404, a missing permission stays 403. Read paths instead mask both
- * as 404 inline so cross-workspace resource existence is never leaked.
- */
-export function v2TableAccessError(result: { ok: false; status: 404 | 403 }): NextResponse {
-  return result.status === 404
-    ? v2Error('NOT_FOUND', 'Table not found')
-    : v2Error('FORBIDDEN', 'Access denied')
-}
-
-/**
  * Maps a delete/write rejected by a table lock to the v2 `LOCKED` envelope,
  * mirroring v1's {@link tableLockErrorResponse}. Returns `null` for anything
  * else so the caller falls through to its own classification.

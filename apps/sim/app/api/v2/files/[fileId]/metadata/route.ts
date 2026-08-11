@@ -14,7 +14,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: fileOperations.readMetadata,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,
+  errorPolicy: v2FileErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     fileId: params.fileId,
     assertedWorkspaceId: query.workspaceId,

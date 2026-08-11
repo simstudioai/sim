@@ -107,7 +107,7 @@ describe('Copilot workflow metadata application queries', () => {
 
     expect(mocks.resolveContext).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
+      assertedWorkspaceId: undefined,
     })
     expect(result).toEqual({
       blocks: [

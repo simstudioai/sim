@@ -45,7 +45,7 @@ vi.mock('@/lib/mcp/queries', () => ({
   listWorkspaceMcpServers: vi.fn(),
 }))
 
-import { createMcpServerUseCase } from '@/lib/mcp/application/use-cases'
+import { createMcpServerUseCase, discoverMcpToolsUseCase } from '@/lib/mcp/application/use-cases'
 
 type McpServerRow = typeof mcpServers.$inferSelect
 const workspace = {
@@ -146,6 +146,21 @@ describe('MCP server application use cases', () => {
     expect(mocks.create).not.toHaveBeenCalled()
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.effects).not.toHaveBeenCalled()
+  })
+
+  it('rejects workspace-key tool discovery before protected loading', async () => {
+    await expect(
+      discoverMcpToolsUseCase.execute({
+        principal: {
+          kind: 'workspace_api_key',
+          workspaceId: workspace.workspaceId,
+          keyId: 'workspace-key-1',
+        },
+        input: { workspaceId: workspace.workspaceId },
+      })
+    ).rejects.toMatchObject({ code: 'forbidden' })
+
+    expect(mocks.loadContext).not.toHaveBeenCalled()
   })
 
   it('fails fast when a post-audit domain effect fails', async () => {

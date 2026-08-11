@@ -613,8 +613,14 @@ interface UsageLogFilter {
   endDate?: Date
 }
 
-function buildUsageLogConditions(userId: string, filter: UsageLogFilter) {
-  const conditions = [eq(usageLog.userId, userId)]
+type UsageLogScope = { kind: 'user'; userId: string } | { kind: 'workspace'; workspaceId: string }
+
+function buildUsageLogConditions(scope: UsageLogScope, filter: UsageLogFilter) {
+  const conditions = [
+    scope.kind === 'user'
+      ? eq(usageLog.userId, scope.userId)
+      : eq(usageLog.workspaceId, scope.workspaceId),
+  ]
   if (filter.source) {
     conditions.push(
       Array.isArray(filter.source)
@@ -643,7 +649,7 @@ export async function getUsageCreditsByLogId(
   const rows = await dbReplica
     .select({ id: usageLog.id, cost: usageLog.cost })
     .from(usageLog)
-    .where(and(...buildUsageLogConditions(userId, filter)))
+    .where(and(...buildUsageLogConditions({ kind: 'user', userId }, filter)))
     .orderBy(desc(usageLog.createdAt), desc(usageLog.id))
 
   return apportionCredits(
@@ -718,10 +724,10 @@ export interface UsageLogsResult {
 }
 
 /**
- * Get usage logs for a user with optional filtering and pagination
+ * Gets one bounded usage-log page for an explicit actor or workspace scope.
  */
-export async function getUserUsageLogs(
-  userId: string,
+async function getUsageLogs(
+  scope: UsageLogScope,
   options: GetUsageLogsOptions = {}
 ): Promise<UsageLogsResult> {
   const {
@@ -736,7 +742,7 @@ export async function getUserUsageLogs(
   } = options
 
   try {
-    const conditions = buildUsageLogConditions(userId, { source, workspaceId, startDate, endDate })
+    const conditions = buildUsageLogConditions(scope, { source, workspaceId, startDate, endDate })
 
     if (cursor) {
       let resolvedCursorCreatedAt = cursorCreatedAt
@@ -803,7 +809,7 @@ export async function getUserUsageLogs(
     let totalCost = 0
 
     if (includeSummary) {
-      const summaryConditions = buildUsageLogConditions(userId, {
+      const summaryConditions = buildUsageLogConditions(scope, {
         source,
         workspaceId,
         startDate,
@@ -841,9 +847,25 @@ export async function getUserUsageLogs(
   } catch (error) {
     logger.error('Failed to get usage logs', {
       error: toError(error).message,
-      userId,
+      scope,
       options,
     })
     throw error
   }
+}
+
+/** Gets usage logs whose actor is the selected user. */
+export function getUserUsageLogs(
+  userId: string,
+  options: GetUsageLogsOptions = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'user', userId }, options)
+}
+
+/** Gets usage logs attributed to the selected workspace, regardless of actor. */
+export function getWorkspaceUsageLogs(
+  workspaceId: string,
+  options: Omit<GetUsageLogsOptions, 'workspaceId'> = {}
+): Promise<UsageLogsResult> {
+  return getUsageLogs({ kind: 'workspace', workspaceId }, options)
 }

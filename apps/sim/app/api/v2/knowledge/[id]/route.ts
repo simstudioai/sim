@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.read,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     assertedWorkspaceId: query.workspaceId,

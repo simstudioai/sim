@@ -15,9 +15,20 @@ function encodeCursor(data: CursorData): string {
   return Buffer.from(JSON.stringify(data)).toString('base64')
 }
 
-function decodeCursor(cursor: string): CursorData | null {
+export function decodeAuditLogCursor(cursor: string): CursorData | null {
   try {
-    return JSON.parse(Buffer.from(cursor, 'base64').toString())
+    const decoded: unknown = JSON.parse(Buffer.from(cursor, 'base64').toString())
+    if (!decoded || typeof decoded !== 'object' || Array.isArray(decoded)) return null
+    const { createdAt, id } = decoded as Partial<CursorData>
+    if (
+      typeof createdAt !== 'string' ||
+      Number.isNaN(new Date(createdAt).getTime()) ||
+      typeof id !== 'string' ||
+      !id
+    ) {
+      return null
+    }
+    return { createdAt, id }
   } catch {
     return null
   }
@@ -116,11 +127,9 @@ export function buildOrgScopeCondition(params: OrgScopeParams): SQL<unknown> {
 }
 
 function buildCursorCondition(cursor: string): SQL<unknown> | null {
-  const cursorData = decodeCursor(cursor)
-  if (!cursorData?.createdAt || !cursorData.id) return null
-
+  const cursorData = decodeAuditLogCursor(cursor)
+  if (!cursorData) return null
   const cursorDate = new Date(cursorData.createdAt)
-  if (Number.isNaN(cursorDate.getTime())) return null
 
   return or(
     lt(auditLog.createdAt, cursorDate),

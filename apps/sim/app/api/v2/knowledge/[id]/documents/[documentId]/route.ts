@@ -33,7 +33,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.readDocument,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
+  errorPolicy: v2KnowledgeErrorPolicies.default,
   mapInput: ({ params, query }) => ({
     knowledgeBaseId: params.id,
     documentId: params.documentId,

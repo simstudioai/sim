@@ -1,11 +1,11 @@
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
 import { billingOperations } from '@/lib/billing/application/operations'
-import { resolveSystemBillingAttribution } from '@/lib/billing/core/billing-attribution'
 import {
-  getUsageCreditsByLogId,
   getUserUsageLogs,
+  getWorkspaceUsageLogs,
   type UsageLogSource,
 } from '@/lib/billing/core/usage-log'
+import { apportionCredits } from '@/lib/billing/credits/conversion'
 
 export interface ListBillingLogsInput {
   workspaceId?: string
@@ -26,31 +26,26 @@ export const listBillingLogs = defineAuthorizedBillingReadUseCase({
   requestedWorkspaceId: (input: ListBillingLogsInput) => input.workspaceId,
   execute: async ({ principal, input, scope }): Promise<ListBillingLogsResult> => {
     const workspaceId = scope.kind === 'workspace' ? scope.workspace.workspaceId : undefined
-    let ledgerUserId: string
+    const query = {
+      source: input.source,
+      startDate: input.startDate,
+      endDate: input.endDate,
+      limit: input.limit,
+      cursor: input.cursor,
+      includeSummary: false,
+    }
+    let usage: ListBillingLogsResult['usage']
     if (principal.kind === 'personal_api_key') {
-      ledgerUserId = principal.userId
+      usage = await getUserUsageLogs(principal.userId, { ...query, workspaceId })
     } else {
       if (scope.kind !== 'workspace') {
         throw new Error('Workspace API key billing logs require a workspace scope')
       }
-      ledgerUserId = (await resolveSystemBillingAttribution(scope.workspace.workspaceId))
-        .billedAccountUserId
+      usage = await getWorkspaceUsageLogs(scope.workspace.workspaceId, query)
     }
-    const filter = {
-      source: input.source,
-      workspaceId,
-      startDate: input.startDate,
-      endDate: input.endDate,
-    }
-    const [usage, creditsByLogId] = await Promise.all([
-      getUserUsageLogs(ledgerUserId, {
-        ...filter,
-        limit: input.limit,
-        cursor: input.cursor,
-        includeSummary: false,
-      }),
-      getUsageCreditsByLogId(ledgerUserId, filter),
-    ])
+    const creditsByLogId = apportionCredits(
+      usage.logs.map((log) => ({ key: log.id, dollars: log.cost }))
+    )
     return { usage, creditsByLogId }
   },
 })

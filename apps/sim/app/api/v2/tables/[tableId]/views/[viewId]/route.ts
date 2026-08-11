@@ -32,7 +32,7 @@ export const GET = defineV2JsonRoute({
   useCase: readTableViewUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({ ...params, workspaceId: query.workspaceId }),
   present: presentView,
 })

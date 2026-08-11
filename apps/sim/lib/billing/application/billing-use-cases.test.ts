@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
   getUserStorageLimit: vi.fn(),
   getUserStorageUsage: vi.fn(),
   getUsageLogs: vi.fn(),
-  getCredits: vi.fn(),
+  getWorkspaceUsageLogs: vi.fn(),
   recordAudit: vi.fn(),
 }))
 
@@ -56,7 +56,7 @@ vi.mock('@/lib/billing/core/subscription', () => ({
 vi.mock('@/lib/billing/core/usage-log', () => ({
   deriveBillingContext: mocks.deriveBillingContext,
   getUserUsageLogs: mocks.getUsageLogs,
-  getUsageCreditsByLogId: mocks.getCredits,
+  getWorkspaceUsageLogs: mocks.getWorkspaceUsageLogs,
 }))
 
 vi.mock('@/lib/billing/storage', () => ({
@@ -123,7 +123,11 @@ describe('billing application use cases', () => {
       summary: { totalCost: 0, bySource: {} },
       pagination: { hasMore: false },
     })
-    mocks.getCredits.mockResolvedValue({})
+    mocks.getWorkspaceUsageLogs.mockResolvedValue({
+      logs: [],
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: false },
+    })
   })
 
   it('rejects unsupported principals before protected loading', async () => {
@@ -186,7 +190,7 @@ describe('billing application use cases', () => {
     expect(mocks.loadWorkspace).not.toHaveBeenCalled()
   })
 
-  it('uses the billing owner only as the workspace ledger attribution', async () => {
+  it('lists the complete workspace ledger for a workspace key', async () => {
     await listBillingLogs.execute({
       principal: workspacePrincipal,
       input: {
@@ -196,12 +200,53 @@ describe('billing application use cases', () => {
       },
     })
 
-    expect(mocks.getUsageLogs).toHaveBeenCalledWith(
-      'billing-owner-1',
-      expect.objectContaining({ workspaceId: 'workspace-1' })
+    expect(mocks.getWorkspaceUsageLogs).toHaveBeenCalledWith(
+      'workspace-1',
+      expect.objectContaining({ includeSummary: false, limit: 50 })
     )
+    expect(mocks.getUsageLogs).not.toHaveBeenCalled()
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('keeps personal-key billing logs actor-scoped and workspace-filtered', async () => {
+    await listBillingLogs.execute({
+      principal: personalPrincipal,
+      input: {
+        workspaceId: 'workspace-1',
+        startDate: new Date('2026-01-01T00:00:00Z'),
+        endDate: new Date('2026-02-01T00:00:00Z'),
+        limit: 50,
+      },
+    })
+
+    expect(mocks.getUsageLogs).toHaveBeenCalledWith(
+      'user-1',
+      expect.objectContaining({ workspaceId: 'workspace-1', includeSummary: false, limit: 50 })
+    )
+    expect(mocks.getWorkspaceUsageLogs).not.toHaveBeenCalled()
+  })
+
+  it('apportions credits only across the bounded page', async () => {
+    mocks.getWorkspaceUsageLogs.mockResolvedValueOnce({
+      logs: [
+        { id: 'log-1', cost: 0.003 },
+        { id: 'log-2', cost: 0.003 },
+      ],
+      summary: { totalCost: 0, bySource: {} },
+      pagination: { hasMore: true, nextCursor: 'log-2' },
+    })
+
+    const result = await listBillingLogs.execute({
+      principal: workspacePrincipal,
+      input: {
+        startDate: new Date('2026-01-01T00:00:00Z'),
+        endDate: new Date('2026-02-01T00:00:00Z'),
+        limit: 2,
+      },
+    })
+
+    expect(result.creditsByLogId).toEqual({ 'log-1': 1, 'log-2': 0 })
   })
 
   it('propagates workspace-store failures', async () => {

@@ -117,6 +117,9 @@ export async function queryPublicWorkspaceMembers(
   const emailOrder = sql<string>`${user.email} COLLATE "C"`
   const emailCursor = options.afterEmail ? gt(emailOrder, options.afterEmail) : undefined
   const sourceLimit = options.limit + 1
+  const explicitMemberJoin = workspaceRow.organizationId
+    ? and(eq(member.userId, user.id), eq(member.organizationId, workspaceRow.organizationId))
+    : sql<boolean>`false`
 
   const explicitPromise = db
     .select({
@@ -130,7 +133,7 @@ export async function queryPublicWorkspaceMembers(
     })
     .from(permissions)
     .innerJoin(user, eq(permissions.userId, user.id))
-    .leftJoin(member, eq(member.userId, user.id))
+    .leftJoin(member, explicitMemberJoin)
     .where(
       and(
         eq(permissions.entityType, 'workspace'),

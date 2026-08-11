@@ -244,9 +244,8 @@ export const POST = withRouteHandler(
           userId,
           action: 'read',
         })
-        // Mask authorization failures as 404 so cross-workspace existence never leaks.
         if (!workflowAuthorization.allowed || !workflowAuthorization.workflow) {
-          return v2Error('NOT_FOUND', 'Workflow not found')
+          return v2Error('FORBIDDEN', 'Insufficient workspace permissions')
         }
         result = await executeWorkflowService({
           workflowId,
@@ -306,7 +305,7 @@ export const POST = withRouteHandler(
         { headers: { [V2_WORKFLOW_RUN_ID_HEADER]: result.executionId } }
       )
     } catch (error) {
-      const classified = v2WorkflowErrorPolicies.concealWorkflowAuthorization.render(error)
+      const classified = v2WorkflowErrorPolicies.default.render(error)
       if (classified) return classified
       logger.error(`[${requestId}] v2 execute failed`, {
         workflowId,

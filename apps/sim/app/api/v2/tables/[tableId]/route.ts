@@ -48,7 +48,7 @@ export const GET = defineV2JsonRoute({
   useCase: readTableUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   present: async ({ table, folderPath }) => ({
     data: { table: await toApiTable(table, folderPath) },

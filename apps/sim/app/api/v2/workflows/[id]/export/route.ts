@@ -12,7 +12,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.export,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ params }) => ({ workflowId: params.id }),
   useCase: exportWorkflow,
   present: ({ payload, folderPath }) => ({

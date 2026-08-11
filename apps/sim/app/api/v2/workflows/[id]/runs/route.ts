@@ -20,7 +20,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: workflowOperations.listRuns,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
+  errorPolicy: v2WorkflowErrorPolicies.default,
   mapInput: ({ params, query }) => {
     const { status, trigger, startDate, endDate, limit, cursor, order } = query
     const sort = cursorSortKey('startedAt', order)

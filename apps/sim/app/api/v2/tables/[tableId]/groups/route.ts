@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
   useCase: listTableGroupsUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
   present: ({ groups }) => ({ data: groups, nextCursor: null }),
 })
@@ -35,7 +35,7 @@ export const POST = defineV2JsonRoute({
   useCase: createTableGroupUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table, group }) => ({
     data: { group, columns: table.schema.columns.map(normalizeColumn) },
@@ -48,7 +48,7 @@ export const PATCH = defineV2JsonRoute({
   useCase: updateTableGroupUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table, group }) => ({
     data: { group, columns: table.schema.columns.map(normalizeColumn) },
@@ -61,7 +61,7 @@ export const DELETE = defineV2JsonRoute({
   useCase: deleteTableGroupUseCase,
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
+  errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: ({ table, groupId }) => ({
     data: {

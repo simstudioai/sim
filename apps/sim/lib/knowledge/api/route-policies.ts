@@ -1,6 +1,5 @@
 import {
   createInternalSessionOrExecutorAuth,
-  createV2ResourceConcealmentPolicy,
   type InternalErrorPolicy,
   internalErrorResponse,
   internalPlainOrchestrationErrorPolicy,
@@ -92,7 +91,4 @@ export const v2KnowledgeErrorPolicies = {
       return v2KnowledgeUsageErrorPolicy.render(error)
     },
   } satisfies V2ErrorPolicy,
-  concealKnowledgeBaseAuthorization: createV2ResourceConcealmentPolicy({
-    notFoundMessage: 'Knowledge base not found',
-  }),
 } as const

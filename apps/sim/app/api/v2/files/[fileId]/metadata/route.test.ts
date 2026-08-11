@@ -113,13 +113,13 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
     expect(mocks.readMetadata).not.toHaveBeenCalled()
   })
 
-  it('conceals an authorization failure as not found', async () => {
+  it('returns forbidden for an authorization failure', async () => {
     mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
 
-    expect(response.status).toBe(404)
-    expect((await response.json()).error.code).toBe('NOT_FOUND')
+    expect(response.status).toBe(403)
+    expect((await response.json()).error.code).toBe('FORBIDDEN')
   })
 
   it('returns the v2 metadata projection through the shared use case', async () => {

@@ -121,10 +121,6 @@ describe('workflow run-control application use cases', () => {
       expect(mocks.resolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
         assertedWorkflowId: 'workflow-1',
-        assertedWorkspaceId:
-          principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-            ? 'workspace-1'
-            : undefined,
       })
       expect(mocks.cancel).toHaveBeenCalledWith({
         executionId: 'parent-run-1',
@@ -153,10 +149,6 @@ describe('workflow run-control application use cases', () => {
       expect(mocks.resolveRunContext).toHaveBeenCalledWith({
         runId: 'parent-run-1',
         assertedWorkflowId: 'workflow-1',
-        assertedWorkspaceId:
-          principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-            ? 'workspace-1'
-            : undefined,
       })
       expect(mocks.resume).toHaveBeenCalledWith({
         workflowId: 'workflow-1',
