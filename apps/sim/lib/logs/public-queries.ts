@@ -27,17 +27,18 @@ export function decodePublicLogCursor(
 ): PublicLogCursor | null {
   try {
     const parsed = JSON.parse(Buffer.from(cursor, 'base64').toString()) as Record<string, unknown>
+    const order = parsed.order === undefined ? expectedOrder : parsed.order
     if (
       typeof parsed.startedAt !== 'string' ||
       typeof parsed.id !== 'string' ||
-      (parsed.order !== 'asc' && parsed.order !== 'desc') ||
-      parsed.order !== expectedOrder
+      (order !== 'asc' && order !== 'desc') ||
+      order !== expectedOrder
     ) {
       return null
     }
     const startedAt = new Date(parsed.startedAt)
     if (Number.isNaN(startedAt.getTime())) return null
-    return { startedAt: parsed.startedAt, id: parsed.id, order: parsed.order }
+    return { startedAt: parsed.startedAt, id: parsed.id, order }
   } catch {
     return null
   }
