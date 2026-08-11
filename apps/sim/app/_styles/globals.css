@@ -22,6 +22,18 @@
   --panel-width: 320px; /* PANEL_WIDTH.DEFAULT */
   --editor-connections-height: 172px; /* EDITOR_CONNECTIONS_HEIGHT.DEFAULT */
   --terminal-height: 206px; /* TERMINAL_HEIGHT.DEFAULT */
+  /**
+   * The padding `.workspace-content-shell` insets the panel and terminal from
+   * the viewport by (CONTENT_WINDOW_GAP).
+   *
+   * Published here because surfaces portalled to `<body>` — the toast stack —
+   * position against those elements from the viewport, so they must add back
+   * whatever separates the element from the viewport edge. Reading it rather
+   * than hardcoding 8px is what keeps the toast and the canvas controls on the
+   * same clearance when the shell drops its padding; the controls are laid out
+   * inside the shell and so need no correction.
+   */
+  --workspace-content-gap: 8px;
   --output-panel-width: 560px; /* OUTPUT_PANEL_WIDTH.DEFAULT */
   /**
    * Neutral border and divider thickness. Standard-density displays cannot draw
@@ -160,6 +172,14 @@ html[data-sim-desktop-title-bar="inset"]
 .workspace-content-shell[data-sidebar-collapsed],
 .workspace-content-shell[data-content-fullscreen] {
   --workspace-content-title-bar-inset: var(--desktop-title-bar-height);
+}
+
+/* The one case the shell drops its padding entirely (see `workspace-chrome.tsx`:
+   `isCollapsed && '[[data-sim-desktop-title-bar=inset]_&]:p-0'`). Declared on the
+   root so the portalled toast stack — which cannot inherit from the shell — sees
+   it too, and keeps the same clearance the in-shell canvas controls keep. */
+html[data-sim-desktop-title-bar="inset"]:has(.workspace-content-shell[data-sidebar-collapsed]) {
+  --workspace-content-gap: 0px;
 }
 
 .workspace-root code,
