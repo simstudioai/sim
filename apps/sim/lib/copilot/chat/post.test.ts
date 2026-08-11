@@ -847,5 +847,52 @@ describe('handleUnifiedChatPost', () => {
       expect(createSSEStream).toHaveBeenCalled()
       expect(storeChatSendResult).not.toHaveBeenCalled()
     })
+
+    /**
+     * The queued-send-handoff path deliberately retries under the original
+     * `userMessageId` after a stream collision. If the collided attempt left a
+     * permanent claim, that retry would deduplicate against a chat whose turn
+     * never started and reattach to a stream that does not exist.
+     */
+    it('releases the claim when a stream collision stops the turn from starting', async () => {
+      acquirePendingChatStream.mockResolvedValue(false)
+      getPendingChatStreamId.mockResolvedValue('other-stream')
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(409)
+      expect(releaseChatSendClaim).toHaveBeenCalledWith(
+        'chat-send:user-message:msg-1:userId=user-1',
+        'database',
+        'claim-1'
+      )
+    })
+
+    it('keeps the claim once a turn is actually streaming', async () => {
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(releaseChatSendClaim).not.toHaveBeenCalled()
+    })
   })
 })

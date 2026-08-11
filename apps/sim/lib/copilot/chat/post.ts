@@ -1142,9 +1142,10 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       /* Record the chat as soon as it is known — the earliest a retry can be
-         answered with somewhere to go. The claim becomes permanent here: the
-         user message lands moments later, so a retry must resolve to this chat
-         rather than open another. */
+         answered with somewhere to go. The claim is not permanent yet: several
+         exits below still return without starting a turn, and a retry of those
+         must be allowed to start one. Recording only fails open, so drop the
+         claim when it does. */
       if (sendClaim?.claimToken && actualChatId) {
         const recorded = await chatSendIdempotency
           .storeResult(
@@ -1160,7 +1161,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
             })
             return false
           })
-        if (recorded) sendClaim = undefined
+        if (!recorded) sendClaim = undefined
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
@@ -1456,6 +1457,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       const rootTraceparent = `00-${rootCtx.traceId}-${rootCtx.spanId}-${
         (rootCtx.traceFlags & 0x1) === 0x1 ? '01' : '00'
       }`
+      /* A turn is running. Only now is the claim permanent, so the `finally`
+         below leaves it in place and a retry of this send resolves to this
+         chat instead of opening another. Every earlier exit returns without a
+         turn, and releases. */
+      sendClaim = undefined
       return new Response(stream, {
         headers: {
           ...SSE_RESPONSE_HEADERS,
@@ -1497,10 +1503,11 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       { status: 500 }
     )
   } finally {
-    /* A claim still held here never recorded a chat — the send threw, or
-       returned early on a rejected branch or a missing chat. Release it so a
-       retry is treated as new rather than deduplicated against a chat that was
-       never opened. Must be `finally`: those early returns skip `catch`. */
+    /* A claim still held here never started a turn — the send threw, or
+       returned early on a rejected branch, a missing chat, or a chat that
+       already has a stream running. Release it so a retry may start one rather
+       than deduplicating against a turn that never happened. Must be
+       `finally`: those early returns skip `catch`. */
     if (sendClaim?.claimToken) {
       await chatSendIdempotency
         .release(sendClaim.normalizedKey, sendClaim.storageMethod, sendClaim.claimToken)
