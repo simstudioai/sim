@@ -295,12 +295,12 @@ async function getFileContentProvenance(
 
   for (const source of sources) {
     if (!source.identity || !source.ownerUserId) {
-      accumulator.markIncomplete()
+      accumulator.markIncomplete('file-source-unidentified')
       continue
     }
     const provenance = await getBoundWorkspaceFileSecretProvenance(workspaceId, source.identity)
     if (provenance.status === 'unknown') {
-      accumulator.markIncomplete()
+      accumulator.markIncomplete('workspace-file-provenance-unknown')
       continue
     }
     accumulator.record({

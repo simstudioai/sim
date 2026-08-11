@@ -144,6 +144,40 @@ describe('ResolvedSecretTraceProvenanceAccumulator', () => {
     accumulator.markIncomplete('unspecified')
     expect(accumulator.exportProvenance().entries).toEqual([])
   })
+
+  /**
+   * The exported bundle carries only `complete`, so an importer can never say more than
+   * `source-provenance-incomplete`. If this line does not name the guard, nothing does.
+   */
+  it('names the first guard that latched, and stays quiet for the rest of the invocation', () => {
+    vi.clearAllMocks()
+    const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+    accumulator.markIncomplete('file-source-unidentified')
+    accumulator.markIncomplete('workspace-file-provenance-unknown')
+
+    expect(mockLogger.warn).toHaveBeenCalledTimes(1)
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret provenance accumulator marked incomplete',
+      expect.objectContaining({
+        reason: 'file-source-unidentified',
+        scopeWorkspaceId: 'workspace-1',
+      })
+    )
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  /** A merge of already-reported bundles adds nothing; subflow aggregation runs it per iteration. */
+  it('stays silent when a recorded report is what latched it', () => {
+    vi.clearAllMocks()
+    const accumulator = new ResolvedSecretTraceProvenanceAccumulator(scope)
+
+    accumulator.record({ version: 1, complete: false, entries: [], scope })
+
+    expect(accumulator.exportProvenance().complete).toBe(false)
+    expect(mockLogger.warn).not.toHaveBeenCalled()
+    expect(mockLogger.error).not.toHaveBeenCalled()
+  })
 })
 
 describe('ResolvedSecretTraceRegistry', () => {
@@ -1474,9 +1508,11 @@ describe('incompleteness diagnostics', () => {
     'knowledge-result-provenance-unavailable',
     'knowledge-response-capacity-exceeded',
     'memory-crossing-capacity-exceeded',
-    'workspace-scope-missing',
     'table-result-provenance-unavailable',
     'mounted-file-provenance-unavailable',
+    'workspace-file-provenance-unknown',
+    'file-source-unidentified',
+    'mcp-tool-execution-timeout',
     'table-snapshot-unsafe-for-mount',
     'restored-provenance-untrusted',
     'backfill-checkpoint-absent',
