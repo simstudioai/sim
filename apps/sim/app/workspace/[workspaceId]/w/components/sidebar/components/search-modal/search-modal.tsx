@@ -550,7 +550,7 @@ function SearchModalContent({
         pageContext === 'logs'
           ? {
               id: 'logs-show-dashboard',
-              name: 'Visit dashboard',
+              name: 'Switch to Dashboard',
               keywords: 'charts stats overview',
               icon: Library,
               context: 'logs',
@@ -558,7 +558,7 @@ function SearchModalContent({
             }
           : {
               id: 'logs-show-logs',
-              name: 'Visit logs',
+              name: 'Switch to Logs',
               keywords: 'list executions runs',
               icon: Library,
               context: 'logsDashboard',
