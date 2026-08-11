@@ -9,10 +9,12 @@ import {
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
+  v1ChunkingConfigSchema,
   v1CreateKnowledgeBaseBodySchema,
   v1KnowledgeSearchBodySchema,
   v1KnowledgeWorkspaceQuerySchema,
   v1ListKnowledgeDocumentsQuerySchema,
+  v1SearchTagFilterSchema,
 } from '@/lib/api/contracts/v1/knowledge'
 import {
   v2CreateFolderBodySchema,
@@ -34,6 +36,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
+import { DEFAULT_CHUNKING_CONFIG } from '@/lib/knowledge/constants'
 import { knowledgeDocumentUploadMetadataSchema } from '@/lib/knowledge/upload-metadata'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
@@ -60,6 +63,31 @@ import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
  * `deletedAt` fields are not exposed; owner attribution is resolved to
  * `ownerEmail`.
  */
+const v2KnowledgeChunkingConfigSchema = knowledgeBaseDataSchema.shape.chunkingConfig
+  .extend({
+    maxSize: knowledgeBaseDataSchema.shape.chunkingConfig.shape.maxSize
+      .describe('Maximum chunk size in tokens.')
+      .meta({ examples: [1024] }),
+    minSize: knowledgeBaseDataSchema.shape.chunkingConfig.shape.minSize
+      .describe('Minimum chunk size in characters.')
+      .meta({ examples: [100] }),
+    overlap: knowledgeBaseDataSchema.shape.chunkingConfig.shape.overlap
+      .describe('Number of overlapping characters between adjacent chunks.')
+      .meta({ examples: [200] }),
+    strategy: knowledgeBaseDataSchema.shape.chunkingConfig.shape.strategy.describe(
+      'Chunking strategy applied during document processing.'
+    ),
+    strategyOptions: knowledgeBaseDataSchema.shape.chunkingConfig.shape.strategyOptions.describe(
+      'Strategy-specific tuning options.'
+    ),
+  })
+  .catchall(z.unknown().describe('Additional forward-compatible chunking configuration property.'))
+  .meta({
+    id: 'V2KnowledgeChunkingConfig',
+    title: 'Knowledge chunking configuration',
+    description: 'How documents in a knowledge base are split into chunks before embedding.',
+  })
+
 export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
   .pick({
     id: true,
@@ -75,71 +103,189 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     updatedAt: true,
   })
   .extend({
-    /** Current email address of the knowledge base owner. */
-    ownerEmail: z.email(),
-    folderPath: v2FolderPathSchema,
+    id: knowledgeBaseDataSchema.shape.id
+      .describe('Unique knowledge base identifier.')
+      .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
+    name: knowledgeBaseDataSchema.shape.name
+      .describe('Human-readable knowledge base name.')
+      .meta({ examples: ['Product Documentation'] }),
+    description: knowledgeBaseDataSchema.shape.description
+      .describe('Knowledge base description, or null when none is set.')
+      .meta({ examples: ['All product documentation and guides'] }),
+    tokenCount: knowledgeBaseDataSchema.shape.tokenCount
+      .describe('Total tokens across indexed documents.')
+      .meta({ examples: [48213] }),
+    embeddingModel: knowledgeBaseDataSchema.shape.embeddingModel
+      .describe('Embedding model used to index documents.')
+      .meta({ examples: ['text-embedding-3-small'] }),
+    embeddingDimension: knowledgeBaseDataSchema.shape.embeddingDimension
+      .describe('Dimensionality of the embedding vectors.')
+      .meta({ examples: [1536] }),
+    chunkingConfig: v2KnowledgeChunkingConfigSchema,
+    docCount: knowledgeBaseDataSchema.shape.docCount
+      .describe('Number of documents in the knowledge base.')
+      .meta({ examples: [12] }),
+    connectorTypes: knowledgeBaseDataSchema.shape.connectorTypes
+      .describe('External connector types that have synced documents into the knowledge base.')
+      .meta({ examples: [['notion', 'google_drive']] }),
+    createdAt: knowledgeBaseDataSchema.shape.createdAt
+      .describe('ISO 8601 timestamp when the knowledge base was created.')
+      .meta({ format: 'date-time', examples: ['2025-01-10T09:00:00Z'] }),
+    updatedAt: knowledgeBaseDataSchema.shape.updatedAt
+      .describe('ISO 8601 timestamp when the knowledge base was last modified.')
+      .meta({ format: 'date-time', examples: ['2025-06-18T16:45:00Z'] }),
+    ownerEmail: z
+      .email()
+      .describe('Current email address of the knowledge base owner.')
+      .meta({ examples: ['owner@example.com'] }),
+    folderPath: v2FolderPathSchema
+      .describe('Canonical containing-folder path; `/` is the workspace root.')
+      .meta({ examples: ['/Product'] }),
+  })
+  .strict()
+  .meta({
+    id: 'V2KnowledgeBase',
+    title: 'Knowledge base',
+    description: 'A collection of documents indexed for vector and tag search.',
   })
 export type V2KnowledgeBase = z.output<typeof v2KnowledgeBaseSchema>
 
 /** `{ knowledgeBase }` payload for single-KB reads and mutations. */
-export const v2KnowledgeBaseDataSchema = z.object({ knowledgeBase: v2KnowledgeBaseSchema })
+export const v2KnowledgeBaseDataSchema = z.object({ knowledgeBase: v2KnowledgeBaseSchema }).meta({
+  id: 'V2KnowledgeBaseData',
+  title: 'Knowledge base data',
+  description: 'A single knowledge base payload.',
+})
 export type V2KnowledgeBaseData = z.output<typeof v2KnowledgeBaseDataSchema>
 
 /** Delete acknowledgement — the id of the resource that was deleted. */
-export const v2KnowledgeDeleteDataSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
-})
+export const v2KnowledgeDeleteDataSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Identifier of the deleted resource.')
+      .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
+    deleted: z.literal(true).describe('Confirms that the resource was deleted.'),
+  })
+  .meta({
+    id: 'V2KnowledgeDeleteData',
+    title: 'Knowledge deletion data',
+    description: 'Acknowledgement for a deleted knowledge base or document.',
+  })
 export type V2KnowledgeDeleteData = z.output<typeof v2KnowledgeDeleteDataSchema>
 
 /**
  * Document core fields shared by the list item and the detail payload, reused
  * from the first-party {@link documentDataSchema}.
  */
-const v2KnowledgeDocumentCoreSchema = documentDataSchema.pick({
-  id: true,
-  knowledgeBaseId: true,
-  filename: true,
-  fileSize: true,
-  mimeType: true,
-  processingStatus: true,
-  chunkCount: true,
-  tokenCount: true,
-  characterCount: true,
-  enabled: true,
-})
+const v2KnowledgeDocumentCoreSchema = z
+  .object({
+    id: documentDataSchema.shape.id
+      .describe('Unique document identifier.')
+      .meta({ examples: ['b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12'] }),
+    knowledgeBaseId: documentDataSchema.shape.knowledgeBaseId
+      .describe('Knowledge base to which the document belongs.')
+      .meta({ examples: ['7c9e6679-7425-40de-944b-e07fc1f90ae7'] }),
+    filename: documentDataSchema.shape.filename
+      .describe('Original filename of the uploaded document.')
+      .meta({ examples: ['getting-started.pdf'] }),
+    fileSize: documentDataSchema.shape.fileSize
+      .describe('File size in bytes.')
+      .meta({ examples: [248913] }),
+    mimeType: documentDataSchema.shape.mimeType
+      .describe('MIME type of the document file.')
+      .meta({ examples: ['application/pdf'] }),
+    processingStatus: documentDataSchema.shape.processingStatus
+      .describe('Current document processing state.')
+      .meta({ examples: ['completed'] }),
+    chunkCount: documentDataSchema.shape.chunkCount
+      .describe('Number of indexed chunks; zero until processing completes.')
+      .meta({ examples: [24] }),
+    tokenCount: documentDataSchema.shape.tokenCount
+      .describe('Total tokens extracted from the document.')
+      .meta({ examples: [8123] }),
+    characterCount: documentDataSchema.shape.characterCount
+      .describe('Total characters extracted from the document.')
+      .meta({ examples: [41205] }),
+    enabled: documentDataSchema.shape.enabled
+      .describe('Whether the document is enabled for search.')
+      .meta({ examples: [true] }),
+  })
+  .strict()
 
 /**
  * Document list item / upload acknowledgement. `createdAt` is the public rename
  * of the underlying `uploadedAt` column.
  */
-export const v2KnowledgeDocumentSummarySchema = v2KnowledgeDocumentCoreSchema.extend({
-  createdAt: nullableWireDateSchema,
-})
+export const v2KnowledgeDocumentSummarySchema = v2KnowledgeDocumentCoreSchema
+  .extend({
+    createdAt: nullableWireDateSchema
+      .describe('ISO 8601 timestamp when the document was uploaded, or null.')
+      .meta({ format: 'date-time', examples: ['2025-06-18T16:45:00Z'] }),
+  })
+  .meta({
+    id: 'V2KnowledgeDocumentSummary',
+    title: 'Knowledge document summary',
+    description: 'Summary returned by document lists and upload acknowledgements.',
+  })
 export type V2KnowledgeDocumentSummary = z.output<typeof v2KnowledgeDocumentSummarySchema>
 
 /**
  * Document detail — the summary plus processing state and connector provenance.
  * Every field is always present (nullable), mirroring the v1 detail projection.
  */
-export const v2KnowledgeDocumentSchema = v2KnowledgeDocumentSummarySchema.extend({
-  processingError: z.string().nullable(),
-  processingStartedAt: nullableWireDateSchema,
-  processingCompletedAt: nullableWireDateSchema,
-  connectorId: z.string().nullable(),
-  connectorType: z.string().nullable(),
-  sourceUrl: z.string().nullable(),
-})
+export const v2KnowledgeDocumentSchema = v2KnowledgeDocumentSummarySchema
+  .extend({
+    processingError: z
+      .string()
+      .nullable()
+      .describe('Processing error message, or null when processing has not failed.'),
+    processingStartedAt: nullableWireDateSchema
+      .describe('ISO 8601 timestamp when processing started, or null.')
+      .meta({ format: 'date-time', examples: ['2025-06-18T16:45:05Z'] }),
+    processingCompletedAt: nullableWireDateSchema
+      .describe('ISO 8601 timestamp when processing completed, or null.')
+      .meta({ format: 'date-time', examples: ['2025-06-18T16:45:42Z'] }),
+    connectorId: z
+      .string()
+      .nullable()
+      .describe('Connector identifier for a synced document, or null for a direct upload.'),
+    connectorType: z
+      .string()
+      .nullable()
+      .describe('Connector type for a synced document, or null for a direct upload.'),
+    sourceUrl: z
+      .string()
+      .nullable()
+      .describe('Original source URL for a synced document, or null for a direct upload.'),
+  })
+  .meta({
+    id: 'V2KnowledgeDocument',
+    title: 'Knowledge document',
+    description: 'Full document detail including processing state and connector provenance.',
+  })
 export type V2KnowledgeDocument = z.output<typeof v2KnowledgeDocumentSchema>
 
 /** `{ document }` payload for the upload acknowledgement (summary shape). */
-export const v2KnowledgeDocumentSummaryDataSchema = z.object({
-  document: v2KnowledgeDocumentSummarySchema,
-})
+export const v2KnowledgeDocumentSummaryDataSchema = z
+  .object({
+    document: v2KnowledgeDocumentSummarySchema,
+  })
+  .meta({
+    id: 'V2KnowledgeDocumentSummaryData',
+    title: 'Knowledge document summary data',
+    description: 'A knowledge document upload acknowledgement.',
+  })
 export type V2KnowledgeDocumentSummaryData = z.output<typeof v2KnowledgeDocumentSummaryDataSchema>
 
 /** `{ document }` payload for the document detail read. */
-export const v2KnowledgeDocumentDataSchema = z.object({ document: v2KnowledgeDocumentSchema })
+export const v2KnowledgeDocumentDataSchema = z
+  .object({ document: v2KnowledgeDocumentSchema })
+  .meta({
+    id: 'V2KnowledgeDocumentData',
+    title: 'Knowledge document data',
+    description: 'A single knowledge document payload.',
+  })
 export type V2KnowledgeDocumentData = z.output<typeof v2KnowledgeDocumentDataSchema>
 
 /**
@@ -147,38 +293,137 @@ export type V2KnowledgeDocumentData = z.output<typeof v2KnowledgeDocumentDataSch
  * map; values are user-defined and of mixed type (string/number/boolean/date),
  * so they are carried as `unknown` and serialized as-is.
  */
-export const v2KnowledgeSearchResultSchema = z.object({
-  documentId: z.string(),
-  documentName: z.string().nullable(),
-  sourceUrl: z.string().nullable(),
-  content: z.string(),
-  chunkIndex: z.number(),
-  metadata: z.record(z.string(), z.unknown()),
-  similarity: z.number(),
-})
+export const v2KnowledgeSearchResultSchema = z
+  .object({
+    documentId: z
+      .string()
+      .describe('Identifier of the document containing the matching chunk.')
+      .meta({ examples: ['b2d4f8a0-1c3e-4a5b-9d7c-2e6f0a8b4c12'] }),
+    documentName: z
+      .string()
+      .nullable()
+      .describe('Filename of the source document, or null when unavailable.')
+      .meta({ examples: ['getting-started.pdf'] }),
+    sourceUrl: z
+      .string()
+      .nullable()
+      .describe('Original source URL, or null for a directly uploaded document.'),
+    content: z
+      .string()
+      .describe('Text content of the matching chunk.')
+      .meta({ examples: ['To reset your password, open Settings and choose Security.'] }),
+    chunkIndex: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Zero-based chunk index within the document.')
+      .meta({ examples: [3] }),
+    metadata: z
+      .record(
+        z.string(),
+        z.unknown().describe('User-defined string, number, boolean, or date tag value.')
+      )
+      .describe('Document tag values keyed by tag display name.')
+      .meta({ examples: [{ category: 'billing', priority: 2 }] }),
+    similarity: z
+      .number()
+      .describe('Similarity score for vector search; tag-only matches use 1.')
+      .meta({ examples: [0.8423] }),
+  })
+  .meta({
+    id: 'V2KnowledgeSearchResult',
+    title: 'Knowledge search result',
+    description: 'A matching document chunk returned by knowledge search.',
+  })
 export type V2KnowledgeSearchResult = z.output<typeof v2KnowledgeSearchResultSchema>
 
 /** Search response payload — mirrors the v1 `data` object. */
-export const v2KnowledgeSearchDataSchema = z.object({
-  results: z.array(v2KnowledgeSearchResultSchema),
-  query: z.string(),
-  knowledgeBaseIds: z.array(z.string()),
-  topK: z.number(),
-  totalResults: z.number(),
-})
+export const v2KnowledgeSearchDataSchema = z
+  .object({
+    results: z
+      .array(v2KnowledgeSearchResultSchema)
+      .describe('Matching chunks ordered by relevance.'),
+    query: z
+      .string()
+      .describe('Executed query, or an empty string for tag-only search.')
+      .meta({ examples: ['How do I reset my password?'] }),
+    knowledgeBaseIds: z
+      .array(z.string())
+      .describe('Knowledge base identifiers that were searched.')
+      .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
+    topK: z
+      .number()
+      .int()
+      .positive()
+      .describe('Maximum number of results requested.')
+      .meta({ examples: [10] }),
+    totalResults: z
+      .number()
+      .int()
+      .nonnegative()
+      .describe('Number of results returned.')
+      .meta({ examples: [4] }),
+  })
+  .meta({
+    id: 'V2KnowledgeSearchData',
+    title: 'Knowledge search data',
+    description: 'Results and execution context for a knowledge search.',
+  })
 export type V2KnowledgeSearchData = z.output<typeof v2KnowledgeSearchDataSchema>
 
 /** Upload carries the workspace as a query param so auth runs before the multipart body is buffered. */
-export const v2UploadKnowledgeDocumentQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+export const v2UploadKnowledgeDocumentQuerySchema = z.object({
+  workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+})
 export type V2UploadKnowledgeDocumentQuery = z.output<typeof v2UploadKnowledgeDocumentQuerySchema>
 
-export const v2KnowledgeDocumentUploadParamsSchema = knowledgeBaseParamsSchema.extend({
-  uploadId: z.string().min(1, 'uploadId is required'),
+export const v2KnowledgeBaseParamsSchema = knowledgeBaseParamsSchema.extend({
+  id: knowledgeBaseParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+})
+export type V2KnowledgeBaseParams = z.output<typeof v2KnowledgeBaseParamsSchema>
+
+export const v2KnowledgeDocumentParamsSchema = knowledgeDocumentParamsSchema.extend({
+  id: knowledgeDocumentParamsSchema.shape.id.describe('Unique knowledge base identifier.'),
+  documentId: knowledgeDocumentParamsSchema.shape.documentId.describe(
+    'Unique knowledge document identifier.'
+  ),
+})
+export type V2KnowledgeDocumentParams = z.output<typeof v2KnowledgeDocumentParamsSchema>
+
+export const v2KnowledgeDocumentUploadParamsSchema = v2KnowledgeBaseParamsSchema.extend({
+  uploadId: z
+    .string()
+    .min(1, 'uploadId is required')
+    .describe('Upload session identifier returned when the upload was created.'),
 })
 export type V2KnowledgeDocumentUploadParams = z.output<typeof v2KnowledgeDocumentUploadParamsSchema>
 
+const v2KnowledgeDocumentProcessingOptionsSchema =
+  knowledgeDocumentUploadMetadataSchema.shape.processingOptions
+    .unwrap()
+    .extend({
+      recipe: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
+        .unwrap()
+        .shape.recipe.describe('Optional document processing recipe.'),
+      lang: knowledgeDocumentUploadMetadataSchema.shape.processingOptions
+        .unwrap()
+        .shape.lang.describe('Optional document language code.'),
+    })
+    .strict()
+
 export const v2KnowledgeDocumentUploadMetadataSchema = z
-  .object({ ...knowledgeDocumentUploadMetadataSchema.shape })
+  .object({
+    tag1: knowledgeDocumentUploadMetadataSchema.shape.tag1.describe('Value for tag slot 1.'),
+    tag2: knowledgeDocumentUploadMetadataSchema.shape.tag2.describe('Value for tag slot 2.'),
+    tag3: knowledgeDocumentUploadMetadataSchema.shape.tag3.describe('Value for tag slot 3.'),
+    tag4: knowledgeDocumentUploadMetadataSchema.shape.tag4.describe('Value for tag slot 4.'),
+    tag5: knowledgeDocumentUploadMetadataSchema.shape.tag5.describe('Value for tag slot 5.'),
+    tag6: knowledgeDocumentUploadMetadataSchema.shape.tag6.describe('Value for tag slot 6.'),
+    tag7: knowledgeDocumentUploadMetadataSchema.shape.tag7.describe('Value for tag slot 7.'),
+    processingOptions: v2KnowledgeDocumentProcessingOptionsSchema
+      .optional()
+      .describe('Optional processing recipe and language.'),
+  })
   .strict()
 export type V2KnowledgeDocumentUploadMetadata = z.output<
   typeof v2KnowledgeDocumentUploadMetadataSchema
@@ -186,10 +431,28 @@ export type V2KnowledgeDocumentUploadMetadata = z.output<
 
 export const v2CreateKnowledgeDocumentUploadBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
-    contentType: z.string().trim().min(1, 'contentType is required').max(255),
-    size: z.number().int().min(1).max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name is required')
+      .max(255, 'name is too long')
+      .describe('Filename recorded on the knowledge document.')
+      .meta({ examples: ['getting-started.pdf'] }),
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType is required')
+      .max(255)
+      .describe('Supported MIME type for the document.')
+      .meta({ examples: ['application/pdf'] }),
+    size: z
+      .number()
+      .int()
+      .min(1)
+      .max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE)
+      .describe('Exact file size in bytes.')
+      .meta({ examples: [248913] }),
     ...v2KnowledgeDocumentUploadMetadataSchema.shape,
   })
   .strict()
@@ -197,26 +460,58 @@ export type V2CreateKnowledgeDocumentUploadBody = z.input<
   typeof v2CreateKnowledgeDocumentUploadBodySchema
 >
 
-export const v2KnowledgeDocumentUploadSchema = z.object({
-  id: z.string(),
-  knowledgeBaseId: z.string(),
-  status: v2UploadStatusSchema,
-  name: z.string(),
-  contentType: z.string(),
-  size: z.number().int().positive(),
-  expiresAt: z.string().datetime(),
-  error: z.string().nullable(),
-  document: v2KnowledgeDocumentSummarySchema.nullable(),
-})
+export const v2UploadKnowledgeDocumentFormSchema = z
+  .object({
+    file: z
+      .file()
+      .max(MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE)
+      .describe('Document file to upload; the maximum size is 100 MB.'),
+  })
+  .catchall(z.unknown().describe('Additional multipart form fields are ignored.'))
+export type V2UploadKnowledgeDocumentForm = z.input<typeof v2UploadKnowledgeDocumentFormSchema>
+
+export const v2KnowledgeDocumentUploadSchema = z
+  .object({
+    id: z.string().describe('Upload session identifier.'),
+    knowledgeBaseId: z.string().describe('Knowledge base that will own the document.'),
+    status: v2UploadStatusSchema.describe('Current upload-session state.'),
+    name: z.string().describe('Filename recorded on the knowledge document.'),
+    contentType: z.string().describe('MIME type declared for the document.'),
+    size: z.number().int().positive().describe('Exact file size in bytes.'),
+    expiresAt: z.string().datetime().describe('ISO 8601 upload-session expiration time.'),
+    error: z.string().nullable().describe('Terminal upload error, or null when none occurred.'),
+    document: v2KnowledgeDocumentSummarySchema
+      .nullable()
+      .describe('Queued document after completion, or null before completion.'),
+  })
+  .meta({
+    id: 'V2KnowledgeDocumentUpload',
+    title: 'Knowledge document upload',
+    description: 'State of a resumable knowledge-document upload session.',
+  })
 export type V2KnowledgeDocumentUpload = z.output<typeof v2KnowledgeDocumentUploadSchema>
 
 export const v2CreateKnowledgeDocumentUploadDataSchema = z
   .object({
     session: v2KnowledgeDocumentUploadSchema,
-    uploadToken: z.string().min(1),
-    transfer: v2UploadTransferSchema,
+    uploadToken: z
+      .string()
+      .min(1)
+      .describe('Signed control token required by subsequent upload-session requests.'),
+    transfer: v2UploadTransferSchema
+      .describe('Direct PUT or multipart transfer instructions.')
+      .meta({
+        id: 'V2KnowledgeUploadTransfer',
+        title: 'Knowledge upload transfer',
+        description: 'Provider transfer strategy for a knowledge document upload.',
+      }),
   })
   .strict()
+  .meta({
+    id: 'V2CreateKnowledgeDocumentUploadData',
+    title: 'Create knowledge document upload data',
+    description: 'Upload session, signed control token, and transfer instructions.',
+  })
 export type V2CreateKnowledgeDocumentUploadData = z.output<
   typeof v2CreateKnowledgeDocumentUploadDataSchema
 >
@@ -232,8 +527,10 @@ export type V2KnowledgeBaseSortBy = (typeof v2KnowledgeBaseSortFields)[number]
  */
 export const v2ListKnowledgeBasesQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    folderPath: v2FolderPathInputSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace whose knowledge bases should be listed.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Restrict results to knowledge bases in this folder.'),
     search: v2SearchSchema,
     ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
   })
@@ -241,17 +538,57 @@ export const v2ListKnowledgeBasesQuerySchema = z
 
 export type V2ListKnowledgeBasesQuery = z.output<typeof v2ListKnowledgeBasesQuerySchema>
 
+const v2KnowledgeChunkingConfigInputSchema = v1ChunkingConfigSchema
+  .extend({
+    maxSize: v1ChunkingConfigSchema.shape.maxSize
+      .describe('Maximum chunk size in tokens.')
+      .meta({ examples: [1024] }),
+    minSize: v1ChunkingConfigSchema.shape.minSize
+      .describe('Minimum chunk size in characters.')
+      .meta({ examples: [100] }),
+    overlap: v1ChunkingConfigSchema.shape.overlap
+      .describe('Number of overlapping characters between adjacent chunks.')
+      .meta({ examples: [200] }),
+  })
+  .meta({
+    id: 'V2KnowledgeChunkingConfigInput',
+    title: 'Knowledge chunking configuration input',
+    description: 'Chunking configuration applied when processing documents.',
+  })
+
 export const v2CreateKnowledgeBaseBodySchema = v1CreateKnowledgeBaseBodySchema
-  .extend({ folderPath: v2FolderPathInputSchema.optional() })
+  .safeExtend({
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the knowledge base.'),
+    name: v1CreateKnowledgeBaseBodySchema.shape.name
+      .describe('Human-readable knowledge base name.')
+      .meta({ examples: ['Product Documentation'] }),
+    description: v1CreateKnowledgeBaseBodySchema.shape.description
+      .describe('Optional knowledge base description.')
+      .meta({ examples: ['All product documentation and guides'] }),
+    chunkingConfig: v2KnowledgeChunkingConfigInputSchema
+      .optional()
+      .default(DEFAULT_CHUNKING_CONFIG)
+      .describe('Chunking configuration; defaults are applied when omitted.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Containing folder path; omission creates the knowledge base at the root.'),
+  })
   .strict()
 
 export const v2UpdateKnowledgeBaseBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: v1CreateKnowledgeBaseBodySchema.shape.name.optional(),
-    description: v1CreateKnowledgeBaseBodySchema.shape.description,
-    chunkingConfig: v1CreateKnowledgeBaseBodySchema.shape.chunkingConfig.optional(),
-    folderPath: v2FolderPathInputSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the knowledge base.'),
+    name: v1CreateKnowledgeBaseBodySchema.shape.name
+      .optional()
+      .describe('New knowledge base name.')
+      .meta({ examples: ['Updated Product Documentation'] }),
+    description: v1CreateKnowledgeBaseBodySchema.shape.description
+      .describe('New knowledge base description.')
+      .meta({ examples: ['Refreshed product documentation and guides'] }),
+    chunkingConfig: v2KnowledgeChunkingConfigInputSchema
+      .optional()
+      .describe('New document chunking configuration.'),
+    folderPath: v2FolderPathInputSchema.optional().describe('New containing-folder path.'),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -300,8 +637,12 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
 export const v2GetKnowledgeBaseContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[id]',
-  params: knowledgeBaseParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema,
+  params: v2KnowledgeBaseParamsSchema,
+  query: v1KnowledgeWorkspaceQuerySchema.extend({
+    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge base.'
+    ),
+  }),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeBaseDataSchema),
@@ -311,7 +652,7 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PUT',
   path: '/api/v2/knowledge/[id]',
-  params: knowledgeBaseParamsSchema,
+  params: v2KnowledgeBaseParamsSchema,
   body: v2UpdateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
@@ -322,21 +663,44 @@ export const v2UpdateKnowledgeBaseContract = defineRouteContract({
 export const v2DeleteKnowledgeBaseContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/knowledge/[id]',
-  params: knowledgeBaseParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema,
+  params: v2KnowledgeBaseParamsSchema,
+  query: v1KnowledgeWorkspaceQuerySchema.extend({
+    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge base.'
+    ),
+  }),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
   },
 })
 
-export const v2KnowledgeFolderDataSchema = z.object({ folder: v2FolderSchema })
-
-export const v2DeleteKnowledgeFolderDataSchema = z.object({
-  path: v2FolderPathSchema,
-  deleted: z.literal(true),
-  deletedItems: z.object({ folders: z.number().int(), knowledgeBases: z.number().int() }),
+export const v2KnowledgeFolderDataSchema = z.object({ folder: v2FolderSchema }).meta({
+  id: 'V2KnowledgeFolderData',
+  title: 'Knowledge folder data',
+  description: 'A single knowledge-base folder payload.',
 })
+
+export const v2DeleteKnowledgeFolderDataSchema = z
+  .object({
+    path: v2FolderPathSchema.describe('Canonical path of the deleted folder.'),
+    deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
+    deletedItems: z
+      .object({
+        folders: z.number().int().nonnegative().describe('Number of deleted folders.'),
+        knowledgeBases: z
+          .number()
+          .int()
+          .nonnegative()
+          .describe('Number of deleted knowledge bases.'),
+      })
+      .describe('Counts of deleted resources.'),
+  })
+  .meta({
+    id: 'V2DeleteKnowledgeFolderData',
+    title: 'Delete knowledge folder data',
+    description: 'Folder deletion acknowledgement and deleted-resource counts.',
+  })
 
 export const v2ListKnowledgeFoldersContract = defineRouteContract({
   method: 'GET',
@@ -366,10 +730,55 @@ export const v2DeleteKnowledgeFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteKnowledgeFolderDataSchema) },
 })
 
+const v2KnowledgeSearchTagFilterSchema = v1SearchTagFilterSchema
+  .extend({
+    tagName: v1SearchTagFilterSchema.shape.tagName
+      .describe('Display name of the tag to filter.')
+      .meta({ examples: ['category'] }),
+    fieldType: v1SearchTagFilterSchema.shape.fieldType.describe('Tag field type.'),
+    operator: v1SearchTagFilterSchema.shape.operator
+      .describe('Comparison operator; valid operators depend on the field type.')
+      .meta({ examples: ['eq'] }),
+    value: v1SearchTagFilterSchema.shape.value
+      .describe('Tag value to compare against.')
+      .meta({ examples: ['billing'] }),
+    valueTo: v1SearchTagFilterSchema.shape.valueTo.describe(
+      'Upper bound for the `between` operator.'
+    ),
+  })
+  .meta({
+    id: 'V2KnowledgeSearchTagFilter',
+    title: 'Knowledge search tag filter',
+    description: 'A structured tag filter applied to knowledge search.',
+  })
+
+export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema.safeExtend({
+  workspaceId: v1KnowledgeSearchBodySchema.shape.workspaceId.describe(
+    'Workspace that owns the knowledge bases.'
+  ),
+  knowledgeBaseIds: v1KnowledgeSearchBodySchema.shape.knowledgeBaseIds
+    .describe('One knowledge base identifier or an array of up to 20 identifiers.')
+    .meta({ examples: [['7c9e6679-7425-40de-944b-e07fc1f90ae7']] }),
+  query: v1KnowledgeSearchBodySchema.shape.query
+    .describe('Natural-language query; required when tag filters are omitted.')
+    .meta({ examples: ['How do I reset my password?'] }),
+  topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
+    'Maximum number of search results to return.'
+  ),
+  tagFilters: z
+    .array(v2KnowledgeSearchTagFilterSchema)
+    .optional()
+    .describe('Structured tag filters; supported only for one knowledge base.'),
+  searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
+    'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
+  ),
+})
+export type V2KnowledgeSearchBody = z.input<typeof v2KnowledgeSearchBodySchema>
+
 export const v2SearchKnowledgeContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/search',
-  body: v1KnowledgeSearchBodySchema,
+  body: v2KnowledgeSearchBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeSearchDataSchema),
@@ -383,13 +792,31 @@ export const v2SearchKnowledgeContract = defineRouteContract({
  */
 export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuerySchema
   .omit({ offset: true })
-  .extend({ cursor: z.string().min(1).optional() })
+  .extend({
+    workspaceId: v1ListKnowledgeDocumentsQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge base.'
+    ),
+    limit: v1ListKnowledgeDocumentsQuerySchema.shape.limit.describe(
+      'Maximum documents to return, between 1 and 100.'
+    ),
+    search: v1ListKnowledgeDocumentsQuerySchema.shape.search.describe(
+      'Case-insensitive filename search.'
+    ),
+    enabledFilter: v1ListKnowledgeDocumentsQuerySchema.shape.enabledFilter.describe(
+      'Filter by whether documents are enabled for search.'
+    ),
+    sortBy: v1ListKnowledgeDocumentsQuerySchema.shape.sortBy.describe(
+      'Document field used to sort results.'
+    ),
+    sortOrder: v1ListKnowledgeDocumentsQuerySchema.shape.sortOrder.describe('Sort direction.'),
+    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
+  })
 export type V2ListKnowledgeDocumentsQuery = z.output<typeof v2ListKnowledgeDocumentsQuerySchema>
 
 export const v2ListKnowledgeDocumentsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[id]/documents',
-  params: knowledgeBaseParamsSchema,
+  params: v2KnowledgeBaseParamsSchema,
   query: v2ListKnowledgeDocumentsQuerySchema,
   response: {
     mode: 'json',
@@ -400,7 +827,7 @@ export const v2ListKnowledgeDocumentsContract = defineRouteContract({
 export const v2UploadKnowledgeDocumentContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/[id]/documents',
-  params: knowledgeBaseParamsSchema,
+  params: v2KnowledgeBaseParamsSchema,
   query: v2UploadKnowledgeDocumentQuerySchema,
   response: {
     mode: 'json',
@@ -412,7 +839,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
 export const v2CreateKnowledgeDocumentUploadContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/[id]/documents/uploads',
-  params: knowledgeBaseParamsSchema,
+  params: v2KnowledgeBaseParamsSchema,
   body: v2CreateKnowledgeDocumentUploadBodySchema,
   response: {
     mode: 'json',
@@ -452,8 +879,12 @@ export const v2CompleteKnowledgeDocumentUploadContract = defineRouteContract({
 export const v2GetKnowledgeDocumentContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/knowledge/[id]/documents/[documentId]',
-  params: knowledgeDocumentParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema,
+  params: v2KnowledgeDocumentParamsSchema,
+  query: v1KnowledgeWorkspaceQuerySchema.extend({
+    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge base.'
+    ),
+  }),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDocumentDataSchema),
@@ -463,8 +894,12 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
 export const v2DeleteKnowledgeDocumentContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/knowledge/[id]/documents/[documentId]',
-  params: knowledgeDocumentParamsSchema,
-  query: v1KnowledgeWorkspaceQuerySchema,
+  params: v2KnowledgeDocumentParamsSchema,
+  query: v1KnowledgeWorkspaceQuerySchema.extend({
+    workspaceId: v1KnowledgeWorkspaceQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the knowledge base.'
+    ),
+  }),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),

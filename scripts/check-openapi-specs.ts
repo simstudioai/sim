@@ -3,15 +3,14 @@
  * Validates the OpenAPI specs in `apps/docs/` against each other and against
  * the runtime Zod contracts in `apps/sim/lib/api/contracts/`.
  *
- * Code-first documents carry `x-generated-by` and are checked for staleness by
- * `generate-openapi.ts --check` before this script runs. The explicit legacy
- * list remains cross-checked until each remaining domain is migrated.
+ * Every document is code-first, carries `x-generated-by`, and is checked for
+ * staleness by `generate-openapi.ts --check` before this script runs.
  *
  * 1. Spec integrity (every file): all `$ref`s resolve, operationIds are
  *    present and unique, every operation documents a success response, no
  *    orphaned component schemas.
  * 2. v2 conventions: every published operation is under `/api/v2/`, documents
- *    401 and 429, and resolves every documented 4xx/5xx response to the
+ *    401, 429, and 503, and resolves every documented 4xx/5xx response to the
  *    canonical error envelope `{ error: { code, message } }`.
  * 3. Contract cross-check: every contract exported from
  *    `lib/api/contracts/v2/*` must be documented, every documented `/api/v2/`
@@ -24,20 +23,15 @@
 
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
+import Ajv2020 from 'ajv/dist/2020'
 import { z } from 'zod'
-import {
-  GENERATED_OPENAPI_SPEC_FILES,
-  LEGACY_OPENAPI_SPEC_FILES,
-  OPENAPI_SPEC_FILES,
-} from '../apps/docs/lib/openapi-specs'
+import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
 const V2_CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 
 const SPEC_FILES = OPENAPI_SPEC_FILES
-const GENERATED_SPEC_FILES = new Set<string>(GENERATED_OPENAPI_SPEC_FILES)
-const LEGACY_SPEC_FILES = new Set<string>(LEGACY_OPENAPI_SPEC_FILES)
 
 /**
  * Every operation removed with the unversioned core specification has a
@@ -59,7 +53,21 @@ const LEGACY_CORE_REPLACEMENTS = {
 } as const
 
 const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
-const REQUIRED_API_REFERENCE_GROUPS = ['(generated)/workflows', '(generated)/billing'] as const
+const REQUIRED_API_REFERENCE_GROUPS = [
+  '(generated)/workflows',
+  '(generated)/logs',
+  '(generated)/audit-logs',
+  '(generated)/billing',
+  '(generated)/tables',
+  '(generated)/files',
+  '(generated)/knowledge-bases',
+  '(generated)/workspaces',
+  '(generated)/mcp-servers',
+  '(generated)/skills',
+  '(generated)/custom-tools',
+  '(generated)/credentials',
+  '(generated)/secrets',
+] as const
 const REMOVED_API_REFERENCE_GROUPS = [
   '(generated)/execution',
   '(generated)/human-in-the-loop',
@@ -78,7 +86,12 @@ interface ContractLike {
   params?: z.ZodType
   query?: z.ZodType
   body?: z.ZodType
-  response?: { mode: string; schema?: z.ZodType }
+  response?: {
+    mode: string
+    schema?: z.ZodType
+    status?: number | readonly number[]
+    statusSchemas?: Readonly<Record<number, z.ZodType>>
+  }
 }
 
 function isContract(value: unknown): value is ContractLike {
@@ -178,12 +191,37 @@ function docPropertyNames(schema: unknown, spec: Json): Set<string> | null {
   return null
 }
 
-function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json | null {
-  try {
-    return z.toJSONSchema(schema, { io, unrepresentable: 'any' }) as Json
-  } catch {
-    return null
-  }
+function toJsonSchema(schema: z.ZodType, io: 'input' | 'output'): Json {
+  return z.toJSONSchema(schema, {
+    io,
+    target: 'draft-2020-12',
+    unrepresentable: 'any',
+    cycles: 'ref',
+  }) as Json
+}
+
+const outputExampleValidator = new Ajv2020({
+  strict: false,
+  allErrors: true,
+  validateFormats: false,
+})
+
+function stripLegacySchemaIds(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, entry]) => key !== 'id' || typeof entry !== 'string')
+      .map(([key, entry]) => [key, stripLegacySchemaIds(entry)])
+  )
+}
+
+function outputExampleError(schema: z.ZodType, value: unknown): string | null {
+  const validate = outputExampleValidator.compile(
+    stripLegacySchemaIds(toJsonSchema(schema, 'output'))
+  )
+  if (validate(value)) return null
+  return outputExampleValidator.errorsText(validate.errors)
 }
 
 interface Operation {
@@ -206,6 +244,11 @@ function collectOperations(specFile: string, spec: Json): Operation[] {
   return ops
 }
 
+function isSuccessStatus(code: string): boolean {
+  const status = Number(code)
+  return Number.isInteger(status) && status >= 200 && status < 400
+}
+
 function checkIntegrity(specFile: string, spec: Json, ops: Operation[]): void {
   walkRefs(spec, (ref) => {
     if (resolveRef(ref, spec) === undefined) fail(specFile, `unresolved $ref ${ref}`)
@@ -223,8 +266,38 @@ function checkIntegrity(specFile: string, spec: Json, ops: Operation[]): void {
       seenIds.add(id)
     }
     const responses = (op.responses as Json) ?? {}
-    if (!Object.keys(responses).some((code) => code.startsWith('2'))) {
-      fail(specFile, `${label}: no documented 2xx response`)
+    if (!Object.keys(responses).some(isSuccessStatus)) {
+      fail(specFile, `${label}: no documented success response`)
+    }
+
+    const requestBody = deref(op.requestBody, spec) as Json | undefined
+    if (requestBody) {
+      const content = requestBody.content as Json | undefined
+      if (!content || Object.keys(content).length === 0) {
+        fail(specFile, `${label}: request body has no content types`)
+      } else {
+        for (const [contentType, media] of Object.entries(content)) {
+          if (!(media as Json)?.schema) {
+            fail(specFile, `${label}: ${contentType} request body has no schema`)
+          }
+        }
+      }
+    }
+
+    for (const [status, response] of Object.entries(responses)) {
+      if (!isSuccessStatus(status)) continue
+      const resolved = deref(response, spec) as Json | undefined
+      const content = resolved?.content as Json | undefined
+      if (!content) continue
+      if (Object.keys(content).length === 0) {
+        fail(specFile, `${label}: ${status} response has an empty content map`)
+        continue
+      }
+      for (const [contentType, media] of Object.entries(content)) {
+        if (!(media as Json)?.schema) {
+          fail(specFile, `${label}: ${status} ${contentType} response has no schema`)
+        }
+      }
     }
   }
 
@@ -246,7 +319,7 @@ function checkV2Conventions(operation: Operation): void {
   const label = `${method.toUpperCase()} ${p}`
   const responses = (op.responses as Json) ?? {}
 
-  for (const code of ['401', '429']) {
+  for (const code of ['401', '429', '503']) {
     if (!(code in responses)) fail(specFile, `${label}: v2 operation missing ${code} response`)
   }
 
@@ -300,6 +373,30 @@ function checkQueryParams(operation: Operation, contract: ContractLike, name: st
     if (!zodProps.includes(docName)) {
       fail(specFile, `${label}: documented query param "${docName}" does not exist on ${name}`)
     }
+  }
+}
+
+function checkSuccessStatuses(operation: Operation, contract: ContractLike): void {
+  const { specFile, path: p, method, op } = operation
+  const label = `${method.toUpperCase()} ${p}`
+  const configured = contract.response?.status
+  const expected = (
+    configured === undefined
+      ? [200]
+      : typeof configured === 'number'
+        ? [configured]
+        : [...configured]
+  ).sort((a, b) => a - b)
+  const documented = Object.keys((op.responses as Json) ?? {})
+    .filter(isSuccessStatus)
+    .map(Number)
+    .sort((a, b) => a - b)
+
+  if (JSON.stringify(documented) !== JSON.stringify(expected)) {
+    fail(
+      specFile,
+      `${label}: documented success statuses [${documented.join(', ')}] do not match contract statuses [${expected.join(', ')}]`
+    )
   }
 }
 
@@ -405,32 +502,36 @@ function checkBodyAndResponse(operation: Operation, contract: ContractLike, name
   const { specFile, path: p, method, op, spec } = operation
   const label = `${method.toUpperCase()} ${p}`
 
-  const docBodySchema = ((deref(op.requestBody, spec) as Json)?.content as Json)?.[
-    'application/json'
-  ] as Json | undefined
-  if (contract.body && docBodySchema?.schema) {
+  const docBodyContent = ((deref(op.requestBody, spec) as Json)?.content as Json) ?? {}
+  if (contract.body) {
     const zodRoot = toJsonSchema(contract.body, 'input')
     if (zodRoot) {
-      diffSchemaFields(
-        zodRoot,
-        zodRoot,
-        docBodySchema.schema,
-        spec,
-        { specFile, label, name, where: 'body' },
-        '',
-        0
-      )
+      for (const media of Object.values(docBodyContent)) {
+        const docSchema = (media as Json)?.schema
+        if (!docSchema) continue
+        diffSchemaFields(
+          zodRoot,
+          zodRoot,
+          docSchema,
+          spec,
+          { specFile, label, name, where: 'body' },
+          '',
+          0
+        )
+      }
     }
   }
 
   if (contract.response?.mode === 'json' && contract.response.schema) {
     const responses = (op.responses as Json) ?? {}
-    const successCode = Object.keys(responses).find((code) => code.startsWith('2'))
-    const docResponse = successCode ? (deref(responses[successCode], spec) as Json) : undefined
-    const docSchema = ((docResponse?.content as Json)?.['application/json'] as Json)?.schema
-    if (docSchema) {
-      const zodRoot = toJsonSchema(contract.response.schema, 'output')
-      if (zodRoot) {
+    for (const [status, response] of Object.entries(responses)) {
+      if (!isSuccessStatus(status)) continue
+      const docResponse = deref(response, spec) as Json | undefined
+      const docSchema = ((docResponse?.content as Json)?.['application/json'] as Json)?.schema
+      if (docSchema) {
+        const responseSchema =
+          contract.response.statusSchemas?.[Number(status)] ?? contract.response.schema
+        const zodRoot = toJsonSchema(responseSchema, 'output')
         diffSchemaFields(
           zodRoot,
           zodRoot,
@@ -445,43 +546,60 @@ function checkBodyAndResponse(operation: Operation, contract: ContractLike, name
   }
 }
 
+function documentedExamples(media: Json, spec: Json): Array<[string, unknown]> {
+  const candidates: Array<[string, unknown]> = []
+  if (media.example !== undefined) candidates.push(['example', media.example])
+  for (const [name, rawExample] of Object.entries((media.examples as Json) ?? {})) {
+    const example = deref(rawExample, spec) as Json | undefined
+    if (example?.value !== undefined) candidates.push([name, example.value])
+  }
+
+  const schema = deref(media.schema, spec) as Json | undefined
+  if (schema?.example !== undefined) candidates.push(['schema.example', schema.example])
+  if (Array.isArray(schema?.examples)) {
+    for (const [index, example] of schema.examples.entries()) {
+      candidates.push([`schema.examples[${index}]`, example])
+    }
+  }
+  return candidates
+}
+
 function checkExamples(operation: Operation, contract: ContractLike, name: string): void {
   const { specFile, path: p, method, op, spec } = operation
   const label = `${method.toUpperCase()} ${p}`
 
-  const bodyContent = ((deref(op.requestBody, spec) as Json)?.content as Json)?.[
-    'application/json'
-  ] as Json | undefined
-  if (contract.body && bodyContent) {
-    const candidates: Array<[string, unknown]> = []
-    if (bodyContent.example !== undefined) candidates.push(['example', bodyContent.example])
-    for (const [exName, ex] of Object.entries((bodyContent.examples as Json) ?? {})) {
-      candidates.push([exName, (ex as Json).value])
-    }
-    for (const [exName, value] of candidates) {
-      const parsed = contract.body.safeParse(value)
-      if (!parsed.success) {
-        fail(
-          specFile,
-          `${label}: request example "${exName}" rejected by ${name}: ${parsed.error.issues[0]?.message}`
-        )
+  const bodyContent = ((deref(op.requestBody, spec) as Json)?.content as Json) ?? {}
+  if (contract.body) {
+    for (const [contentType, rawMedia] of Object.entries(bodyContent)) {
+      for (const [exampleName, value] of documentedExamples(rawMedia as Json, spec)) {
+        const parsed = contract.body.safeParse(value)
+        if (!parsed.success) {
+          fail(
+            specFile,
+            `${label}: ${contentType} request example "${exampleName}" rejected by ${name}: ${parsed.error.issues[0]?.message}`
+          )
+        }
       }
     }
   }
 
   if (contract.response?.mode === 'json' && contract.response.schema) {
     const responses = (op.responses as Json) ?? {}
-    const successCode = Object.keys(responses).find((code) => code.startsWith('2'))
-    const docResponse = successCode ? (deref(responses[successCode], spec) as Json) : undefined
-    const content = (docResponse?.content as Json)?.['application/json'] as Json | undefined
-    if (content?.example !== undefined) {
-      const parsed = contract.response.schema.safeParse(content.example)
-      if (!parsed.success) {
-        const issue = parsed.error.issues[0]
-        fail(
-          specFile,
-          `${label}: response example rejected by ${name} at ${issue?.path.join('.') || '<root>'}: ${issue?.message}`
-        )
+    for (const [status, rawResponse] of Object.entries(responses)) {
+      if (!isSuccessStatus(status)) continue
+      const response = deref(rawResponse, spec) as Json | undefined
+      const content = (response?.content as Json)?.['application/json'] as Json | undefined
+      if (!content) continue
+      for (const [exampleName, value] of documentedExamples(content, spec)) {
+        const responseSchema =
+          contract.response.statusSchemas?.[Number(status)] ?? contract.response.schema
+        const validationError = outputExampleError(responseSchema, value)
+        if (validationError) {
+          fail(
+            specFile,
+            `${label}: ${status} response example "${exampleName}" rejected by ${name}: ${validationError}`
+          )
+        }
       }
     }
   }
@@ -493,12 +611,8 @@ const globalOperationIds = new Map<string, string>()
 
 for (const specFile of SPEC_FILES) {
   const spec = JSON.parse(readFileSync(path.join(DOCS_DIR, specFile), 'utf8')) as Json
-  if (GENERATED_SPEC_FILES.has(specFile)) {
-    if (spec['x-generated-by'] !== 'scripts/generate-openapi.ts') {
-      fail(specFile, 'generated spec is missing its x-generated-by marker')
-    }
-  } else if (!LEGACY_SPEC_FILES.has(specFile)) {
-    fail(specFile, 'spec is neither generated nor explicitly legacy')
+  if (spec['x-generated-by'] !== 'scripts/generate-openapi.ts') {
+    fail(specFile, 'generated spec is missing its x-generated-by marker')
   }
   const ops = collectOperations(specFile, spec)
   checkIntegrity(specFile, spec, ops)
@@ -527,6 +641,7 @@ for (const specFile of SPEC_FILES) {
       fail(specFile, `${key}: documented but no contract exports this route`)
       continue
     }
+    checkSuccessStatuses(operation, entry.contract)
     checkQueryParams(operation, entry.contract, entry.name)
     checkBodyAndResponse(operation, entry.contract, entry.name)
     checkExamples(operation, entry.contract, entry.name)

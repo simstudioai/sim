@@ -19,10 +19,12 @@ type JsonObject = Record<string, unknown>
 
 const ERROR_SCHEMA = z
   .object({
-    error: z.object({
-      code: z.string().describe('Machine-readable error code.'),
-      message: z.string().describe('Human-readable error message.'),
-    }),
+    error: z
+      .object({
+        code: z.string().describe('Machine-readable error code.'),
+        message: z.string().describe('Human-readable error message.'),
+      })
+      .describe('Canonical error details.'),
   })
   .meta({
     id: 'TestError',
@@ -225,6 +227,176 @@ describe('OpenAPI generator', () => {
     expect(redirectResponse.headers).toHaveProperty('Location')
   })
 
+  it('documents status-specific JSON schemas and additional media types', () => {
+    const completed = z
+      .object({ status: z.literal('completed').describe('Completed status.') })
+      .meta({
+        id: 'CompletedResponse',
+        title: 'Completed response',
+        description: 'A completed result.',
+      })
+    const queued = z
+      .object({ status: z.literal('queued').describe('Queued status.') })
+      .meta({ id: 'QueuedResponse', title: 'Queued response', description: 'A queued result.' })
+    const response = z
+      .union([completed, queued])
+      .meta({ id: 'ResultResponse', title: 'Result response', description: 'Any result.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/execute',
+      response: {
+        mode: 'json',
+        schema: response,
+        status: [200, 202],
+        statusSchemas: { 200: completed, 202: queued },
+      },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      {
+        ...operation('execute', {
+          byStatus: {
+            200: {
+              description: 'Completed synchronously.',
+              additionalContentTypes: ['text/event-stream'],
+            },
+            202: { description: 'Accepted for processing.' },
+          },
+        }),
+        security: [{ apiKey: [] }, {}],
+      },
+      { response, responses: { 200: completed, 202: queued } }
+    )
+    const spec = generateOpenApiDocument(document([route]))
+    const responses = getOperation(spec, '/execute', 'post').responses as JsonObject
+    const completedContent = (responses['200'] as JsonObject).content as JsonObject
+    const queuedContent = (responses['202'] as JsonObject).content as JsonObject
+
+    expect(completedContent).toHaveProperty('application/json')
+    expect(completedContent).toHaveProperty('text/event-stream')
+    expect(queuedContent).toHaveProperty('application/json')
+    expect(getOperation(spec, '/execute', 'post').security).toEqual([{ apiKey: [] }, {}])
+  })
+
+  it('documents a typed multipart body outside JSON parsing', () => {
+    const upload = z
+      .object({ file: z.file().describe('File to upload.') })
+      .meta({ id: 'UploadForm', title: 'Upload form', description: 'Multipart upload form.' })
+    const response = z
+      .object({ id: z.string().describe('Uploaded file identifier.') })
+      .meta({ id: 'UploadResponse', title: 'Upload response', description: 'Uploaded file.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/upload',
+      response: { mode: 'json', schema: response, status: 201 },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('upload', { description: 'Uploaded file.' }),
+      {
+        requestBody: { schema: upload, contentTypes: ['multipart/form-data'] },
+        response,
+      }
+    )
+    const spec = generateOpenApiDocument(document([route]))
+    const requestBody = getOperation(spec, '/upload', 'post').requestBody as JsonObject
+
+    expect(requestBody.description).toBe('Multipart upload form.')
+    expect(requestBody.content).toHaveProperty('multipart/form-data')
+  })
+
+  it('fails when status-specific metadata drifts from the contract', () => {
+    const response = z
+      .object({ ok: z.boolean().describe('Success state.') })
+      .meta({ id: 'DriftResponse', title: 'Drift response', description: 'Response.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/drift',
+      response: {
+        mode: 'json',
+        schema: response,
+        status: [200, 202],
+        statusSchemas: { 200: response, 202: response },
+      },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('drift', {
+        byStatus: { 200: { description: 'Only one documented status.' } },
+      }),
+      { response, responses: { 200: response, 202: response } }
+    )
+
+    expect(() => generateOpenApiDocument(document([route]))).toThrow(
+      'status-specific responses do not match the contract statuses'
+    )
+  })
+
+  it('fails when a documented status schema drifts from the contract', () => {
+    const completed = z
+      .object({ status: z.literal('completed').describe('Completed status.') })
+      .meta({
+        id: 'ContractCompletedResponse',
+        title: 'Contract completed response',
+        description: 'A completed result.',
+      })
+    const queued = z.object({ status: z.literal('queued').describe('Queued status.') }).meta({
+      id: 'ContractQueuedResponse',
+      title: 'Contract queued response',
+      description: 'A queued result.',
+    })
+    const response = z
+      .union([completed, queued])
+      .meta({ id: 'ContractResultResponse', title: 'Contract result', description: 'Any result.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/schema-drift',
+      response: {
+        mode: 'json',
+        schema: response,
+        status: [200, 202],
+        statusSchemas: { 200: completed, 202: queued },
+      },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('schemaDrift', {
+        byStatus: {
+          200: { description: 'Completed synchronously.' },
+          202: { description: 'Accepted for processing.' },
+        },
+      }),
+      { response, responses: { 200: queued, 202: completed } }
+    )
+
+    expect(() => generateOpenApiDocument(document([route]))).toThrow(
+      'documented schema for status 200 does not match the contract schema'
+    )
+  })
+
+  it('rejects scopes for API key security requirements', () => {
+    const response = z
+      .object({ ok: z.boolean().describe('Success state.') })
+      .meta({ id: 'SecurityResponse', title: 'Security response', description: 'Response.' })
+    const contract = defineRouteContract({
+      method: 'GET',
+      path: '/security',
+      response: { mode: 'json', schema: response },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      {
+        ...operation('security', { description: 'Response.' }),
+        security: [{ apiKey: ['read'] }],
+      },
+      { response }
+    )
+
+    expect(() => generateOpenApiDocument(document([route]))).toThrow(
+      'apiKey security requirement must use an empty scope array'
+    )
+  })
+
   it('fails fast for missing Zod documentation metadata', () => {
     const body = z.object({ value: z.string().describe('Value.') })
     const response = z
@@ -280,9 +452,44 @@ describe('OpenAPI generator', () => {
     )
   })
 
+  it('validates response examples against transformed output schemas', () => {
+    const response = z
+      .object({
+        value: z
+          .string()
+          .transform((value) => value.length)
+          .pipe(z.number())
+          .describe('Transformed numeric value.'),
+      })
+      .meta({
+        id: 'OutputExampleResponse',
+        title: 'Output example response',
+        description: 'Transformed response.',
+        examples: [{ value: 'not-an-output-number' }],
+      })
+    const contract = defineRouteContract({
+      method: 'GET',
+      path: '/output-example',
+      response: { mode: 'json', schema: response },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('outputExample', { description: 'Response.' }),
+      { response }
+    )
+
+    expect(() => generateOpenApiDocument(document([route]))).toThrow(
+      'GET /output-example response at <root> example 1 is invalid for the output schema'
+    )
+  })
+
   it('fails fast for an undocumented opaque schema', () => {
     const body = z
-      .object({ value: z.unknown() })
+      .object({
+        value: z
+          .record(z.string(), z.unknown())
+          .describe('User-defined values keyed by property name.'),
+      })
       .meta({ id: 'OpaqueRequest', title: 'Opaque request', description: 'Request.' })
     const response = z
       .object({ ok: z.boolean().describe('Success state.') })
@@ -299,7 +506,31 @@ describe('OpenAPI generator', () => {
     })
 
     expect(() => generateOpenApiDocument(document([route]))).toThrow(
-      'POST /opaque body opaque schema at <root>.value description is required'
+      'POST /opaque body opaque schema at <root>.value.additionalProperties description is required'
+    )
+  })
+
+  it('fails fast for an undocumented inline property schema', () => {
+    const body = z
+      .object({ value: z.string() })
+      .meta({ id: 'UndocumentedRequest', title: 'Undocumented request', description: 'Request.' })
+    const response = z
+      .object({ ok: z.boolean().describe('Success state.') })
+      .meta({ id: 'DocumentedResponse', title: 'Documented response', description: 'Response.' })
+    const contract = defineRouteContract({
+      method: 'POST',
+      path: '/undocumented-property',
+      body,
+      response: { mode: 'json', schema: response },
+    })
+    const route = defineOpenApiRoute(
+      contract,
+      operation('undocumentedProperty', { description: 'Response.' }),
+      { body, response }
+    )
+
+    expect(() => generateOpenApiDocument(document([route]))).toThrow(
+      'POST /undocumented-property body property at <root>.value description is required'
     )
   })
 

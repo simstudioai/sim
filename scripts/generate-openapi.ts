@@ -1,13 +1,32 @@
 #!/usr/bin/env bun
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { OPENAPI_SPEC_FILES } from '../apps/docs/lib/openapi-specs'
 import { billingOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/files-audit'
+import { knowledgeOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/knowledge'
+import { logsOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/logs'
+import { resourcesOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/resources'
+import { tablesOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/tables'
+import { workflowsOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/workflows'
 import { formatGeneratedSource } from './format-generated-source'
 import { serializeOpenApiDocument } from './openapi/generator'
 
 const ROOT = path.resolve(import.meta.dir, '..')
-const DOCUMENTS = [filesAuditOpenApiDocument, billingOpenApiDocument] as const
+const DOCUMENTS = [
+  workflowsOpenApiDocument,
+  logsOpenApiDocument,
+  filesAuditOpenApiDocument,
+  tablesOpenApiDocument,
+  knowledgeOpenApiDocument,
+  billingOpenApiDocument,
+  resourcesOpenApiDocument,
+] as const
+
+const generatedFiles = DOCUMENTS.map((document) => path.basename(document.output))
+if (JSON.stringify(generatedFiles) !== JSON.stringify(OPENAPI_SPEC_FILES)) {
+  throw new Error('OpenAPI generator documents do not match the Fumadocs specification manifest')
+}
 
 const args = process.argv.slice(2)
 if (args.some((arg) => arg !== '--check') || args.length > 1) {

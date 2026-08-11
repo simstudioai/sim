@@ -1,10 +1,12 @@
 import { omit } from '@sim/utils/object'
+import Ajv2020 from 'ajv/dist/2020'
 import { z } from 'zod'
 import type { AnyApiRouteContract, ApiSchema } from '@/lib/api/contracts/types'
 import type {
   OpenApiDocumentDefinition,
   OpenApiOperationMetadata,
   OpenApiRouteDefinition,
+  OpenApiStatusSuccessMetadata,
 } from '@/lib/api/openapi/types'
 
 type JsonObject = Record<string, unknown>
@@ -27,6 +29,18 @@ const SCHEMA_SHAPE_KEYS = new Set([
   'not',
   'additionalProperties',
 ])
+const SCHEMA_DOCUMENTATION_KEYS = new Set([
+  'title',
+  'description',
+  'examples',
+  'example',
+  'deprecated',
+])
+const outputExampleValidator = new Ajv2020({
+  strict: false,
+  allErrors: true,
+  validateFormats: false,
+})
 
 function invariant(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message)
@@ -64,6 +78,40 @@ function sanitizeSchema(value: unknown): JsonObject {
   return omit(rewriteRefs(value) as JsonObject, ['$schema', '$id', 'id'])
 }
 
+function stripSchemaDocumentation(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripSchemaDocumentation)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !SCHEMA_DOCUMENTATION_KEYS.has(key))
+      .map(([key, entry]) => [key, stripSchemaDocumentation(entry)])
+  )
+}
+
+function stripLegacySchemaIds(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(stripLegacySchemaIds)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key, entry]) => key !== 'id' || typeof entry !== 'string')
+      .map(([key, entry]) => [key, stripLegacySchemaIds(entry)])
+  )
+}
+
+function comparableSchema(schema: ApiSchema, io: 'input' | 'output'): unknown {
+  return stripSchemaDocumentation(
+    sanitizeSchema(
+      z.toJSONSchema(schema, {
+        io,
+        target: 'draft-2020-12',
+        unrepresentable: 'any',
+        cycles: 'ref',
+        reused: 'inline',
+      })
+    )
+  )
+}
+
 function addComponent(
   components: JsonObject,
   name: string,
@@ -94,7 +142,14 @@ function validateNoSilentOpaqueSchemas(schema: JsonObject, label: string, path =
   if (properties && typeof properties === 'object' && !Array.isArray(properties)) {
     for (const [name, property] of Object.entries(properties as JsonObject)) {
       invariant(property && typeof property === 'object', `${label}.${name} is not a schema`)
-      validateNoSilentOpaqueSchemas(property as JsonObject, label, `${path}.${name}`)
+      const propertySchema = property as JsonObject
+      if (!propertySchema.$ref) {
+        nonEmpty(
+          typeof propertySchema.description === 'string' ? propertySchema.description : '',
+          `${label} property at ${path}.${name} description`
+        )
+      }
+      validateNoSilentOpaqueSchemas(propertySchema, label, `${path}.${name}`)
     }
   }
   if (schema.items && typeof schema.items === 'object' && !Array.isArray(schema.items)) {
@@ -132,8 +187,8 @@ function generateSchema(
   const { $defs: definitions, ...generated } = z.toJSONSchema(schema, {
     io,
     target: 'draft-2020-12',
-    unrepresentable: 'throw',
-    cycles: 'throw',
+    unrepresentable: 'any',
+    cycles: 'ref',
     reused: 'inline',
     override: ({ zodSchema, path }) => {
       const current = zodSchema as ApiSchema
@@ -231,12 +286,13 @@ function contractStatuses(contract: AnyApiRouteContract): number[] {
   return statuses
 }
 
-function successContent(
+function defaultSuccessContent(
   route: OpenApiRouteDefinition,
   components: JsonObject,
   label: string
 ): JsonObject | undefined {
   const { response } = route.contract
+  invariant(!('byStatus' in route.operation.success), `${label} requires status-specific content`)
   const contentTypes = route.operation.success.contentTypes
 
   if (response.mode === 'empty' || response.mode === 'redirect') {
@@ -267,6 +323,40 @@ function successContent(
   return Object.fromEntries(contentTypes.map((contentType) => [contentType, { schema }]))
 }
 
+function statusSuccessContent(
+  route: OpenApiRouteDefinition,
+  status: number,
+  success: OpenApiStatusSuccessMetadata,
+  components: JsonObject,
+  label: string
+): JsonObject | undefined {
+  const { response } = route.contract
+  if (response.mode !== 'json') {
+    invariant(
+      !success.additionalContentTypes,
+      `${label} non-JSON response cannot declare additional content types`
+    )
+    return defaultSuccessContent(
+      { ...route, operation: { ...route.operation, success } },
+      components,
+      label
+    )
+  }
+
+  const schema = route.schemas.responses?.[status] ?? route.schemas.response
+  invariant(schema, `${label} is missing its documented response schema`)
+  const generated = generateSchema(schema, 'output', components, `${label} response`)
+  validateExamples(schema, generated.metadata.examples, 'output', `${label} response`)
+  const content: JsonObject = {
+    'application/json': { schema: { $ref: `#/components/schemas/${generated.name}` } },
+  }
+  for (const contentType of success.additionalContentTypes ?? []) {
+    invariant(contentType !== 'application/json', `${label} repeats the JSON content type`)
+    content[contentType] = { schema: { type: 'string' } }
+  }
+  return content
+}
+
 function validateExamples(
   schema: ApiSchema,
   examples: unknown,
@@ -279,10 +369,25 @@ function validateExamples(
     `${label} examples must be a non-empty array`
   )
   for (const [index, example] of examples.entries()) {
-    const result = schema.safeParse(example)
+    if (io === 'input') {
+      const result = schema.safeParse(example)
+      invariant(
+        result.success,
+        `${label} example ${index + 1} is invalid for the input schema: ${result.error?.issues[0]?.message ?? 'validation failed'}`
+      )
+      continue
+    }
+    const outputSchema = z.toJSONSchema(schema, {
+      io: 'output',
+      target: 'draft-2020-12',
+      unrepresentable: 'any',
+      cycles: 'ref',
+      reused: 'inline',
+    })
+    const validate = outputExampleValidator.compile(stripLegacySchemaIds(outputSchema))
     invariant(
-      result.success,
-      `${label} example ${index + 1} is invalid for the ${io} schema: ${result.error?.issues[0]?.message ?? 'validation failed'}`
+      validate(example),
+      `${label} example ${index + 1} is invalid for the output schema: ${outputExampleValidator.errorsText(validate.errors)}`
     )
   }
 }
@@ -292,19 +397,29 @@ function requestBodyFor(
   components: JsonObject,
   label: string
 ): JsonObject | undefined {
-  if (!route.contract.body) return undefined
-  const schema = route.schemas.body
-  invariant(schema, `${label} is missing its documented body schema`)
+  const requestBody = route.schemas.requestBody
+  const schema = route.schemas.body ?? requestBody?.schema
+  if (!schema) return undefined
   const generated = generateSchema(schema, 'input', components, `${label} body`)
   validateExamples(schema, generated.metadata.examples, 'input', `${label} body`)
+  const contentTypes = requestBody?.contentTypes ?? ['application/json']
+  invariant(contentTypes.length > 0, `${label} request body must declare a content type`)
+  invariant(
+    new Set(contentTypes).size === contentTypes.length,
+    `${label} request body repeats a content type`
+  )
+  for (const contentType of contentTypes) {
+    nonEmpty(contentType, `${label} request body content type`)
+  }
   return {
     required: !schema.safeParse(undefined).success,
     description: generated.metadata.description,
-    content: {
-      'application/json': {
-        schema: { $ref: `#/components/schemas/${generated.name}` },
-      },
-    },
+    content: Object.fromEntries(
+      contentTypes.map((contentType) => [
+        contentType,
+        { schema: { $ref: `#/components/schemas/${generated.name}` } },
+      ])
+    ),
   }
 }
 
@@ -331,6 +446,10 @@ function operationFor(
   invariant(Boolean(contract.query) === Boolean(schemas.query), `${label} query metadata mismatch`)
   invariant(Boolean(contract.body) === Boolean(schemas.body), `${label} body metadata mismatch`)
   invariant(
+    !(contract.body && schemas.requestBody),
+    `${label} cannot declare both a contract body and a documentation-only request body`
+  )
+  invariant(
     Boolean(contract.headers) === Boolean(schemas.headers),
     `${label} headers metadata mismatch`
   )
@@ -338,6 +457,64 @@ function operationFor(
     (contract.response.mode === 'json') === Boolean(schemas.response),
     `${label} response metadata mismatch`
   )
+
+  const documentedContractSchemas = [
+    ['params', contract.params, schemas.params, 'input'],
+    ['query', contract.query, schemas.query, 'input'],
+    ['body', contract.body, schemas.body, 'input'],
+    ['headers', contract.headers, schemas.headers, 'input'],
+    [
+      'response',
+      contract.response.mode === 'json' ? contract.response.schema : undefined,
+      schemas.response,
+      'output',
+    ],
+  ] as const
+  for (const [name, contractSchema, documentedSchema, io] of documentedContractSchemas) {
+    if (!contractSchema) continue
+    invariant(documentedSchema, `${label} is missing its documented ${name} schema`)
+    invariant(
+      JSON.stringify(comparableSchema(contractSchema, io)) ===
+        JSON.stringify(comparableSchema(documentedSchema, io)),
+      `${label} documented ${name} schema does not match the contract schema`
+    )
+  }
+
+  invariant(
+    !schemas.responses || contract.response.mode === 'json',
+    `${label} non-JSON response cannot declare status-specific schemas`
+  )
+  if (schemas.response) {
+    schemaMetadata(schemas.response, `${label} contract response schema`)
+  }
+  const contractStatusSchemas =
+    contract.response.mode === 'json' ? contract.response.statusSchemas : undefined
+  invariant(
+    Boolean(contractStatusSchemas) === Boolean(schemas.responses),
+    `${label} status-specific contract schema metadata mismatch`
+  )
+  if (contractStatusSchemas && schemas.responses) {
+    const contractSchemaStatuses = Object.keys(contractStatusSchemas).map(Number)
+    const documentedSchemaStatuses = Object.keys(schemas.responses).map(Number)
+    const expectedStatuses = contractStatuses(contract)
+    for (const [name, statuses] of [
+      ['contract', contractSchemaStatuses],
+      ['documented', documentedSchemaStatuses],
+    ] as const) {
+      invariant(
+        JSON.stringify([...statuses].sort((a, b) => a - b)) ===
+          JSON.stringify([...expectedStatuses].sort((a, b) => a - b)),
+        `${label} ${name} status-specific schemas do not match the contract statuses`
+      )
+    }
+    for (const status of expectedStatuses) {
+      invariant(
+        JSON.stringify(comparableSchema(contractStatusSchemas[status], 'output')) ===
+          JSON.stringify(comparableSchema(schemas.responses[status], 'output')),
+        `${label} documented schema for status ${status} does not match the contract schema`
+      )
+    }
+  }
 
   const parameters = [
     ...parametersFor(schemas.params, 'path', components, `${label} params`),
@@ -357,14 +534,46 @@ function operationFor(
   )
 
   const responses: JsonObject = {}
-  const content = successContent(route, components, label)
-  for (const status of contractStatuses(contract)) {
-    responses[String(status)] = {
-      description: operation.success.description,
-      ...(referencedHeaders(operation.success.headers)
-        ? { headers: referencedHeaders(operation.success.headers) }
-        : {}),
-      ...(content ? { content } : {}),
+  const statuses = contractStatuses(contract)
+  if ('byStatus' in operation.success) {
+    const documentedStatuses = Object.keys(operation.success.byStatus)
+      .map(Number)
+      .sort((a, b) => a - b)
+    invariant(
+      JSON.stringify(documentedStatuses) === JSON.stringify([...statuses].sort((a, b) => a - b)),
+      `${label} status-specific responses do not match the contract statuses`
+    )
+    const schemaStatuses = Object.keys(schemas.responses ?? {}).map(Number)
+    invariant(
+      schemaStatuses.every((status) => documentedStatuses.includes(status)),
+      `${label} status-specific schemas include an undocumented status`
+    )
+    for (const status of statuses) {
+      const success = operation.success.byStatus[status]
+      invariant(success, `${label} is missing success metadata for status ${status}`)
+      const content = statusSuccessContent(route, status, success, components, `${label} ${status}`)
+      responses[String(status)] = {
+        description: success.description,
+        ...(referencedHeaders(success.headers)
+          ? { headers: referencedHeaders(success.headers) }
+          : {}),
+        ...(content ? { content } : {}),
+      }
+    }
+  } else {
+    invariant(
+      !schemas.responses,
+      `${label} cannot declare status-specific schemas without status-specific success metadata`
+    )
+    const content = defaultSuccessContent(route, components, label)
+    for (const status of statuses) {
+      responses[String(status)] = {
+        description: operation.success.description,
+        ...(referencedHeaders(operation.success.headers)
+          ? { headers: referencedHeaders(operation.success.headers) }
+          : {}),
+        ...(content ? { content } : {}),
+      }
     }
   }
   for (const errorId of operation.errors) {
@@ -395,7 +604,17 @@ function validateOperationMetadata(
   nonEmpty(operation.operationId, `${label} operationId`)
   nonEmpty(operation.summary, `${label} summary`)
   nonEmpty(operation.description, `${label} description`)
-  nonEmpty(operation.success.description, `${label} success description`)
+  if ('byStatus' in operation.success) {
+    invariant(
+      Object.keys(operation.success.byStatus).length > 0,
+      `${label} must declare status-specific success responses`
+    )
+    for (const [status, success] of Object.entries(operation.success.byStatus)) {
+      nonEmpty(success.description, `${label} ${status} success description`)
+    }
+  } else {
+    nonEmpty(operation.success.description, `${label} success description`)
+  }
   invariant(operation.tags.length > 0, `${label} must declare at least one tag`)
   for (const tag of operation.tags) {
     invariant(
@@ -416,24 +635,38 @@ function validateOperationMetadata(
   invariant(errorStatuses.includes(401), `${label} must document a 401 response`)
   invariant(errorStatuses.includes(429), `${label} must document a 429 response`)
 
-  for (const header of operation.success.headers ?? []) {
-    invariant(definition.headers[header], `${label} references unknown success header ${header}`)
+  const successResponses =
+    'byStatus' in operation.success
+      ? Object.values(operation.success.byStatus)
+      : [operation.success]
+  for (const success of successResponses) {
+    for (const header of success.headers ?? []) {
+      invariant(definition.headers[header], `${label} references unknown success header ${header}`)
+    }
   }
-  validateSecurity(operation.security ?? definition.security, definition, label)
+  validateSecurity(operation.security ?? definition.security, definition, label, true)
 }
 
 function validateSecurity(
   requirements: readonly Readonly<Record<string, readonly string[]>>[],
   definition: OpenApiDocumentDefinition,
-  label: string
+  label: string,
+  allowAnonymous = false
 ): void {
   invariant(requirements.length > 0, `${label} must declare a security requirement`)
   for (const requirement of requirements) {
-    invariant(Object.keys(requirement).length > 0, `${label} has an empty security requirement`)
-    for (const scheme of Object.keys(requirement)) {
+    invariant(
+      allowAnonymous || Object.keys(requirement).length > 0,
+      `${label} has an empty security requirement`
+    )
+    for (const [scheme, scopes] of Object.entries(requirement)) {
       invariant(
         definition.securitySchemes[scheme],
         `${label} references unknown security scheme ${scheme}`
+      )
+      invariant(
+        Array.isArray(scopes) && scopes.length === 0,
+        `${label} ${scheme} security requirement must use an empty scope array`
       )
     }
   }

@@ -37,6 +37,7 @@ import {
   defineOpenApiDocument,
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
+  type OpenApiSuccessMetadata,
 } from '@/lib/api/openapi/types'
 
 const FILE_EXAMPLE = {
@@ -80,7 +81,7 @@ const AUDIT_LOG_EXAMPLE = {
 function filesOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
     errors: readonly ErrorResponseId[]
-    success: OpenApiOperationMetadata['success']
+    success: OpenApiSuccessMetadata
   }
 ): OpenApiOperationMetadata {
   return {
@@ -96,7 +97,7 @@ function filesOperation(
 function auditOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
     errors: readonly ErrorResponseId[]
-    success: OpenApiOperationMetadata['success']
+    success: OpenApiSuccessMetadata
   }
 ): OpenApiOperationMetadata {
   return {

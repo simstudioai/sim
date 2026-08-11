@@ -11,7 +11,9 @@ import {
 
 const SECRET_NAME_REGEX = /^[A-Za-z0-9_]+$/
 
-export const v2SecretScopeSchema = z.enum(['workspace', 'personal'])
+export const v2SecretScopeSchema = z
+  .enum(['workspace', 'personal'])
+  .describe('Whether the secret belongs to the workspace or the caller.')
 export type V2SecretScope = z.output<typeof v2SecretScopeSchema>
 
 export const v2SecretNameSchema = z
@@ -20,26 +22,27 @@ export const v2SecretNameSchema = z
   .min(1, 'name is required')
   .max(255, 'name is too long')
   .regex(SECRET_NAME_REGEX, 'name must contain only letters, numbers, and underscores')
+  .describe('Secret name containing only letters, numbers, and underscores.')
 
 /** Secret metadata. The stored value is intentionally absent from every response schema. */
 export const v2SecretSchema = z.object({
   name: v2SecretNameSchema,
   scope: v2SecretScopeSchema,
-  role: workspaceCredentialRoleSchema,
-  createdAt: z.string().datetime(),
-  updatedAt: z.string().datetime(),
+  role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
+  createdAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was created.'),
+  updatedAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was last updated.'),
 })
 export type V2Secret = z.output<typeof v2SecretSchema>
 
 export const v2SecretDataSchema = z.object({
-  secret: v2SecretSchema,
+  secret: v2SecretSchema.describe('Secret metadata. The stored value is never returned.'),
 })
 export type V2SecretData = z.output<typeof v2SecretDataSchema>
 
 export const v2SecretDeleteDataSchema = z.object({
   name: v2SecretNameSchema,
   scope: v2SecretScopeSchema,
-  deleted: z.literal(true),
+  deleted: z.literal(true).describe('Whether the secret was deleted.'),
 })
 export type V2SecretDeleteData = z.output<typeof v2SecretDeleteDataSchema>
 
@@ -47,29 +50,34 @@ export const v2SecretSortFields = ['name', 'createdAt', 'updatedAt'] as const
 export type V2SecretSortBy = (typeof v2SecretSortFields)[number]
 
 export const v2ListSecretsQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
-  scope: v2SecretScopeSchema.optional(),
-  search: v2SearchSchema,
+  workspaceId: workspaceIdSchema.describe('Workspace whose secret metadata should be listed.'),
+  scope: v2SecretScopeSchema.optional().describe('Restrict results to one ownership scope.'),
+  search: v2SearchSchema.describe('Case-insensitive substring match against the secret name.'),
   ...v2SortFields(v2SecretSortFields, { sortBy: 'name', sortOrder: 'asc' }),
 })
 export type V2ListSecretsQuery = z.output<typeof v2ListSecretsQuerySchema>
 
 export const v2SecretParamsSchema = z.object({
-  name: v2SecretNameSchema,
+  name: v2SecretNameSchema.describe('Secret to create, replace, or delete.'),
 })
 export type V2SecretParams = z.output<typeof v2SecretParamsSchema>
 
 export const v2SetSecretBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
     scope: v2SecretScopeSchema,
-    value: z.string().min(1, 'value is required').max(65_536, 'value is too long'),
+    value: z
+      .string()
+      .min(1, 'value is required')
+      .max(65_536, 'value is too long')
+      .describe('Write-only secret value. It is never returned.')
+      .meta({ writeOnly: true }),
   })
   .strict()
 export type V2SetSecretBody = z.input<typeof v2SetSecretBodySchema>
 
 export const v2DeleteSecretQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
+  workspaceId: workspaceIdSchema.describe('Workspace in which the secret is available.'),
   scope: v2SecretScopeSchema,
 })
 export type V2DeleteSecretQuery = z.output<typeof v2DeleteSecretQuerySchema>
@@ -94,6 +102,7 @@ export const v2SetSecretContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2DataResponse(v2SecretDataSchema),
+    status: [200, 201],
   },
 })
 

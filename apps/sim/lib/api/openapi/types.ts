@@ -58,13 +58,25 @@ export interface OpenApiSuccessMetadata {
   contentTypes?: readonly [string, ...string[]]
 }
 
+export interface OpenApiStatusSuccessMetadata {
+  description: string
+  headers?: readonly string[]
+  additionalContentTypes?: readonly [string, ...string[]]
+}
+
+export type OpenApiOperationSuccess =
+  | OpenApiSuccessMetadata
+  | {
+      byStatus: Readonly<Record<number, OpenApiStatusSuccessMetadata>>
+    }
+
 export interface OpenApiOperationMetadata {
   operationId: string
   summary: string
   description: string
   tags: readonly [string, ...string[]]
   errors: readonly string[]
-  success: OpenApiSuccessMetadata
+  success: OpenApiOperationSuccess
   deprecated?: boolean
   security?: readonly OpenApiSecurityRequirement[]
 }
@@ -76,14 +88,32 @@ type PresentSchema<Key extends string, Schema> = Schema extends ApiSchema
 type DocumentedResponseSchema<C extends AnyApiRouteContract> =
   C['response'] extends JsonResponseMode<infer Schema> ? { response: Schema } : { response?: never }
 
+export interface OpenApiRequestBodySchema {
+  schema: ApiSchema
+  contentTypes: readonly [string, ...string[]]
+}
+
+type DocumentedRequestBodySchema<C extends AnyApiRouteContract> = C['body'] extends ApiSchema
+  ? { requestBody?: never }
+  : { requestBody?: OpenApiRequestBodySchema }
+
+type DocumentedStatusResponseSchemas<C extends AnyApiRouteContract> =
+  C['response'] extends JsonResponseMode & {
+    statusSchemas: infer Schemas extends Readonly<Record<number, ApiSchema>>
+  }
+    ? { responses: Schemas }
+    : { responses?: never }
+
 export type OpenApiDocumentedSchemas<C extends AnyApiRouteContract> = PresentSchema<
   'params',
   C['params']
 > &
   PresentSchema<'query', C['query']> &
   PresentSchema<'body', C['body']> &
+  DocumentedRequestBodySchema<C> &
   PresentSchema<'headers', C['headers']> &
-  DocumentedResponseSchema<C>
+  DocumentedResponseSchema<C> &
+  DocumentedStatusResponseSchemas<C>
 
 export interface OpenApiRouteDefinition<C extends AnyApiRouteContract = AnyApiRouteContract> {
   contract: C

@@ -61,11 +61,13 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
 
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
-  error: z.object({
-    code: z.string().describe('Stable machine-readable error code.'),
-    message: z.string().describe('Human-readable explanation of the error.'),
-    details: z.unknown().optional().describe('Optional structured error details.'),
-  }),
+  error: z
+    .object({
+      code: z.string().describe('Stable machine-readable error code.'),
+      message: z.string().describe('Human-readable explanation of the error.'),
+      details: z.unknown().optional().describe('Optional structured error details.'),
+    })
+    .describe('Canonical error details.'),
 })
 
 export type V2ErrorResponse = z.output<typeof v2ErrorResponseSchema>

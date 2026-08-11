@@ -159,6 +159,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -223,6 +226,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -280,6 +286,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -361,6 +370,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -456,6 +468,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -540,6 +555,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -625,6 +643,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -701,6 +722,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -777,6 +801,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -852,6 +879,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1018,6 +1048,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1088,6 +1121,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1151,6 +1187,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1226,6 +1265,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -1299,6 +1341,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1377,6 +1422,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1440,6 +1488,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1551,6 +1602,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -1612,6 +1666,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -1673,6 +1730,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       },
@@ -1757,6 +1817,9 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "503": {
+            "$ref": "#/components/responses/ServiceUnavailable"
           }
         }
       }
@@ -1768,7 +1831,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "A personal or workspace Sim API key."
+        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
       }
     },
     "headers": {
@@ -1836,6 +1899,15 @@
           "title": "Retry after",
           "description": "Seconds to wait before retrying a rate-limited request."
         }
+      },
+      "X-Run-Id": {
+        "description": "Identifier assigned to the workflow run.",
+        "schema": {
+          "type": "string",
+          "minLength": 1,
+          "title": "Run identifier",
+          "description": "Identifier assigned to the workflow run."
+        }
       }
     },
     "responses": {
@@ -1851,6 +1923,16 @@
       },
       "Unauthorized": {
         "description": "The API key is missing or invalid.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UsageLimitExceeded": {
+        "description": "The workspace has exceeded its usage or billing limits.",
         "content": {
           "application/json": {
             "schema": {
@@ -1889,8 +1971,53 @@
           }
         }
       },
+      "RunIdConflict": {
+        "description": "The run identifier is already associated with a different request.",
+        "headers": {
+          "X-Run-Id": {
+            "$ref": "#/components/headers/X-Run-Id"
+          }
+        },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Gone": {
+        "description": "The requested generated resource has expired.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
       "PayloadTooLarge": {
         "description": "The request body exceeds the allowed size.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "UnsupportedMediaType": {
+        "description": "The request uses an unsupported media type.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "Locked": {
+        "description": "The resource is locked and cannot be modified.",
         "content": {
           "application/json": {
             "schema": {
@@ -1923,6 +2050,16 @@
             }
           }
         }
+      },
+      "ServiceUnavailable": {
+        "description": "A required service is temporarily unavailable.",
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
       }
     },
     "schemas": {
@@ -1945,7 +2082,8 @@
               }
             },
             "required": ["code", "message"],
-            "additionalProperties": false
+            "additionalProperties": false,
+            "description": "Canonical error details."
           }
         },
         "required": ["error"],
@@ -2887,7 +3025,8 @@
                   }
                 },
                 "required": ["files"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Counts of file items moved by the request."
               }
             },
             "required": ["movedItems"],
@@ -3123,7 +3262,8 @@
                   }
                 },
                 "required": ["files"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Counts of file items deleted by the request."
               }
             },
             "required": ["deletedItems"],
@@ -3326,7 +3466,8 @@
                   }
                 },
                 "required": ["folders", "files"],
-                "additionalProperties": false
+                "additionalProperties": false,
+                "description": "Counts of folders and files deleted by the request."
               }
             },
             "required": ["path", "deleted", "deletedItems"],

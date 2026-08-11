@@ -16,6 +16,7 @@ export type JsonResponseMode<S extends ApiSchema = ApiSchema> = {
   mode: 'json'
   schema: S
   status?: number | readonly number[]
+  statusSchemas?: Readonly<Record<number, ApiSchema>>
 }
 
 export type EmptyResponseMode = {

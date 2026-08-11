@@ -55,10 +55,11 @@ const v2McpServerUrlSchema = z
     },
     { error: 'url must be an absolute http or https URL' }
   )
+  .describe('Absolute HTTP or HTTPS endpoint URL without `{{ENV_VAR}}` references.')
 
 const v2McpServerHeadersSchema = z.record(
   z.string().min(1, 'Header names cannot be empty'),
-  z.string()
+  z.string().describe('Header value sent to the MCP server.')
 )
 
 /**
@@ -91,32 +92,75 @@ export const v2McpServerSchema = z.object({
     updatedAt: true,
     oauthClientId: true,
   }).shape,
+  id: mcpServerSchema.shape.id.describe(
+    'Unique server identifier derived from the workspace and endpoint URL.'
+  ),
+  name: mcpServerSchema.shape.name.describe('Server display name.'),
+  description: mcpServerSchema.shape.description.describe('Optional server description.'),
+  transport: mcpServerSchema.shape.transport.describe(
+    'Transport used to communicate with the server.'
+  ),
+  authType: mcpServerSchema.shape.authType.describe('Authentication method used by the server.'),
+  url: mcpServerSchema.shape.url.describe('Server endpoint URL.'),
+  timeout: mcpServerSchema.shape.timeout.describe('Per-request timeout in milliseconds.'),
+  retries: mcpServerSchema.shape.retries.describe('Number of retries attempted per request.'),
+  enabled: mcpServerSchema.shape.enabled.describe(
+    'Whether the server tools are available to workflows.'
+  ),
+  connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
+    'Result of the most recent connection attempt.'
+  ),
+  lastError: mcpServerSchema.shape.lastError.describe(
+    'Message from the most recent failed connection, or null when absent.'
+  ),
+  toolCount: mcpServerSchema.shape.toolCount.describe('Number of tools discovered on the server.'),
+  lastToolsRefresh: mcpServerSchema.shape.lastToolsRefresh.describe(
+    'ISO 8601 timestamp of the most recent tool-list refresh.'
+  ),
+  lastConnected: mcpServerSchema.shape.lastConnected.describe(
+    'ISO 8601 timestamp of the most recent successful connection.'
+  ),
+  createdAt: mcpServerSchema.shape.createdAt.describe(
+    'ISO 8601 timestamp when the server was registered.'
+  ),
+  updatedAt: mcpServerSchema.shape.updatedAt.describe(
+    'ISO 8601 timestamp when the server was last updated.'
+  ),
+  oauthClientId: mcpServerSchema.shape.oauthClientId.describe(
+    'Pre-registered OAuth client identifier, when configured.'
+  ),
   /** Whether any request headers are configured. Values are never returned. */
-  hasHeaders: z.boolean(),
+  hasHeaders: z.boolean().describe('Whether any request headers are configured.'),
   /** Names of the configured request headers. Values are never returned. */
-  headerNames: z.array(z.string()),
-  hasOauthClientSecret: z.boolean(),
+  headerNames: z
+    .array(z.string().describe('Configured header name.'))
+    .describe('Names of configured request headers. Header values are never returned.'),
+  hasOauthClientSecret: z
+    .boolean()
+    .describe('Whether an OAuth client secret is stored. The value is never returned.'),
 })
 export type V2McpServer = z.output<typeof v2McpServerSchema>
 
 /** `{ mcpServer }` payload for single-server reads and mutations. */
-export const v2McpServerDataSchema = z.object({ mcpServer: v2McpServerSchema })
+export const v2McpServerDataSchema = z.object({
+  mcpServer: v2McpServerSchema.describe('The MCP server.'),
+})
 export type V2McpServerData = z.output<typeof v2McpServerDataSchema>
 
 /** Delete acknowledgement — the id of the server that was deleted. */
 export const v2McpServerDeleteDataSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
+  id: z.string().describe('Identifier of the deleted MCP server.'),
+  deleted: z.literal(true).describe('Whether the server was deleted.'),
 })
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({
-  id: nonEmptyIdSchema,
+  id: nonEmptyIdSchema.describe('MCP server to retrieve, update, or delete.'),
 })
 export type V2McpServerParams = z.output<typeof v2McpServerParamsSchema>
 
 export const v2McpServerWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
+  workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
 })
 export type V2McpServerWorkspaceQuery = z.output<typeof v2McpServerWorkspaceQuerySchema>
 
@@ -125,7 +169,7 @@ export const v2McpServerSortFields = ['name', 'createdAt', 'updatedAt'] as const
 export type V2McpServerSortBy = (typeof v2McpServerSortFields)[number]
 
 export const v2ListMcpServersQuerySchema = v2McpServerWorkspaceQuerySchema.extend({
-  search: v2SearchSchema,
+  search: v2SearchSchema.describe('Case-insensitive substring match against the server name.'),
   ...v2SortFields(v2McpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
 })
 
@@ -133,33 +177,61 @@ export type V2ListMcpServersQuery = z.output<typeof v2ListMcpServersQuerySchema>
 
 export const v2CreateMcpServerBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which to register the server.'),
     name: z
       .string({ error: 'name is required' })
       .min(1, 'name is required')
-      .max(255, 'name must be at most 255 characters'),
-    description: z.string().max(2000, 'description must be at most 2000 characters').optional(),
-    transport: mcpTransportSchema.optional(),
+      .max(255, 'name must be at most 255 characters')
+      .describe('Server display name.'),
+    description: z
+      .string()
+      .max(2000, 'description must be at most 2000 characters')
+      .optional()
+      .describe('Optional server description.'),
+    transport: mcpTransportSchema
+      .optional()
+      .describe('Transport used to communicate with the server. Defaults to `streamable-http`.'),
     url: v2McpServerUrlSchema,
-    authType: mcpAuthTypeSchema.optional(),
+    authType: mcpAuthTypeSchema
+      .optional()
+      .describe('Authentication method. Sim detects it from the server when omitted.'),
     /** Write-only. Reads expose `hasHeaders` and `headerNames` instead. */
-    headers: v2McpServerHeadersSchema.optional(),
+    headers: v2McpServerHeadersSchema
+      .optional()
+      .describe('Write-only request headers sent to the server.')
+      .meta({ writeOnly: true }),
     timeout: z
       .number()
       .int('timeout must be an integer number of milliseconds')
       .min(1000, 'timeout must be at least 1000ms')
       .max(300000, 'timeout must be at most 300000ms')
-      .optional(),
+      .optional()
+      .describe('Per-request timeout in milliseconds. Defaults to 30000.'),
     retries: z
       .number()
       .int('retries must be an integer')
       .min(0, 'retries cannot be negative')
       .max(10, 'retries must be at most 10')
-      .optional(),
-    enabled: z.boolean().optional(),
-    oauthClientId: z.string().max(512, 'oauthClientId is too long').nullable().optional(),
+      .optional()
+      .describe('Number of retries per request. Defaults to 3.'),
+    enabled: z
+      .boolean()
+      .optional()
+      .describe('Whether the server tools are available to workflows. Defaults to true.'),
+    oauthClientId: z
+      .string()
+      .max(512, 'oauthClientId is too long')
+      .nullable()
+      .optional()
+      .describe('Pre-registered OAuth client identifier.'),
     /** Write-only. Reads expose `hasOauthClientSecret` instead. */
-    oauthClientSecret: z.string().max(2048, 'oauthClientSecret is too long').nullable().optional(),
+    oauthClientSecret: z
+      .string()
+      .max(2048, 'oauthClientSecret is too long')
+      .nullable()
+      .optional()
+      .describe('Write-only pre-registered OAuth client secret.')
+      .meta({ writeOnly: true }),
   })
   .strict()
 export type V2CreateMcpServerBody = z.input<typeof v2CreateMcpServerBodySchema>
@@ -170,7 +242,14 @@ export type V2CreateMcpServerBody = z.input<typeof v2CreateMcpServerBodySchema>
  */
 export const v2UpdateMcpServerBodySchema = v2CreateMcpServerBodySchema
   .partial()
-  .extend({ workspaceId: workspaceIdSchema })
+  .extend({
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the MCP server.'),
+    url: v2McpServerUrlSchema
+      .optional()
+      .describe(
+        'Immutable server URL. When provided, it must equal the current URL; use delete and create to change endpoints.'
+      ),
+  })
   .strict()
 export type V2UpdateMcpServerBody = z.input<typeof v2UpdateMcpServerBodySchema>
 

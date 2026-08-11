@@ -1,6 +1,8 @@
 import { z } from 'zod'
 import {
+  activeDeploymentSummarySchema,
   deployedWorkflowStateSchema,
+  deploymentOperationSummarySchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
 } from '@/lib/api/contracts/deployments'
@@ -10,10 +12,8 @@ import {
   V1_IMPORT_DESCRIPTION_MAX_LENGTH,
   V1_IMPORT_NAME_MAX_LENGTH,
   v1DeployWorkflowBodySchema,
-  v1DeployWorkflowDataSchema,
   v1ImportWorkflowBodySchema,
   v1RollbackWorkflowBodySchema,
-  v1RollbackWorkflowDataSchema,
   v1WorkflowExportPayloadSchema,
 } from '@/lib/api/contracts/v1/workflows'
 import {
@@ -46,26 +46,42 @@ export const v2WorkflowRunIdSchema = z
     /^[A-Za-z0-9._:-]+$/,
     'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
   )
+  .describe('Unique workflow run identifier.')
+  .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
-export const v2ExecuteWorkflowHeadersSchema = z.object({
-  'x-run-id': v2WorkflowRunIdSchema.optional(),
-})
+export const v2ExecuteWorkflowHeadersSchema = z
+  .object({
+    'x-run-id': v2WorkflowRunIdSchema
+      .optional()
+      .describe('Caller-supplied run identifier. Available only to API-key callers.'),
+  })
+  .meta({
+    id: 'ExecuteWorkflowHeaders',
+    title: 'Execute workflow headers',
+    description: 'Optional idempotency header for a workflow execution.',
+  })
 export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
 
-export const v2WorkflowRunParamsSchema = z.object({
-  id: z.string().min(1, 'Invalid workflow ID'),
-  runId: v2WorkflowRunIdSchema,
-})
+export const v2WorkflowRunParamsSchema = z
+  .object({
+    id: z.string().min(1, 'Invalid workflow ID').describe('Unique workflow identifier.'),
+    runId: v2WorkflowRunIdSchema.describe('Unique workflow run identifier.'),
+  })
+  .meta({
+    id: 'WorkflowRunParams',
+    title: 'Workflow run path parameters',
+    description: 'Workflow and run selected by the request path.',
+  })
 export type V2WorkflowRunParams = z.input<typeof v2WorkflowRunParamsSchema>
 
 /**
  * v2 workflows contracts. Request shapes are reused from v1 (the `[id]` param
  * is unchanged, and the list query extends v1's with the v2 search/sort
  * convention); only the response envelope is upgraded to the canonical v2
- * shapes with concrete item/detail schemas. The deploy/rollback/undeploy data
- * payloads reuse the already-concrete v1 schemas, re-wrapped in
- * `v2DataResponse` (the v1 `limits` body field is dropped — v2 carries
- * rate-limit state in headers and usage on a dedicated endpoint).
+ * shapes with concrete item/detail schemas. Deploy, rollback, and undeploy
+ * have named v2 lifecycle result schemas and use `v2DataResponse` (the v1
+ * `limits` body field is dropped — v2 carries rate-limit state in headers and
+ * usage on a dedicated endpoint).
  *
  * The create/update bodies have no v1 counterpart and are v2-native: they carry
  * only the fields a public caller owns (name, description, folder placement).
@@ -95,61 +111,209 @@ export type V2WorkflowSortBy = (typeof v2WorkflowSortFields)[number]
  */
 export const v2ListWorkflowsQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    folderPath: v2FolderPathInputSchema.optional(),
-    deployedOnly: booleanQueryFlagSchema.optional().default(false),
-    limit: z.coerce.number().min(1).max(100).optional().default(50),
-    cursor: z.string().optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace whose workflows should be listed.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Restrict results to workflows in this folder path.'),
+    deployedOnly: booleanQueryFlagSchema
+      .optional()
+      .default(false)
+      .describe('Return only workflows with an active deployment when true.'),
+    limit: z.coerce
+      .number()
+      .min(1)
+      .max(100)
+      .optional()
+      .default(50)
+      .describe('Maximum workflows to return per page.'),
+    cursor: z
+      .string()
+      .optional()
+      .describe('Opaque pagination cursor returned by a previous request.'),
     search: v2SearchSchema,
     ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
   })
   .strict()
+  .meta({
+    id: 'ListWorkflowsQuery',
+    title: 'List workflows query',
+    description: 'Workspace, folder, deployment, search, sorting, and pagination filters.',
+  })
 
 export type V2ListWorkflowsQuery = z.output<typeof v2ListWorkflowsQuerySchema>
 
-export const v2WorkflowListItemSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  folderPath: v2FolderPathSchema,
-  workspaceId: z.string(),
-  isDeployed: z.boolean(),
-  deployedAt: z.string().nullable(),
-  runCount: z.number(),
-  lastRunAt: z.string().nullable(),
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
+export const v2WorkflowListItemSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Unique workflow identifier.')
+      .meta({ examples: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'] }),
+    name: z
+      .string()
+      .describe('Workflow name.')
+      .meta({ examples: ['Customer support triage'] }),
+    description: z.string().nullable().describe('Workflow description, or null when none is set.'),
+    folderPath: v2FolderPathSchema
+      .describe('Canonical containing-folder path; `/` is the workspace root.')
+      .meta({ examples: ['/Operations'] }),
+    workspaceId: z.string().describe('Workspace that owns the workflow.'),
+    isDeployed: z.boolean().describe('Whether the workflow has an active deployment.'),
+    deployedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 activation timestamp, or null when not deployed.')
+      .meta({ format: 'date-time' }),
+    runCount: z.number().int().nonnegative().describe('Total recorded workflow runs.'),
+    lastRunAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 timestamp of the latest run, or null when never run.')
+      .meta({ format: 'date-time' }),
+    createdAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the workflow was created.')
+      .meta({ format: 'date-time' }),
+    updatedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the workflow was last updated.')
+      .meta({ format: 'date-time' }),
+  })
+  .meta({
+    id: 'WorkflowListItem',
+    title: 'Workflow summary',
+    description: 'Summary of a workflow and its deployment and run state.',
+  })
 
 export type V2WorkflowListItem = z.output<typeof v2WorkflowListItemSchema>
 
 /** A single trigger input field extracted from the workflow's input-definition block. */
-const v2WorkflowInputFieldSchema = z.object({
-  name: z.string(),
-  type: z.string(),
-  description: z.string().optional(),
-})
+const v2WorkflowInputFieldSchema = z
+  .object({
+    name: z.string().describe('Input field name.'),
+    type: z.string().describe('Input field type.'),
+    description: z.string().optional().describe('Optional input field description.'),
+  })
+  .meta({
+    id: 'WorkflowInputField',
+    title: 'Workflow input field',
+    description: 'A deployed API trigger input exposed by a workflow.',
+  })
 
-export const v2WorkflowDetailSchema = v2WorkflowListItemSchema.extend({
-  /**
-   * Workflow-scoped variables keyed by variable id. Each value is a structured
-   * variable object (`{ id, name, type, value, ... }`); only the inner `value`
-   * is user-defined/free-form. Kept as `unknown` to tolerate legacy/unstamped
-   * rows — tightening to a concrete object schema later is consumer-safe (the
-   * wire already carries the full object), so it stays additively evolvable.
-   */
-  variables: z.record(z.string(), z.unknown()),
-  inputs: z.array(v2WorkflowInputFieldSchema),
-})
+export const v2WorkflowDetailSchema = v2WorkflowListItemSchema
+  .extend({
+    /**
+     * Workflow-scoped variables keyed by variable id. Each value is a structured
+     * variable object (`{ id, name, type, value, ... }`); only the inner `value`
+     * is user-defined/free-form. Kept as `unknown` to tolerate legacy/unstamped
+     * rows — tightening to a concrete object schema later is consumer-safe (the
+     * wire already carries the full object), so it stays additively evolvable.
+     */
+    variables: z
+      .record(z.string(), z.unknown().describe('Structured workflow variable value.'))
+      .describe('Workflow-scoped variables keyed by variable identifier.'),
+    inputs: z
+      .array(v2WorkflowInputFieldSchema)
+      .describe('Input fields exposed by the workflow API trigger.'),
+  })
+  .meta({
+    id: 'WorkflowDetail',
+    title: 'Workflow detail',
+    description: 'Full workflow summary with variables and API-trigger input fields.',
+  })
 
 export type V2WorkflowDetail = z.output<typeof v2WorkflowDetailSchema>
 
-/**
- * Undeploy returns the deployment state without a version number. Derived from
- * the exported v1 deploy data schema (its private base is not exported) so the
- * shape stays in lockstep with v1.
- */
-const v2UndeployWorkflowDataSchema = v1DeployWorkflowDataSchema.omit({ version: true })
+export const v2WorkflowIdParamsSchema = workflowIdParamsSchema
+  .extend({
+    id: workflowIdParamsSchema.shape.id
+      .describe('Unique workflow identifier.')
+      .meta({ examples: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'] }),
+  })
+  .meta({
+    id: 'WorkflowIdParams',
+    title: 'Workflow path parameters',
+    description: 'Workflow selected by the request path.',
+  })
+
+export const v2DeploymentVersionParamsSchema = deploymentVersionParamsSchema
+  .extend({
+    id: deploymentVersionParamsSchema.shape.id.describe('Unique workflow identifier.'),
+    version: deploymentVersionParamsSchema.shape.version
+      .describe('Numeric deployment version.')
+      .meta({ examples: [3] }),
+  })
+  .meta({
+    id: 'WorkflowVersionParams',
+    title: 'Workflow version path parameters',
+    description: 'Workflow and deployment version selected by the request path.',
+  })
+
+export const v2DeploymentStateSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Unique workflow identifier.')
+      .meta({ examples: ['3b1f7c92-8d4e-4a6b-9c0d-5e2f8a714b36'] }),
+    isDeployed: z
+      .boolean()
+      .describe('Whether a workflow version is currently live and available for API execution.'),
+    deployedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 timestamp associated with the deployment, or null when unavailable.')
+      .meta({ format: 'date-time', examples: ['2026-06-12T10:30:00.000Z'] }),
+    warnings: z
+      .array(z.string())
+      .describe('Non-fatal synchronization warnings. Empty when there is nothing to report.'),
+    activeDeployment: activeDeploymentSummarySchema
+      .nullable()
+      .describe('Currently live deployment version, or null while no version is active.'),
+    latestDeploymentAttempt: deploymentOperationSummarySchema
+      .nullable()
+      .describe('Most recent deployment lifecycle attempt, or null when none is available.'),
+  })
+  .meta({
+    id: 'DeploymentState',
+    title: 'Deployment state',
+    description: 'Current workflow deployment state and lifecycle progress.',
+  })
+
+export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
+  .extend({
+    version: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Deployment version created for this attempt, when available.'),
+  })
+  .meta({
+    id: 'DeployResult',
+    title: 'Deploy result',
+    description:
+      'Deployment attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state.',
+  })
+export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
+
+export const v2UndeployWorkflowDataSchema = v2DeploymentStateSchema.extend({}).meta({
+  id: 'UndeployResult',
+  title: 'Undeploy result',
+  description:
+    'Deployment state after a successful undeploy. `isDeployed` is false and no workflow version is active.',
+})
+export type V2UndeployWorkflowData = z.output<typeof v2UndeployWorkflowDataSchema>
+
+export const v2RollbackWorkflowDataSchema = v2DeploymentStateSchema
+  .extend({
+    version: z.number().int().positive().describe('Deployment version selected for re-activation.'),
+  })
+  .meta({
+    id: 'RollbackResult',
+    title: 'Rollback result',
+    description:
+      'Rollback attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state.',
+  })
+export type V2RollbackWorkflowData = z.output<typeof v2RollbackWorkflowDataSchema>
 
 export const v2ListWorkflowsContract = defineRouteContract({
   method: 'GET',
@@ -164,7 +328,7 @@ export const v2ListWorkflowsContract = defineRouteContract({
 export const v2GetWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowDetailSchema),
@@ -179,21 +343,56 @@ export const v2GetWorkflowContract = defineRouteContract({
  */
 export const v2CreateWorkflowBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: z.string().trim().min(1, 'name is required').max(255, 'name is too long'),
-    description: z.string().max(50_000, 'description is too long').nullable().optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the workflow.'),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name is required')
+      .max(255, 'name is too long')
+      .describe('Workflow name.'),
+    description: z
+      .string()
+      .max(50_000, 'description is too long')
+      .nullable()
+      .optional()
+      .describe('Optional workflow description.'),
     /** Omission creates the workflow at the workspace root. */
     folderPath: v2FolderPathInputSchema.optional(),
   })
   .strict()
+  .meta({
+    id: 'CreateWorkflowRequest',
+    title: 'Create workflow request',
+    description: 'Name, description, workspace, and optional folder for a new workflow.',
+    examples: [
+      {
+        workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
+        name: 'Customer support triage',
+        folderPath: '/Operations',
+      },
+    ],
+  })
 export type V2CreateWorkflowBody = z.input<typeof v2CreateWorkflowBodySchema>
 
 /** Update body. Omitted fields keep their stored values. */
 export const v2UpdateWorkflowBodySchema = z
   .object({
-    name: z.string().trim().min(1, 'name cannot be empty').max(255, 'name is too long').optional(),
-    description: z.string().max(50_000, 'description is too long').nullable().optional(),
-    folderPath: v2FolderPathInputSchema.optional(),
+    name: z
+      .string()
+      .trim()
+      .min(1, 'name cannot be empty')
+      .max(255, 'name is too long')
+      .optional()
+      .describe('Replacement workflow name.'),
+    description: z
+      .string()
+      .max(50_000, 'description is too long')
+      .nullable()
+      .optional()
+      .describe('Replacement workflow description; null clears it.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Destination folder path; `/` moves the workflow to the workspace root.'),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -209,12 +408,24 @@ export const v2UpdateWorkflowBodySchema = z
       })
     }
   })
+  .meta({
+    id: 'UpdateWorkflowRequest',
+    title: 'Update workflow request',
+    description: 'Fields to update on an existing workflow.',
+    examples: [{ name: 'Customer support and escalation', folderPath: '/Operations' }],
+  })
 export type V2UpdateWorkflowBody = z.input<typeof v2UpdateWorkflowBodySchema>
 
-export const v2DeleteWorkflowDataSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
-})
+export const v2DeleteWorkflowDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted workflow.'),
+    deleted: z.literal(true).describe('Confirms that the workflow was deleted.'),
+  })
+  .meta({
+    id: 'DeleteWorkflowResult',
+    title: 'Delete workflow result',
+    description: 'Confirmation that a workflow was deleted.',
+  })
 export type V2DeleteWorkflowData = z.output<typeof v2DeleteWorkflowDataSchema>
 
 export const v2CreateWorkflowContract = defineRouteContract({
@@ -231,7 +442,7 @@ export const v2CreateWorkflowContract = defineRouteContract({
 export const v2UpdateWorkflowContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/[id]',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   body: v2UpdateWorkflowBodySchema,
   response: {
     mode: 'json',
@@ -242,23 +453,42 @@ export const v2UpdateWorkflowContract = defineRouteContract({
 export const v2DeleteWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2DeleteWorkflowDataSchema),
   },
 })
 
-export const v2WorkflowFolderSchema = v2FolderSchema.extend({ locked: z.boolean() })
+export const v2WorkflowFolderSchema = v2FolderSchema
+  .extend({ locked: z.boolean().describe('Whether the folder is currently locked for mutation.') })
+  .meta({
+    id: 'WorkflowFolder',
+    title: 'Workflow folder',
+    description: 'A canonical workflow folder and its mutation lock state.',
+  })
 export type V2WorkflowFolder = z.output<typeof v2WorkflowFolderSchema>
 
-export const v2WorkflowFolderDataSchema = z.object({ folder: v2WorkflowFolderSchema })
-
-export const v2DeleteWorkflowFolderDataSchema = z.object({
-  path: v2FolderPathSchema,
-  deleted: z.literal(true),
-  deletedItems: z.object({ folders: z.number().int(), workflows: z.number().int() }),
+export const v2WorkflowFolderDataSchema = z.object({
+  folder: v2WorkflowFolderSchema.describe('Created or relocated workflow folder.'),
 })
+
+export const v2DeleteWorkflowFolderDataSchema = z
+  .object({
+    path: v2FolderPathSchema.describe('Path of the deleted workflow folder.'),
+    deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
+    deletedItems: z
+      .object({
+        folders: z.number().int().nonnegative().describe('Number of folders deleted.'),
+        workflows: z.number().int().nonnegative().describe('Number of workflows deleted.'),
+      })
+      .describe('Resources removed by the deletion.'),
+  })
+  .meta({
+    id: 'DeleteWorkflowFolderResult',
+    title: 'Delete workflow folder result',
+    description: 'Confirmation and deletion counts for a workflow folder.',
+  })
 
 export const v2ListWorkflowFoldersContract = defineRouteContract({
   method: 'GET',
@@ -293,7 +523,36 @@ export const v2DeleteWorkflowFolderContract = defineRouteContract({
  * `createdBy`, which is a raw user id with no public resolution path —
  * `deployedBy` already carries the human-readable name.
  */
-export const v2WorkflowVersionSchema = deploymentVersionSchema.omit({ createdBy: true })
+export const v2WorkflowVersionSchema = deploymentVersionSchema
+  .omit({ createdBy: true })
+  .extend({
+    id: deploymentVersionSchema.shape.id.describe('Unique deployment-version identifier.'),
+    version: deploymentVersionSchema.shape.version
+      .int()
+      .positive()
+      .describe('Monotonically increasing deployment version number.'),
+    name: deploymentVersionSchema.shape.name.describe('Optional deployment-version label.'),
+    description: deploymentVersionSchema.shape.description.describe(
+      'Optional deployment-version release note.'
+    ),
+    isActive: deploymentVersionSchema.shape.isActive.describe(
+      'Whether this version is currently serving executions.'
+    ),
+    createdAt: deploymentVersionSchema.shape.createdAt
+      .describe('ISO 8601 timestamp when this version was created.')
+      .meta({ format: 'date-time' }),
+    deployedBy: deploymentVersionSchema.shape.deployedBy.describe(
+      'Display name of the user who created the deployment, when available.'
+    ),
+    latestOperationStatus: deploymentVersionSchema.shape.latestOperationStatus.describe(
+      'Latest lifecycle-operation status for this version.'
+    ),
+  })
+  .meta({
+    id: 'WorkflowVersion',
+    title: 'Workflow version',
+    description: 'A saved deployment version of a workflow.',
+  })
 export type V2WorkflowVersion = z.output<typeof v2WorkflowVersionSchema>
 
 /**
@@ -301,10 +560,26 @@ export type V2WorkflowVersion = z.output<typeof v2WorkflowVersionSchema>
  * deploy and nothing prunes them, so the set is unbounded. The cursor is keyed
  * on the version number, which is dense and strictly descending.
  */
-export const v2ListWorkflowVersionsQuerySchema = z.object({
-  limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-  cursor: z.string().optional(),
-})
+export const v2ListWorkflowVersionsQuerySchema = z
+  .object({
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .default(50)
+      .describe('Maximum deployment versions to return per page.'),
+    cursor: z
+      .string()
+      .optional()
+      .describe('Opaque pagination cursor returned by a previous request.'),
+  })
+  .meta({
+    id: 'ListWorkflowVersionsQuery',
+    title: 'List workflow versions query',
+    description: 'Pagination for deployment versions of a workflow.',
+  })
 export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersionsQuerySchema>
 
 /**
@@ -312,21 +587,36 @@ export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersions
  * graph snapshot — the same portable blob the internal deployment reader
  * serves — and is the thing a caller diffs before rolling back to it.
  */
-export const v2WorkflowVersionDetailSchema = z.object({
-  id: z.string(),
-  version: z.number().int().positive(),
-  name: z.string().nullable(),
-  description: z.string().nullable(),
-  isActive: z.boolean(),
-  createdAt: z.string(),
-  state: deployedWorkflowStateSchema,
-})
+export const v2WorkflowVersionDetailSchema = z
+  .object({
+    id: z.string().describe('Unique deployment-version identifier.'),
+    version: z
+      .number()
+      .int()
+      .positive()
+      .describe('Monotonically increasing deployment version number.'),
+    name: z.string().nullable().describe('Version label, or null when unset.'),
+    description: z.string().nullable().describe('Version release note, or null when unset.'),
+    isActive: z.boolean().describe('Whether this version is currently serving executions.'),
+    createdAt: z
+      .string()
+      .describe('ISO 8601 timestamp when this version was created.')
+      .meta({ format: 'date-time' }),
+    state: deployedWorkflowStateSchema.describe(
+      'Deployed workflow graph snapshot pinned by this version.'
+    ),
+  })
+  .meta({
+    id: 'WorkflowVersionDetail',
+    title: 'Workflow version detail',
+    description: 'A deployment version together with the workflow state it pins.',
+  })
 export type V2WorkflowVersionDetail = z.output<typeof v2WorkflowVersionDetailSchema>
 
 export const v2ListWorkflowVersionsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/versions',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   query: v2ListWorkflowVersionsQuerySchema,
   response: {
     mode: 'json',
@@ -337,7 +627,7 @@ export const v2ListWorkflowVersionsContract = defineRouteContract({
 export const v2GetWorkflowVersionContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/versions/[version]',
-  params: deploymentVersionParamsSchema,
+  params: v2DeploymentVersionParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowVersionDetailSchema),
@@ -347,18 +637,36 @@ export const v2GetWorkflowVersionContract = defineRouteContract({
 export const v2DeployWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/deploy',
-  params: workflowIdParamsSchema,
-  body: v1DeployWorkflowBodySchema.optional().default({}),
+  params: v2WorkflowIdParamsSchema,
+  body: v1DeployWorkflowBodySchema
+    .extend({
+      name: v1DeployWorkflowBodySchema.shape.name.describe(
+        'Optional label for the deployment version.'
+      ),
+      description: v1DeployWorkflowBodySchema.shape.description.describe(
+        'Optional release note for the deployment version.'
+      ),
+    })
+    .optional()
+    .default({})
+    .meta({
+      id: 'DeployWorkflowRequest',
+      title: 'Deploy workflow request',
+      description: 'Optional metadata for the new deployment version.',
+      examples: [
+        { name: 'Escalation routing', description: 'Adds the priority escalation branch.' },
+      ],
+    }),
   response: {
     mode: 'json',
-    schema: v2DataResponse(v1DeployWorkflowDataSchema),
+    schema: v2DataResponse(v2DeployWorkflowDataSchema),
   },
 })
 
 export const v2UndeployWorkflowContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/v2/workflows/[id]/deploy',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2UndeployWorkflowDataSchema),
@@ -368,11 +676,24 @@ export const v2UndeployWorkflowContract = defineRouteContract({
 export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/rollback',
-  params: workflowIdParamsSchema,
-  body: v1RollbackWorkflowBodySchema.optional().default({}),
+  params: v2WorkflowIdParamsSchema,
+  body: v1RollbackWorkflowBodySchema
+    .extend({
+      version: v1RollbackWorkflowBodySchema.shape.version.describe(
+        'Deployment version to reactivate. Omit to select the previous active version.'
+      ),
+    })
+    .optional()
+    .default({})
+    .meta({
+      id: 'RollbackWorkflowRequest',
+      title: 'Rollback workflow request',
+      description: 'Optional deployment version to reactivate.',
+      examples: [{ version: 2 }],
+    }),
   response: {
     mode: 'json',
-    schema: v2DataResponse(v1RollbackWorkflowDataSchema),
+    schema: v2DataResponse(v2RollbackWorkflowDataSchema),
   },
 })
 
@@ -382,23 +703,31 @@ export const v2RollbackWorkflowContract = defineRouteContract({
  * client-importable and must not pull executor modules). APPEND-ONLY: callers
  * route on these instead of substring-matching messages.
  */
-export const v2ExecutionErrorSchema = z.object({
-  message: z.string(),
-  code: z.enum([
-    'TIMEOUT',
-    'CANCELLED',
-    'USAGE_LIMIT_EXCEEDED',
-    'INVALID_INPUT',
-    'BLOCK_EXECUTION_FAILED',
-    'CHILD_WORKFLOW_FAILED',
-    'OUTPUT_TOO_LARGE',
-    'EXECUTION_FAILED',
-  ]),
-  /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider. */
-  blockId: z.string().optional(),
-  blockName: z.string().optional(),
-  blockType: z.string().optional(),
-})
+export const v2ExecutionErrorSchema = z
+  .object({
+    message: z.string().describe('Human-readable workflow execution failure message.'),
+    code: z
+      .enum([
+        'TIMEOUT',
+        'CANCELLED',
+        'USAGE_LIMIT_EXCEEDED',
+        'INVALID_INPUT',
+        'BLOCK_EXECUTION_FAILED',
+        'CHILD_WORKFLOW_FAILED',
+        'OUTPUT_TOO_LARGE',
+        'EXECUTION_FAILED',
+      ])
+      .describe('Stable machine-readable execution failure code.'),
+    /** Failing block, when attributable. Deliberately crosses the workspace boundary for shared/child workflows — the runId + block context is the reproducible handle a caller hands the workflow provider. */
+    blockId: z.string().optional().describe('Identifier of the failing block, when attributable.'),
+    blockName: z.string().optional().describe('Display name of the failing block.'),
+    blockType: z.string().optional().describe('Integration or block type that failed.'),
+  })
+  .meta({
+    id: 'ExecutionError',
+    title: 'Execution error',
+    description: 'Structured in-band failure details for a workflow run.',
+  })
 export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 
 /**
@@ -409,23 +738,66 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  */
 export const v2ExecuteWorkflowBodySchema = z
   .object({
-    input: z.record(z.string(), z.unknown()).optional(),
-    async: z.boolean().optional().default(false),
-    executionTimeoutSeconds: z.number().int().min(1).max(604_800).optional(),
-    stream: z.boolean().optional().default(false),
-    selectedOutputs: z.array(z.string().min(1)).max(100).optional(),
-    includeThinking: z.boolean().optional().default(false),
-    includeToolCalls: z.boolean().optional().default(false),
-    includeFileBase64: z.boolean().optional(),
+    input: z
+      .record(z.string(), z.unknown().describe('Value supplied for one workflow input field.'))
+      .optional()
+      .describe('Workflow input keyed by deployed trigger input-field name.'),
+    async: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Queue the run and return a 202 receipt when true.'),
+    executionTimeoutSeconds: z
+      .number()
+      .int()
+      .min(1)
+      .max(604_800)
+      .optional()
+      .describe('Server-side timeout for an asynchronous run, in seconds.'),
+    stream: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Return Server-Sent Events instead of JSON when true.'),
+    selectedOutputs: z
+      .array(z.string().min(1))
+      .max(100)
+      .optional()
+      .describe('Block output references to include in a streamed response.'),
+    includeThinking: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Include model reasoning events in an agent-event stream.'),
+    includeToolCalls: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Include tool-call events in an agent-event stream.'),
+    includeFileBase64: z
+      .boolean()
+      .optional()
+      .describe('Inline eligible output files as base64 content.'),
     /** Caps inline base64 file hydration; bounded (v1 leaves it unbounded). */
     base64MaxBytes: z
       .number()
       .int()
       .positive()
       .max(10 * 1024 * 1024)
-      .optional(),
+      .optional()
+      .describe('Maximum total bytes of file content to inline as base64.'),
   })
   .strict()
+  .meta({
+    id: 'ExecuteWorkflowRequest',
+    title: 'Execute workflow request',
+    description: 'Input and execution-mode options for a deployed workflow.',
+    examples: [
+      { input: { ticketId: 'ticket_123' } },
+      { input: { ticketId: 'ticket_123' }, async: true },
+      { input: { ticketId: 'ticket_123' }, stream: true },
+    ],
+  })
 export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
 
 /**
@@ -434,55 +806,121 @@ export type V2ExecuteWorkflowBody = z.input<typeof v2ExecuteWorkflowBodySchema>
  * `data`; no `runId` means the `v2Error` envelope.** The sync
  * timeout is `status:'failed'` + `error.code:'TIMEOUT'` (v1 returned 408).
  */
-export const v2ExecuteWorkflowDataSchema = z.object({
-  runId: v2WorkflowRunIdSchema,
-  workflowId: z.string(),
-  status: z.enum(['completed', 'failed', 'paused', 'cancelled']),
-  output: z.unknown(),
-  error: v2ExecutionErrorSchema.nullable(),
-  startedAt: z.string().optional(),
-  endedAt: z.string().optional(),
-  durationMs: z.number().optional(),
-})
+export const v2ExecuteWorkflowDataSchema = z
+  .object({
+    runId: v2WorkflowRunIdSchema,
+    workflowId: z.string().describe('Workflow that produced the run.'),
+    status: z
+      .enum(['completed', 'failed', 'paused', 'cancelled'])
+      .describe('Terminal or paused run status.'),
+    output: z.unknown().describe('Workflow output, including partial output on failure.'),
+    error: v2ExecutionErrorSchema
+      .nullable()
+      .describe('Structured execution failure, or null when none occurred.'),
+    startedAt: z
+      .string()
+      .optional()
+      .describe('ISO 8601 timestamp when execution started.')
+      .meta({ format: 'date-time' }),
+    endedAt: z
+      .string()
+      .optional()
+      .describe('ISO 8601 timestamp when execution ended.')
+      .meta({ format: 'date-time' }),
+    durationMs: z.number().nonnegative().optional().describe('Execution duration in milliseconds.'),
+  })
+  .meta({
+    id: 'WorkflowRunResult',
+    title: 'Workflow run result',
+    description: 'Synchronous workflow run output and in-band execution status.',
+  })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
 /** 202 receipt for `async: true` — poll `statusUrl` (the v2 runs resource). */
-export const v2ExecuteWorkflowQueuedSchema = z.object({
-  runId: v2WorkflowRunIdSchema,
-  statusUrl: z.string(),
-})
+export const v2ExecuteWorkflowQueuedSchema = z
+  .object({
+    runId: v2WorkflowRunIdSchema,
+    statusUrl: z.string().url().describe('Absolute URL of the workflow run resource.'),
+  })
+  .meta({
+    id: 'QueuedWorkflowRun',
+    title: 'Queued workflow run',
+    description: 'Receipt returned when a workflow run is queued.',
+  })
 export type V2ExecuteWorkflowQueued = z.output<typeof v2ExecuteWorkflowQueuedSchema>
+
+export const v2ExecuteWorkflowSyncResponseSchema = v2DataResponse(v2ExecuteWorkflowDataSchema)
+export const v2ExecuteWorkflowQueuedResponseSchema = v2DataResponse(v2ExecuteWorkflowQueuedSchema)
+
+export const v2ExecuteWorkflowSuccessSchema = z
+  .union([v2ExecuteWorkflowSyncResponseSchema, v2ExecuteWorkflowQueuedResponseSchema])
+  .meta({
+    id: 'ExecuteWorkflowResponse',
+    title: 'Execute workflow response',
+    description: 'A completed synchronous run or an asynchronous queue receipt.',
+  })
 
 export const v2ExecuteWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/execute',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   headers: v2ExecuteWorkflowHeadersSchema,
   body: v2ExecuteWorkflowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2ExecuteWorkflowDataSchema),
+    schema: v2ExecuteWorkflowSuccessSchema,
+    status: [200, 202],
+    statusSchemas: {
+      200: v2ExecuteWorkflowSyncResponseSchema,
+      202: v2ExecuteWorkflowQueuedResponseSchema,
+    },
   },
 })
 
 /** Resume input is scoped to one pause context on the parent run. */
 export const v2ResumeWorkflowBodySchema = z
   .object({
-    contextId: z.string().min(1, 'contextId cannot be empty'),
-    input: z.unknown().optional(),
+    contextId: z
+      .string()
+      .min(1, 'contextId cannot be empty')
+      .describe('Human-in-the-loop pause-context identifier.'),
+    input: z.unknown().optional().describe('Input supplied to the paused workflow block.'),
   })
   .strict()
+  .meta({
+    id: 'ResumeWorkflowRequest',
+    title: 'Resume workflow request',
+    description: 'Pause context and optional input used to resume a workflow run.',
+    examples: [{ contextId: 'ctx_123', input: { approved: true } }],
+  })
 export type V2ResumeWorkflowBody = z.input<typeof v2ResumeWorkflowBodySchema>
 
-export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema.extend({
-  queuePosition: z.number().int().positive().optional(),
-})
+export const v2ResumeWorkflowQueuedSchema = v2ExecuteWorkflowQueuedSchema
+  .extend({
+    queuePosition: z
+      .number()
+      .int()
+      .positive()
+      .optional()
+      .describe('Current queue position, when available.'),
+  })
+  .meta({
+    id: 'QueuedWorkflowResume',
+    title: 'Queued workflow resume',
+    description: 'Receipt returned when a resumed workflow attempt is queued.',
+  })
 export type V2ResumeWorkflowQueued = z.output<typeof v2ResumeWorkflowQueuedSchema>
 
-export const v2ResumeWorkflowResponseSchema = z.union([
-  v2DataResponse(v2ExecuteWorkflowDataSchema),
-  v2DataResponse(v2ResumeWorkflowQueuedSchema),
-])
+export const v2ResumeWorkflowSyncResponseSchema = v2DataResponse(v2ExecuteWorkflowDataSchema)
+export const v2ResumeWorkflowQueuedResponseSchema = v2DataResponse(v2ResumeWorkflowQueuedSchema)
+
+export const v2ResumeWorkflowResponseSchema = z
+  .union([v2ResumeWorkflowSyncResponseSchema, v2ResumeWorkflowQueuedResponseSchema])
+  .meta({
+    id: 'ResumeWorkflowResponse',
+    title: 'Resume workflow response',
+    description: 'A synchronous resumed run or an asynchronous queue receipt.',
+  })
 export type V2ResumeWorkflowResponse = z.output<typeof v2ResumeWorkflowResponseSchema>
 
 export const v2ResumeWorkflowContract = defineRouteContract({
@@ -493,6 +931,11 @@ export const v2ResumeWorkflowContract = defineRouteContract({
   response: {
     mode: 'json',
     schema: v2ResumeWorkflowResponseSchema,
+    status: [200, 202],
+    statusSchemas: {
+      200: v2ResumeWorkflowSyncResponseSchema,
+      202: v2ResumeWorkflowQueuedResponseSchema,
+    },
   },
 })
 
@@ -517,13 +960,40 @@ export const v2WorkflowRunListStatusValueSchema = z.enum([
 
 export const v2ListWorkflowRunsQuerySchema = z
   .object({
-    status: v2WorkflowRunListStatusValueSchema.optional(),
-    trigger: z.string().min(1, 'trigger cannot be empty').optional(),
-    startDate: z.string().datetime().optional(),
-    endDate: z.string().datetime().optional(),
-    limit: z.coerce.number().int().min(1).max(100).optional().default(50),
-    cursor: z.string().min(1, 'cursor cannot be empty').optional(),
-    order: z.enum(['asc', 'desc']).optional().default('desc'),
+    status: v2WorkflowRunListStatusValueSchema.optional().describe('Filter by run status.'),
+    trigger: z
+      .string()
+      .min(1, 'trigger cannot be empty')
+      .optional()
+      .describe('Filter by trigger type.'),
+    startDate: z
+      .string()
+      .datetime()
+      .optional()
+      .describe('Include runs started at or after this ISO 8601 timestamp.'),
+    endDate: z
+      .string()
+      .datetime()
+      .optional()
+      .describe('Include runs started at or before this ISO 8601 timestamp.'),
+    limit: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100)
+      .optional()
+      .default(50)
+      .describe('Maximum workflow runs to return per page.'),
+    cursor: z
+      .string()
+      .min(1, 'cursor cannot be empty')
+      .optional()
+      .describe('Opaque pagination cursor returned by a previous request.'),
+    order: z
+      .enum(['asc', 'desc'])
+      .optional()
+      .default('desc')
+      .describe('Sort order by run start time.'),
   })
   .strict()
   .refine(
@@ -536,26 +1006,51 @@ export const v2ListWorkflowRunsQuerySchema = z
       path: ['startDate'],
     }
   )
+  .meta({
+    id: 'ListWorkflowRunsQuery',
+    title: 'List workflow runs query',
+    description:
+      'Status, trigger, date-window, ordering, and pagination filters for workflow runs.',
+  })
 
 export type V2ListWorkflowRunsQuery = z.output<typeof v2ListWorkflowRunsQuerySchema>
 
-export const v2WorkflowRunListItemSchema = z.object({
-  runId: v2WorkflowRunIdSchema,
-  workflowId: z.string(),
-  status: v2WorkflowRunListStatusValueSchema,
-  trigger: z.string(),
-  startedAt: z.string(),
-  endedAt: z.string().nullable(),
-  durationMs: z.number().nullable(),
-  cost: z.object({ total: z.number() }).nullable(),
-})
+export const v2WorkflowRunListItemSchema = z
+  .object({
+    runId: v2WorkflowRunIdSchema,
+    workflowId: z.string().describe('Workflow that produced the run.'),
+    status: v2WorkflowRunListStatusValueSchema.describe('Current or terminal run status.'),
+    trigger: z.string().describe('Trigger type that started the run.'),
+    startedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the run started.')
+      .meta({ format: 'date-time' }),
+    endedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 timestamp when the run ended, or null while active.')
+      .meta({ format: 'date-time' }),
+    durationMs: z
+      .number()
+      .nullable()
+      .describe('Run duration in milliseconds, or null while active.'),
+    cost: z
+      .object({ total: z.number().describe('Total credits consumed by the run.') })
+      .nullable()
+      .describe('Credit cost, or null when unavailable.'),
+  })
+  .meta({
+    id: 'WorkflowRunListItem',
+    title: 'Workflow run summary',
+    description: 'Summary of a recorded workflow run.',
+  })
 
 export type V2WorkflowRunListItem = z.output<typeof v2WorkflowRunListItemSchema>
 
 export const v2ListWorkflowRunsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/runs',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   query: v2ListWorkflowRunsQuerySchema,
   response: {
     mode: 'json',
@@ -569,43 +1064,98 @@ export const v2ListWorkflowRunsContract = defineRouteContract({
  * window doesn't exist here. `error` is the same structured object the execute
  * response carries.
  */
-export const v2WorkflowRunStatusSchema = z.object({
-  runId: v2WorkflowRunIdSchema,
-  workflowId: z.string(),
-  status: v2WorkflowRunStatusValueSchema,
-  trigger: z.string().nullable(),
-  startedAt: z.string().nullable(),
-  endedAt: z.string().nullable(),
-  durationMs: z.number().nullable(),
-  paused: workflowExecutionPausedDetailSchema.omit({ pausedExecutionId: true }).nullable(),
-  cost: z.object({ total: z.number() }).nullable(),
-  error: v2ExecutionErrorSchema.nullable(),
-  /** Populated only with `includeOutput=true` on completed runs. */
-  output: z.unknown().nullable(),
-  blockOutputs: z.record(z.string(), z.unknown()).nullable(),
-})
+export const v2WorkflowRunStatusSchema = z
+  .object({
+    runId: v2WorkflowRunIdSchema,
+    workflowId: z.string().describe('Workflow that produced the run.'),
+    status: v2WorkflowRunStatusValueSchema.describe('Current or terminal run status.'),
+    trigger: z.string().nullable().describe('Trigger type, or null before the run is recorded.'),
+    startedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 start timestamp, or null while queued.')
+      .meta({ format: 'date-time' }),
+    endedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 end timestamp, or null while nonterminal.')
+      .meta({ format: 'date-time' }),
+    durationMs: z
+      .number()
+      .nullable()
+      .describe('Run duration in milliseconds, or null while active.'),
+    paused: workflowExecutionPausedDetailSchema
+      .omit({ pausedExecutionId: true })
+      .nullable()
+      .describe('Current pause details, or null when the run is not paused.'),
+    cost: z
+      .object({ total: z.number().describe('Total credits consumed by the run.') })
+      .nullable()
+      .describe('Credit cost, or null when unavailable.'),
+    error: v2ExecutionErrorSchema
+      .nullable()
+      .describe('Structured execution failure, or null when none occurred.'),
+    /** Populated only with `includeOutput=true` on completed runs. */
+    output: z
+      .unknown()
+      .describe('Final workflow output value.')
+      .nullable()
+      .describe('Final workflow output when requested, otherwise null.'),
+    blockOutputs: z
+      .record(z.string(), z.unknown().describe('Output value produced by one workflow block.'))
+      .nullable()
+      .describe('Selected block outputs when requested, otherwise null.'),
+  })
+  .meta({
+    id: 'WorkflowRunStatus',
+    title: 'Workflow run status',
+    description: 'Detailed current state of a workflow run.',
+  })
 export type V2WorkflowRunStatus = z.output<typeof v2WorkflowRunStatusSchema>
 
 export const v2GetWorkflowRunContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/runs/[runId]',
   params: v2WorkflowRunParamsSchema,
-  query: workflowExecutionStatusQuerySchema,
+  query: workflowExecutionStatusQuerySchema
+    .extend({
+      includeOutput: workflowExecutionStatusQuerySchema.shape.includeOutput.describe(
+        'Include final and block outputs when true.'
+      ),
+      selectedOutputs: workflowExecutionStatusQuerySchema.shape.selectedOutputs.describe(
+        'Comma-separated block output references to include.'
+      ),
+    })
+    .meta({
+      id: 'GetWorkflowRunQuery',
+      title: 'Get workflow run query',
+      description: 'Controls whether the run response includes output data.',
+    }),
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowRunStatusSchema),
   },
 })
 
-export const v2CancelWorkflowRunDataSchema = z.object({
-  success: z.boolean(),
-  runId: v2WorkflowRunIdSchema,
-  redisAvailable: z.boolean(),
-  durablyRecorded: z.boolean(),
-  locallyAborted: z.boolean(),
-  pausedCancelled: z.boolean(),
-  reason: cancelWorkflowExecutionReasonSchema.optional(),
-})
+export const v2CancelWorkflowRunDataSchema = z
+  .object({
+    success: z.boolean().describe('Whether cancellation was accepted.'),
+    runId: v2WorkflowRunIdSchema,
+    redisAvailable: z
+      .boolean()
+      .describe('Whether the distributed cancellation channel was available.'),
+    durablyRecorded: z.boolean().describe('Whether cancellation was recorded durably.'),
+    locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
+    pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
+    reason: cancelWorkflowExecutionReasonSchema
+      .optional()
+      .describe('Machine-readable cancellation outcome when cancellation was partial.'),
+  })
+  .meta({
+    id: 'CancelWorkflowRunResult',
+    title: 'Cancel workflow run result',
+    description: 'Outcome of a workflow run cancellation request.',
+  })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 
 export const v2CancelWorkflowRunContract = defineRouteContract({
@@ -618,16 +1168,75 @@ export const v2CancelWorkflowRunContract = defineRouteContract({
   },
 })
 
-export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema.extend({
-  workflow: v1WorkflowExportPayloadSchema.shape.workflow
-    .omit({ folderId: true })
-    .extend({ folderPath: v2FolderPathSchema }),
-})
+export const v2WorkflowExportPayloadSchema = v1WorkflowExportPayloadSchema
+  .extend({
+    version: v1WorkflowExportPayloadSchema.shape.version.describe(
+      'Workflow export format version.'
+    ),
+    exportedAt: v1WorkflowExportPayloadSchema.shape.exportedAt
+      .describe('ISO 8601 timestamp when the export was created.')
+      .meta({ format: 'date-time' }),
+    workflow: v1WorkflowExportPayloadSchema.shape.workflow
+      .omit({ folderId: true })
+      .extend({
+        id: v1WorkflowExportPayloadSchema.shape.workflow.shape.id.describe(
+          'Identifier of the source workflow.'
+        ),
+        name: v1WorkflowExportPayloadSchema.shape.workflow.shape.name.describe(
+          'Name of the exported workflow.'
+        ),
+        description: v1WorkflowExportPayloadSchema.shape.workflow.shape.description.describe(
+          'Description of the exported workflow, or null when unset.'
+        ),
+        workspaceId: v1WorkflowExportPayloadSchema.shape.workflow.shape.workspaceId.describe(
+          'Identifier of the source workspace, or null for legacy exports.'
+        ),
+        folderPath: v2FolderPathSchema.describe(
+          'Canonical containing-folder path; `/` is the workspace root.'
+        ),
+      })
+      .describe('Source workflow metadata.'),
+    state: v1WorkflowExportPayloadSchema.shape.state.meta({
+      type: 'object',
+      properties: undefined,
+      required: undefined,
+      additionalProperties: true,
+      description:
+        'Secret-sanitized workflow graph, edges, loops, parallels, metadata, and variables.',
+    }),
+  })
+  .meta({
+    id: 'WorkflowExportPayload',
+    title: 'Workflow export payload',
+    description:
+      'Portable, secret-sanitized workflow export. Workspace-scoped bindings must be selected again after import.',
+  })
 
 export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
   .omit({ folderId: true, name: true, description: true })
   .extend({
-    folderPath: v2FolderPathInputSchema.optional(),
+    workspaceId: v1ImportWorkflowBodySchema.shape.workspaceId.describe(
+      'Workspace in which to import the workflow.'
+    ),
+    workflow: v1ImportWorkflowBodySchema.shape.workflow.meta({
+      description:
+        'Workflow export object, bare workflow state, or JSON string containing either form.',
+      anyOf: [
+        {
+          type: 'string',
+          minLength: 1,
+          description: 'JSON string containing a workflow export object or bare workflow state.',
+        },
+        {
+          type: 'object',
+          additionalProperties: true,
+          description: 'Workflow export object or bare workflow state.',
+        },
+      ],
+    }),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Destination folder path; omit for the workspace root.'),
     name: z
       .string()
       .min(1, 'name cannot be empty')
@@ -635,31 +1244,57 @@ export const v2ImportWorkflowBodySchema = v1ImportWorkflowBodySchema
         V1_IMPORT_NAME_MAX_LENGTH,
         `name must be at most ${V1_IMPORT_NAME_MAX_LENGTH} characters`
       )
-      .optional(),
+      .optional()
+      .describe('Override for the imported workflow name.'),
     description: z
       .string()
       .max(
         V1_IMPORT_DESCRIPTION_MAX_LENGTH,
         `description must be at most ${V1_IMPORT_DESCRIPTION_MAX_LENGTH} characters`
       )
-      .optional(),
+      .optional()
+      .describe('Override for the imported workflow description.'),
   })
   .strict()
+  .meta({
+    id: 'ImportWorkflowRequest',
+    title: 'Import workflow request',
+    description: 'Portable workflow data and destination metadata for an import.',
+    examples: [
+      {
+        workspaceId: 'a91c4b2e-6d3f-4e8a-b5c7-0d9e2f1a8c64',
+        folderPath: '/Operations',
+        workflow: { blocks: {}, edges: [] },
+      },
+    ],
+  })
 
-export const v2ImportWorkflowDataSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  description: z.string().nullable(),
-  workspaceId: z.string(),
-  folderPath: v2FolderPathSchema,
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
+export const v2ImportWorkflowDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the imported workflow.'),
+    name: z.string().describe('Imported workflow name.'),
+    description: z.string().nullable().describe('Imported workflow description.'),
+    workspaceId: z.string().describe('Workspace that owns the imported workflow.'),
+    folderPath: v2FolderPathSchema.describe('Canonical containing-folder path.'),
+    createdAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the workflow was imported.')
+      .meta({ format: 'date-time' }),
+    updatedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the workflow was last updated.')
+      .meta({ format: 'date-time' }),
+  })
+  .meta({
+    id: 'ImportedWorkflow',
+    title: 'Imported workflow',
+    description: 'Workflow created by an import operation.',
+  })
 
 export const v2ExportWorkflowContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/workflows/[id]/export',
-  params: workflowIdParamsSchema,
+  params: v2WorkflowIdParamsSchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2WorkflowExportPayloadSchema),

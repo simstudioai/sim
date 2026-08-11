@@ -57,11 +57,13 @@ export const v2BillingStatusDataSchema = z.object({
   status: z
     .enum(['active', 'limit_exceeded', 'billing_blocked'])
     .describe('Current billing standing.'),
-  credits: z.object({
-    used: z.number().describe('Credits consumed during the current billing period.'),
-    limit: z.number().describe('Credit allowance for the current billing period.'),
-    remaining: z.number().describe('Credits remaining in the current billing period.'),
-  }),
+  credits: z
+    .object({
+      used: z.number().describe('Credits consumed during the current billing period.'),
+      limit: z.number().describe('Credit allowance for the current billing period.'),
+      remaining: z.number().describe('Credits remaining in the current billing period.'),
+    })
+    .describe('Credit usage and allowance for the current billing period.'),
   storage: z
     .object({
       usedBytes: z.number().nonnegative().describe('Storage currently consumed, in bytes.'),

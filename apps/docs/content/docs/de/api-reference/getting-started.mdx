@@ -49,7 +49,7 @@ A workflow must be deployed before it can be executed via the API. Click the **D
 <Tabs items={['curl', 'TypeScript', 'Python']}>
   <Tab value="curl">
     ```bash
-    curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
+    curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
       -H "Content-Type: application/json" \
       -H "X-API-Key: YOUR_API_KEY" \
       -d '{"inputs": {}}'
@@ -58,7 +58,7 @@ A workflow must be deployed before it can be executed via the API. Click the **D
   <Tab value="TypeScript">
     ```typescript
     const response = await fetch(
-      `https://www.sim.ai/api/workflows/${workflowId}/execute`,
+      `https://www.sim.ai/api/v2/workflows/${workflowId}/execute`,
       {
         method: 'POST',
         headers: {
@@ -79,7 +79,7 @@ A workflow must be deployed before it can be executed via the API. Click the **D
     import os
 
     response = requests.post(
-        f"https://www.sim.ai/api/workflows/{workflow_id}/execute",
+        f"https://www.sim.ai/api/v2/workflows/{workflow_id}/execute",
         headers={
             "Content-Type": "application/json",
             "X-API-Key": os.environ["SIM_API_KEY"],
@@ -103,7 +103,7 @@ By default, workflow executions are **synchronous** — the API blocks until the
 For long-running workflows, use **asynchronous execution** by passing `async: true`:
 
 ```bash
-curl -X POST https://www.sim.ai/api/workflows/{workflowId}/execute \
+curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
   -H "Content-Type: application/json" \
   -H "X-API-Key: YOUR_API_KEY" \
   -d '{"inputs": {}, "async": true}'
@@ -121,7 +121,7 @@ This returns immediately with a `jobId` and `statusUrl`:
 }
 ```
 
-Poll the [Get Job Status](/api-reference/execution/getJobStatus) endpoint until the status is `completed` or `failed`:
+Poll the [Get Job Status](/api-reference/workflows/getWorkflowRunV2) endpoint until the status is `completed` or `failed`:
 
 ```bash
 curl https://www.sim.ai/api/jobs/{jobId} \
@@ -186,7 +186,7 @@ The API uses standard HTTP status codes. Error responses include a human-readabl
 | `429` | Rate limit exceeded | Wait for the duration in the `Retry-After` header |
 
 <Callout type="info">
-  Use the [Get Usage Limits](/api-reference/usage/getUsageLimits) endpoint to check your current rate limit status and billing usage at any time.
+  Use the [Get Usage Limits](/api-reference/billing/getBillingStatus) endpoint to check your current rate limit status and billing usage at any time.
 </Callout>
 
 ## Rate Limits
@@ -201,11 +201,11 @@ List endpoints (workflows, logs, audit logs) use **cursor-based pagination**:
 
 ```bash
 # First page
-curl "https://www.sim.ai/api/v1/logs?limit=20" \
+curl "https://www.sim.ai/api/v2/logs?limit=20" \
   -H "X-API-Key: YOUR_API_KEY"
 
 # Next page — use the nextCursor from the previous response
-curl "https://www.sim.ai/api/v1/logs?limit=20&cursor=abc123" \
+curl "https://www.sim.ai/api/v2/logs?limit=20&cursor=abc123" \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

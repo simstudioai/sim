@@ -103,7 +103,7 @@ export function defineV2BodyLifecycleRoute<
       `${options.contract.method} ${options.contract.path} must omit its body schema so admission precedes body reads`
     )
   }
-  const { successStatus } = requireJsonRouteDefinition(
+  const { successStatus, successStatuses } = requireJsonRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
@@ -113,6 +113,11 @@ export function defineV2BodyLifecycleRoute<
     options.operation,
     options.admission.useCase.operation
   )
+  if (successStatuses.length !== 1) {
+    throw new Error(
+      `${options.contract.method} ${options.contract.path} body lifecycle route requires one success status`
+    )
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {

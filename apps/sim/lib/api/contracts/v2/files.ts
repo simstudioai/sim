@@ -320,9 +320,11 @@ export const v2MoveFileItemsBodySchema = z
 export type V2MoveFileItemsBody = z.input<typeof v2MoveFileItemsBodySchema>
 
 export const v2MoveFileItemsResultSchema = z.object({
-  movedItems: z.object({
-    files: z.number().int().describe('Number of files moved.'),
-  }),
+  movedItems: z
+    .object({
+      files: z.number().int().describe('Number of files moved.'),
+    })
+    .describe('Counts of file items moved by the request.'),
 })
 
 export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
@@ -337,9 +339,11 @@ export const v2BulkDeleteFilesBodySchema = z
 export type V2BulkDeleteFilesBody = z.input<typeof v2BulkDeleteFilesBodySchema>
 
 export const v2BulkDeleteFilesResultSchema = z.object({
-  deletedItems: z.object({
-    files: z.number().int().describe('Number of files deleted.'),
-  }),
+  deletedItems: z
+    .object({
+      files: z.number().int().describe('Number of files deleted.'),
+    })
+    .describe('Counts of file items deleted by the request.'),
 })
 
 export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
@@ -351,10 +355,12 @@ export const v2FileFolderDataSchema = z.object({
 export const v2DeleteFileFolderDataSchema = z.object({
   path: v2FolderPathSchema.describe('Deleted folder path.'),
   deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
-  deletedItems: z.object({
-    folders: z.number().int().describe('Number of folders deleted.'),
-    files: z.number().int().describe('Number of files deleted.'),
-  }),
+  deletedItems: z
+    .object({
+      folders: z.number().int().describe('Number of folders deleted.'),
+      files: z.number().int().describe('Number of files deleted.'),
+    })
+    .describe('Counts of folders and files deleted by the request.'),
 })
 
 export const v2ListFileFoldersContract = defineRouteContract({

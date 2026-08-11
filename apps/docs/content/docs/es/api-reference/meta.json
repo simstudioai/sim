@@ -16,9 +16,11 @@
     "(generated)/tables",
     "(generated)/files",
     "(generated)/knowledge-bases",
+    "(generated)/workspaces",
     "(generated)/mcp-servers",
     "(generated)/skills",
     "(generated)/custom-tools",
-    "(generated)/credentials"
+    "(generated)/credentials",
+    "(generated)/secrets"
   ]
 }
