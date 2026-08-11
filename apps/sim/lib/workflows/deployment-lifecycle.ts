@@ -129,6 +129,13 @@ export function parseDeploymentReadiness(value: unknown): DeploymentReadiness | 
 export const DEPLOYMENT_ERROR_CODES = {
   webhookPathConflict: 'webhook_path_conflict',
   invalidTriggerConfiguration: 'invalid_trigger_configuration',
+  /**
+   * A newer generation took over the workflow while this attempt was running.
+   * Never a failure — the newer attempt owns the outcome — so it is neither
+   * persisted on the operation nor counted as non-retryable; it exists to give
+   * the benign hand-off a greppable identity in logs.
+   */
+  operationSuperseded: 'deployment_operation_superseded',
 } as const
 
 const NON_RETRYABLE_DEPLOYMENT_ERROR_CODES = new Set<string>([
