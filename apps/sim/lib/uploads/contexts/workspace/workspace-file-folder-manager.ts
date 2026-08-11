@@ -564,18 +564,31 @@ export async function createWorkspaceFileFolder(params: {
   return mapFolderWithPath(params.workspaceId, folder)
 }
 
+/**
+ * Outcome of {@link ensureWorkspaceFileFolderPath}. `createdFolderIds` lists only the
+ * folders this call actually inserted, outermost-first, so a caller that has to unwind
+ * a partial write can delete exactly what it added (reverse the list for deepest-first)
+ * without ever touching a folder that was merely reused.
+ */
+export interface EnsureWorkspaceFileFolderPathOutcome {
+  /** Id of the deepest folder, or `null` when the path resolves to the root. */
+  folderId: string | null
+  /** Ids inserted by this call, in creation order (parents before children). */
+  createdFolderIds: string[]
+}
+
 export async function ensureWorkspaceFileFolderPath(params: {
   workspaceId: string
   userId: string
   pathSegments: string[]
-}): Promise<string | null> {
-  if (params.pathSegments.length === 0) return null
+}): Promise<EnsureWorkspaceFileFolderPathOutcome> {
+  if (params.pathSegments.length === 0) return { folderId: null, createdFolderIds: [] }
 
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of
   // loading the workspace's entire folder table.
   const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments)
-  if (existing) return existing
+  if (existing) return { folderId: existing, createdFolderIds: [] }
 
   // Load all active folders once and build a lookup keyed by "name|parentId"
   // so we can resolve existing segments without a per-segment SELECT.
@@ -597,6 +610,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
   }
 
   let parentId: string | null = null
+  const createdFolderIds: string[] = []
 
   for (const rawSegment of params.pathSegments) {
     const name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
@@ -629,6 +643,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
         updatedAt: created.updatedAt,
       })
       parentId = created.id
+      createdFolderIds.push(created.id)
     } catch (error) {
       if (
         error instanceof WorkspaceFileFolderConflictError ||
@@ -654,7 +669,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
     }
   }
 
-  return parentId
+  return { folderId: parentId, createdFolderIds }
 }
 
 export async function updateWorkspaceFileFolder(params: {

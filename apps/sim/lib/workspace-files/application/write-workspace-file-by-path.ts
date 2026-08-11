@@ -85,7 +85,7 @@ async function executeCreate({
 
   const folderUserId = await resolveFolderAttributionUserId(principal, input.workspaceId)
 
-  const folderId = await ensureWorkspaceFileFolderPath({
+  const { folderId } = await ensureWorkspaceFileFolderPath({
     workspaceId: input.workspaceId,
     userId: folderUserId,
     pathSegments: parsed.folderSegments,
@@ -145,7 +145,7 @@ async function executeCreateBuffer({
   const parsed = parseWorkspaceFileCreatePath(input.path)
   await admitCreateWorkspaceFile(principal, input.workspaceId)
   const folderUserId = await resolveFolderAttributionUserId(principal, input.workspaceId)
-  const folderId = await ensureWorkspaceFileFolderPath({
+  const { folderId } = await ensureWorkspaceFileFolderPath({
     workspaceId: input.workspaceId,
     userId: folderUserId,
     pathSegments: parsed.folderSegments,
