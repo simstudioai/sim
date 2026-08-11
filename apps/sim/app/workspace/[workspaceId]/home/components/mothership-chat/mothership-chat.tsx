@@ -49,6 +49,7 @@ import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
+import { nextSizerFloor } from './sizer-floor'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
@@ -328,6 +329,7 @@ export function MothershipChat({
   const sizerRef = useRef<HTMLDivElement | null>(null)
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
+  const heldHighWaterRef = useRef(0)
   const floorDrainRafRef = useRef(0)
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
 
@@ -337,11 +339,11 @@ export function MothershipChat({
    * row-height shrinks; when they pull scrollHeight under
    * `scrollTop + clientHeight`, the browser clamps `scrollTop` and the pinned
    * transcript visibly drops, then the chase glides it back. Flooring the
-   * sizer at exactly the scrolled-to extent prevents that clamp while never
-   * ADDING space — the floor cannot exceed what is already on screen. So an
-   * estimate correction (a fresh row measuring smaller than
-   * ROW_HEIGHT_ESTIMATE) releases immediately instead of holding phantom space
-   * the chase would scroll into and bounce back out of.
+   * sizer prevents that clamp while never ADDING space, so an estimate
+   * correction (a fresh row measuring smaller than ROW_HEIGHT_ESTIMATE)
+   * releases immediately instead of holding phantom space the chase would
+   * scroll into and bounce back out of. {@link nextSizerFloor} owns the value
+   * and the invariant that keeps it honest.
    *
    * Active on the same signal as auto-scroll: the reveal keeps re-parsing
    * markdown (and shrinking) after the network stream closes, so the floor
@@ -362,6 +364,7 @@ export function MothershipChat({
     const el = scrollElementRef.current
     if (!sizer || !el) return
     if (!floorActive) {
+      heldHighWaterRef.current = 0
       if (sizerFloorAppliedRef.current === 0) return
       // A drain already in flight keeps its own rAF cadence — settle-burst
       // commits re-enter this branch and must not add extra steps in layout,
@@ -405,14 +408,16 @@ export function MothershipChat({
       }
     }
     const padding = scrollerPaddingRef.current
-    // Math.floor, not the raw float: a fractional min-height can round
-    // scrollHeight 1px ABOVE the scrolled-to extent, and that phantom 1px gap
-    // re-derives 1px higher after every chase step — a visible 1px/frame
-    // upward creep whenever the floor is what's holding scrollHeight.
-    const floor = Math.max(
-      0,
-      Math.floor(el.scrollTop + el.clientHeight - padding.top - padding.bottom)
-    )
+    const { floor, highWater } = nextSizerFloor({
+      previousHighWater: heldHighWaterRef.current,
+      appliedFloor: sizerFloorAppliedRef.current,
+      contentHeight: virtualizer.getTotalSize(),
+      scrollTop: el.scrollTop,
+      clientHeight: el.clientHeight,
+      paddingTop: padding.top,
+      paddingBottom: padding.bottom,
+    })
+    heldHighWaterRef.current = highWater
     // Dead-band: the floor feeds back into its own inputs (a floored value can
     // land a fraction BELOW the extent, the browser clamps scrollTop, and the
     // next commit re-derives from the clamped position — a visible ~1px×N
