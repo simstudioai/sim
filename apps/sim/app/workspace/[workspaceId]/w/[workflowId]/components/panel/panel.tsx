@@ -1,8 +1,7 @@
 'use client'
 
 import { memo, useCallback, useRef } from 'react'
-import { Chip, cn, toast } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import { Chip, ChipSwitch, cn, toast } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -39,9 +38,14 @@ interface PanelProps {
   onCloseEditor?: () => void
 }
 
+const PANEL_TABS = [
+  { value: 'toolbar', label: 'Toolbar' },
+  { value: 'editor', label: 'Editor' },
+] as const
+
 /**
- * Workflow header and contextual right panel. The panel automatically shows the block
- * library when the canvas has no selection and the editor when a block is selected.
+ * Workflow header and contextual right panel. Toolbar and Editor remain independently
+ * available so users can browse blocks without losing their current canvas selection.
  *
  * @returns Structured workflow chrome around the canvas
  */
@@ -50,6 +54,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
   const workspaceId = params.workspaceId as string
 
   const panelRef = useRef<HTMLElement>(null)
+  const activeTab = usePanelStore((state) => state.activeTab)
   const setActiveTab = usePanelStore((state) => state.setActiveTab)
   const toolbarRef = useRef<{
     focusSearch: () => void
@@ -59,9 +64,6 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
 
   // Hooks
   const userPermissions = useUserPermissionsContext()
-
-  const currentBlockId = usePanelEditorStore((state) => state.currentBlockId)
-  const showEditor = currentBlockId !== null
 
   const { data: workflows = {} } = useWorkflowMap(workspaceId)
   const { data: folders = {} } = useFolderMap(workspaceId)
@@ -138,7 +140,6 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
   }, [onCloseEditor, setActiveTab])
 
   const handleFocusToolbarSearch = useCallback(() => {
-    usePanelEditorStore.getState().clearCurrentBlock()
     setActiveTab('toolbar')
     requestAnimationFrame(() => toolbarRef.current?.focusSearch())
   }, [setActiveTab])
@@ -195,25 +196,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
           <WorkflowHistoryControls />
           <WorkflowControls />
         </div>
-        <div
-          className={cn(
-            'pointer-events-none flex w-[var(--panel-width)] flex-shrink-0 items-center border-[var(--border)] border-l pr-1 pl-3.5',
-            showEditor ? 'justify-between bg-[var(--bg)]' : 'justify-end'
-          )}
-        >
-          {showEditor && (
-            <button
-              type='button'
-              className='pointer-events-auto flex h-10 min-w-0 flex-1 items-center gap-2 p-0 text-left outline-none focus-visible:underline'
-              onClick={handleFocusToolbarSearch}
-              aria-label='Search blocks'
-            >
-              <Search className='size-[14px] flex-shrink-0 text-[var(--text-muted)]' />
-              <span className='min-w-0 truncate text-[var(--text-muted)] text-sm'>
-                Search blocks...
-              </span>
-            </button>
-          )}
+        <div className='pointer-events-none flex w-[var(--panel-width)] flex-shrink-0 items-center justify-end border-[var(--border)] border-l bg-[var(--bg)] pr-1 pl-3.5'>
           <div className='pointer-events-auto flex items-center gap-1.5'>
             <Deploy
               activeWorkflowId={activeWorkflowId}
@@ -248,35 +231,45 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
         </div>
       </header>
 
-      <div
-        className={cn(
-          'workflow-right-tools pointer-events-none absolute right-0 bottom-0 z-20 flex w-[var(--panel-width)] [container-type:size]',
-          showEditor ? 'top-[40px]' : 'top-0'
-        )}
-      >
+      <div className='workflow-right-tools pointer-events-none absolute top-[40px] right-0 bottom-0 z-20 flex w-[var(--panel-width)] [container-type:size]'>
         <aside
           ref={panelRef}
-          className='panel-container pointer-events-auto relative flex h-full min-h-0 flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'
+          className='panel-container pointer-events-auto relative flex h-full min-h-0 w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'
           aria-label='Workflow panel'
         >
           <div className='flex h-full min-h-0 flex-col'>
-            <div
-              className={cn(
-                'min-h-0 overflow-hidden',
-                showEditor ? 'flex flex-1 flex-col' : 'flex-1'
-              )}
-            >
-              {showEditor ? (
-                <div className='flex h-full min-h-0 flex-col overflow-hidden'>
-                  <Editor onClose={handleCloseEditor} />
-                </div>
-              ) : (
-                <div className='flex h-full flex-col'>
-                  <div className='min-h-0 flex-1'>
-                    <Toolbar ref={toolbarRef} />
-                  </div>
-                </div>
-              )}
+            <div className='flex h-[40px] flex-shrink-0 items-center border-[var(--border)] border-b px-3'>
+              <ChipSwitch
+                options={PANEL_TABS}
+                value={activeTab}
+                onChange={setActiveTab}
+                aria-label='Workflow panel view'
+              />
+            </div>
+
+            <div className='min-h-0 flex-1 overflow-hidden'>
+              <div
+                data-tab-content='toolbar'
+                className={cn(
+                  'h-full min-h-0',
+                  activeTab === 'toolbar' ? 'flex flex-col' : 'hidden'
+                )}
+              >
+                <Toolbar
+                  key={activeWorkflowId ?? 'workflow'}
+                  ref={toolbarRef}
+                  isActive={activeTab === 'toolbar'}
+                />
+              </div>
+              <div
+                data-tab-content='editor'
+                className={cn(
+                  'h-full min-h-0 flex-col overflow-hidden',
+                  activeTab === 'editor' ? 'flex' : 'hidden'
+                )}
+              >
+                <Editor onClose={handleCloseEditor} />
+              </div>
             </div>
           </div>
 

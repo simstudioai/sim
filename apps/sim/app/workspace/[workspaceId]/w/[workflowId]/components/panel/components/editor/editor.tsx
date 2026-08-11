@@ -362,7 +362,7 @@ export function Editor({ onClose }: EditorProps) {
 
   return (
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
-      <div className='flex max-h-full min-h-0 flex-col overflow-hidden'>
+      <div className='flex h-full max-h-full min-h-0 flex-col overflow-hidden'>
         <div
           className={cn(
             'flex flex-shrink-0 flex-col border-[var(--border)] border-b bg-[var(--bg)] px-3.5 pt-3 pb-3',
