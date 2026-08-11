@@ -13,6 +13,19 @@ const OVERRIDE_USER_FIELD = ['user_id', 'user_email', 'user_slack_id'] as const
 /** An escalation pages either a path or an explicit user list, never both. */
 const ESCALATION_TARGET_FIELD = ['escalation_path_id', 'user_ids'] as const
 
+/**
+ * Maps an optional-filter dropdown onto a real boolean, or `undefined` for the "Any" sentinel.
+ *
+ * The executor merges the transform output over the raw inputs, so a key this returns
+ * `undefined` for still overwrites the sentinel string rather than letting it reach the tool.
+ * Skipping the assignment instead would leak `has_notes[is]=any` to the API.
+ */
+function toTriState(value: unknown): boolean | undefined {
+  if (value === true || value === 'true') return true
+  if (value === false || value === 'false') return false
+  return undefined
+}
+
 export const IncidentioBlock: BlockConfig<IncidentioResponse> = {
   type: 'incidentio',
   name: 'incident.io',
@@ -1791,12 +1804,8 @@ Return ONLY the description - no explanations.`,
         }
         if (params.operation === 'incidentio_alerts_list') {
           if (params.alert_status) result.status = params.alert_status
-          if (params.has_notes && params.has_notes !== 'any') {
-            result.has_notes = params.has_notes === 'true'
-          }
-          if (params.include_maintenance_window && params.include_maintenance_window !== 'any') {
-            result.include_maintenance_window = params.include_maintenance_window === 'true'
-          }
+          result.has_notes = toTriState(params.has_notes)
+          result.include_maintenance_window = toTriState(params.include_maintenance_window)
         }
         if (params.operation === 'incidentio_alert_events_create') {
           if (params.alert_status) result.status = params.alert_status

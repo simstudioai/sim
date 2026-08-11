@@ -127,10 +127,10 @@ export const alertsListTool: ToolConfig<IncidentioAlertsListParams, IncidentioAl
         if (params.created_at_lte) {
           url.searchParams.set('created_at[lte]', params.created_at_lte.trim())
         }
-        if (params.has_notes !== undefined) {
+        if (typeof params.has_notes === 'boolean') {
           url.searchParams.set('has_notes[is]', String(params.has_notes))
         }
-        if (params.include_maintenance_window !== undefined) {
+        if (typeof params.include_maintenance_window === 'boolean') {
           url.searchParams.set(
             'include_maintenance_window[is]',
             String(params.include_maintenance_window)
