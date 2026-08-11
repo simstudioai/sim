@@ -23,7 +23,6 @@ import {
 import { useShallow } from 'zustand/react/shallow'
 import { isInputDefinitionTrigger } from '@/lib/workflows/triggers/input-definition-triggers'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
-import { useRunningActionSweep } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/action-bar/use-running-action-sweep'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks'
 import {
   getRunFromBlockDependencyState,
@@ -45,10 +44,16 @@ const ACTION_BUTTON_STYLES = [
 ].join(' ')
 
 /**
- * The running fill: the squares' own rhythm, sheared right.
+ * The running hatch: the squares' own rhythm, sheared right, scrolling.
+ *
+ * Indeterminate, not a progress fill — it spans the whole run and the pattern
+ * marches (`animate-running-hatch-scroll` shifts the background by exactly one
+ * 26px period, which is what makes the loop seamless). A block gives no signal
+ * of how far along it is, so a bar that filled was inventing one.
  *
  * Same geometry the slots used before — a 24px mark with the row's 2px gap after
- * it — so the marks land where the squares did. Only the shear is new.
+ * it — so the marks land where the squares did. The scroll period below must
+ * stay equal to that 26px pitch or the loop visibly jumps.
  *
  * Painted ONCE across the row, not per slot. Each button would start its own
  * gradient at its own origin, so the phase reset at every slot — and the end
@@ -252,7 +257,8 @@ export const ActionBar = memo(
       : !isInsideSubflow || isWorkflowRunning
         ? 'run'
         : 'enabled'
-    /* Not memoised: only `.length` and `indexOf` are read, never the array's
+    /* The slots the hatch runs across — they blank their icons so it reads
+       uninterrupted. Not memoised: only `indexOf` is read, never the array's
        identity, so a memo here would allocate a deps array to save an
        allocation of the same size. */
     const runningSweepActionIds: ActionId[] = [
@@ -270,7 +276,6 @@ export const ActionBar = memo(
      * path sets both, so this changes nothing that is reachable today.
      */
     const isSweeping = isWorkflowRunning && isRunning
-    const runningSweepFilledCount = useRunningActionSweep(isSweeping, runningSweepActionIds.length)
     /*
      * Icon treatment follows the swell's own fill, published by the card view
      * as `data-node-selected`. Keying off React Flow's raw `selected` would
@@ -397,10 +402,10 @@ export const ActionBar = memo(
           )}
         >
           {/*
-            Painted behind the row rather than into each slot, so the fill is one
-            continuous bar with one leading edge. The run/stop button keeps an
-            opaque fill while running, which masks the part growing underneath
-            it; every other slot is transparent mid-sweep, so it shows through.
+            Painted behind the row rather than into each slot, so the hatch has a
+            single phase across the whole span. The run/stop button keeps an
+            opaque fill while running, which masks the hatch behind it; every
+            other slot is transparent mid-run, so it shows through.
           */}
           {isSweeping && (
             <span
@@ -413,12 +418,12 @@ export const ActionBar = memo(
             >
               <span
                 className={cn(
-                  'block h-full transition-[width] duration-150 ease-linear motion-reduce:transition-none',
+                  /* One period wider than the wrapper, so translating a full
+                     period never exposes an edge at either end. */
+                  'block h-full w-[calc(100%_+_26px)] will-change-transform',
+                  'animate-running-hatch-scroll motion-reduce:animate-none',
                   RUNNING_FILL
                 )}
-                style={{
-                  width: `${(runningSweepFilledCount / runningSweepActionIds.length) * 100}%`,
-                }}
               />
             </span>
           )}
