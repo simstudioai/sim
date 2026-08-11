@@ -75,8 +75,8 @@ export function QueuedMessages({
               <div
                 key={msg.id}
                 className={cn(
-                  'flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors hover-hover:bg-[var(--surface-active)]',
-                  isEditing && 'bg-[var(--surface-active)]'
+                  'flex items-center gap-2 py-1.5 pr-2 pl-3.5 transition-colors',
+                  isEditing ? 'bg-[var(--surface-active)]' : 'hover-hover:bg-[var(--surface-hover)]'
                 )}
               >
                 <div className='flex size-[16px] shrink-0 items-center justify-center'>

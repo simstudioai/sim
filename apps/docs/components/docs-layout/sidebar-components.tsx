@@ -43,7 +43,10 @@ function isActive(url: string, pathname: string, nested = true): boolean {
 /**
  * Rows mirror the app sidebar's chip pill: 30px tall, `rounded-lg`, `px-2`, 14px
  * at normal weight, `--text-body` at rest AND when active — only the background
- * moves, to `--surface-active`, then `--surface-6` when an active row is hovered.
+ * moves, to `--surface-hover` under the pointer and `--surface-active` when the
+ * row is the page you are on. The active row keeps that surface through hover,
+ * matching `chipVariants`: hover says what you would open, and on the page you
+ * already have open there is nothing to say.
  *
  * Height, horizontal padding, weight and color are additionally pinned in
  * `global.css` (`html #nd-sidebar a…`), which needs `!important` to beat
@@ -52,20 +55,25 @@ function isActive(url: string, pathname: string, nested = true): boolean {
  * the stylesheet is what actually lands on desktop.
  */
 const ITEM_BASE =
-  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[var(--text-body)] text-sm transition-colors hover:bg-[var(--surface-active)]'
+  'flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-[var(--text-body)] text-sm transition-colors'
 const ITEM_ACTIVE_MOBILE = 'bg-[var(--surface-active)]'
 
 const ITEM_DESKTOP =
   'lg:mb-[0.0625rem] lg:block lg:rounded-lg lg:px-2 lg:font-normal lg:text-sm lg:leading-tight'
 const ITEM_TEXT = 'lg:text-[var(--text-body)]'
-const ITEM_HOVER = 'lg:hover:bg-[var(--surface-active)]'
-const ITEM_ACTIVE =
-  'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
+/*
+ * Unprefixed, and applied only when the row is inactive. It used to live in
+ * `ITEM_BASE` at every width, which was harmless only while hover and active
+ * painted the same surface; now that hover is the dimmer of the two, an
+ * unconditional hover would make the current page fade under the pointer on any
+ * viewport below `lg`.
+ */
+const ITEM_HOVER = 'hover:bg-[var(--surface-hover)]'
+const ITEM_ACTIVE = 'lg:bg-[var(--surface-active)] lg:font-normal lg:text-[var(--text-body)]'
 
 const FOLDER_TEXT = 'lg:text-[var(--text-body)] lg:font-normal'
-const FOLDER_HOVER = 'lg:hover:bg-[var(--surface-active)]'
-const FOLDER_ACTIVE =
-  'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)] lg:hover:bg-[var(--surface-6)]'
+const FOLDER_HOVER = 'hover:bg-[var(--surface-hover)]'
+const FOLDER_ACTIVE = 'lg:bg-[var(--surface-active)] lg:text-[var(--text-body)]'
 
 export function SidebarItem({ item }: { item: Item }) {
   const pathname = usePathname()
@@ -144,7 +152,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
               data-active={active}
               className={cn(
                 'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                'text-[var(--text-body)] hover:bg-[var(--surface-active)]',
+                'text-[var(--text-body)]',
                 active && ITEM_ACTIVE_MOBILE,
                 'lg:block lg:flex-1 lg:rounded-lg lg:px-2 lg:text-sm lg:leading-tight',
                 FOLDER_TEXT,
@@ -158,8 +166,8 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
               <button
                 onClick={toggleOpen}
                 className={cn(
-                  'rounded-md p-1 hover:bg-[var(--surface-active)]',
-                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors lg:hover:bg-[var(--surface-active)]'
+                  'rounded-md p-1 hover:bg-[var(--surface-hover)]',
+                  'lg:cursor-pointer lg:rounded-md lg:p-1 lg:transition-colors'
                 )}
                 aria-label={open ? 'Collapse' : 'Expand'}
               >
@@ -172,7 +180,7 @@ export function SidebarFolder({ item, children }: { item: Folder; children: Reac
             onClick={toggleOpen}
             className={cn(
               'flex flex-1 items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-              'text-[var(--text-body)] hover:bg-[var(--surface-active)]',
+              'text-[var(--text-body)]',
               'lg:flex lg:w-full lg:cursor-pointer lg:items-center lg:justify-between lg:rounded-lg lg:px-2 lg:text-left lg:text-sm lg:leading-tight',
               FOLDER_TEXT,
               FOLDER_HOVER

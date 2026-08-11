@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, ChevronDown, cn } from '@sim/emcn'
+import { Badge, ChevronDown, chipContentGap, cn, disclosureChevronClass } from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
@@ -19,9 +19,13 @@ import {
   type LargeArrayManifest,
 } from '@/lib/execution/payloads/large-array-manifest-metadata'
 import { isLargeValueRef, type LargeValueRef } from '@/lib/execution/payloads/large-value-ref'
+import {
+  BADGE_STYLE,
+  ROW_STYLES,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
-type BadgeVariant = 'green' | 'blue' | 'orange' | 'purple' | 'gray' | 'red'
+type BadgeVariant = 'gray-secondary' | 'red'
 
 interface NodeEntry {
   key: string
@@ -51,28 +55,42 @@ const CONFIG = {
   VIRTUALIZATION_THRESHOLD: 200,
 } as const
 
-const BADGE_VARIANTS: Record<ValueType, BadgeVariant> = {
-  string: 'green',
-  number: 'blue',
-  boolean: 'orange',
-  array: 'purple',
-  null: 'gray',
-  undefined: 'gray',
-  object: 'gray',
-} as const
+/**
+ * The tag a value's type is announced with.
+ *
+ * One neutral form for every type, because the hue was never carrying the
+ * information: the tag already spells the type out, and the value beside it
+ * shows it again through quotes, digits or brackets. A colour per type was a
+ * third encoding of a fact stated twice — and it was the expensive one, since
+ * four saturated tags on every row left the one colour that means something in
+ * this pane, the red of a failed value, competing with decoration instead of
+ * being the only thing that stands out. Red stays; nothing else is coloured.
+ *
+ * Built from `--surface-4` / `--text-secondary` rather than the bespoke
+ * `--badge-*` palette, so the tag ages with the platform's surface tokens.
+ */
+const VALUE_TYPE_BADGE_VARIANT: BadgeVariant = 'gray-secondary'
 
 /**
- * Styling constants matching the original non-virtualized implementation.
+ * Styling constants for the output tree.
+ *
+ * A value row is the same chip as a log row on the left, and reuses the same
+ * shared constants — the two panes sit side by side, so a key here reading in a
+ * different grey from a block name there is immediately visible.
+ *
+ * `row` cannot take `chipGeometryClass` wholesale: a wrapped value grows past
+ * one line, so it needs `min-h-[30px]` where a chip is fixed at `h-[30px]`. The
+ * rest of the pill — radius, padding, gap, text size — is the chip's.
  */
 const STYLES = {
-  row: 'group flex min-h-[30px] cursor-pointer items-center gap-2 rounded-lg px-2 -mx-2 hover-hover:bg-[var(--surface-active)]',
-  chevron: 'size-[14px] flex-shrink-0 text-[var(--text-muted)] transition-transform duration-100',
-  keyName: 'text-sm text-[var(--text-primary)]',
-  badge: 'rounded-sm px-1 py-[0px] text-xs',
-  summary: 'text-sm text-[var(--text-secondary)]',
-  indent: 'mt-0.5 ml-[3px] flex min-w-0 flex-col gap-0.5 border-[var(--border)] border-l pl-[9px]',
-  value: 'min-w-0 py-0.5 text-sm text-[var(--text-primary)]',
-  emptyValue: 'py-0.5 text-sm text-[var(--text-secondary)]',
+  row: `group flex min-h-[30px] cursor-pointer items-center ${chipContentGap} -mx-2 rounded-lg px-2 text-sm transition-colors hover-hover:bg-[var(--surface-hover)]`,
+  chevron: disclosureChevronClass,
+  keyName: 'text-sm text-[var(--text-body)]',
+  badge: BADGE_STYLE,
+  summary: 'text-sm text-[var(--text-muted)]',
+  indent: ROW_STYLES.nested,
+  value: 'min-w-0 py-0.5 text-sm text-[var(--text-body)]',
+  emptyValue: 'py-0.5 text-sm text-[var(--text-muted)]',
   matchHighlight: 'bg-yellow-200/60 dark:bg-yellow-500/40',
   currentMatchHighlight: 'bg-orange-400',
 } as const
@@ -399,7 +417,7 @@ const StructuredNode = memo(function StructuredNode({
     [displayValue, isPrimitiveValue]
   )
 
-  const badgeVariant = isError ? 'red' : BADGE_VARIANTS[type]
+  const badgeVariant = isError ? 'red' : VALUE_TYPE_BADGE_VARIANT
   const valueText = isPrimitiveValue ? formatPrimitive(displayValue) : ''
   const matchIndices = searchContext?.pathToMatchIndices.get(path) ?? EMPTY_MATCH_INDICES
 
@@ -654,7 +672,7 @@ function VirtualizedRow({
   const paddingLeft = CONFIG.BASE_PADDING + row.depth * CONFIG.INDENT_PER_LEVEL
 
   if (row.type === 'header') {
-    const badgeVariant = row.isError ? 'red' : BADGE_VARIANTS[row.valueType]
+    const badgeVariant = row.isError ? 'red' : VALUE_TYPE_BADGE_VARIANT
 
     return (
       <div style={{ paddingLeft }} data-row-index={index}>

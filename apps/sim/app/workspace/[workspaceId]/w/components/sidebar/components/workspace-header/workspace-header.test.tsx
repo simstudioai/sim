@@ -122,9 +122,11 @@ function row(name: string): HTMLElement {
 /**
  * Whether a row is painted with the persistent active fill.
  *
- * Matches an exact class token, never a substring: the inactive chip carries
- * `hover-hover:bg-[var(--surface-active)]`, which *contains* the active class, so a
- * substring check reports every row as marked.
+ * Matches an exact class token, never a substring. The inactive chip now hovers to
+ * `--surface-hover`, so it no longer carries the active class as a substring — but
+ * keep the token match: hover and active are one token apart by design, and a
+ * substring check would silently start reporting every row as marked if they ever
+ * converge again.
  */
 function isMarked(name: string): boolean {
   return [...row(name).querySelectorAll<HTMLElement>('*')].some((el) =>

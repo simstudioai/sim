@@ -518,19 +518,18 @@ html #nd-sidebar button[data-active="true"] {
   color: var(--text-body) !important;
 }
 
-/* Hover state — the app's nav Chip hovers to --surface-active. These rules must
-   carry !important to beat fumadocs' own sidebar styles, which also means they
-   override the Tailwind hover utilities on the items; keep the two in step. */
+/* Hover state — the app's nav Chip hovers to --surface-hover, one step below the
+   --surface-active it paints the current page with, so the row under the pointer
+   never impersonates the selected one. These rules must carry !important to beat
+   fumadocs' own sidebar styles, which also means they override the Tailwind hover
+   utilities on the items; keep the two in step.
+
+   The :not([data-active]) guard is what holds the active row at --surface-active
+   through hover, matching the app's active Chip: hover names what you would open,
+   and on the page already open there is nothing to name. */
 html #nd-sidebar a:not(:has(span.font-mono)):hover:not([data-active="true"]),
 html #nd-sidebar button:hover:not([data-active="true"]) {
-  background-color: var(--surface-active) !important;
-}
-
-/* An active item darkens one surface on hover, matching the app's active Chip */
-html #nd-sidebar a[data-active="true"]:not(:has(span.font-mono)):hover,
-html #nd-sidebar button[data-active="true"]:hover {
-  background-color: var(--surface-6) !important;
-  color: var(--text-body) !important;
+  background-color: var(--surface-hover) !important;
 }
 
 /* Hide search, platform, and collapse button from sidebar completely */

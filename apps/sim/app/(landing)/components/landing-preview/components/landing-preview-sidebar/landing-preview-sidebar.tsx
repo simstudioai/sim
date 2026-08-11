@@ -51,8 +51,8 @@ function NavItem({
       type='button'
       onClick={onClick}
       className={cn(
-        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
-        isActive && 'bg-[var(--c-active)]'
+        'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors',
+        isActive ? 'bg-[var(--c-active)]' : 'hover-hover:bg-[var(--c-hover)]'
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -79,7 +79,12 @@ export function LandingPreviewSidebar({
   return (
     <div
       className='flex h-full w-[248px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'
-      style={{ '--c-active': 'var(--surface-active)' } as React.CSSProperties}
+      style={
+        {
+          '--c-active': 'var(--surface-active)',
+          '--c-hover': 'var(--surface-hover)',
+        } as React.CSSProperties
+      }
     >
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
@@ -107,8 +112,8 @@ export function LandingPreviewSidebar({
           type='button'
           onClick={onSelectHome}
           className={cn(
-            'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--c-active)]',
-            isHomeActive && 'bg-[var(--c-active)]'
+            'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors',
+            isHomeActive ? 'bg-[var(--c-active)]' : 'hover-hover:bg-[var(--c-hover)]'
           )}
         >
           <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -151,8 +156,10 @@ export function LandingPreviewSidebar({
                   type='button'
                   onClick={() => onSelectWorkflow(workflow.id)}
                   className={cn(
-                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors hover-hover:bg-[var(--surface-active)]',
-                    isActive && 'bg-[var(--surface-active)]'
+                    'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors',
+                    isActive
+                      ? 'bg-[var(--surface-active)]'
+                      : 'hover-hover:bg-[var(--surface-hover)]'
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />

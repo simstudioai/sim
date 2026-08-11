@@ -841,7 +841,12 @@ const Combobox = memo(
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                                  'hover-hover:bg-[var(--surface-active)]',
+                                  /* No hover class: `onMouseEnter` moves the highlight to this
+                                     row, so `isHighlighted` already paints it. A hover class on
+                                     top would be a second, differently-timed answer to the same
+                                     question — and once it resolves to a surface other than
+                                     `--surface-active`, a moused row and a keyboard-arrowed row
+                                     stop matching. */
                                   (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
@@ -881,8 +886,12 @@ const Combobox = memo(
                           className={cn(
                             'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
                             size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                            'hover-hover:bg-[var(--surface-active)]',
-                            !multiSelectValues?.length && 'bg-[var(--surface-active)]'
+                            /* This row clears the highlight rather than taking it, so unlike the
+                               option rows it does carry its own hover — as the dimmer surface,
+                               and only while it is not already the selected "all" state. */
+                            !multiSelectValues?.length
+                              ? 'bg-[var(--surface-active)]'
+                              : 'hover-hover:bg-[var(--surface-hover)]'
                           )}
                         >
                           <span className='flex-1 truncate text-[var(--text-primary)]'>
@@ -915,7 +924,8 @@ const Combobox = memo(
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                              'hover-hover:bg-[var(--surface-active)]',
+                              /* See above: `onMouseEnter` owns the highlight, so the row needs
+                                 no hover class of its own. */
                               (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}

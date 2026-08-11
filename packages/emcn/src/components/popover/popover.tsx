@@ -116,7 +116,13 @@ const STYLES = {
   states: {
     default: {
       active: 'bg-[var(--surface-active)]',
-      hover: 'hover-hover:bg-[var(--surface-active)]',
+      /*
+       * One step below `active`, like `chipVariants`. `getItemStateClasses`
+       * returns active OR hover and never both, so a checked item already holds
+       * its surface through hover; this only stops an unchecked item under the
+       * pointer from being painted the same as the checked one.
+       */
+      hover: 'hover-hover:bg-[var(--surface-hover)]',
     },
     inverted: {
       active:

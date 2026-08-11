@@ -1,5 +1,6 @@
 import type React from 'react'
 import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
+import { hasWorkflowTypeRole } from '@sim/workflow-renderer'
 import { getBlock } from '@/blocks'
 import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
@@ -91,6 +92,30 @@ export function getBlockColor(blockType: string): string {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
+}
+
+/**
+ * Run-level rows the terminal synthesizes. They have no card on the canvas, so
+ * they keep their own status fill instead of borrowing a canvas accent.
+ */
+const SYNTHETIC_BLOCK_TYPES: ReadonlySet<string> = new Set(Object.keys(SPECIAL_BLOCK_COLORS))
+
+/**
+ * The type a log row's tile takes its accent from, or `undefined` when the row
+ * must fall back to the block's own provider colour.
+ *
+ * Same rule the block toolbar applies, so a block is accented identically
+ * wherever it is listed: core blocks and subflows always take the canvas role
+ * accent; an integration takes one only when it has a role, and otherwise keeps
+ * the provider colour it wears on the card.
+ */
+export function getEntryAccentType(blockType: string): string | undefined {
+  if (SYNTHETIC_BLOCK_TYPES.has(blockType)) return undefined
+  const blockConfig = getBlock(blockType)
+  if (blockConfig && blockConfig.category !== 'blocks') {
+    return hasWorkflowTypeRole(blockType) ? blockType : undefined
+  }
+  return blockType
 }
 
 /**
@@ -642,20 +667,6 @@ export function groupEntriesByExecution(entries: ConsoleEntry[]): ExecutionGroup
   // Sort by start time descending (newest first)
   result.sort((a, b) => b.startTimeMs - a.startTimeMs)
 
-  return result
-}
-
-/**
- * Flattens entry tree into display order for keyboard navigation
- */
-export function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
-  const result: ConsoleEntry[] = []
-  for (const node of nodes) {
-    result.push(node.entry)
-    if (node.children.length > 0) {
-      result.push(...flattenEntryTree(node.children))
-    }
-  }
   return result
 }
 
