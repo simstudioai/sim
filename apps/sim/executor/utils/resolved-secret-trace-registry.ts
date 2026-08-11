@@ -48,6 +48,7 @@ export type ResolvedSecretIncompletenessReason =
   | 'mothership-provenance-invalid'
   | 'mothership-response-unreadable'
   | 'mothership-provenance-missing'
+  | 'client-tool-seal-absent'
   | 'client-tool-seal-failed'
   | 'client-tool-completion-missing'
   | 'client-tool-completion-deferred'
@@ -63,7 +64,8 @@ export type ResolvedSecretIncompletenessReason =
   | 'mounted-file-provenance-unavailable'
   | 'table-snapshot-unsafe-for-mount'
   | 'restored-provenance-untrusted'
-  | 'backfill-scope-mismatch'
+  | 'backfill-checkpoint-absent'
+  | 'backfill-checkpoint-unusable'
   | 'log-creation-skipped'
   /**
    * Only for a caller that has not been given a reason yet. A refusal reporting this names no
@@ -105,7 +107,7 @@ const ORIGINATING_FAULT_REASONS = new Set<ResolvedSecretIncompletenessReason>([
   'knowledge-row-content-mismatch',
   'mothership-response-unreadable',
   'structural-input-root-unprojected',
-  'backfill-scope-mismatch',
+  'backfill-checkpoint-unusable',
 ])
 
 /**

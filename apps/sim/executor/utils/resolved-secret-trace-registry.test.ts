@@ -1453,7 +1453,7 @@ describe('incompleteness diagnostics', () => {
     'knowledge-row-content-mismatch',
     'mothership-response-unreadable',
     'structural-input-root-unprojected',
-    'backfill-scope-mismatch',
+    'backfill-checkpoint-unusable',
   ] as const)('reports %s at error, since it cannot trip on a healthy run', (reason) => {
     new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
 
@@ -1478,6 +1478,8 @@ describe('incompleteness diagnostics', () => {
     'mounted-file-provenance-unavailable',
     'table-snapshot-unsafe-for-mount',
     'restored-provenance-untrusted',
+    'backfill-checkpoint-absent',
+    'client-tool-seal-absent',
   ] as const)('reports %s at warn, since it is reachable without a fault', (reason) => {
     new ResolvedSecretTraceRegistry([], scope).markIncomplete(reason)
 
@@ -1486,6 +1488,27 @@ describe('incompleteness diagnostics', () => {
       expect.objectContaining({ reason })
     )
     expect(mockLogger.error).not.toHaveBeenCalled()
+  })
+
+  /**
+   * The taxonomy's rule is that an error reason cannot trip on a healthy run. A backfill walking
+   * historical rows hits the no-checkpoint case on essentially every legacy row, so classifying it
+   * as a fault would put one error line per row into the stream this split exists to protect.
+   */
+  it('separates an absent checkpoint from an unusable one, so a backfill cannot flood errors', () => {
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-absent')
+    expect(mockLogger.error).not.toHaveBeenCalled()
+    expect(mockLogger.warn).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-absent' })
+    )
+
+    vi.clearAllMocks()
+    new ResolvedSecretTraceRegistry([], scope).markIncomplete('backfill-checkpoint-unusable')
+    expect(mockLogger.error).toHaveBeenCalledWith(
+      'Resolved secret registry marked incomplete',
+      expect.objectContaining({ reason: 'backfill-checkpoint-unusable' })
+    )
   })
 
   it('does not report a log-less session at all, since it fires on every such run', () => {

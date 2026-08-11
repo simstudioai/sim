@@ -91,8 +91,14 @@ export async function waitForClientToolCompletion({
   const finishPendingActivation = toolRegistry?.beginPendingActivation()
   let content: Awaited<ReturnType<typeof unsealClientToolCompletion>> = null
   try {
+    /**
+     * A tool invoked without a run id has no binding to unseal against, which is a configuration
+     * rather than a fault. Tracking whether unsealing was even attempted keeps that ordinary case
+     * out of the error stream while a genuine unseal failure stays in it.
+     */
+    const sealingAttempted = Boolean(binding && registry && toolRegistry && registryCanImport)
     const [sealedContent, sealedContext] =
-      binding && registry && toolRegistry && registryCanImport
+      sealingAttempted && binding && registry
         ? await Promise.all([
             unsealClientToolCompletion(completion.data, binding),
             unsealClientToolContext(completion.data, binding, registry),
@@ -100,7 +106,9 @@ export async function waitForClientToolCompletion({
         : [null, null]
     if (toolRegistry && registryCanImport) {
       if (!sealedContent || !sealedContext) {
-        toolRegistry.markIncomplete('client-tool-seal-failed')
+        toolRegistry.markIncomplete(
+          sealingAttempted ? 'client-tool-seal-failed' : 'client-tool-seal-absent'
+        )
       } else {
         const imported = await toolRegistry.importProvenance(sealedContext.provenance, {
           origin: 'copilotToolClient.sealedContext',
