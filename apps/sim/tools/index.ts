@@ -158,6 +158,13 @@ function resolveInternalExecutorDelegation(
   if (!executionContext?.userId || !executionContext.workflowId) {
     throw new Error('Executor delegation requires a trusted workflow execution context')
   }
+  if (executionContext.executorDelegationOrigin) {
+    const origin = executionContext.executorDelegationOrigin
+    if (!origin.subjectUserId || !origin.workflowId) {
+      throw new Error('Executor delegation origin requires an authenticated user and workflow')
+    }
+    return origin
+  }
   return {
     subjectUserId: executionContext.userId,
     workflowId: executionContext.workflowId,
@@ -1780,6 +1787,7 @@ async function executeToolImplementation(
         {
           abortSignal: effectiveSignal,
           resolvedSecretTraceRegistry,
+          executorDelegationOrigin: executionContext?.executorDelegationOrigin,
         }
       )
       const endTime = new Date()

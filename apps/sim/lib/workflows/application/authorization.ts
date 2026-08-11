@@ -29,8 +29,7 @@ export const workflowDelegationPolicy: WorkspaceDelegationPolicy<WorkflowAuthori
       delegationContext.kind === 'workflow_execution' &&
       'workflowId' in delegationContext &&
       typeof delegationContext.workflowId === 'string' &&
-      delegationContext.workflowId.length > 0 &&
-      context.workflowId === delegationContext.workflowId
+      delegationContext.workflowId.length > 0
     )
   },
 }

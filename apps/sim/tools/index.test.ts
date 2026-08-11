@@ -774,6 +774,36 @@ describe('executeTool Function', () => {
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')
   })
 
+  it('uses the canonical parent origin for protected tools inside a nested workflow', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'child-workflow',
+      executionId: 'parent-execution',
+      executorDelegationOrigin: {
+        subjectUserId: 'trusted-user',
+        workflowId: 'parent-workflow',
+        executionId: 'parent-execution',
+      },
+    })
+    await executeTool('test_executor_delegation', {}, { executionContext })
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'trusted-user',
+      workflowId: 'parent-workflow',
+      executionId: 'parent-execution',
+    })
+  })
+
   it('rejects protected internal tools without trusted executor scope before transport', async () => {
     const result = await executeTool('test_executor_delegation', {
       _context: {

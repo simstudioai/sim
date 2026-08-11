@@ -185,6 +185,15 @@ export type ResolvedSecretModelEgressSnapshot =
   | { complete: true; matches: readonly ResolvedSecretTraceMatch[] }
   | { complete: false }
 
+export type ResolvedSecretModelReferenceResolution<T> =
+  | {
+      complete: true
+      matched: boolean
+      value: T
+      registry: ResolvedSecretTraceRegistry
+    }
+  | { complete: false }
+
 export interface ResolvedSecretTraceProvenanceEntryV1 {
   encryptedValue: string
   name?: string
@@ -801,6 +810,92 @@ export class ResolvedSecretTraceRegistry {
     if (this.isPermanentlyIncomplete())
       fork.markIncomplete('inherited-incomplete-source', { source: this })
     return fork
+  }
+
+  /**
+   * Rebinds environment placeholders that were actually projected into a model request.
+   *
+   * The model receives `{{NAME}}`, never the plaintext. A later tool argument may carry that
+   * placeholder back verbatim. Only named entries attached to a resolver-recorded projected input
+   * are eligible here, so inventing another workspace variable name does not grant access to it.
+   * The returned registry contains only references used by this tool call.
+   */
+  resolveModelExposedEnvReferences<T>(value: T): ResolvedSecretModelReferenceResolution<T> {
+    if (!this.complete) return { complete: false }
+
+    const projectedValueContains = (candidate: unknown, placeholder: string): boolean => {
+      const pending = [candidate]
+      const visited = new WeakSet<object>()
+      while (pending.length > 0) {
+        const current = pending.pop()
+        if (typeof current === 'string' && current.includes(placeholder)) return true
+        if (current === null || typeof current !== 'object' || visited.has(current)) continue
+        visited.add(current)
+        pending.push(...Object.values(current))
+      }
+      return false
+    }
+
+    const exposedEntriesByName = new Map<string, ActiveSecretEntry>()
+    for (const state of this.resolvedInputPaths.values()) {
+      if (state.projectedValue === undefined) continue
+      for (const entryKey of state.entryKeys) {
+        const entry = this.activeEntries.get(entryKey)
+        if (
+          !entry ||
+          entry.anonymous ||
+          entry.name.length === 0 ||
+          !projectedValueContains(state.projectedValue, `{{${entry.name}}}`)
+        ) {
+          continue
+        }
+        const existing = exposedEntriesByName.get(entry.name)
+        if (existing && existing.plaintext !== entry.plaintext) return { complete: false }
+        exposedEntriesByName.set(entry.name, entry)
+      }
+    }
+
+    const registry = new ResolvedSecretTraceRegistry(this.catalog.values(), this.scope)
+    let matched = false
+    const resolve = (candidate: unknown, path: string[]): unknown => {
+      if (typeof candidate === 'string') {
+        const usedEntries = new Map<string, ActiveSecretEntry>()
+        const resolved = candidate.replace(/\{\{([^{}]+)\}\}/g, (placeholder, rawName) => {
+          const name = String(rawName).trim()
+          const entry = exposedEntriesByName.get(name)
+          if (!entry) return placeholder
+          usedEntries.set(activeEntryKey(entry), entry)
+          return entry.plaintext
+        })
+        if (usedEntries.size === 0) return candidate
+
+        matched = true
+        for (const entry of usedEntries.values()) {
+          registry.addActiveEntry({ ...entry }, { propagated: true })
+        }
+        registry.bindResolvedInputPathEntries(path, usedEntries.values())
+        registry.recordResolvedInputProjection(path, resolved, candidate)
+        return resolved
+      }
+      if (Array.isArray(candidate)) {
+        return candidate.map((item, index) => resolve(item, [...path, String(index)]))
+      }
+      if (candidate === null || typeof candidate !== 'object') return candidate
+
+      const resolved: Record<string, unknown> = {}
+      for (const [key, child] of Object.entries(candidate)) {
+        resolved[key] = resolve(child, [...path, key])
+      }
+      return resolved
+    }
+
+    const resolvedValue = resolve(value, []) as T
+    return {
+      complete: true,
+      matched,
+      value: resolvedValue,
+      registry,
+    }
   }
 
   /** Merges one settled tool-call registry into the turn-scoped registry. */

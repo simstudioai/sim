@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from 'node:async_hooks'
 import { getErrorMessage } from '@sim/utils/errors'
 import { projectToolResultForCopilot } from '@/lib/copilot/request/tools/resolved-secret-result'
 import type { ToolExecutionResult } from '@/lib/copilot/tool-executor/types'
+import type { ExecutionContext } from '@/executor/types'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { getPreparedProviderToolInputProvenance } from '@/providers/tool-input-provenance'
 import { type ExecuteToolOptions, executeTool } from '@/tools'
@@ -9,6 +10,8 @@ import type { ToolResponse } from '@/tools/types'
 
 export interface ProviderRuntimeContext {
   resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+  /** Trusted server execution context inherited by model-emitted tool calls. */
+  executionContext?: ExecutionContext
 }
 
 export type ExecuteProviderToolOptions = ExecuteToolOptions
@@ -68,8 +71,10 @@ export async function executeProviderTool(
     : undefined
 
   try {
+    const executionContext = options.executionContext ?? runtimeContext?.executionContext
     const result = await executeTool(toolId, params, {
       ...options,
+      ...(executionContext ? { executionContext } : {}),
       resolvedSecretTraceRegistry: toolCallRegistry,
     })
     if (!registry || !toolCallRegistry) {
