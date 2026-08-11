@@ -503,16 +503,36 @@ export function Document({
     [guardDirtyAction, navigateToChunk]
   )
 
+  /**
+   * Confirms before a crumb navigates away from an unsaved chunk. A route change unmounts the
+   * editor, so the edit is gone with no way back — the same reason the in-page transitions go
+   * through {@link guardDirtyAction}.
+   *
+   * Gated on the editor actually being open, not on `isDirty` alone: `UnsavedChangesModal`
+   * mounts only alongside the editor, and `isDirty` outlives it when the editor is unmounted
+   * by a URL change rather than by `closeEditor` (browser Back off an edited chunk). Guarding
+   * unconditionally would then raise a modal nothing renders, leaving the crumb dead.
+   */
+  const guardRouteChange = useCallback(
+    (navigate: () => void) => {
+      if (isCreatingNewChunk || selectedChunkId) guardDirtyAction(navigate)
+      else navigate()
+    },
+    [isCreatingNewChunk, selectedChunkId, guardDirtyAction]
+  )
+
   const handleNavToFolder = useCallback(
     (folderId: string | null) => {
-      router.push(folderedResourceListHref('knowledge_base', workspaceId as string, folderId))
+      guardRouteChange(() =>
+        router.push(folderedResourceListHref('knowledge_base', workspaceId as string, folderId))
+      )
     },
-    [router, workspaceId]
+    [guardRouteChange, router, workspaceId]
   )
 
   const handleNavToKBDetail = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }, [router, workspaceId, knowledgeBaseId])
+    guardRouteChange(() => router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`))
+  }, [guardRouteChange, router, workspaceId, knowledgeBaseId])
 
   /**
    * `Knowledge Base / …the base's folders / <base> / <last>`. Every view on this route is that
