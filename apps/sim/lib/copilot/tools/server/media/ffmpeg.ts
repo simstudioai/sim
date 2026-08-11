@@ -12,7 +12,12 @@ import {
 } from '@/lib/copilot/tools/server/base-tool'
 import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
-import { type FfmpegOperation, type MediaFile, runFfmpegOperation } from '@/lib/media/ffmpeg'
+import {
+  type FfmpegOperation,
+  MAX_FFMPEG_INPUTS,
+  type MediaFile,
+  runFfmpegOperation,
+} from '@/lib/media/ffmpeg'
 import {
   createWorkspaceFileSecretProvenanceFromRegistry,
   getBoundWorkspaceFileSecretProvenance,
@@ -71,6 +76,19 @@ interface FfmpegResult {
   probe?: unknown
 }
 
+/**
+ * A transcode outlives its request unless the child process is killed, so both
+ * the transport abort and the explicit user stop must reach FFmpeg — checking
+ * them only between steps leaves a cancelled turn burning cores.
+ */
+function resolveFfmpegAbortSignal(context: ServerToolContext): AbortSignal | undefined {
+  const signals = [context.abortSignal, context.userStopSignal].filter(
+    (signal): signal is AbortSignal => Boolean(signal)
+  )
+  if (signals.length === 0) return undefined
+  return signals.length === 1 ? signals[0] : AbortSignal.any(signals)
+}
+
 export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
   name: Ffmpeg.id,
 
@@ -89,6 +107,14 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
     const inputPaths = params.inputs?.files?.map((f) => f.path) ?? []
     if (inputPaths.length === 0) {
       return { success: false, message: 'At least one input file is required in inputs.files' }
+    }
+    // Bounded before any download: the byte budget alone still permits hundreds
+    // of small clips, and concat re-encodes every one of them serially.
+    if (inputPaths.length > MAX_FFMPEG_INPUTS) {
+      return {
+        success: false,
+        message: `At most ${MAX_FFMPEG_INPUTS} input files are allowed per ffmpeg operation (got ${inputPaths.length}).`,
+      }
     }
 
     let inputRequiresOpaqueError = false
@@ -138,19 +164,24 @@ export const ffmpegServerTool: BaseServerTool<FfmpegArgs, FfmpegResult> = {
       inputRequiresOpaqueError ||=
         inputProvenance.status === 'unknown' || inputProvenance.entries.length > 0
       assertServerToolNotAborted(context)
-      const result = await runFfmpegOperation(params.operation, mediaFiles, {
-        text: params.text,
-        position: params.position,
-        start: params.start,
-        end: params.end,
-        width: params.width,
-        height: params.height,
-        aspectRatio: params.aspectRatio,
-        volume: params.volume,
-        musicVolume: params.musicVolume,
-        loopToVideo: params.loopToVideo,
-        format: params.format,
-      })
+      const result = await runFfmpegOperation(
+        params.operation,
+        mediaFiles,
+        {
+          text: params.text,
+          position: params.position,
+          start: params.start,
+          end: params.end,
+          width: params.width,
+          height: params.height,
+          aspectRatio: params.aspectRatio,
+          volume: params.volume,
+          musicVolume: params.musicVolume,
+          loopToVideo: params.loopToVideo,
+          format: params.format,
+        },
+        { signal: resolveFfmpegAbortSignal(context) }
+      )
 
       // probe reports metadata only — no file written.
       if (params.operation === 'probe') {
