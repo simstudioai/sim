@@ -150,6 +150,61 @@ ${repeatedParagraphs}`
     expect(text).toContain('Value')
   })
 
+  it('preserves links on linked-image fallbacks', async () => {
+    const destination = 'https://sim.ai/docs'
+    const buffer = await renderMarkdownPdf({
+      markdown: `[![Documentation badge](https://example.com/badge.svg)](${destination})`,
+      title: 'Linked image',
+    })
+
+    const document = await getDocument({ data: new Uint8Array(buffer), disableWorker: true })
+      .promise
+    try {
+      const annotations = await (await document.getPage(1)).getAnnotations()
+      expect(annotations.some((annotation) => annotation.url === destination)).toBe(true)
+    } finally {
+      await document.destroy()
+    }
+  })
+
+  it('preserves GFM table-cell alignment', async () => {
+    const buffer = await renderMarkdownPdf({
+      markdown: `| LEFTVALUE |
+| :--- |
+| left |
+
+| CENTERVALUE |
+| :---: |
+| center |
+
+| RIGHTVALUE |
+| ---: |
+| right |`,
+      title: 'Aligned tables',
+    })
+
+    const document = await getDocument({ data: new Uint8Array(buffer), disableWorker: true })
+      .promise
+    try {
+      const content = await (await document.getPage(1)).getTextContent()
+      const textX = (value: string) => {
+        const item = content.items.find(
+          (candidate) => 'str' in candidate && candidate.str === value
+        )
+        expect(item && 'transform' in item).toBe(true)
+        return item && 'transform' in item ? item.transform[4] : 0
+      }
+      const leftX = textX('LEFTVALUE')
+      const centerX = textX('CENTERVALUE')
+      const rightX = textX('RIGHTVALUE')
+
+      expect(centerX - leftX).toBeGreaterThan(100)
+      expect(rightX - centerX).toBeGreaterThan(100)
+    } finally {
+      await document.destroy()
+    }
+  })
+
   it('falls back instead of decoding an image above the pixel ceiling', async () => {
     const oversizedSvg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="20000" height="20000"><rect width="100%" height="100%" fill="red"/></svg>'

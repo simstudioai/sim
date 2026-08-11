@@ -249,6 +249,8 @@ const styles = StyleSheet.create({
     minWidth: 0,
     padding: 5,
   },
+  tableCellCenter: { textAlign: 'center' },
+  tableCellRight: { textAlign: 'right' },
   tableHeader: { backgroundColor: '#f1f3f5', fontWeight: 700 },
   imageBlock: { marginBottom: 11 },
   image: { maxHeight: 430, objectFit: 'contain', width: '100%' },
@@ -451,10 +453,24 @@ function renderImage(
   key: string
 ): ReactNode {
   const src = stringAttr(node, 'src') ?? ''
+  const rawHref = stringAttr(node, 'href')
+  const href = rawHref ? safeLink(rawHref) : undefined
   const ref = extractEmbeddedFileRef(src)
   const image = ref ? images.get(markdownPdfImageKey(ref)) : undefined
   if (!image) {
     const alt = stringAttr(node, 'alt')
+    const fallback = (
+      <Text style={styles.imageFallback}>
+        {renderText(alt ? `Image: ${alt}` : 'Image unavailable', key)}
+      </Text>
+    )
+    if (href) {
+      return (
+        <Link key={key} src={href}>
+          {fallback}
+        </Link>
+      )
+    }
     return (
       <Text key={key} style={styles.imageFallback}>
         {renderText(alt ? `Image: ${alt}` : 'Image unavailable', key)}
@@ -466,6 +482,18 @@ function renderImage(
   const width = Number.isFinite(requestedWidth)
     ? Math.min(Math.max(requestedWidth, 1), PDF_TABLE_CONTENT_WIDTH)
     : undefined
+  const renderedImage = (
+    <View style={styles.imageBlock}>
+      <Image src={image} style={[styles.image, ...(width ? [{ width }] : [])]} />
+    </View>
+  )
+  if (href) {
+    return (
+      <Link key={key} src={href}>
+        {renderedImage}
+      </Link>
+    )
+  }
   return (
     <View key={key} style={styles.imageBlock}>
       <Image src={image} style={[styles.image, ...(width ? [{ width }] : [])]} />
@@ -515,19 +543,31 @@ function renderList(
 function renderTableRow(row: JSONContent, key: string, header: boolean): ReactNode {
   return (
     <View key={key} minPresenceAhead={header ? 16 : undefined} style={styles.tableRow}>
-      {(row.content ?? []).map((cell, index) => (
-        <Text
-          key={`${key}-${index}`}
-          style={[styles.tableCell, ...(header ? [styles.tableHeader] : [])]}
-        >
-          {(cell.content ?? []).map((child, childIndex) => (
-            <Text key={`${key}-${index}-${childIndex}`}>
-              {childIndex > 0 ? '\n' : null}
-              {renderInline(`${key}-${index}-${childIndex}`, child.content)}
-            </Text>
-          ))}
-        </Text>
-      ))}
+      {(row.content ?? []).map((cell, index) => {
+        const alignmentStyle =
+          cell.attrs?.align === 'center'
+            ? styles.tableCellCenter
+            : cell.attrs?.align === 'right'
+              ? styles.tableCellRight
+              : undefined
+        return (
+          <Text
+            key={`${key}-${index}`}
+            style={[
+              styles.tableCell,
+              ...(header ? [styles.tableHeader] : []),
+              ...(alignmentStyle ? [alignmentStyle] : []),
+            ]}
+          >
+            {(cell.content ?? []).map((child, childIndex) => (
+              <Text key={`${key}-${index}-${childIndex}`}>
+                {childIndex > 0 ? '\n' : null}
+                {renderInline(`${key}-${index}-${childIndex}`, child.content)}
+              </Text>
+            ))}
+          </Text>
+        )
+      })}
     </View>
   )
 }
