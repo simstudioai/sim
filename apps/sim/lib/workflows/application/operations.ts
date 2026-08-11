@@ -202,9 +202,15 @@ export const workflowOperations = {
     workspaceApiKey: 'deny',
     ...HUMAN_WORKFLOW_PRINCIPAL_POLICY,
   }),
+  /**
+   * Deliberately admin while the rest of the deployment lifecycle is write:
+   * enabling this makes the workflow callable with no authentication at all,
+   * exposing every credential and environment variable it references to
+   * anonymous callers. That is a different risk class from shipping a version.
+   */
   updatePublicApi: defineWorkspaceOperation({
     id: 'workflows.public_api.update',
-    minimumRole: 'write',
+    minimumRole: 'admin',
     workspaceApiKey: 'deny',
     principalKinds: ['session'],
   }),

@@ -24,7 +24,6 @@ describe('deployment permission matrix', () => {
       ['undeploy', workflowOperations.undeploy],
       ['deployChat', workflowOperations.deployChat],
       ['undeployChat', workflowOperations.undeployChat],
-      ['updatePublicApi', workflowOperations.updatePublicApi],
       ['activateVersion', workflowOperations.activateVersion],
       ['revertVersion', workflowOperations.revertVersion],
       ['updateVersion', workflowOperations.updateVersion],
@@ -43,13 +42,22 @@ describe('deployment permission matrix', () => {
     })
   })
 
-  describe('credential and code-injection surfaces stay admin', () => {
+  describe('credential, exposure, and code-injection surfaces stay admin', () => {
     it('minting a workspace API key requires admin', () => {
       expect(apiKeyOperations.createFromCopilot.minimumRole).toBe('admin')
     })
 
     it('workflow policy (lock) requires admin', () => {
       expect(workflowOperations.updatePolicy.minimumRole).toBe('admin')
+    })
+
+    /**
+     * Enabling the public API makes the workflow callable with no auth at all.
+     * It stays admin even though deploying moved to write — an editor can ship
+     * a version, but only an admin can expose it to anonymous callers.
+     */
+    it('exposing a workflow as a public API requires admin', () => {
+      expect(workflowOperations.updatePublicApi.minimumRole).toBe('admin')
     })
   })
 
