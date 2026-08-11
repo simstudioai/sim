@@ -93,13 +93,14 @@ export const WorkflowControls = memo(function WorkflowControls() {
     <>
       <div
         /*
-         * `bottom-2`, not `bottom-4`, to sit the same 8px above the terminal
-         * that the toast stack does. The toast anchors from the viewport at
-         * `--terminal-height + 16px` while the terminal itself is inset by
-         * CONTENT_WINDOW_GAP (8px), so its visible gap is 8 — these controls
-         * measure from the canvas floor, where 16px read as twice the distance.
+         * 8px off both edges, matching the clearance the toast stack keeps from
+         * the terminal and the panel. The toast anchors from the viewport at
+         * `--terminal-height + 16px` / `--panel-width + 16px`, and both of those
+         * are themselves inset by CONTENT_WINDOW_GAP (8px), so its visible gap
+         * is 8. These controls measure from the canvas floor and wall instead,
+         * where the old 16px read as twice the distance on both axes.
          */
-        className='absolute bottom-2 left-[16px] z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
+        className='absolute bottom-2 left-2 z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}
