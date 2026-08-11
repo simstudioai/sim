@@ -15,7 +15,7 @@ export const AgiloftBlock: BlockConfig = {
   name: 'Agiloft',
   description: 'Manage records in Agiloft CLM',
   longDescription:
-    'Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.',
+    'Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.',
   docsLink: 'https://docs.sim.ai/integrations/agiloft',
   category: 'tools',
   integrationType: IntegrationType.Productivity,
@@ -42,17 +42,18 @@ export const AgiloftBlock: BlockConfig = {
         delete_record: [
           { text: 'Delete record', field: 'recordId', core: true },
           { text: 'from', field: 'table' },
+          { text: ', handling dependents with', field: 'deleteRule' },
         ],
         search_records: [
           { text: 'Search', field: 'table', core: true },
           { text: 'for', field: 'query' },
+          { text: ', using saved search', field: 'search' },
           { text: ', up to', field: 'limit', after: 'records' },
         ],
         select_records: [
           { text: 'Select record IDs from', field: 'table', core: true },
           { text: ', where', field: 'where' },
         ],
-        saved_search: [{ text: 'List saved searches on', field: 'table', core: true }],
         attach_file: [
           { text: 'Attach', field: ATTACH_FILE_FIELD, core: true },
           { text: 'to record', field: 'recordId', core: true },
@@ -86,6 +87,10 @@ export const AgiloftBlock: BlockConfig = {
           { text: 'Run lock action', field: 'lockAction', core: true },
           { text: 'on record', field: 'recordId', core: true },
         ],
+        run_action_button: [
+          { text: 'Run action button', field: 'actionButtonField', core: true },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
         get_choice_line_id: [
           { text: 'Resolve the internal ID of choice', field: 'value', core: true },
           { text: 'on field', field: 'fieldName' },
@@ -107,12 +112,12 @@ export const AgiloftBlock: BlockConfig = {
         { label: 'Delete Record', id: 'delete_record' },
         { label: 'Search Records', id: 'search_records' },
         { label: 'Select Records', id: 'select_records' },
-        { label: 'Saved Search', id: 'saved_search' },
         { label: 'Attach File', id: 'attach_file' },
         { label: 'Retrieve Attachment', id: 'retrieve_attachment' },
         { label: 'Remove Attachment', id: 'remove_attachment' },
         { label: 'Attachment Info', id: 'attachment_info' },
         { label: 'Lock Record', id: 'lock_record' },
+        { label: 'Run Action Button', id: 'run_action_button' },
         { label: 'Get Choice Line ID', id: 'get_choice_line_id' },
       ],
       value: () => 'search_records',
@@ -169,6 +174,7 @@ export const AgiloftBlock: BlockConfig = {
           'remove_attachment',
           'attachment_info',
           'lock_record',
+          'run_action_button',
         ],
       },
       required: {
@@ -182,6 +188,7 @@ export const AgiloftBlock: BlockConfig = {
           'remove_attachment',
           'attachment_info',
           'lock_record',
+          'run_action_button',
         ],
       },
     },
@@ -203,14 +210,20 @@ export const AgiloftBlock: BlockConfig = {
       id: 'query',
       title: 'Search Query',
       type: 'short-input',
-      placeholder: "status='Active' AND company_name~='Acme'",
+      placeholder: "status='Active'&&company_name~='Acme'",
       condition: { field: 'operation', value: 'search_records' },
-      required: { field: 'operation', value: 'search_records' },
       wandConfig: {
         enabled: true,
         prompt:
-          "Generate an Agiloft search query. Use field_name='value' for exact match, field_name~='value' for contains, and AND/OR for combining conditions. Return ONLY the query string - no explanations, no extra text.",
+          "Generate an Agiloft EWSearch query. Use field_name='value' for exact match, field_name~='value' for contains, != for not equals, and <, <=, >, >= for comparisons. Combine conditions with && for and, || for or. Quote every value in single quotes, and quote field labels that contain spaces. Return ONLY the query string - no explanations, no extra text.",
       },
+    },
+    {
+      id: 'search',
+      title: 'Saved Search',
+      type: 'short-input',
+      placeholder: 'e.g., C: Status is Closed',
+      condition: { field: 'operation', value: 'search_records' },
     },
     {
       id: 'where',
@@ -222,7 +235,7 @@ export const AgiloftBlock: BlockConfig = {
       wandConfig: {
         enabled: true,
         prompt:
-          "Generate a SQL WHERE clause for an Agiloft EWSelect query using database column names. Use standard SQL syntax (e.g., column='value', column like '%text%'). Return ONLY the WHERE clause - no explanations, no extra text.",
+          "Generate a SQL WHERE clause for an Agiloft EWSelect query using database column names. Use standard SQL syntax (e.g., column='value', column like '%text%'). EWSelect has no page size, so append a database limit such as \"limit 0,200\" to keep the result bounded. Return ONLY the WHERE clause - no explanations, no extra text.",
       },
     },
     {
@@ -250,6 +263,14 @@ export const AgiloftBlock: BlockConfig = {
           'get_choice_line_id',
         ],
       },
+    },
+    {
+      id: 'actionButtonField',
+      title: 'Action Button Field',
+      type: 'short-input',
+      placeholder: 'e.g., ab_send_for_signature',
+      condition: { field: 'operation', value: 'run_action_button' },
+      required: { field: 'operation', value: 'run_action_button' },
     },
     {
       id: 'value',
@@ -316,6 +337,36 @@ export const AgiloftBlock: BlockConfig = {
       required: { field: 'operation', value: 'lock_record' },
     },
     {
+      id: 'deleteRule',
+      title: 'Dependent Records',
+      type: 'dropdown',
+      options: [
+        { label: 'Fail if dependents exist', id: 'ERROR_IF_DEPENDANTS' },
+        { label: 'Delete dependents where possible', id: 'APPLY_DELETE_WHERE_POSSIBLE' },
+        { label: 'Delete, otherwise unlink', id: 'DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK' },
+        { label: 'Unlink dependents', id: 'APPLY_UNLINK' },
+        { label: 'Unlink, otherwise delete', id: 'UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE' },
+      ],
+      value: () => 'ERROR_IF_DEPENDANTS',
+      condition: { field: 'operation', value: 'delete_record' },
+    },
+    {
+      id: 'force',
+      title: 'Force Unlock',
+      type: 'dropdown',
+      options: [
+        { label: 'No', id: 'false' },
+        { label: 'Yes', id: 'true' },
+      ],
+      value: () => 'false',
+      mode: 'advanced',
+      condition: {
+        field: 'operation',
+        value: 'lock_record',
+        and: { field: 'lockAction', value: 'unlock' },
+      },
+    },
+    {
       id: 'fields',
       title: 'Fields',
       type: 'short-input',
@@ -357,6 +408,8 @@ export const AgiloftBlock: BlockConfig = {
       'agiloft_read_record',
       'agiloft_remove_attachment',
       'agiloft_retrieve_attachment',
+      'agiloft_run_action_button',
+      // Retired, but retained so blocks saved with operation='saved_search' still resolve.
       'agiloft_saved_search',
       'agiloft_search_records',
       'agiloft_select_records',
@@ -370,6 +423,9 @@ export const AgiloftBlock: BlockConfig = {
         })
         if (normalizedFile) {
           params.file = normalizedFile
+        }
+        if (params.force !== undefined) {
+          params.force = params.force === true || params.force === 'true'
         }
         return params
       },
@@ -385,14 +441,24 @@ export const AgiloftBlock: BlockConfig = {
     table: { type: 'string', description: 'Table name' },
     recordId: { type: 'string', description: 'Record ID' },
     data: { type: 'string', description: 'Record data as JSON' },
-    query: { type: 'string', description: 'Search query' },
+    query: { type: 'string', description: 'Ad hoc EWSearch query' },
+    search: { type: 'string', description: 'Label of a saved search defined on the table' },
     where: { type: 'string', description: 'SQL WHERE clause for select' },
     fieldName: { type: 'string', description: 'Attachment field name or choice field name' },
     value: { type: 'string', description: 'Choice value to resolve to its line ID' },
+    actionButtonField: {
+      type: 'string',
+      description: 'Logical name of the field holding the action button to run',
+    },
     attachFile: { type: 'file', description: 'File to attach' },
     fileName: { type: 'string', description: 'Name for the attached file' },
     position: { type: 'string', description: 'Attachment position index' },
     lockAction: { type: 'string', description: 'Lock action (lock, unlock, check)' },
+    force: { type: 'boolean', description: 'Force an unlock held by another user (admins only)' },
+    deleteRule: {
+      type: 'string',
+      description: 'How EWDelete treats records that depend on the one being deleted',
+    },
     fields: { type: 'string', description: 'Fields to return' },
     page: { type: 'string', description: 'Page number' },
     limit: { type: 'string', description: 'Results per page' },
@@ -427,7 +493,8 @@ export const AgiloftBlock: BlockConfig = {
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching results',
+      description:
+        'Number of matching results. For a paginated search this counts the current page only',
       condition: {
         field: 'operation',
         value: ['search_records', 'select_records', 'attachment_info'],
@@ -435,23 +502,18 @@ export const AgiloftBlock: BlockConfig = {
     },
     page: {
       type: 'number',
-      description: 'Current page number',
+      description: 'Page number that was requested (0-based)',
       condition: { field: 'operation', value: 'search_records' },
     },
     limit: {
       type: 'number',
-      description: 'Results per page',
+      description: 'Page size that was requested; 0 when Agiloft chose the page size',
       condition: { field: 'operation', value: 'search_records' },
     },
     recordIds: {
       type: 'json',
       description: 'Array of record IDs matching the WHERE clause',
       condition: { field: 'operation', value: 'select_records' },
-    },
-    searches: {
-      type: 'json',
-      description: 'Array of saved search definitions (name, label, id, description)',
-      condition: { field: 'operation', value: 'saved_search' },
     },
     file: {
       type: 'file',
@@ -465,8 +527,11 @@ export const AgiloftBlock: BlockConfig = {
     },
     recordId: {
       type: 'string',
-      description: 'ID of the record the file operation was performed on',
-      condition: { field: 'operation', value: ['attach_file', 'remove_attachment'] },
+      description: 'ID of the record the operation was performed on',
+      condition: {
+        field: 'operation',
+        value: ['attach_file', 'remove_attachment', 'run_action_button'],
+      },
     },
     fieldName: {
       type: 'string',
@@ -490,7 +555,7 @@ export const AgiloftBlock: BlockConfig = {
     },
     lockStatus: {
       type: 'string',
-      description: 'Lock status (e.g., LOCKED, UNLOCKED)',
+      description: 'Lock status: LOCKED when the record is held, NO_LOCK when it is free',
       condition: { field: 'operation', value: 'lock_record' },
     },
     lockedBy: {
@@ -502,6 +567,11 @@ export const AgiloftBlock: BlockConfig = {
       type: 'number',
       description: 'Minutes until the lock expires',
       condition: { field: 'operation', value: 'lock_record' },
+    },
+    callbackId: {
+      type: 'string',
+      description: 'Callback identifier Agiloft returns for the asynchronous action-button run',
+      condition: { field: 'operation', value: 'run_action_button' },
     },
     choiceLineId: {
       type: 'number',
@@ -605,6 +675,20 @@ export const AgiloftBlockMeta = {
         'Read a contract record in Agiloft and produce a plain-language summary of its key obligations and dates.',
       content:
         '# Summarize Contract Terms\n\nTurn an Agiloft contract record into a concise brief.\n\n## Steps\n1. Read the contract record and its key fields and attached terms.\n2. Identify obligations, payment terms, renewal/termination clauses, and critical dates.\n3. Note any unusual or high-risk terms.\n\n## Output\nA short brief: parties, term, value, key obligations, critical dates, and any risk flags. Keep it readable for non-lawyers.',
+    },
+    {
+      name: 'collect-executed-contract-documents',
+      description:
+        'Pull the signed documents attached to Agiloft contract records so they can be archived or reviewed elsewhere.',
+      content:
+        '# Collect Executed Contract Documents\n\nGather the executed files attached to Agiloft contract records.\n\n## Steps\n1. Identify the contract records in scope, by saved search or by an ad hoc query.\n2. For each record, list the attachments on the document field to see what is present and how large each file is.\n3. Download the attachment at the position that holds the executed copy.\n\n## Output\nOne entry per contract: record ID, counterparty, file name, and size. Call out any record where the document field is empty or holds an unexpected number of files.',
+    },
+    {
+      name: 'safely-edit-a-locked-record',
+      description:
+        'Check and manage the record lock on an Agiloft record before and after an automated edit.',
+      content:
+        "# Safely Edit a Locked Record\n\nAvoid clobbering another user's in-progress edit when a workflow updates an Agiloft record.\n\n## Steps\n1. Check the lock status on the record before writing. If it reports LOCKED, report who holds it and stop rather than overwriting.\n2. When the record is free, take the lock, apply the update, then release it.\n3. Locks expire on their own, so keep the locked window as short as the update needs.\n\n## Output\nState what the lock status was, whether the update was applied or deferred, and confirm the lock was released.",
     },
   ],
 } as const satisfies BlockMeta

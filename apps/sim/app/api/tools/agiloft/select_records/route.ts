@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest, toRecordIds } from '@/tools/agiloft/ewrest'
 import type { AgiloftSelectResponse } from '@/tools/agiloft/types'
 import { buildSelectRecordsUrl } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
@@ -56,54 +57,35 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         method: 'GET',
       }),
       async (response) => {
+        const body = await response.text()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
             output: { recordIds: [], totalCount: 0 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const recordIds: string[] = []
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            const id = item.id ?? item.ID ?? item
-            recordIds.push(String(id))
-          }
-        } else if (typeof result === 'object' && result !== null) {
-          let i = 0
-          while (result[`id_${i}`] !== undefined || result[`EWREST_id_${i}`] !== undefined) {
-            const id = result[`id_${i}`] ?? result[`EWREST_id_${i}`]
-            recordIds.push(String(id))
-            i++
-          }
-          if (recordIds.length === 0 && result.id !== undefined) {
-            recordIds.push(String(result.id))
+        /**
+         * EWSelect answers with EWREST_id_length followed by one EWREST_id_<n>
+         * assignment per match, and zero matches still yields the length line.
+         * A body with no assignments at all is therefore never a legitimate
+         * empty result — it is a refusal Agiloft returned with HTTP 200, most
+         * often invalid WHERE-clause SQL.
+         */
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { recordIds: [], totalCount: 0 },
+            error: `Agiloft did not return a result set: ${body.trim() || '(empty response)'}`,
           }
         }
 
-        const totalCountRaw =
-          result.EWREST_id_length ??
-          result.totalCount ??
-          result.total ??
-          result.count ??
-          data.EWREST_id_length ??
-          data.totalCount ??
-          data.total ??
-          data.count ??
-          recordIds.length
+        const { recordIds, count } = toRecordIds(values)
 
-        return {
-          success: data.success !== false,
-          output: {
-            recordIds,
-            totalCount: Number(totalCountRaw),
-          },
-        }
+        return { success: true, output: { recordIds, totalCount: count } }
       }
     )
 

@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { isEwRestBody } from '@/tools/agiloft/ewrest'
 import type { AgiloftDeleteResponse } from '@/tools/agiloft/types'
 import { buildDeleteRecordUrl } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
@@ -53,26 +54,36 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       params,
       (base) => ({
         url: buildDeleteRecordUrl(base, params),
-        method: 'DELETE',
-        headers: { Accept: 'application/json' },
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       }),
       async (response) => {
+        const body = (await response.text()).trim()
+        const recordId = params.recordId.trim()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
-            output: { id: params.recordId?.trim() ?? '', deleted: false },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            output: { id: recordId, deleted: false },
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        return {
-          success: true,
-          output: {
-            id: params.recordId?.trim() ?? '',
-            deleted: true,
-          },
+        /**
+         * EWDelete returns nothing on success and an error message on failure,
+         * so a non-empty body that is not an EWREST assignment is a refusal the
+         * HTTP status did not surface — most often the delete rule rejecting
+         * dependent records.
+         */
+        if (body && !isEwRestBody(body)) {
+          return {
+            success: false,
+            output: { id: recordId, deleted: false },
+            error: `Agiloft refused the delete: ${body}`,
+          }
         }
+
+        return { success: true, output: { id: recordId, deleted: true } }
       }
     )
 

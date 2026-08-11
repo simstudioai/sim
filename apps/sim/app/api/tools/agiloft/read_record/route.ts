@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest, toRecord } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
 import { buildReadRecordUrl } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
@@ -49,34 +50,53 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
+    /**
+     * EWRead has no documented field-selection parameter — it returns the whole
+     * record the caller is permitted to see — so the requested subset is
+     * applied here rather than sent upstream.
+     */
+    const requestedFields = params.fields
+      ?.split(',')
+      .map((field) => field.trim())
+      .filter(Boolean)
+
     const result = await executeAgiloftRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
         url: buildReadRecordUrl(base, params),
         method: 'GET',
-        headers: { Accept: 'application/json' },
       }),
       async (response) => {
+        const body = await response.text()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
             output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
-        return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { id: null, fields: {} },
+            error: `Agiloft returned no record data: ${body.trim() || '(empty response)'}`,
+          }
         }
+
+        const { id, fields } = toRecord(values)
+
+        if (!requestedFields?.length) {
+          return { success: true, output: { id, fields } }
+        }
+
+        const selected: Record<string, string> = {}
+        for (const field of requestedFields) {
+          if (field in fields) selected[field] = fields[field]
+        }
+        return { success: true, output: { id, fields: selected } }
       }
     )
 

@@ -34,7 +34,7 @@ In Sim, the Agiloft integration enables your agents to manage contracts and reco
 
 ## Usage Instructions
 
-Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.
+Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.
 
 
 
@@ -129,6 +129,7 @@ Delete a record from an Agiloft table.
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
 | `recordId` | string | Yes | ID of the record to delete |
+| `deleteRule` | string | No | How to treat records that depend on this one: ERROR_IF_DEPENDANTS \(default — fails rather than cascading\), APPLY_DELETE_WHERE_POSSIBLE, DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK, APPLY_UNLINK, or UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE |
 
 #### Output
 
@@ -174,13 +175,14 @@ Lock, unlock, or check the lock status of an Agiloft record.
 | `table` | string | Yes | Table name \(e.g., "contracts"\) |
 | `recordId` | string | Yes | ID of the record to lock, unlock, or check |
 | `lockAction` | string | Yes | Action to perform: "lock", "unlock", or "check" |
+| `force` | boolean | No | Unlock only: release a lock held by another user. Requires membership in the admin group. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `id` | string | Record ID |
-| `lockStatus` | string | Lock status \(e.g., "LOCKED", "UNLOCKED"\) |
+| `lockStatus` | string | Lock status: "LOCKED" when the record is held, "NO_LOCK" when it is free |
 | `lockedBy` | string | Username of the user who locked the record |
 | `lockExpiresInMinutes` | number | Minutes until the lock expires |
 
@@ -255,9 +257,9 @@ Download an attached file from an Agiloft record field.
 | --------- | ---- | ----------- |
 | `file` | file | Downloaded attachment file |
 
-### Agiloft Saved Search
+### Agiloft Run Action Button
 
-List saved searches defined for an Agiloft table.
+Run an action button on an Agiloft record, such as an approval or send-for-signature step.
 
 #### Input
 
@@ -267,17 +269,40 @@ List saved searches defined for an Agiloft table.
 | `knowledgeBase` | string | Yes | Knowledge base name |
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
-| `table` | string | Yes | Table name to list saved searches for \(e.g., "contracts"\) |
+| `table` | string | Yes | Table name \(e.g., "contracts", "case"\) |
+| `recordId` | string | Yes | ID of the record to run the action button on |
+| `actionButtonField` | string | Yes | Logical name of the field holding the action button \(e.g., "ab_field"\) |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
-| `searches` | array | List of saved searches for the table |
-|   ↳ `name` | string | Saved search name |
-|   ↳ `label` | string | Saved search display label |
-|   ↳ `id` | number | Saved search database identifier |
-|   ↳ `description` | string | Saved search description |
+| `recordId` | string | ID of the record the action button was run on |
+| `callbackId` | string | Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID |
+
+### saved_search
+
+
+### Agiloft Saved Search (retired)
+
+Retired. Agiloft does not document an endpoint for listing saved searches — use the Search Records operation and set its Saved Search field instead.
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `instanceUrl` | string | No | Agiloft instance URL |
+| `knowledgeBase` | string | No | Knowledge base name |
+| `login` | string | No | Agiloft username |
+| `password` | string | No | Agiloft password |
+| `table` | string | No | Table name |
+| `output` | string | No | No description |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `searches` | array | Always empty; this operation is retired |
 
 ### Agiloft Search Records
 
@@ -292,19 +317,20 @@ Search for records in an Agiloft table using a query.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name to search in \(e.g., "contracts", "contacts.employees"\) |
-| `query` | string | Yes | Search query using Agiloft query syntax \(e.g., "status=\'Active\'" or "company_name~=\'Acme\'"\) |
+| `query` | string | No | Ad hoc EWSearch query. Combine conditions with && \(and\) or \|\| \(or\) and quote every value — e.g. \"summary~='test'&&priority='High'\". Required unless a saved search is given. |
+| `search` | string | No | Label of a saved search defined on the table \(e.g., "C: Status is Closed"\). Can be combined with a query to narrow it further. |
 | `fields` | string | No | Comma-separated list of field names to include in the results |
 | `page` | string | No | Page number for paginated results \(starting from 0\) |
-| `limit` | string | No | Maximum number of records to return per page |
+| `limit` | string | No | Maximum number of records to return per page. Agiloft treats 0 as "all records", so leave it unset or use a positive value to keep result sizes bounded. |
 
 #### Output
 
 | Parameter | Type | Description |
 | --------- | ---- | ----------- |
 | `records` | json | Array of matching records with their field values |
-| `totalCount` | number | Total number of matching records |
-| `page` | number | Current page number |
-| `limit` | number | Records per page |
+| `totalCount` | number | Number of records reported by EWSearch. When paginating this is the count for the current page, not the whole result set. |
+| `page` | number | Page number that was requested \(0-based\) |
+| `limit` | number | Page size that was requested; 0 when no limit was sent and Agiloft chose one |
 
 ### Agiloft Select Records
 
@@ -319,7 +345,7 @@ Select record IDs matching a SQL WHERE clause from an Agiloft table.
 | `login` | string | Yes | Agiloft username |
 | `password` | string | Yes | Agiloft password |
 | `table` | string | Yes | Table name \(e.g., "contracts", "contacts.employees"\) |
-| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\) |
+| `where` | string | Yes | SQL WHERE clause using database column names \(e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"\). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result. |
 
 #### Output
 

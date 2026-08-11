@@ -6,6 +6,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest, toSearchRecords } from '@/tools/agiloft/ewrest'
 import type { AgiloftSearchResponse } from '@/tools/agiloft/types'
 import { buildSearchRecordsUrl } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
@@ -56,66 +57,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         method: 'GET',
       }),
       async (response) => {
+        const body = await response.text()
+        const page = params.page ? Number(params.page) : 0
+        const limit = params.limit ? Number(params.limit) : 0
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
-            output: { records: [], totalCount: 0, page: 0, limit: 25 },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            output: { records: [], totalCount: 0, page, limit },
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const records: Record<string, unknown>[] = []
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            records.push(item)
-          }
-        } else {
-          const lengthRaw = result.EWREST_length ?? data.EWREST_length
-          const count = typeof lengthRaw === 'string' ? Number(lengthRaw) : (lengthRaw as number)
-          if (typeof count === 'number' && Number.isFinite(count)) {
-            const source = (result.EWREST_length != null ? result : data) as Record<string, unknown>
-            for (let i = 0; i < count; i++) {
-              const record: Record<string, unknown> = {}
-              for (const key of Object.keys(source)) {
-                const match = key.match(/^EWREST_(.+)_(\d+)$/)
-                if (match && Number(match[2]) === i) {
-                  record[match[1]] = source[key]
-                }
-              }
-              if (Object.keys(record).length > 0) {
-                records.push(record)
-              }
-            }
+        /**
+         * EWSearch answers with EWREST_length plus one EWREST_<field>_<index>
+         * assignment per field per row, and reports an empty result set as
+         * EWREST_id_length = '0'. A body with no assignments at all is therefore
+         * never a legitimate empty search — it is a refusal Agiloft returned
+         * with HTTP 200, such as an invalid query or an unknown saved search.
+         */
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { records: [], totalCount: 0, page, limit },
+            error: `Agiloft did not return search results: ${body.trim() || '(empty response)'}`,
           }
         }
 
-        const totalCountRaw =
-          result.totalCount ??
-          result.total ??
-          result.count ??
-          result.EWREST_length ??
-          data.totalCount ??
-          data.total ??
-          data.count ??
-          data.EWREST_length ??
-          records.length
-        const totalCount =
-          typeof totalCountRaw === 'string' ? Number(totalCountRaw) : (totalCountRaw as number)
-        const page = params.page ? Number(params.page) : 0
-        const limit = params.limit ? Number(params.limit) : 25
+        const { records, count } = toSearchRecords(values)
 
         return {
-          success: data.success !== false,
-          output: {
-            records,
-            totalCount,
-            page,
-            limit,
-          },
+          success: true,
+          output: { records, totalCount: count, page, limit },
         }
       }
     )

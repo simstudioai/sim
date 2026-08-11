@@ -6,8 +6,9 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { parseEwRest, toRecord } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildUpdateRecordUrl } from '@/tools/agiloft/utils'
+import { buildUpdateRecordUrl, recordUrlLengthError } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
@@ -49,46 +50,62 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    let body: string
+    let fieldValues: Record<string, unknown>
     try {
-      body = JSON.stringify(JSON.parse(params.data))
+      const parsedData = JSON.parse(params.data)
+      if (typeof parsedData !== 'object' || parsedData === null || Array.isArray(parsedData)) {
+        throw new Error('not an object')
+      }
+      fieldValues = parsedData as Record<string, unknown>
     } catch {
       return NextResponse.json({
         success: false,
         output: { id: null, fields: {} },
-        error: 'Invalid JSON in data parameter',
+        error: 'The data parameter must be a JSON object of field names to values',
+      })
+    }
+
+    const oversized = recordUrlLengthError(params.instanceUrl, (base) =>
+      buildUpdateRecordUrl(base, params, fieldValues)
+    )
+    if (oversized) {
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: oversized,
       })
     }
 
     const result = await executeAgiloftRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: buildUpdateRecordUrl(base, params),
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body,
+        url: buildUpdateRecordUrl(base, params, fieldValues),
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       }),
       async (response) => {
+        const body = await response.text()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
             output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-        const id = result.id ?? result.ID ?? data.id ?? data.ID ?? null
-
-        return {
-          success: data.success !== false,
-          output: {
-            id: id != null ? String(id) : null,
-            fields: result ?? {},
-          },
+        /** EWUpdate echoes the whole record back as EWREST_ assignments. */
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { id: null, fields: {} },
+            error: `Agiloft returned no record data: ${body.trim() || '(empty response)'}`,
+          }
         }
+
+        const { id, fields } = toRecord(values)
+        return { success: true, output: { id, fields } }
       }
     )
 
