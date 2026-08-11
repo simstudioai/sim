@@ -19,11 +19,12 @@ describe('public log cursor', () => {
     expect(decodePublicLogCursor(encodePublicLogCursor(cursor), 'asc')).toBeNull()
   })
 
-  it('rejects legacy cursors without an order binding', () => {
+  it('accepts legacy cursors under the order requested by the caller', () => {
     const legacyCursor = Buffer.from(
       JSON.stringify({ startedAt: cursor.startedAt, id: cursor.id })
     ).toString('base64')
 
-    expect(decodePublicLogCursor(legacyCursor, 'desc')).toBeNull()
+    expect(decodePublicLogCursor(legacyCursor, 'desc')).toEqual(cursor)
+    expect(decodePublicLogCursor(legacyCursor, 'asc')).toEqual({ ...cursor, order: 'asc' })
   })
 })
