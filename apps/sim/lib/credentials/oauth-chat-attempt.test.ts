@@ -10,6 +10,7 @@ import {
   createOAuthChatAttempt,
   getOAuthCredentialBaseline,
   hasOAuthCredentialChanged,
+  hasOAuthCredentialForTarget,
   OAUTH_CHAT_ATTEMPT_EVENT,
   OAUTH_CHAT_ATTEMPT_PARAM,
   OAUTH_CHAT_COMPLETE_PATH,
@@ -252,5 +253,61 @@ describe('OAuth chat attempts', () => {
         { ...before[0], updatedAt: '2026-08-07T10:05:00Z' },
       ])
     ).toBe(true)
+  })
+})
+
+describe('credential matching for a chat chip', () => {
+  const credential = (providerId: string) => ({
+    id: `cred-${providerId}`,
+    providerId,
+    updatedAt: '2026-08-11T00:00:00.000Z',
+  })
+
+  it('matches a credential from an alternate authorization server', () => {
+    // A sandbox-only user is connected; without this the chip reads as
+    // disconnected and re-prompts them to connect Salesforce again.
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('salesforce-sandbox')]
+      )
+    ).toBe(true)
+  })
+
+  it('still matches the primary id and the base provider', () => {
+    const target = { providerId: 'google-email', baseProviderId: 'google' }
+    expect(hasOAuthCredentialForTarget(target, [credential('google-email')])).toBe(true)
+    expect(hasOAuthCredentialForTarget(target, [credential('google')])).toBe(true)
+  })
+
+  it('does not match an unrelated provider', () => {
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('hubspot')]
+      )
+    ).toBe(false)
+  })
+
+  it('honours an explicit credentialId over any provider match', () => {
+    expect(
+      hasOAuthCredentialForTarget(
+        {
+          providerId: 'salesforce',
+          baseProviderId: 'salesforce',
+          credentialId: 'cred-other',
+          additionalProviderIds: ['salesforce-sandbox'],
+        },
+        [credential('salesforce-sandbox')]
+      )
+    ).toBe(false)
   })
 })

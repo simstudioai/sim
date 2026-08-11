@@ -24,6 +24,13 @@ export interface OAuthCredentialTarget {
   providerId: string
   baseProviderId: string
   credentialId?: string
+  /**
+   * Alternate authorization servers whose credentials authenticate this same
+   * service (`salesforce-sandbox`). Supplied by the caller rather than resolved
+   * here so this module stays free of the OAuth provider registry, which would
+   * otherwise pull icon components into the chat bundle.
+   */
+  additionalProviderIds?: readonly string[]
 }
 
 export interface OAuthCredentialBaseline {
@@ -65,7 +72,10 @@ function credentialsForTarget(
   }
   return credentials.filter(
     (credential) =>
-      credential.providerId === target.providerId || credential.providerId === target.baseProviderId
+      credential.providerId === target.providerId ||
+      credential.providerId === target.baseProviderId ||
+      (credential.providerId !== null &&
+        (target.additionalProviderIds?.includes(credential.providerId) ?? false))
   )
 }
 

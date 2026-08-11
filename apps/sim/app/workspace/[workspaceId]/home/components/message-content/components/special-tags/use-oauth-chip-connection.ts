@@ -22,7 +22,7 @@ import {
 } from '@/lib/credentials/oauth-chat-attempt'
 import { getDesktopBridge } from '@/lib/desktop'
 import type { OAuthProvider } from '@/lib/oauth/types'
-import { parseProvider } from '@/lib/oauth/utils'
+import { parseProvider, providerIdsForService } from '@/lib/oauth/utils'
 import { useWorkspaceCredentials } from '@/hooks/queries/credentials'
 
 const OAUTH_POPUP_WINDOW_NAME = 'sim-oauth-connect'
@@ -188,7 +188,15 @@ export function useOAuthChipConnection({
   } | null>(null)
 
   const credentialTarget = useMemo(
-    () => ({ providerId, baseProviderId, credentialId: reconnectCredentialId }),
+    () => ({
+      providerId,
+      baseProviderId,
+      credentialId: reconnectCredentialId,
+      // A credential from an alternate authorization server (Salesforce
+      // sandbox) still connects this chip's service; without these the chip
+      // reads as disconnected and re-prompts a user who is already connected.
+      additionalProviderIds: providerIdsForService(providerId),
+    }),
     [baseProviderId, providerId, reconnectCredentialId]
   )
   const credentialScope = `${workspaceId}:${providerId}:${reconnectCredentialId ?? ''}`
