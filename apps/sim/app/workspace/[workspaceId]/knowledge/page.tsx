@@ -2,12 +2,15 @@ import { Suspense } from 'react'
 import { dehydrate, HydrationBoundary } from '@tanstack/react-query'
 import type { Metadata } from 'next'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
 import { Knowledge } from '@/app/workspace/[workspaceId]/knowledge/knowledge'
 import KnowledgeLoading from '@/app/workspace/[workspaceId]/knowledge/loading'
 import { prefetchKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/prefetch'
 
+const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
+
 export const metadata: Metadata = {
-  title: 'Knowledge bases',
+  title: KNOWLEDGE_HEADER.rootLabel,
 }
 
 /**
