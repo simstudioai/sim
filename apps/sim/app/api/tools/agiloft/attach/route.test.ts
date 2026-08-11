@@ -9,6 +9,9 @@ import {
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+/** Obvious non-secret so credential scanners do not flag these fixtures. */
+const PLACEHOLDER_PASSWORD = 'not-a-real-password'
+
 const { mockProcessFilesToUserFiles, mockDownloadFileFromStorage, mockAssertToolFileAccess } =
   vi.hoisted(() => ({
     mockProcessFilesToUserFiles: vi.fn(),
@@ -35,7 +38,7 @@ const baseBody = {
   instanceUrl: 'https://example.agiloft.com',
   knowledgeBase: 'demo',
   login: 'admin',
-  password: 'secret',
+  password: PLACEHOLDER_PASSWORD,
   table: 'contracts',
   recordId: '42',
   fieldName: 'attachments',
@@ -55,7 +58,7 @@ function mockSecureFetchResponse(body: {
     statusText: '',
     headers: new Headers(),
     body: null,
-    text: async () => body.text ?? '',
+    text: async () => body.text ?? JSON.stringify(body.json ?? {}),
     json: async () => body.json ?? {},
     arrayBuffer: async () => new ArrayBuffer(0),
   }
@@ -109,11 +112,11 @@ describe('POST /api/tools/agiloft/attach', () => {
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
   })
 
-  it('pins the resolved IP for login, attach, and logout (TOCTOU fix)', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(mockSecureFetchResponse({ json: { access_token: 'tok-att' } }))
-      .mockResolvedValueOnce(mockSecureFetchResponse({ text: '1' }))
-      .mockResolvedValueOnce(mockSecureFetchResponse({}))
+  it('attaches with inline credentials on the pinned IP, with no login round trip', async () => {
+    /** Documented response: EWREST_<fieldName>.length='1'; */
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      mockSecureFetchResponse({ text: "EWREST_attachments.length='1';" })
+    )
 
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(200)
@@ -125,21 +128,17 @@ describe('POST /api/tools/agiloft/attach', () => {
     expect(data.output.fileName).toBe('file.txt')
 
     const calls = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls
-    expect(calls).toHaveLength(3)
-    for (const call of calls) {
-      expect(call[1]).toBe(PINNED_IP)
-    }
+    expect(calls).toHaveLength(1)
+    expect(calls[0][1]).toBe(PINNED_IP)
 
-    expect(calls[0][0]).toContain('https://example.agiloft.com/ewws/EWLogin')
-    expect(calls[1][0]).toContain('https://example.agiloft.com/ewws/EWAttach')
-    expect(calls[1][2]).toMatchObject({
+    expect(calls[0][0]).toContain('https://example.agiloft.com/ewws/EWAttach')
+    expect(calls[0][0]).toContain('&$login=admin')
+    expect(calls[0][2]).toMatchObject({
       method: 'PUT',
-      headers: {
-        Authorization: 'Bearer tok-att',
-        'Content-Type': 'application/octet-stream',
-      },
+      headers: { 'Content-Type': 'application/octet-stream' },
     })
-    expect(calls[2][0]).toContain('https://example.agiloft.com/ewws/EWLogout')
+    // A bearer token on this surface is rejected; it must not be sent.
+    expect(calls[0][2].headers.Authorization).toBeUndefined()
 
     // DNS only resolved once.
     expect(inputValidationMockFns.mockValidateUrlWithDNS).toHaveBeenCalledTimes(1)

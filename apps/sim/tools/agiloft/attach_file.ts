@@ -53,7 +53,7 @@ export const agiloftAttachFileTool: ToolConfig<AgiloftAttachFileParams, AgiloftA
       },
       file: {
         type: 'file',
-        required: false,
+        required: true,
         visibility: 'user-or-llm',
         description: 'File to attach',
       },
@@ -62,6 +62,12 @@ export const agiloftAttachFileTool: ToolConfig<AgiloftAttachFileParams, AgiloftA
         required: false,
         visibility: 'user-or-llm',
         description: 'Name to assign to the file (defaults to original file name)',
+      },
+      overwrite: {
+        type: 'boolean',
+        required: false,
+        visibility: 'user-or-llm',
+        description: 'Replace the contents of the field instead of adding another file to it',
       },
     },
 
@@ -81,6 +87,7 @@ export const agiloftAttachFileTool: ToolConfig<AgiloftAttachFileParams, AgiloftA
         fieldName: params.fieldName,
         file: params.file,
         fileName: params.fileName,
+        overwrite: params.overwrite,
       }),
     },
 

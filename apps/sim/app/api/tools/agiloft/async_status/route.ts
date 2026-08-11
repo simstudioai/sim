@@ -1,18 +1,18 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { agiloftAttachmentInfoContract } from '@/lib/api/contracts/tools/agiloft'
+import { agiloftAsyncStatusContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { AgiloftAttachmentInfoResponse } from '@/tools/agiloft/types'
-import { buildAttachmentInfoUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import type { AgiloftAsyncStatusResponse } from '@/tools/agiloft/types'
+import { AGILOFT_ASYNC_STATUS, buildAsyncStatusUrl } from '@/tools/agiloft/utils'
 import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('AgiloftAttachmentInfoAPI')
+const logger = createLogger('AgiloftAsyncStatusAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -21,9 +21,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
-      logger.warn(
-        `[${requestId}] Unauthorized Agiloft attachment_info attempt: ${authResult.error}`
-      )
+      logger.warn(`[${requestId}] Unauthorized Agiloft async_status attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
@@ -31,7 +29,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const parsed = await parseRequest(
-      agiloftAttachmentInfoContract,
+      agiloftAsyncStatusContract,
       request,
       {},
       {
@@ -51,47 +49,39 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeEwRequest<AgiloftAttachmentInfoResponse>(
+    const result = await executeEwRequest<AgiloftAsyncStatusResponse>(
       params,
-      (base) => ({
-        url: buildAttachmentInfoUrl(base, params),
-        method: 'GET',
-      }),
+      (base) => ({ url: buildAsyncStatusUrl(base, params), method: 'GET' }),
       async (response) => {
-        if (!response.ok) {
-          const errorText = await response.text()
+        /**
+         * EWAsyncStatus communicates entirely through the status code and
+         * returns an empty body, so the code is the result rather than an
+         * error signal — 501 means the async operation failed, not that the
+         * status check did.
+         */
+        const known = AGILOFT_ASYNC_STATUS[response.status]
+
+        if (!known) {
+          const body = await response.text()
           return {
             success: false,
-            output: { attachments: [], totalCount: 0 },
-            error: `Agiloft error ${response.status}: ${describeAgiloftError(errorText)}`,
-          }
-        }
-
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        const attachments: Array<{ position: number; name: string; size: number }> = []
-
-        if (Array.isArray(result)) {
-          for (let i = 0; i < result.length; i++) {
-            const item = result[i] as Record<string, unknown>
-            attachments.push({
-              position: (item.filePosition as number) ?? (item.position as number) ?? i,
-              name:
-                (item.fileName as string) ??
-                (item.name as string) ??
-                (item.filename as string) ??
-                '',
-              size: (item.size as number) ?? (item.fileSize as number) ?? 0,
-            })
+            output: {
+              callbackId: params.callbackId.trim(),
+              statusCode: response.status,
+              status: 'unrecognized',
+              complete: false,
+            },
+            error: `Agiloft returned an unrecognized async status ${response.status}: ${body.trim() || '(empty response)'}`,
           }
         }
 
         return {
-          success: data.success !== false,
+          success: true,
           output: {
-            attachments,
-            totalCount: attachments.length,
+            callbackId: params.callbackId.trim(),
+            statusCode: response.status,
+            status: known.status,
+            complete: known.complete,
           },
         }
       }
@@ -99,7 +89,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    logger.error(`[${requestId}] Error getting Agiloft attachment info:`, error)
+    logger.error(`[${requestId}] Error checking Agiloft async status:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
