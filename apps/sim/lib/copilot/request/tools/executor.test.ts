@@ -119,6 +119,12 @@ describe('toolWatchdogTimeoutMs', () => {
 })
 
 describe('pendingToolWaitBudgetMs', () => {
+  it('does not put a deadline on an executing browser takeover', () => {
+    expect(
+      pendingToolWaitBudgetMs({ name: 'browser_request_takeover', status: 'executing' })
+    ).toBeNull()
+  })
+
   it('waits on a person for as long as the whole turn allows', () => {
     // The 60s default would force-fail a permission prompt while the user was
     // still reading it, resuming Go before they ever answered.

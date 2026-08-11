@@ -92,13 +92,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
         deps.previewSessionRef.current?.fileName ??
         'File'
       deps.promoteFileResource(editedFileId, editedFileName)
-      if (
-        deps.activeResourceIdRef.current === null ||
-        deps.activeResourceIdRef.current === 'streaming-file' ||
-        deps.activeResourceIdRef.current === editedFileId
-      ) {
-        deps.setActiveResourceId(editedFileId)
-      }
+      deps.onResourceEventRef.current?.(editedFileId)
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', editedFileId)
     }
   }
@@ -122,7 +116,7 @@ function runToolResultSideEffects(ctx: StreamLoopContext, node: ToolNode): void 
     const fileResource = extractedResources.find((r) => r.type === 'file')
     if (fileResource) {
       deps.promoteFileResource(fileResource.id, fileResource.title)
-      deps.setActiveResourceId(fileResource.id)
+      deps.onResourceEventRef.current?.(fileResource.id)
       invalidateResourceQueries(deps.queryClient, deps.workspaceId, 'file', fileResource.id)
     } else if (calledBy !== FILE_SUBAGENT_ID) {
       deps.setResources((rs) => rs.filter((r) => r.id !== 'streaming-file'))

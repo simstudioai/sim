@@ -37,6 +37,7 @@ import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useSession } from '@/lib/auth/auth-client'
+import { focusVisibleBrowserOmnibox } from '@/lib/browser-agent/renderer-shortcuts'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
@@ -1355,6 +1356,7 @@ export const Sidebar = memo(function Sidebar({
       {
         id: 'goto-logs',
         handler: () => {
+          if (focusVisibleBrowserOmnibox()) return
           try {
             const pathWorkspaceId = resolveWorkspaceIdFromPath()
             if (pathWorkspaceId) {

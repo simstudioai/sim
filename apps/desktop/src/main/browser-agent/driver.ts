@@ -72,7 +72,6 @@ const NAVIGATION_SETTLE_MS = 400
 const DEFAULT_WAIT_FOR_TIMEOUT_MS = 10_000
 const MAX_WAIT_FOR_TIMEOUT_MS = 120_000
 const TAKEOVER_POLL_MS = 1_500
-const TAKEOVER_MAX_MS = 12 * 60 * 60 * 1000
 /**
  * Hard ceiling on any single tool execution (takeover excepted): whatever
  * goes wrong, the Sim side always gets a response. Sits above the longest
@@ -114,6 +113,17 @@ interface DriverScopeState {
   pendingNotices: string[]
   takeoverActive: boolean
   takeoverDone: boolean
+  takeoverResponse: string | null
+  /** Invocation that currently owns the shared takeover response state. */
+  takeoverInvocationEpoch: number | null
+  /** Monotonic browser-tool invocation id used to supersede an abandoned takeover. */
+  toolInvocationEpoch: number
+  /** Exact client tool currently at the head of this scope's serialized queue. */
+  activeToolCallId: string | null
+  /** Rejects the active queue entry while its underlying Chromium work winds down. */
+  activeToolCancel: (() => void) | null
+  /** Invalidates every invocation already queued when a scope-level cancel establishes a boundary. */
+  toolQueueCancellationEpoch: number
   lastTabsStateFingerprint: string | null
   toolQueue: Promise<unknown>
   /** True while activation is the only operation that has touched this scope. */
@@ -130,11 +140,23 @@ interface DriverScopeState {
   toolExecutionEpoch: number
 }
 
+/** Captures the native queue boundary before an async authorization round trip. */
+export interface BrowserToolQueueBoundary {
+  scopeId: string
+  cancellationEpoch: number
+}
+
 function createDriverScopeState(): DriverScopeState {
   return {
     pendingNotices: [],
     takeoverActive: false,
     takeoverDone: false,
+    takeoverResponse: null,
+    takeoverInvocationEpoch: null,
+    toolInvocationEpoch: 0,
+    activeToolCallId: null,
+    activeToolCancel: null,
+    toolQueueCancellationEpoch: 0,
     lastTabsStateFingerprint: null,
     toolQueue: Promise.resolve(),
     activationOnly: true,
@@ -154,6 +176,22 @@ function invalidateSnapshot(state = driverScopeState()): void {
 
 const driverScopeStates = new Map<string, DriverScopeState>()
 const driverScopeAliases = new Map<string, string>()
+const CANCELLED_TOOL_TTL_MS = 5 * 60_000
+const MAX_CANCELLED_TOOL_TOMBSTONES = 256
+const cancelledToolCallIds = new Map<string, number>()
+
+function pruneCancelledToolCallIds(now = Date.now()): void {
+  for (const [toolCallId, expiresAt] of cancelledToolCallIds) {
+    if (expiresAt > now && cancelledToolCallIds.size <= MAX_CANCELLED_TOOL_TOMBSTONES) break
+    cancelledToolCallIds.delete(toolCallId)
+  }
+}
+
+function isToolCallCancelled(toolCallId: string | undefined): boolean {
+  if (!toolCallId) return false
+  pruneCancelledToolCallIds()
+  return cancelledToolCallIds.has(toolCallId)
+}
 
 function resolveDriverScopeId(scopeId: string): string {
   let resolved = scopeId
@@ -175,6 +213,19 @@ function driverScopeState(scopeId = session.getBrowserScopeId()): DriverScopeSta
   return state
 }
 
+export function captureBrowserToolQueueBoundary(scopeId: string): BrowserToolQueueBoundary {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  return {
+    scopeId: resolvedScopeId,
+    cancellationEpoch: driverScopeState(resolvedScopeId).toolQueueCancellationEpoch,
+  }
+}
+
+function isBrowserToolQueueBoundaryCurrent(boundary: BrowserToolQueueBoundary): boolean {
+  const state = driverScopeStates.get(resolveDriverScopeId(boundary.scopeId))
+  return state?.toolQueueCancellationEpoch === boundary.cancellationEpoch
+}
+
 function recordNotice(notice: string): void {
   const state = driverScopeState()
   state.activationOnly = false
@@ -182,8 +233,8 @@ function recordNotice(notice: string): void {
 }
 
 /**
- * True while browser_request_takeover waits on the user. The Done chip on the
- * chat's takeover tool row completes it via the `takeover-done` panel action;
+ * True while browser_request_takeover waits on the user. The question card on
+ * the chat's takeover tool row completes it via the `takeover-done` panel action;
  * the state lives here (session-level, not in the page) so it survives
  * navigations and tab switches.
  */
@@ -261,7 +312,7 @@ function instrumentTab(contents: WebContents): void {
   contents.on(
     'did-navigate',
     inScope(() => {
-      if (session.activeTab()?.view.webContents === contents) {
+      if (session.automationTab()?.view.webContents === contents) {
         invalidateSnapshot()
       }
       knownSessions?.noteTopLevelNavigation(contents.getURL())
@@ -281,7 +332,7 @@ function instrumentTab(contents: WebContents): void {
       inScope(() => {
         if (
           event === 'did-navigate-in-page' &&
-          session.activeTab()?.view.webContents === contents
+          session.automationTab()?.view.webContents === contents
         ) {
           invalidateSnapshot()
         }
@@ -309,6 +360,7 @@ export function initDriver(
   // first tab push as a duplicate.
   driverScopeStates.clear()
   driverScopeAliases.clear()
+  cancelledToolCallIds.clear()
   // The serialization chain, too. A takeover from the previous session can sit
   // unresolved indefinitely, and its `takeoverDone` flag is reset above — so
   // leaving the old chain head in place would queue the new session's first
@@ -667,7 +719,7 @@ async function execInPage<Args extends unknown[], Result>(
       )) as Result
     }
     if ('frameTreeNodeId' in target && typeof target.frameTreeNodeId === 'number') {
-      const contents = session.activeTab()?.view.webContents
+      const contents = session.automationTab()?.view.webContents
       const frame = target as WebFrameMain
       if (
         !contents ||
@@ -967,7 +1019,7 @@ async function activeElementState(target: PageExecutionTarget): Promise<Record<s
 }
 
 function requireSnapshotForElementAction(): void {
-  const tab = session.requireTab()
+  const tab = session.requireAutomationTab()
   if (driverScopeState().snapshotTabId === tab.id) return
   throw new ToolError(
     'Element ids are not valid in this tab. Call browser_snapshot and use an id from that result.'
@@ -986,8 +1038,9 @@ function pageTargetForElement(contents: WebContents, elementId: number): PageExe
 }
 
 function assertActiveContents(contents: WebContents, expectedUrl?: string): void {
-  const active = session.activeTab()
+  const active = session.automationTab()
   if (
+    session.automationTabClaimedByUser() ||
     !active ||
     active.view.webContents !== contents ||
     contents.isDestroyed() ||
@@ -1004,7 +1057,7 @@ function assertElementActionCurrent(
 ): void {
   assertActiveContents(contents)
   const state = driverScopeState()
-  const active = session.activeTab()
+  const active = session.automationTab()
   if (state.snapshotTabId !== active?.id || state.snapshotTargets.get(elementId) !== target) {
     throw new ToolError(
       'The page changed before input could be dispatched. Take a fresh browser_snapshot and try again.'
@@ -1462,7 +1515,7 @@ function validateSnapshotRefs(
  */
 async function captureSnapshot(contents: WebContents, notAfter?: number): Promise<unknown> {
   const state = driverScopeState()
-  const tab = session.requireTab()
+  const tab = session.requireAutomationTab()
   if (tab.view.webContents !== contents) {
     throw new ToolError('The active tab changed before the snapshot started. Try again.')
   }
@@ -1473,7 +1526,7 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
   const targets = new Map<number, PageExecutionTarget>()
   const targetLineIndexes = new Map<number, number>()
   const stillCurrent = (): boolean => {
-    const active = session.activeTab()
+    const active = session.automationTab()
     return (
       state.snapshotCaptureEpoch === captureEpoch &&
       active?.id === capturedTabId &&
@@ -1627,41 +1680,58 @@ async function captureSnapshot(contents: WebContents, notAfter?: number): Promis
 
 /**
  * Hands control to the user: the page is already natively interactive in the
- * panel, and the chat's takeover tool row shows the reason with a Done chip.
- * The tool resolves when that chip sends the `takeover-done` panel action.
+ * panel, and the chat's takeover tool row shows the reason as a question.
+ * The tool resolves when that question sends the `takeover-done` panel action.
  * Nothing is injected into the page, so nothing covers page content and the
  * pending state survives navigations.
  */
-async function runTakeover(purpose: string | undefined): Promise<unknown> {
-  const tab = session.ensureTab()
+async function runTakeover(purpose: string | undefined, invocationEpoch: number): Promise<unknown> {
+  const tab = session.ensureAutomationTab()
   const contents = tab.view.webContents
   const state = driverScopeState()
   state.takeoverActive = true
   state.takeoverDone = false
+  state.takeoverResponse = null
+  state.takeoverInvocationEpoch = invocationEpoch
+  session.setAutomationNeedsAttention(true)
 
   const startedAt = Date.now()
   try {
-    while (Date.now() - startedAt < TAKEOVER_MAX_MS) {
+    for (;;) {
       await sleep(TAKEOVER_POLL_MS)
       if (!session.hasSession() || contents.isDestroyed()) {
         throw new ToolError(
           'The browser session was closed during takeover. Ask the user what happened, then reopen with browser_navigate.'
         )
       }
+      if (state.toolInvocationEpoch !== invocationEpoch) {
+        throw new ToolError('The browser takeover was superseded by a newer browser action.')
+      }
       if (state.takeoverDone) {
         if (purpose === 'sign_in') {
-          const activeContents = session.activeTab()?.view.webContents
+          const activeContents = session.automationTab()?.view.webContents
           if (activeContents && !activeContents.isDestroyed()) {
             knownSessions?.noteSignInCompleted(activeContents.getURL())
           }
         }
-        return { completed: true, elapsedMs: Date.now() - startedAt }
+        return {
+          completed: true,
+          elapsedMs: Date.now() - startedAt,
+          ...(state.takeoverResponse ? { userInstruction: state.takeoverResponse } : {}),
+        }
       }
     }
-    throw new ToolError('Takeover timed out after 12 hours without the user finishing.')
   } finally {
-    state.takeoverActive = false
-    state.takeoverDone = false
+    // Cancellation releases the serialized tool queue before this polling
+    // loop observes its superseding epoch. Never let that delayed cleanup
+    // erase a newer takeover that has already claimed the same scope state.
+    if (state.takeoverInvocationEpoch === invocationEpoch) {
+      session.setAutomationNeedsAttention(false)
+      state.takeoverActive = false
+      state.takeoverDone = false
+      state.takeoverResponse = null
+      state.takeoverInvocationEpoch = null
+    }
   }
 }
 
@@ -1669,7 +1739,8 @@ async function executeToolInner(
   tool: BrowserToolName,
   params: Record<string, unknown>,
   assertCurrentExecution: () => void,
-  executionDeadline?: number
+  executionDeadline: number | undefined,
+  invocationEpoch: number
 ): Promise<unknown> {
   switch (tool) {
     case 'browser_navigate': {
@@ -1685,7 +1756,7 @@ async function executeToolInner(
         throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       assertCurrentExecution()
-      const tab = session.ensureTab()
+      const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
       return await loadUrlAndGetResult(contents, url)
@@ -1702,7 +1773,7 @@ async function executeToolInner(
         throw new ToolError(guard.error ?? 'That address was blocked.')
       }
       assertCurrentExecution()
-      const tab = session.ensureTab()
+      const tab = session.ensureAutomationTab()
       const contents = tab.view.webContents
       assertCurrentExecution()
       const nav = await loadUrlAndGetResult(contents, url)
@@ -1718,7 +1789,7 @@ async function executeToolInner(
     case 'browser_go_back':
     case 'browser_go_forward': {
       invalidateSnapshot()
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const history = contents.navigationHistory
       assertCurrentExecution()
       let completion: Promise<void>
@@ -1746,7 +1817,7 @@ async function executeToolInner(
         }
       }
       assertCurrentExecution()
-      const tab = session.addTab()
+      const tab = session.addAutomationTab()
       const contents = tab.view.webContents
       if (url) {
         assertCurrentExecution()
@@ -1758,7 +1829,7 @@ async function executeToolInner(
 
     case 'browser_switch_tab': {
       invalidateSnapshot()
-      const tab = session.switchTab(requireStr(params, 'tabId'))
+      const tab = session.switchAutomationTab(requireStr(params, 'tabId'))
       const contents = tab.view.webContents
       return { tabId: tab.id, url: contents.getURL(), title: contents.getTitle() }
     }
@@ -1766,13 +1837,13 @@ async function executeToolInner(
     case 'browser_close_tab': {
       invalidateSnapshot()
       const tabId = requireStr(params, 'tabId')
-      session.closeTab(tabId)
+      session.closeAutomationTab(tabId)
       return { closed: tabId }
     }
 
     case 'browser_list_tabs': {
       session.restoreBrowserSession()
-      return session.getTabsState()
+      return session.getAutomationTabsState()
     }
 
     case 'browser_list_sessions': {
@@ -1790,10 +1861,10 @@ async function executeToolInner(
         await sleep(timeoutMs)
         return { waitedMs: timeoutMs }
       }
-      const waitedTab = session.requireTab()
+      const waitedTab = session.requireAutomationTab()
       const contents = waitedTab.view.webContents
       while (Date.now() - startedAt < timeoutMs) {
-        const active = session.activeTab()
+        const active = session.automationTab()
         if (active?.id !== waitedTab.id || active.view.webContents !== contents) {
           throw new ToolError(
             'The active tab changed while waiting. Start browser_wait_for again on the tab you want to inspect.'
@@ -1832,13 +1903,13 @@ async function executeToolInner(
     }
 
     case 'browser_snapshot': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       assertCurrentExecution()
       return await captureSnapshot(contents, executionDeadline)
     }
 
     case 'browser_read_text': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       if (elementId === undefined) return await readWholePageText(contents, executionDeadline)
       const target = pageTargetForElement(contents, elementId)
@@ -1848,7 +1919,7 @@ async function executeToolInner(
     }
 
     case 'browser_screenshot': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const dataUrl = await cdp.captureScreenshot(contents).catch(() => null)
       if (dataUrl === null) {
         throw new ToolError(
@@ -1866,13 +1937,13 @@ async function executeToolInner(
 
     case 'browser_extract': {
       const instruction = requireStr(params, 'instruction')
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const page = await readWholePageText(contents, executionDeadline)
       return { instruction, page }
     }
 
     case 'browser_click': {
-      const clickedTab = session.requireTab()
+      const clickedTab = session.requireAutomationTab()
       const contents = clickedTab.view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
@@ -2136,7 +2207,7 @@ async function executeToolInner(
       const topObservation = observeTopPage
         ? pageEffect(beforeTopPage, afterTopPage, beforeTopElement, afterTopElement)
         : observation
-      const activeTab = session.activeTab()
+      const activeTab = session.automationTab()
       const tabChanged = activeTab?.id !== clickedTab.id
       const effect = {
         ...observation.effect,
@@ -2207,7 +2278,7 @@ async function executeToolInner(
       const elementId = requireNum(params, 'elementId')
       const text = requireStr(params, 'text')
       const submit = params.submit === true
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
 
@@ -2519,7 +2590,7 @@ async function executeToolInner(
     case 'browser_press_key': {
       const requestedKey = requireStr(params, 'key')
       const combo = parseKeyCombo(requestedKey)
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const pressedPageUrl = contents.getURL()
       let target: PageExecutionTarget = focusedPageTarget(contents)
       let pressedFrameUrl = target === contents ? undefined : (target as WebFrameMain).url
@@ -2692,7 +2763,7 @@ async function executeToolInner(
     }
 
     case 'browser_scroll': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = num(params, 'elementId')
       const target =
         elementId !== undefined
@@ -2728,7 +2799,7 @@ async function executeToolInner(
     }
 
     case 'browser_select_option': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
@@ -2793,7 +2864,7 @@ async function executeToolInner(
     }
 
     case 'browser_hover': {
-      const contents = session.requireTab().view.webContents
+      const contents = session.requireAutomationTab().view.webContents
       const elementId = requireNum(params, 'elementId')
       const target = pageTargetForElement(contents, elementId)
       const targetFrame = frameExecutionTarget(target, contents)
@@ -2942,7 +3013,7 @@ async function executeToolInner(
       // The reason renders in the chat's tool row, not here — but require it
       // so the model always tells the user why control was handed over.
       requireStr(params, 'reason')
-      return await runTakeover(str(params, 'purpose'))
+      return await runTakeover(str(params, 'purpose'), invocationEpoch)
     }
 
     default: {
@@ -2971,7 +3042,9 @@ function withNotices(result: unknown): unknown {
 export async function executeTool(
   scopeId: string,
   tool: BrowserToolName,
-  params: Record<string, unknown>
+  params: Record<string, unknown>,
+  toolCallId?: string,
+  authorizationBoundary?: BrowserToolQueueBoundary
 ): Promise<{ ok: boolean; result?: unknown; error?: string }> {
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (session.isBrowserScopeSuspended(resolvedScopeId)) {
@@ -2982,7 +3055,22 @@ export async function executeTool(
   }
   const state = driverScopeState(resolvedScopeId)
   state.activationOnly = false
+  const invocationEpoch = ++state.toolInvocationEpoch
+  const queueCancellationEpoch = state.toolQueueCancellationEpoch
   const run = async () => {
+    if (
+      (authorizationBoundary && !isBrowserToolQueueBoundaryCurrent(authorizationBoundary)) ||
+      queueCancellationEpoch !== state.toolQueueCancellationEpoch ||
+      isToolCallCancelled(toolCallId)
+    ) {
+      throw new ToolError('This browser action was cancelled before it started.')
+    }
+    state.activeToolCallId = toolCallId ?? null
+    let cancelActiveExecution: () => void = () => {}
+    const cancellation = new Promise<never>((_resolve, reject) => {
+      cancelActiveExecution = () => reject(new ToolError('This browser action was cancelled.'))
+    })
+    state.activeToolCancel = cancelActiveExecution
     return await session.withBrowserScope(resolvedScopeId, async () => {
       logger.info('Executing browser tool', { tool, scopeId: resolvedScopeId })
       const keepHiddenPageActive = tool !== 'browser_request_takeover'
@@ -2998,20 +3086,30 @@ export async function executeTool(
             throw new ToolError('This browser action expired before it could dispatch input.')
           }
         }
-        const execution = executeToolInner(tool, params, assertCurrentExecution, executionDeadline)
-        return withNotices(
-          await (watchdogMs === null
+        const execution = executeToolInner(
+          tool,
+          params,
+          assertCurrentExecution,
+          executionDeadline,
+          invocationEpoch
+        )
+        const guardedExecution =
+          watchdogMs === null
             ? execution
             : raceAgainstWatchdog(execution, watchdogMs, () => {
                 if (state.toolExecutionEpoch === executionEpoch) state.toolExecutionEpoch++
                 if (tool === 'browser_snapshot' || tool === 'browser_open_url') {
                   invalidateSnapshot(state)
                 }
-              }))
-        )
+              })
+        return withNotices(await Promise.race([guardedExecution, cancellation]))
       } finally {
         if (keepHiddenPageActive) {
           session.setAutomationActive(false)
+        }
+        if (state.activeToolCancel === cancelActiveExecution) {
+          state.activeToolCallId = null
+          state.activeToolCancel = null
         }
       }
     })
@@ -3034,6 +3132,40 @@ export async function executeTool(
   }
 }
 
+/**
+ * Cancels one exact browser tool, including a cancellation that arrives while
+ * its authorization IPC is still in flight. The bounded tombstone lets that
+ * later invocation observe the stop without retaining call ids indefinitely.
+ */
+export function cancelTool(scopeId: string, toolCallId: string): boolean {
+  pruneCancelledToolCallIds()
+  cancelledToolCallIds.set(toolCallId, Date.now() + CANCELLED_TOOL_TTL_MS)
+  pruneCancelledToolCallIds()
+
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (!state || state.activeToolCallId !== toolCallId) return true
+
+  state.toolInvocationEpoch++
+  state.toolExecutionEpoch++
+  state.activeToolCancel?.()
+  void session.withBrowserScope(resolvedScopeId, () => {
+    session.setAutomationActive(false)
+    session.setAutomationNeedsAttention(false)
+  })
+  return true
+}
+
+/** Cancels the active tool and every older invocation already queued for this scope. */
+export function cancelActiveTool(scopeId: string): boolean {
+  const resolvedScopeId = resolveDriverScopeId(scopeId)
+  const state = driverScopeStates.get(resolvedScopeId)
+  if (!state) return false
+  state.toolQueueCancellationEpoch++
+  const toolCallId = state.activeToolCallId
+  return toolCallId ? cancelTool(resolvedScopeId, toolCallId) : false
+}
+
 /** Browser-chrome commands from the panel header; fire-and-forget. */
 export async function handlePanelAction(
   scopeId: string,
@@ -3042,11 +3174,18 @@ export async function handlePanelAction(
   const resolvedScopeId = resolveDriverScopeId(scopeId)
   if (session.isBrowserScopeSuspended(resolvedScopeId)) return
   return await session.withBrowserScope(resolvedScopeId, async () => {
-    // The Done chip on the chat's takeover tool row: hands control back to the
+    // The question card on the chat's takeover tool row hands control back to the
     // agent. Meaningful only while a takeover is actually waiting.
     if (action.action === 'takeover-done') {
       const state = driverScopeState()
-      if (state.takeoverActive) state.takeoverDone = true
+      if (state.takeoverActive) {
+        session.returnAutomationTabToAgent()
+        state.takeoverResponse =
+          typeof action.takeoverResponse === 'string' && action.takeoverResponse.trim()
+            ? action.takeoverResponse.trim()
+            : null
+        state.takeoverDone = true
+      }
       return
     }
     // Navigate bootstraps the session: the user can open the panel manually
@@ -3054,6 +3193,7 @@ export async function handlePanelAction(
     // bar. The other chrome actions need an existing page.
     if (action.action === 'navigate') {
       if (typeof action.url === 'string' && /^https?:\/\//i.test(action.url)) {
+        session.claimActiveTabForUser()
         const contents = session.ensureTab().view.webContents
         void contents.loadURL(action.url).catch(() => {})
       }
@@ -3081,6 +3221,7 @@ export async function handlePanelAction(
       }
       return
     }
+    session.claimActiveTabForUser()
     const tab = session.activeTab()
     if (!tab) return
     const contents = tab.view.webContents

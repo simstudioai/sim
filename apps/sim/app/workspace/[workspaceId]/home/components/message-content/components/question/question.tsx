@@ -88,10 +88,12 @@ interface QuestionDisplayProps {
    * — it IS the user turn; the paired message bubble is hidden by the chat.
    */
   answers?: string[]
-  /** Sends the combined answer as a user message; undefined renders the div inert. */
+  /** Reports the combined answer; undefined renders the card inert. */
   onSelect?: (message: string) => void
   /** Reports that the active card was dismissed so its message actions can return. */
   onDismiss?: () => void
+  /** Whether the active card can be dismissed without answering. */
+  dismissible?: boolean
 }
 
 /**
@@ -110,6 +112,7 @@ export function QuestionDisplay({
   answers: transcriptAnswers,
   onSelect,
   onDismiss,
+  dismissible = true,
 }: QuestionDisplayProps) {
   const freeTextInputRef = useRef<HTMLInputElement>(null)
   const freeTextCheckboxRef = useRef<HTMLButtonElement>(null)
@@ -293,7 +296,7 @@ export function QuestionDisplay({
               </Button>
             </div>
           )}
-          {!disabled && (
+          {!disabled && dismissible && (
             <Button
               type='button'
               variant='ghost'

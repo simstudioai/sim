@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { isPlainRecord } from '@sim/utils/object'
 import { ShimmerText } from '@/components/ui'
-import { isBrowserAgentAvailable } from '@/lib/browser-agent/transport'
 import {
   BrowserRequestTakeover,
   CallIntegrationTool,
@@ -14,9 +14,9 @@ import { extractStreamingStringArgument } from '@/lib/copilot/tools/streaming-ar
 import { getToolStatusDisplayTitle, getWaitCountdownTitle } from '@/lib/copilot/tools/tool-display'
 import { getBareIconStyle } from '@/blocks/brand-icon-style'
 import { getBlockByToolName } from '@/blocks/registry'
-import type { ToolCallStatus } from '../../../../types'
+import type { ToolCallData, ToolCallStatus } from '../../../../types'
 import { resolveToolDisplayState } from '../../utils'
-import { CredentialDisplay } from '../special-tags'
+import { BrowserTakeoverQuestion, CredentialDisplay } from '../special-tags'
 import { ToolPermissionCard } from './tool-permission-card'
 
 export function CircleStop({ className }: { className?: string }) {
@@ -40,6 +40,7 @@ interface ToolCallItemProps {
   displayTitle: string
   status: ToolCallStatus
   params?: Record<string, unknown>
+  result?: ToolCallData['result']
   streamingArgs?: string
   /** Required for a gated row: the permission decision is posted against it. */
   toolCallId?: string
@@ -50,6 +51,12 @@ interface ToolCallItemProps {
 function stringParam(params: Record<string, unknown> | undefined, key: string): string {
   const value = params?.[key]
   return typeof value === 'string' ? value : ''
+}
+
+function browserTakeoverAnswer(result: ToolCallData['result']): string {
+  if (!isPlainRecord(result?.output)) return 'Continue'
+  const instruction = result.output.userInstruction
+  return typeof instruction === 'string' && instruction.trim() ? instruction.trim() : 'Continue'
 }
 
 /** Reads a field out of the terminal tool's nested `args` object. */
@@ -101,17 +108,16 @@ function useElapsedMs(active: boolean, startedAt: number | undefined): number {
  * inline next to its display name (e.g. the Gmail logo before "Read Gmail").
  * The status-aware rewrite is repeated at this final rendering boundary so
  * live, replayed, and directly-constructed rows cannot bypass completed verbs.
- * An executing `browser_request_takeover` renders through the credential
- * chip component itself (`CredentialDisplay`, type `browser_takeover`) so it
- * is pixel-identical to the Connect/folder-grant chips; clicking it hands
- * control back to Sim — the takeover tool only resolves when it is clicked
- * (desktop only; a replayed row in the web app renders as plain text).
+ * An executing `browser_request_takeover` is lifted by AgentGroup into its
+ * parent flow; this row remains the canonical completed-history entry after
+ * the browser agent resumes.
  */
 export function ToolCallItem({
   toolName,
   displayTitle,
   status,
   params,
+  result,
   streamingArgs,
   toolCallId,
   startedAt,
@@ -162,6 +168,7 @@ export function ToolCallItem({
 
   const displayState = resolveToolDisplayState(status)
   const isExecuting = displayState === 'spinner'
+  const isBrowserTakeover = toolName === BrowserRequestTakeover.id
 
   const isCountingDown = toolName === WaitTool.id && isExecuting
   const elapsedMs = useElapsedMs(isCountingDown, startedAt)
@@ -169,10 +176,7 @@ export function ToolCallItem({
   const liveTitle = isCountingDown
     ? getWaitCountdownTitle(params, elapsedMs)
     : liveWorkspaceFileTitle || displayTitle
-  const title = getToolStatusDisplayTitle(liveTitle, status)
-
-  const showTakeoverAction =
-    toolName === BrowserRequestTakeover.id && isExecuting && isBrowserAgentAvailable()
+  const title = getToolStatusDisplayTitle(liveTitle, status, toolName)
 
   // A waiting terminal handoff swaps its row for the hand-back chip, the same
   // way a browser takeover does: the row would otherwise spin with nothing
@@ -202,6 +206,19 @@ export function ToolCallItem({
     )
   }
 
+  if (isBrowserTakeover && isExecuting) return null
+
+  if (isBrowserTakeover && status === 'success') {
+    return (
+      <div className='pl-6'>
+        <BrowserTakeoverQuestion
+          reason={stringParam(params, 'reason')}
+          answer={browserTakeoverAnswer(result)}
+        />
+      </div>
+    )
+  }
+
   if (terminalHandoff) {
     return (
       <div className='pl-6'>
@@ -214,15 +231,6 @@ export function ToolCallItem({
             },
           ]}
         />
-      </div>
-    )
-  }
-
-  if (showTakeoverAction) {
-    const reason = typeof params?.reason === 'string' ? params.reason.trim() : ''
-    return (
-      <div className='pl-6'>
-        <CredentialDisplay data={[{ type: 'browser_takeover', name: reason }]} />
       </div>
     )
   }

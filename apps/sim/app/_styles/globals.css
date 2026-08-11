@@ -376,6 +376,12 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-icon: #5a5a5a;
     --text-icon-muted: #5c5c5c;
 
+    /* Shared ThinkingLoader ink treatment. */
+    --thinking-ink-current: #2c2c2c;
+    --thinking-ink-inner: #2c2c2c;
+    --thinking-ink-outer: #5f5f5f;
+    --thinking-ink-glow: rgba(255, 255, 255, 0.6);
+
     --text-inverse: #ffffff;
     --text-muted-inverse: #a0a0a0;
     --text-error: #ef4444;
@@ -530,6 +536,12 @@ html.sidebar-booting .sidebar-shell-inner {
     --text-body: #c1c1c1;
     --text-icon: #969696;
     --text-icon-muted: #949494;
+
+    /* Shared ThinkingLoader ink treatment. */
+    --thinking-ink-current: #d6d6d6;
+    --thinking-ink-inner: #a7a7a7;
+    --thinking-ink-outer: #d6d6d6;
+    --thinking-ink-glow: rgba(255, 255, 255, 0.9);
 
     --text-inverse: #1b1b1b;
     --text-muted-inverse: #b3b3b3;

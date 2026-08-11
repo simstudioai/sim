@@ -37,7 +37,7 @@ const logger = createLogger('CopilotClientToolWaiter')
  */
 export async function waitForToolCompletion(
   toolCallId: string,
-  timeoutMs: number,
+  timeoutMs: number | null,
   abortSignal?: AbortSignal
 ): Promise<AsyncTerminalCompletionSnapshot | null> {
   const decision = await waitForToolConfirmation(toolCallId, timeoutMs, abortSignal, {
@@ -57,7 +57,8 @@ interface WaitForClientToolCompletionOptions {
   toolCallId: string
   runId?: string
   userId: string
-  timeoutMs: number
+  /** Null for a durable human-interaction wait that ends only on answer or abort. */
+  timeoutMs: number | null
   abortSignal?: AbortSignal
   registry?: ResolvedSecretTraceRegistry
 }
