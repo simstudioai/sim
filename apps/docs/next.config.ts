@@ -11,6 +11,7 @@ const config: NextConfig = {
     unoptimized: true,
   },
   experimental: {
+    useTypeScriptCli: true,
     webpackMemoryOptimizations: true,
     webpackBuildWorker: true,
   },
