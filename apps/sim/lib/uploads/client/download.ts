@@ -1,4 +1,5 @@
 import { requestRaw } from '@/lib/api/client/request'
+import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 
@@ -43,13 +44,19 @@ export async function triggerFileDownload(
     throw new Error('PDF export is only available for Markdown files')
   }
 
-  const url = isMarkdown
-    ? `/api/files/export/${encodeURIComponent(record.id)}${options?.format === 'pdf' ? '?format=pdf' : ''}`
-    : `/api/files/serve/${encodeURIComponent(record.key)}?context=workspace&t=${Date.now()}`
-
-  // boundary-raw-fetch: binary download read as a blob; these paths have no contract
-  const response = await fetch(url, { cache: 'no-store' })
-  if (!response.ok) throw new Error(`Failed to download "${record.name}"`)
+  let response: Response
+  if (isMarkdown) {
+    response = await requestRaw(
+      fileExportContract,
+      { params: { id: record.id }, query: { format: options?.format } },
+      { cache: 'no-store' }
+    )
+  } else {
+    const url = `/api/files/serve/${encodeURIComponent(record.key)}?context=workspace&t=${Date.now()}`
+    // boundary-raw-fetch: legacy binary serve URL includes context and cache-busting query fields outside the serve contract
+    response = await fetch(url, { cache: 'no-store' })
+    if (!response.ok) throw new Error(`Failed to download "${record.name}"`)
+  }
 
   const fallbackName =
     options?.format === 'pdf' ? `${record.name.replace(/\.[^.]+$/, '')}.pdf` : record.name

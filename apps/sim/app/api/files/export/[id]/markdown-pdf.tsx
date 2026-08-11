@@ -14,6 +14,7 @@ import {
 } from '@react-pdf/renderer'
 import { marked, type Token, type Tokens } from 'marked'
 import sharp from 'sharp'
+import { extractEmbeddedFileRef } from '@/lib/uploads/utils/embedded-image-ref'
 
 type PdfImage = { data: Buffer; format: 'png' }
 
@@ -24,6 +25,18 @@ interface GlyphFont {
 const FONT_DIR = join(process.cwd(), 'public', 'brand', 'fonts')
 const GEIST_REGULAR = join(FONT_DIR, 'Geist-Regular.ttf')
 const GEIST_MEDIUM = join(FONT_DIR, 'Geist-Medium.ttf')
+
+/**
+ * PDF images never render wider than the A4 content box, so retaining camera-resolution
+ * rasters only increases Sharp and React PDF work. The dimension matches the app's existing
+ * inline-image preparation ceiling; the aggregate budgets bound work across a document.
+ */
+const MAX_PDF_IMAGE_DIMENSION = 1568
+const MAX_PDF_IMAGE_INPUT_PIXELS = 268_402_689
+const MAX_PDF_TOTAL_INPUT_PIXELS = 268_402_689
+const MAX_PDF_TOTAL_OUTPUT_PIXELS = 25_000_000
+const MAX_PDF_IMAGE_BYTES = 12 * 1024 * 1024
+const MAX_PDF_TOTAL_IMAGE_BYTES = 32 * 1024 * 1024
 
 Font.register({
   family: 'Geist',
@@ -148,15 +161,8 @@ function safeLink(href: string): string | undefined {
 }
 
 function embeddedImageId(href: string): string | undefined {
-  const match =
-    href.match(/\/api\/files\/view\/([^/?#]+)/) ??
-    href.match(/\/workspace\/[^/]+\/files\/([^/?#]+)/)
-  if (!match?.[1]) return undefined
-  try {
-    return decodeURIComponent(match[1])
-  } catch {
-    return match[1]
-  }
+  const ref = extractEmbeddedFileRef(href)
+  return ref && 'fileId' in ref ? ref.fileId : undefined
 }
 
 function renderInline(tokens: Token[], keyPrefix: string): ReactNode[] {
@@ -423,9 +429,55 @@ async function normalizeImages(
   images: ReadonlyMap<string, Buffer>
 ): Promise<Map<string, PdfImage>> {
   const normalized = new Map<string, PdfImage>()
+  let totalInputPixels = 0
+  let totalOutputPixels = 0
+  let totalImageBytes = 0
+
   for (const [id, buffer] of images) {
     try {
-      normalized.set(id, { data: await sharp(buffer).rotate().png().toBuffer(), format: 'png' })
+      const pipeline = sharp(buffer, { limitInputPixels: MAX_PDF_IMAGE_INPUT_PIXELS })
+      const metadata = await pipeline.metadata()
+      if (!metadata.width || !metadata.height) continue
+
+      const inputPixels = metadata.width * metadata.height
+      if (
+        !Number.isSafeInteger(inputPixels) ||
+        totalInputPixels + inputPixels > MAX_PDF_TOTAL_INPUT_PIXELS
+      ) {
+        continue
+      }
+      totalInputPixels += inputPixels
+
+      const scale = Math.min(
+        1,
+        MAX_PDF_IMAGE_DIMENSION / metadata.width,
+        MAX_PDF_IMAGE_DIMENSION / metadata.height
+      )
+      const outputWidth = Math.max(1, Math.round(metadata.width * scale))
+      const outputHeight = Math.max(1, Math.round(metadata.height * scale))
+      const outputPixels = outputWidth * outputHeight
+      if (totalOutputPixels + outputPixels > MAX_PDF_TOTAL_OUTPUT_PIXELS) continue
+
+      const data = await pipeline
+        .rotate()
+        .resize({
+          width: MAX_PDF_IMAGE_DIMENSION,
+          height: MAX_PDF_IMAGE_DIMENSION,
+          fit: 'inside',
+          withoutEnlargement: true,
+        })
+        .png()
+        .toBuffer()
+      if (
+        data.length > MAX_PDF_IMAGE_BYTES ||
+        totalImageBytes + data.length > MAX_PDF_TOTAL_IMAGE_BYTES
+      ) {
+        continue
+      }
+
+      totalOutputPixels += outputPixels
+      totalImageBytes += data.length
+      normalized.set(id, { data, format: 'png' })
     } catch {
       // Keep the PDF usable when an otherwise downloadable attachment is not a renderable image.
     }

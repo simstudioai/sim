@@ -40,7 +40,7 @@ Smart quotes “work”, Greek Ω stays readable, and unsupported emoji 🚀 fal
 const exported = true
 \`\`\`
 
-![Embedded image](/api/files/view/image-1)
+![Embedded image](/workspace/ws-1/files/image-1)
 
 ${repeatedParagraphs}`
 
@@ -56,5 +56,20 @@ ${repeatedParagraphs}`
     const document = await PDFDocument.load(buffer)
     expect(document.getTitle()).toBe('Export title')
     expect(document.getPageCount()).toBeGreaterThan(1)
+  })
+
+  it('falls back instead of decoding an image above the pixel ceiling', async () => {
+    const oversizedSvg = Buffer.from(
+      '<svg xmlns="http://www.w3.org/2000/svg" width="20000" height="20000"><rect width="100%" height="100%" fill="red"/></svg>'
+    )
+
+    const buffer = await renderMarkdownPdf({
+      markdown: '![Too large](/api/files/view/image-1)',
+      title: 'Bounded image',
+      images: new Map([['image-1', oversizedSvg]]),
+    })
+
+    expect(buffer.subarray(0, 4).toString()).toBe('%PDF')
+    expect((await PDFDocument.load(buffer)).getPageCount()).toBe(1)
   })
 })

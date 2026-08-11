@@ -9,6 +9,8 @@ import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { parseRequest } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { extractEmbeddedImageIds } from '@/lib/copilot/tools/server/files/embedded-image-refs'
+import type { TokenBucketConfig } from '@/lib/core/rate-limiter'
+import { enforceUserRateLimit } from '@/lib/core/rate-limiter/route-helpers'
 import { MATERIALIZE_CONCURRENCY, mapWithConcurrency } from '@/lib/core/utils/concurrency'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -35,6 +37,17 @@ const logger = createLogger('FilesExportAPI')
  */
 const MAX_EXPORT_ASSET_BYTES = 25 * 1024 * 1024
 const MAX_EXPORT_TOTAL_BYTES = 250 * 1024 * 1024
+/** Matches the editor's p99-plus document ceiling; larger files would create an unbounded PDF layout tree. */
+const MAX_PDF_MARKDOWN_BYTES = 256 * 1024
+const MAX_PDF_ASSET_BYTES = 10 * 1024 * 1024
+const MAX_PDF_TOTAL_SOURCE_BYTES = 50 * 1024 * 1024
+
+/** PDF rendering is CPU-bound and buffers its result, so it gets a narrower request bucket than downloads. */
+const PDF_EXPORT_RATE_LIMIT: TokenBucketConfig = {
+  maxTokens: 3,
+  refillRate: 3,
+  refillIntervalMs: 60_000,
+}
 
 const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
 const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
@@ -110,13 +123,14 @@ export const GET = withRouteHandler(
         },
         request,
       })
+      const downloadedFileCount = format === 'zip' ? 1 + assetCount : 1
       captureServerEvent(
         userId,
         'file_downloaded',
         {
           ...(record.workspaceId ? { workspace_id: record.workspaceId } : {}),
-          is_bulk: assetCount > 0,
-          file_count: 1 + assetCount,
+          is_bulk: downloadedFileCount > 1,
+          file_count: downloadedFileCount,
         },
         record.workspaceId ? { groups: { workspace: record.workspaceId } } : undefined
       )
@@ -135,22 +149,35 @@ export const GET = withRouteHandler(
       return NextResponse.redirect(new URL(servePath, request.url), { status: 302 })
     }
 
+    if (format === 'pdf') {
+      const rateLimited = await enforceUserRateLimit(
+        'markdown-pdf-export',
+        userId,
+        PDF_EXPORT_RATE_LIMIT
+      )
+      if (rateLimited) return rateLimited
+    }
+
     // Capped like everything else in the bundle: the document body is usually the
     // largest single entry, so leaving it unbounded left the export limit unenforced
     // against the one item most able to exceed it. A body that alone exceeds the limit
     // is a size rejection, so it reports as one rather than as a server error.
     let mdBuffer: Buffer
+    const documentLimit = format === 'pdf' ? MAX_PDF_MARKDOWN_BYTES : MAX_EXPORT_TOTAL_BYTES
     try {
       mdBuffer = await downloadFile({
         key: record.key,
         context: record.context as StorageContext,
-        maxBytes: MAX_EXPORT_TOTAL_BYTES,
+        maxBytes: documentLimit,
       })
     } catch (error) {
       if (!isPayloadSizeLimitError(error)) throw error
       return NextResponse.json(
         {
-          error: `This document exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+          error:
+            format === 'pdf'
+              ? `This document exceeds the ${formatFileSize(MAX_PDF_MARKDOWN_BYTES)} PDF export limit.`
+              : `This document exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
         },
         { status: 400 }
       )
@@ -218,10 +245,11 @@ export const GET = withRouteHandler(
     // limit that measured only the attachments would not describe the archive produced.
     const bundleBytes =
       mdBuffer.length + assetTargets.reduce((sum, target) => sum + target.record.size, 0)
-    if (bundleBytes > MAX_EXPORT_TOTAL_BYTES) {
+    const bundleLimit = format === 'pdf' ? MAX_PDF_TOTAL_SOURCE_BYTES : MAX_EXPORT_TOTAL_BYTES
+    if (bundleBytes > bundleLimit) {
       return NextResponse.json(
         {
-          error: `This document and its embedded files total ${formatFileSize(bundleBytes)}, which exceeds the ${formatFileSize(MAX_EXPORT_TOTAL_BYTES)} export limit.`,
+          error: `This document and its embedded files total ${formatFileSize(bundleBytes)}, which exceeds the ${formatFileSize(bundleLimit)} ${format === 'pdf' ? 'PDF ' : ''}export limit.`,
         },
         { status: 400 }
       )
@@ -235,7 +263,7 @@ export const GET = withRouteHandler(
           const buffer = await downloadFile({
             key: imgRecord.key,
             context: imgRecord.context as StorageContext,
-            maxBytes: MAX_EXPORT_ASSET_BYTES,
+            maxBytes: format === 'pdf' ? MAX_PDF_ASSET_BYTES : MAX_EXPORT_ASSET_BYTES,
           })
           return { imageId, originalName: imgRecord.originalName, buffer }
         } catch (error) {

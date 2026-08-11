@@ -345,6 +345,8 @@ export function Files() {
   )
 
   const [creatingFile, setCreatingFile] = useState(false)
+  const [pdfDownloadPending, setPdfDownloadPending] = useState(false)
+  const pdfDownloadPendingRef = useRef(false)
   const [isDirty, setIsDirty] = useState(false)
   const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle')
   const [selectedRowIds, setSelectedRowIds] = useState<Set<string>>(() => new Set())
@@ -1063,6 +1065,12 @@ export function Files() {
 
   const handleDownload = useCallback(
     async (file: WorkspaceFileRecord, format?: 'pdf') => {
+      const isPdf = format === 'pdf'
+      if (isPdf) {
+        if (pdfDownloadPendingRef.current) return
+        pdfDownloadPendingRef.current = true
+        setPdfDownloadPending(true)
+      }
       try {
         await triggerFileDownload(file, format ? { format } : undefined)
         captureEvent(posthogRef.current, 'file_downloaded', {
@@ -1073,6 +1081,11 @@ export function Files() {
       } catch (err) {
         logger.error('Failed to download file:', err)
         toast.error(getErrorMessage(err, `Failed to download "${file.name}"`))
+      } finally {
+        if (isPdf) {
+          pdfDownloadPendingRef.current = false
+          setPdfDownloadPending(false)
+        }
       }
     },
     [workspaceId]
@@ -1638,6 +1651,7 @@ export function Files() {
               text: 'Download PDF',
               icon: FileText,
               onSelect: handleDownloadPdfSelected,
+              disabled: pdfDownloadPending,
             },
           ]
         : []),
@@ -1667,6 +1681,7 @@ export function Files() {
     handleDownloadPdfSelected,
     handleShareSelected,
     handleDeleteSelected,
+    pdfDownloadPending,
   ])
 
   const listRenameRef = useRef(listRename)
