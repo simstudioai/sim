@@ -22,6 +22,12 @@ import type {
 } from '@/app/workspace/[workspaceId]/components'
 import { EMPTY_CELL_PLACEHOLDER, Resource } from '@/app/workspace/[workspaceId]/components'
 import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
+import {
   ChunkContextMenu,
   ChunkEditor,
   DeleteChunkModal,
@@ -129,7 +135,7 @@ export function Document({
   knowledgeBaseName,
   documentName,
 }: DocumentProps) {
-  const { workspaceId } = useParams()
+  const workspaceId = useParams().workspaceId as string
   const router = useRouter()
   const [
     {
@@ -144,6 +150,13 @@ export function Document({
 
   const { knowledgeBase } = useKnowledgeBase(knowledgeBaseId)
   const { document: documentData, error: documentError } = useDocument(knowledgeBaseId, documentId)
+
+  /** The base's folder trail, so this route's header matches the base's and the list's. */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'knowledge_base',
+    workspaceId,
+    folderId: knowledgeBase?.folderId,
+  })
 
   const [showTagsModal, setShowTagsModal] = useState(false)
 
@@ -490,13 +503,65 @@ export function Document({
     [guardDirtyAction, navigateToChunk]
   )
 
-  const handleNavToKB = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/knowledge`)
-  }, [router, workspaceId])
+  /**
+   * Confirms before a crumb navigates away from an unsaved chunk — a route change unmounts the
+   * editor, so the edit is gone with no way back.
+   *
+   * Gated on the editor being open rather than on `isDirty` alone: `UnsavedChangesModal` mounts
+   * only alongside the editor, but `isDirty` outlives a URL-driven unmount (browser Back off an
+   * edited chunk), where guarding would raise a modal nothing renders and deaden the crumb.
+   */
+  const guardRouteChange = useCallback(
+    (navigate: () => void) => {
+      if (isCreatingNewChunk || selectedChunkId) guardDirtyAction(navigate)
+      else navigate()
+    },
+    [isCreatingNewChunk, selectedChunkId, guardDirtyAction]
+  )
+
+  const handleNavToFolder = useCallback(
+    (folderId: string | null) => {
+      guardRouteChange(() =>
+        router.push(folderedResourceListHref('knowledge_base', workspaceId, folderId))
+      )
+    },
+    [guardRouteChange, router, workspaceId]
+  )
 
   const handleNavToKBDetail = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`)
-  }, [router, workspaceId, knowledgeBaseId])
+    guardRouteChange(() => router.push(`/workspace/${workspaceId}/knowledge/${knowledgeBaseId}`))
+  }, [guardRouteChange, router, workspaceId, knowledgeBaseId])
+
+  /**
+   * `Knowledge Base / …the base's folders / <base> / <last>`. Every view on this route is that
+   * trail with a different last crumb — the document, a chunk, an error, a loading placeholder
+   * — so it is built once here rather than restated per view.
+   */
+  const documentTrail = useCallback(
+    (last: BreadcrumbItem, onDocumentClick?: () => void): BreadcrumbItem[] =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavToFolder,
+        trailing: [
+          { label: knowledgeBaseCrumbLabel, icon: Database, onClick: handleNavToKBDetail },
+          /** Omitted when the document IS the last crumb — you are already on it. */
+          ...(onDocumentClick
+            ? [{ label: documentCrumbLabel, icon: DocumentIcon, onClick: onDocumentClick }]
+            : []),
+          last,
+        ],
+      }),
+    [
+      folderChain,
+      handleNavToFolder,
+      handleNavToKBDetail,
+      knowledgeBaseCrumbLabel,
+      documentCrumbLabel,
+      DocumentIcon,
+    ]
+  )
 
   const handleStartDocRename = useCallback(() => {
     docRename.startRename(documentId, effectiveDocumentName)
@@ -508,24 +573,10 @@ export function Document({
 
   const breadcrumbs = useMemo<BreadcrumbItem[]>(
     () =>
-      combinedError
-        ? [
-            { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
-            {
-              label: knowledgeBaseCrumbLabel,
-              icon: Database,
-              onClick: handleNavToKBDetail,
-            },
-            { label: 'Error' },
-          ]
-        : [
-            { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
-            {
-              label: knowledgeBaseCrumbLabel,
-              icon: Database,
-              onClick: handleNavToKBDetail,
-            },
-            {
+      documentTrail(
+        combinedError
+          ? { label: 'Error', terminal: true }
+          : {
               label: documentCrumbLabel,
               icon: DocumentIcon,
               editing: docRename.editingId
@@ -547,13 +598,11 @@ export function Document({
                     ]
                   : []),
               ],
-            },
-          ],
+            }
+      ),
     [
       combinedError,
-      handleNavToKB,
-      handleNavToKBDetail,
-      knowledgeBaseCrumbLabel,
+      documentTrail,
       documentCrumbLabel,
       DocumentIcon,
       docRename.editingId,
@@ -987,58 +1036,23 @@ export function Document({
             ? 'Create Chunk'
             : 'Save'
 
-  const editorBreadcrumbBase = useMemo<BreadcrumbItem[]>(
-    () => [
-      { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
-      {
-        label: knowledgeBaseCrumbLabel,
-        icon: Database,
-        onClick: handleNavToKBDetail,
-      },
-      { label: documentCrumbLabel, icon: DocumentIcon, onClick: handleBackAttempt },
-    ],
-    [
-      handleNavToKB,
-      handleNavToKBDetail,
-      knowledgeBaseCrumbLabel,
-      documentCrumbLabel,
-      DocumentIcon,
-      handleBackAttempt,
-    ]
-  )
-
   const newChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
-    () => [...editorBreadcrumbBase, { label: 'New Chunk', terminal: true }],
-    [editorBreadcrumbBase]
+    () => documentTrail({ label: 'New Chunk', terminal: true }, handleBackAttempt),
+    [documentTrail, handleBackAttempt]
   )
 
   const editChunkBreadcrumbs = useMemo<BreadcrumbItem[]>(
-    () => [
-      ...editorBreadcrumbBase,
-      { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '', terminal: true },
-    ],
-    [editorBreadcrumbBase, selectedChunk]
+    () =>
+      documentTrail(
+        { label: selectedChunk ? `Chunk #${selectedChunk.chunkIndex}` : '', terminal: true },
+        handleBackAttempt
+      ),
+    [documentTrail, handleBackAttempt, selectedChunk]
   )
 
   const loadingBreadcrumbs = useMemo<BreadcrumbItem[]>(
-    () => [
-      { label: 'Knowledge bases', icon: Database, onClick: handleNavToKB },
-      {
-        label: knowledgeBaseCrumbLabel,
-        icon: Database,
-        onClick: handleNavToKBDetail,
-      },
-      { label: documentCrumbLabel, icon: DocumentIcon, onClick: handleClearSelectedChunk },
-      { label: '…', terminal: true },
-    ],
-    [
-      handleNavToKB,
-      handleNavToKBDetail,
-      knowledgeBaseCrumbLabel,
-      documentCrumbLabel,
-      DocumentIcon,
-      handleClearSelectedChunk,
-    ]
+    () => documentTrail({ label: '…', terminal: true }, handleClearSelectedChunk),
+    [documentTrail, handleClearSelectedChunk]
   )
 
   const handleSaveClick = useCallback(() => {

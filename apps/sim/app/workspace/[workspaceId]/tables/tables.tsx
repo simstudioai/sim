@@ -34,6 +34,7 @@ import type {
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
   folderRow,
@@ -93,7 +94,7 @@ const COLUMNS: ResourceColumn[] = [
 ]
 
 /** Root label for breadcrumbs and the "move to workspace root" destination. */
-const ROOT_LABEL = 'Tables'
+const ROOT_LABEL = FOLDERED_RESOURCE_HEADERS.table.rootLabel
 
 const EMPTY_TABLES: TableDefinition[] = []
 
@@ -133,7 +134,7 @@ export function Tables() {
   const {
     currentFolderId,
     setCurrentFolderId,
-    breadcrumbs: folderChain,
+    ancestors: folderChain,
     folders,
     folderById,
     foldersResolved,
@@ -512,6 +513,7 @@ export function Tables() {
       folderBreadcrumbItems({
         breadcrumbs: folderChain,
         rootLabel: ROOT_LABEL,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.table.rootIcon,
         onNavigate: setCurrentFolderId,
         currentFolderActions,
         currentFolderEditing,
@@ -1073,7 +1075,7 @@ export function Tables() {
     <>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={TableIcon}
+          icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           title={ROOT_LABEL}
           breadcrumbs={breadcrumbs}
           actions={headerActions}

@@ -6,6 +6,9 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+
+const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 
 const COLUMNS = [
   { id: 'name', header: 'Name' },
@@ -26,7 +29,7 @@ export default function KnowledgeLoading() {
   return (
     <ResourceChromeFallback
       icon={Database}
-      title='Knowledge bases'
+      title={KNOWLEDGE_HEADER.rootLabel}
       columns={COLUMNS}
       actions={ACTIONS}
       searchPlaceholder='Search knowledge bases...'
