@@ -9,22 +9,30 @@ interface UseDragResizeOptions {
    */
   cssVar: string
   /**
-   * Returns the element that consumes {@link cssVar} (or an ancestor of every
-   * consumer). During the drag the variable is written here — a style recalc
-   * scoped to that subtree — instead of on `:root`, where on a large document
-   * every custom-property write recalculates the whole tree (~150x slower).
-   * Captured once on drag start; a `null` return falls back to
-   * `document.documentElement`.
-   *
-   * Return an ARRAY when consumers live in sibling subtrees with no useful
-   * common ancestor — the toast stack is portalled to `<body>`, so it shares
-   * one only with `:root`. Writing each subtree separately keeps the scoped
-   * recalc and, more importantly, keeps those consumers tracking the drag live;
-   * a consumer left off this list reads the stale `:root` value and only
-   * catches up when the drag commits. Elements that are absent (`null`) or
-   * repeated are ignored.
+   * Returns the element the drag resizes, which is also the subtree
+   * {@link cssVar} is written to during it — a style recalc scoped to that
+   * subtree, instead of `:root`, where on a large document every
+   * custom-property write recalculates the whole tree (~150x slower). Captured
+   * once on drag start; a `null` return falls back to
+   * `document.documentElement`. This element is also the drag's liveness
+   * reference: once it detaches, the release stops recomputing from layout.
    */
-  getTarget: () => HTMLElement | null | (HTMLElement | null)[]
+  getTarget: () => HTMLElement | null
+  /**
+   * Other subtrees that read {@link cssVar} but are not what the drag resizes —
+   * the toast stack insets by `--panel-width`/`--terminal-height` yet is
+   * portalled to `<body>`, so it shares no ancestor with either. Each is
+   * written alongside the primary, which keeps the recalc scoped AND keeps
+   * these consumers tracking the drag; one left off here reads the stale
+   * `:root` value and only catches up when the drag commits.
+   *
+   * Deliberately separate from {@link getTarget} rather than one list: these
+   * come and go independently of the drag (a toast auto-dismisses mid-drag),
+   * so they must never become the liveness reference. Absent (`null`) or
+   * duplicate elements are ignored, and writing to one that detaches mid-drag
+   * is harmless.
+   */
+  getExtraTargets?: () => (HTMLElement | null)[]
   /**
    * Maps a pointer position to the clamped target dimension, or `null` to
    * ignore the move. Runs at most once per animation frame (before the write,
@@ -98,13 +106,9 @@ export function useDragResize(options: UseDragResizeOptions) {
     const handle = e.currentTarget
     const pointerId = e.pointerId
     const { cssVar } = optionsRef.current
-    const resolved = optionsRef.current.getTarget()
-    const targets = [
-      ...new Set((Array.isArray(resolved) ? resolved : [resolved]).filter((el) => el !== null)),
-    ]
-    if (targets.length === 0) targets.push(document.documentElement)
-    /** Liveness is judged on the primary target — the one the drag resizes. */
-    const target = targets[0]
+    const target = optionsRef.current.getTarget() ?? document.documentElement
+    const extras = optionsRef.current.getExtraTargets?.() ?? []
+    const targets = [...new Set([target, ...extras.filter((el) => el !== null)])]
     document.body.style.cursor = optionsRef.current.cursor
     document.body.style.userSelect = 'none'
     handle.setPointerCapture?.(pointerId)
