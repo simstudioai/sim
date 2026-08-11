@@ -50,6 +50,13 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       visibility: 'user-or-llm',
       description: 'Action to perform: "lock", "unlock", or "check"',
     },
+    force: {
+      type: 'boolean',
+      required: false,
+      visibility: 'user-or-llm',
+      description:
+        'Unlock only: release a lock held by another user. Requires membership in the admin group.',
+    },
   },
 
   request: {
@@ -64,6 +71,7 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       table: params.table,
       recordId: params.recordId,
       lockAction: params.lockAction,
+      force: params.force,
     }),
   },
 
@@ -83,7 +91,7 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
     },
     lockStatus: {
       type: 'string',
-      description: 'Lock status (e.g., "LOCKED", "UNLOCKED")',
+      description: 'Lock status: "LOCKED" when the record is held, "NO_LOCK" when it is free',
     },
     lockedBy: {
       type: 'string',

@@ -308,7 +308,9 @@ export async function waitForWorkflowToolCompletion({
       !trustedExecution.provenance.complete
     ) {
       if (!trustedExecution.provenance.complete)
-        toolRegistry?.markIncomplete('source-provenance-incomplete')
+        toolRegistry?.markIncomplete('source-provenance-incomplete', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
       return structuralWorkflowCompletion(
         getWorkflowToolConfirmationStatus(trustedExecution.status),
         workflowId,
@@ -328,9 +330,14 @@ export async function waitForWorkflowToolCompletion({
         },
         { trusted: true }
       )
-      if (!imported) toolRegistry.markIncomplete('value-provenance-import-failed')
+      if (!imported)
+        toolRegistry.markIncomplete('value-provenance-import-failed', {
+          origin: 'copilotToolClient.workflowExecution',
+        })
     } catch (error) {
-      toolRegistry.markIncomplete('value-provenance-import-failed')
+      toolRegistry.markIncomplete('value-provenance-import-failed', {
+        origin: 'copilotToolClient.workflowExecution',
+      })
       logger.warn('Failed to import bound workflow provenance', {
         toolCallId,
         workflowId,

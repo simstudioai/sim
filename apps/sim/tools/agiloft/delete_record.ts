@@ -45,6 +45,13 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
         visibility: 'user-or-llm',
         description: 'ID of the record to delete',
       },
+      deleteRule: {
+        type: 'string',
+        required: false,
+        visibility: 'user-or-llm',
+        description:
+          'How to treat records that depend on this one: ERROR_IF_DEPENDANTS (default — fails rather than cascading), APPLY_DELETE_WHERE_POSSIBLE, DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK, APPLY_UNLINK, or UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE',
+      },
     },
 
     request: {
@@ -58,6 +65,7 @@ export const agiloftDeleteRecordTool: ToolConfig<AgiloftDeleteRecordParams, Agil
         password: params.password,
         table: params.table,
         recordId: params.recordId,
+        deleteRule: params.deleteRule,
       }),
     },
 

@@ -275,7 +275,7 @@
       "slug": "agiloft",
       "name": "Agiloft",
       "description": "Manage records in Agiloft CLM",
-      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, and record locking across any table in your knowledge base.",
+      "longDescription": "Integrate with Agiloft contract lifecycle management to create, read, update, delete, and search records. Supports file attachments, SQL-based selection, saved searches, record locking, and running action buttons across any table in your knowledge base.",
       "bgColor": "#001028",
       "iconName": "AgiloftIcon",
       "docsUrl": "https://docs.sim.ai/integrations/agiloft",
@@ -305,10 +305,6 @@
           "description": "Select record IDs matching a SQL WHERE clause from an Agiloft table."
         },
         {
-          "name": "Saved Search",
-          "description": "List saved searches defined for an Agiloft table."
-        },
-        {
           "name": "Attach File",
           "description": "Attach a file to a field in an Agiloft record."
         },
@@ -327,6 +323,10 @@
         {
           "name": "Lock Record",
           "description": "Lock, unlock, or check the lock status of an Agiloft record."
+        },
+        {
+          "name": "Run Action Button",
+          "description": "Run an action button on an Agiloft record, such as an approval or send-for-signature step."
         },
         {
           "name": "Get Choice Line ID",

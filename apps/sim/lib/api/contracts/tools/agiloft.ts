@@ -160,9 +160,23 @@ export type AgiloftUpdateRecordBody = ContractBody<typeof agiloftUpdateRecordCon
 export type AgiloftUpdateRecordBodyInput = ContractBodyInput<typeof agiloftUpdateRecordContract>
 export type AgiloftUpdateRecordResponse = ContractJsonResponse<typeof agiloftUpdateRecordContract>
 
+/**
+ * EWDelete requires a delete rule naming how dependent records are handled.
+ * `REPLACE_WITH_ANOTHER` is deliberately excluded — it additionally needs a
+ * `subs` list of substitute record IDs, which this tool does not model.
+ */
 export const agiloftDeleteRecordBodySchema = z.object({
   ...agiloftBaseFields,
   recordId: z.string().min(1, 'Record ID is required'),
+  deleteRule: z
+    .enum([
+      'ERROR_IF_DEPENDANTS',
+      'APPLY_DELETE_WHERE_POSSIBLE',
+      'DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK',
+      'APPLY_UNLINK',
+      'UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE',
+    ])
+    .default('ERROR_IF_DEPENDANTS'),
 })
 
 export const agiloftDeleteRecordResponseSchema = z.object({
@@ -191,6 +205,7 @@ export const agiloftLockRecordBodySchema = z.object({
   lockAction: z.enum(['lock', 'unlock', 'check'], {
     message: 'Lock action must be "lock", "unlock", or "check"',
   }),
+  force: z.boolean().optional(),
 })
 
 export const agiloftLockRecordResponseSchema = z.object({
@@ -215,13 +230,29 @@ export type AgiloftLockRecordBody = ContractBody<typeof agiloftLockRecordContrac
 export type AgiloftLockRecordBodyInput = ContractBodyInput<typeof agiloftLockRecordContract>
 export type AgiloftLockRecordResponse = ContractJsonResponse<typeof agiloftLockRecordContract>
 
-export const agiloftSearchRecordsBodySchema = z.object({
-  ...agiloftBaseFields,
-  query: z.string().min(1, 'Query is required'),
-  fields: z.string().optional(),
-  page: z.string().optional(),
-  limit: z.string().optional(),
-})
+/**
+ * EWSearch accepts a saved-search label (`search`), an ad hoc `query`, or both.
+ * At least one must be present, otherwise the call degenerates into an
+ * unbounded scan of the whole table.
+ */
+export const agiloftSearchRecordsBodySchema = z
+  .object({
+    ...agiloftBaseFields,
+    query: z.string().optional(),
+    search: z.string().optional(),
+    fields: z.string().optional(),
+    page: z.string().optional(),
+    limit: z.string().optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (!value.query?.trim() && !value.search?.trim()) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['query'],
+        message: 'Provide a search query or a saved search name',
+      })
+    }
+  })
 
 export const agiloftSearchRecordsResponseSchema = z.object({
   success: z.boolean(),
@@ -269,36 +300,6 @@ export const agiloftSelectRecordsContract = defineRouteContract({
 export type AgiloftSelectRecordsBody = ContractBody<typeof agiloftSelectRecordsContract>
 export type AgiloftSelectRecordsBodyInput = ContractBodyInput<typeof agiloftSelectRecordsContract>
 export type AgiloftSelectRecordsResponse = ContractJsonResponse<typeof agiloftSelectRecordsContract>
-
-export const agiloftSavedSearchBodySchema = z.object({
-  ...agiloftBaseFields,
-})
-
-export const agiloftSavedSearchResponseSchema = z.object({
-  success: z.boolean(),
-  output: z.object({
-    searches: z.array(
-      z.object({
-        name: z.string(),
-        label: z.string(),
-        id: z.union([z.string(), z.number()]),
-        description: z.string().nullable(),
-      })
-    ),
-  }),
-  error: z.string().optional(),
-})
-
-export const agiloftSavedSearchContract = defineRouteContract({
-  method: 'POST',
-  path: '/api/tools/agiloft/saved_search',
-  body: agiloftSavedSearchBodySchema,
-  response: { mode: 'json', schema: agiloftSavedSearchResponseSchema },
-})
-
-export type AgiloftSavedSearchBody = ContractBody<typeof agiloftSavedSearchContract>
-export type AgiloftSavedSearchBodyInput = ContractBodyInput<typeof agiloftSavedSearchContract>
-export type AgiloftSavedSearchResponse = ContractJsonResponse<typeof agiloftSavedSearchContract>
 
 export const agiloftAttachmentInfoBodySchema = z.object({
   ...agiloftBaseFields,
@@ -393,4 +394,34 @@ export type AgiloftGetChoiceLineIdBodyInput = ContractBodyInput<
 >
 export type AgiloftGetChoiceLineIdResponse = ContractJsonResponse<
   typeof agiloftGetChoiceLineIdContract
+>
+
+export const agiloftRunActionButtonBodySchema = z.object({
+  ...agiloftBaseFields,
+  recordId: z.string().min(1, 'Record ID is required'),
+  actionButtonField: z.string().min(1, 'Action button field name is required'),
+})
+
+export const agiloftRunActionButtonResponseSchema = z.object({
+  success: z.boolean(),
+  output: z.object({
+    recordId: z.string(),
+    callbackId: z.string().nullable(),
+  }),
+  error: z.string().optional(),
+})
+
+export const agiloftRunActionButtonContract = defineRouteContract({
+  method: 'POST',
+  path: '/api/tools/agiloft/run_action_button',
+  body: agiloftRunActionButtonBodySchema,
+  response: { mode: 'json', schema: agiloftRunActionButtonResponseSchema },
+})
+
+export type AgiloftRunActionButtonBody = ContractBody<typeof agiloftRunActionButtonContract>
+export type AgiloftRunActionButtonBodyInput = ContractBodyInput<
+  typeof agiloftRunActionButtonContract
+>
+export type AgiloftRunActionButtonResponse = ContractJsonResponse<
+  typeof agiloftRunActionButtonContract
 >

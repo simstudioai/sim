@@ -327,7 +327,7 @@ export const POST = withRouteHandler(
           return successResponse(transformedResult)
         } catch (error) {
           if (getErrorMessage(error) === 'Tool execution timeout') {
-            resolvedSecretTraceProvenance?.markIncomplete()
+            resolvedSecretTraceProvenance?.markIncomplete('mcp-tool-execution-timeout')
           }
           const bodyErrorResponse = mcpBodyReadErrorResponse(error, request)
           if (bodyErrorResponse) return bodyErrorResponse

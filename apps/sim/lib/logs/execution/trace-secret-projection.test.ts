@@ -103,13 +103,13 @@ describe('projectTraceSpansForSecrets', () => {
 
   it('preserves named provenance when an exact secret name and value overlap', async () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Test', plaintext: 'Test', encryptedValue: 'ciphertext' },
+      { name: 'TestName', plaintext: 'TestName', encryptedValue: 'ciphertext' },
     ])
-    expect(registry.recordResolved('Test', 'Test')).toBe(true)
+    expect(registry.recordResolved('TestName', 'TestName')).toBe(true)
     const source = createSpan({
-      input: { code: 'return {{Test}}' },
+      input: { code: 'return {{TestName}}' },
       output: {
-        result: 'Test',
+        result: 'TestName',
         legacy: '__var_Test',
         compiler: '__sim_code_0_binding_0',
       },
@@ -120,17 +120,17 @@ describe('projectTraceSpansForSecrets', () => {
       store: STORE,
     })
 
-    expect(projected.input).toEqual({ code: 'return {{Test}}' })
+    expect(projected.input).toEqual({ code: 'return {{TestName}}' })
     expect(projected.output).toEqual({
-      result: '{{Test}}',
+      result: '{{TestName}}',
       legacy: '[REDACTED_SECRET]',
       compiler: '[RUNTIME_BINDING]',
     })
     expect(JSON.stringify(projected)).not.toContain('__var_')
     expect(JSON.stringify(projected)).not.toContain('__sim_code_')
-    expect(source.input).toEqual({ code: 'return {{Test}}' })
+    expect(source.input).toEqual({ code: 'return {{TestName}}' })
     expect(source.output).toEqual({
-      result: 'Test',
+      result: 'TestName',
       legacy: '__var_Test',
       compiler: '__sim_code_0_binding_0',
     })
@@ -268,10 +268,10 @@ describe('projectTraceSpansForSecrets', () => {
 
   it('uses deterministic longest matches and does not rescan replacements', async () => {
     const result = await projectTraceSpansForSecrets(
-      [createSpan({ output: { value: 'secret-suffix secret A_SECRET' } })],
+      [createSpan({ output: { value: 'secret-suffix secretval A_SECRET' } })],
       {
         registry: createRegistry([
-          { plaintext: 'secret', replacement: '{{SHORT}}' },
+          { plaintext: 'secretval', replacement: '{{SHORT}}' },
           { plaintext: 'secret-suffix', replacement: '{{LONG}}' },
           { plaintext: 'A_SECRET', replacement: '{{A_SECRET}}' },
         ]),
@@ -294,7 +294,7 @@ describe('projectTraceSpansForSecrets', () => {
       {
         registry: createRegistry([
           ...dormant,
-          { plaintext: 'secret', replacement: '{{SHORT}}' },
+          { plaintext: 'secretval', replacement: '{{SHORT}}' },
           { plaintext: 'secret-suffix', replacement: '{{LONG}}' },
         ]),
         store: STORE,
@@ -322,9 +322,9 @@ describe('projectTraceSpansForSecrets', () => {
 
   it('supports one-character case-sensitive secrets without altering structural fields', async () => {
     const result = await projectTraceSpansForSecrets(
-      [createSpan({ id: 'A-structural', output: { value: 'A a' } })],
+      [createSpan({ id: 'A-structural', output: { value: 'AAAAAAAA a' } })],
       {
-        registry: createRegistry([{ plaintext: 'A', replacement: '{{LETTER}}' }]),
+        registry: createRegistry([{ plaintext: 'AAAAAAAA', replacement: '{{LETTER}}' }]),
         store: STORE,
       }
     )
@@ -334,27 +334,27 @@ describe('projectTraceSpansForSecrets', () => {
   })
 
   it('projects a successfully resolved numeric Function result without mutating runtime output', async () => {
-    const runtimeOutput = { result: 1234, unchanged: 5678 }
+    const runtimeOutput = { result: 12345678, unchanged: 5678 }
     const source = createSpan({ output: runtimeOutput })
 
     const [result] = await projectTraceSpansForSecrets([source], {
-      registry: createRegistry([{ plaintext: '1234', replacement: '{{NUMERIC_SECRET}}' }]),
+      registry: createRegistry([{ plaintext: '12345678', replacement: '{{NUMERIC_SECRET}}' }]),
       store: STORE,
     })
 
     expect(result.output).toEqual({ result: '{{NUMERIC_SECRET}}', unchanged: 5678 })
     expect(source.output).toBe(runtimeOutput)
-    expect(runtimeOutput).toEqual({ result: 1234, unchanged: 5678 })
+    expect(runtimeOutput).toEqual({ result: 12345678, unchanged: 5678 })
   })
 
   it('does not infer or redact values derived from a resolved secret', async () => {
     const source = createSpan({
-      input: { code: 'return 1234 + 5' },
+      input: { code: 'return 12345678 + 5' },
       output: { result: 1239 },
     })
 
     const [result] = await projectTraceSpansForSecrets([source], {
-      registry: createRegistry([{ plaintext: '1234', replacement: '{{NUMERIC_SECRET}}' }]),
+      registry: createRegistry([{ plaintext: '12345678', replacement: '{{NUMERIC_SECRET}}' }]),
       store: STORE,
     })
 
@@ -364,9 +364,9 @@ describe('projectTraceSpansForSecrets', () => {
 
   it('omits a content field when secret replacement collides object keys', async () => {
     const result = await projectTraceSpansForSecrets(
-      [createSpan({ input: { safe: 'keep' }, output: { secret: 1, '{{TOKEN}}': 2 } })],
+      [createSpan({ input: { safe: 'keep' }, output: { secretval: 1, '{{TOKEN}}': 2 } })],
       {
-        registry: createRegistry([{ plaintext: 'secret', replacement: '{{TOKEN}}' }]),
+        registry: createRegistry([{ plaintext: 'secretval', replacement: '{{TOKEN}}' }]),
         store: STORE,
       }
     )
@@ -454,7 +454,7 @@ describe('projectTraceSpansForSecrets', () => {
     const source = [createSpan({ output: { summary: 'the latest news' } })]
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'test', replacement: '{{TOKEN}}' }]),
+      registry: createRegistry([{ plaintext: 'testvalue', replacement: '{{TOKEN}}' }]),
       store: STORE,
     })
 
@@ -505,7 +505,7 @@ describe('projectTraceSpansForSecrets', () => {
     materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -552,13 +552,13 @@ describe('projectTraceSpansForSecrets', () => {
     } as const
     const refWithExtraMetadata = {
       ...safeRef,
-      leaked: 'hidden-E',
+      leaked: 'hidden-EEEEEEEE',
     }
     const source = [createSpan({ output: { first: safeRef, duplicate: refWithExtraMetadata } })]
     materializeLargeValueRefMock.mockResolvedValue({ value: '{{X}}' })
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -586,11 +586,11 @@ describe('projectTraceSpansForSecrets', () => {
     } as const
     const source = [createSpan({ output: { payload: outerRef } })]
     materializeLargeValueRefMock.mockImplementation(async (ref: { id: string }) =>
-      ref.id === nestedRef.id ? { value: 'hidden-E' } : { value: '{{X}}' }
+      ref.id === nestedRef.id ? { value: 'hidden-EEEEEEEE' } : { value: '{{X}}' }
     )
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -632,11 +632,11 @@ describe('projectTraceSpansForSecrets', () => {
       }),
     ]
     materializeLargeValueRefMock.mockImplementation(async (ref: { id: string }) =>
-      ref.id === nestedRef.id ? { value: 'hidden-E' } : { value: '{{X}}' }
+      ref.id === nestedRef.id ? { value: 'hidden-EEEEEEEE' } : { value: '{{X}}' }
     )
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -658,10 +658,10 @@ describe('projectTraceSpansForSecrets', () => {
       preview: '{{X}}',
     } as const
     const source = [createSpan({ output: { payload: ref } })]
-    materializeLargeValueRefMock.mockResolvedValue({ visibleAfterPreview: 'value-E' })
+    materializeLargeValueRefMock.mockResolvedValue({ visibleAfterPreview: 'value-EEEEEEEE' })
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -694,7 +694,7 @@ describe('projectTraceSpansForSecrets', () => {
     materializeLargeValueRefMock.mockResolvedValue([{ token: '{{X}}' }])
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 
@@ -738,7 +738,7 @@ describe('projectTraceSpansForSecrets', () => {
       materializeLargeValueRefMock.mockResolvedValue([{ token: '{{X}}' }])
 
       const result = await enforceTraceSpanSecretInvariant(source, {
-        registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+        registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
         store: STORE,
       })
 
@@ -768,10 +768,10 @@ describe('projectTraceSpansForSecrets', () => {
       preview: [{ token: '{{X}}' }],
     } as const
     const source = [createSpan({ output: { items: manifest } })]
-    materializeLargeValueRefMock.mockResolvedValue([{ token: 'hidden-E' }])
+    materializeLargeValueRefMock.mockResolvedValue([{ token: 'hidden-EEEEEEEE' }])
 
     const result = await enforceTraceSpanSecretInvariant(source, {
-      registry: createRegistry([{ plaintext: 'E', replacement: '{{X}}' }]),
+      registry: createRegistry([{ plaintext: 'EEEEEEEE', replacement: '{{X}}' }]),
       store: STORE,
     })
 

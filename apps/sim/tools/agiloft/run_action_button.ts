@@ -1,13 +1,17 @@
-import type { AgiloftSelectRecordsParams, AgiloftSelectResponse } from '@/tools/agiloft/types'
+import type {
+  AgiloftRunActionButtonParams,
+  AgiloftRunActionButtonResponse,
+} from '@/tools/agiloft/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const agiloftSelectRecordsTool: ToolConfig<
-  AgiloftSelectRecordsParams,
-  AgiloftSelectResponse
+export const agiloftRunActionButtonTool: ToolConfig<
+  AgiloftRunActionButtonParams,
+  AgiloftRunActionButtonResponse
 > = {
-  id: 'agiloft_select_records',
-  name: 'Agiloft Select Records',
-  description: 'Select record IDs matching a SQL WHERE clause from an Agiloft table.',
+  id: 'agiloft_run_action_button',
+  name: 'Agiloft Run Action Button',
+  description:
+    'Run an action button on an Agiloft record, such as an approval or send-for-signature step.',
   version: '1.0.0',
 
   params: {
@@ -39,19 +43,24 @@ export const agiloftSelectRecordsTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name (e.g., "contracts", "contacts.employees")',
+      description: 'Table name (e.g., "contracts", "case")',
     },
-    where: {
+    recordId: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description:
-        'SQL WHERE clause using database column names (e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result.',
+      description: 'ID of the record to run the action button on',
+    },
+    actionButtonField: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Logical name of the field holding the action button (e.g., "ab_field")',
     },
   },
 
   request: {
-    url: () => '/api/tools/agiloft/select_records',
+    url: () => '/api/tools/agiloft/run_action_button',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
@@ -60,7 +69,8 @@ export const agiloftSelectRecordsTool: ToolConfig<
       login: params.login,
       password: params.password,
       table: params.table,
-      where: params.where,
+      recordId: params.recordId,
+      actionButtonField: params.actionButtonField,
     }),
   },
 
@@ -74,16 +84,14 @@ export const agiloftSelectRecordsTool: ToolConfig<
   },
 
   outputs: {
-    recordIds: {
-      type: 'array',
-      description: 'Array of record IDs matching the query',
-      items: {
-        type: 'string',
-      },
+    recordId: {
+      type: 'string',
+      description: 'ID of the record the action button was run on',
     },
-    totalCount: {
-      type: 'number',
-      description: 'Total number of matching records',
+    callbackId: {
+      type: 'string',
+      description:
+        'Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID',
     },
   },
 }
