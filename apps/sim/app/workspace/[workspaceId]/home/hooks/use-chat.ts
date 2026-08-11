@@ -4586,6 +4586,30 @@ export function useChat(
         useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
+      /**
+       * Hands a chatless send to whatever surface comes next, because its
+       * `pending::` queue key is regenerated per mount and anything left under
+       * this one is unreachable. Prefers the live replacement surface's
+       * listener and falls back to a one-shot stored handoff for a real
+       * navigation away. Both lanes carry attachments and the stream id, so the
+       * next surface probes before it sends.
+       */
+      const handOffChatlessRecovery = (recoverStreamId?: string) => {
+        if (
+          !sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments, recoverStreamId)
+        ) {
+          MothershipHandoffStorage.store(
+            {
+              message: msg.content,
+              ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
+              ...(msg.fileAttachments?.length ? { fileAttachments: msg.fileAttachments } : {}),
+              ...(recoverStreamId ? { recoverStreamId } : {}),
+            },
+            workspaceId
+          )
+        }
+      }
+
       const restoreQueuedMessage = (handoff?: QueuedSendHandoffSeed, recoverStreamId?: string) => {
         const recoverableCleanupAbort = recoverStreamId !== undefined
         if (!handoff) {
@@ -4613,19 +4637,7 @@ export function useChat(
            Chat-bound sends keep the queue restore — their key is the stable
            chat id — and carry the stream id on the restored entry. */
         if (recoverableCleanupAbort && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
-          if (
-            !sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments, recoverStreamId)
-          ) {
-            MothershipHandoffStorage.store(
-              {
-                message: msg.content,
-                ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
-                ...(msg.fileAttachments?.length ? { fileAttachments: msg.fileAttachments } : {}),
-                ...(recoverStreamId ? { recoverStreamId } : {}),
-              },
-              workspaceId
-            )
-          }
+          handOffChatlessRecovery(recoverStreamId)
           return
         }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
@@ -4658,9 +4670,26 @@ export function useChat(
            adopt its chat instead when it exists. */
         if (liveMsg.recoverStreamId) {
           const probe = await resolveRecoveredSendChatId(liveMsg.recoverStreamId, options.epoch)
-          /* Unknown, not "safe to send" — leave the entry queued (it keeps its
-             `recoverStreamId`) so the next mount's drain probes again. */
-          if (probe.status === 'superseded') return
+          /* Unknown, not "safe to send". A chat-bound key is the stable chat
+             id, so leaving the entry queued IS the retry — the next mount's
+             drain probes again. A chatless `pending::` key is regenerated per
+             mount, so the same move would strand the message under a dead key;
+             hand it to the recovery lanes instead, still carrying the stream
+             id. Skipped when the entry is no longer under this key (adoption
+             migrated it to a live chat), where it is already recoverable. */
+          if (probe.status === 'superseded') {
+            if (dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+              const queueStore = useMothershipQueueStore.getState()
+              const stillUnderDeadKey = (queueStore.queues[dispatchChatKey] ?? []).some(
+                (queued) => queued.id === msg.id
+              )
+              if (stillUnderDeadKey) {
+                queueStore.remove(dispatchChatKey, msg.id)
+                handOffChatlessRecovery(liveMsg.recoverStreamId)
+              }
+            }
+            return
+          }
           if (probe.status === 'adopted') {
             removeQueuedMessage()
             adoptResolvedChatId(probe.chatId, {

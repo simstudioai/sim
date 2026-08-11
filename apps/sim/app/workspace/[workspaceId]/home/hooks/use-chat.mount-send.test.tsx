@@ -519,6 +519,13 @@ describe('useChat remount send recovery', () => {
         await sleep(3000)
       })
       expect(state.postCalls).toBe(postsBeforeUnmount)
+
+      /* Not sending is only half of it — the message must still be
+         recoverable. A chatless surface's `pending::` key is regenerated per
+         mount, so leaving the entry there would strand it just as surely as
+         re-sending would have duplicated it. */
+      expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('do not zombie me')
+      expect(allQueuedMessages()).toHaveLength(0)
     })
 
     it('re-sends when the server has no stream for it', async () => {
