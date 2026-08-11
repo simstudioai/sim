@@ -2,6 +2,7 @@ import type {
   CalendlyCreateWebhookParams,
   CalendlyCreateWebhookResponse,
 } from '@/tools/calendly/types'
+import { toStringArray } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const createWebhookTool: ToolConfig<
@@ -71,7 +72,7 @@ export const createWebhookTool: ToolConfig<
     body: (params: CalendlyCreateWebhookParams) => {
       const body: any = {
         url: params.url,
-        events: params.events,
+        events: toStringArray(params.events, 'events'),
         organization: params.organization,
         scope: params.scope,
       }

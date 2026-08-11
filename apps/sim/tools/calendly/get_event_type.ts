@@ -2,6 +2,7 @@ import type {
   CalendlyGetEventTypeParams,
   CalendlyGetEventTypeResponse,
 } from '@/tools/calendly/types'
+import { toUuid } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const getEventTypeTool: ToolConfig<
@@ -31,9 +32,7 @@ export const getEventTypeTool: ToolConfig<
 
   request: {
     url: (params: CalendlyGetEventTypeParams) => {
-      const uuid = params.eventTypeUuid.includes('/')
-        ? params.eventTypeUuid.split('/').pop()
-        : params.eventTypeUuid
+      const uuid = toUuid(params.eventTypeUuid)
       return `https://api.calendly.com/event_types/${uuid}`
     },
     method: 'GET',
