@@ -364,7 +364,7 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
   /** Pulls the posted assertion apart and verifies its RS256 signature. */
   function readPostedAssertion(): {
     header: { alg: string; typ: string }
-    claims: { aud: string; iss: string; sub: string; exp: number }
+    claims: { aud: string; iss: string; sub: string; exp: number; iat: number }
     verified: boolean
   } {
     const [url, init] = mockFetch.mock.calls[0]
@@ -420,6 +420,49 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
     expect(claims.aud).toBe(`https://${HOST}`)
     expect(claims.iss).toBe('test-consumer-key')
     expect(claims.sub).toBe('integration.user@yourorg.com')
+  })
+
+  it('audiences a Government Cloud org at gs1.salesforce.com, not its My Domain', async () => {
+    // Salesforce's own sfdx-core substitutes this audience for gs1 orgs, whose
+    // hosts are otherwise ordinary *.my.salesforce.com.
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken({ ...JWT_FIELDS, orgId: 'gs1-acme.my.salesforce.com' })
+
+    const [url, init] = mockFetch.mock.calls[0]
+    const assertion = new URLSearchParams(init.body as string).get('assertion') as string
+    const claims = JSON.parse(Buffer.from(assertion.split('.')[1], 'base64url').toString())
+    expect(claims.aud).toBe('https://gs1.salesforce.com')
+    // The token still POSTs to the org's own host — only the audience differs.
+    expect(url).toBe('https://gs1-acme.my.salesforce.com/services/oauth2/token')
+  })
+
+  it('carries an iat claim, matching every mainstream Salesforce implementation', async () => {
+    mockFetch
+      .mockResolvedValueOnce(jsonResponse(200, { access_token: 'sf-jwt-token' }))
+      .mockResolvedValueOnce(jsonResponse(403, {}))
+
+    await mintSalesforceServiceAccountToken(JWT_FIELDS)
+
+    const { claims } = readPostedAssertion()
+    expect(claims.iat).toBeLessThanOrEqual(Math.floor(Date.now() / 1000))
+    expect(claims.exp).toBeGreaterThan(claims.iat)
+  })
+
+  it('maps an unassigned profile to a permission-set hint', async () => {
+    mockFetch.mockResolvedValueOnce(
+      jsonResponse(400, {
+        error: 'invalid_app_access',
+        error_description: 'user is not admin approved to access this app',
+      })
+    )
+
+    await expect(mintSalesforceServiceAccountToken(JWT_FIELDS)).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      logDetail: { hint: expect.stringContaining('profile or permission set is not assigned') },
+    })
   })
 
   it('sets a short expiry inside the 5-minute window Salesforce allows', async () => {

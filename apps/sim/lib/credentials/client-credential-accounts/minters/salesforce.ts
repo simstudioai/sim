@@ -36,10 +36,10 @@ const IDENTITY_STEP = 'salesforce_identity'
 const TOKEN_MINT_STEP = 'salesforce_token_mint'
 
 /**
- * Lifetime of the signed assertion, not of the access token it buys.
- * Salesforce rejects an `exp` more than 5 minutes ahead of *its* clock, so a
- * short window bounds replay while leaving room for clock skew between Sim and
- * Salesforce.
+ * Lifetime of the signed assertion, not of the access token it buys. Salesforce
+ * documents a 5-minute ceiling; a short window bounds replay while leaving room
+ * for clock skew. The binding constraint is the lower bound — a Sim clock more
+ * than this far behind Salesforce's fails every mint.
  */
 const JWT_ASSERTION_LIFETIME_SECONDS = 180
 
@@ -254,13 +254,17 @@ function loadSalesforcePrivateKey(privateKeyPem: string): KeyObject {
  * `test.salesforce.com`. Salesforce ended legacy hostname redirections in
  * Spring '26, and External Client Apps now reject the generic sandbox host
  * with `app_not_found` because it cannot identify which org the app is
- * installed in. The My Domain URL is valid for both Connected Apps and
- * External Client Apps, in production and in sandboxes, so it is the only
- * audience that works across all four combinations — and it means the stored
- * host alone determines the environment, with nothing left to infer.
- * Salesforce's own CLI recommends the My Domain login URL for the same reason.
+ * installed in. My Domain is valid for Connected Apps and External Client Apps
+ * alike, in production and in sandboxes, and is what Salesforce's own CLI
+ * recommends — so the stored host alone determines the environment, with
+ * nothing left to infer.
+ *
+ * Government Cloud is the documented exception: `sfdx-core` substitutes
+ * `https://gs1.salesforce.com` for `gs1` orgs, whose hosts are otherwise
+ * ordinary `*.my.salesforce.com`.
  *
  * @see https://help.salesforce.com/s/articleView?id=sf.remoteaccess_oauth_jwt_flow.htm&type=5
+ * @see https://github.com/forcedotcom/sfdx-core/blob/main/src/util/sfdcUrl.ts
  */
 function buildSalesforceJwtAssertion(
   consumerKey: string,
@@ -268,13 +272,25 @@ function buildSalesforceJwtAssertion(
   host: string,
   privateKey: KeyObject
 ): Promise<string> {
-  return new SignJWT()
-    .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
-    .setIssuer(consumerKey)
-    .setSubject(username)
-    .setAudience(`https://${host}`)
-    .setExpirationTime(Math.floor(Date.now() / 1000) + JWT_ASSERTION_LIFETIME_SECONDS)
-    .sign(privateKey)
+  return (
+    new SignJWT()
+      .setProtectedHeader({ alg: 'RS256', typ: 'JWT' })
+      .setIssuer(consumerKey)
+      .setSubject(username)
+      .setAudience(salesforceJwtAudience(host))
+      // Optional per RFC 7523, but every mainstream Salesforce implementation
+      // (including `sfdx-core`) sends it; costs nothing to match them.
+      .setIssuedAt()
+      .setExpirationTime(Math.floor(Date.now() / 1000) + JWT_ASSERTION_LIFETIME_SECONDS)
+      .sign(privateKey)
+  )
+}
+
+/** Government Cloud orgs authenticate at a dedicated audience; everyone else uses My Domain. */
+function salesforceJwtAudience(host: string): string {
+  return host.startsWith('gs1.') || host.startsWith('gs1-')
+    ? 'https://gs1.salesforce.com'
+    : `https://${host}`
 }
 
 /**
@@ -289,6 +305,9 @@ function salesforceJwtErrorHint(body: string): string | undefined {
     const description = (parsed.error_description ?? '').toLowerCase()
     if (parsed.error === 'app_not_found') {
       return 'the app is not installed in this org — check the My Domain host and that the consumer key belongs to that org'
+    }
+    if (parsed.error === 'invalid_app_access' || description.includes('admin approved')) {
+      return "the run-as user's profile or permission set is not assigned to the app — assign it under the app's OAuth policies"
     }
     if (description.includes('user hasn’t approved') || description.includes("hasn't approved")) {
       return 'the run-as user has not approved the app — set its OAuth policy to "Admin approved users are pre-authorized" and assign the user a permitted profile or permission set'
