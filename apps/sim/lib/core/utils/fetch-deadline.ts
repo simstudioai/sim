@@ -19,13 +19,22 @@
  * exactly the bug. Disarming leaves one enforcement point instead of two that
  * disagree.
  *
- * Note the pinned runtime accepts only the boolean/zero form. Bun 1.3.14
- * ignores a positive numeric `timeout` — verified against the pinned version by
- * observing that `{ timeout: 1000 }` does not abort a request that takes 3s to
- * answer — so passing the deadline as a number silently changes nothing. The
- * numeric idle-deadline form exists only on Bun's `main`. Do not "improve" this
- * to pass the deadline through until the pinned version supports it, and
- * re-verify with that probe if you do.
+ * The pinned runtime accepts only the boolean/zero form. Measured on Bun 1.3.14
+ * against a server that withholds response headers, so the numbers below are
+ * the real deadline rather than an inferred one:
+ *
+ *   no option      -> THREW 300028ms (TimeoutError)   <- the 300s default
+ *   timeout: false -> RESOLVED 310031ms               <- disarmed
+ *   timeout: 1000  -> RESOLVED 3008ms on a 3s request <- numeric ignored
+ *
+ * So a positive numeric `timeout` silently changes nothing on this version; the
+ * numeric idle-deadline form and `BUN_CONFIG_HTTP_IDLE_TIMEOUT` both exist only
+ * on Bun's `main`. Do not "improve" this into a numeric pass-through until the
+ * pinned version supports it, and re-measure with the probe above if you do.
+ *
+ * `bun-types@1.3.14` does not declare `timeout` on `BunFetchRequestInit` even
+ * though the runtime honors the boolean form — the types lag the runtime, which
+ * is why the interface below is declared locally rather than imported.
  *
  * Node's undici has no equivalent default and ignores the option, so this is
  * safe on both runtimes.
