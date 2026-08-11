@@ -37,6 +37,7 @@ import {
 import { fileGetContentTool } from '@/tools/file/get'
 import { memoryAddTool } from '@/tools/memory/add'
 import { tableBatchInsertRowsTool } from '@/tools/table/batch_insert_rows'
+import { customBlockExecutorTool } from '@/tools/workflow/custom-block-executor'
 import { workflowExecutorTool } from '@/tools/workflow/executor'
 
 // Hoisted mock state - these are available to vi.mock factories
@@ -47,6 +48,7 @@ const {
   mockGetCustomToolById,
   mockListCustomTools,
   mockMarkWorkspaceFileSecretProvenanceUnknown,
+  mockRunCustomBlockTool,
   mockRunWorkflowTool,
   mockGetCustomToolByIdOrTitle,
   mockGenerateInternalDelegationToken,
@@ -63,6 +65,7 @@ const {
   mockGetCustomToolById: vi.fn(),
   mockListCustomTools: vi.fn(),
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
+  mockRunCustomBlockTool: vi.fn(),
   mockRunWorkflowTool: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
   mockGenerateInternalDelegationToken: vi.fn(),
@@ -130,9 +133,14 @@ vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
   runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
+vi.mock('@/executor/handlers/workflow/custom-block-tool-runner', () => ({
+  runCustomBlockTool: (...args: unknown[]) => mockRunCustomBlockTool(...args),
+}))
+
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
 // Only the tools actually exercised in tests are provided.
 const mockRegistryTools: Record<string, any> = {
+  deployed_block_executor: customBlockExecutorTool,
   workflow_executor: workflowExecutorTool,
   file_get_content: fileGetContentTool,
   memory_add: memoryAddTool,
@@ -772,6 +780,36 @@ describe('executeTool Function', () => {
     })
     const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')
+  })
+
+  it('uses the canonical parent origin for protected tools inside a nested workflow', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'child-workflow',
+      executionId: 'parent-execution',
+      executorDelegationOrigin: {
+        subjectUserId: 'trusted-user',
+        workflowId: 'parent-workflow',
+        executionId: 'parent-execution',
+      },
+    })
+    await executeTool('test_executor_delegation', {}, { executionContext })
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'trusted-user',
+      workflowId: 'parent-workflow',
+      executionId: 'parent-execution',
+    })
   })
 
   it('rejects protected internal tools without trusted executor scope before transport', async () => {
@@ -1478,6 +1516,55 @@ describe('executeTool Function', () => {
       resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
     }
     expect(runnerOptions.resolvedSecretTraceRegistry).not.toBe(registry)
+    expect(global.fetch).not.toHaveBeenCalled()
+  })
+
+  it('overwrites custom-block tool context with the trusted workflow scope', async () => {
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      workspaceId: 'trusted-workspace',
+      executionId: 'trusted-execution',
+      callChain: ['trusted-parent'],
+      isDeployedContext: true,
+    })
+    mockRunCustomBlockTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+
+    await executeTool(
+      'deployed_block_executor_custom_block_123',
+      {
+        blockType: 'custom_block_123',
+        _context: {
+          userId: 'forged-user',
+          workflowId: 'forged-workflow',
+          workspaceId: 'forged-workspace',
+          executionId: 'forged-execution',
+          callChain: ['forged-parent'],
+          isDeployedContext: false,
+          billingAttribution: { forged: true },
+        },
+      },
+      { executionContext }
+    )
+
+    expect(mockRunCustomBlockTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        blockType: 'custom_block_123',
+        _context: expect.objectContaining({
+          userId: 'trusted-user',
+          workflowId: 'trusted-workflow',
+          workspaceId: 'trusted-workspace',
+          executionId: 'trusted-execution',
+          callChain: ['trusted-parent'],
+          isDeployedContext: true,
+          billingAttribution: TEST_BILLING_ATTRIBUTION,
+          requestId: expect.any(String),
+        }),
+      }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: undefined,
+      })
+    )
     expect(global.fetch).not.toHaveBeenCalled()
   })
 

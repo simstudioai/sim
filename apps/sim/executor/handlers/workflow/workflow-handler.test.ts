@@ -582,6 +582,11 @@ describe('WorkflowBlockHandler', () => {
       expect(executorOptions[0].contextExtensions.billingAttribution).toBe(sourceAttribution)
       expect(executorOptions[0].contextExtensions.userId).toBe('owner-9')
       expect(executorOptions[0].contextExtensions.workspaceId).toBe('workspace-source')
+      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
+        subjectUserId: 'owner-9',
+        workflowId: 'source-workflow-id',
+        executionId: loggingSessionArgs[0][1],
+      })
     })
 
     it('builds trusted caller metadata for custom block children with the toggle on', async () => {
@@ -1225,6 +1230,15 @@ describe('WorkflowBlockHandler', () => {
       expect(loggingSessionArgs).toHaveLength(0)
     })
 
+    it('fails before execution when the source child log row cannot be opened', async () => {
+      mockSafeStart.mockResolvedValue(false)
+
+      await expect(handler.execute(customBlockContext(), customBlock(), {})).rejects.toThrow()
+
+      expect(mockExecutorExecute).not.toHaveBeenCalled()
+      expect(executorOptions).toHaveLength(0)
+    })
+
     it('runs the child under its own execution id but keeps the parent readable', async () => {
       const ctx = customBlockContext()
       await handler.execute(ctx, customBlock(), {})
@@ -1233,6 +1247,24 @@ describe('WorkflowBlockHandler', () => {
       expect(extensions.executionId).not.toBe('parent-execution-id')
       expect(extensions.largeValueExecutionIds).toContain('parent-execution-id')
       expect(ctx.largeValueExecutionIds).toContain(extensions.executionId)
+    })
+
+    it('replaces the consumer delegation origin with the source child execution', async () => {
+      const ctx = customBlockContext({
+        executorDelegationOrigin: {
+          subjectUserId: 'consumer-1',
+          workflowId: 'consumer-workflow',
+          executionId: 'parent-execution-id',
+        },
+      })
+
+      await handler.execute(ctx, customBlock(), {})
+
+      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toEqual({
+        subjectUserId: 'owner-9',
+        workflowId: 'source-workflow-id',
+        executionId: executorOptions[0].contextExtensions.executionId,
+      })
     })
 
     it('shares one large-value id list so nested custom blocks propagate upward', async () => {
@@ -1604,8 +1636,48 @@ describe('WorkflowBlockHandler', () => {
       const extensions = executorOptions[0].contextExtensions
       expect(extensions.executionId).toBe('parent-execution-id')
       expect(extensions.resolvedSecretTraceRegistry).toBe(registry)
+      expect(extensions.executorDelegationOrigin).toEqual({
+        subjectUserId: 'user-1',
+        workflowId: 'parent-workflow-id',
+        executionId: 'parent-execution-id',
+      })
+      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith(
+        extensions.executorDelegationOrigin
+      )
       expect(extensions.onStream).toBe(ctx.onStream)
       expect(extensions.childWorkflowContext).toBeDefined()
+    })
+
+    it('preserves the canonical parent origin through deeper regular children', async () => {
+      const ctx = {
+        ...mockContext,
+        workspaceId: 'workspace-1',
+        workflowId: 'intermediate-workflow-id',
+        executionId: 'parent-execution-id',
+        executorDelegationOrigin: {
+          subjectUserId: 'user-1',
+          workflowId: 'root-workflow-id',
+          executionId: 'parent-execution-id',
+        },
+      } as ExecutionContext
+      mockFetch.mockResolvedValue({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            data: {
+              name: 'Grandchild Workflow',
+              workspaceId: 'workspace-1',
+              state: { blocks: [], edges: [], loops: {}, parallels: {} },
+            },
+          }),
+      })
+
+      await handler.execute(ctx, mockBlock, { workflowId: 'grandchild-workflow-id' })
+
+      expect(mockBuildExecutorDelegationHeaders).toHaveBeenCalledWith(ctx.executorDelegationOrigin)
+      expect(executorOptions[0].contextExtensions.executorDelegationOrigin).toBe(
+        ctx.executorDelegationOrigin
+      )
     })
   })
 

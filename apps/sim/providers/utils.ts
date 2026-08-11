@@ -52,6 +52,7 @@ import {
 } from '@/providers/models'
 import {
   getProviderToolInputProvenance,
+  getProviderToolModelInputRegistry,
   registerPreparedProviderToolInputProvenance,
 } from '@/providers/tool-input-provenance'
 import type { ProviderId, ProviderToolConfig } from '@/providers/types'
@@ -1563,11 +1564,27 @@ export function prepareToolExecution(
   // scoped to "Selected secrets" with an empty list is an explicit deny, and a
   // model emitting `mountedSecrets: ['STRIPE_KEY']` would otherwise mount it.
   const modelParams = stripModelBlockedParams(tool.modelBlockedParams, llmArgs)
-  let toolParams = mergeToolParameters(tool.params || {}, modelParams) as Record<string, any>
+  const modelInputRegistry = getProviderToolModelInputRegistry(tool)
+  const modelReferenceResolution = modelInputRegistry?.resolveModelExposedEnvReferences(modelParams)
+  if (modelReferenceResolution && !modelReferenceResolution.complete) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  const resolvedModelParams = modelReferenceResolution?.value ?? modelParams
+  let toolParams = mergeToolParameters(tool.params || {}, resolvedModelParams)
   const inputProvenance = getProviderToolInputProvenance(tool)
-  const inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
-  let projectedToolParams = inputProvenance
-    ? (mergeToolParameters(inputProvenance.projectedParams, modelParams) as Record<string, any>)
+  let inputRegistry = inputProvenance?.registry.forkForInputPaths([inputProvenance.sourcePath])
+  if (modelReferenceResolution?.matched) {
+    if (inputRegistry) {
+      inputRegistry.mergeToolCallRegistry(modelReferenceResolution.registry)
+    } else {
+      inputRegistry = modelReferenceResolution.registry
+    }
+  }
+  if (inputRegistry && !inputRegistry.isComplete()) {
+    throw new Error('Agent tool input environment references could not be safely resolved')
+  }
+  let projectedToolParams = inputRegistry
+    ? mergeToolParameters(inputProvenance?.projectedParams ?? tool.params ?? {}, modelParams)
     : undefined
 
   if (tool.paramsTransform) {
@@ -1622,7 +1639,7 @@ export function prepareToolExecution(
     ...(tool.parameters ? { _toolSchema: tool.parameters } : {}),
   }
 
-  if (inputProvenance && inputRegistry) {
+  if (inputRegistry) {
     const inputPaths = [['params']] as const
     if (projectedToolParams) {
       inputRegistry.recordTransformedInputProjection(
