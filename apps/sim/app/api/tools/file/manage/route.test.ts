@@ -208,6 +208,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     mockEnsureWorkspaceFileFolderPath.mockImplementation(
       async ({ input }: { input: { pathSegments: string[] } }) => ({
         folderId: input.pathSegments.length === 0 ? null : 'folder-1',
+        createdFolderIds: [],
       })
     )
     mockDownloadServableFileFromStorage.mockImplementation(async (file: { name: string }) => ({
@@ -692,7 +693,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'child.txt',
       'text/plain',
       {
-        exactName: true,
+        exactName: false,
         folderId: 'folder-1',
         folderPath: undefined,
         secretProvenance: { status: 'unknown' },
