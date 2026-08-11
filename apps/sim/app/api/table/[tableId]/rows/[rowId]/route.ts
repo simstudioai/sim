@@ -10,7 +10,6 @@ import {
 } from '@/lib/api/contracts/tables'
 import { isZodError, parseRequest, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { RowData, TableSchema } from '@/lib/table'
@@ -27,6 +26,7 @@ import {
   accessError,
   checkAccess,
   orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
   rowWriteErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
@@ -248,10 +248,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Row
 
     const outcome = await performDeleteTableRow({ table, rowId, requestId })
     if (!outcome.success) {
-      return NextResponse.json(
-        { error: outcome.error ?? 'Failed to delete row' },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete row')
     }
 
     // Live-collab: tell open viewers the change landed so they refetch.

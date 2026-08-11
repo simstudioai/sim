@@ -8,7 +8,12 @@ import {
   updateTableColumnBodySchema,
 } from '@/lib/api/contracts/tables'
 import { isFeatureEnabled } from '@/lib/core/config/feature-flags'
-import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import {
+  asOrchestrationError,
+  messageForOrchestrationError,
+  type OrchestrationErrorCode,
+  statusForOrchestrationError,
+} from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { ColumnDefinition, Filter, TableDefinition, TablePredicate } from '@/lib/table'
 import { buildFilterClause, getTableById, TableQueryValidationError } from '@/lib/table'
@@ -17,6 +22,7 @@ import { USER_TABLE_ROWS_SQL_NAME } from '@/lib/table/constants'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { isTablePredicate } from '@/lib/table/query-builder/converters'
 import { validateStoragePredicate } from '@/lib/table/query-builder/validate'
+import type { TableLockKind } from '@/lib/table/types'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
 import { getWorkspaceOrganizationId } from '@/lib/workspaces/utils'
 
@@ -129,6 +135,45 @@ export function orchestrationErrorResponse(error: unknown): NextResponse | null 
   return NextResponse.json(
     { error: classified.message },
     { status: statusForOrchestrationError(classified.code) }
+  )
+}
+
+/**
+ * The failure half of a `lib/table/orchestration` result. Every `perform*`
+ * function returns this shape, so one projection serves all of them.
+ */
+export interface TableOrchestrationFailure {
+  error?: string
+  errorCode?: OrchestrationErrorCode
+  /** Which lock rejected the write. Set only when `errorCode` is `'locked'`. */
+  lock?: TableLockKind
+}
+
+/**
+ * Projects an orchestration failure RESULT onto its HTTP response, the
+ * counterpart of {@link orchestrationErrorResponse} for the functions that
+ * return a failure instead of throwing one.
+ *
+ * Every table route must go through this rather than reading `outcome.error`
+ * itself, for two reasons the per-route spellings kept getting wrong:
+ *
+ * - An unclassified failure carries whatever text the fault happened to have —
+ *   a driver's failed SQL and its bound parameters — so it renders `fallback`
+ *   instead. Only a classified, caller-fixable failure keeps its own message.
+ * - A `'locked'` failure answers 423 with `{ error, lock }`. The lock kind is
+ *   the only thing that tells a client which lock to clear, and it is computed
+ *   by every `perform*` function already.
+ */
+export function orchestrationOutcomeErrorResponse(
+  outcome: TableOrchestrationFailure,
+  fallback: string
+): NextResponse {
+  return NextResponse.json(
+    {
+      error: messageForOrchestrationError(outcome, fallback),
+      ...(outcome.lock ? { lock: outcome.lock } : {}),
+    },
+    { status: statusForOrchestrationError(outcome.errorCode) }
   )
 }
 

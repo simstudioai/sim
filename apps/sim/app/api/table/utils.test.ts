@@ -5,7 +5,12 @@ import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
+import {
+  orchestrationOutcomeErrorResponse,
+  rootErrorMessage,
+  rowWriteErrorResponse,
+  tableFilterError,
+} from '@/app/api/table/utils'
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
 function wrapLikeDrizzle(cause: Error): Error {
@@ -115,5 +120,62 @@ describe('tableFilterError', () => {
   it('still validates the legacy grammar through buildFilterClause', () => {
     expect(tableFilterError({ col_status: 'x' }, columns)).toBeNull()
     expect(tableFilterError({ col_status: { $regex: 'x' } } as never, columns)?.status).toBe(400)
+  })
+})
+
+describe('orchestrationOutcomeErrorResponse', () => {
+  /**
+   * Shaped like a driver fault surfacing verbatim — a statement plus its bound
+   * parameters — so the assertion proves none of it reaches the response body.
+   */
+  const leakyMessage =
+    'Failed query: delete from "user_table" where "user_table"."id" = $1 params: tbl-1'
+
+  it('replaces an unclassified failure message with the fallback', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { success: false, error: leakyMessage, errorCode: 'internal' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toEqual({ error: 'Failed to delete table' })
+    expect(JSON.stringify(body)).not.toContain('Failed query')
+    expect(JSON.stringify(body)).not.toContain('params:')
+  })
+
+  it('replaces an unclassified failure with no error code too', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: leakyMessage },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Failed to delete table' })
+  })
+
+  it('keeps the message of a classified failure', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: 'A table named "Orders" already exists in this workspace', errorCode: 'conflict' },
+      'Failed to rename table'
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'A table named "Orders" already exists in this workspace',
+    })
+  })
+
+  it('carries the rejecting lock kind on a 423', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: 'Table is locked against deletion', errorCode: 'locked', lock: 'delete' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(423)
+    expect(await response.json()).toEqual({
+      error: 'Table is locked against deletion',
+      lock: 'delete',
+    })
   })
 })
