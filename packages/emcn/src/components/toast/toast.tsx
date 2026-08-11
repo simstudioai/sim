@@ -33,6 +33,19 @@ const AUTO_DISMISS_MS = 5000
 /** Card width; tracks the workflow-panel inset on narrow viewports. */
 const TOAST_WIDTH = 'min(100vw - 2rem, 280px)'
 
+/** Gap from the viewport edge on an ordinary page. */
+const VIEWPORT_INSET_PX = 16
+/**
+ * Gap the stack keeps from the workflow panel and terminal it sits against.
+ *
+ * Larger than the 12px the edges actually end up apart, because the panel and
+ * terminal are themselves inset from the viewport by the workspace's own 8px
+ * content gap and `--panel-width` / `--terminal-height` measure only the
+ * element. The canvas controls clear the same two edges by the same 12px, so
+ * the two floating surfaces read as one row.
+ */
+const WORKFLOW_INSET_PX = 20
+
 /** Most toasts kept alive at once; older arrivals are evicted. */
 const STACK_LIMIT = 3
 /** Per-depth lift and shrink that make collapsed cards peek above the front one. */
@@ -605,8 +618,12 @@ export function ToastProvider({ children }: { children?: ReactNode }) {
                     transition: reduceMotion ? { duration: 0 } : { duration: 0.2, ease: 'easeIn' },
                   }}
                   style={{
-                    right: isWorkflowPage ? 'calc(var(--panel-width) + 16px)' : '16px',
-                    bottom: isWorkflowPage ? 'calc(var(--terminal-height) + 16px)' : '16px',
+                    right: isWorkflowPage
+                      ? `calc(var(--panel-width) + ${WORKFLOW_INSET_PX}px)`
+                      : `${VIEWPORT_INSET_PX}px`,
+                    bottom: isWorkflowPage
+                      ? `calc(var(--terminal-height) + ${WORKFLOW_INSET_PX}px)`
+                      : `${VIEWPORT_INSET_PX}px`,
                     width: TOAST_WIDTH,
                     height: containerHeight,
                   }}
