@@ -14,7 +14,7 @@ import {
   updateTableRows,
 } from '@/lib/table/application/rows'
 import { namedRowMapper } from '@/lib/table/cell-format'
-import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
 import { toApiRow } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
@@ -30,7 +30,7 @@ export const GET = defineV2JsonRoute({
     tableId: params.tableId,
     assertedWorkspaceId: query.workspaceId,
     limit: query.limit,
-    offset: query.cursor ? (decodeCursor<{ offset: number }>(query.cursor)?.offset ?? 0) : 0,
+    offset: decodeOffsetCursor(query.cursor),
   }),
   useCase: listTableRows,
   present: ({ table, rows, nextOffset }) => {
