@@ -337,9 +337,7 @@ export async function updateSkill(
   }
 
   const invalid =
-    (params.name !== undefined
-      ? (fieldError(skillNameSchema, params.name) ?? builtinNameCollision(params.name))
-      : null) ??
+    (params.name !== undefined ? fieldError(skillNameSchema, params.name) : null) ??
     (params.description !== undefined
       ? fieldError(skillDescriptionSchema, params.description)
       : null) ??
@@ -348,6 +346,17 @@ export async function updateSkill(
 
   const resolved = await resolveEditableSkill(params)
   if (!resolved.ok) throwSkillFailure(resolved.result)
+
+  /**
+   * Only a rename can newly shadow a built-in, so the guard runs against the
+   * canonical name rather than the submitted one. Rows predating the guard may
+   * already carry a built-in's name, and the skill modal always submits the
+   * full object — re-sending that unchanged name is not a new collision.
+   */
+  if (params.name !== undefined && params.name !== resolved.skill.name) {
+    const collision = builtinNameCollision(params.name)
+    if (collision) throw new OrchestrationError('validation', collision)
+  }
 
   try {
     await upsertSkills({
