@@ -2,7 +2,7 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { nextSizerFloor } from './sizer-floor'
+import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 
 /** Matches the transcript scroller's `pt-4 pb-2`. */
 const PADDING = { paddingTop: 16, paddingBottom: 8 }

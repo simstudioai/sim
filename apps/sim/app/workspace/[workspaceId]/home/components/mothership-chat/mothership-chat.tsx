@@ -29,6 +29,7 @@ import {
   parseLastCredentialTag,
   parseLastQuestionTag,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags'
+import { nextSizerFloor } from '@/app/workspace/[workspaceId]/home/components/mothership-chat/sizer-floor'
 import { QueuedMessages } from '@/app/workspace/[workspaceId]/home/components/queued-messages'
 import {
   UserInput,
@@ -49,7 +50,6 @@ import { useAutoScroll } from '@/hooks/use-auto-scroll'
 import type { ChatContext } from '@/stores/panel'
 import { MothershipChatSkeleton } from './components/mothership-chat-skeleton'
 import { shouldShowAssistantMessageActions } from './message-actions-visibility'
-import { nextSizerFloor } from './sizer-floor'
 
 interface MothershipChatProps {
   messages: ChatMessage[]
@@ -330,6 +330,7 @@ export function MothershipChat({
   const scrollerPaddingRef = useRef<{ top: number; bottom: number } | null>(null)
   const sizerFloorAppliedRef = useRef(0)
   const heldHighWaterRef = useRef(0)
+  const floorChatRef = useRef<string | undefined>(undefined)
   const floorDrainRafRef = useRef(0)
   useEffect(() => () => cancelAnimationFrame(floorDrainRafRef.current), [])
 
@@ -363,6 +364,24 @@ export function MothershipChat({
     const sizer = sizerRef.current
     const el = scrollElementRef.current
     if (!sizer || !el) return
+    // A chat switch replaces the entire transcript, so a floor held for the
+    // previous one is meaningless — and its high-water mark would otherwise
+    // hand a short chat the tall chat's space for as long as the outgoing
+    // turn's `lastRowAnimating` keeps the floor engaged. Released outright
+    // rather than drained: the switch re-lands the viewport anyway, so there
+    // is no eased settle to preserve. A pending chat adopting its id is the
+    // SAME conversation, so it must not release mid-turn.
+    if (floorChatRef.current !== chatId) {
+      const isPendingPersist = floorChatRef.current === undefined && chatId !== undefined
+      floorChatRef.current = chatId
+      if (!isPendingPersist) {
+        cancelAnimationFrame(floorDrainRafRef.current)
+        floorDrainRafRef.current = 0
+        sizerFloorAppliedRef.current = 0
+        heldHighWaterRef.current = 0
+        sizer.style.minHeight = ''
+      }
+    }
     if (!floorActive) {
       heldHighWaterRef.current = 0
       if (sizerFloorAppliedRef.current === 0) return
