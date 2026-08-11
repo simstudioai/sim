@@ -488,10 +488,6 @@ export const Toolbar = memo(
 
     useImperativeHandle(ref, () => ({ focusSearch }), [focusSearch])
 
-    useEffect(() => {
-      if (!isActive) setSearchQuery('')
-    }, [isActive])
-
     const handleItemContextMenu = useCallback(
       (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
         e.preventDefault()
@@ -641,7 +637,7 @@ export const Toolbar = memo(
         <ScrollEdgeFade position='bottom' variant='panel' />
 
         <div
-          className='absolute inset-x-0 top-0 z-20 h-16 cursor-text bg-[linear-gradient(to_bottom,var(--bg)_0%,var(--bg)_62%,transparent_100%)] pr-[160px] pl-3.5'
+          className='absolute inset-x-0 top-0 z-20 h-16 cursor-text bg-[linear-gradient(to_bottom,var(--bg)_0%,var(--bg)_62%,transparent_100%)] px-3.5'
           onClick={focusSearch}
         >
           <div className='flex h-10 items-center'>
