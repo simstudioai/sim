@@ -26,6 +26,10 @@ import { isRecordLike } from '@sim/utils/object'
 import type { BrowserWindow, IpcMainEvent, IpcMainInvokeEvent, WebContents } from 'electron'
 import { clipboard, ipcMain } from 'electron'
 import {
+  type BrowserToolQueueBoundary,
+  cancelActiveTool,
+  cancelTool,
+  captureBrowserToolQueueBoundary,
   clearBrowsingData,
   disposeBrowserScope,
   executeTool,
@@ -38,6 +42,7 @@ import {
 } from '@/main/browser-agent/driver'
 import { isAgentWebContents } from '@/main/browser-agent/registry'
 import {
+  addTab,
   findInActiveTab,
   getBrowserDownloadsState,
   peekTabsState,
@@ -745,12 +750,53 @@ export function registerIpcHandlers(deps: IpcDeps): void {
       gate: 'app-origin',
       requires: 'browser',
       denied: { ok: false, error: 'Browser automation is not allowed from this page.' },
-      handler: (scope, tool, params) => {
-        if (typeof scope !== 'string' || typeof tool !== 'string' || !isBrowserToolName(tool)) {
+      handler: (scope, toolCallId, tool, params, authorizationBoundary) => {
+        if (
+          typeof scope !== 'string' ||
+          typeof toolCallId !== 'string' ||
+          typeof tool !== 'string' ||
+          !isBrowserToolName(tool)
+        ) {
           return { ok: false, error: `Unknown browser tool: ${String(tool)}` }
         }
         const toolParams = isRecordLike(params) ? params : {}
-        return executeTool(scope, tool, toolParams)
+        return executeTool(
+          scope,
+          tool,
+          toolParams,
+          toolCallId,
+          authorizationBoundary as BrowserToolQueueBoundary | undefined
+        )
+      },
+    },
+    'browser-agent:cancel-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, toolCallId, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        if (
+          !scope ||
+          typeof toolCallId !== 'string' ||
+          toolCallId.length < 1 ||
+          toolCallId.length > 256
+        ) {
+          return false
+        }
+        return cancelTool(scope, toolCallId)
+      },
+    },
+    'browser-agent:cancel-active-tool': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: false,
+      handler: (sender, rawScope) => {
+        const scope = rendererScope(browserScopeBySender, sender as WebContents, rawScope)
+        return scope ? cancelActiveTool(scope) : false
       },
     },
     'browser-agent:get-tabs-state': {
@@ -765,6 +811,22 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return scope
           ? withBrowserScope(scope, () => peekTabsState())
           : { tabs: [], activeTabId: null }
+      },
+    },
+    'browser-agent:open-tab': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'browser',
+      passSender: true,
+      denied: { scopeId: '', tabs: [], activeTabId: null },
+      handler: (sender, rawScope) => {
+        const contents = sender as WebContents
+        const scope = activeRendererScope(browserScopeBySender, contents, rawScope)
+        if (!scope) return { scopeId: '', tabs: [], activeTabId: null }
+        return withBrowserScope(scope, () => {
+          addTab()
+          return peekTabsState()
+        })
       },
     },
     'browser-agent:activate-scope': {
@@ -1391,6 +1453,16 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         if (scope) deps.terminal.setPanelFocused(scope, focused === true, sender as WebContents)
       },
     },
+    'terminal:visible': {
+      kind: 'send',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      handler: (sender, visible, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (scope) deps.terminal.setPanelVisible(scope, visible === true, sender as WebContents)
+      },
+    },
     'terminal:paste': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1554,6 +1626,24 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         return { ...tabs, scopeId: scope }
       },
     },
+    'terminal:reorder': {
+      kind: 'invoke',
+      gate: 'app-origin',
+      requires: 'terminal',
+      passSender: true,
+      denied: { tabs: [], activeTerminalId: null },
+      handler: (sender, terminalId, targetIndex, rawScope) => {
+        const scope = rendererScope(terminalScopeBySender, sender as WebContents, rawScope)
+        if (!scope) return { tabs: [], activeTerminalId: null }
+        const tabs =
+          typeof terminalId === 'string' &&
+          typeof targetIndex === 'number' &&
+          Number.isFinite(targetIndex)
+            ? deps.terminal.reorderTerminal(scope, terminalId, targetIndex)
+            : deps.terminal.getTabs(scope)
+        return { ...tabs, scopeId: scope }
+      },
+    },
     'terminal:close': {
       kind: 'invoke',
       gate: 'app-origin',
@@ -1646,6 +1736,10 @@ export function registerIpcHandlers(deps: IpcDeps): void {
         let handlerArgs = args
         if (channel === 'browser-agent:execute-tool') {
           const requestedTool = args[1]
+          const requestedScope = parseDesktopScope(args[3])
+          const authorizationBoundary = requestedScope
+            ? captureBrowserToolQueueBoundary(requestedScope)
+            : undefined
           const authorization = await fetchDesktopToolAuthorization(event, deps, args[0])
           if (
             !authorization ||
@@ -1658,7 +1752,13 @@ export function registerIpcHandlers(deps: IpcDeps): void {
               error: 'This browser action is not an authorized pending Copilot tool call.',
             }
           }
-          handlerArgs = [authorization.chatId, authorization.toolName, authorization.args]
+          handlerArgs = [
+            authorization.chatId,
+            args[0],
+            authorization.toolName,
+            authorization.args,
+            authorizationBoundary,
+          ]
         }
         if (channel === 'terminal:execute-tool') {
           const requestedTool = args[1]

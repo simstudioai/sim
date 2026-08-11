@@ -317,6 +317,31 @@ describe('processContextsServer - MCP contexts', () => {
 })
 
 describe('processContextsServer - browser and terminal selections', () => {
+  it('describes whole Browser and Terminal mentions without inventing tab ids', async () => {
+    const result = await processContextsServer(
+      [
+        { kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' },
+        { kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' },
+      ],
+      'user-1'
+    )
+
+    expect(result).toMatchObject([
+      {
+        type: 'browser_tab',
+        tag: '@Browser',
+        content: expect.stringContaining('resource as a whole'),
+      },
+      {
+        type: 'terminal_tab',
+        tag: '@Terminal',
+        content: expect.stringContaining('resource as a whole'),
+      },
+    ])
+    expect(result[0].content).toContain('browser_list_tabs')
+    expect(result[1].content).toContain('terminal list operation')
+  })
+
   it('keeps the live browser pointer and appends quoted untrusted page text', async () => {
     const result = await processContextsServer(
       [

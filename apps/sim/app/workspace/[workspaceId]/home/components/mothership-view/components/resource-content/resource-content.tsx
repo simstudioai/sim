@@ -1,6 +1,6 @@
 'use client'
 
-import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { lazy, memo, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, PlayOutline, Skeleton, Tooltip, toast } from '@sim/emcn'
 import {
   Download,
@@ -24,6 +24,7 @@ import {
   reportManualRunToolStop,
 } from '@/lib/copilot/tools/client/run-tool-execution'
 import { canonicalWorkspaceFilePath } from '@/lib/copilot/vfs/path-utils'
+import { prefersInPlaceNavigation } from '@/lib/desktop'
 import { triggerFileDownload } from '@/lib/uploads/client/download'
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import {
@@ -72,6 +73,25 @@ const LOADING_SKELETON = (
     <Skeleton className='h-[16px] w-[40%]' />
   </div>
 )
+
+/**
+ * Opens an internal app link the way the host expects: a new browser tab on the
+ * web, and the current view in the desktop app, whose shell would otherwise turn
+ * the same-origin `window.open` into a second Sim window.
+ */
+function useOpenInternalLink() {
+  const router = useRouter()
+  return useCallback(
+    (href: string) => {
+      if (prefersInPlaceNavigation()) {
+        router.push(href)
+        return
+      }
+      window.open(href, '_blank')
+    },
+    [router]
+  )
+}
 
 interface ResourceContentProps {
   workspaceId: string
@@ -350,6 +370,7 @@ interface EmbeddedWorkflowActionsProps {
 }
 
 export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWorkflowActionsProps) {
+  const openInternalLink = useOpenInternalLink()
   const { navigateToSettings } = useSettingsNavigation()
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -404,7 +425,7 @@ export function EmbeddedWorkflowActions({ workspaceId, workflowId }: EmbeddedWor
   }
 
   const handleOpenWorkflow = () => {
-    window.open(`/workspace/${workspaceId}/w/${workflowId}`, '_blank')
+    openInternalLink(`/workspace/${workspaceId}/w/${workflowId}`)
   }
 
   return (
@@ -727,6 +748,7 @@ interface EmbeddedFolderProps {
 }
 
 function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
+  const openInternalLink = useOpenInternalLink()
   const { data: folderList, isPending: isFoldersPending } = useFolders(workspaceId)
   const { data: workflowList = [] } = useWorkflows(workspaceId)
 
@@ -760,7 +782,7 @@ function EmbeddedFolder({ workspaceId, folderId }: EmbeddedFolderProps) {
             <button
               key={w.id}
               type='button'
-              onClick={() => window.open(`/workspace/${workspaceId}/w/${w.id}`, '_blank')}
+              onClick={() => openInternalLink(`/workspace/${workspaceId}/w/${w.id}`)}
               className='flex items-center gap-2 rounded-[6px] px-3 py-2 text-left transition-colors hover:bg-[var(--surface-4)]'
             >
               <WorkflowIcon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />

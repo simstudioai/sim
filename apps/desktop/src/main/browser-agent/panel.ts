@@ -411,6 +411,9 @@ export function layout(): void {
   if (lastAppliedVisibility !== visible) {
     lastAppliedVisibility = visible
     active.view.setVisible(visible)
+    if (visible && !active.view.webContents.isDestroyed()) {
+      active.view.webContents.invalidate()
+    }
   }
 }
 

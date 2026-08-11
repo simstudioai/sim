@@ -74,6 +74,7 @@ describe('panel chat scope', () => {
     const scopeId = panel.getActivePanelScopeId()
     vi.mocked(view.setVisible).mockClear()
     vi.mocked(view.setBounds).mockClear()
+    vi.mocked(view.webContents.invalidate).mockClear()
 
     await expect(panel.capturePanelSnapshot(win, scopeId)).resolves.toEqual({
       dataUrl: 'data:image/png;base64,c2lt',
@@ -97,7 +98,25 @@ describe('panel chat scope', () => {
 
     expect(panel.setPanelOccluded(false, win, scopeId)).toBe(true)
     expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    expect(view.webContents.invalidate).toHaveBeenCalledOnce()
     expect(view.setBounds).not.toHaveBeenCalled()
+  })
+
+  it('requests a fresh compositor frame when a browser view is attached or revealed', () => {
+    const { win, view } = showPanel(panel)
+
+    expect(view.webContents.invalidate).toHaveBeenCalledOnce()
+
+    panel.setPanelBounds(null, win)
+    expect(view.setVisible).toHaveBeenLastCalledWith(false)
+    expect(view.webContents.invalidate).toHaveBeenCalledOnce()
+
+    panel.setPanelBounds(PANEL_RECT, win)
+    expect(view.setVisible).toHaveBeenLastCalledWith(true)
+    expect(view.webContents.invalidate).toHaveBeenCalledTimes(2)
+
+    panel.setPanelBounds(PANEL_RECT, win)
+    expect(view.webContents.invalidate).toHaveBeenCalledTimes(2)
   })
 
   it('reports the exact applied native rectangle in renderer viewport coordinates', async () => {

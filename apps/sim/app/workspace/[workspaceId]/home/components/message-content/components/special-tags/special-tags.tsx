@@ -13,7 +13,7 @@ import {
   Tooltip,
   toast,
 } from '@sim/emcn'
-import { Cursor, TerminalWindow } from '@sim/emcn/icons'
+import { TerminalWindow } from '@sim/emcn/icons'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -40,7 +40,10 @@ import {
   InteractionCardInputRow,
   InteractionCardRecap,
 } from '@/app/workspace/[workspaceId]/home/components/message-content/components/interaction-card'
-import { QuestionDisplay } from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
+import {
+  parseQuestionAnswerMessage,
+  QuestionDisplay,
+} from '@/app/workspace/[workspaceId]/home/components/message-content/components/question'
 import { useOAuthChipConnection } from '@/app/workspace/[workspaceId]/home/components/message-content/components/special-tags/use-oauth-chip-connection'
 import type {
   ChatMessageContext,
@@ -1953,42 +1956,65 @@ function FolderAccessDisplay({ data }: { data: CredentialItemData }) {
 }
 
 /**
- * Inline hand-back chip rendered while `browser_request_takeover` waits on
- * the user (`{"type":"browser_takeover","name":"Please sign in to LinkedIn"}`).
- * Same chip as the other credential actions; clicking hands control of the
- * agent browser back to Sim. Renders nothing outside the desktop app — there
- * is no agent browser to hand back.
+ * Shared browser hand-back question. While active it reports the selected
+ * answer; after completion the same component renders its answered recap.
  */
+export function BrowserTakeoverQuestion({
+  reason,
+  answer,
+  onAnswer,
+}: {
+  reason?: string
+  answer?: string
+  onAnswer?: (answer: string) => void
+}) {
+  const normalizedReason = reason?.trim() ?? ''
+  const normalizedAnswer = answer?.trim() ?? ''
+  const prompt = normalizedReason || 'Finish in the browser'
+  const questions: QuestionItem[] = [
+    {
+      type: 'single_select',
+      prompt,
+      options: [{ id: 'continue', label: 'Continue' }],
+    },
+  ]
+
+  return (
+    <QuestionDisplay
+      data={questions}
+      answers={normalizedAnswer ? [normalizedAnswer] : undefined}
+      dismissible={false}
+      onSelect={
+        onAnswer
+          ? (message) => {
+              const answer = parseQuestionAnswerMessage(questions, message)?.[0]?.trim()
+              if (answer) onAnswer(answer)
+            }
+          : undefined
+      }
+    />
+  )
+}
+
+/** Connects the active browser question to the desktop panel action. */
 function BrowserTakeoverDisplay({ data }: { data: CredentialItemData }) {
   const { workspaceId } = useParams<{ workspaceId: string }>()
   const { chatId } = useChatSurface()
-  const [handedBack, setHandedBack] = useState(false)
 
   if (!isBrowserAgentAvailable()) return null
 
-  const reason = (data.name ?? '').trim()
-  const label = handedBack
-    ? 'Handed control back to Sim'
-    : reason || 'Take over in the browser, then hand control back'
-
   return (
-    <button
-      type='button'
-      onClick={() => {
-        if (handedBack) return
-        setHandedBack(true)
-        sendBrowserPanelAction('takeover-done', {}, desktopChatScopeId(workspaceId, chatId))
+    <BrowserTakeoverQuestion
+      reason={data.name}
+      onAnswer={(answer) => {
+        const takeoverResponse = answer !== 'Continue' ? answer : undefined
+        sendBrowserPanelAction(
+          'takeover-done',
+          takeoverResponse ? { takeoverResponse } : {},
+          desktopChatScopeId(workspaceId, chatId)
+        )
       }}
-      disabled={handedBack}
-      className={cn(
-        'flex w-full items-center gap-2 rounded-2xl border border-[var(--border-1)] px-3 py-2.5 text-left transition-colors',
-        !handedBack && 'hover-hover:bg-[var(--surface-5)]'
-      )}
-    >
-      <Cursor className='size-[16px] shrink-0' />
-      <span className='flex-1 text-[var(--text-body)] text-sm'>{label}</span>
-      {!handedBack && <ArrowRight className='size-[16px] shrink-0 text-[var(--text-icon)]' />}
-    </button>
+    />
   )
 }
 

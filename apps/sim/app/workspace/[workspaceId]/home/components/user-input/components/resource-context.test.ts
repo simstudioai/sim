@@ -10,6 +10,17 @@ function resource(partial: Partial<MothershipResource> & Pick<MothershipResource
 }
 
 describe('mapResourceToContext', () => {
+  it('turns the singleton panels into whole-resource pointers', () => {
+    expect(
+      mapResourceToContext(resource({ type: 'browser', id: 'browser-session', title: 'Browser' }))
+    ).toEqual({ kind: 'browser_tab', tabId: 'browser-session', label: 'Browser' })
+    expect(
+      mapResourceToContext(
+        resource({ type: 'terminal', id: 'terminal-session', title: 'Terminal' })
+      )
+    ).toEqual({ kind: 'terminal_tab', terminalId: 'terminal-session', label: 'Terminal' })
+  })
+
   it('turns a dragged browser tab into a pointer at that tab', () => {
     // The id is the TAB's, not the panel's: the panel is a singleton and
     // pointing at it would not say which page the user meant.

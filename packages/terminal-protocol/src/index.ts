@@ -332,6 +332,8 @@ export interface TerminalPanesResult {
 export interface TerminalTabsState {
   tabs: TerminalTabState[]
   activeTerminalId: string | null
+  /** Terminal currently driven by the agent when it differs from the user's visible terminal. */
+  agentActiveTerminalId?: string | null
 }
 
 /** A tab strip crossing the desktop bridge, tagged with its owning chat. */

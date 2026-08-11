@@ -27,7 +27,11 @@ import {
 import { cancelWorkflowExecutionContract } from '@/lib/api/contracts/workflows'
 import { buildResourceAttachments } from '@/lib/browser-agent/attachments'
 import { onOpenInBrowserPanel } from '@/lib/browser-agent/open-in-panel'
-import { initBrowserAgentTransport, sendBrowserPanelAction } from '@/lib/browser-agent/transport'
+import {
+  cancelActiveBrowserTools,
+  initBrowserAgentTransport,
+  sendBrowserPanelAction,
+} from '@/lib/browser-agent/transport'
 import { getMothershipAttachmentPreviewUrl } from '@/lib/copilot/chat/attachment-preview'
 import { toDisplayMessage } from '@/lib/copilot/chat/display-message'
 import { getLiveAssistantMessageId } from '@/lib/copilot/chat/effective-transcript'
@@ -96,6 +100,16 @@ import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
+import {
+  captureResourceActivityScope,
+  clearResourceActivityScope,
+  clearTrackedResourceActivity,
+  createResourceActivityTracker,
+  excludeActivityOwnedBy,
+  type ResourceActivityTracker,
+  setTrackedBrowserRun,
+  trackTerminalToolCall,
+} from '@/app/workspace/[workspaceId]/home/hooks/resource-activity'
 import {
   applyTurnTerminal,
   createStreamLoopContext,
@@ -1175,7 +1189,7 @@ function ensureWorkflowInRegistry(resourceId: string, title: string, workspaceId
 }
 
 export interface UseChatOptions {
-  onResourceEvent?: () => void
+  onResourceEvent?: (resourceId: string) => void
   apiPath?: string
   stopPath?: string
   workflowId?: string
@@ -1313,8 +1327,8 @@ export function useChat(
   const inFlightResourceAddsRef = useRef<Map<string, Promise<unknown>>>(new Map())
   const reorderNeededAfterFlushRef = useRef(false)
 
-  // Derive the effective active resource ID — auto-selects the last resource when the stored ID is
-  // absent or no longer in the list, avoiding a separate Effect-based state correction loop.
+  // Derive the effective active resource ID for rendering without writing a
+  // passive fallback back into the user's URL selection.
   const effectiveActiveResourceId = useMemo(() => {
     if (resources.length === 0) return null
     if (activeResourceId && resources.some((r) => r.id === activeResourceId))
@@ -1345,6 +1359,7 @@ export function useChat(
     setResources,
     setActiveResourceId,
     activeResourceIdRef,
+    onResourceEventRef,
   })
 
   const upsertChatHistory = useCallback(
@@ -1457,6 +1472,7 @@ export function useChat(
   const activeStreamReturnRecoveryRef = useRef<ActiveStreamRecovery | null>(null)
   const sendingRef = useRef(false)
   const streamGenRef = useRef(0)
+  const resourceActivityTrackerRef = useRef<ResourceActivityTracker | null>(null)
   const streamingContentRef = useRef('')
   const streamingBlocksRef = useRef<ContentBlock[]>([])
   const handledClientWorkflowToolIdsRef = useRef<Set<string>>(new Set())
@@ -1646,11 +1662,29 @@ export function useChat(
           : pendingChatKeyRef.current
       chatIdRef.current = chatId
       const resolvedDesktopScopeId = desktopChatScopeId(workspaceId, chatId)
+      const activeActivityTracker = resourceActivityTrackerRef.current
+      if (activeActivityTracker?.generation === streamGenRef.current) {
+        if (wasPending) {
+          // Do not switch writes to the durable bucket until its async native
+          // + renderer migration has completed; pre-populating it makes the
+          // scoped-store migration treat the destination as conflicting.
+          activeActivityTracker.scopeIds.add(resolvedDesktopScopeId)
+        } else {
+          captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+        }
+      }
       const migrateDesktopResources = wasPending
         ? migrateDesktopChatScopes(pendingDesktopScopeId, resolvedDesktopScopeId)
         : Promise.resolve()
       void migrateDesktopResources
         .then(() => {
+          if (
+            wasPending &&
+            activeActivityTracker?.generation === streamGenRef.current &&
+            resourceActivityTrackerRef.current === activeActivityTracker
+          ) {
+            captureResourceActivityScope(activeActivityTracker, resolvedDesktopScopeId)
+          }
           // Migration crosses IPC. The user can select another chat while it
           // is in flight, so re-read the live selection before activating;
           // the value captured above is only valid for the synchronous state
@@ -1713,8 +1747,6 @@ export function useChat(
       if (exists) return prev
       return [...prev, resource]
     })
-    setActiveResourceId(resource.id)
-
     // Synthetic result/preview panels are in-memory only. The browser tab
     // metadata is persisted even though its live page remains desktop-owned.
     if (isEphemeralResource(resource)) {
@@ -1842,15 +1874,12 @@ export function useChat(
       }
 
       const meta = getWorkflowById(workspaceId, targetWorkflowId)
-      const wasAdded = addResource({
+      addResource({
         type: 'workflow',
         id: targetWorkflowId,
         title: meta?.name ?? 'Workflow',
       })
-      if (!wasAdded && activeResourceIdRef.current !== targetWorkflowId) {
-        setActiveResourceId(targetWorkflowId)
-      }
-      onResourceEventRef.current?.()
+      onResourceEventRef.current?.(targetWorkflowId)
 
       return targetWorkflowId
     },
@@ -1895,66 +1924,120 @@ export function useChat(
   )
 
   const openBrowserResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'browser',
       id: BROWSER_SESSION_RESOURCE_ID,
       title: 'Browser',
     })
-    if (!wasAdded && activeResourceIdRef.current !== BROWSER_SESSION_RESOURCE_ID) {
-      setActiveResourceId(BROWSER_SESSION_RESOURCE_ID)
-    }
-    // Browser actions should always surface the panel, including when its
-    // persisted tab already exists but the viewer is collapsed.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(BROWSER_SESSION_RESOURCE_ID)
+  }, [addResource])
+
+  const getResourceActivityTracker = useCallback(
+    (generation: number, targetChatId?: string) => {
+      let tracker = resourceActivityTrackerRef.current
+      if (!tracker || tracker.generation !== generation) {
+        const isCurrentGeneration = generation === streamGenRef.current
+        tracker = createResourceActivityTracker(
+          generation,
+          [activeTurnRef.current?.desktopScopeId ?? desktopScopeIdRef.current],
+          {
+            captureExisting: isCurrentGeneration,
+          }
+        )
+        if (isCurrentGeneration) {
+          resourceActivityTrackerRef.current = tracker
+        }
+      }
+      if (targetChatId) {
+        const targetScopeId = desktopChatScopeId(workspaceId, targetChatId)
+        if (
+          tracker.generation === streamGenRef.current &&
+          resourceActivityTrackerRef.current === tracker
+        ) {
+          captureResourceActivityScope(tracker, targetScopeId)
+        } else {
+          tracker.scopeIds.add(targetScopeId)
+          tracker.currentScopeId = targetScopeId
+        }
+      }
+      return tracker
+    },
+    [workspaceId]
+  )
+
+  const clearResourceActivity = useCallback(
+    (tracker: ResourceActivityTracker, captureCurrentScope: boolean) => {
+      const isCurrentBoundary =
+        captureCurrentScope &&
+        tracker.generation === streamGenRef.current &&
+        resourceActivityTrackerRef.current === tracker
+      if (isCurrentBoundary) {
+        captureResourceActivityScope(tracker, desktopScopeIdRef.current)
+        if (chatIdRef.current) {
+          captureResourceActivityScope(tracker, desktopChatScopeId(workspaceId, chatIdRef.current))
+        }
+      }
+      const currentTracker = resourceActivityTrackerRef.current
+      if (!isCurrentBoundary && currentTracker && currentTracker !== tracker) {
+        excludeActivityOwnedBy(tracker, currentTracker)
+      }
+      if (isCurrentBoundary) {
+        // The native tool may outlive an SSE reader or its AbortController.
+        // Fire cancellation without delaying the stream boundary below.
+        void cancelActiveBrowserTools(new Set(tracker.scopeIds))
+      }
+      clearTrackedResourceActivity(tracker, { hardResetActivity: isCurrentBoundary })
+      if (resourceActivityTrackerRef.current === tracker) {
+        resourceActivityTrackerRef.current = null
+      }
+    },
+    [workspaceId]
+  )
 
   const startClientBrowserTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string,
+      signal?: AbortSignal
+    ) => {
       if (!isBrowserToolName(toolName)) {
         return
       }
       openBrowserResource()
       // Replay/exactly-once guarding lives in executeBrowserToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run an action).
-      executeBrowserToolOnClient(
-        toolCallId,
-        toolName,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeBrowserToolOnClient(toolCallId, toolName, toolArgs, scopeId, eventTs, signal)
     },
     [openBrowserResource]
   )
 
   const openTerminalResource = useCallback(() => {
-    const wasAdded = addResource({
+    addResource({
       type: 'terminal',
       id: TERMINAL_SESSION_RESOURCE_ID,
       title: 'Terminal',
     })
-    if (!wasAdded && activeResourceIdRef.current !== TERMINAL_SESSION_RESOURCE_ID) {
-      setActiveResourceId(TERMINAL_SESSION_RESOURCE_ID)
-    }
-    // The panel must be visible before a command runs: it is where the user
-    // sees what is about to execute and approves or declines it.
-    onResourceEventRef.current?.()
-  }, [addResource, setActiveResourceId])
+    onResourceEventRef.current?.(TERMINAL_SESSION_RESOURCE_ID)
+  }, [addResource])
 
   const startClientTerminalTool = useCallback(
-    (toolCallId: string, toolName: string, toolArgs: Record<string, unknown>, eventTs?: string) => {
+    (
+      toolCallId: string,
+      toolName: string,
+      toolArgs: Record<string, unknown>,
+      scopeId: string,
+      eventTs?: string
+    ) => {
       if (!isTerminalToolName(toolName)) {
         return
       }
       openTerminalResource()
       // Replay/exactly-once guarding lives in executeTerminalToolOnClient
       // (sessionStorage-backed, so reloads cannot re-run a command).
-      executeTerminalToolOnClient(
-        toolCallId,
-        toolArgs,
-        chatIdRef.current ?? selectedChatIdRef.current ?? desktopScopeIdRef.current,
-        eventTs
-      )
+      executeTerminalToolOnClient(toolCallId, toolArgs, scopeId, eventTs)
     },
     [openTerminalResource]
   )
@@ -2190,6 +2273,15 @@ export function useChat(
       activeStreamId !== locallyTerminalStreamIdRef.current &&
       !isTerminalStreamStatus(chatHistory.streamSnapshot?.status)
 
+    if (
+      !sendingRef.current &&
+      (!activeStreamId || isTerminalStreamStatus(chatHistory.streamSnapshot?.status))
+    ) {
+      const hydratedScopeId = desktopChatScopeId(workspaceId, chatHistory.id)
+      clearResourceActivityScope(hydratedScopeId)
+      void cancelActiveBrowserTools([hydratedScopeId])
+    }
+
     if (!activeStreamId && locallyTerminalStreamIdRef.current) {
       locallyTerminalStreamIdRef.current = undefined
     }
@@ -2370,6 +2462,41 @@ export function useChat(
         shouldContinue?: () => boolean
       }
     ) => {
+      const streamAbortSignal = abortControllerRef.current?.signal
+      const activityTracker = getResourceActivityTracker(
+        expectedGen ?? streamGenRef.current,
+        options?.targetChatId
+      )
+      const activityScopeId = () => activityTracker.currentScopeId
+      const startBrowserAgentRunForStream = (runId: string) => {
+        openBrowserResource()
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, true)
+      }
+      const endBrowserAgentRunForStream = (runId: string) => {
+        const scopeId = activityScopeId()
+        setTrackedBrowserRun(activityTracker, scopeId, runId, false)
+      }
+      const startClientBrowserToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        startClientBrowserTool(toolCallId, toolName, toolArgs, scopeId, eventTs, streamAbortSignal)
+      }
+      const startClientTerminalToolForStream = (
+        toolCallId: string,
+        toolName: string,
+        toolArgs: Record<string, unknown>,
+        eventTs?: string
+      ) => {
+        const scopeId = activityScopeId()
+        trackTerminalToolCall(activityTracker, scopeId, toolCallId)
+        startClientTerminalTool(toolCallId, toolName, toolArgs, scopeId, eventTs)
+      }
+      const clearStreamResourceActivity = () => clearResourceActivity(activityTracker, true)
       const ctx = createStreamLoopContext({
         workspaceId,
         queryClient,
@@ -2386,8 +2513,11 @@ export function useChat(
         removeResource,
         startClientWorkflowTool,
         startClientLocalFilesystemTool,
-        startClientBrowserTool,
-        startClientTerminalTool,
+        startClientBrowserTool: startClientBrowserToolForStream,
+        startClientTerminalTool: startClientTerminalToolForStream,
+        startBrowserAgentRun: startBrowserAgentRunForStream,
+        endBrowserAgentRun: endBrowserAgentRunForStream,
+        clearBrowserAgentRuns: clearStreamResourceActivity,
         upsertMothershipChatHistory: upsertChatHistory,
         ensureWorkflowInRegistry,
         onPreviewPhase,
@@ -2468,6 +2598,13 @@ export function useChat(
           },
         })
       } finally {
+        // A transport read failure may reconnect this same generation. Keep
+        // its exact resource activity alive until a terminal stream event or
+        // finalize/Stop establishes the real boundary.
+        if (state.sawStreamError) {
+          clearStreamResourceActivity()
+          state.browserAgentRunIds.clear()
+        }
         if (state.sawStreamError && !state.sawCompleteEvent) {
           applyTurnTerminal(state.model, 'error')
           ops.flush()
@@ -2503,6 +2640,9 @@ export function useChat(
       startClientLocalFilesystemTool,
       startClientBrowserTool,
       startClientTerminalTool,
+      getResourceActivityTracker,
+      clearResourceActivity,
+      openBrowserResource,
       adoptResolvedChatId,
       upsertChatHistory,
       onPreviewPhase,
@@ -3468,6 +3608,10 @@ export function useChat(
         })
       }
       reconcileTerminalPreviewSessions()
+      const completedActivityTracker = resourceActivityTrackerRef.current
+      if (completedActivityTracker?.generation === streamGenRef.current) {
+        clearResourceActivity(completedActivityTracker, true)
+      }
       locallyTerminalStreamIdRef.current =
         streamIdRef.current ?? activeTurnRef.current?.userMessageId ?? undefined
       clearActiveTurn()
@@ -3480,6 +3624,7 @@ export function useChat(
       notifyTurnEnded({ error: isError })
     },
     [
+      clearResourceActivity,
       clearActiveTurn,
       invalidateChatQueries,
       notifyTurnEnded,
@@ -4350,6 +4495,22 @@ export function useChat(
       const stopTraceparentSnapshot = streamTraceparentRef.current ?? initialStopTraceparentSnapshot
 
       locallyTerminalStreamIdRef.current = sid
+      const stopActivityTracker =
+        resourceActivityTrackerRef.current?.generation === streamGenRef.current
+          ? resourceActivityTrackerRef.current
+          : getResourceActivityTracker(streamGenRef.current, activeChatId)
+      captureResourceActivityScope(stopActivityTracker, desktopScopeIdRef.current)
+      if (chatIdRef.current) {
+        captureResourceActivityScope(
+          stopActivityTracker,
+          desktopChatScopeId(workspaceId, chatIdRef.current)
+        )
+      }
+      clearResourceActivity(stopActivityTracker, true)
+
+      // Establish the stream boundary immediately after synchronous activity
+      // settlement. Native cancellation above is deliberately fire-and-forget,
+      // so a slow shell cannot delay the server-side abort below.
       streamGenRef.current++
       clearActiveTurn()
       streamReaderRef.current?.cancel().catch(() => {})
@@ -4545,6 +4706,7 @@ export function useChat(
     },
     [
       cancelActiveWorkflowExecutions,
+      cancelActiveBrowserTools,
       invalidateChatQueries,
       notifyTurnEnded,
       persistPartialResponse,
@@ -4553,7 +4715,9 @@ export function useChat(
       resetEphemeralPreviewState,
       upsertChatHistory,
       adoptResolvedChatId,
+      clearResourceActivity,
       clearActiveTurn,
+      getResourceActivityTracker,
       setTransportIdle,
       workspaceId,
     ]

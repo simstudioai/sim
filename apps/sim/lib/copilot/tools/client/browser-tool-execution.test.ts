@@ -4,15 +4,20 @@
 import { sleep } from '@sim/utils/helpers'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockExecuteBrowserTool, mockReportCompletion, mockRestoreBrowserScope } = vi.hoisted(
-  () => ({
-    mockExecuteBrowserTool: vi.fn(),
-    mockReportCompletion: vi.fn(),
-    mockRestoreBrowserScope: vi.fn(),
-  })
-)
+const {
+  mockCancelBrowserTool,
+  mockExecuteBrowserTool,
+  mockReportCompletion,
+  mockRestoreBrowserScope,
+} = vi.hoisted(() => ({
+  mockCancelBrowserTool: vi.fn(),
+  mockExecuteBrowserTool: vi.fn(),
+  mockReportCompletion: vi.fn(),
+  mockRestoreBrowserScope: vi.fn(),
+}))
 
 vi.mock('@/lib/browser-agent/transport', () => ({
+  cancelBrowserTool: mockCancelBrowserTool,
   executeBrowserTool: mockExecuteBrowserTool,
   restoreBrowserScope: mockRestoreBrowserScope,
 }))
@@ -44,6 +49,10 @@ describe('executeBrowserToolOnClient', () => {
       pageState: null,
       tabs: [],
       activeTabId: null,
+      automationTabId: null,
+      automationActive: false,
+      automationNeedsAttention: false,
+      agentRunIds: [],
       sessionAlive: true,
       suspended: false,
     }
@@ -54,6 +63,7 @@ describe('executeBrowserToolOnClient', () => {
     })
     mockReportCompletion.mockResolvedValue(undefined)
     mockRestoreBrowserScope.mockResolvedValue(false)
+    mockCancelBrowserTool.mockResolvedValue(true)
   })
 
   it('executes the tool and reports success when the session is alive', async () => {
@@ -68,11 +78,164 @@ describe('executeBrowserToolOnClient', () => {
       'browser_snapshot',
       {},
       30_000,
-      CHAT_SCOPE
+      CHAT_SCOPE,
+      expect.any(Function)
     )
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'page content',
     })
+  })
+
+  it('preserves a takeover instruction and waits without a renderer deadline', async () => {
+    mockExecuteBrowserTool.mockResolvedValue({
+      completed: true,
+      userInstruction: 'Open the second match',
+    })
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(toolCallId, 'browser_request_takeover', {
+      reason: 'Please pick a match',
+    })
+    await flush()
+
+    expect(mockExecuteBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please pick a match' },
+      null,
+      CHAT_SCOPE,
+      expect.any(Function)
+    )
+    expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
+      completed: true,
+      userInstruction: 'Open the second match',
+    })
+  })
+
+  it('cancels the exact native tool and suppresses a stale completion after Chat Stop', async () => {
+    let resolveTool: (value: unknown) => void = () => {}
+    mockExecuteBrowserTool.mockImplementation(
+      () =>
+        new Promise((resolve) => {
+          resolveTool = resolve
+        })
+    )
+    const controller = new AbortController()
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      CHAT_SCOPE,
+      undefined,
+      controller.signal
+    )
+    controller.abort()
+    await flush()
+
+    expect(mockCancelBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      CHAT_SCOPE,
+      'browser_request_takeover'
+    )
+    resolveTool({ completed: true })
+    await flush()
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+  })
+
+  it('suppresses completion when scope cancellation outlives the stream AbortController', async () => {
+    let resolveTool: (value: unknown) => void = () => {}
+    let markCancelled: (() => void) | undefined
+    mockExecuteBrowserTool.mockImplementation(
+      (
+        _toolCallId: string,
+        _toolName: string,
+        _params: Record<string, unknown>,
+        _timeoutMs: number | null,
+        _scopeId: string,
+        onCancel: () => void
+      ) => {
+        markCancelled = onCancel
+        return new Promise((resolve) => {
+          resolveTool = resolve
+        })
+      }
+    )
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      CHAT_SCOPE
+    )
+    markCancelled?.()
+    resolveTool({ completed: true })
+    await flush()
+
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+  })
+
+  it('delegates older-shell takeover cancellation to the shared transport fallback', async () => {
+    mockExecuteBrowserTool.mockImplementation(() => new Promise(() => {}))
+    const controller = new AbortController()
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      CHAT_SCOPE,
+      undefined,
+      controller.signal
+    )
+    controller.abort()
+    await flush()
+
+    expect(mockCancelBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      CHAT_SCOPE,
+      'browser_request_takeover'
+    )
+    expect(mockReportCompletion).not.toHaveBeenCalled()
+  })
+
+  it('does not dispatch a takeover after Stop wins a session restore race', async () => {
+    useBrowserSessionStore.getState().setSessionAlive(false, CHAT_SCOPE)
+    let finishRestore: () => void = () => {}
+    mockRestoreBrowserScope.mockImplementation(
+      () =>
+        new Promise<boolean>((resolve) => {
+          finishRestore = () => {
+            useBrowserSessionStore.getState().setSessionAlive(true, CHAT_SCOPE)
+            resolve(true)
+          }
+        })
+    )
+    const controller = new AbortController()
+    const toolCallId = nextToolCallId()
+
+    executeBrowserToolOnClient(
+      toolCallId,
+      'browser_request_takeover',
+      { reason: 'Please sign in' },
+      CHAT_SCOPE,
+      undefined,
+      controller.signal
+    )
+    await flush()
+    controller.abort()
+    finishRestore()
+    await flush()
+
+    expect(mockCancelBrowserTool).toHaveBeenCalledWith(
+      toolCallId,
+      CHAT_SCOPE,
+      'browser_request_takeover'
+    )
+    expect(mockExecuteBrowserTool).not.toHaveBeenCalled()
+    expect(mockReportCompletion).not.toHaveBeenCalled()
   })
 
   // The copilot serializes a result carrying this `attachment` shape into a
@@ -139,7 +302,8 @@ describe('executeBrowserToolOnClient', () => {
         'browser_wait_for',
         params,
         expected,
-        CHAT_SCOPE
+        CHAT_SCOPE,
+        expect.any(Function)
       )
     }
   )
@@ -185,7 +349,8 @@ describe('executeBrowserToolOnClient', () => {
       toolName,
       params,
       expect.any(Number),
-      scopeId
+      scopeId,
+      expect.any(Function)
     )
     expect(mockRestoreBrowserScope.mock.invocationCallOrder[0]).toBeLessThan(
       mockExecuteBrowserTool.mock.invocationCallOrder[0]
@@ -205,7 +370,8 @@ describe('executeBrowserToolOnClient', () => {
       'browser_navigate',
       { url: 'https://example.com' },
       45_000,
-      CHAT_SCOPE
+      CHAT_SCOPE,
+      expect.any(Function)
     )
     expect(mockRestoreBrowserScope).not.toHaveBeenCalled()
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
@@ -262,7 +428,8 @@ describe('executeBrowserToolOnClient', () => {
       'browser_snapshot',
       {},
       30_000,
-      'chat-b'
+      'chat-b',
+      expect.any(Function)
     )
     expect(mockReportCompletion).toHaveBeenCalledWith(toolCallId, 'success', expect.any(String), {
       text: 'B page',

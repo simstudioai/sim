@@ -49,7 +49,7 @@ permissions:
 jobs:
   build-sign-notarize:
     name: Build, Sign, Notarize
-    runs-on: macos-14
+    runs-on: macos-26
     steps:
       - name: Checkout code
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
@@ -167,8 +167,8 @@ jobs:
         if: ${{ inputs.sign }}
         run: |
           DMG="$(ls apps/desktop/release/*.dmg | head -1)"
-          xcrun stapler validate "$DMG"
           hdiutil attach "$DMG" -mountpoint /tmp/sim-dmg -nobrowse -quiet
+          xcrun stapler validate /tmp/sim-dmg/*.app
           spctl --assess --type execute --verbose /tmp/sim-dmg/*.app
           codesign --verify --deep --strict /tmp/sim-dmg/*.app
           hdiutil detach /tmp/sim-dmg -quiet

@@ -67,6 +67,13 @@ describe('buildMenuTemplate', () => {
       'New Chat',
       'separator',
       'Reopen Closed Tab',
+      'Focus Address Bar',
+      'separator',
+      'Next Tab',
+      'Previous Tab',
+      'Select Tab',
+      'separator',
+      'Close Tab',
       'Close Window',
     ])
     expect(submenu(template, 'View').map((item) => item.label ?? item.role ?? item.type)).toEqual([
@@ -93,7 +100,7 @@ describe('buildMenuTemplate', () => {
     expect(view.some((item) => item.role === 'toggleDevTools')).toBe(false)
   })
 
-  it('routes the close accelerator through the focused resource before closing a window', () => {
+  it('reserves the close-tab accelerator for resources and never closes the window', () => {
     const handleFocusedResourceShortcut = vi.fn(() => true)
     const deps = Object.assign(makeDeps(), { handleFocusedResourceShortcut })
     const closeItem = submenu(buildMenuTemplate(deps), 'File').find(
@@ -101,7 +108,7 @@ describe('buildMenuTemplate', () => {
     )
     const focusedWindow = new BrowserWindow()
 
-    expect(closeItem).toMatchObject({ label: 'Close Window', accelerator: 'CmdOrCtrl+W' })
+    expect(closeItem).toMatchObject({ label: 'Close Tab', accelerator: 'CmdOrCtrl+W' })
     expect(closeItem?.role).toBeUndefined()
 
     const click = closeItem?.click as unknown as (
@@ -115,10 +122,52 @@ describe('buildMenuTemplate', () => {
 
     handleFocusedResourceShortcut.mockReturnValue(false)
     click({}, focusedWindow)
-    expect(focusedWindow.close).toHaveBeenCalledOnce()
+    expect(focusedWindow.close).not.toHaveBeenCalled()
   })
 
-  it('routes new and reopen accelerators through the focused resource', () => {
+  it('always offers a separate close-window accelerator', () => {
+    const deps = makeDeps()
+    const closeWindow = submenu(buildMenuTemplate(deps), 'File').find(
+      (item) => item.accelerator === 'CmdOrCtrl+Shift+W'
+    )
+    const focusedWindow = new BrowserWindow()
+
+    ;(closeWindow?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
+      {},
+      focusedWindow
+    )
+
+    expect(closeWindow?.label).toBe('Close Window')
+    expect(focusedWindow.close).toHaveBeenCalledOnce()
+    expect(deps.handleFocusedResourceShortcut).not.toHaveBeenCalled()
+  })
+
+  it('routes next, previous, and numbered tab accelerators to the focused resource', () => {
+    const handleFocusedResourceShortcut = vi.fn(() => true)
+    const template = buildMenuTemplate(
+      Object.assign(makeDeps(), {
+        handleFocusedResourceShortcut,
+      })
+    )
+    const file = submenu(template, 'File')
+    const selectTabs = submenu(file, 'Select Tab')
+    const focusedWindow = new BrowserWindow()
+    const invoke = (item: MenuItemConstructorOptions | undefined) =>
+      (item?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
+        {},
+        focusedWindow
+      )
+
+    invoke(file.find((item) => item.accelerator === 'Ctrl+Tab'))
+    invoke(file.find((item) => item.accelerator === 'Ctrl+Shift+Tab'))
+    invoke(selectTabs.find((item) => item.accelerator === 'CmdOrCtrl+9'))
+
+    expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(1, focusedWindow, 'next-tab')
+    expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(2, focusedWindow, 'previous-tab')
+    expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(3, focusedWindow, 'select-tab-9')
+  })
+
+  it('routes new, reopen, and address-bar accelerators through the active resource', () => {
     const handleFocusedResourceShortcut = vi.fn(() => true)
     const template = buildMenuTemplate(
       Object.assign(makeDeps(), {
@@ -129,6 +178,7 @@ describe('buildMenuTemplate', () => {
     const reopenItem = submenu(template, 'File').find(
       (item) => item.accelerator === 'CmdOrCtrl+Shift+T'
     )
+    const addressItem = submenu(template, 'File').find((item) => item.accelerator === 'CmdOrCtrl+L')
 
     expect(reopenItem).toMatchObject({
       label: 'Reopen Closed Tab',
@@ -143,12 +193,17 @@ describe('buildMenuTemplate', () => {
       {},
       focusedWindow
     )
+    ;(addressItem?.click as unknown as (menuItem: unknown, browserWindow: BrowserWindow) => void)(
+      {},
+      focusedWindow
+    )
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(1, focusedWindow, 'new-tab')
     expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(
       2,
       focusedWindow,
       'reopen-closed-tab'
     )
+    expect(handleFocusedResourceShortcut).toHaveBeenNthCalledWith(3, focusedWindow, 'focus-omnibox')
   })
 
   it('routes reload through the focused resource before falling back to the Sim renderer', () => {

@@ -189,7 +189,7 @@ function toToolData(tc: NonNullable<ContentBlock['toolCall']>): ToolCallData {
   const overrideDisplayTitle = getOverrideDisplayTitle(tc)
   const resolvedTitle =
     overrideDisplayTitle || tc.displayTitle || getToolDisplayTitle(tc.name, tc.params)
-  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status)
+  const displayTitle = getToolStatusDisplayTitle(resolvedTitle, tc.status, tc.name)
 
   return {
     id: tc.id,

@@ -1,0 +1,84 @@
+.track {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  z-index: 30;
+  height: 2px;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.indicator {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  transform: scaleX(0.08);
+  transform-origin: left;
+  /* The ThinkingLoader and browser progress share one theme-owned ink palette. */
+  background: linear-gradient(90deg, var(--thinking-ink-inner), var(--thinking-ink-outer));
+  box-shadow: 0 0 3px color-mix(in srgb, var(--thinking-ink-outer) 55%, transparent);
+  animation: browser-page-loading 12s ease-out forwards;
+}
+
+@keyframes browser-page-loading {
+  0% {
+    transform: scaleX(0.08);
+  }
+
+  10% {
+    transform: scaleX(0.3);
+  }
+
+  35% {
+    transform: scaleX(0.52);
+  }
+
+  70% {
+    transform: scaleX(0.72);
+  }
+
+  100% {
+    transform: scaleX(0.86);
+  }
+}
+
+.completing {
+  animation: browser-page-loading-fade 200ms linear forwards;
+}
+
+.completing .indicator {
+  transform: scaleX(1);
+  animation: none;
+  transition: transform 100ms ease-out;
+}
+
+@keyframes browser-page-loading-fade {
+  0%,
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .indicator {
+    transform: scaleX(0.7);
+    animation: none;
+  }
+
+  .completing {
+    opacity: 1;
+    animation: none;
+  }
+
+  .completing .indicator {
+    transform: scaleX(1);
+    transition: none;
+  }
+}
