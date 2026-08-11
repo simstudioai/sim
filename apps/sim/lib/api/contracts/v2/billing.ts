@@ -35,6 +35,14 @@ export const v2BillingStatusQuerySchema = z.object({
 /**
  * Current billing standing, credit allowance, and storage quota. Ledger rows
  * and source analytics deliberately live outside this status resource.
+ *
+ * `credits` and `storage` report the resolved payer's pooled allowances, which
+ * are shared across every workspace that payer funds. They are populated only
+ * for a caller who may manage that payer's billing — the billed account
+ * holder, an admin of the hosting organization, or a workspace API key, which
+ * an admin of that workspace provisioned. Any other workspace member reads
+ * both as `null` while still seeing the plan, period, and standing that the
+ * workspace already surfaces to them.
  */
 export const v2BillingStatusDataSchema = z
   .object({
@@ -78,8 +86,9 @@ export const v2BillingStatusDataSchema = z
           ),
         remaining: z.number().describe('Allowance minus consumption, over the same window.'),
       })
+      .nullable()
       .describe(
-        'Credit usage and allowance. Periodic on a paid plan; lifetime on the free plan, where the counter never resets.'
+        "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing."
       ),
     storage: z
       .object({
@@ -87,7 +96,10 @@ export const v2BillingStatusDataSchema = z
         limitBytes: z.number().nonnegative().describe('Storage quota, in bytes.'),
         percentUsed: z.number().nonnegative().describe('Percentage of the storage quota consumed.'),
       })
-      .describe('Current storage consumption and quota.'),
+      .nullable()
+      .describe(
+        "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing."
+      ),
   })
   .meta({
     id: 'V2BillingStatus',

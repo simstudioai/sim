@@ -36,7 +36,7 @@
       "get": {
         "operationId": "getBillingStatus",
         "summary": "Get Billing Status",
-        "description": "Return the current plan, billing standing, credit allowance, and storage quota. Billing history lives at `GET /api/v2/billing/logs`. Without a Stripe subscription — notably on the free plan — there is no real billing period: `period` is the open interval 1970-01-01 to 9999-12-31 and `credits.used` is lifetime consumption, not consumption since a period start.",
+        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing. Billing history lives at `GET /api/v2/billing/logs`. Without a Stripe subscription — notably on the free plan — there is no real billing period: `period` is the open interval 1970-01-01 to 9999-12-31 and `credits.used` is lifetime consumption, not consumption since a period start.",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -543,47 +543,61 @@
             "description": "Current billing standing."
           },
           "credits": {
-            "type": "object",
-            "properties": {
-              "used": {
-                "type": "number",
-                "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
+                  },
+                  "remaining": {
+                    "type": "number",
+                    "description": "Allowance minus consumption, over the same window."
+                  }
+                },
+                "required": ["used", "limit", "remaining"],
+                "additionalProperties": false
               },
-              "limit": {
-                "type": "number",
-                "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
-              },
-              "remaining": {
-                "type": "number",
-                "description": "Allowance minus consumption, over the same window."
+              {
+                "type": "null"
               }
-            },
-            "required": ["used", "limit", "remaining"],
-            "additionalProperties": false,
-            "description": "Credit usage and allowance. Periodic on a paid plan; lifetime on the free plan, where the counter never resets."
+            ],
+            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing."
           },
           "storage": {
-            "type": "object",
-            "properties": {
-              "usedBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage currently consumed, in bytes."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage currently consumed, in bytes."
+                  },
+                  "limitBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage quota, in bytes."
+                  },
+                  "percentUsed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Percentage of the storage quota consumed."
+                  }
+                },
+                "required": ["usedBytes", "limitBytes", "percentUsed"],
+                "additionalProperties": false
               },
-              "limitBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage quota, in bytes."
-              },
-              "percentUsed": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Percentage of the storage quota consumed."
+              {
+                "type": "null"
               }
-            },
-            "required": ["usedBytes", "limitBytes", "percentUsed"],
-            "additionalProperties": false,
-            "description": "Current storage consumption and quota."
+            ],
+            "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing."
           }
         },
         "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],

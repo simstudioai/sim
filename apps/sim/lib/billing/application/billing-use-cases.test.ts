@@ -24,6 +24,11 @@ const mocks = vi.hoisted(() => ({
   getUsageLogs: vi.fn(),
   getWorkspaceUsageLogs: vi.fn(),
   recordAudit: vi.fn(),
+  canManageWorkspaceBilling: vi.fn(),
+}))
+
+vi.mock('@/lib/billing/core/workspace-billing-authority', () => ({
+  canUserManageWorkspaceBilling: mocks.canManageWorkspaceBilling,
 }))
 
 vi.mock('@/lib/workspaces/application/workspace-context', () => ({
@@ -94,6 +99,7 @@ describe('billing application use cases', () => {
     vi.clearAllMocks()
     mocks.loadWorkspace.mockResolvedValue(workspaceContext)
     mocks.resolvePermission.mockResolvedValue('read')
+    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
     mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 1, limit: 10, isExceeded: false })
     mocks.checkAttributedBlocks.mockResolvedValue({ blocked: false })
     mocks.toUsageLimitSubscription.mockReturnValue(null)
@@ -171,6 +177,88 @@ describe('billing application use cases', () => {
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.resolveAttribution).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('withholds the payer pool from a workspace member who cannot manage billing', async () => {
+    mocks.resolvePermission.mockResolvedValue('read')
+    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+
+    const result = await getBillingStatus.execute({
+      principal: personalPrincipal,
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(result.credits).toBeNull()
+    expect(result.storage).toBeNull()
+    expect(result).toMatchObject({ workspaceId: 'workspace-1', plan: 'free', status: 'active' })
+    expect(mocks.canManageWorkspaceBilling).toHaveBeenCalledWith(workspaceContext, 'user-1')
+  })
+
+  it('withholds the payer pool from a workspace admin who cannot manage billing', async () => {
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+
+    const result = await getBillingStatus.execute({
+      principal: personalPrincipal,
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(result.credits).toBeNull()
+    expect(result.storage).toBeNull()
+  })
+
+  it('still reports an exceeded payer limit without disclosing the pool', async () => {
+    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.checkUsageStatus.mockResolvedValue({ currentUsage: 40, limit: 10, isExceeded: true })
+
+    const result = await getBillingStatus.execute({
+      principal: personalPrincipal,
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(result.status).toBe('limit_exceeded')
+    expect(result.credits).toBeNull()
+  })
+
+  it('projects the payer pool to a member who can manage billing', async () => {
+    mocks.canManageWorkspaceBilling.mockResolvedValue(true)
+
+    const result = await getBillingStatus.execute({
+      principal: personalPrincipal,
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(result.credits).toEqual({ used: 200, limit: 2_000, remaining: 1_800 })
+    expect(result.storage).toEqual({
+      usedBytes: 5_242_880,
+      limitBytes: 1_073_741_824,
+      percentUsed: 0.48828125,
+    })
+  })
+
+  it('never consults human billing authority for a workspace key', async () => {
+    const result = await getBillingStatus.execute({ principal: workspacePrincipal, input: {} })
+
+    expect(result.credits).not.toBeNull()
+    expect(mocks.canManageWorkspaceBilling).not.toHaveBeenCalled()
+  })
+
+  it('always reports the account-scoped pool the caller owns', async () => {
+    mocks.canManageWorkspaceBilling.mockResolvedValue(false)
+    mocks.getSubscription.mockResolvedValue({ plan: 'pro' })
+    mocks.deriveBillingContext.mockReturnValue({
+      billingEntity: { type: 'user', id: 'user-1' },
+      billingPeriod: {
+        start: new Date('2026-01-01T00:00:00Z'),
+        end: new Date('2026-02-01T00:00:00Z'),
+      },
+    })
+    mocks.checkBillingBlocked.mockResolvedValue({ blocked: false })
+
+    const result = await getBillingStatus.execute({ principal: personalPrincipal, input: {} })
+
+    expect(result.credits).toEqual({ used: 200, limit: 2_000, remaining: 1_800 })
+    expect(result.storage).not.toBeNull()
   })
 
   it('uses the personal principal as account authority', async () => {

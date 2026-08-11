@@ -13,6 +13,7 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
+import { canUserManageWorkspaceBilling } from '@/lib/billing/core/workspace-billing-authority'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   getStorageLimitForBillingContext,
@@ -26,16 +27,35 @@ export interface GetBillingStatusInput {
   workspaceId?: string
 }
 
+export interface BillingCreditsStatus {
+  used: number
+  limit: number
+  remaining: number
+}
+
+export interface BillingStorageStatus {
+  usedBytes: number
+  limitBytes: number
+  percentUsed: number
+}
+
+/**
+ * `credits` and `storage` describe the resolved payer's pooled allowances, not
+ * the caller's own consumption, so they are only projected to a caller who may
+ * manage that payer's billing. Every other workspace member reads them as
+ * `null` while still seeing the plan and standing the workspace UI already
+ * shows them.
+ */
 export interface BillingStatusResult {
   workspaceId: string | null
   period: { start: string; end: string }
   plan: string
   status: 'active' | 'limit_exceeded' | 'billing_blocked'
-  credits: { used: number; limit: number; remaining: number }
-  storage: { usedBytes: number; limitBytes: number; percentUsed: number }
+  credits: BillingCreditsStatus | null
+  storage: BillingStorageStatus | null
 }
 
-function storageStatus(usedBytes: number, limitBytes: number): BillingStatusResult['storage'] {
+function storageStatus(usedBytes: number, limitBytes: number): BillingStorageStatus {
   return {
     usedBytes,
     limitBytes,
@@ -48,7 +68,7 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
   requestedWorkspaceId: (input: GetBillingStatusInput) => input.workspaceId,
   execute: async ({ principal, scope }): Promise<BillingStatusResult> => {
     if (scope.kind === 'workspace') {
-      const [attribution, storageContext] = await Promise.all([
+      const [attribution, storageContext, canViewPayerPool] = await Promise.all([
         principal.kind === 'personal_api_key'
           ? resolveBillingAttribution({
               actorUserId: principal.userId,
@@ -56,6 +76,9 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
             })
           : resolveSystemBillingAttribution(scope.workspace.workspaceId),
         resolveStorageBillingContext(scope.workspace.workspaceId),
+        principal.kind === 'personal_api_key'
+          ? canUserManageWorkspaceBilling(scope.workspace, principal.userId)
+          : Promise.resolve(true),
       ])
       const [usage, block, storageUsedBytes] = await Promise.all([
         checkUsageStatus(attribution.billedAccountUserId, toUsageLimitSubscription(attribution)),
@@ -68,12 +91,14 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
         period: attribution.billingPeriod,
         plan: attribution.payerSubscription?.plan ?? 'free',
         status: block.blocked ? 'billing_blocked' : usage.isExceeded ? 'limit_exceeded' : 'active',
-        credits: {
-          used: dollarsToCredits(usage.currentUsage),
-          limit: dollarsToCredits(usage.limit),
-          remaining: dollarsToCredits(usage.limit - usage.currentUsage),
-        },
-        storage: storageStatus(storageUsedBytes, storageLimitBytes),
+        credits: canViewPayerPool
+          ? {
+              used: dollarsToCredits(usage.currentUsage),
+              limit: dollarsToCredits(usage.limit),
+              remaining: dollarsToCredits(usage.limit - usage.currentUsage),
+            }
+          : null,
+        storage: canViewPayerPool ? storageStatus(storageUsedBytes, storageLimitBytes) : null,
       }
     }
 
