@@ -44,20 +44,53 @@ import { MAX_WORKSPACE_FILE_SIZE } from '@/lib/uploads/shared/types'
  */
 
 /** A workspace file as exposed by the v2 surface. */
-export const v2FileSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  size: z.number().nonnegative(),
-  type: z.string(),
-  key: z.string(),
-  /** Canonical containing-folder path; `/` means the workspace root. */
-  folderPath: v2FolderPathSchema,
-  uploadedByEmail: z.email(),
-  /** ISO-8601 timestamp. */
-  uploadedAt: z.string(),
-  /** ISO-8601 timestamp; advances on content and metadata writes alike. */
-  updatedAt: z.string(),
-})
+export const v2FileSchema = z
+  .object({
+    id: z
+      .string()
+      .describe('Unique file identifier.')
+      .meta({ examples: ['wf_V1StGXR8z5jdHi6BmyT91'] }),
+    name: z
+      .string()
+      .describe('Original file name.')
+      .meta({ examples: ['data.csv'] }),
+    size: z
+      .number()
+      .nonnegative()
+      .describe('File size in bytes.')
+      .meta({ examples: [1024] }),
+    type: z
+      .string()
+      .describe('MIME type of the file.')
+      .meta({ examples: ['text/csv'] }),
+    key: z
+      .string()
+      .describe('Storage key for the file.')
+      .meta({ examples: ['workspace/example/data.csv'] }),
+    /** Canonical containing-folder path; `/` means the workspace root. */
+    folderPath: v2FolderPathSchema.describe(
+      'Canonical containing-folder path. `/` is the workspace root.'
+    ),
+    uploadedByEmail: z
+      .email()
+      .describe('Current email address of the uploader.')
+      .meta({ examples: ['jane@example.com'] }),
+    /** ISO-8601 timestamp. */
+    uploadedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the file was uploaded.')
+      .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+    /** ISO-8601 timestamp; advances on content and metadata writes alike. */
+    updatedAt: z
+      .string()
+      .describe('ISO 8601 timestamp of the last content or metadata write.')
+      .meta({ format: 'date-time', examples: ['2026-01-15T10:30:00Z'] }),
+  })
+  .meta({
+    id: 'V2File',
+    title: 'Workspace file',
+    description: 'A workspace file exposed by the public v2 API.',
+  })
 
 export type V2File = z.output<typeof v2FileSchema>
 
@@ -66,83 +99,140 @@ export type V2File = z.output<typeof v2FileSchema>
  * already public-safe — `hasPassword` is a boolean and neither the ciphertext
  * nor the storage key is carried — with `url` tightened to a real URL.
  */
-export const v2FileShareSchema = shareRecordSchema.extend({
-  url: z.string().url(),
-})
+export const v2FileShareSchema = shareRecordSchema
+  .extend({
+    url: z
+      .string()
+      .url()
+      .describe('Public share URL.')
+      .meta({ examples: ['https://www.sim.ai/f/share-token-example'] }),
+  })
+  .meta({
+    id: 'V2FileShare',
+    title: 'File share',
+    description: 'Public-safe share configuration for a workspace file.',
+  })
 
 export type V2FileShare = z.output<typeof v2FileShareSchema>
 
 /** File metadata enriched with its current public-share configuration. */
-export const v2FileMetadataSchema = v2FileSchema.extend({
-  share: v2FileShareSchema.nullable(),
-})
+export const v2FileMetadataSchema = v2FileSchema
+  .extend({
+    share: v2FileShareSchema
+      .nullable()
+      .describe('Current public-share state, or null when the file has never been shared.'),
+  })
+  .meta({
+    id: 'V2FileMetadata',
+    title: 'File metadata',
+    description: 'Workspace file metadata enriched with nullable public-share state.',
+  })
 
 export type V2FileMetadata = z.output<typeof v2FileMetadataSchema>
 
-export const v2FileUploadParamsSchema = z.object({ uploadId: z.string().min(1) })
+export const v2FileUploadParamsSchema = z.object({
+  uploadId: z.string().min(1).describe('Upload session identifier.'),
+})
 export type V2FileUploadParams = z.output<typeof v2FileUploadParamsSchema>
 
 export const v2CreateFileUploadBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
-    contentType: z.string().trim().min(1, 'contentType is required').max(255),
-    size: z.number().int().nonnegative().max(MAX_WORKSPACE_FILE_SIZE),
-    folderPath: v2FolderPathInputSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace in which the file will be registered.'),
+    name: workspaceFileNameSchema.describe('File name, including its extension.'),
+    contentType: z
+      .string()
+      .trim()
+      .min(1, 'contentType is required')
+      .max(255)
+      .describe('MIME type of the uploaded file.'),
+    size: z
+      .number()
+      .int()
+      .nonnegative()
+      .max(MAX_WORKSPACE_FILE_SIZE)
+      .describe('Exact file size in bytes.'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Canonical destination folder path. Omit for the workspace root.'),
   })
   .strict()
 export type V2CreateFileUploadBody = z.input<typeof v2CreateFileUploadBodySchema>
 
-export const v2FileUploadWorkspaceQuerySchema = z.object({ workspaceId: workspaceIdSchema })
+export const v2FileUploadWorkspaceQuerySchema = z.object({
+  workspaceId: workspaceIdSchema.describe('Workspace that owns the upload session.'),
+})
 export type V2FileUploadWorkspaceQuery = z.output<typeof v2FileUploadWorkspaceQuerySchema>
 
-export const v2FileUploadSchema = z.object({
-  id: z.string(),
-  status: v2UploadStatusSchema,
-  name: z.string(),
-  contentType: z.string(),
-  size: z.number().int().nonnegative(),
-  expiresAt: z.string().datetime(),
-  error: z.string().nullable(),
-  file: v2FileSchema.nullable(),
-})
+export const v2FileUploadSchema = z
+  .object({
+    id: z.string().describe('Upload session identifier.'),
+    status: v2UploadStatusSchema.describe('Current upload session status.'),
+    name: z.string().describe('File name supplied when the session was created.'),
+    contentType: z.string().describe('MIME type supplied when the session was created.'),
+    size: z.number().int().nonnegative().describe('Expected file size in bytes.'),
+    expiresAt: z.string().datetime().describe('ISO 8601 time when the upload session expires.'),
+    error: z.string().nullable().describe('Failure message, or null when no failure has occurred.'),
+    file: v2FileSchema
+      .nullable()
+      .describe('Registered file after finalization, or null before finalization completes.'),
+  })
+  .meta({
+    id: 'V2FileUpload',
+    title: 'File upload session',
+    description: 'Current state of a resumable workspace-file upload session.',
+  })
 export type V2FileUpload = z.output<typeof v2FileUploadSchema>
 
 export const v2CreateFileUploadDataSchema = z
   .object({
-    session: v2FileUploadSchema,
-    uploadToken: z.string().min(1),
-    transfer: v2UploadTransferSchema,
+    session: v2FileUploadSchema.describe('New upload session.'),
+    uploadToken: z
+      .string()
+      .min(1)
+      .describe('Signed control token required by later upload-session requests.'),
+    transfer: v2UploadTransferSchema.describe('Instructions for transferring the file bytes.'),
   })
   .strict()
 export type V2CreateFileUploadData = z.output<typeof v2CreateFileUploadDataSchema>
 
 export const v2DeleteFileResultSchema = z.object({
-  id: z.string(),
-  deleted: z.literal(true),
+  id: z.string().describe('Identifier of the deleted file.'),
+  deleted: z.literal(true).describe('Confirms that the file was deleted.'),
 })
 
 export type V2DeleteFileResult = z.output<typeof v2DeleteFileResultSchema>
 
 export const v2FileParamsSchema = z.object({
-  fileId: workspaceFileIdSchema,
+  fileId: workspaceFileIdSchema.describe('File identifier.'),
 })
 
 export type V2FileParams = z.output<typeof v2FileParamsSchema>
 
 export const v2CreateFileBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the file.'),
+    name: workspaceFileNameSchema.describe(
+      'File name, including its extension. Path separators and dot segments are rejected.'
+    ),
     contentType: z
       .string()
       .trim()
       .min(1, 'contentType cannot be empty')
       .max(255, 'contentType is too long')
+      .describe('MIME type. When omitted, it is inferred from the file extension.')
       .optional(),
-    folderPath: v2FolderPathInputSchema.optional(),
-    content: z.string().max(70_000_000, 'content is too large').default(''),
-    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Canonical containing-folder path. Omit for the workspace root.'),
+    content: z
+      .string()
+      .max(70_000_000, 'content is too large')
+      .default('')
+      .describe('Initial file content. Omit or send an empty string for a zero-byte file.'),
+    encoding: z
+      .enum(['utf-8', 'base64'])
+      .default('utf-8')
+      .describe('Encoding of the content field.'),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {
@@ -173,17 +263,20 @@ export type V2FileSortBy = (typeof v2FileSortFields)[number]
  */
 export const v2ListFilesQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace whose files should be listed.'),
     /** Restrict to one file folder. Omit to list the whole workspace. */
-    folderPath: v2FolderPathInputSchema.optional(),
-    search: v2SearchSchema,
+    folderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Restrict results to files directly inside this folder.'),
+    search: v2SearchSchema.describe('Case-insensitive substring match against the file name.'),
     ...v2SortFields(v2FileSortFields, { sortBy: 'uploadedAt', sortOrder: 'asc' }),
     limit: z.coerce
       .number()
       .optional()
       .default(100)
-      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000)),
-    cursor: z.string().min(1).optional(),
+      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000))
+      .describe('Maximum files per page, clamped to 1–1000.'),
+    cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
   })
   .strict()
 
@@ -191,44 +284,52 @@ export type V2ListFilesQuery = z.output<typeof v2ListFilesQuerySchema>
 
 /** Download/delete both target a single file within a workspace-scoped query. */
 export const v2FileWorkspaceQuerySchema = z.object({
-  workspaceId: workspaceIdSchema,
+  workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
 })
 
 export type V2FileWorkspaceQuery = z.output<typeof v2FileWorkspaceQuerySchema>
 
 export const v2RenameFileBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    name: workspaceFileNameSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    name: workspaceFileNameSchema.describe('New file name, including its extension.'),
   })
   .strict()
 
 export type V2RenameFileBody = z.input<typeof v2RenameFileBodySchema>
 
 const fileSelectionSchema = {
-  fileIds: z.array(z.string().min(1, 'fileIds entries cannot be empty')).min(1).max(1000),
+  fileIds: z
+    .array(z.string().min(1, 'fileIds entries cannot be empty'))
+    .min(1)
+    .max(1000)
+    .describe('File identifiers to update.'),
 }
 
 export const v2MoveFileItemsBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
     ...fileSelectionSchema,
     /** Omission moves the files to the workspace root. */
-    targetFolderPath: v2FolderPathInputSchema.optional(),
+    targetFolderPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Destination folder path. Omit to move files to the workspace root.'),
   })
   .strict()
 
 export type V2MoveFileItemsBody = z.input<typeof v2MoveFileItemsBodySchema>
 
 export const v2MoveFileItemsResultSchema = z.object({
-  movedItems: z.object({ files: z.number().int() }),
+  movedItems: z.object({
+    files: z.number().int().describe('Number of files moved.'),
+  }),
 })
 
 export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 
 export const v2BulkDeleteFilesBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace containing the files.'),
     ...fileSelectionSchema,
   })
   .strict()
@@ -236,17 +337,24 @@ export const v2BulkDeleteFilesBodySchema = z
 export type V2BulkDeleteFilesBody = z.input<typeof v2BulkDeleteFilesBodySchema>
 
 export const v2BulkDeleteFilesResultSchema = z.object({
-  deletedItems: z.object({ files: z.number().int() }),
+  deletedItems: z.object({
+    files: z.number().int().describe('Number of files deleted.'),
+  }),
 })
 
 export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
 
-export const v2FileFolderDataSchema = z.object({ folder: v2FolderSchema })
+export const v2FileFolderDataSchema = z.object({
+  folder: v2FolderSchema.describe('Created or relocated folder.'),
+})
 
 export const v2DeleteFileFolderDataSchema = z.object({
-  path: v2FolderPathSchema,
-  deleted: z.literal(true),
-  deletedItems: z.object({ folders: z.number().int(), files: z.number().int() }),
+  path: v2FolderPathSchema.describe('Deleted folder path.'),
+  deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
+  deletedItems: z.object({
+    folders: z.number().int().describe('Number of folders deleted.'),
+    files: z.number().int().describe('Number of files deleted.'),
+  }),
 })
 
 export const v2ListFileFoldersContract = defineRouteContract({
@@ -278,13 +386,15 @@ export const v2DeleteFileFolderContract = defineRouteContract({
 })
 
 export const v2GetFileShareResultSchema = z.object({
-  share: v2FileShareSchema.nullable(),
+  share: v2FileShareSchema
+    .nullable()
+    .describe('Current public share, or null when the file has never been shared.'),
 })
 
 export type V2GetFileShareResult = z.output<typeof v2GetFileShareResultSchema>
 
 export const v2UpsertFileShareResultSchema = z.object({
-  share: v2FileShareSchema,
+  share: v2FileShareSchema.describe('Updated public share.'),
 })
 
 export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSchema>
@@ -297,18 +407,20 @@ export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSch
  */
 export const v2UpsertFileShareBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    isActive: z.boolean(),
-    authType: shareAuthTypeSchema.optional(),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    isActive: z.boolean().describe('Whether the share should resolve.'),
+    authType: shareAuthTypeSchema.optional().describe('How access to the share is gated.'),
     password: z
       .string()
       .min(1, 'password cannot be empty')
       .max(1024, 'password is too long')
-      .optional(),
+      .optional()
+      .describe('Password for a password-gated share.'),
     allowedEmails: z
       .array(z.string().min(1, 'allowedEmails entries cannot be empty').max(320))
       .max(200, 'Too many allowed emails')
-      .optional(),
+      .optional()
+      .describe('Allowed addresses or @domain patterns for email and SSO shares.'),
   })
   .strict()
 
@@ -320,9 +432,15 @@ export type V2UpsertFileShareBody = z.input<typeof v2UpsertFileShareBodySchema>
  */
 export const v2UpdateFileContentBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    content: z.string().max(70_000_000, 'content is too large'),
-    encoding: z.enum(['utf-8', 'base64']).default('utf-8'),
+    workspaceId: workspaceIdSchema.describe('Workspace that owns the file.'),
+    content: z
+      .string()
+      .max(70_000_000, 'content is too large')
+      .describe('Complete replacement content for the file.'),
+    encoding: z
+      .enum(['utf-8', 'base64'])
+      .default('utf-8')
+      .describe('Encoding of the content field.'),
   })
   .superRefine(({ content, encoding }, ctx) => {
     if (encoding === 'base64' && !isCanonicalBase64(content)) {

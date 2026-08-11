@@ -1,19 +1,10 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { createOpenAPI } from 'fumadocs-openapi/server'
-
-const SPEC_FILES = [
-  'openapi-core.json',
-  'openapi-v2-logs.json',
-  'openapi-v2-workflows.json',
-  'openapi-v2-tables.json',
-  'openapi-v2-knowledge.json',
-  'openapi-v2-files-audit.json',
-  'openapi-v2-resources.json',
-] as const
+import { OPENAPI_SPEC_FILES } from '@/lib/openapi-specs'
 
 export const openapi = createOpenAPI({
-  input: SPEC_FILES.map((file) => `./${file}`),
+  input: OPENAPI_SPEC_FILES.map((file) => `./${file}`),
 })
 
 interface OpenAPIOperation {
@@ -76,7 +67,7 @@ let cachedSpecs: Record<string, unknown>[] | null = null
 
 function getSpecs(): Record<string, unknown>[] {
   if (!cachedSpecs) {
-    cachedSpecs = SPEC_FILES.map(
+    cachedSpecs = OPENAPI_SPEC_FILES.map(
       (file) =>
         JSON.parse(readFileSync(join(process.cwd(), file), 'utf8')) as Record<string, unknown>
     )

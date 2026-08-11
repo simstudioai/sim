@@ -62,22 +62,26 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
   error: z.object({
-    code: z.string(),
-    message: z.string(),
-    details: z.unknown().optional(),
+    code: z.string().describe('Stable machine-readable error code.'),
+    message: z.string().describe('Human-readable explanation of the error.'),
+    details: z.unknown().optional().describe('Optional structured error details.'),
   }),
 })
 
 export type V2ErrorResponse = z.output<typeof v2ErrorResponseSchema>
 
 /** `{ data: T }` */
-export const v2DataResponse = <T extends z.ZodType>(dataSchema: T) => z.object({ data: dataSchema })
+export const v2DataResponse = <T extends z.ZodType>(dataSchema: T) =>
+  z.object({ data: dataSchema.describe('Response data.') })
 
 /** `{ data: T[], nextCursor: string | null }` — the v2 list envelope. */
 export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
   z.object({
-    data: z.array(itemSchema),
-    nextCursor: z.string().nullable(),
+    data: z.array(itemSchema).describe('Items in the current page.'),
+    nextCursor: z
+      .string()
+      .nullable()
+      .describe('Opaque cursor for the next page, or null when no more items remain.'),
   })
 
 /**
@@ -92,8 +96,9 @@ export const v2SearchSchema = z
   .min(1, 'search cannot be empty')
   .max(200, 'search is too long')
   .optional()
+  .describe('Case-insensitive substring search on the resource name.')
 
-export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS)
+export const v2SortOrderSchema = z.enum(LIST_SORT_ORDERS).describe('Sort direction.')
 
 export type V2SortOrder = ListSortOrder
 
@@ -112,11 +117,15 @@ function canonicalFolderPathSchema(parser: (path: string) => string[]) {
 }
 
 /** Canonical slash-prefixed folder path. `/` is the workspace root. */
-export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath)
+export const v2FolderPathSchema = canonicalFolderPathSchema(parseFolderPath).describe(
+  'Canonical slash-prefixed folder path. `/` is the workspace root.'
+)
 export type V2FolderPath = z.output<typeof v2FolderPathSchema>
 
 /** Canonical path that identifies a real folder rather than the virtual root. */
-export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(requireNonRootFolderPath)
+export const v2NonRootFolderPathSchema = canonicalFolderPathSchema(
+  requireNonRootFolderPath
+).describe('Canonical slash-prefixed path identifying a real folder rather than the root.')
 
 function normalizeFolderPathInput(path: string): string {
   return path.length === 0 || path.startsWith('/') ? path : `/${path}`
@@ -127,45 +136,65 @@ export const v2FolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2FolderPathSchema)
+  .describe('Folder path. A missing leading slash is normalized before validation.')
 
 /** Non-root input path that accepts an omitted leading slash and emits the canonical form. */
 export const v2NonRootFolderPathInputSchema = z
   .string()
   .transform(normalizeFolderPathInput)
   .pipe(v2NonRootFolderPathSchema)
+  .describe('Non-root folder path. A missing leading slash is normalized before validation.')
 
-export const v2FolderSchema = z.object({
-  name: z.string(),
-  path: v2NonRootFolderPathSchema,
-  parentPath: v2FolderPathSchema,
-  createdAt: z.string(),
-  updatedAt: z.string(),
-})
+export const v2FolderSchema = z
+  .object({
+    name: z.string().describe('Folder name.'),
+    path: v2NonRootFolderPathSchema.describe(
+      'Canonical folder path used as the public folder identifier.'
+    ),
+    parentPath: v2FolderPathSchema.describe('Canonical parent path; `/` is the root.'),
+    createdAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the folder was created.')
+      .meta({ format: 'date-time' }),
+    updatedAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the folder was last updated.')
+      .meta({ format: 'date-time' }),
+  })
+  .meta({
+    id: 'V2Folder',
+    title: 'Folder',
+    description: 'A canonical workspace folder.',
+  })
 export type V2Folder = z.output<typeof v2FolderSchema>
 
 export const v2FolderSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
 export const v2ListFoldersQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    parentPath: v2FolderPathInputSchema.optional(),
-    search: v2SearchSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace whose folders should be listed.'),
+    parentPath: v2FolderPathInputSchema
+      .optional()
+      .describe('Restrict results to direct children of this parent path.'),
+    search: v2SearchSchema.describe('Case-insensitive substring match against the folder name.'),
     ...v2SortFields(v2FolderSortFields, { sortBy: 'name', sortOrder: 'asc' }),
   })
   .strict()
 
 export const v2CreateFolderBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathInputSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace in which to create the folder.'),
+    path: v2NonRootFolderPathInputSchema.describe('Path of the folder to create.'),
   })
   .strict()
 
 export const v2RelocateFolderBodySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathInputSchema,
-    destinationPath: v2NonRootFolderPathInputSchema,
+    workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
+    path: v2NonRootFolderPathInputSchema.describe('Current folder path.'),
+    destinationPath: v2NonRootFolderPathInputSchema.describe(
+      'New full path for the folder and its descendants.'
+    ),
   })
   .strict()
   .superRefine((body, ctx) => {
@@ -180,9 +209,13 @@ export const v2RelocateFolderBodySchema = z
 
 export const v2DeleteFolderQuerySchema = z
   .object({
-    workspaceId: workspaceIdSchema,
-    path: v2NonRootFolderPathInputSchema,
-    recursive: z.stringbool().optional().default(false),
+    workspaceId: workspaceIdSchema.describe('Workspace containing the folder.'),
+    path: v2NonRootFolderPathInputSchema.describe('Path of the folder to delete.'),
+    recursive: z
+      .stringbool()
+      .optional()
+      .default(false)
+      .describe('Delete nested files and folders when true.'),
   })
   .strict()
 
@@ -196,7 +229,7 @@ export function v2SortFields<const F extends readonly [string, ...string[]]>(
   defaults: { sortBy: F[number]; sortOrder: V2SortOrder }
 ) {
   return {
-    sortBy: z.enum(fields).default(defaults.sortBy),
-    sortOrder: v2SortOrderSchema.default(defaults.sortOrder),
+    sortBy: z.enum(fields).default(defaults.sortBy).describe('Field used to sort the result.'),
+    sortOrder: v2SortOrderSchema.default(defaults.sortOrder).describe('Sort direction.'),
   }
 }

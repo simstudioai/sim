@@ -1,12 +1,11 @@
 #!/usr/bin/env bun
 /**
- * Validates the hand-authored OpenAPI specs in `apps/docs/` against each other
- * and against the runtime Zod contracts in `apps/sim/lib/api/contracts/`.
+ * Validates the OpenAPI specs in `apps/docs/` against each other and against
+ * the runtime Zod contracts in `apps/sim/lib/api/contracts/`.
  *
- * The Zod contracts are the runtime source of truth for *success* request and
- * response shapes, but the specs additionally carry what Zod never defines —
- * error envelopes, status codes, prose, and examples — so the specs cannot be
- * generated and must instead be checked:
+ * Code-first documents carry `x-generated-by` and are checked for staleness by
+ * `generate-openapi.ts --check` before this script runs. The explicit legacy
+ * list remains cross-checked until each remaining domain is migrated.
  *
  * 1. Spec integrity (every file): all `$ref`s resolve, operationIds are
  *    present and unique, every operation documents a success response, no
@@ -26,20 +25,19 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import path from 'node:path'
 import { z } from 'zod'
+import {
+  GENERATED_OPENAPI_SPEC_FILES,
+  LEGACY_OPENAPI_SPEC_FILES,
+  OPENAPI_SPEC_FILES,
+} from '../apps/docs/lib/openapi-specs'
 
 const ROOT = path.resolve(import.meta.dir, '..')
 const DOCS_DIR = path.join(ROOT, 'apps/docs')
 const V2_CONTRACTS_DIR = path.join(ROOT, 'apps/sim/lib/api/contracts/v2')
 
-const SPEC_FILES = [
-  'openapi-core.json',
-  'openapi-v2-logs.json',
-  'openapi-v2-workflows.json',
-  'openapi-v2-tables.json',
-  'openapi-v2-knowledge.json',
-  'openapi-v2-files-audit.json',
-  'openapi-v2-resources.json',
-]
+const SPEC_FILES = OPENAPI_SPEC_FILES
+const GENERATED_SPEC_FILES = new Set<string>(GENERATED_OPENAPI_SPEC_FILES)
+const LEGACY_SPEC_FILES = new Set<string>(LEGACY_OPENAPI_SPEC_FILES)
 
 /** Extra non-v2 contracts that are documented in the core spec. */
 const EXTRA_CONTRACT_MODULES = [path.join(ROOT, 'apps/sim/lib/api/contracts/usage-limits.ts')]
@@ -467,15 +465,33 @@ function checkExamples(operation: Operation, contract: ContractLike, name: strin
 
 const registry = await loadContracts()
 const documentedKeys = new Set<string>()
+const globalOperationIds = new Map<string, string>()
 
 for (const specFile of SPEC_FILES) {
   const spec = JSON.parse(readFileSync(path.join(DOCS_DIR, specFile), 'utf8')) as Json
+  if (GENERATED_SPEC_FILES.has(specFile)) {
+    if (spec['x-generated-by'] !== 'scripts/generate-openapi.ts') {
+      fail(specFile, 'generated spec is missing its x-generated-by marker')
+    }
+  } else if (!LEGACY_SPEC_FILES.has(specFile)) {
+    fail(specFile, 'spec is neither generated nor explicitly legacy')
+  }
   const ops = collectOperations(specFile, spec)
   checkIntegrity(specFile, spec, ops)
 
   for (const operation of ops) {
     const key = `${operation.method.toUpperCase()} ${operation.path}`
+    if (documentedKeys.has(key)) {
+      fail(specFile, `${key}: operation is documented by more than one spec`)
+    }
     documentedKeys.add(key)
+    const operationId = operation.op.operationId
+    if (typeof operationId === 'string') {
+      const previous = globalOperationIds.get(operationId)
+      if (previous)
+        fail(specFile, `duplicate global operationId "${operationId}" (also in ${previous})`)
+      else globalOperationIds.set(operationId, specFile)
+    }
     const isV2 = operation.path.startsWith('/api/v2/')
     if (isV2) checkV2Conventions(operation)
 
