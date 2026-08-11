@@ -4511,25 +4511,12 @@
           }
         ]
       },
-      "WorkflowFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "description": "Created or relocated workflow folder.",
-            "$ref": "#/components/schemas/WorkflowFolder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "Workflow folder data",
-        "description": "A created or relocated workflow folder."
-      },
       "CreateWorkflowFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/WorkflowFolderData"
+            "$ref": "#/components/schemas/WorkflowFolder"
           }
         },
         "required": ["data"],
@@ -4539,14 +4526,12 @@
         "examples": [
           {
             "data": {
-              "folder": {
-                "name": "Operations",
-                "path": "/Operations",
-                "parentPath": "/",
-                "createdAt": "2026-05-01T09:00:00.000Z",
-                "updatedAt": "2026-05-01T09:00:00.000Z",
-                "locked": false
-              }
+              "name": "Operations",
+              "path": "/Operations",
+              "parentPath": "/",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-05-01T09:00:00.000Z",
+              "locked": false
             }
           }
         ]
@@ -4574,7 +4559,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/WorkflowFolderData"
+            "$ref": "#/components/schemas/WorkflowFolder"
           }
         },
         "required": ["data"],
@@ -4584,14 +4569,12 @@
         "examples": [
           {
             "data": {
-              "folder": {
-                "name": "Support",
-                "path": "/Support",
-                "parentPath": "/",
-                "createdAt": "2026-05-01T09:00:00.000Z",
-                "updatedAt": "2026-05-01T09:00:00.000Z",
-                "locked": false
-              }
+              "name": "Support",
+              "path": "/Support",
+              "parentPath": "/",
+              "createdAt": "2026-05-01T09:00:00.000Z",
+              "updatedAt": "2026-05-01T09:00:00.000Z",
+              "locked": false
             }
           }
         ]

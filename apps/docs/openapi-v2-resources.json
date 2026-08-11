@@ -2401,25 +2401,12 @@
           }
         ]
       },
-      "V2McpServerData": {
-        "type": "object",
-        "properties": {
-          "mcpServer": {
-            "description": "The MCP server.",
-            "$ref": "#/components/schemas/V2McpServer"
-          }
-        },
-        "required": ["mcpServer"],
-        "additionalProperties": false,
-        "title": "MCP server data",
-        "description": "A single public MCP server payload."
-      },
       "CreateMcpServerResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2McpServerData"
+            "$ref": "#/components/schemas/V2McpServer"
           }
         },
         "required": ["data"],
@@ -2429,27 +2416,25 @@
         "examples": [
           {
             "data": {
-              "mcpServer": {
-                "id": "mcp-3f7a9c21",
-                "name": "Docs server",
-                "description": "Internal documentation tools",
-                "transport": "streamable-http",
-                "authType": "headers",
-                "url": "https://mcp.example.com/sse",
-                "timeout": 30000,
-                "retries": 3,
-                "enabled": true,
-                "connectionStatus": "connected",
-                "lastError": null,
-                "toolCount": 7,
-                "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
-                "lastConnected": "2026-06-20T14:02:11.000Z",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "hasHeaders": true,
-                "headerNames": ["Authorization"],
-                "hasOauthClientSecret": false
-              }
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": true,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
             }
           }
         ]
@@ -2569,7 +2554,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2McpServerData"
+            "$ref": "#/components/schemas/V2McpServer"
           }
         },
         "required": ["data"],
@@ -2579,27 +2564,25 @@
         "examples": [
           {
             "data": {
-              "mcpServer": {
-                "id": "mcp-3f7a9c21",
-                "name": "Docs server",
-                "description": "Internal documentation tools",
-                "transport": "streamable-http",
-                "authType": "headers",
-                "url": "https://mcp.example.com/sse",
-                "timeout": 30000,
-                "retries": 3,
-                "enabled": true,
-                "connectionStatus": "connected",
-                "lastError": null,
-                "toolCount": 7,
-                "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
-                "lastConnected": "2026-06-20T14:02:11.000Z",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "hasHeaders": true,
-                "headerNames": ["Authorization"],
-                "hasOauthClientSecret": false
-              }
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": true,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
             }
           }
         ]
@@ -2609,7 +2592,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2McpServerData"
+            "$ref": "#/components/schemas/V2McpServer"
           }
         },
         "required": ["data"],
@@ -2619,27 +2602,25 @@
         "examples": [
           {
             "data": {
-              "mcpServer": {
-                "id": "mcp-3f7a9c21",
-                "name": "Docs server",
-                "description": "Internal documentation tools",
-                "transport": "streamable-http",
-                "authType": "headers",
-                "url": "https://mcp.example.com/sse",
-                "timeout": 30000,
-                "retries": 3,
-                "enabled": false,
-                "connectionStatus": "connected",
-                "lastError": null,
-                "toolCount": 7,
-                "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
-                "lastConnected": "2026-06-20T14:02:11.000Z",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "hasHeaders": true,
-                "headerNames": ["Authorization"],
-                "hasOauthClientSecret": false
-              }
+              "id": "mcp-3f7a9c21",
+              "name": "Docs server",
+              "description": "Internal documentation tools",
+              "transport": "streamable-http",
+              "authType": "headers",
+              "url": "https://mcp.example.com/sse",
+              "timeout": 30000,
+              "retries": 3,
+              "enabled": false,
+              "connectionStatus": "connected",
+              "lastError": null,
+              "toolCount": 7,
+              "lastToolsRefresh": "2026-06-20T14:02:11.000Z",
+              "lastConnected": "2026-06-20T14:02:11.000Z",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "hasHeaders": true,
+              "headerNames": ["Authorization"],
+              "hasOauthClientSecret": false
             }
           }
         ]
@@ -2908,25 +2889,12 @@
         "title": "Skill",
         "description": "A workspace or built-in skill including its instruction body."
       },
-      "V2SkillData": {
-        "type": "object",
-        "properties": {
-          "skill": {
-            "description": "The skill.",
-            "$ref": "#/components/schemas/V2Skill"
-          }
-        },
-        "required": ["skill"],
-        "additionalProperties": false,
-        "title": "Skill data",
-        "description": "A single skill payload including its instruction body."
-      },
       "CreateSkillResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2SkillData"
+            "$ref": "#/components/schemas/V2Skill"
           }
         },
         "required": ["data"],
@@ -2936,15 +2904,13 @@
         "examples": [
           {
             "data": {
-              "skill": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "name": "refund-policy",
-                "description": "How support should handle refund requests",
-                "readOnly": false,
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "content": "# Refund policy\n\nAlways check the order date first."
-              }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "How support should handle refund requests",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
             }
           }
         ]
@@ -2995,7 +2961,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2SkillData"
+            "$ref": "#/components/schemas/V2Skill"
           }
         },
         "required": ["data"],
@@ -3005,15 +2971,13 @@
         "examples": [
           {
             "data": {
-              "skill": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "name": "refund-policy",
-                "description": "How support should handle refund requests",
-                "readOnly": false,
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "content": "# Refund policy\n\nAlways check the order date first."
-              }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "How support should handle refund requests",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
             }
           }
         ]
@@ -3023,7 +2987,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2SkillData"
+            "$ref": "#/components/schemas/V2Skill"
           }
         },
         "required": ["data"],
@@ -3033,15 +2997,13 @@
         "examples": [
           {
             "data": {
-              "skill": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "name": "refund-policy",
-                "description": "Updated refund guidance",
-                "readOnly": false,
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z",
-                "content": "# Refund policy\n\nAlways check the order date first."
-              }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "name": "refund-policy",
+              "description": "Updated refund guidance",
+              "readOnly": false,
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z",
+              "content": "# Refund policy\n\nAlways check the order date first."
             }
           }
         ]
@@ -3279,25 +3241,12 @@
           }
         ]
       },
-      "V2CustomToolData": {
-        "type": "object",
-        "properties": {
-          "customTool": {
-            "description": "The custom tool.",
-            "$ref": "#/components/schemas/V2CustomTool"
-          }
-        },
-        "required": ["customTool"],
-        "additionalProperties": false,
-        "title": "Custom tool data",
-        "description": "A single workspace custom tool payload."
-      },
       "CreateCustomToolResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2CustomToolData"
+            "$ref": "#/components/schemas/V2CustomTool"
           }
         },
         "required": ["data"],
@@ -3307,29 +3256,27 @@
         "examples": [
           {
             "data": {
-              "customTool": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "title": "lookup_order",
-                "schema": {
-                  "type": "function",
-                  "function": {
-                    "name": "lookup_order",
-                    "description": "Look up an order by id",
-                    "parameters": {
-                      "type": "object",
-                      "properties": {
-                        "orderId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": ["orderId"]
-                    }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
                   }
-                },
-                "code": "return { ok: true }",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z"
-              }
+                }
+              },
+              "code": "return { ok: true }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
             }
           }
         ]
@@ -3452,7 +3399,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2CustomToolData"
+            "$ref": "#/components/schemas/V2CustomTool"
           }
         },
         "required": ["data"],
@@ -3462,29 +3409,27 @@
         "examples": [
           {
             "data": {
-              "customTool": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "title": "lookup_order",
-                "schema": {
-                  "type": "function",
-                  "function": {
-                    "name": "lookup_order",
-                    "description": "Look up an order by id",
-                    "parameters": {
-                      "type": "object",
-                      "properties": {
-                        "orderId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": ["orderId"]
-                    }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
                   }
-                },
-                "code": "return { ok: true }",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z"
-              }
+                }
+              },
+              "code": "return { ok: true }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
             }
           }
         ]
@@ -3494,7 +3439,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2CustomToolData"
+            "$ref": "#/components/schemas/V2CustomTool"
           }
         },
         "required": ["data"],
@@ -3504,29 +3449,27 @@
         "examples": [
           {
             "data": {
-              "customTool": {
-                "id": "V1StGXR8Z5jdHi6BmyT",
-                "title": "lookup_order",
-                "schema": {
-                  "type": "function",
-                  "function": {
-                    "name": "lookup_order",
-                    "description": "Look up an order by id",
-                    "parameters": {
-                      "type": "object",
-                      "properties": {
-                        "orderId": {
-                          "type": "string"
-                        }
-                      },
-                      "required": ["orderId"]
-                    }
+              "id": "V1StGXR8Z5jdHi6BmyT",
+              "title": "lookup_order",
+              "schema": {
+                "type": "function",
+                "function": {
+                  "name": "lookup_order",
+                  "description": "Look up an order by id",
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "orderId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": ["orderId"]
                   }
-                },
-                "code": "return { ok: false }",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z"
-              }
+                }
+              },
+              "code": "return { ok: false }",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
             }
           }
         ]
@@ -3878,25 +3821,12 @@
           }
         ]
       },
-      "V2SecretData": {
-        "type": "object",
-        "properties": {
-          "secret": {
-            "description": "Secret metadata. The stored value is never returned.",
-            "$ref": "#/components/schemas/V2Secret"
-          }
-        },
-        "required": ["secret"],
-        "additionalProperties": false,
-        "title": "Secret data",
-        "description": "A single secret-metadata payload without its stored value."
-      },
       "SetSecretResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2SecretData"
+            "$ref": "#/components/schemas/V2Secret"
           }
         },
         "required": ["data"],
@@ -3906,13 +3836,11 @@
         "examples": [
           {
             "data": {
-              "secret": {
-                "name": "STRIPE_API_KEY",
-                "scope": "workspace",
-                "role": "admin",
-                "createdAt": "2026-06-01T09:14:00.000Z",
-                "updatedAt": "2026-06-20T14:02:11.000Z"
-              }
+              "name": "STRIPE_API_KEY",
+              "scope": "workspace",
+              "role": "admin",
+              "createdAt": "2026-06-01T09:14:00.000Z",
+              "updatedAt": "2026-06-20T14:02:11.000Z"
             }
           }
         ]

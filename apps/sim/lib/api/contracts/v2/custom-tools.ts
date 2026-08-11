@@ -92,18 +92,6 @@ export const v2CustomToolSchema = z
   })
 export type V2CustomTool = z.output<typeof v2CustomToolSchema>
 
-/** `{ customTool }` payload for single-tool reads and mutations. */
-export const v2CustomToolDataSchema = z
-  .object({
-    customTool: v2CustomToolSchema.describe('The custom tool.'),
-  })
-  .meta({
-    id: 'V2CustomToolData',
-    title: 'Custom tool data',
-    description: 'A single workspace custom tool payload.',
-  })
-export type V2CustomToolData = z.output<typeof v2CustomToolDataSchema>
-
 export const v2CustomToolDeleteDataSchema = z
   .object({
     id: z.string().describe('Identifier of the deleted custom tool.'),
@@ -191,7 +179,7 @@ export const v2CreateCustomToolContract = defineRouteContract({
   body: v2CreateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
     status: 201,
   },
 })
@@ -203,7 +191,7 @@ export const v2GetCustomToolContract = defineRouteContract({
   query: v2CustomToolWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 
@@ -214,7 +202,7 @@ export const v2UpdateCustomToolContract = defineRouteContract({
   body: v2UpdateCustomToolBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2CustomToolDataSchema),
+    schema: v2DataResponse(v2CustomToolSchema),
   },
 })
 

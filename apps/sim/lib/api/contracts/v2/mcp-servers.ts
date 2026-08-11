@@ -149,18 +149,6 @@ export const v2McpServerSchema = z
   })
 export type V2McpServer = z.output<typeof v2McpServerSchema>
 
-/** `{ mcpServer }` payload for single-server reads and mutations. */
-export const v2McpServerDataSchema = z
-  .object({
-    mcpServer: v2McpServerSchema.describe('The MCP server.'),
-  })
-  .meta({
-    id: 'V2McpServerData',
-    title: 'MCP server data',
-    description: 'A single public MCP server payload.',
-  })
-export type V2McpServerData = z.output<typeof v2McpServerDataSchema>
-
 /** Delete acknowledgement — the id of the server that was deleted. */
 export const v2McpServerDeleteDataSchema = z
   .object({
@@ -304,7 +292,7 @@ export const v2CreateMcpServerContract = defineRouteContract({
   body: v2CreateMcpServerBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
     status: 201,
   },
 })
@@ -316,7 +304,7 @@ export const v2GetMcpServerContract = defineRouteContract({
   query: v2McpServerWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
   },
 })
 
@@ -327,7 +315,7 @@ export const v2UpdateMcpServerContract = defineRouteContract({
   body: v2UpdateMcpServerBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2McpServerDataSchema),
+    schema: v2DataResponse(v2McpServerSchema),
   },
 })
 

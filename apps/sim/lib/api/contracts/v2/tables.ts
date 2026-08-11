@@ -210,16 +210,6 @@ export const v2ApiRowSchema = z
   })
 export type V2ApiRow = z.output<typeof v2ApiRowSchema>
 
-/** A single table definition payload. */
-export const v2TableDataSchema = z
-  .object({ table: v2ApiTableSchema.describe('The requested table.') })
-  .meta({
-    id: 'V2TableData',
-    title: 'Table data',
-    description: 'A single table payload.',
-  })
-export type V2TableData = z.output<typeof v2TableDataSchema>
-
 export const v2DeleteTableDataSchema = z
   .object({
     id: z.string().describe('Identifier of the deleted table.'),
@@ -242,16 +232,6 @@ export const v2TableColumnsDataSchema = z
   })
 export type V2TableColumnsData = z.output<typeof v2TableColumnsDataSchema>
 
-/** A single row payload. */
-export const v2TableRowDataSchema = z
-  .object({ row: v2ApiRowSchema.describe('The requested table row.') })
-  .meta({
-    id: 'V2TableRowPayload',
-    title: 'Table row payload',
-    description: 'A single table row payload.',
-  })
-export type V2TableRowData = z.output<typeof v2TableRowDataSchema>
-
 /** Batch-insert payload. */
 export const v2BatchInsertRowsDataSchema = z
   .object({
@@ -265,7 +245,7 @@ export const v2BatchInsertRowsDataSchema = z
   })
 export type V2BatchInsertRowsData = z.output<typeof v2BatchInsertRowsDataSchema>
 
-export const v2CreateSingleTableRowResponseSchema = v2DataResponse(v2TableRowDataSchema).meta({
+export const v2CreateSingleTableRowResponseSchema = v2DataResponse(v2ApiRowSchema).meta({
   id: 'V2CreateSingleTableRowResponse',
   title: 'Create single table row response',
   description: 'Response returned after inserting one table row.',
@@ -457,7 +437,7 @@ export const v2CreateTableContract = defineRouteContract({
   body: v2CreateTableBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
     status: 201,
   },
 })
@@ -469,7 +449,7 @@ export const v2GetTableContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
   },
 })
 
@@ -518,18 +498,10 @@ export const v2UpdateTableContract = defineRouteContract({
   body: v2UpdateTableBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
   },
 })
 export type V2UpdateTableBody = z.input<typeof v2UpdateTableBodySchema>
-
-export const v2TableFolderDataSchema = z
-  .object({ folder: v2FolderSchema.describe('The requested table folder.') })
-  .meta({
-    id: 'V2TableFolderData',
-    title: 'Table folder data',
-    description: 'A single table-folder payload.',
-  })
 
 export const v2DeleteTableFolderDataSchema = z
   .object({
@@ -559,14 +531,14 @@ export const v2CreateTableFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema), status: 201 },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
 
 export const v2RelocateTableFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/folders',
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
 
 export const v2DeleteTableFolderContract = defineRouteContract({
@@ -760,7 +732,7 @@ export const v2QueryRowsContract = defineRouteContract({
 /**
  * Single contract for `POST /rows` — the body is the single|batch union so the
  * route can dispatch in one `parseRequest`, and the response is the matching
- * union (`{ data: { row } }` for a single insert, `{ data: { rows,
+ * union (`{ data: <row> }` for a single insert, `{ data: { rows,
  * insertedCount } }` for a batch).
  */
 export const v2InsertTableRowBodySchema = insertTableRowBodyBaseSchema
@@ -891,7 +863,7 @@ export const v2GetTableRowContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableRowDataSchema),
+    schema: v2DataResponse(v2ApiRowSchema),
   },
 })
 
@@ -902,7 +874,7 @@ export const v2UpdateTableRowContract = defineRouteContract({
   body: v2UpdateTableRowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableRowDataSchema),
+    schema: v2DataResponse(v2ApiRowSchema),
   },
 })
 
@@ -993,16 +965,6 @@ export const v2ApiViewSchema = z
   })
 export type V2ApiView = z.output<typeof v2ApiViewSchema>
 
-/** A single view payload. */
-export const v2TableViewDataSchema = z
-  .object({ view: v2ApiViewSchema.describe('The requested saved table view.') })
-  .meta({
-    id: 'V2TableViewData',
-    title: 'Table view data',
-    description: 'A single saved table-view payload.',
-  })
-export type V2TableViewData = z.output<typeof v2TableViewDataSchema>
-
 /** Delete confirmation — the id of the view that was removed. */
 export const v2DeleteTableViewDataSchema = z
   .object({
@@ -1039,7 +1001,7 @@ export const v2CreateTableViewContract = defineRouteContract({
   body: createTableViewBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
     status: 201,
   },
 })
@@ -1051,7 +1013,7 @@ export const v2GetTableViewContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
   },
 })
 
@@ -1062,7 +1024,7 @@ export const v2UpdateTableViewContract = defineRouteContract({
   body: updateTableViewBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
   },
 })
 

@@ -302,7 +302,7 @@ const routes = [
         'CreateMcpServerResponse',
         'Create MCP server response',
         'The registered MCP server without write-only credentials.',
-        [{ data: { mcpServer: MCP_SERVER_EXAMPLE } }]
+        [{ data: MCP_SERVER_EXAMPLE }]
       ),
     }
   ),
@@ -334,7 +334,7 @@ const routes = [
         'GetMcpServerResponse',
         'Get MCP server response',
         'One MCP server without write-only credentials.',
-        [{ data: { mcpServer: MCP_SERVER_EXAMPLE } }]
+        [{ data: MCP_SERVER_EXAMPLE }]
       ),
     }
   ),
@@ -367,7 +367,7 @@ const routes = [
         'UpdateMcpServerResponse',
         'Update MCP server response',
         'The updated MCP server.',
-        [{ data: { mcpServer: { ...MCP_SERVER_EXAMPLE, enabled: false } } }]
+        [{ data: { ...MCP_SERVER_EXAMPLE, enabled: false } }]
       ),
     }
   ),
@@ -459,7 +459,7 @@ const routes = [
         'CreateSkillResponse',
         'Create skill response',
         'The created skill including its content.',
-        [{ data: { skill: SKILL_EXAMPLE } }]
+        [{ data: SKILL_EXAMPLE }]
       ),
     }
   ),
@@ -491,7 +491,7 @@ const routes = [
         'GetSkillResponse',
         'Get skill response',
         'One skill including its full content.',
-        [{ data: { skill: SKILL_EXAMPLE } }]
+        [{ data: SKILL_EXAMPLE }]
       ),
     }
   ),
@@ -523,13 +523,7 @@ const routes = [
         'UpdateSkillResponse',
         'Update skill response',
         'The updated skill including its full content.',
-        [
-          {
-            data: {
-              skill: { ...SKILL_EXAMPLE, description: 'Updated refund guidance' },
-            },
-          },
-        ]
+        [{ data: { ...SKILL_EXAMPLE, description: 'Updated refund guidance' } }]
       ),
     }
   ),
@@ -620,7 +614,7 @@ const routes = [
         'CreateCustomToolResponse',
         'Create custom tool response',
         'The created custom tool.',
-        [{ data: { customTool: CUSTOM_TOOL_EXAMPLE } }]
+        [{ data: CUSTOM_TOOL_EXAMPLE }]
       ),
     }
   ),
@@ -651,7 +645,7 @@ const routes = [
         'GetCustomToolResponse',
         'Get custom tool response',
         'One custom tool.',
-        [{ data: { customTool: CUSTOM_TOOL_EXAMPLE } }]
+        [{ data: CUSTOM_TOOL_EXAMPLE }]
       ),
     }
   ),
@@ -684,13 +678,7 @@ const routes = [
         'UpdateCustomToolResponse',
         'Update custom tool response',
         'The updated custom tool.',
-        [
-          {
-            data: {
-              customTool: { ...CUSTOM_TOOL_EXAMPLE, code: 'return { ok: false }' },
-            },
-          },
-        ]
+        [{ data: { ...CUSTOM_TOOL_EXAMPLE, code: 'return { ok: false }' } }]
       ),
     }
   ),
@@ -816,7 +804,7 @@ const routes = [
         'SetSecretResponse',
         'Set secret response',
         'Metadata for the created or replaced secret without its value.',
-        [{ data: { secret: SECRET_EXAMPLE } }]
+        [{ data: SECRET_EXAMPLE }]
       ),
     }
   ),

@@ -68,14 +68,6 @@ export const v2SkillSchema = v2SkillSummarySchema
   })
 export type V2Skill = z.output<typeof v2SkillSchema>
 
-/** `{ skill }` payload for single-skill reads and mutations. */
-export const v2SkillDataSchema = z.object({ skill: v2SkillSchema.describe('The skill.') }).meta({
-  id: 'V2SkillData',
-  title: 'Skill data',
-  description: 'A single skill payload including its instruction body.',
-})
-export type V2SkillData = z.output<typeof v2SkillDataSchema>
-
 export const v2SkillDeleteDataSchema = z
   .object({
     id: z.string().describe('Identifier of the deleted skill.'),
@@ -171,7 +163,7 @@ export const v2CreateSkillContract = defineRouteContract({
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
     status: 201,
   },
 })
@@ -183,7 +175,7 @@ export const v2GetSkillContract = defineRouteContract({
   query: v2SkillWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 
@@ -194,7 +186,7 @@ export const v2UpdateSkillContract = defineRouteContract({
   body: v2UpdateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 

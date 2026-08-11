@@ -106,7 +106,7 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
     const response = await GET(req, CONTEXT)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.row).toEqual({
+    expect((await response.json()).data).toEqual({
       id: 'row-1',
       data: { name: 'Ada' },
       createdAt: '2026-01-01T00:00:00.000Z',

@@ -20,9 +20,7 @@ export const revalidate = 0
 async function presentView(result: { view: Parameters<typeof toApiView>[0] }) {
   const { view } = result
   return {
-    data: {
-      view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
-    },
+    data: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
   }
 }
 

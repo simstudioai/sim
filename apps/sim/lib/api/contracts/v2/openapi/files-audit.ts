@@ -568,7 +568,7 @@ const routes = [
         'V2GetFileShareResponse',
         'Get file share response',
         'Current public-share state for a file.',
-        [{ data: { share: SHARE_EXAMPLE } }, { data: { share: null } }]
+        [{ data: SHARE_EXAMPLE }, { data: null }]
       ),
     }
   ),
@@ -610,7 +610,7 @@ const routes = [
         'V2UpsertFileShareResponse',
         'Upsert file share response',
         'Updated public-share state for a file.',
-        [{ data: { share: SHARE_EXAMPLE } }]
+        [{ data: SHARE_EXAMPLE }]
       ),
     }
   ),

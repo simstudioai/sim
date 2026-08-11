@@ -163,7 +163,7 @@ describe('/api/v2/files/folders', () => {
     )
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.folder).toEqual({
+    expect((await response.json()).data).toEqual({
       name: 'Reports',
       path: '/Reports',
       parentPath: '/',

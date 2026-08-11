@@ -130,7 +130,7 @@ describe('/api/v2/tables/[tableId]/rows', () => {
 
   it('delegates single and batch creation through one semantic use case', async () => {
     const single = request('POST', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } })
-    expect((await (await POST(single, CONTEXT)).json()).data.row.id).toBe('row-1')
+    expect((await (await POST(single, CONTEXT)).json()).data.id).toBe('row-1')
     expect(mocks.createRows).toHaveBeenLastCalledWith({
       principal: PRINCIPAL,
       input: {

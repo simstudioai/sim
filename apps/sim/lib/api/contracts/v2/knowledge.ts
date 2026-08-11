@@ -151,14 +151,6 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
   })
 export type V2KnowledgeBase = z.output<typeof v2KnowledgeBaseSchema>
 
-/** `{ knowledgeBase }` payload for single-KB reads and mutations. */
-export const v2KnowledgeBaseDataSchema = z.object({ knowledgeBase: v2KnowledgeBaseSchema }).meta({
-  id: 'V2KnowledgeBaseData',
-  title: 'Knowledge base data',
-  description: 'A single knowledge base payload.',
-})
-export type V2KnowledgeBaseData = z.output<typeof v2KnowledgeBaseDataSchema>
-
 /** Delete acknowledgement — the id of the resource that was deleted. */
 export const v2KnowledgeDeleteDataSchema = z
   .object({
@@ -266,28 +258,6 @@ export const v2KnowledgeDocumentSchema = v2KnowledgeDocumentSummarySchema
     description: 'Full document detail including processing state and connector provenance.',
   })
 export type V2KnowledgeDocument = z.output<typeof v2KnowledgeDocumentSchema>
-
-/** `{ document }` payload for the upload acknowledgement (summary shape). */
-export const v2KnowledgeDocumentSummaryDataSchema = z
-  .object({
-    document: v2KnowledgeDocumentSummarySchema,
-  })
-  .meta({
-    id: 'V2KnowledgeDocumentSummaryData',
-    title: 'Knowledge document summary data',
-    description: 'A knowledge document upload acknowledgement.',
-  })
-export type V2KnowledgeDocumentSummaryData = z.output<typeof v2KnowledgeDocumentSummaryDataSchema>
-
-/** `{ document }` payload for the document detail read. */
-export const v2KnowledgeDocumentDataSchema = z
-  .object({ document: v2KnowledgeDocumentSchema })
-  .meta({
-    id: 'V2KnowledgeDocumentData',
-    title: 'Knowledge document data',
-    description: 'A single knowledge document payload.',
-  })
-export type V2KnowledgeDocumentData = z.output<typeof v2KnowledgeDocumentDataSchema>
 
 /**
  * A single vector/tag search hit. `metadata` is the document's display-named tag
@@ -630,7 +600,7 @@ export const v2CreateKnowledgeBaseContract = defineRouteContract({
   body: v2CreateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2KnowledgeBaseDataSchema),
+    schema: v2DataResponse(v2KnowledgeBaseSchema),
     status: 201,
   },
 })
@@ -646,7 +616,7 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
   }),
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2KnowledgeBaseDataSchema),
+    schema: v2DataResponse(v2KnowledgeBaseSchema),
   },
 })
 
@@ -661,7 +631,7 @@ export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   body: v2UpdateKnowledgeBaseBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2KnowledgeBaseDataSchema),
+    schema: v2DataResponse(v2KnowledgeBaseSchema),
   },
 })
 
@@ -678,12 +648,6 @@ export const v2DeleteKnowledgeBaseContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2KnowledgeDeleteDataSchema),
   },
-})
-
-export const v2KnowledgeFolderDataSchema = z.object({ folder: v2FolderSchema }).meta({
-  id: 'V2KnowledgeFolderData',
-  title: 'Knowledge folder data',
-  description: 'A single knowledge-base folder payload.',
 })
 
 export const v2DeleteKnowledgeFolderDataSchema = z
@@ -718,14 +682,14 @@ export const v2CreateKnowledgeFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/knowledge/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema), status: 201 },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
 
 export const v2RelocateKnowledgeFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/knowledge/folders',
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2KnowledgeFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
 
 export const v2DeleteKnowledgeFolderContract = defineRouteContract({
@@ -838,7 +802,7 @@ export const v2UploadKnowledgeDocumentContract = defineRouteContract({
   query: v2UploadKnowledgeDocumentQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2KnowledgeDocumentSummaryDataSchema),
+    schema: v2DataResponse(v2KnowledgeDocumentSummarySchema),
     status: 201,
   },
 })
@@ -894,7 +858,7 @@ export const v2GetKnowledgeDocumentContract = defineRouteContract({
   }),
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2KnowledgeDocumentDataSchema),
+    schema: v2DataResponse(v2KnowledgeDocumentSchema),
   },
 })
 

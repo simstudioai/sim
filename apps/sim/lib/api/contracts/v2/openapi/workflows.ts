@@ -716,7 +716,7 @@ const routes = [
         'CreateWorkflowFolderResponse',
         'Create workflow folder response',
         'The created workflow folder.',
-        [{ data: { folder: WORKFLOW_FOLDER_EXAMPLE } }]
+        [{ data: WORKFLOW_FOLDER_EXAMPLE }]
       ),
     }
   ),
@@ -748,7 +748,7 @@ const routes = [
         'RelocateWorkflowFolderResponse',
         'Relocate workflow folder response',
         'The relocated workflow folder.',
-        [{ data: { folder: { ...WORKFLOW_FOLDER_EXAMPLE, name: 'Support', path: '/Support' } } }]
+        [{ data: { ...WORKFLOW_FOLDER_EXAMPLE, name: 'Support', path: '/Support' } }]
       ),
     }
   ),

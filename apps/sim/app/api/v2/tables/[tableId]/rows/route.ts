@@ -66,7 +66,7 @@ export const POST = defineV2JsonRoute({
   present: (result) => {
     const toNamedRow = namedRowMapper(result.table.schema.columns)
     return result.kind === 'single'
-      ? { data: { row: toApiRow(result.row, toNamedRow) } }
+      ? { data: toApiRow(result.row, toNamedRow) }
       : {
           data: {
             rows: result.rows.map((row) => toApiRow(row, toNamedRow)),

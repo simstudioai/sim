@@ -129,7 +129,7 @@ describe('/api/v2/tables/[tableId]', () => {
     const response = await GET(req, context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.table).toMatchObject({
+    expect((await response.json()).data).toMatchObject({
       id: 'table-1',
       ownerEmail: 'owner@example.com',
     })
@@ -147,7 +147,7 @@ describe('/api/v2/tables/[tableId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.table).toMatchObject({
+    expect((await response.json()).data).toMatchObject({
       name: 'Contacts',
       ownerEmail: 'owner@example.com',
     })

@@ -169,7 +169,7 @@ export const POST = defineV2BodyLifecycleRoute({
     source: 'api' as const,
   }),
   useCase: uploadKnowledgeDocument,
-  present: (result) => ({ data: { document: toV2DocumentSummary(result.document) } }),
+  present: (result) => ({ data: toV2DocumentSummary(result.document) }),
   onSuccess: ({ principal, admission, result }) => {
     PlatformEvents.knowledgeBaseDocumentsUploaded({
       knowledgeBaseId: result.document.knowledgeBaseId,

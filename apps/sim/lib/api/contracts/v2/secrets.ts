@@ -41,17 +41,6 @@ export const v2SecretSchema = z
   })
 export type V2Secret = z.output<typeof v2SecretSchema>
 
-export const v2SecretDataSchema = z
-  .object({
-    secret: v2SecretSchema.describe('Secret metadata. The stored value is never returned.'),
-  })
-  .meta({
-    id: 'V2SecretData',
-    title: 'Secret data',
-    description: 'A single secret-metadata payload without its stored value.',
-  })
-export type V2SecretData = z.output<typeof v2SecretDataSchema>
-
 export const v2SecretDeleteDataSchema = z
   .object({
     name: v2SecretNameSchema,
@@ -120,7 +109,7 @@ export const v2SetSecretContract = defineRouteContract({
   body: v2SetSecretBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SecretDataSchema),
+    schema: v2DataResponse(v2SecretSchema),
     status: [200, 201],
   },
 })

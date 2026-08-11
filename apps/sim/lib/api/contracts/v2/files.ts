@@ -373,16 +373,6 @@ export const v2BulkDeleteFilesResultSchema = z
 
 export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
 
-export const v2FileFolderDataSchema = z
-  .object({
-    folder: v2FolderSchema.describe('Created or relocated folder.'),
-  })
-  .meta({
-    id: 'V2FileFolderData',
-    title: 'File folder data',
-    description: 'A created or relocated file folder.',
-  })
-
 export const v2DeleteFileFolderDataSchema = z
   .object({
     path: v2FolderPathSchema.describe('Deleted folder path.'),
@@ -411,14 +401,14 @@ export const v2CreateFileFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema), status: 201 },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
 
 export const v2RelocateFileFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/files/folders',
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
 
 export const v2DeleteFileFolderContract = defineRouteContract({
@@ -428,31 +418,13 @@ export const v2DeleteFileFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
 })
 
-export const v2GetFileShareResultSchema = z
-  .object({
-    share: v2FileShareSchema
-      .nullable()
-      .describe('Current public share, or null when the file has never been shared.'),
-  })
-  .meta({
-    id: 'V2GetFileShareResult',
-    title: 'File share result',
-    description: 'The nullable public-share state for a file.',
-  })
+/**
+ * The share resource as the read endpoint returns it: `null` when the file has
+ * never been shared.
+ */
+export const v2NullableFileShareSchema = v2FileShareSchema.nullable()
 
-export type V2GetFileShareResult = z.output<typeof v2GetFileShareResultSchema>
-
-export const v2UpsertFileShareResultSchema = z
-  .object({
-    share: v2FileShareSchema.describe('Updated public share.'),
-  })
-  .meta({
-    id: 'V2UpsertFileShareResult',
-    title: 'Updated file share',
-    description: 'The updated public-share state for a file.',
-  })
-
-export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSchema>
+export type V2NullableFileShare = z.output<typeof v2NullableFileShareSchema>
 
 /**
  * Share upsert body. The internal surface accepts a caller-supplied `token` so
@@ -638,7 +610,7 @@ export const v2GetFileShareContract = defineRouteContract({
   query: v2FileWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2GetFileShareResultSchema),
+    schema: v2DataResponse(v2NullableFileShareSchema),
   },
 })
 
@@ -659,7 +631,7 @@ export const v2UpsertFileShareContract = defineRouteContract({
   body: v2UpsertFileShareBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2UpsertFileShareResultSchema),
+    schema: v2DataResponse(v2FileShareSchema),
   },
 })
 

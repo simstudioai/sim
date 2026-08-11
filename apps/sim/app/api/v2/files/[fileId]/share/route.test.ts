@@ -176,7 +176,7 @@ describe('GET /api/v2/files/[fileId]/share', () => {
     const response = await callGet()
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
+    expect((await response.json()).data).toEqual(SHARE)
   })
 
   it('returns the rate-limit response when denied', async () => {
@@ -236,7 +236,7 @@ describe('PATCH /api/v2/files/[fileId]/share', () => {
     })
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
+    expect((await response.json()).data).toEqual(SHARE)
     expect(mocks.updateShare).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {

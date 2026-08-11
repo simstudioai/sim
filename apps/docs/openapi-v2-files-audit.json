@@ -3130,10 +3130,10 @@
         "title": "Move files request",
         "description": "Files and destination selected for a bulk move."
       },
-      "V2GetFileShareResult": {
+      "V2GetFileShareResponse": {
         "type": "object",
         "properties": {
-          "share": {
+          "data": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/V2FileShare"
@@ -3142,20 +3142,7 @@
                 "type": "null"
               }
             ],
-            "description": "Current public share, or null when the file has never been shared."
-          }
-        },
-        "required": ["share"],
-        "additionalProperties": false,
-        "title": "File share result",
-        "description": "The nullable public-share state for a file."
-      },
-      "V2GetFileShareResponse": {
-        "type": "object",
-        "properties": {
-          "data": {
-            "description": "Response data.",
-            "$ref": "#/components/schemas/V2GetFileShareResult"
+            "description": "Response data."
           }
         },
         "required": ["data"],
@@ -3165,45 +3152,28 @@
         "examples": [
           {
             "data": {
-              "share": {
-                "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                "token": "share-token-example",
-                "url": "https://www.sim.ai/f/share-token-example",
-                "isActive": true,
-                "resourceType": "file",
-                "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
-                "authType": "public",
-                "hasPassword": false,
-                "allowedEmails": []
-              }
+              "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+              "token": "share-token-example",
+              "url": "https://www.sim.ai/f/share-token-example",
+              "isActive": true,
+              "resourceType": "file",
+              "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "authType": "public",
+              "hasPassword": false,
+              "allowedEmails": []
             }
           },
           {
-            "data": {
-              "share": null
-            }
+            "data": null
           }
         ]
-      },
-      "V2UpsertFileShareResult": {
-        "type": "object",
-        "properties": {
-          "share": {
-            "description": "Updated public share.",
-            "$ref": "#/components/schemas/V2FileShare"
-          }
-        },
-        "required": ["share"],
-        "additionalProperties": false,
-        "title": "Updated file share",
-        "description": "The updated public-share state for a file."
       },
       "V2UpsertFileShareResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2UpsertFileShareResult"
+            "$ref": "#/components/schemas/V2FileShare"
           }
         },
         "required": ["data"],
@@ -3213,17 +3183,15 @@
         "examples": [
           {
             "data": {
-              "share": {
-                "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
-                "token": "share-token-example",
-                "url": "https://www.sim.ai/f/share-token-example",
-                "isActive": true,
-                "resourceType": "file",
-                "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
-                "authType": "public",
-                "hasPassword": false,
-                "allowedEmails": []
-              }
+              "id": "shr_8Hf3kL9wQ2mNpXr6Tz1Vb",
+              "token": "share-token-example",
+              "url": "https://www.sim.ai/f/share-token-example",
+              "isActive": true,
+              "resourceType": "file",
+              "resourceId": "wf_V1StGXR8z5jdHi6BmyT91",
+              "authType": "public",
+              "hasPassword": false,
+              "allowedEmails": []
             }
           }
         ]
@@ -3442,25 +3410,12 @@
         "title": "File folder list response",
         "description": "Workspace file folders in the current page."
       },
-      "V2FileFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "description": "Created or relocated folder.",
-            "$ref": "#/components/schemas/V2Folder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "File folder data",
-        "description": "A created or relocated file folder."
-      },
       "FileFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2FileFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],

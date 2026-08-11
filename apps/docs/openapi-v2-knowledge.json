@@ -2107,24 +2107,12 @@
         "title": "Knowledge base list response",
         "description": "A cursor-paginated page of knowledge bases."
       },
-      "V2KnowledgeBaseData": {
-        "type": "object",
-        "properties": {
-          "knowledgeBase": {
-            "$ref": "#/components/schemas/V2KnowledgeBase"
-          }
-        },
-        "required": ["knowledgeBase"],
-        "additionalProperties": false,
-        "title": "Knowledge base data",
-        "description": "A single knowledge base payload."
-      },
       "V2KnowledgeBaseResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeBaseData"
+            "$ref": "#/components/schemas/V2KnowledgeBase"
           }
         },
         "required": ["data"],
@@ -2630,24 +2618,12 @@
         "title": "Knowledge document list response",
         "description": "A cursor-paginated page of knowledge documents."
       },
-      "V2KnowledgeDocumentSummaryData": {
-        "type": "object",
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
-          }
-        },
-        "required": ["document"],
-        "additionalProperties": false,
-        "title": "Knowledge document summary data",
-        "description": "A knowledge document upload acknowledgement."
-      },
       "V2KnowledgeDocumentSummaryResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeDocumentSummaryData"
+            "$ref": "#/components/schemas/V2KnowledgeDocumentSummary"
           }
         },
         "required": ["data"],
@@ -3216,24 +3192,12 @@
         "title": "Knowledge document",
         "description": "Full document detail including processing state and connector provenance."
       },
-      "V2KnowledgeDocumentData": {
-        "type": "object",
-        "properties": {
-          "document": {
-            "$ref": "#/components/schemas/V2KnowledgeDocument"
-          }
-        },
-        "required": ["document"],
-        "additionalProperties": false,
-        "title": "Knowledge document data",
-        "description": "A single knowledge document payload."
-      },
       "V2KnowledgeDocumentResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeDocumentData"
+            "$ref": "#/components/schemas/V2KnowledgeDocument"
           }
         },
         "required": ["data"],
@@ -3299,24 +3263,12 @@
         "title": "Knowledge folder list response",
         "description": "A cursor-paginated page of knowledge-base folders."
       },
-      "V2KnowledgeFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "$ref": "#/components/schemas/V2Folder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "Knowledge folder data",
-        "description": "A single knowledge-base folder payload."
-      },
       "V2KnowledgeFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2KnowledgeFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],

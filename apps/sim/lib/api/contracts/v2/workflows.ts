@@ -479,16 +479,6 @@ export const v2WorkflowFolderSchema = v2FolderSchema
   })
 export type V2WorkflowFolder = z.output<typeof v2WorkflowFolderSchema>
 
-export const v2WorkflowFolderDataSchema = z
-  .object({
-    folder: v2WorkflowFolderSchema.describe('Created or relocated workflow folder.'),
-  })
-  .meta({
-    id: 'WorkflowFolderData',
-    title: 'Workflow folder data',
-    description: 'A created or relocated workflow folder.',
-  })
-
 export const v2DeleteWorkflowFolderDataSchema = z
   .object({
     path: v2FolderPathSchema.describe('Path of the deleted workflow folder.'),
@@ -517,14 +507,14 @@ export const v2CreateWorkflowFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema), status: 201 },
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema), status: 201 },
 })
 
 export const v2RelocateWorkflowFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/workflows/folders',
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2WorkflowFolderSchema) },
 })
 
 export const v2DeleteWorkflowFolderContract = defineRouteContract({

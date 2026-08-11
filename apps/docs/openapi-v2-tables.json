@@ -4099,25 +4099,12 @@
         "title": "Table list response",
         "description": "A cursor-paginated page of tables."
       },
-      "V2TableData": {
-        "type": "object",
-        "properties": {
-          "table": {
-            "description": "The requested table.",
-            "$ref": "#/components/schemas/V2ApiTable"
-          }
-        },
-        "required": ["table"],
-        "additionalProperties": false,
-        "title": "Table data",
-        "description": "A single table payload."
-      },
       "V2CreateTableResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableData"
+            "$ref": "#/components/schemas/V2ApiTable"
           }
         },
         "required": ["data"],
@@ -4236,7 +4223,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableData"
+            "$ref": "#/components/schemas/V2ApiTable"
           }
         },
         "required": ["data"],
@@ -4280,7 +4267,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableData"
+            "$ref": "#/components/schemas/V2ApiTable"
           }
         },
         "required": ["data"],
@@ -4699,26 +4686,13 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableRowPayload"
+            "$ref": "#/components/schemas/V2ApiTableRow"
           }
         },
         "required": ["data"],
         "additionalProperties": false,
         "title": "Create single table row response",
         "description": "Response returned after inserting one table row."
-      },
-      "V2TableRowPayload": {
-        "type": "object",
-        "properties": {
-          "row": {
-            "description": "The requested table row.",
-            "$ref": "#/components/schemas/V2ApiTableRow"
-          }
-        },
-        "required": ["row"],
-        "additionalProperties": false,
-        "title": "Table row payload",
-        "description": "A single table row payload."
       },
       "V2CreateBatchTableRowsResponse": {
         "type": "object",
@@ -4971,7 +4945,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableRowPayload"
+            "$ref": "#/components/schemas/V2ApiTableRow"
           }
         },
         "required": ["data"],
@@ -5368,25 +5342,12 @@
         "title": "Table view list response",
         "description": "A cursor envelope containing the saved views."
       },
-      "V2TableViewData": {
-        "type": "object",
-        "properties": {
-          "view": {
-            "description": "The requested saved table view.",
-            "$ref": "#/components/schemas/V2ApiTableView"
-          }
-        },
-        "required": ["view"],
-        "additionalProperties": false,
-        "title": "Table view data",
-        "description": "A single saved table-view payload."
-      },
       "V2CreateTableViewResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableViewData"
+            "$ref": "#/components/schemas/V2ApiTableView"
           }
         },
         "required": ["data"],
@@ -5495,7 +5456,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableViewData"
+            "$ref": "#/components/schemas/V2ApiTableView"
           }
         },
         "required": ["data"],
@@ -7843,25 +7804,12 @@
         "title": "Table folder list response",
         "description": "A cursor envelope containing table folders."
       },
-      "V2TableFolderData": {
-        "type": "object",
-        "properties": {
-          "folder": {
-            "description": "The requested table folder.",
-            "$ref": "#/components/schemas/V2Folder"
-          }
-        },
-        "required": ["folder"],
-        "additionalProperties": false,
-        "title": "Table folder data",
-        "description": "A single table-folder payload."
-      },
       "V2CreateTableFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],
@@ -7892,7 +7840,7 @@
         "properties": {
           "data": {
             "description": "Response data.",
-            "$ref": "#/components/schemas/V2TableFolderData"
+            "$ref": "#/components/schemas/V2Folder"
           }
         },
         "required": ["data"],

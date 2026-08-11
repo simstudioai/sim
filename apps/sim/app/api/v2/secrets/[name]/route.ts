@@ -22,7 +22,7 @@ export const PUT = defineV2JsonRoute({
   mapInput: ({ params, body }) => ({ ...body, name: params.name }),
   useCase: setSecretUseCase,
   statusForResult: ({ created }) => (created ? 201 : 200),
-  present: ({ secret, userId }) => ({ data: { secret: toV2Secret(secret, userId) } }),
+  present: ({ secret, userId }) => ({ data: toV2Secret(secret, userId) }),
 })
 
 /** DELETE /api/v2/secrets/[name] — Delete a secret without reading its value. */

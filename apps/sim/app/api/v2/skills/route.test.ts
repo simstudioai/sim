@@ -129,7 +129,7 @@ describe('/api/v2/skills', () => {
     )
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.skill.id).toBe(skill.id)
+    expect((await response.json()).data.id).toBe(skill.id)
     expect(mocks.create).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
