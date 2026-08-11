@@ -152,14 +152,6 @@ export interface ComboboxProps
 }
 
 /**
- * Option cursor, not a hover affordance: it matches the keyboard highlight, so it
- * keeps `--surface-active` rather than the dimmer `chipHoverSurfaceClass` rows
- * use. Kept alongside `isHighlighted` because `onMouseEnter` does not re-fire
- * when the list scrolls under a stationary pointer.
- */
-const OPTION_CURSOR_CLASS = 'hover-hover:bg-[var(--surface-active)]'
-
-/**
  * Minimal combobox component matching the input and textarea styling.
  * Provides a dropdown selection interface with keyboard navigation support.
  * Supports both select-only and editable (free-text) modes.
@@ -850,7 +842,16 @@ const Combobox = memo(
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                                  OPTION_CURSOR_CLASS,
+                                  /*
+                                     No CSS `:hover` here — `isHighlighted` is the
+                                     single source of truth for the cursor, because
+                                     it is also what Enter commits. A `:hover` class
+                                     tracks the pointer continuously while
+                                     `highlightedIndex` only moves on `mouseenter`,
+                                     so after the list scrolls under a stationary
+                                     pointer the two disagree and the row that looks
+                                     selected is not the one Enter would choose.
+                                  */
                                   (isHighlighted || isSelected) && chipActiveSurfaceClass,
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
@@ -926,7 +927,7 @@ const Combobox = memo(
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                              OPTION_CURSOR_CLASS,
+                              // See above: `isHighlighted` alone, so paint matches what Enter commits.
                               (isHighlighted || isSelected) && chipActiveSurfaceClass,
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}
