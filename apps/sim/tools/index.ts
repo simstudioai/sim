@@ -24,7 +24,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
-import { isTransportTimeoutError, withFetchDeadline } from '@/lib/core/utils/fetch-deadline'
+import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -2444,17 +2444,19 @@ async function executeToolRequest(
 
           const attemptStartedAt = Date.now()
           try {
+            /*
+             * `controller` above is armed with `timeout`, so the plan deadline is
+             * already enforced in-process; the transport timer is disarmed so its
+             * 300s default cannot undercut it.
+             */
             const internalResponse = await fetch(
               fullUrl,
-              withFetchDeadline(
-                {
-                  method: requestParams.method,
-                  headers: headers,
-                  body: requestParams.body,
-                  signal: controller.signal,
-                },
-                timeout
-              )
+              withCallerOwnedDeadline({
+                method: requestParams.method,
+                headers: headers,
+                body: requestParams.body,
+                signal: controller.signal,
+              })
             )
             if (
               nullBodyStatuses.has(internalResponse.status) ||

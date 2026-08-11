@@ -1,12 +1,11 @@
 /**
  * Keeps the transport deadline from undercutting the application deadline.
  *
- * Bun's HTTP client arms an idle timer defaulting to 300s. It re-arms on writes
- * and body-phase reads, but *not* on response-header reads — so it is an
- * absolute deadline for the peer to begin answering. An `AbortSignal` cannot
- * raise it, which makes it invisible to every caller that believes it owns the
- * deadline: a request whose peer legitimately works before it replies dies at
- * five minutes no matter what timeout was computed for it.
+ * Bun's HTTP client arms an idle timer defaulting to 300s. It is not raised by
+ * an `AbortSignal`, and it does not re-arm while awaiting response headers, so
+ * it acts as an absolute deadline for the peer to begin answering. Any request
+ * whose peer legitimately works before it replies dies at five minutes no
+ * matter what deadline the caller computed for it.
  *
  * This bit production. Workflow function blocks are bounded by a plan deadline
  * (50 minutes on enterprise), but the executor's call into the internal
@@ -14,36 +13,42 @@
  * than five minutes failed with a bare `fetch failed` that read as user-code
  * failure rather than a transport cap.
  *
+ * The timer is therefore disarmed rather than re-negotiated: callers on this
+ * path already own an in-process deadline (an `AbortController` armed with the
+ * plan timeout), and a second, shorter, invisible deadline underneath it is
+ * exactly the bug. Disarming leaves one enforcement point instead of two that
+ * disagree.
+ *
+ * Note the pinned runtime accepts only the boolean/zero form. Bun 1.3.14
+ * ignores a positive numeric `timeout` — verified against the pinned version by
+ * observing that `{ timeout: 1000 }` does not abort a request that takes 3s to
+ * answer — so passing the deadline as a number silently changes nothing. The
+ * numeric idle-deadline form exists only on Bun's `main`. Do not "improve" this
+ * to pass the deadline through until the pinned version supports it, and
+ * re-verify with that probe if you do.
+ *
  * Node's undici has no equivalent default and ignores the option, so this is
  * safe on both runtimes.
  */
 
 /**
  * `RequestInit` plus Bun's idle-timeout control, which the DOM lib does not
- * declare. `false` disables the timer entirely; a positive number is the idle
- * deadline in milliseconds.
+ * declare. `false` disarms the timer; `true` or omitted keeps the default.
  */
 export interface DeadlineRequestInit extends RequestInit {
   timeout?: number | boolean
 }
 
 /**
- * Applies `deadlineMs` as the transport idle deadline alongside whatever
- * `AbortSignal` the caller already set, so both layers express one number.
+ * Disarms the transport idle timer so the caller's own deadline is the only one
+ * in force.
  *
- * Pass the same deadline the caller enforces in-process. A non-finite or
- * non-positive deadline means "no application bound", which disables the
- * transport timer rather than silently falling back to Bun's 300s default —
- * falling back is what produced the bug this exists to prevent.
+ * Only use this where the caller genuinely enforces a deadline in-process —
+ * an `AbortSignal` wired to a timer or an execution budget. Without one, a
+ * request to a peer that never answers would hang until the socket dies.
  */
-export function withFetchDeadline(
-  init: RequestInit,
-  deadlineMs: number | undefined
-): DeadlineRequestInit {
-  if (deadlineMs === undefined || !Number.isFinite(deadlineMs) || deadlineMs <= 0) {
-    return { ...init, timeout: false }
-  }
-  return { ...init, timeout: Math.ceil(deadlineMs) }
+export function withCallerOwnedDeadline(init: RequestInit): DeadlineRequestInit {
+  return { ...init, timeout: false }
 }
 
 /**

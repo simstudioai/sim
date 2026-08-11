@@ -2,37 +2,30 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { isTransportTimeoutError, withFetchDeadline } from '@/lib/core/utils/fetch-deadline'
+import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'
 
-describe('withFetchDeadline', () => {
-  it('states the caller deadline as the transport deadline', () => {
-    expect(withFetchDeadline({ method: 'POST' }, 3_000_000).timeout).toBe(3_000_000)
+describe('withCallerOwnedDeadline', () => {
+  /*
+   * The pinned Bun ignores a positive numeric `timeout` and honors only the
+   * boolean/zero form, so anything other than `false` here silently leaves the
+   * 300s default in force — which is the outage this module exists to prevent.
+   */
+  it('disarms the transport timer rather than negotiating a value', () => {
+    expect(withCallerOwnedDeadline({}).timeout).toBe(false)
   })
 
   it('preserves the init the caller already built', () => {
     const signal = new AbortController().signal
-    const init = withFetchDeadline({ method: 'POST', body: 'x', signal }, 1000)
+    const init = withCallerOwnedDeadline({ method: 'POST', body: 'x', signal })
     expect(init.method).toBe('POST')
     expect(init.body).toBe('x')
     expect(init.signal).toBe(signal)
   })
 
-  it('rounds a fractional deadline up rather than down', () => {
-    expect(withFetchDeadline({}, 1500.2).timeout).toBe(1501)
-  })
-
-  /*
-   * The bug this module exists for: an absent application deadline must disable
-   * the transport timer, never fall back to the runtime's 300s default.
-   */
-  it.each([
-    ['undefined', undefined],
-    ['zero', 0],
-    ['negative', -1],
-    ['Infinity', Number.POSITIVE_INFINITY],
-    ['NaN', Number.NaN],
-  ])('disables the transport timer when the deadline is %s', (_label, deadline) => {
-    expect(withFetchDeadline({}, deadline as number | undefined).timeout).toBe(false)
+  it('does not mutate the caller’s init', () => {
+    const original: RequestInit = { method: 'POST' }
+    withCallerOwnedDeadline(original)
+    expect('timeout' in original).toBe(false)
   })
 })
 
