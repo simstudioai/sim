@@ -189,7 +189,6 @@ const EXT_TO_MIME: Record<string, string> = {
   flac: 'audio/flac',
   aac: 'audio/aac',
   opus: 'audio/opus',
-  weba: 'audio/webm',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
@@ -216,7 +215,6 @@ const OUTPUT_EXTS = new Set([
   'flac',
   'aac',
   'opus',
-  'weba',
   'png',
   'jpg',
   'jpeg',
@@ -224,8 +222,13 @@ const OUTPUT_EXTS = new Set([
   'webp',
 ])
 
-/** extract_audio can only name an audio container; the rest would silently produce nothing useful. */
-const AUDIO_EXTS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'weba'])
+/**
+ * extract_audio can only name an audio container; the rest would silently
+ * produce nothing useful. `webm`, not `weba` — FFmpeg's muxer is named webm and
+ * it refuses a .weba output, so allowlisting that extension would only produce
+ * a muxer error at encode time.
+ */
+const AUDIO_EXTS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'webm'])
 
 /**
  * Temp-file names are built as `${prefix}.${ext}` and joined against the temp

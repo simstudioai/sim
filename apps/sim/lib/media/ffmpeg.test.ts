@@ -57,9 +57,17 @@ describe('runFfmpegOperation output format validation', () => {
       (e: Error) => e
     )
 
-    for (const format of ['mp4', 'mov', 'webm', 'mp3', 'wav', 'gif', 'webp', 'weba']) {
+    for (const format of ['mp4', 'mov', 'webm', 'mp3', 'wav', 'gif', 'webp']) {
       expect(error.message).toContain(format)
     }
+  })
+
+  it('rejects weba, which FFmpeg has no muxer for', async () => {
+    // The extension appears in the input MIME map, but `ffmpeg out.weba` fails
+    // with "Error initializing the muxer" — webm is the muxer's real name.
+    await expect(runFfmpegOperation('convert', [mediaFile()], { format: 'weba' })).rejects.toThrow(
+      'Unsupported output format'
+    )
   })
 })
 
