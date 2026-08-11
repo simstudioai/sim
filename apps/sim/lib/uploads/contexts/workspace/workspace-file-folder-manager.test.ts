@@ -40,6 +40,9 @@ describe('workspace file folder paths', () => {
         userId: 'user-1',
         pathSegments: Array.from({ length: MAX_FOLDER_PATH_SEGMENTS + 1 }, () => 'nested'),
       })
-    ).rejects.toThrow(`Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`)
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
   })
 })

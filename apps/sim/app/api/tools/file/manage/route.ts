@@ -762,12 +762,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
               .map((s) => s.trim())
               .filter(Boolean)
           : []
+        let targetFolderPath: string
+        try {
+          targetFolderPath = buildFolderPath(pathSegments)
+        } catch (error) {
+          throw new OrchestrationError('validation', getErrorMessage(error))
+        }
         await moveWorkspaceFileItemsOperation.execute({
           principal,
           input: {
             workspaceId,
             fileIds: [fileId],
-            targetFolderPath: buildFolderPath(pathSegments),
+            targetFolderPath,
           },
           request,
         })

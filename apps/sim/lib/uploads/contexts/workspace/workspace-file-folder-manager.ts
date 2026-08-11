@@ -11,6 +11,7 @@ import { deduplicateFolderName } from '@/lib/folders/naming'
 import {
   buildFolderPath,
   buildFolderPathIndex,
+  FolderPathError,
   folderNameFromPath,
   parentFolderPath,
   parseFolderPath,
@@ -562,7 +563,14 @@ export async function ensureWorkspaceFileFolderPath(params: {
   const pathSegments = params.pathSegments.map((segment) =>
     normalizeWorkspaceFileItemName(segment, 'Folder')
   )
-  buildFolderPath(pathSegments)
+  try {
+    buildFolderPath(pathSegments)
+  } catch (error) {
+    if (error instanceof FolderPathError) {
+      throw new OrchestrationError('validation', error.message)
+    }
+    throw error
+  }
 
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of

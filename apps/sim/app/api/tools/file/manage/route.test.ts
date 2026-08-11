@@ -4,6 +4,7 @@
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 
 const {
   mockAssertActiveWorkspaceAccess,
@@ -454,6 +455,27 @@ describe('POST /api/tools/file/manage content provenance', () => {
         },
       })
     )
+  })
+
+  it('returns 400 before moving when the target folder path exceeds canonical limits', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'move',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        targetFolder: Array.from(
+          { length: MAX_FOLDER_PATH_SEGMENTS + 1 },
+          (_, index) => `folder-${index}`
+        ).join('/'),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
+    expect(mockMoveWorkspaceFileItems).not.toHaveBeenCalled()
   })
 
   it('persists an authenticated file write with unavailable lineage as unknown', async () => {
