@@ -1,9 +1,18 @@
 import { loggerMock } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockDecryptSecret, mockRedactObjectStrings } = vi.hoisted(() => ({
-  mockDecryptSecret: vi.fn(),
-  mockRedactObjectStrings: vi.fn(async (value: unknown) => value),
+const { mockDecryptSecret, mockRedactObjectStrings, mockIsEnforced, mockReportUnrecorded } =
+  vi.hoisted(() => ({
+    mockDecryptSecret: vi.fn(),
+    mockRedactObjectStrings: vi.fn(async (value: unknown) => value),
+    mockIsEnforced: vi.fn(() => false),
+    mockReportUnrecorded: vi.fn(),
+  }))
+
+vi.mock('@/lib/execution/durable-secret-provenance-enforcement', () => ({
+  DURABLE_SECRET_PROVENANCE_SURFACES: ['memory', 'table-row', 'knowledge'],
+  isDurableSecretProvenanceEnforced: mockIsEnforced,
+  reportUnrecordedDurableProvenance: mockReportUnrecorded,
 }))
 
 vi.mock('@/lib/core/security/encryption', () => ({
@@ -35,6 +44,7 @@ describe('Memory', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
+    mockIsEnforced.mockReturnValue(false)
     mockDecryptSecret.mockImplementation(async (encryptedValue: string) => ({
       decrypted: `decrypted:${encryptedValue}`,
     }))
@@ -268,7 +278,7 @@ describe('Memory', () => {
 
     it('persists raw memory with unknown lineage when provenance is unavailable', async () => {
       const registry = new ResolvedSecretTraceRegistry()
-      registry.markIncomplete()
+      registry.markIncomplete('unspecified')
       const appendMessage = vi
         .spyOn(memoryService as any, 'appendMessage')
         .mockResolvedValue(undefined)
@@ -283,7 +293,7 @@ describe('Memory', () => {
 
     it('seeds raw memory with unknown lineage when provenance is unavailable', async () => {
       const registry = new ResolvedSecretTraceRegistry()
-      registry.markIncomplete()
+      registry.markIncomplete('unspecified')
       const seedMemoryRecord = vi
         .spyOn(memoryService as any, 'seedMemoryRecord')
         .mockResolvedValue(undefined)
@@ -502,6 +512,48 @@ describe('Memory', () => {
 
       expect(messages).toEqual([retainedPublicMessage])
       expect(mockDecryptSecret).not.toHaveBeenCalled()
+    })
+
+    /** Trace 2's shape: a stored memory a previous run could not vouch for. */
+    it('reads a memory with unrecorded provenance while the surface stays open', async () => {
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+      vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
+        messages: [{ role: 'user', content: 'how do i see my tickets?' }],
+        provenance: { status: 'unknown' },
+      })
+
+      const messages = await memoryService.fetchMemoryMessages(
+        createContext(registry) as never,
+        inputs
+      )
+
+      expect(messages).toEqual([{ role: 'user', content: 'how do i see my tickets?' }])
+      expect(registry.isPermanentlyIncomplete()).toBe(false)
+      expect(mockReportUnrecorded).toHaveBeenCalledWith({
+        surface: 'memory',
+        cause: 'stored-memory-provenance-unknown',
+        workspaceId: 'workspace-1',
+      })
+    })
+
+    it('refuses that same memory once the memory surface is closed', async () => {
+      mockIsEnforced.mockReturnValue(true)
+      const registry = new ResolvedSecretTraceRegistry([], {
+        userId: 'user-1',
+        workspaceId: 'workspace-1',
+      })
+      vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
+        messages: [{ role: 'user', content: 'how do i see my tickets?' }],
+        provenance: { status: 'unknown' },
+      })
+
+      await expect(
+        memoryService.fetchMemoryMessages(createContext(registry) as never, inputs)
+      ).rejects.toThrow()
+      expect(mockReportUnrecorded).not.toHaveBeenCalled()
     })
   })
 

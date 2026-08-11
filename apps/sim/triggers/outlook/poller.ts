@@ -30,6 +30,7 @@ export const outlookPollingTrigger: TriggerConfig = {
     {
       id: 'folderIds',
       title: 'Outlook Folders to Monitor',
+      canvasNoun: 'a folder',
       type: 'dropdown',
       multiSelect: true,
       placeholder: 'Select Outlook folders to monitor for new emails',

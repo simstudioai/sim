@@ -3,6 +3,7 @@ import { createCohereAdapter } from '@/lib/embeddings/providers/cohere'
 import { createGeminiAdapter } from '@/lib/embeddings/providers/gemini'
 import { createMistralAdapter } from '@/lib/embeddings/providers/mistral'
 import { createOpenAIAdapter } from '@/lib/embeddings/providers/openai'
+import { createOpenRouterAdapter } from '@/lib/embeddings/providers/openrouter'
 import type {
   AzureEmbeddingAdapterContext,
   EmbeddingAdapterFactory,
@@ -17,6 +18,7 @@ type AdapterFactoryFor<K extends EmbeddingProviderKind> = K extends 'azure-opena
 const ADAPTER_FACTORIES: { [K in EmbeddingProviderKind]: AdapterFactoryFor<K> } = {
   openai: createOpenAIAdapter,
   'azure-openai': createAzureOpenAIAdapter,
+  openrouter: createOpenRouterAdapter,
   gemini: createGeminiAdapter,
   cohere: createCohereAdapter,
   mistral: createMistralAdapter,
@@ -34,4 +36,5 @@ export {
   createGeminiAdapter,
   createMistralAdapter,
   createOpenAIAdapter,
+  createOpenRouterAdapter,
 }

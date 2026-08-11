@@ -372,7 +372,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
         results: rows,
       })
       if (!provenanceSnapshot.imported) {
-        registry.markIncomplete()
+        registry.markIncomplete('knowledge-result-provenance-unavailable')
         if (useReranker) throw new KnowledgeSearchProvenanceUnavailableError()
       }
     }
@@ -532,7 +532,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             'knowledge'
           ))
         ) {
-          registry.markIncomplete()
+          registry.markIncomplete('knowledge-result-provenance-unavailable')
         }
       }
     }

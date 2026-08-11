@@ -8,6 +8,9 @@ import {
   type ChromeActionSpec,
   ResourceChromeFallback,
 } from '@/app/workspace/[workspaceId]/components'
+import { FOLDERED_RESOURCE_HEADERS } from '@/app/workspace/[workspaceId]/components/folders/foldered-resources'
+
+const KNOWLEDGE_HEADER = FOLDERED_RESOURCE_HEADERS.knowledge_base
 
 const COLUMNS = [
   { id: 'content', header: 'Content' },
@@ -19,7 +22,7 @@ const COLUMNS = [
 const ACTIONS: ChromeActionSpec[] = [{ text: 'New chunk', icon: Plus, variant: 'primary' }]
 
 const BREADCRUMBS: BreadcrumbItem[] = [
-  { label: 'Knowledge Base', icon: Database, onClick: noop },
+  { label: KNOWLEDGE_HEADER.rootLabel, icon: Database, onClick: noop },
   { label: '…', icon: Database },
   { label: '…', terminal: true },
 ]

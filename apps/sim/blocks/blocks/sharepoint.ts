@@ -9,6 +9,19 @@ import type { SharepointResponse } from '@/tools/sharepoint/types'
 
 const logger = createLogger('SharepointBlock')
 
+/*
+ * Canonical basic/advanced pairs. The site picker is shared by both exports,
+ * but the list and file pairs renamed their advanced member in v2, so each
+ * version needs its own alias.
+ */
+const SITE_FIELD = ['siteSelector', 'manualSiteId'] as const
+const LIST_FIELD = ['listSelector', 'listId'] as const
+const FILES_FIELD = ['uploadFiles', 'files'] as const
+const V2_LIST_FIELD = ['listSelector', 'manualListId'] as const
+const V2_FILES_FIELD = ['uploadFiles', 'fileRefs'] as const
+/* Reading a page accepts either identifier; neither is a canonical pair. */
+const PAGE_REF_FIELD = ['pageName', 'pageId'] as const
+
 export const SharepointBlock: BlockConfig<SharepointResponse> = {
   type: 'sharepoint',
   name: 'Sharepoint',
@@ -23,6 +36,80 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: MicrosoftSharepointIcon,
+  canvasPresentation: {
+    defaultTitle: 'Sharepoint',
+    sentences: {
+      byOperation: {
+        create_page: [
+          { text: 'Create page', field: 'pageName', core: true },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        read_page: [
+          { text: 'Read page', field: PAGE_REF_FIELD, core: true },
+          { text: 'from', field: SITE_FIELD, core: true },
+        ],
+        update_page: [
+          'Update a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'in', field: SITE_FIELD, core: true },
+          { text: ', setting title to', field: 'pageTitle' },
+        ],
+        publish_page: [
+          'Publish a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        delete_page: [
+          'Delete a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'from', field: SITE_FIELD, core: true },
+        ],
+        list_sites: ['List sites', { text: ', in group', field: 'groupId' }],
+        create_list: [
+          { text: 'Create list', field: 'listDisplayName', core: true },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        read_list: [
+          { text: 'Read metadata for list', field: LIST_FIELD, core: true },
+          { text: 'in', field: SITE_FIELD },
+        ],
+        update_list: [
+          { text: 'Update item', field: 'listItemId', core: true },
+          { text: 'in list', field: LIST_FIELD, core: true },
+          { text: ', setting', field: 'listItemFields' },
+        ],
+        add_list_items: [
+          { text: 'Add an item to list', field: LIST_FIELD, core: true },
+          { text: ', with', field: 'listItemFields' },
+        ],
+        get_list_item: [
+          { text: 'Read item', field: 'listItemId', core: true },
+          { text: 'from list', field: LIST_FIELD, core: true },
+        ],
+        delete_list_item: [
+          { text: 'Delete item', field: 'listItemId', core: true },
+          { text: 'from list', field: LIST_FIELD, core: true },
+        ],
+        upload_file: [
+          { text: 'Upload', field: FILES_FIELD, core: true },
+          { text: 'to', field: SITE_FIELD, core: true },
+          { text: ', under', field: 'folderPath' },
+        ],
+        download_file: [
+          { text: 'Download file', field: 'driveItemId', core: true },
+          { text: 'from library', field: 'driveId' },
+        ],
+        get_drive_item: [
+          { text: 'Read metadata for file', field: 'driveItemId', core: true },
+          { text: 'in library', field: 'driveId' },
+        ],
+        delete_file: [
+          { text: 'Delete file', field: 'driveItemId', core: true },
+          { text: 'from library', field: 'driveId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -46,6 +133,7 @@ export const SharepointBlock: BlockConfig<SharepointResponse> = {
         { label: 'Get Drive Item', id: 'get_drive_item' },
         { label: 'Delete File', id: 'delete_file' },
       ],
+      value: () => 'create_page',
     },
     {
       id: 'credential',
@@ -826,6 +914,80 @@ export const SharepointV2Block: BlockConfig<SharepointResponse> = {
   type: 'sharepoint_v2',
   name: 'SharePoint',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'SharePoint',
+    sentences: {
+      byOperation: {
+        sharepoint_create_page: [
+          { text: 'Create page', field: 'pageName', core: true },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        sharepoint_read_page: [
+          { text: 'Read page', field: PAGE_REF_FIELD, core: true },
+          { text: 'from', field: SITE_FIELD, core: true },
+        ],
+        sharepoint_update_page: [
+          'Update a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'in', field: SITE_FIELD, core: true },
+          { text: ', setting title to', field: 'pageTitle' },
+        ],
+        sharepoint_publish_page: [
+          'Publish a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        sharepoint_delete_page: [
+          'Delete a page',
+          { text: 'with ID', field: 'pageId' },
+          { text: 'from', field: SITE_FIELD, core: true },
+        ],
+        sharepoint_list_sites: ['List sites', { text: ', in group', field: 'groupId' }],
+        sharepoint_create_list: [
+          { text: 'Create list', field: 'listDisplayName', core: true },
+          { text: 'in', field: SITE_FIELD, core: true },
+        ],
+        sharepoint_get_list: [
+          { text: 'Read metadata for list', field: V2_LIST_FIELD, core: true },
+          { text: 'in', field: SITE_FIELD },
+        ],
+        sharepoint_update_list: [
+          { text: 'Update item', field: 'itemId', core: true },
+          { text: 'in list', field: V2_LIST_FIELD, core: true },
+          { text: ', setting', field: 'listItemFields' },
+        ],
+        sharepoint_add_list_items: [
+          { text: 'Add an item to list', field: V2_LIST_FIELD, core: true },
+          { text: ', with', field: 'listItemFields' },
+        ],
+        sharepoint_get_list_item: [
+          { text: 'Read item', field: 'itemId', core: true },
+          { text: 'from list', field: V2_LIST_FIELD, core: true },
+        ],
+        sharepoint_delete_list_item: [
+          { text: 'Delete item', field: 'itemId', core: true },
+          { text: 'from list', field: V2_LIST_FIELD, core: true },
+        ],
+        sharepoint_upload_file: [
+          { text: 'Upload', field: V2_FILES_FIELD, core: true },
+          { text: 'to', field: SITE_FIELD, core: true },
+          { text: ', under', field: 'folderPath' },
+        ],
+        sharepoint_download_file: [
+          { text: 'Download file', field: 'driveItemId', core: true },
+          { text: 'from library', field: 'driveId' },
+        ],
+        sharepoint_get_drive_item: [
+          { text: 'Read metadata for file', field: 'driveItemId', core: true },
+          { text: 'in library', field: 'driveId' },
+        ],
+        sharepoint_delete_file: [
+          { text: 'Delete file', field: 'driveItemId', core: true },
+          { text: 'from library', field: 'driveId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

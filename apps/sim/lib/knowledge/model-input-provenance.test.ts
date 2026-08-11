@@ -216,7 +216,7 @@ describe('Knowledge model input provenance', () => {
 
   it('fails before model egress when an active request registry is incomplete', () => {
     const registry = new ResolvedSecretTraceRegistry([])
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(() =>
       runWithKnowledgeModelInputProvenance(registry, () =>

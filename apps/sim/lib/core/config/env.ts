@@ -21,6 +21,23 @@ const getEnv = (variable: string): string | undefined => {
   return window.__ENV?.[variable] ?? process.env[variable]
 }
 
+/**
+ * Whether `window.__ENV` was still unset when this module first evaluated in the
+ * browser. Always `false` on the server.
+ *
+ * Module bodies run inside the framework bootstrap, which an `async` chunk can
+ * start before the parser has reached the inline assignment at the end of
+ * `<head>`. Reads made during render are unaffected: nothing renders until the
+ * RSC payload arrives, and that streams from `<body>` — after the assignment.
+ * Module-scope reads have no such ordering, and the values they derive
+ * (`isHosted` and the other flags in `env-flags`) stay frozen for the session.
+ *
+ * Reported once per load so the rate is measurable rather than assumed; it is
+ * what decides whether those flags need to become lazy.
+ */
+export const publicEnvMissingAtModuleInit =
+  typeof window !== 'undefined' && window.__ENV === undefined
+
 // biome-ignore format: keep alignment for readability
 export const env = createEnv({
   skipValidation: true,
@@ -166,6 +183,7 @@ export const env = createEnv({
     OPENAI_API_KEY_1:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_2:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
     OPENAI_API_KEY_3:                      z.string().min(1).optional(),           // Additional OpenAI API key for load balancing
+    OPENROUTER_API_KEY:                    z.string().min(1).optional(),           // OpenRouter API key; self-hosted fallback for OpenAI knowledge-base embeddings
     MISTRAL_API_KEY:                       z.string().min(1).optional(),           // Mistral AI API key
     ANTHROPIC_API_KEY_1:                   z.string().min(1).optional(),           // Primary Anthropic Claude API key
     ANTHROPIC_API_KEY_2:                   z.string().min(1).optional(),           // Additional Anthropic API key for load balancing

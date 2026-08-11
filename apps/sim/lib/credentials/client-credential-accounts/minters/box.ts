@@ -12,6 +12,7 @@ import {
   parseProviderJson,
   providerFailureReason,
   readProviderErrorSnippet,
+  requireClientSecret,
   TokenServiceAccountValidationError,
 } from '@/lib/credentials/token-service-accounts/errors'
 
@@ -148,6 +149,7 @@ export async function mintBoxServiceAccountToken(
   fields: ClientCredentialAccountFields,
   options?: ClientCredentialAccountMintOptions
 ): Promise<ClientCredentialAccountMintResult> {
+  const clientSecret = requireClientSecret(fields.clientSecret, 'box_token_mint', 'Box')
   const res = await fetchProvider(
     BOX_TOKEN_URL,
     {
@@ -156,7 +158,7 @@ export async function mintBoxServiceAccountToken(
       body: new URLSearchParams({
         grant_type: 'client_credentials',
         client_id: fields.clientId,
-        client_secret: fields.clientSecret,
+        client_secret: clientSecret,
         box_subject_type: 'enterprise',
         box_subject_id: fields.orgId,
       }).toString(),

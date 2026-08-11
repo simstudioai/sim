@@ -466,7 +466,8 @@ function secretFingerprintOf(encryptedServiceAccountKey: string): string {
 
 /**
  * Resolves a client-credential service-account credential to a short-lived
- * access token: decrypts the stored client id/secret + org id and mints via
+ * access token: decrypts the stored credential material (client id + secret,
+ * or the private key and run-as username for key-based grants) and mints via
  * the provider's registered minter (skipping the connect-time identity
  * lookup), read-through the per-instance cache. Wrapped in `coalesceLocally`
  * so concurrent block executions on one instance share a single mint.
@@ -526,6 +527,9 @@ async function resolveClientCredentialAccountToken(
           clientSecret: blob.clientSecret,
           orgId: blob.orgId,
           dataCenter: blob.dataCenter,
+          authMethod: blob.authMethod,
+          privateKey: blob.privateKey,
+          username: blob.username,
         },
         { skipIdentity: true }
       )

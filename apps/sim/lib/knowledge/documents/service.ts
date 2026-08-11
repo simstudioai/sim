@@ -937,8 +937,7 @@ export async function processDocumentAsync(
         .where(eq(document.id, documentId))
       return
     }
-    let totalEmbeddingTokens = 0
-    let embeddingIsBYOK = false
+    let billableEmbeddingTokens = 0
     let embeddingModelName = kbEmbeddingModel
     let embeddingPricingId = kbEmbeddingModel
 
@@ -1005,17 +1004,15 @@ export async function processDocumentAsync(
               logger.info(`[${documentId}] Processing embedding batch ${batchNum}/${totalBatches}`)
               const {
                 embeddings: batchEmbeddings,
-                totalTokens: batchTokens,
-                isBYOK,
+                billableTokens: batchBillableTokens,
                 modelName,
                 pricingId,
               } = await generateEmbeddings(batch, kbEmbeddingModel, ctx.workspaceId)
               for (const emb of batchEmbeddings) {
                 embeddings.push(emb)
               }
-              totalEmbeddingTokens += batchTokens
+              billableEmbeddingTokens += batchBillableTokens
               if (i === 0) {
-                embeddingIsBYOK = isBYOK
                 embeddingModelName = modelName
                 embeddingPricingId = pricingId
               }
@@ -1149,12 +1146,12 @@ export async function processDocumentAsync(
     const processingTime = Date.now() - startTime
     logger.info(`[${documentId}] Successfully processed document in ${processingTime}ms`)
 
-    if (!embeddingIsBYOK && totalEmbeddingTokens > 0) {
+    if (billableEmbeddingTokens > 0) {
       try {
         const costMultiplier = getCostMultiplier()
         const { total: cost } = calculateCost(
           embeddingPricingId,
-          totalEmbeddingTokens,
+          billableEmbeddingTokens,
           0,
           false,
           costMultiplier
@@ -1171,7 +1168,7 @@ export async function processDocumentAsync(
                 description: embeddingModelName,
                 cost,
                 sourceReference: `knowledge-document:${documentId}:${startTime}`,
-                metadata: { inputTokens: totalEmbeddingTokens, outputTokens: 0 },
+                metadata: { inputTokens: billableEmbeddingTokens, outputTokens: 0 },
               },
             ],
           })
@@ -1183,7 +1180,7 @@ export async function processDocumentAsync(
         } else {
           logger.warn(
             `[${documentId}] Embedding model "${embeddingModelName}" has no pricing entry — billing skipped`,
-            { totalEmbeddingTokens, embeddingModelName }
+            { billableEmbeddingTokens, embeddingModelName }
           )
         }
       } catch (billingError) {

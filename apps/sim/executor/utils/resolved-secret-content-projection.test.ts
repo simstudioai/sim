@@ -70,7 +70,7 @@ describe('projectResolvedSecretModelContent', () => {
       value: '{{TOKEN}}',
     })
 
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     expect(projectResolvedSecretModelContent('secret-value', registry)).toEqual({ safe: false })
     expect(projectResolvedSecretModelContent('secret-value', undefined)).toEqual({ safe: false })
   })
@@ -368,7 +368,7 @@ describe('projectResolvedSecretModelJsonContent', () => {
 
   it('does not invoke JSON serialization when provenance is incomplete', () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const toJSON = vi.fn(() => ({ value: 'untrusted' }))
 
     expect(projectResolvedSecretModelJsonContent({ toJSON }, registry)).toEqual({ safe: false })
@@ -474,7 +474,7 @@ describe('projectResolvedSecretDiagnosticError', () => {
   it('falls back to text-free structure when provenance is missing or incomplete', () => {
     const error = new Error('secret __var_API_KEY')
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     expect(projectResolvedSecretDiagnosticError(error, undefined)).toEqual({
       errorType: 'error',

@@ -1,3 +1,4 @@
+-- migration-safe: additive enums, table, indexes, and nullable column are ignored by released app versions; the trigger functions are replaced atomically with backward-compatible row-count accounting.
 CREATE TYPE "public"."upload_session_method" AS ENUM('put', 'multipart');--> statement-breakpoint
 CREATE TYPE "public"."upload_session_provider" AS ENUM('local', 's3', 'blob', 'gcs');--> statement-breakpoint
 CREATE TYPE "public"."upload_session_purpose" AS ENUM('workspace_file', 'table_import', 'knowledge_document', 'profile_picture', 'workspace_logo', 'mothership_attachment', 'execution_attachment');--> statement-breakpoint

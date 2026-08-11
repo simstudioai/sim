@@ -2000,7 +2000,7 @@ describe('executeTool Function', () => {
 
   it('runs a private-provenance call from an incomplete parent without replacing its result', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     const fetchMock = vi.mocked(global.fetch)
 
     const result = await executeTool(
@@ -2014,10 +2014,26 @@ describe('executeTool Function', () => {
     expect(fetchMock).toHaveBeenCalled()
   })
 
+  /**
+   * The shape that latched in production with `reason: "unspecified"` — a getter or symbol key on
+   * the params record makes the input lineage unboundable, and the fork is marked before the tool
+   * runs. Pinned by name so a refusal downstream can be traced back to this guard.
+   */
+  it('names the guard when tool params are not enumerable plain data', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const params: Record<string, unknown> = { code: 'return "unreachable"' }
+    Object.defineProperty(params, 'envVars', { enumerable: true, get: () => ({}) })
+
+    await executeTool('function_execute', params, { resolvedSecretTraceRegistry: registry })
+
+    expect(registry.isComplete()).toBe(false)
+    expect(registry.getIncompletenessDiagnostics()?.reasons).toContain('tool-input-not-enumerable')
+  })
+
   it('runs a private-provenance call when its input lineage cannot be bounded', async () => {
     const registry = new ResolvedSecretTraceRegistry()
     const incompleteToolRegistry = registry.forkForToolCall()
-    incompleteToolRegistry.markIncomplete()
+    incompleteToolRegistry.markIncomplete('unspecified')
     vi.spyOn(registry, 'forkForInputPaths').mockReturnValue(incompleteToolRegistry)
     const fetchMock = vi.mocked(global.fetch)
 

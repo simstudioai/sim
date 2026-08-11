@@ -14,6 +14,24 @@ export const IcypeasBlock: BlockConfig<IcypeasResponse> = {
   bgColor: '#d4d4d4',
   icon: IcypeasIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Icypeas',
+    sentences: {
+      byOperation: {
+        icypeas_find_email: [
+          {
+            text: 'Find the email for',
+            field: ['fe_firstname', 'fe_lastname'],
+            core: true,
+          },
+          { text: 'at', field: 'fe_domainOrCompany', core: true },
+        ],
+        icypeas_verify_email: [
+          { text: 'Verify', field: 've_email', after: 'is deliverable', core: true },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

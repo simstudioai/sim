@@ -1434,7 +1434,7 @@ export async function executeTool(
   const toolRegistry = paramEntries
     ? parentRegistry.forkForInputPaths(paramEntries.map(([key]) => [key] as const))
     : parentRegistry.forkForToolCall()
-  if (!paramEntries) toolRegistry.markIncomplete()
+  if (!paramEntries) toolRegistry.markIncomplete('tool-input-not-enumerable')
   const executionContext = options.executionContext
     ? { ...options.executionContext, resolvedSecretTraceRegistry: toolRegistry }
     : undefined

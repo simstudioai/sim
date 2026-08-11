@@ -11,6 +11,36 @@ export const ZepBlock: BlockConfig<ZepResponse> = {
     'Integrate Zep for long-term memory management. Create threads, add messages, retrieve context with AI-powered summaries and facts extraction.',
   bgColor: '#E8E8E8',
   icon: ZepIcon,
+  canvasPresentation: {
+    defaultTitle: 'Zep',
+    sentences: {
+      byOperation: {
+        create_thread: [
+          { text: 'Create thread', field: 'threadId', core: true },
+          { text: 'for user', field: 'userId' },
+        ],
+        add_messages: [{ text: 'Add messages to thread', field: 'threadId', core: true }],
+        get_context: [{ text: 'Fetch user context from thread', field: 'threadId', core: true }],
+        get_messages: [
+          {
+            text: 'Read the latest',
+            field: 'limit',
+            after: 'messages',
+            core: true,
+          },
+          { text: 'from thread', field: 'threadId', core: true },
+        ],
+        get_threads: [{ text: 'List up to', field: 'limit', after: 'threads', core: true }],
+        delete_thread: [{ text: 'Delete thread', field: 'threadId', core: true }],
+        add_user: [
+          { text: 'Create user', field: 'userId', core: true },
+          { text: 'with email', field: 'email' },
+        ],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        get_user_threads: [{ text: 'List threads for user', field: 'userId', core: true }],
+      },
+    },
+  },
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/zep',

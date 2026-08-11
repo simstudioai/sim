@@ -237,7 +237,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         return { success: true, output: { value: 'secret-value' } }
       }
     )
@@ -270,7 +270,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         throw new Error('secret-value')
       }
     )
@@ -300,7 +300,7 @@ describe('executeToolAndReport provenance isolation', () => {
         _params: Record<string, unknown>,
         toolContext: ExecutionContext
       ) => {
-        toolContext.resolvedSecretTraceRegistry?.markIncomplete()
+        toolContext.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
         abortController.abort()
         return { success: true, output: { value: 'secret-value' } }
       }

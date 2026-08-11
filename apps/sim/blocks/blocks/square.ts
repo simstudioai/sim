@@ -5,6 +5,12 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 import type { SquareResponse } from '@/tools/square/types'
 
+const CUSTOMER_NAME_FIELD = ['givenName', 'companyName', 'nickname'] as const
+
+const CUSTOMER_CONTACT_FIELD = ['emailAddress', 'phoneNumber'] as const
+
+const CATALOG_IMAGE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const SquareBlock: BlockConfig<SquareResponse> = {
   type: 'square',
   name: 'Square',
@@ -17,6 +23,136 @@ export const SquareBlock: BlockConfig<SquareResponse> = {
   integrationType: IntegrationType.Commerce,
   bgColor: '#000000',
   icon: SquareIcon,
+  canvasPresentation: {
+    defaultTitle: 'Square',
+    sentences: {
+      byOperation: {
+        create_payment: [
+          { text: 'Take a payment of', field: 'amount', core: true },
+          { text: 'from source', field: 'sourceId', core: true },
+          { text: ', for customer', field: 'customerId' },
+        ],
+        get_payment: [{ text: 'Fetch payment', field: 'paymentId', core: true }],
+        list_payments: [
+          'List payments',
+          { text: ', at location', field: 'locationId' },
+          { text: ', from', field: 'beginTime' },
+          { text: ', until', field: 'endTime' },
+        ],
+        cancel_payment: [{ text: 'Void authorized payment', field: 'paymentId', core: true }],
+        complete_payment: [
+          { text: 'Capture payment', field: 'paymentId', core: true },
+          { text: ', at version', field: 'versionToken' },
+        ],
+        refund_payment: [
+          { text: 'Refund payment', field: 'paymentId', core: true },
+          { text: ', for', field: 'amount' },
+          { text: ', because', field: 'reason' },
+        ],
+        get_refund: [{ text: 'Fetch refund', field: 'refundId', core: true }],
+        list_refunds: [
+          'List refunds',
+          { text: ', with status', field: 'status' },
+          { text: ', at location', field: 'locationId' },
+          { text: ', from', field: 'beginTime' },
+        ],
+        create_customer: [
+          'Create a customer profile',
+          { text: ', named', field: CUSTOMER_NAME_FIELD },
+          { text: ', reachable at', field: CUSTOMER_CONTACT_FIELD },
+        ],
+        get_customer: [{ text: 'Fetch customer', field: 'customerId', core: true }],
+        list_customers: [
+          'List customer profiles',
+          { text: ', sorted by', field: 'sortField' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        search_customers: [
+          'Search customer profiles',
+          { text: ', matching', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        update_customer: [
+          { text: 'Update customer', field: 'customerId', core: true },
+          { text: ', setting the name to', field: CUSTOMER_NAME_FIELD },
+          { text: ', with contact', field: CUSTOMER_CONTACT_FIELD },
+        ],
+        delete_customer: [{ text: 'Delete customer', field: 'customerId', core: true }],
+        list_locations: ['List every location on the account'],
+        get_location: [{ text: 'Fetch location', field: 'locationId', core: true }],
+        create_order: [{ text: 'Create an order from', field: 'order', core: true }],
+        get_order: [{ text: 'Fetch order', field: 'orderId', core: true }],
+        search_orders: [
+          'Search orders',
+          { text: ', at locations', field: 'locationIds' },
+          { text: ', matching', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        pay_order: [
+          { text: 'Pay order', field: 'orderId', core: true },
+          { text: ', with', field: 'paymentIds' },
+          { text: ', at version', field: 'orderVersion' },
+        ],
+        create_invoice: [{ text: 'Create a draft invoice from', field: 'invoice', core: true }],
+        get_invoice: [{ text: 'Fetch invoice', field: 'invoiceId', core: true }],
+        list_invoices: [
+          { text: 'List invoices at location', field: 'locationId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        search_invoices: [
+          { text: 'Search invoices at location', field: 'locationId', core: true },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        publish_invoice: [
+          {
+            text: 'Publish invoice',
+            field: 'invoiceId',
+            after: 'to the customer',
+            core: true,
+          },
+          { text: ', at version', field: 'version' },
+        ],
+        cancel_invoice: [
+          { text: 'Cancel published invoice', field: 'invoiceId', core: true },
+          { text: ', at version', field: 'version' },
+        ],
+        delete_invoice: [
+          { text: 'Delete draft invoice', field: 'invoiceId', core: true },
+          { text: ', at version', field: 'version' },
+        ],
+        upsert_catalog_object: [
+          { text: 'Create or update a catalog object from', field: 'object', core: true },
+        ],
+        get_catalog_object: [{ text: 'Fetch catalog object', field: 'objectId', core: true }],
+        list_catalog: ['List catalog objects', { text: ', of type', field: 'types' }],
+        search_catalog_objects: [
+          'Search catalog objects',
+          { text: ', of type', field: 'objectTypes' },
+          { text: ', matching', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'results' },
+        ],
+        create_catalog_image: [
+          { text: 'Upload', field: CATALOG_IMAGE_FIELD, core: true },
+          { text: 'to catalog object', field: 'objectId' },
+          { text: ', captioned', field: 'caption' },
+        ],
+        delete_catalog_object: [
+          {
+            text: 'Delete catalog object',
+            field: 'objectId',
+            after: 'and its children',
+            core: true,
+          },
+        ],
+        batch_retrieve_inventory_counts: [
+          'Read inventory counts',
+          { text: ', for', field: 'catalogObjectIds' },
+          { text: ', at locations', field: 'locationIds' },
+          { text: ', in state', field: 'states' },
+        ],
+      },
+    },
+  },
 
   subBlocks: [
     {

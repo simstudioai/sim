@@ -72,14 +72,24 @@ export async function createBackfillExecutionSecretRegistry(options: {
     ? options.executionData.executionState
     : undefined
   const provenance = state?.resolvedSecretTraceProvenance
+  /**
+   * A state persisted before the checkpoint contract carries no version at all. That is the bulk of
+   * any backfill over historical rows, so it is separated from a checkpoint that exists but cannot
+   * be used — only the latter is worth an error, and conflating them would put one line per legacy
+   * row into the error stream.
+   */
+  const checkpointPresent =
+    state?.resolvedSecretTraceCheckpointVersion === RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION
   const valid =
-    state?.resolvedSecretTraceCheckpointVersion === RESOLVED_SECRET_TRACE_CHECKPOINT_VERSION &&
+    checkpointPresent &&
     state?.sourceExecutionId === options.executionId &&
     isResolvedSecretTraceProvenanceV1(provenance) &&
     provenance.scope?.workspaceId === options.workspaceId
   const registry = new ResolvedSecretTraceRegistry([], valid ? provenance.scope : undefined)
   if (!valid) {
-    registry.markIncomplete()
+    registry.markIncomplete(
+      checkpointPresent ? 'backfill-checkpoint-unusable' : 'backfill-checkpoint-absent'
+    )
     return registry
   }
   await registry.importProvenance(provenance, {

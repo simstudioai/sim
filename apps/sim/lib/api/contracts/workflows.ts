@@ -1,3 +1,9 @@
+import {
+  BLOCK_RETRY_MAX_TRIES,
+  BLOCK_RETRY_MAX_WAIT_MS,
+  BLOCK_RETRY_MIN_TRIES,
+  BLOCK_RETRY_MIN_WAIT_MS,
+} from '@sim/workflow-types/workflow'
 import { z } from 'zod'
 import {
   privateSecretProvenanceBundleSchema,
@@ -55,6 +61,20 @@ const workflowEdgeHandleSchema = z
   .nullish()
   .transform((value) => value ?? undefined)
 
+const workflowBlockRetrySchema = z.object({
+  enabled: z.boolean(),
+  maxTries: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_TRIES, `maxTries must be at least ${BLOCK_RETRY_MIN_TRIES}`)
+    .max(BLOCK_RETRY_MAX_TRIES, `maxTries cannot exceed ${BLOCK_RETRY_MAX_TRIES}`),
+  waitBetweenTriesMs: z
+    .number()
+    .int()
+    .min(BLOCK_RETRY_MIN_WAIT_MS, 'waitBetweenTriesMs cannot be negative')
+    .max(BLOCK_RETRY_MAX_WAIT_MS, `waitBetweenTriesMs cannot exceed ${BLOCK_RETRY_MAX_WAIT_MS}ms`),
+})
+
 const workflowBlockStateSchema = z.object({
   id: z.string(),
   type: z.string(),
@@ -66,6 +86,8 @@ const workflowBlockStateSchema = z.object({
   horizontalHandles: z.boolean().optional(),
   height: z.number().optional(),
   advancedMode: z.boolean().optional(),
+  errorEnabled: z.boolean().optional(),
+  retry: workflowBlockRetrySchema.optional(),
   triggerMode: z.boolean().optional(),
   data: workflowBlockDataSchema.optional(),
   locked: z.boolean().optional(),

@@ -2,6 +2,12 @@ import { DropcontactIcon } from '@/components/icons'
 import { AuthMode, type BlockConfig, type BlockMeta, IntegrationType } from '@/blocks/types'
 import type { DropcontactResponse } from '@/tools/dropcontact/types'
 
+/** Whichever identifier the user supplied for the person being enriched. */
+const CONTACT_IDENTITY_FIELD = ['email', 'linkedin', 'full_name', 'first_name'] as const
+
+/** Whichever identifier the user supplied for the person's employer. */
+const CONTACT_COMPANY_FIELD = ['company', 'website'] as const
+
 export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
   type: 'dropcontact',
   name: 'Dropcontact',
@@ -15,6 +21,21 @@ export const DropcontactBlock: BlockConfig<DropcontactResponse> = {
   icon: DropcontactIcon,
   authMode: AuthMode.ApiKey,
   integrationType: IntegrationType.Sales,
+  canvasPresentation: {
+    defaultTitle: 'Dropcontact',
+    sentences: {
+      byOperation: {
+        dropcontact_enrich_contact: [
+          {
+            text: 'Enrich contact',
+            field: CONTACT_IDENTITY_FIELD,
+            core: true,
+          },
+          { text: 'at', field: CONTACT_COMPANY_FIELD },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

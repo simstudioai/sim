@@ -288,7 +288,7 @@ describe('buildPiSearchToolSpec', () => {
 
   it('fails closed before search when provenance is incomplete', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     const result = await buildTool('exa', executionContext(registry)).execute({ query: 'pi' })
 
@@ -303,7 +303,7 @@ describe('buildPiSearchToolSpec', () => {
     const registry = new ResolvedSecretTraceRegistry()
     const mergeSpy = vi.spyOn(registry, 'mergeToolCallRegistry')
     mockExecuteTool.mockImplementation(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry.markIncomplete()
+      options.resolvedSecretTraceRegistry.markIncomplete('unspecified')
       return {
         success: true,
         output: {

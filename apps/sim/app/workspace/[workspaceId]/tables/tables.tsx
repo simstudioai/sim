@@ -33,6 +33,7 @@ import type {
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
   folderRow,
@@ -44,6 +45,7 @@ import {
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ImportCsvDialog,
@@ -91,7 +93,7 @@ const COLUMNS: ResourceColumn[] = [
 ]
 
 /** Root label for breadcrumbs and the "move to workspace root" destination. */
-const ROOT_LABEL = 'Tables'
+const ROOT_LABEL = FOLDERED_RESOURCE_HEADERS.table.rootLabel
 
 const EMPTY_TABLES: TableDefinition[] = []
 
@@ -131,7 +133,7 @@ export function Tables() {
   const {
     currentFolderId,
     setCurrentFolderId,
-    breadcrumbs: folderChain,
+    ancestors: folderChain,
     folders,
     folderById,
     foldersResolved,
@@ -509,6 +511,7 @@ export function Tables() {
       folderBreadcrumbItems({
         breadcrumbs: folderChain,
         rootLabel: ROOT_LABEL,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.table.rootIcon,
         onNavigate: setCurrentFolderId,
         currentFolderActions,
         currentFolderEditing,
@@ -980,6 +983,17 @@ export function Tables() {
     }
   }, [workspaceId, folders, currentFolderId, createFolderAsync, setSearchTerm, startFolderRename])
 
+  useRegisterGlobalCommands(() => [
+    { id: 'tables-new-table', handler: () => void handleCreateTable() },
+    { id: 'tables-new-folder', handler: () => void handleCreateFolder() },
+    {
+      id: 'tables-import-csv',
+      handler: () => {
+        if (!uploading) csvInputRef.current?.click()
+      },
+    },
+  ])
+
   const headerActions: ResourceAction[] = useMemo(
     () => [
       {
@@ -1022,7 +1036,7 @@ export function Tables() {
     <>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={TableIcon}
+          icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           title={ROOT_LABEL}
           breadcrumbs={breadcrumbs}
           actions={headerActions}

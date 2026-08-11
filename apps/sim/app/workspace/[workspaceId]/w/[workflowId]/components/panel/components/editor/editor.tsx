@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
+import { Button, ChipTag, DashedDividerLine, FieldDivider, Loader, Tooltip } from '@sim/emcn'
 import {
   BookOpen,
   Check,
@@ -12,12 +12,15 @@ import {
   SquareArrowUpRight,
   Unlock,
 } from '@sim/emcn/icons'
+import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
 import { captureEvent } from '@/lib/posthog/client'
+import { isRetryEligibleBlock } from '@/lib/workflows/blocks/retry-eligibility'
 import {
   buildCanonicalIndex,
   evaluateSubBlockCondition,
@@ -30,6 +33,7 @@ import {
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import {
   ConnectionBlocks,
+  RetrySettings,
   SubBlock,
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
@@ -50,7 +54,7 @@ import {
   isBlockProtected,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/block-protection-utils'
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview'
-import { getTileIconColorClass } from '@/blocks/icon-color'
+import { isLightTileColor } from '@/blocks/icon-color'
 import { getBlock } from '@/blocks/registry'
 import { useFolderMap } from '@/hooks/queries/folders'
 import { isWorkflowEffectivelyLocked } from '@/hooks/queries/utils/folder-tree'
@@ -83,19 +87,27 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  * @returns Editor panel content
  */
 export function Editor() {
-  const { currentBlockId, connectionsHeight, toggleConnectionsCollapsed, registerRenameCallback } =
-    usePanelEditorStore(
-      useShallow((state) => ({
-        currentBlockId: state.currentBlockId,
-        connectionsHeight: state.connectionsHeight,
-        toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
-        registerRenameCallback: state.registerRenameCallback,
-      }))
-    )
+  const {
+    currentBlockId,
+    connectionsHeight,
+    toggleConnectionsCollapsed,
+    registerRenameCallback,
+    clearCurrentBlock,
+  } = usePanelEditorStore(
+    useShallow((state) => ({
+      currentBlockId: state.currentBlockId,
+      connectionsHeight: state.connectionsHeight,
+      toggleConnectionsCollapsed: state.toggleConnectionsCollapsed,
+      registerRenameCallback: state.registerRenameCallback,
+      clearCurrentBlock: state.clearCurrentBlock,
+    }))
+  )
   const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
+  const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
+  const isIntegration = blockConfig?.category === 'tools'
   const title = currentBlock?.name || 'Editor'
   const isBlockNameSearchHighlighted =
     activeSearchTarget?.targetKind === 'block-name' && activeSearchTarget.blockId === currentBlockId
@@ -116,6 +128,11 @@ export function Editor() {
 
   const isWorkflowBlock =
     currentBlock && (currentBlock.type === 'workflow' || currentBlock.type === 'workflow_input')
+  const isNoteBlock = currentBlock?.type === 'note'
+
+  useEffect(() => {
+    if (isNoteBlock) clearCurrentBlock()
+  }, [clearCurrentBlock, isNoteBlock])
 
   const params = useParams()
   const workspaceId = params.workspaceId as string
@@ -180,9 +197,24 @@ export function Editor() {
     () => hasAdvancedValues(subBlocksForCanonical, blockSubBlockValues, canonicalIndex),
     [subBlocksForCanonical, blockSubBlockValues, canonicalIndex]
   )
+  /**
+   * Whether the additional-fields disclosure is open, held as view state only.
+   *
+   * Deliberately not written back to `block.advancedMode`: that flag also decides
+   * which member of a canonical pair serializes, so driving it from this control
+   * would change the credential a block sends just because someone opened a
+   * disclosure. Seeded from the stored flag so a block saved while it was on
+   * still opens expanded.
+   */
+  const [additionalFieldsExpanded, setAdditionalFieldsExpanded] = useState(advancedMode)
+
+  useEffect(() => {
+    setAdditionalFieldsExpanded(advancedMode)
+  }, [advancedMode, currentBlockId])
+
   const displayAdvancedOptions = canEditBlock
-    ? advancedMode || activeSearchTargetNeedsAdvanced
-    : advancedMode || advancedValuesPresent || activeSearchTargetNeedsAdvanced
+    ? additionalFieldsExpanded || activeSearchTargetNeedsAdvanced
+    : additionalFieldsExpanded || advancedValuesPresent || activeSearchTargetNeedsAdvanced
 
   const hasAdvancedOnlyFields = useMemo(() => {
     for (const subBlock of subBlocksForCanonical) {
@@ -243,14 +275,32 @@ export function Editor() {
   const {
     collaborativeSetBlockCanonicalMode,
     collaborativeUpdateBlockName,
-    collaborativeToggleBlockAdvancedMode,
+    collaborativeSetBlockRetry,
     collaborativeBatchToggleLocked,
   } = useCollaborativeWorkflow()
 
-  const handleToggleAdvancedMode = useCallback(() => {
-    if (!currentBlockId || !canEditBlock) return
-    collaborativeToggleBlockAdvancedMode(currentBlockId)
-  }, [currentBlockId, canEditBlock, collaborativeToggleBlockAdvancedMode])
+  const handleToggleAdditionalFields = useCallback(() => {
+    if (!canEditBlock) return
+    setAdditionalFieldsExpanded((expanded) => !expanded)
+  }, [canEditBlock])
+
+  const supportsRetry = isRetryEligibleBlock({
+    blockType: currentBlock?.type,
+    category: blockConfig?.category,
+    triggerMode,
+  })
+  const showRetrySettings = supportsRetry && displayAdvancedOptions
+
+  /** Retry lives in the additional-fields disclosure, which a block may otherwise have no reason to show. */
+  const hasAdditionalFields = hasAdvancedOnlyFields || supportsRetry
+
+  const handleChangeRetry = useCallback(
+    (retry: BlockRetryConfig) => {
+      if (!currentBlockId) return
+      collaborativeSetBlockRetry(currentBlockId, retry)
+    },
+    [currentBlockId, collaborativeSetBlockRetry]
+  )
 
   const [isRenaming, setIsRenaming] = useState(false)
   const [editedName, setEditedName] = useState('')
@@ -338,6 +388,22 @@ export function Editor() {
   }, [registerRenameCallback, handleStartRename])
 
   /**
+   * Drops a rename whose block the panel is no longer showing.
+   *
+   * `renamingBlockIdRef` decides what {@link handleSaveRename} writes, and the
+   * header keeps rendering the input regardless of which block is selected — so
+   * a rename left running across a selection change puts one block's name in
+   * front of another and saves it to the first. Nothing else ends a rename on
+   * selection: the input's blur only fires if it held focus.
+   */
+  useEffect(() => {
+    if (!renamingBlockIdRef.current || renamingBlockIdRef.current === currentBlockId) return
+    renamingBlockIdRef.current = null
+    setIsRenaming(false)
+    setEditedName('')
+  }, [currentBlockId])
+
+  /**
    * Handles opening documentation link in a new secure tab.
    */
   const handleOpenDocs = useCallback(() => {
@@ -365,25 +431,29 @@ export function Editor() {
 
   const isConnectionsAtMinHeight = connectionsHeight <= 35
 
+  if (isNoteBlock) return null
+
   return (
     <ActiveSearchTargetProvider value={activeSearchTargetForCurrentBlock}>
       <div className='flex h-full flex-col'>
         {/* Header */}
         <div className='mx-[-1px] flex flex-shrink-0 items-center justify-between rounded-none border border-[var(--border)] bg-[var(--surface-4)] px-3 py-1.5'>
           <div className='flex min-w-0 flex-1 items-center gap-2'>
-            {(blockConfig || isSubflow) && currentBlock?.type !== 'note' && (
-              <div
-                className='flex size-[18px] items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-                style={{ background: isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor }}
+            {(blockConfig || isSubflow) && (
+              <ChipTag
+                variant={isIntegration ? 'brand' : typeAccent.variant}
+                tone={isIntegration ? undefined : typeAccent.tone}
+                brandColor={isIntegration ? blockConfig.bgColor : undefined}
+                brandForeground={
+                  isIntegration && isLightTileColor(blockConfig.bgColor) ? 'dark' : 'light'
+                }
+                className='size-[18px] justify-center px-0'
               >
                 <IconComponent
                   icon={isSubflow ? subflowConfig?.icon : blockConfig?.icon}
-                  className={cn(
-                    'size-[12px]',
-                    getTileIconColorClass(isSubflow ? subflowConfig?.bgColor : blockConfig?.bgColor)
-                  )}
+                  className='size-[12px]'
                 />
-              </div>
+              </ChipTag>
             )}
             {isRenaming ? (
               <input
@@ -614,7 +684,7 @@ export function Editor() {
 
                       const showDivider =
                         index < regularSubBlocks.length - 1 ||
-                        (!hasAdvancedOnlyFields && index < subBlocks.length - 1)
+                        (!hasAdditionalFields && index < subBlocks.length - 1)
 
                       return (
                         <div key={stableKey} className='subblock-row'>
@@ -664,12 +734,12 @@ export function Editor() {
                       )
                     })}
 
-                    {hasAdvancedOnlyFields && canEditBlock && (
+                    {hasAdditionalFields && canEditBlock && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <button
                           type='button'
-                          onClick={handleToggleAdvancedMode}
+                          onClick={handleToggleAdditionalFields}
                           className='flex items-center gap-1.5 whitespace-nowrap text-[var(--text-secondary)] text-small hover-hover:text-[var(--text-primary)]'
                         >
                           {displayAdvancedOptions
@@ -682,7 +752,7 @@ export function Editor() {
                         <DashedDividerLine className='flex-1' />
                       </div>
                     )}
-                    {hasAdvancedOnlyFields && !canEditBlock && displayAdvancedOptions && (
+                    {hasAdditionalFields && !canEditBlock && displayAdvancedOptions && (
                       <div className='flex items-center gap-2.5 px-0.5 pt-3.5 pb-3'>
                         <DashedDividerLine className='flex-1' />
                         <span className='whitespace-nowrap text-[var(--text-secondary)] text-small'>
@@ -715,7 +785,7 @@ export function Editor() {
                                   (subBlock.canonicalParamId ?? subBlock.id))
                             }
                           />
-                          {index < advancedOnlySubBlocks.length - 1 && (
+                          {(index < advancedOnlySubBlocks.length - 1 || showRetrySettings) && (
                             <FieldDivider
                               subblockMarker
                               className={
@@ -728,6 +798,14 @@ export function Editor() {
                         </div>
                       )
                     })}
+
+                    {showRetrySettings && (
+                      <RetrySettings
+                        retry={currentBlock?.retry}
+                        disabled={!canEditBlock}
+                        onChange={handleChangeRetry}
+                      />
+                    )}
                   </div>
                 )}
               </div>

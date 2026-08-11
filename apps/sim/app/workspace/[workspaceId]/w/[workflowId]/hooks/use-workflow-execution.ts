@@ -1896,6 +1896,7 @@ export function useWorkflowExecution() {
     } else {
       executionStream.cancel(activeWorkflowId)
       currentChatExecutionIdRef.current = null
+      runFromBlockOwnerRef.current = null
       setIsExecuting(activeWorkflowId, false)
       setIsDebugging(activeWorkflowId, false)
       setActiveBlocks(activeWorkflowId, new Set())

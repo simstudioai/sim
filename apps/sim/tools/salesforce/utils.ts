@@ -1,4 +1,5 @@
 import { createLogger } from '@sim/logger'
+import { isSalesforceLoginOrigin } from '@/lib/oauth/salesforce'
 
 const logger = createLogger('SalesforceUtils')
 
@@ -22,12 +23,24 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
           .join('')
       )
       const decoded = JSON.parse(jsonPayload)
-      if (decoded.profile) {
-        const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-        if (match) return match[1]
-      } else if (decoded.sub) {
-        const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-        if (match && match[1] !== 'https://login.salesforce.com') return match[1]
+      // Both claims are rooted at the *authorization server* when no org host
+      // could be resolved, and `/services/data/...` against a login host always
+      // fails — so each is guarded, and `profile` falling through must still let
+      // `sub` be tried rather than short-circuiting the whole lookup.
+      for (const claim of [decoded.profile, decoded.sub]) {
+        if (typeof claim !== 'string') continue
+        // `URL` rather than a hand-rolled prefix regex: it normalizes away
+        // userinfo, default ports, and case, so the origin compared against the
+        // login-host set is the same one a fetch would actually use.
+        let origin: string
+        try {
+          const url = new URL(claim)
+          if (url.protocol !== 'https:') continue
+          origin = url.origin
+        } catch {
+          continue
+        }
+        if (!isSalesforceLoginOrigin(origin)) return origin
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

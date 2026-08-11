@@ -98,7 +98,7 @@ export async function createMemoryResponse(options: {
     workspaceId: options.workspaceId,
   })
   if (options.memories.length > MAX_PRIVATE_MEMORY_CROSSINGS) {
-    registry.markIncomplete()
+    registry.markIncomplete('memory-crossing-capacity-exceeded')
   } else {
     const ids = [...new Set(options.memories.map((record) => record.id))]
     const memoriesById = new Map<string, MemoryCrossing[]>()
@@ -123,7 +123,7 @@ export async function createMemoryResponse(options: {
         provenanceEntryCount > MAX_PRIVATE_MEMORY_PROVENANCE_ENTRIES ||
         provenanceBytes > MAX_PRIVATE_MEMORY_PROVENANCE_BYTES
       ) {
-        registry.markIncomplete()
+        registry.markIncomplete('memory-crossing-capacity-exceeded')
         break
       }
       const sidecarById = new Map(sidecars.map((sidecar) => [sidecar.memoryId, sidecar]))

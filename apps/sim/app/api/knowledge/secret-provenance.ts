@@ -172,7 +172,7 @@ export async function finalizeKnowledgeProvenanceResponse(options: {
   })
   for (const provenance of options.provenances) {
     if (provenance.status === 'unknown') {
-      registry.markIncomplete()
+      registry.markIncomplete('durable-provenance-unknown')
       break
     }
     const sourceRegistry = await createDurableSecretProvenanceRegistry(provenance, {

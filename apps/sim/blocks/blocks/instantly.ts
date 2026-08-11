@@ -67,6 +67,65 @@ export const InstantlyBlock: BlockConfig<InstantlyResponse> = {
   integrationType: IntegrationType.Email,
   bgColor: '#FFFFFF',
   icon: InstantlyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Instantly',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'in campaign', field: 'triggerCampaignId' },
+      ],
+      byTrigger: {
+        instantly_webhook: [
+          'Run on any campaign event',
+          { text: 'in campaign', field: 'triggerCampaignId' },
+        ],
+      },
+    },
+    sentences: {
+      byOperation: {
+        list_leads: [
+          'List leads',
+          { text: ', matching', field: 'search' },
+          { text: ', in campaign', field: 'campaignId' },
+        ],
+        get_lead: [{ text: 'Read lead', field: 'leadId', core: true }],
+        create_lead: [
+          { text: 'Create lead', field: 'email', core: true },
+          { text: 'in', field: 'leadDestinationId' },
+        ],
+        patch_lead: [{ text: 'Update fields on lead', field: 'leadId', core: true }],
+        delete_leads: [
+          { text: 'Delete leads from', field: 'deleteSourceId', core: true },
+          { text: ', up to', field: 'deleteLimit', after: 'leads' },
+        ],
+        update_lead_interest_status: [
+          { text: 'Set interest status for', field: 'leadEmail', core: true },
+          { text: 'in campaign', field: 'campaignId' },
+        ],
+        list_campaigns: ['List campaigns', { text: ', matching', field: 'search' }],
+        create_campaign: [{ text: 'Create campaign', field: 'campaignName', core: true }],
+        patch_campaign: [
+          { text: 'Update campaign', field: 'campaignId', core: true },
+          { text: ', renaming it to', field: 'campaignName' },
+        ],
+        activate_campaign: [{ text: 'Start campaign', field: 'campaignId', core: true }],
+        pause_campaign: [{ text: 'Pause campaign', field: 'campaignId', core: true }],
+        delete_campaign: [{ text: 'Delete campaign', field: 'campaignId', core: true }],
+        list_emails: [
+          'List inbox emails',
+          { text: ', matching', field: 'emailSearch' },
+          { text: ', in campaign', field: 'campaignId' },
+        ],
+        reply_to_email: [
+          { text: 'Reply to email', field: 'replyToUuid', core: true },
+          { text: ', with subject', field: 'subject' },
+        ],
+        list_lead_lists: ['List lead lists', { text: ', matching', field: 'search' }],
+        create_lead_list: [{ text: 'Create lead list', field: 'leadListName', core: true }],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   subBlocks: [
     {

@@ -3,6 +3,13 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
 
+/*
+ * Canonical basic/advanced pair for the attachment upload, shared by the card
+ * sentence below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the file reference filled.
+ */
+const ATTACH_FILE_FIELD = ['uploadFile', 'fileRef'] as const
+
 export const AgiloftBlock: BlockConfig = {
   type: 'agiloft',
   name: 'Agiloft',
@@ -14,6 +21,78 @@ export const AgiloftBlock: BlockConfig = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#001028',
   icon: AgiloftIcon,
+  canvasPresentation: {
+    defaultTitle: 'Agiloft',
+    sentences: {
+      byOperation: {
+        create_record: [
+          { text: 'Create a record in', field: 'table', core: true },
+          { text: ', with', field: 'data' },
+        ],
+        read_record: [
+          { text: 'Read record', field: 'recordId', core: true },
+          { text: 'from', field: 'table' },
+          { text: ', returning', field: 'fields' },
+        ],
+        update_record: [
+          { text: 'Update record', field: 'recordId', core: true },
+          { text: 'in', field: 'table' },
+          { text: ', setting', field: 'data' },
+        ],
+        delete_record: [
+          { text: 'Delete record', field: 'recordId', core: true },
+          { text: 'from', field: 'table' },
+        ],
+        search_records: [
+          { text: 'Search', field: 'table', core: true },
+          { text: 'for', field: 'query' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        select_records: [
+          { text: 'Select record IDs from', field: 'table', core: true },
+          { text: ', where', field: 'where' },
+        ],
+        saved_search: [{ text: 'List saved searches on', field: 'table', core: true }],
+        attach_file: [
+          { text: 'Attach', field: ATTACH_FILE_FIELD, core: true },
+          { text: 'to record', field: 'recordId', core: true },
+          { text: ', in field', field: 'fieldName' },
+        ],
+        retrieve_attachment: [
+          {
+            text: 'Download the attachment in field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        remove_attachment: [
+          {
+            text: 'Remove the attachment in field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'from record', field: 'recordId', core: true },
+        ],
+        attachment_info: [
+          {
+            text: 'Read attachment details for field',
+            field: 'fieldName',
+            core: true,
+          },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        lock_record: [
+          { text: 'Run lock action', field: 'lockAction', core: true },
+          { text: 'on record', field: 'recordId', core: true },
+        ],
+        get_choice_line_id: [
+          { text: 'Resolve the internal ID of choice', field: 'value', core: true },
+          { text: 'on field', field: 'fieldName' },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
 
   subBlocks: [

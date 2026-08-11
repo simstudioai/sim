@@ -8,10 +8,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const {
   executionStoreState,
+  mockCancel,
   mockExecute,
   mockExecuteFromBlock,
   mockFetch,
+  mockHandleExecutionCancelledConsole,
   mockHandleExecutionErrorConsole,
+  mockRequestJson,
   mockResolveStartCandidates,
   mockSelectBestTrigger,
   mockUploadInternalFileSession,
@@ -80,10 +83,13 @@ const {
 
   return {
     executionStoreState,
+    mockCancel: vi.fn(),
     mockExecute: vi.fn(),
     mockExecuteFromBlock: vi.fn(),
     mockFetch: vi.fn(),
+    mockHandleExecutionCancelledConsole: vi.fn(),
     mockHandleExecutionErrorConsole: vi.fn(),
+    mockRequestJson: vi.fn(),
     mockResolveStartCandidates: vi.fn(),
     mockSelectBestTrigger: vi.fn(),
     mockUploadInternalFileSession: vi.fn(),
@@ -102,7 +108,7 @@ vi.mock('next/navigation', () => ({
 }))
 
 vi.mock('@/lib/api/client/request', () => ({
-  requestJson: vi.fn(),
+  requestJson: mockRequestJson,
 }))
 
 vi.mock('@/lib/api/contracts/workflows', () => ({
@@ -169,7 +175,7 @@ vi.mock('@/app/workspace/[workspaceId]/w/[workflowId]/utils/workflow-execution-u
   }),
   reconcileFinalBlockLogs: vi.fn(),
   addExecutionErrorConsoleEntry: vi.fn(),
-  handleExecutionCancelledConsole: vi.fn(),
+  handleExecutionCancelledConsole: mockHandleExecutionCancelledConsole,
   handleExecutionErrorConsole: mockHandleExecutionErrorConsole,
 }))
 
@@ -205,7 +211,7 @@ vi.mock('@/hooks/use-execution-stream', () => {
       execute: mockExecute,
       executeFromBlock: mockExecuteFromBlock,
       reconnect: vi.fn(),
-      cancel: vi.fn(),
+      cancel: mockCancel,
       cancelExecute: vi.fn(),
       cancelReconnect: vi.fn(),
     }),
@@ -337,6 +343,65 @@ async function drainStream(value: unknown): Promise<void> {
   const reader = value.stream.getReader()
   while (!(await reader.read()).done) {}
 }
+
+describe('useWorkflowExecution cancellation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    executionStoreState.getCurrentExecutionId.mockReturnValue('execution-1')
+    mockRequestJson.mockResolvedValue({ success: true })
+  })
+
+  afterEach(() => {
+    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+  })
+
+  it('leaves the run intact until the server confirms, when there is one to cancel', () => {
+    /*
+     * The server's terminal event owns teardown. Tearing down here instead
+     * would (a) show the run as stopped even when the cancel request fails,
+     * while it keeps executing and billing server-side, with the execution id
+     * already discarded so it cannot be retried, and (b) abort the stream
+     * before `onExecutionCancelled` can settle the agent-stream chrome, so a
+     * pending thinking-flush revives a console entry nothing will settle again.
+     */
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    act(() => {
+      result().handleCancelExecution()
+    })
+
+    expect(mockRequestJson).toHaveBeenCalledWith(
+      {},
+      expect.objectContaining({
+        params: { id: 'workflow-1', executionId: 'execution-1' },
+      })
+    )
+    expect(mockCancel).not.toHaveBeenCalled()
+    expect(executionStoreState.setCurrentExecutionId).not.toHaveBeenCalled()
+    expect(executionStoreState.setIsExecuting).not.toHaveBeenCalled()
+    expect(executionStoreState.setActiveBlocks).not.toHaveBeenCalled()
+    expect(mockHandleExecutionCancelledConsole).not.toHaveBeenCalled()
+
+    unmount()
+  })
+
+  it('tears down locally when there is no server execution to cancel', () => {
+    executionStoreState.getCurrentExecutionId.mockReturnValue(null)
+    const { result, unmount } = renderWorkflowExecutionHook()
+
+    act(() => {
+      result().handleCancelExecution()
+    })
+
+    expect(mockRequestJson).not.toHaveBeenCalled()
+    expect(mockCancel).toHaveBeenCalledWith('workflow-1')
+    expect(executionStoreState.setIsExecuting).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setIsDebugging).toHaveBeenCalledWith('workflow-1', false)
+    expect(executionStoreState.setActiveBlocks).toHaveBeenCalledWith('workflow-1', expect.any(Set))
+
+    unmount()
+  })
+})
 
 describe('useWorkflowExecution attachment uploads', () => {
   beforeEach(() => {

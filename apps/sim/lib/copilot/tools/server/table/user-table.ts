@@ -139,7 +139,7 @@ async function importRowsProvenanceForModel(
   const registry = context.resolvedSecretTraceRegistry
   if (!registry) return
   if (!provenance) {
-    registry.markIncomplete()
+    registry.markIncomplete('table-result-provenance-unavailable')
     return
   }
   await registry.importCrossingProvenance(provenance, values, { trusted: true })

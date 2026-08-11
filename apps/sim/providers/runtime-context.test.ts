@@ -527,7 +527,7 @@ describe('provider runtime context', () => {
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry?.markIncomplete()
+      options.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
       return { success: true, output: { value: 'secret-value' } }
     })
 
@@ -546,7 +546,7 @@ describe('provider runtime context', () => {
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry?.markIncomplete()
+      options.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
       return {
         success: false,
         output: { value: 'secret-value' },
@@ -600,7 +600,7 @@ describe('provider runtime context', () => {
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
     mockExecuteTool.mockImplementationOnce(async (_toolId, _params, options) => {
-      options.resolvedSecretTraceRegistry?.markIncomplete()
+      options.resolvedSecretTraceRegistry?.markIncomplete('unspecified')
       throw new Error('secret-value')
     })
 
@@ -628,7 +628,7 @@ describe('provider runtime context', () => {
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'TOKEN', plaintext: 'secret-value', encryptedValue: 'ciphertext' },
     ])
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     mockExecuteTool.mockResolvedValueOnce({
       success: true,
       output: { value: 'secret-value' },

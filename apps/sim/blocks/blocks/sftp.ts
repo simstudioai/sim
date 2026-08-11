@@ -17,6 +17,25 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
   bgColor: '#2D3748',
   icon: SftpIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'SFTP',
+    sentences: {
+      byOperation: {
+        sftp_upload: [
+          { text: 'Upload', field: ['uploadFiles', 'files'], core: true },
+          { text: 'to', field: 'remotePath', core: true },
+        ],
+        sftp_create: [
+          { text: 'Create file', field: 'fileName', core: true },
+          { text: 'in', field: 'remotePath' },
+        ],
+        sftp_download: [{ text: 'Download', field: 'remotePath', core: true }],
+        sftp_list: [{ text: 'List the contents of', field: 'remotePath', core: true }],
+        sftp_delete: [{ text: 'Delete', field: 'remotePath', core: true }],
+        sftp_mkdir: [{ text: 'Create directory', field: 'remotePath', core: true }],
+      },
+    },
+  },
 
   subBlocks: [
     {
@@ -106,6 +125,7 @@ export const SftpBlock: BlockConfig<SftpUploadResult> = {
     {
       id: 'uploadFiles',
       title: 'Files to Upload',
+      canvasNoun: 'files',
       type: 'file-upload',
       canonicalParamId: 'files',
       placeholder: 'Select files to upload',

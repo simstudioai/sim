@@ -2007,8 +2007,22 @@
     {
       "idx": 287,
       "version": "7",
-      "when": 1786343682136,
-      "tag": "0287_warm_malice",
+      "when": 1786238404458,
+      "tag": "0287_workflow_blocks_error_enabled",
+      "breakpoints": true
+    },
+    {
+      "idx": 288,
+      "version": "7",
+      "when": 1786398308428,
+      "tag": "0288_workflow_blocks_retry",
+      "breakpoints": true
+    },
+    {
+      "idx": 289,
+      "version": "7",
+      "when": 1786438204549,
+      "tag": "0289_warm_malice",
       "breakpoints": true
     }
   ]

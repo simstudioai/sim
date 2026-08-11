@@ -16,6 +16,89 @@ export const ZendeskBlock: BlockConfig = {
   integrationType: IntegrationType.Support,
   bgColor: '#03363D',
   icon: ZendeskIcon,
+  canvasPresentation: {
+    defaultTitle: 'Zendesk',
+    triggerSentences: {
+      byTrigger: {
+        zendesk_webhook: ['Run on any ticket event'],
+      },
+    },
+    sentences: {
+      byOperation: {
+        get_tickets: [
+          'List tickets',
+          { text: ', with status', field: 'status' },
+          { text: ', at priority', field: 'priority' },
+          { text: ', assigned to', field: 'assigneeId' },
+        ],
+        get_ticket: [{ text: 'Fetch ticket', field: 'ticketId', core: true }],
+        create_ticket: [
+          { text: 'Create ticket', field: 'subject', core: true },
+          { text: ', at priority', field: 'priority' },
+          { text: ', assigned to', field: 'assigneeId' },
+        ],
+        create_tickets_bulk: ['Create tickets in bulk'],
+        update_ticket: [
+          { text: 'Update ticket', field: 'ticketId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', assigning to', field: 'assigneeId' },
+        ],
+        update_tickets_bulk: ['Update tickets in bulk'],
+        delete_ticket: [{ text: 'Delete ticket', field: 'ticketId', core: true }],
+        merge_tickets: [
+          { text: 'Merge tickets', field: 'sourceTicketIds', core: true },
+          { text: 'into', field: 'targetTicketId', core: true },
+        ],
+        get_users: ['List users', { text: ', up to', field: 'perPage', after: 'per page' }],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        get_current_user: ['Fetch the authenticated user'],
+        search_users: [{ text: 'Search users matching', field: 'query', core: true }],
+        create_user: [
+          { text: 'Create user', field: 'name', core: true },
+          { text: 'with email', field: 'userEmail' },
+          { text: ', in organization', field: 'organizationId' },
+        ],
+        create_users_bulk: ['Create users in bulk'],
+        update_user: [
+          { text: 'Update user', field: 'userId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', with email', field: 'userEmail' },
+        ],
+        update_users_bulk: ['Update users in bulk'],
+        delete_user: [{ text: 'Delete user', field: 'userId', core: true }],
+        get_organizations: [
+          'List organizations',
+          { text: ', up to', field: 'perPage', after: 'per page' },
+        ],
+        get_organization: [{ text: 'Fetch organization', field: 'organizationId', core: true }],
+        autocomplete_organizations: [
+          {
+            text: 'Find organizations starting with',
+            field: 'organizationName',
+            core: true,
+          },
+        ],
+        create_organization: [
+          {
+            text: 'Create organization',
+            field: 'organizationName',
+            core: true,
+          },
+        ],
+        create_organizations_bulk: ['Create organizations in bulk'],
+        update_organization: [
+          { text: 'Update organization', field: 'organizationId', core: true },
+          { text: ', renaming to', field: 'organizationName' },
+        ],
+        delete_organization: [{ text: 'Delete organization', field: 'organizationId', core: true }],
+        search: [
+          { text: 'Search', field: 'filterType', core: true },
+          { text: 'records matching', field: 'query', core: true },
+        ],
+        search_count: [{ text: 'Count records matching', field: 'query', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

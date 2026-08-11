@@ -11,20 +11,39 @@ import {
   EMBEDDING_MODELS,
   getModelsForProvider,
 } from '@/lib/embeddings/catalog'
-import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddings/types'
+import {
+  DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+  normalizeOpenRouterEmbeddingModelId,
+} from '@/lib/embeddings/openrouter-models'
+import type { EmbeddingTaskType } from '@/lib/embeddings/types'
+import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import type { BlockConfig, BlockMeta, SubBlockConfig } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
+import { providerModelsQueryOptions } from '@/hooks/queries/providers'
 import type { EmbeddingsResponse } from '@/tools/embeddings/types'
 
-const TOOL_ID_BY_PROVIDER: Record<EmbeddingCatalogProvider, string> = {
+export const EMBEDDING_BLOCK_PROVIDERS = [...EMBEDDING_CATALOG_PROVIDERS, 'openrouter'] as const
+
+type EmbeddingBlockProvider = (typeof EMBEDDING_BLOCK_PROVIDERS)[number]
+
+async function fetchOpenRouterEmbeddingModelOptions() {
+  const { models } = await getQueryClient().fetchQuery(
+    providerModelsQueryOptions('openrouter-embeddings')
+  )
+  return models.map((model) => ({ label: model, id: model }))
+}
+
+const TOOL_ID_BY_PROVIDER: Record<EmbeddingBlockProvider, string> = {
   openai: 'embeddings_openai',
+  openrouter: 'embeddings_openrouter',
   gemini: 'embeddings_gemini',
   cohere: 'embeddings_cohere',
   mistral: 'embeddings_mistral',
 }
 
-const PROVIDER_LABELS: Record<EmbeddingCatalogProvider, string> = {
+const PROVIDER_LABELS: Record<EmbeddingBlockProvider, string> = {
   openai: 'OpenAI',
+  openrouter: 'OpenRouter',
   gemini: 'Google Gemini',
   cohere: 'Cohere',
   mistral: 'Mistral',
@@ -43,15 +62,31 @@ const TASK_TYPE_LABELS: Record<EmbeddingTaskType, string> = {
  * catalog model cannot leave this block stale. Every variant shares one
  * sub-block id, so each is scoped by a `condition` naming the provider.
  */
-const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => ({
+const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((provider) => {
+  return {
+    id: 'model',
+    title: 'Model',
+    type: 'dropdown',
+    options: getModelsForProvider(provider).map((id) => ({
+      label: EMBEDDING_MODELS[id].label,
+      id,
+    })),
+    value: () => DEFAULT_MODEL_BY_PROVIDER[provider],
+    condition: { field: 'provider', value: provider },
+    dependsOn: ['provider'],
+  }
+})
+
+MODEL_SUB_BLOCKS.push({
   id: 'model',
   title: 'Model',
-  type: 'dropdown',
-  options: getModelsForProvider(provider).map((id) => ({ label: EMBEDDING_MODELS[id].label, id })),
-  value: () => DEFAULT_MODEL_BY_PROVIDER[provider],
-  condition: { field: 'provider', value: provider },
+  type: 'combobox',
+  options: [],
+  fetchOptions: fetchOpenRouterEmbeddingModelOptions,
+  value: () => DEFAULT_OPENROUTER_EMBEDDING_MODEL,
+  condition: { field: 'provider', value: 'openrouter' },
   dependsOn: ['provider'],
-}))
+})
 
 /**
  * Task-type and dimension dropdowns, which are per-model rather than
@@ -60,40 +95,42 @@ const MODEL_SUB_BLOCKS: SubBlockConfig[] = EMBEDDING_CATALOG_PROVIDERS.map((prov
  */
 const CAPABILITY_SUB_BLOCKS: SubBlockConfig[] = Object.entries(EMBEDDING_MODELS).flatMap(
   ([model, info]) => {
-    const scope = { field: 'provider', value: info.provider, and: { field: 'model', value: model } }
-    const subBlocks: SubBlockConfig[] = []
+    return [info.provider].flatMap((provider) => {
+      const scope = { field: 'provider', value: provider, and: { field: 'model', value: model } }
+      const subBlocks: SubBlockConfig[] = []
 
-    if (info.supportedTaskTypes) {
-      subBlocks.push({
-        id: 'taskType',
-        title: 'Task Type',
-        type: 'dropdown',
-        options: info.supportedTaskTypes.map((task) => ({
-          label: TASK_TYPE_LABELS[task],
-          id: task,
-        })),
-        value: () => 'document',
-        condition: scope,
-        dependsOn: ['provider', 'model'],
-      })
-    }
+      if (info.supportedTaskTypes) {
+        subBlocks.push({
+          id: 'taskType',
+          title: 'Task Type',
+          type: 'dropdown',
+          options: info.supportedTaskTypes.map((task) => ({
+            label: TASK_TYPE_LABELS[task],
+            id: task,
+          })),
+          value: () => 'document',
+          condition: scope,
+          dependsOn: ['provider', 'model'],
+        })
+      }
 
-    if (info.supportedDimensions) {
-      subBlocks.push({
-        id: 'dimensions',
-        title: 'Dimensions',
-        type: 'dropdown',
-        options: info.supportedDimensions.map((size) => ({
-          label: size === info.nativeDimensions ? `${size} (default)` : String(size),
-          id: String(size),
-        })),
-        value: () => String(info.nativeDimensions),
-        condition: scope,
-        dependsOn: ['provider', 'model'],
-      })
-    }
+      if (info.supportedDimensions) {
+        subBlocks.push({
+          id: 'dimensions',
+          title: 'Dimensions',
+          type: 'dropdown',
+          options: info.supportedDimensions.map((size) => ({
+            label: size === info.nativeDimensions ? `${size} (default)` : String(size),
+            id: String(size),
+          })),
+          value: () => String(info.nativeDimensions),
+          condition: scope,
+          dependsOn: ['provider', 'model'],
+        })
+      }
 
-    return subBlocks
+      return subBlocks
+    })
   }
 )
 
@@ -103,12 +140,24 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
   description: 'Generate embeddings',
   authMode: AuthMode.ApiKey,
   longDescription:
-    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, Google Gemini, Cohere, and Mistral embedding models.',
+    'Turn text into embedding vectors for semantic search, clustering, and similarity. Supports OpenAI, OpenRouter, Google Gemini, Cohere, and Mistral embedding models.',
   category: 'tools',
   integrationType: IntegrationType.AI,
   docsLink: 'https://docs.sim.ai/integrations/embeddings',
   bgColor: '#7B4DFF',
   icon: EmbeddingsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Embeddings',
+    sentences: {
+      /* Anchored on `input`: it is the one required field every provider shows.
+         `model` is scoped by a per-provider `condition`, so it carries the
+         clause but cannot be what keeps the sentence on the card. */
+      default: [
+        { text: 'Embed', field: 'input', core: true },
+        { text: 'with', field: 'model' },
+      ],
+    },
+  },
   subBlocks: [
     {
       id: 'input',
@@ -121,7 +170,7 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       id: 'provider',
       title: 'Provider',
       type: 'dropdown',
-      options: EMBEDDING_CATALOG_PROVIDERS.map((provider) => ({
+      options: EMBEDDING_BLOCK_PROVIDERS.map((provider) => ({
         label: PROVIDER_LABELS[provider],
         id: provider,
       })),
@@ -131,9 +180,9 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
     ...MODEL_SUB_BLOCKS,
     ...CAPABILITY_SUB_BLOCKS,
     /**
-     * One field for every provider. Sim stocks a hosted key for all four
-     * (`OPENAI_API_KEY`, `GEMINI_API_KEY`, `COHERE_API_KEY`, `MISTRAL_API_KEY`),
-     * so none of them needs the user to supply one on hosted Sim.
+     * Sim stocks a hosted key for each catalog provider, so none of those
+     * fields needs the user to supply one on hosted Sim. OpenRouter is always
+     * explicit BYOK for this block.
      */
     {
       id: 'apiKey',
@@ -142,12 +191,29 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
       placeholder: 'Enter your provider API key',
       password: true,
       required: true,
+      condition: { field: 'provider', value: 'openrouter', not: true },
       connectionDroppable: false,
       hideWhenHosted: true,
     },
+    {
+      id: 'openRouterApiKey',
+      title: 'OpenRouter API Key',
+      type: 'short-input',
+      placeholder: 'Enter your OpenRouter API key',
+      password: true,
+      required: true,
+      condition: { field: 'provider', value: 'openrouter' },
+      connectionDroppable: false,
+    },
   ],
   tools: {
-    access: ['embeddings_openai', 'embeddings_gemini', 'embeddings_cohere', 'embeddings_mistral'],
+    access: [
+      'embeddings_openai',
+      'embeddings_openrouter',
+      'embeddings_gemini',
+      'embeddings_cohere',
+      'embeddings_mistral',
+    ],
     config: {
       /**
        * Runs at serialization, before variable resolution, so this only ever
@@ -155,8 +221,10 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
        * `<Block.output>` references.
        */
       tool: (params) => {
-        const provider = params.provider as EmbeddingCatalogProvider
-        return TOOL_ID_BY_PROVIDER[provider] ?? TOOL_ID_BY_PROVIDER.openai
+        const provider = (params.provider as EmbeddingBlockProvider | undefined) ?? 'openai'
+        const toolId = TOOL_ID_BY_PROVIDER[provider]
+        if (!toolId) throw new Error(`Unsupported embedding provider: ${String(params.provider)}`)
+        return toolId
       },
       /**
        * Every per-provider dropdown shares one subblock id (`model`,
@@ -171,17 +239,42 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
        * overrides it.
        */
       params: (params) => {
-        const provider = (params.provider as EmbeddingCatalogProvider) || 'openai'
+        const provider = (params.provider as EmbeddingBlockProvider) || 'openai'
         if (!params.input) {
           throw new Error('Input text is required')
         }
 
+        if (provider === 'openrouter') {
+          if (typeof params.openRouterApiKey !== 'string' || !params.openRouterApiKey.trim()) {
+            throw new Error('OpenRouter API key is required')
+          }
+          const savedModel =
+            typeof params.model === 'string' && params.model ? params.model : undefined
+          const savedCatalogProvider = savedModel
+            ? EMBEDDING_MODELS[savedModel]?.provider
+            : undefined
+          const model = normalizeOpenRouterEmbeddingModelId(
+            savedCatalogProvider && savedCatalogProvider !== 'openai'
+              ? DEFAULT_OPENROUTER_EMBEDDING_MODEL
+              : (savedModel ?? DEFAULT_OPENROUTER_EMBEDDING_MODEL)
+          )
+          return {
+            apiKey: params.openRouterApiKey,
+            input: params.input,
+            model,
+            taskType: undefined,
+            dimensions: undefined,
+          }
+        }
+
+        const catalogProvider = provider
+
         /** A model saved under a previous provider must not survive the switch. */
         const savedModel = params.model as string | undefined
         const model =
-          savedModel && EMBEDDING_MODELS[savedModel]?.provider === provider
+          savedModel && EMBEDDING_MODELS[savedModel]?.provider === catalogProvider
             ? savedModel
-            : DEFAULT_MODEL_BY_PROVIDER[provider]
+            : DEFAULT_MODEL_BY_PROVIDER[catalogProvider]
 
         const info = EMBEDDING_MODELS[model]
         const requested =
@@ -217,6 +310,10 @@ export const EmbeddingsBlock: BlockConfig<EmbeddingsResponse> = {
     taskType: { type: 'string', description: 'What the embedding will be used for' },
     dimensions: { type: 'number', description: 'Output vector dimensions' },
     apiKey: { type: 'string', description: 'Provider API key' },
+    openRouterApiKey: {
+      type: 'string',
+      description: 'OpenRouter API key',
+    },
   },
   outputs: {
     embeddings: { type: 'json', description: 'Generated embeddings' },

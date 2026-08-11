@@ -8,12 +8,15 @@ import type { EmbeddingCatalogProvider, EmbeddingTaskType } from '@/lib/embeddin
  * addition — a new catalog provider or task type stays absent from the wire
  * enum until it is added below.
  */
+type EmbeddingToolProvider = EmbeddingCatalogProvider | 'openrouter'
+
 export const embeddingProviders = [
   'openai',
+  'openrouter',
   'gemini',
   'cohere',
   'mistral',
-] as const satisfies readonly EmbeddingCatalogProvider[]
+] as const satisfies readonly EmbeddingToolProvider[]
 
 export const embeddingTaskTypes = [
   'document',
@@ -28,15 +31,15 @@ export const MAX_EMBEDDING_INPUTS = 1000
 /** Caps total payload size independently of the input count. */
 export const MAX_EMBEDDING_TOTAL_CHARS = 1_000_000
 
-const MISSING_EMBEDDING_FIELDS_ERROR = 'Missing required fields: provider, apiKey, and input'
+const MISSING_EMBEDDING_INPUT_ERROR = 'Missing required field: input'
+const embeddingCatalogProviders = [
+  'openai',
+  'gemini',
+  'cohere',
+  'mistral',
+] as const satisfies readonly EmbeddingCatalogProvider[]
 
-export const embeddingsToolBodySchema = z.object({
-  provider: z.enum(embeddingProviders, {
-    error: `Invalid provider. Must be one of: ${embeddingProviders.join(', ')}`,
-  }),
-  apiKey: z
-    .string({ error: MISSING_EMBEDDING_FIELDS_ERROR })
-    .min(1, MISSING_EMBEDDING_FIELDS_ERROR),
+const embeddingToolCommonShape = {
   model: z.string().min(1, 'model cannot be empty').optional(),
   /** A single text, or an array of texts embedded in one call. */
   input: z.union(
@@ -47,7 +50,7 @@ export const embeddingsToolBodySchema = z.object({
         .min(1, 'input must contain at least one text')
         .max(MAX_EMBEDDING_INPUTS, `input cannot exceed ${MAX_EMBEDDING_INPUTS} texts`),
     ],
-    { error: MISSING_EMBEDDING_FIELDS_ERROR }
+    { error: MISSING_EMBEDDING_INPUT_ERROR }
   ),
   taskType: z.enum(embeddingTaskTypes).optional(),
   /** Matryoshka output size. Omitted means the model's native dimensionality. */
@@ -57,7 +60,20 @@ export const embeddingsToolBodySchema = z.object({
     .min(1, 'dimensions must be at least 1')
     .max(4096, 'dimensions cannot exceed 4096')
     .optional(),
-})
+}
+
+export const embeddingsToolBodySchema = z.discriminatedUnion('provider', [
+  z.object({
+    ...embeddingToolCommonShape,
+    provider: z.enum(embeddingCatalogProviders),
+    apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
+  }),
+  z.object({
+    ...embeddingToolCommonShape,
+    provider: z.literal('openrouter'),
+    apiKey: z.string({ error: 'apiKey is required' }).min(1, 'apiKey cannot be empty'),
+  }),
+])
 
 const embeddingsUsageSchema = z.object({
   prompt_tokens: z.number(),

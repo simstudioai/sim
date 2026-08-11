@@ -547,3 +547,64 @@ describe('OAuth Token API Routes', () => {
     })
   })
 })
+
+describe('Salesforce instance URL resolution', () => {
+  const INSTANCE = 'https://acme--sbx.sandbox.my.salesforce.com'
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    authOAuthUtilsMockFns.mockResolveOAuthAccountId.mockResolvedValue(null)
+    mockAuthorizeCredentialUse.mockResolvedValue({
+      ok: true,
+      authType: 'session',
+      requesterUserId: 'test-user-id',
+      credentialOwnerUserId: 'owner-user-id',
+    })
+    authOAuthUtilsMockFns.mockRefreshTokenIfNeeded.mockResolvedValue({
+      accessToken: 'fresh-token',
+      refreshed: false,
+    })
+  })
+
+  /**
+   * The org host is smuggled through `scope` because the token response has
+   * nowhere to put it; the tools read it back as their `instanceUrl` param.
+   */
+  function credentialForProvider(providerId: string) {
+    return {
+      id: 'credential-id',
+      accessToken: 'test-token',
+      refreshToken: 'refresh-token',
+      accessTokenExpiresAt: new Date(Date.now() + 3600 * 1000),
+      providerId,
+      scope: `__sf_instance__:${INSTANCE} api refresh_token openid`,
+    }
+  }
+
+  it.each(['salesforce', 'salesforce-sandbox'])(
+    'returns the stored instance URL for a %s credential',
+    async (providerId) => {
+      authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce(
+        credentialForProvider(providerId)
+      )
+
+      const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.instanceUrl).toBe(INSTANCE)
+    }
+  )
+
+  it('omits instanceUrl for a non-Salesforce provider carrying a lookalike scope', async () => {
+    authOAuthUtilsMockFns.mockGetCredential.mockResolvedValueOnce({
+      ...credentialForProvider('google'),
+    })
+
+    const response = await POST(createMockRequest('POST', { credentialId: 'credential-id' }))
+    const data = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(data.instanceUrl).toBeUndefined()
+  })
+})

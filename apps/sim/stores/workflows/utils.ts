@@ -70,6 +70,11 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
 
   const normalizedBase = normalizeName(namePrefix)
 
+  /*
+   * A bare name counts as the first of its kind, so `Send Email` and
+   * `Send Email 2` are consecutive rather than colliding — the same series a
+   * legacy `Gmail 1` / `Gmail 2` pair already forms.
+   */
   const existingNumbers = Object.values(existingBlocks)
     .filter((block) => {
       const blockNameMatch = block.name?.match(/^(.*?)(\s+\d+)?$/)
@@ -78,16 +83,13 @@ export function getUniqueBlockName(baseName: string, existingBlocks: Record<stri
     })
     .map((block) => {
       const match = block.name?.match(/(\d+)$/)
-      return match ? Number.parseInt(match[1], 10) : 0
+      return match ? Number.parseInt(match[1], 10) : 1
     })
 
-  const maxNumber = existingNumbers.length > 0 ? Math.max(...existingNumbers) : 0
+  /* The first of a kind carries no suffix — "Send Email", not "Send Email 1". */
+  if (existingNumbers.length === 0) return namePrefix
 
-  if (maxNumber === 0 && existingNumbers.length === 0) {
-    return `${namePrefix} 1`
-  }
-
-  return `${namePrefix} ${maxNumber + 1}`
+  return `${namePrefix} ${Math.max(...existingNumbers) + 1}`
 }
 
 export interface PrepareBlockStateOptions {

@@ -4,6 +4,12 @@ import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { ToolResponse } from '@/tools/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * The list endpoints scope by a user URI or an organization URI, never both, so
+ * the clause takes whichever the user filled.
+ */
+const SCOPE_FIELD = ['user', 'organization'] as const
+
 export const CalendlyBlock: BlockConfig<ToolResponse> = {
   type: 'calendly',
   name: 'Calendly',
@@ -17,6 +23,39 @@ export const CalendlyBlock: BlockConfig<ToolResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: CalendlyIcon,
+  canvasPresentation: {
+    defaultTitle: 'Calendly',
+    triggerSentences: {
+      byTrigger: {
+        calendly_webhook: ['Run on any scheduling event'],
+      },
+    },
+    sentences: {
+      byOperation: {
+        calendly_get_current_user: ['Read the connected account profile'],
+        calendly_list_event_types: ['List event types', { text: ', for', field: SCOPE_FIELD }],
+        calendly_get_event_type: [{ text: 'Read event type', field: 'eventTypeUuid', core: true }],
+        calendly_list_scheduled_events: [
+          'List scheduled events',
+          { text: ', for', field: SCOPE_FIELD },
+          { text: ', with invitee', field: 'invitee_email' },
+          { text: ', starting after', field: 'min_start_time' },
+        ],
+        calendly_get_scheduled_event: [
+          { text: 'Read scheduled event', field: 'eventUuid', core: true },
+        ],
+        calendly_list_event_invitees: [
+          { text: 'List invitees of event', field: 'eventUuid', core: true },
+          { text: ', matching', field: 'email' },
+          { text: ', with status', field: 'status' },
+        ],
+        calendly_cancel_event: [
+          { text: 'Cancel event', field: 'eventUuid', core: true },
+          { text: ', with reason', field: 'reason' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

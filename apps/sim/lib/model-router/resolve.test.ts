@@ -225,7 +225,7 @@ describe('resolveAutoModel', () => {
 
   it('does not gate caller-projected signals on ambient registry completeness', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
     mockFetchGo.mockResolvedValue(routerResponse({ choice: '1' }))
 
     const result = await resolveAutoModel({

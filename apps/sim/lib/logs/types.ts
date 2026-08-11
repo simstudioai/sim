@@ -133,6 +133,13 @@ export interface WorkflowExecutionLog {
   // Execution details
   executionData: {
     secretProjectionVersion?: 1
+    /**
+     * Run-level provenance, stored alongside the contract marker rather than
+     * only inside `executionState` so it survives both compaction and PII
+     * redaction dropping the state. The display projection needs it to rebuild
+     * its registry.
+     */
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     billingAttribution?: BillingAttributionSnapshot
@@ -237,6 +244,8 @@ export interface TraceSpan {
   status?: 'success' | 'error'
   /** Whether this block's error was handled by an error handler path */
   errorHandled?: boolean
+  /** Total handler tries, present only when the block retried at least once. */
+  tries?: number
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string

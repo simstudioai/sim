@@ -156,7 +156,7 @@ describe('automatic Copilot tool-output table persistence', () => {
 
   it('delegates unavailable provenance handling to the application command', async () => {
     const registry = new ResolvedSecretTraceRegistry()
-    registry.markIncomplete()
+    registry.markIncomplete('unspecified')
 
     await maybeWriteOutputToTable(
       FunctionExecute.id,

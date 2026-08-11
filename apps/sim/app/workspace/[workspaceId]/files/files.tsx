@@ -8,7 +8,6 @@ import {
   Columns2,
   type ComboboxOption,
   Eye,
-  File as FilesIcon,
   Folder,
   FolderPlus,
   Loader,
@@ -67,6 +66,10 @@ import type {
   SortableResource,
 } from '@/app/workspace/[workspaceId]/components/folders'
 import {
+  breadcrumbFolderChain,
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
   parseMoveOptionValue,
   ROOT_MOVE_OPTION_VALUE,
   sortResources,
@@ -100,6 +103,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -136,6 +140,8 @@ type FileListEntry =
   | { kind: 'file'; file: WorkspaceFileRecord }
 
 const logger = createLogger('Files')
+
+const FILES_HEADER = FOLDERED_RESOURCE_HEADERS.file
 
 const FOLDER_ICON = <Folder className='size-[14px]' />
 
@@ -434,7 +440,6 @@ export function Files() {
   ) : null
 
   const folderById = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders])
-  const currentFolder = currentFolderId ? (folderById.get(currentFolderId) ?? null) : null
 
   const folderSizeMap = useMemo(() => {
     const directSize = new Map<string, number>()
@@ -477,7 +482,6 @@ export function Files() {
     for (const folder of folders) getTotal(folder.id)
     return totalSize
   }, [files, folders])
-  const currentFolderPath = currentFolder?.path ?? null
 
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
@@ -1106,11 +1110,7 @@ export function Files() {
       if (target.fileIds.includes(fileIdFromRouteRef.current ?? '')) {
         setIsDirty(false)
         setSaveStatus('idle')
-        router.push(
-          currentFolderId
-            ? `/workspace/${workspaceId}/files?folderId=${currentFolderId}`
-            : `/workspace/${workspaceId}/files`
-        )
+        router.push(folderedResourceListHref('file', workspaceId, currentFolderId))
       }
     } catch (err) {
       logger.error('Failed to delete file:', err)
@@ -1228,55 +1228,40 @@ export function Files() {
     await downloadArchive({ fileIds: selectedFileIds, folderIds: selectedFolderIds })
   }, [selectedFileIds, selectedFolderIds, files, handleDownload, downloadArchive, workspaceId])
 
-  const fileDetailBreadcrumbs = useMemo(() => {
+  const fileDetailBreadcrumbs = useMemo((): BreadcrumbItem[] => {
     if (!selectedFile) return []
 
-    const folderBreadcrumbs: BreadcrumbItem[] = []
-    const visitedFolderIds = new Set<string>()
-    let folderId = selectedFile.folderId
-
-    while (folderId && !visitedFolderIds.has(folderId)) {
-      visitedFolderIds.add(folderId)
-      const folder = folderById.get(folderId)
-      if (!folder) break
-
-      folderBreadcrumbs.unshift({
-        label: folder.name,
-        onClick: () =>
-          handleNavigateFromFileDetail(`/workspace/${workspaceId}/files?folderId=${folder.id}`),
-      })
-      folderId = folder.parentId
-    }
-
-    return [
-      {
-        label: 'Files',
-        onClick: () => handleNavigateFromFileDetail(`/workspace/${workspaceId}/files`),
-      },
-      ...folderBreadcrumbs,
-      {
-        label: selectedFile.name,
-        editing: headerRename.editingId
-          ? {
-              isEditing: true,
-              value: headerRename.editValue,
-              onChange: headerRename.setEditValue,
-              onSubmit: headerRename.submitRename,
-              onCancel: headerRename.cancelRename,
-            }
-          : undefined,
-        dropdownItems: [
-          { label: 'Download', icon: Download, onClick: handleDownloadSelected },
-          ...(canEdit
-            ? [
-                { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
-                { label: 'Share', icon: Send, onClick: handleShareSelected },
-                { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
-              ]
-            : []),
-        ],
-      },
-    ]
+    return folderBreadcrumbItems({
+      rootLabel: FILES_HEADER.rootLabel,
+      rootIcon: FILES_HEADER.rootIcon,
+      breadcrumbs: breadcrumbFolderChain(selectedFile.folderId, folderById),
+      onNavigate: (folderId) =>
+        handleNavigateFromFileDetail(folderedResourceListHref('file', workspaceId, folderId)),
+      trailing: [
+        {
+          label: selectedFile.name,
+          editing: headerRename.editingId
+            ? {
+                isEditing: true,
+                value: headerRename.editValue,
+                onChange: headerRename.setEditValue,
+                onSubmit: headerRename.submitRename,
+                onCancel: headerRename.cancelRename,
+              }
+            : undefined,
+          dropdownItems: [
+            { label: 'Download', icon: Download, onClick: handleDownloadSelected },
+            ...(canEdit
+              ? [
+                  { label: 'Rename', icon: Pencil, onClick: handleStartHeaderRename },
+                  { label: 'Share', icon: Send, onClick: handleShareSelected },
+                  { label: 'Delete', icon: Trash, onClick: handleDeleteSelected },
+                ]
+              : []),
+          ],
+        },
+      ],
+    })
   }, [
     selectedFile,
     folderById,
@@ -1297,12 +1282,9 @@ export function Files() {
     setIsDirty(false)
     setSaveStatus('idle')
     setPreviewMode('editor')
-    const folderId = selectedFileRef.current?.folderId
+    const folderId = selectedFileRef.current?.folderId ?? null
     const targetUrl =
-      pendingFileNavigationUrlRef.current ??
-      (folderId
-        ? `/workspace/${workspaceId}/files?folderId=${folderId}`
-        : `/workspace/${workspaceId}/files`)
+      pendingFileNavigationUrlRef.current ?? folderedResourceListHref('file', workspaceId, folderId)
     pendingFileNavigationUrlRef.current = null
     router.push(targetUrl)
   }
@@ -1700,6 +1682,16 @@ export function Files() {
     fileInputRef.current?.click()
   }, [canEdit, uploading])
 
+  useRegisterGlobalCommands(() => [
+    { id: 'files-upload', handler: () => handleUploadClick() },
+    { id: 'files-new-file', handler: () => void handleCreateFile() },
+    { id: 'files-new-folder', handler: () => void handleCreateFolder() },
+    { id: 'file-download', handler: () => handleDownloadSelected() },
+    { id: 'file-rename', handler: () => handleStartHeaderRename() },
+    { id: 'file-share', handler: () => handleShareSelected() },
+    { id: 'file-delete', handler: () => handleDeleteSelected() },
+  ])
+
   const searchConfig: SearchConfig = {
     value: urlSearchTerm,
     onChange: setSearchTerm,
@@ -1750,75 +1742,85 @@ export function Files() {
     ]
   )
 
-  const handleNavigateToFiles = useCallback(() => {
-    void setFilesParams({ folderId: null, new: null })
-  }, [setFilesParams])
-
-  const loadingBreadcrumbs = useMemo(
-    (): BreadcrumbItem[] => [
-      { label: 'Files', onClick: handleNavigateToFiles },
-      { label: '…', terminal: true },
-    ],
-    [handleNavigateToFiles]
+  const handleNavigateToListFolder = useCallback(
+    (folderId: string | null) => {
+      void setFilesParams({ folderId, new: null })
+    },
+    [setFilesParams]
   )
 
-  const breadcrumbRenameRef = useRef(breadcrumbRename)
-  breadcrumbRenameRef.current = breadcrumbRename
+  const listFolderChain = useMemo(
+    () => breadcrumbFolderChain(currentFolderId, folderById),
+    [currentFolderId, folderById]
+  )
 
-  const listBreadcrumbs = useMemo(() => {
-    const breadcrumbs: BreadcrumbItem[] = [{ label: 'Files', onClick: handleNavigateToFiles }]
-    if (!currentFolderPath) return breadcrumbs
+  /**
+   * The trail while a file's content loads. Holds the URL's open folder so arriving from a
+   * list page inside `A/B` doesn't collapse to `Files / …` and jump back out once the file
+   * lands; a cold deep-link has no `?folderId=` and no loaded file, so it starts at the root.
+   *
+   * Renders on the file *detail* route, so its crumbs navigate through the router like
+   * {@link fileDetailBreadcrumbs} — a nuqs write would only requery this file's own URL.
+   */
+  const loadingBreadcrumbs = useMemo(
+    (): BreadcrumbItem[] =>
+      folderBreadcrumbItems({
+        rootLabel: FILES_HEADER.rootLabel,
+        rootIcon: FILES_HEADER.rootIcon,
+        breadcrumbs: listFolderChain,
+        onNavigate: (folderId) =>
+          handleNavigateFromFileDetail(folderedResourceListHref('file', workspaceId, folderId)),
+        trailing: [{ label: '…', terminal: true }],
+      }),
+    [listFolderChain, handleNavigateFromFileDetail, workspaceId]
+  )
 
-    const segments = currentFolderPath.split('/')
-    let parentId: string | null = null
-    for (let i = 0; i < segments.length; i++) {
-      const segment = segments[i]
-      const folder = folders.find(
-        (item) => item.name === segment && (item.parentId ?? null) === parentId
-      )
-      if (!folder) continue
-      const isCurrentFolder = folder.id === currentFolderId
-      breadcrumbs.push({
-        label: folder.name,
-        onClick: isCurrentFolder
-          ? undefined
-          : () => void setFilesParams({ folderId: folder.id, new: null }),
-        editing:
-          isCurrentFolder && breadcrumbRenameRef.current.editingId === folder.id
+  const openListFolder = currentFolderId ? folderById.get(currentFolderId) : undefined
+
+  const listBreadcrumbs = useMemo(
+    (): BreadcrumbItem[] =>
+      folderBreadcrumbItems({
+        rootLabel: FILES_HEADER.rootLabel,
+        rootIcon: FILES_HEADER.rootIcon,
+        breadcrumbs: listFolderChain,
+        onNavigate: handleNavigateToListFolder,
+        currentFolderEditing:
+          openListFolder && breadcrumbRename.editingId === openListFolder.id
             ? {
                 isEditing: true,
-                value: breadcrumbRenameRef.current.editValue,
-                onChange: breadcrumbRenameRef.current.setEditValue,
-                onSubmit: breadcrumbRenameRef.current.submitRename,
-                onCancel: breadcrumbRenameRef.current.cancelRename,
+                value: breadcrumbRename.editValue,
+                onChange: breadcrumbRename.setEditValue,
+                onSubmit: breadcrumbRename.submitRename,
+                onCancel: breadcrumbRename.cancelRename,
               }
             : undefined,
-        dropdownItems:
-          isCurrentFolder && (canEdit || userPermissions.isLoading)
+        currentFolderActions:
+          openListFolder && (canEdit || userPermissions.isLoading)
             ? [
                 {
                   label: 'Rename',
                   icon: Pencil,
                   disabled: !canEdit,
-                  onClick: () => breadcrumbRenameRef.current.startRename(folder.id, folder.name),
+                  onClick: () =>
+                    breadcrumbRename.startRename(openListFolder.id, openListFolder.name),
                 },
               ]
             : undefined,
-      })
-      parentId = folder.id
-    }
-    return breadcrumbs
-  }, [
-    currentFolderPath,
-    currentFolderId,
-    folders,
-    handleNavigateToFiles,
-    setFilesParams,
-    canEdit,
-    userPermissions.isLoading,
-    breadcrumbRename.editingId,
-    breadcrumbRename.editValue,
-  ])
+      }),
+    [
+      listFolderChain,
+      openListFolder,
+      handleNavigateToListFolder,
+      canEdit,
+      userPermissions.isLoading,
+      breadcrumbRename.editingId,
+      breadcrumbRename.editValue,
+      breadcrumbRename.setEditValue,
+      breadcrumbRename.submitRename,
+      breadcrumbRename.cancelRename,
+      breadcrumbRename.startRename,
+    ]
+  )
 
   const memberOptions: ComboboxOption[] = useMemo(
     () =>
@@ -2035,7 +2037,7 @@ export function Files() {
   if (fileIdFromRoute && !selectedFile && isLoading) {
     return (
       <Resource>
-        <Resource.Header icon={FilesIcon} breadcrumbs={loadingBreadcrumbs} />
+        <Resource.Header icon={FILES_HEADER.rootIcon} breadcrumbs={loadingBreadcrumbs} />
         <div className='flex flex-1 items-center justify-center bg-[var(--bg)]'>
           <Loader className='size-[20px] text-[var(--text-secondary)]' animate />
         </div>
@@ -2052,7 +2054,7 @@ export function Files() {
         <FileDocRoomProvider>
           <Resource>
             <Resource.Header
-              icon={FilesIcon}
+              icon={FILES_HEADER.rootIcon}
               breadcrumbs={fileDetailBreadcrumbs}
               actions={fileActions}
               aside={<FileDocAvatars />}
@@ -2119,8 +2121,8 @@ export function Files() {
     >
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={FilesIcon}
-          title='Files'
+          icon={FILES_HEADER.rootIcon}
+          title={FILES_HEADER.rootLabel}
           breadcrumbs={listBreadcrumbs}
           actions={headerActionsConfig}
         />

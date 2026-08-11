@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, lt } from 'drizzle-orm'
 import { defaultCredentialDisplayName } from '@/lib/credentials/display-name'
-import { getAllOAuthServices } from '@/lib/oauth/utils'
+import { credentialProviderMatchesService, getAllOAuthServices } from '@/lib/oauth/utils'
 
 const logger = createLogger('OAuthConnectDraft')
 const DRAFT_TTL_MS = 15 * 60 * 1000
@@ -26,7 +26,12 @@ export async function createConnectDraft(params: {
 
   let displayName = params.displayName
   if (!displayName) {
-    const service = getAllOAuthServices().find((s) => s.providerId === providerId)
+    // Matches through the canonical predicate so an alternate authorization
+    // server's id resolves the service's real name — otherwise the default
+    // label reads "My salesforce-sandbox".
+    const service = getAllOAuthServices().find((s) =>
+      credentialProviderMatchesService(providerId, s)
+    )
     const serviceName = service?.name ?? providerId
 
     let userName: string | null = null

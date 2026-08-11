@@ -119,6 +119,7 @@ export const hubspotPollingTrigger: TriggerConfig = {
     {
       id: 'eventType',
       title: 'Event',
+      canvasNoun: 'change',
       type: 'dropdown',
       description:
         'Created fires once per new record. Updated fires on any modification. Property Changed fires only when the chosen property changes value.',

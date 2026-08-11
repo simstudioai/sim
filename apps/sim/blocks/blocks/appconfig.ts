@@ -20,6 +20,124 @@ export const AppConfigBlock: BlockConfig<
   bgColor: 'linear-gradient(45deg, #B0084D 0%, #FF4F8B 100%)',
   icon: AppConfigIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'AWS AppConfig',
+    sentences: {
+      byOperation: {
+        get_configuration: [
+          { text: 'Read deployed configuration', field: 'configurationProfileId', core: true },
+          { text: 'from environment', field: 'environmentId' },
+        ],
+        list_applications: [
+          'List applications',
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_application: [{ text: 'Create application', field: 'name', core: true }],
+        get_application: [{ text: 'Fetch application', field: 'applicationId', core: true }],
+        update_application: [
+          { text: 'Update application', field: 'applicationId', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_application: [{ text: 'Delete application', field: 'applicationId', core: true }],
+        list_environments: [
+          { text: 'List environments in', field: 'applicationId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_environment: [
+          { text: 'Create environment', field: 'name', core: true },
+          { text: 'in', field: 'applicationId' },
+        ],
+        get_environment: [
+          { text: 'Fetch environment', field: 'environmentId', core: true },
+          { text: 'in', field: 'applicationId' },
+        ],
+        update_environment: [
+          { text: 'Update environment', field: 'environmentId', core: true },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_environment: [
+          { text: 'Delete environment', field: 'environmentId', core: true },
+          { text: 'in', field: 'applicationId' },
+        ],
+        list_configuration_profiles: [
+          { text: 'List configuration profiles in', field: 'applicationId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        create_configuration_profile: [
+          { text: 'Create configuration profile', field: 'name', core: true },
+          { text: ', sourced from', field: 'locationUri' },
+        ],
+        get_configuration_profile: [
+          {
+            text: 'Fetch configuration profile',
+            field: 'configurationProfileId',
+            core: true,
+          },
+          { text: 'in', field: 'applicationId' },
+        ],
+        update_configuration_profile: [
+          {
+            text: 'Update configuration profile',
+            field: 'configurationProfileId',
+            core: true,
+          },
+          { text: ', renaming to', field: 'name' },
+        ],
+        delete_configuration_profile: [
+          {
+            text: 'Delete configuration profile',
+            field: 'configurationProfileId',
+            core: true,
+          },
+        ],
+        create_hosted_configuration_version: [
+          {
+            text: 'Add a hosted version to profile',
+            field: 'configurationProfileId',
+            core: true,
+          },
+          { text: ', labeled', field: 'versionLabel' },
+        ],
+        get_hosted_configuration_version: [
+          { text: 'Read hosted version', field: 'versionNumber', core: true },
+          { text: 'of profile', field: 'configurationProfileId' },
+        ],
+        list_hosted_configuration_versions: [
+          {
+            text: 'List hosted versions of profile',
+            field: 'configurationProfileId',
+            core: true,
+          },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        delete_hosted_configuration_version: [
+          { text: 'Delete hosted version', field: 'versionNumber', core: true },
+          { text: 'of profile', field: 'configurationProfileId' },
+        ],
+        list_deployment_strategies: [
+          'List deployment strategies',
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        start_deployment: [
+          { text: 'Deploy configuration version', field: 'configurationVersion', core: true },
+          { text: 'to environment', field: 'environmentId' },
+          { text: ', using strategy', field: 'deploymentStrategyId' },
+        ],
+        get_deployment: [
+          { text: 'Fetch deployment', field: 'deploymentNumber', core: true },
+          { text: 'in environment', field: 'environmentId' },
+        ],
+        list_deployments: [
+          { text: 'List deployments in environment', field: 'environmentId', core: true },
+          { text: ', up to', field: 'maxResults', after: 'results' },
+        ],
+        stop_deployment: [
+          { text: 'Stop deployment', field: 'deploymentNumber', core: true },
+          { text: 'in environment', field: 'environmentId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
