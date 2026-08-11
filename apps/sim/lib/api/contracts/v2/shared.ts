@@ -213,8 +213,7 @@ export const v2DeleteFolderQuerySchema = z
     path: v2NonRootFolderPathInputSchema.describe('Path of the folder to delete.'),
     recursive: z
       .stringbool()
-      .optional()
-      .default(false)
+      .prefault('false')
       .describe('Delete nested files and folders when true.'),
   })
   .strict()

@@ -1699,8 +1699,8 @@
             "required": false,
             "description": "Delete nested files and folders when true.",
             "schema": {
-              "default": false,
               "description": "Delete nested files and folders when true.",
+              "default": "false",
               "type": "string"
             }
           }

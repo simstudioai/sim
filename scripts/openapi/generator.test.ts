@@ -317,4 +317,13 @@ describe('OpenAPI generator', () => {
 
     expect(share.anyOf).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'null' })]))
   })
+
+  it('uses the string wire value for string boolean defaults', () => {
+    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    const operation = getOperation(spec, '/api/v2/files/folders', 'delete')
+    const parameters = operation.parameters as JsonObject[]
+    const recursive = parameters.find((parameter) => parameter.name === 'recursive')
+
+    expect(recursive?.schema).toMatchObject({ type: 'string', default: 'false' })
+  })
 })
