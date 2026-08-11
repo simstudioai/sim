@@ -18,9 +18,22 @@ function horizontalDeltaOf(event: WheelEvent): number {
 }
 
 /**
- * Scroll `container` horizontally for a wheel gesture. No-op when the gesture carries
- * no horizontal component or the container has nothing to scroll, leaving the event to
- * scroll vertically as usual.
+ * Vertical component still owed to the container once the horizontal one is taken.
+ * Shift *remaps* `deltaY` onto the horizontal axis, so that gesture has no vertical
+ * component left to spend; an ordinary diagonal trackpad pan does.
+ */
+function verticalDeltaOf(event: WheelEvent): number {
+  return event.deltaX !== 0 ? event.deltaY : 0
+}
+
+/**
+ * Scroll `container` for a wheel gesture carrying a horizontal component. No-op when the
+ * gesture is purely vertical or the container has nothing to scroll sideways, leaving the
+ * event to scroll natively.
+ *
+ * Cancelling a wheel event is all-or-nothing, so once `preventDefault` is called this owes
+ * the container *both* axes — a diagonal pan that only had its `deltaX` applied would lose
+ * its vertical movement entirely.
  */
 function applyHorizontalWheel(container: HTMLElement, event: WheelEvent): void {
   const horizontalDelta = horizontalDeltaOf(event)
@@ -28,6 +41,7 @@ function applyHorizontalWheel(container: HTMLElement, event: WheelEvent): void {
 
   event.preventDefault()
   container.scrollLeft += horizontalDelta
+  container.scrollTop += verticalDeltaOf(event)
 }
 
 /**

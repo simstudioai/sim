@@ -50,6 +50,27 @@ describe('bindPreviewHorizontalWheel', () => {
     expect(event.defaultPrevented).toBe(true)
   })
 
+  /**
+   * Cancelling a wheel event is all-or-nothing, so a diagonal trackpad pan must have its
+   * vertical movement re-applied by hand — otherwise `preventDefault` silently eats it.
+   */
+  it('keeps the vertical movement of a diagonal pan', () => {
+    Object.defineProperty(container, 'scrollHeight', { value: 5000, configurable: true })
+    Object.defineProperty(container, 'clientHeight', { value: 500, configurable: true })
+
+    wheel(container, { deltaX: 40, deltaY: 90 })
+
+    expect(container.scrollLeft).toBe(40)
+    expect(container.scrollTop).toBe(90)
+  })
+
+  it('does not also spend a shift gesture vertically', () => {
+    wheel(container, { deltaX: 0, deltaY: 120, shiftKey: true })
+
+    expect(container.scrollLeft).toBe(120)
+    expect(container.scrollTop).toBe(0)
+  })
+
   it('leaves a plain vertical wheel alone so the container still scrolls down', () => {
     const event = wheel(container, { deltaX: 0, deltaY: 120 })
 
