@@ -1249,6 +1249,7 @@ function SearchModalContent({
               </CommandFadedList>
               <CommandSearch
                 ref={inputRef}
+                surface='palette'
                 cycleResultsOnTab={!isChatEnabled}
                 autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}

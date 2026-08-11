@@ -51,7 +51,7 @@ describe('CommandFadedList', () => {
       root.render(
         <Command>
           <CommandFadedList fade='palette' />
-          <CommandSearch aria-label='Search' />
+          <CommandSearch surface='palette' aria-label='Search' />
         </Command>
       )
     })
@@ -60,14 +60,15 @@ describe('CommandFadedList', () => {
     const search = container.querySelector('[cmdk-input]')?.parentElement
     expect(list?.className).toContain('transparent_8%,black_13%,black_97%')
     expect(list?.className).not.toContain('scrollbar-track')
-    expect(search?.className).toContain('var(--surface-2)')
+    expect(search?.className).toContain('var(--surface-4)')
+    expect(search?.className).toContain('dark:bg-[linear-gradient(to_bottom,var(--surface-5)')
   })
 
   it('cycles through palette results with Tab and Shift+Tab', () => {
     act(() => {
       root.render(
         <Command loop>
-          <CommandSearch aria-label='Search' cycleResultsOnTab />
+          <CommandSearch surface='palette' aria-label='Search' cycleResultsOnTab />
           <CommandFadedList fade='palette'>
             <Command.Item value='first'>First</Command.Item>
             <Command.Item value='second'>Second</Command.Item>

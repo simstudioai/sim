@@ -490,6 +490,7 @@ export function ConnectionBlockSelector({ id, data }: NodeProps<ConnectionBlockS
           </CommandFadedList>
           <CommandSearch
             ref={inputRef}
+            surface='canvas'
             autoFocus
             aria-label='Search blocks'
             value={search}
