@@ -43,6 +43,7 @@ export type ResolvedSecretIncompletenessReason =
   | 'durable-provenance-malformed'
   | 'tool-input-not-enumerable'
   | 'tool-params-transform-failed'
+  | 'mcp-tool-execution-timeout'
   | 'structural-input-projection-incomplete'
   | 'structural-input-root-unprojected'
   | 'mothership-provenance-invalid'
@@ -60,17 +61,20 @@ export type ResolvedSecretIncompletenessReason =
   | 'knowledge-row-missing'
   | 'knowledge-row-content-mismatch'
   | 'memory-crossing-capacity-exceeded'
-  | 'workspace-scope-missing'
   | 'table-result-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
+  | 'workspace-file-provenance-unknown'
+  | 'file-source-unidentified'
   | 'table-snapshot-unsafe-for-mount'
   | 'restored-provenance-untrusted'
   | 'backfill-checkpoint-absent'
   | 'backfill-checkpoint-unusable'
   | 'log-creation-skipped'
   /**
-   * Only for a caller that has not been given a reason yet. A refusal reporting this names no
-   * guard, which is the state that made a production latch untraceable — prefer adding a literal.
+   * No production caller uses this, and none should: a refusal reporting it names no guard, which
+   * is the state that made a production latch untraceable. It survives for tests that need a
+   * latched registry and have no guard to name, where a borrowed real reason would read as a claim
+   * about which one tripped. A new caller wanting it wants a new literal instead.
    */
   | 'unspecified'
 
@@ -121,6 +125,23 @@ const BY_DESIGN_INCOMPLETENESS_REASONS = new Set<ResolvedSecretIncompletenessRea
   /** A session that will not persist a log has nothing to vouch for; it fires on every such run. */
   'log-creation-skipped',
 ])
+
+/**
+ * Sole owner of the report level, shared by every latch that reports one.
+ *
+ * The registry, its input paths, and the accumulator each latch for their own reasons but classify
+ * them identically, and a copy of the split per latch is a copy that can be updated alone — which
+ * would let the same reason be a fault in one place and routine in another.
+ */
+function reportIncompleteness(
+  message: string,
+  reason: ResolvedSecretIncompletenessReason,
+  details: Record<string, unknown>
+): void {
+  if (BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
+  if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, { reason, ...details })
+  else logger.warn(message, { reason, ...details })
+}
 
 /**
  * Origins are caller-supplied strings rather than a closed union, so they carry an explicit bound;
@@ -624,6 +645,7 @@ export function isResolvedSecretTraceProvenanceV1(
 export class ResolvedSecretTraceProvenanceAccumulator {
   private readonly scope?: ResolvedSecretTraceScopeV1
   private provenance: ResolvedSecretTraceProvenanceV1
+  private reportedGuard = false
 
   constructor(scope?: ResolvedSecretTraceScopeV1) {
     this.scope = scope ? cloneProvenanceScope(scope) : undefined
@@ -677,9 +699,26 @@ export class ResolvedSecretTraceProvenanceAccumulator {
     return true
   }
 
-  /** Marks the invocation incomplete and discards entries that can no longer be trusted. */
-  markIncomplete(): void {
+  /**
+   * Marks the invocation incomplete and discards entries that can no longer be trusted.
+   *
+   * `reason` is required for the same purpose it is on {@link ResolvedSecretTraceRegistry}, and
+   * matters more here: the wire format carries only `complete`, so the consumer that imports this
+   * bundle can only latch with `source-provenance-incomplete` and can never name the guard. This
+   * line is the sole record of which one tripped.
+   *
+   * Only the first guard reports. Later ones restate an invocation that already cannot vouch, and
+   * a caller walking a list of sources would otherwise emit a line per remaining source. A latch
+   * from {@link record} does not report at all: it reflects a bundle whose own registry already
+   * reported, so this would only restate it with less context.
+   */
+  markIncomplete(reason: ResolvedSecretIncompletenessReason): void {
     this.provenance = this.emptyProvenance(false)
+    if (this.reportedGuard) return
+    this.reportedGuard = true
+    reportIncompleteness('Resolved secret provenance accumulator marked incomplete', reason, {
+      scopeWorkspaceId: this.scope?.workspaceId,
+    })
   }
 
   exportProvenance(): ResolvedSecretTraceProvenanceV1 {
@@ -1583,17 +1622,13 @@ export class ResolvedSecretTraceRegistry {
     if (!this.complete) return
     this.complete = false
     this.modelEgressRevision += 1
-    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-    const details = {
-      reason,
+    if (this.staged) return
+    reportIncompleteness('Resolved secret registry marked incomplete', reason, {
       ...(context.origin ? { origin: context.origin } : {}),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
       incompleteInputPathCount: this.incompleteInputPaths.size,
-    }
-    const message = 'Resolved secret registry marked incomplete'
-    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
-    else logger.warn(message, details)
+    })
   }
 
   /**
@@ -2038,17 +2073,13 @@ export class ResolvedSecretTraceRegistry {
     if (this.incompleteInputPaths.has(key)) return
     this.incompleteInputPaths.set(key, [...path])
     this.modelEgressRevision += 1
-    if (this.staged || BY_DESIGN_INCOMPLETENESS_REASONS.has(reason)) return
-    const details = {
-      reason,
+    if (this.staged) return
+    reportIncompleteness('Resolved secret input path marked incomplete', reason, {
       ...(origin ? { origin } : {}),
       inputPath: path.join('.'),
       scopeWorkspaceId: this.scope?.workspaceId,
       activeEntryCount: this.activeEntries.size,
-    }
-    const message = 'Resolved secret input path marked incomplete'
-    if (ORIGINATING_FAULT_REASONS.has(reason)) logger.error(message, details)
-    else logger.warn(message, details)
+    })
   }
 
   private copyIncompleteInputPathsTo(
