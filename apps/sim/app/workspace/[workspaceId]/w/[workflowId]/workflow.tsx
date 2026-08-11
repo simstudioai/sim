@@ -4645,7 +4645,12 @@ const WorkflowContent = React.memo(
             )}
           >
             {!isWorkflowReady && (
-              <div className='absolute inset-0 z-[5] flex items-center justify-center bg-[var(--bg)]'>
+              <div
+                className={cn(
+                  'absolute top-0 bottom-0 left-0 z-[5] flex items-center justify-center bg-[var(--bg)]',
+                  embedded ? 'right-0' : 'right-[var(--panel-width)]'
+                )}
+              >
                 <div
                   className='size-[18px] animate-spin rounded-full'
                   style={{

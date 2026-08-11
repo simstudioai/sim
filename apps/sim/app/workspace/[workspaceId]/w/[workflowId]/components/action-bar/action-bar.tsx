@@ -1,6 +1,7 @@
-import { memo, useCallback, useState } from 'react'
+import { type ComponentType, memo, useCallback, useState } from 'react'
 import {
   Button,
+  Chip,
   cn,
   DropdownMenu,
   DropdownMenuContent,
@@ -66,7 +67,7 @@ const INLINE_ICON_SIZE = 'size-[16px] shrink-0'
 type ActionId = 'run' | 'enabled' | 'lock' | 'duplicate' | 'remove' | 'delete' | 'color'
 
 const INLINE_ACTION_WIDTH_STYLES: Record<ActionId, string> = {
-  run: '[--inline-action-width:64px]',
+  run: '[--inline-action-width:90px]',
   enabled: '[--inline-action-width:86px]',
   lock: '[--inline-action-width:82px]',
   duplicate: '[--inline-action-width:100px]',
@@ -75,9 +76,21 @@ const INLINE_ACTION_WIDTH_STYLES: Record<ActionId, string> = {
   color: '[--inline-action-width:72px]',
 }
 
-function InlineActionLabel({ children }: { children: string }) {
+function InlineActionLabel({
+  children,
+  persistent = false,
+}: {
+  children: string
+  persistent?: boolean
+}) {
   return (
-    <span className='-translate-x-1 ml-1.5 shrink-0 whitespace-nowrap font-medium text-small leading-none opacity-0 transition-[opacity,transform] duration-100 [transition-timing-function:cubic-bezier(0.2,0,0,1)] group-focus-within/inline-action:translate-x-0 group-focus-within/inline-action:opacity-100 group-hover/inline-action:translate-x-0 group-hover/inline-action:opacity-100 motion-reduce:transition-none'>
+    <span
+      className={cn(
+        'ml-1.5 shrink-0 whitespace-nowrap font-medium text-small leading-none',
+        !persistent &&
+          '-translate-x-1 opacity-0 transition-[opacity,transform] duration-100 [transition-timing-function:cubic-bezier(0.2,0,0,1)] group-focus-within/inline-action:translate-x-0 group-focus-within/inline-action:opacity-100 group-hover/inline-action:translate-x-0 group-hover/inline-action:opacity-100 motion-reduce:transition-none'
+      )}
+    >
       {children}
     </span>
   )
@@ -113,6 +126,36 @@ function RunningActionIcon({ inline = false }: { inline?: boolean }) {
   )
 }
 
+interface InlineBlockStatusProps {
+  icon: ComponentType<{ className?: string }>
+  label: string
+  disabled: boolean
+  onClick: () => void
+}
+
+function InlineBlockStatus({ icon: Icon, label, disabled, onClick }: InlineBlockStatusProps) {
+  return (
+    <Tooltip.Root preferAbove>
+      <Tooltip.Trigger asChild>
+        <span className='inline-flex'>
+          <Chip
+            variant='border'
+            leftIcon={Icon}
+            aria-label={label}
+            className='size-[30px] justify-center p-0'
+            disabled={disabled}
+            onClick={(event) => {
+              event.stopPropagation()
+              onClick()
+            }}
+          />
+        </span>
+      </Tooltip.Trigger>
+      <Tooltip.Content side='top'>{label}</Tooltip.Content>
+    </Tooltip.Root>
+  )
+}
+
 /**
  * Props for the ActionBar component
  */
@@ -125,6 +168,8 @@ interface ActionBarProps {
   disabled?: boolean
   /** Places the actions inside the workflow card's border swell. */
   variant?: 'floating' | 'swell' | 'inline'
+  /** Limits an inline action bar to the block run control or overflow menu. */
+  inlineActions?: 'all' | 'run' | 'menu'
   /** Whether this block is currently executing. */
   isRunning?: boolean
   /** Whether any block in the current workflow is executing. */
@@ -149,6 +194,7 @@ export const ActionBar = memo(
     blockType,
     disabled = false,
     variant = 'floating',
+    inlineActions = 'all',
     isRunning = false,
     isWorkflowRunning = false,
     noteColor = DEFAULT_NOTE_COLOR,
@@ -217,6 +263,8 @@ export const ActionBar = memo(
     const isNoteBlock = blockType === 'note'
     const isInsideSubflow = parentId && (parentType === 'loop' || parentType === 'parallel')
     const cantEnable = !isEnabled && isParentDisabled
+    const isEffectivelyLocked = isLocked || isParentLocked
+    const isEffectivelyDisabled = !isEnabled || isParentDisabled
 
     const snapshot = activeWorkflowId ? getLastExecutionSnapshot(activeWorkflowId) : null
     const incomingEdges = edges.filter((edge) => edge.target === blockId)
@@ -237,6 +285,9 @@ export const ActionBar = memo(
       dependenciesSatisfied && !isNoteBlock && !isInsideSubflow && !isExecuting
     const isSwell = variant === 'swell'
     const isInline = variant === 'inline'
+    const isPersistentInlineRun = isInline && inlineActions === 'run'
+    const isCompactDisabledInlineRun =
+      isPersistentInlineRun && !isWorkflowRunning && (isEffectivelyLocked || isEffectivelyDisabled)
     const firstActionId: ActionId = isNoteBlock
       ? 'color'
       : !isInsideSubflow || isWorkflowRunning
@@ -286,8 +337,9 @@ export const ActionBar = memo(
 
       return cn(
         actionButtonStyles,
-        isInline && INLINE_ACTION_WIDTH_STYLES[actionId],
+        isInline && !isPersistentInlineRun && INLINE_ACTION_WIDTH_STYLES[actionId],
         isInline &&
+          !isPersistentInlineRun &&
           actionId === 'run' && [
             'border border-transparent',
             'group-hover/inline-action:border-[var(--border)] group-hover/inline-action:!bg-transparent',
@@ -391,65 +443,149 @@ export const ActionBar = memo(
             ]
           )}
         >
-          {!isNoteBlock && (!isInsideSubflow || isWorkflowRunning) && (
-            <Tooltip.Root preferAbove>
-              <Tooltip.Trigger asChild>
-                <span className={cn('inline-flex', isInline && 'group/inline-action')}>
-                  <Button
-                    variant='ghost'
-                    aria-label={isWorkflowRunning ? 'Stop workflow' : 'Run block'}
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      if (isWorkflowRunning) {
-                        handleCancelExecution()
-                        return
-                      }
-                      if (canRunFromBlock && !disabled) {
-                        handleRunFromBlockClick()
-                      }
-                    }}
-                    className={cn(getActionButtonStyles('run'), isWorkflowRunning && 'group/run')}
-                    disabled={
-                      !isWorkflowRunning &&
-                      (disabled || !canRunFromBlock || isLocked || isParentLocked)
-                    }
-                  >
-                    {isWorkflowRunning ? (
-                      isRunning ? (
-                        <RunningActionIcon inline={isInline} />
-                      ) : (
-                        <Square
-                          className={cn(
-                            'shrink-0 fill-current',
-                            isInline ? 'size-[14px]' : 'size-[11px]'
-                          )}
-                          aria-hidden='true'
-                          strokeWidth={0}
-                        />
-                      )
-                    ) : (
-                      <PlayOutline className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
-                    )}
-                    {isInline && (
-                      <InlineActionLabel>{isWorkflowRunning ? 'Stop' : 'Play'}</InlineActionLabel>
-                    )}
-                  </Button>
-                </span>
-              </Tooltip.Trigger>
-              {!isInline && (
-                <Tooltip.Content side='top'>
-                  {(() => {
-                    if (isWorkflowRunning) return 'Stop'
-                    if (isLocked || isParentLocked) return 'Block is locked'
-                    if (disabled) return getTooltipMessage('Run')
-                    if (isExecuting) return 'Running...'
-                    if (!dependenciesSatisfied) return 'Run previous blocks first'
-                    return 'Run'
-                  })()}
-                </Tooltip.Content>
-              )}
-            </Tooltip.Root>
+          {isPersistentInlineRun && isEffectivelyDisabled && (
+            <InlineBlockStatus
+              icon={Ban}
+              label={isParentDisabled ? 'Parent container is disabled' : 'Enable block'}
+              disabled={
+                isWorkflowRunning || disabled || isLocked || isParentLocked || isParentDisabled
+              }
+              onClick={() => collaborativeBatchToggleBlockEnabled([blockId])}
+            />
           )}
+          {isPersistentInlineRun && isEffectivelyLocked && (
+            <InlineBlockStatus
+              icon={Lock}
+              label={
+                isParentLocked
+                  ? 'Parent container is locked'
+                  : userPermissions.canAdmin
+                    ? 'Unlock block'
+                    : 'Block is locked'
+              }
+              disabled={
+                isWorkflowRunning || disabled || isParentLocked || !userPermissions.canAdmin
+              }
+              onClick={() => collaborativeBatchToggleLocked([blockId])}
+            />
+          )}
+          {!isNoteBlock &&
+            (!isInsideSubflow || isWorkflowRunning) &&
+            (!isInline || inlineActions !== 'menu') && (
+              <Tooltip.Root preferAbove>
+                <Tooltip.Trigger asChild>
+                  <span className={cn('inline-flex', isInline && 'group/inline-action')}>
+                    {isPersistentInlineRun ? (
+                      <Chip
+                        variant='border'
+                        leftIcon={isWorkflowRunning ? undefined : PlayOutline}
+                        leftAdornment={
+                          isWorkflowRunning ? (
+                            isRunning ? (
+                              <RunningActionIcon inline />
+                            ) : (
+                              <Square
+                                className='size-[14px] shrink-0 fill-current'
+                                aria-hidden='true'
+                                strokeWidth={0}
+                              />
+                            )
+                          ) : undefined
+                        }
+                        aria-label={isWorkflowRunning ? 'Stop workflow' : 'Run block'}
+                        className={cn(
+                          isCompactDisabledInlineRun && 'size-[30px] justify-center p-0'
+                        )}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (isWorkflowRunning) {
+                            handleCancelExecution()
+                            return
+                          }
+                          if (canRunFromBlock && !disabled) {
+                            handleRunFromBlockClick()
+                          }
+                        }}
+                        disabled={
+                          !isWorkflowRunning &&
+                          (disabled ||
+                            !canRunFromBlock ||
+                            isEffectivelyLocked ||
+                            isEffectivelyDisabled)
+                        }
+                      >
+                        {isWorkflowRunning
+                          ? 'Stop'
+                          : isCompactDisabledInlineRun
+                            ? null
+                            : 'Run block'}
+                      </Chip>
+                    ) : (
+                      <Button
+                        variant='ghost'
+                        aria-label={isWorkflowRunning ? 'Stop workflow' : 'Run block'}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          if (isWorkflowRunning) {
+                            handleCancelExecution()
+                            return
+                          }
+                          if (canRunFromBlock && !disabled) {
+                            handleRunFromBlockClick()
+                          }
+                        }}
+                        className={cn(
+                          getActionButtonStyles('run'),
+                          isWorkflowRunning && 'group/run'
+                        )}
+                        disabled={
+                          !isWorkflowRunning &&
+                          (disabled ||
+                            !canRunFromBlock ||
+                            isEffectivelyLocked ||
+                            isEffectivelyDisabled)
+                        }
+                      >
+                        {isWorkflowRunning ? (
+                          isRunning ? (
+                            <RunningActionIcon inline={isInline} />
+                          ) : (
+                            <Square
+                              className={cn(
+                                'shrink-0 fill-current',
+                                isInline ? 'size-[14px]' : 'size-[11px]'
+                              )}
+                              aria-hidden='true'
+                              strokeWidth={0}
+                            />
+                          )
+                        ) : (
+                          <PlayOutline className={isInline ? INLINE_ICON_SIZE : ICON_SIZE} />
+                        )}
+                        {isInline && (
+                          <InlineActionLabel>
+                            {isWorkflowRunning ? 'Stop' : 'Run block'}
+                          </InlineActionLabel>
+                        )}
+                      </Button>
+                    )}
+                  </span>
+                </Tooltip.Trigger>
+                {(!isInline || isCompactDisabledInlineRun) && (
+                  <Tooltip.Content side='top'>
+                    {(() => {
+                      if (isWorkflowRunning) return 'Stop'
+                      if (isEffectivelyLocked) return 'Block is locked'
+                      if (isEffectivelyDisabled) return 'Block is disabled'
+                      if (disabled) return getTooltipMessage('Run')
+                      if (isExecuting) return 'Running...'
+                      if (!dependenciesSatisfied) return 'Run previous blocks first'
+                      return 'Run'
+                    })()}
+                  </Tooltip.Content>
+                )}
+              </Tooltip.Root>
+            )}
 
           {!isNoteBlock && !isInline && (
             <Tooltip.Root preferAbove>
@@ -668,18 +804,16 @@ export const ActionBar = memo(
               </Tooltip.Root>
             )}
 
-          {isInline && (
+          {isInline && inlineActions !== 'run' && (
             <DropdownMenu onOpenChange={setIsInlineMenuOpen}>
               <Tooltip.Root>
                 <Tooltip.Trigger asChild>
                   <DropdownMenuTrigger asChild>
-                    <Button
-                      variant='ghost'
-                      className='size-[28px] rounded-md p-0 text-[var(--text-icon)] hover-hover:bg-[var(--surface-5)] hover-hover:text-[var(--text-primary)]'
+                    <Chip
+                      leftIcon={MoreHorizontal}
+                      className='size-[30px] justify-center p-0'
                       aria-label='Block actions'
-                    >
-                      <MoreHorizontal className={INLINE_ICON_SIZE} />
-                    </Button>
+                    />
                   </DropdownMenuTrigger>
                 </Tooltip.Trigger>
                 {!isInlineMenuOpen && <Tooltip.Content side='top'>Block actions</Tooltip.Content>}
@@ -771,6 +905,7 @@ export const ActionBar = memo(
       prevProps.blockType === nextProps.blockType &&
       prevProps.disabled === nextProps.disabled &&
       prevProps.variant === nextProps.variant &&
+      prevProps.inlineActions === nextProps.inlineActions &&
       prevProps.isRunning === nextProps.isRunning &&
       prevProps.isWorkflowRunning === nextProps.isWorkflowRunning &&
       prevProps.noteColor === nextProps.noteColor &&

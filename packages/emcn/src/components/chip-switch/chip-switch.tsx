@@ -29,7 +29,7 @@ export interface ChipSwitchProps<T extends string = string> {
   onChange: (value: T) => void
   /** Disables every segment in the switch. */
   disabled?: boolean
-  /** Visual density. `compact` matches 28px toolbar icon buttons. */
+  /** Visual density. `compact` matches the canonical 30px chip and toolbar controls. */
   size?: 'default' | 'compact'
   /** Optional accessible label for the radio group. */
   'aria-label'?: string
@@ -91,7 +91,7 @@ export function ChipSwitch<T extends string>({
                 variant: isActive ? 'border-shadow' : 'default',
               }),
               'justify-center',
-              size === 'compact' && 'h-6 px-1.5',
+              size === 'compact' && 'h-[26px] px-1.5',
               isActive
                 ? 'text-[var(--text-primary)] shadow-none hover-hover:bg-[var(--surface-2)] dark:bg-[var(--surface-6)] dark:shadow-none dark:hover-hover:bg-[var(--surface-6)]'
                 : 'text-[var(--text-muted)] hover-hover:bg-transparent hover-hover:text-[var(--text-primary)]'

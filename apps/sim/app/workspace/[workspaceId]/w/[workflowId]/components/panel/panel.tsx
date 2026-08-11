@@ -1,7 +1,7 @@
 'use client'
 
 import { memo, useCallback, useRef } from 'react'
-import { Chip, ChipSwitch, cn, toast } from '@sim/emcn'
+import { Chip, cn, toast } from '@sim/emcn'
 import { useParams } from 'next/navigation'
 import { ThinkingLoader } from '@/components/ui'
 import { useSession } from '@/lib/auth/auth-client'
@@ -13,6 +13,8 @@ import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-uti
 import {
   Deploy,
   Editor,
+  EditorPanelActions,
+  PanelViewControls,
   Toolbar,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components'
 import {
@@ -38,11 +40,6 @@ interface PanelProps {
   onCloseEditor?: () => void
 }
 
-const PANEL_TABS = [
-  { value: 'toolbar', label: 'Toolbar' },
-  { value: 'editor', label: 'Editor' },
-] as const
-
 /**
  * Workflow header and contextual right panel. Toolbar and Editor remain independently
  * available so users can browse blocks without losing their current canvas selection.
@@ -56,8 +53,10 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
   const panelRef = useRef<HTMLElement>(null)
   const activeTab = usePanelStore((state) => state.activeTab)
   const setActiveTab = usePanelStore((state) => state.setActiveTab)
+  const toolbarSearchInputRef = useRef<HTMLInputElement>(null)
   const toolbarRef = useRef<{
-    focusSearch: () => void
+    focusFirstItem: () => void
+    setSearchQuery: (query: string) => void
   } | null>(null)
   const { data: session } = useSession()
   const hostContext = useWorkspaceHostContext()
@@ -136,12 +135,24 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
     } else {
       usePanelEditorStore.getState().clearCurrentBlock()
     }
-    setActiveTab('toolbar')
-  }, [onCloseEditor, setActiveTab])
+  }, [onCloseEditor])
 
   const handleFocusToolbarSearch = useCallback(() => {
     setActiveTab('toolbar')
-    requestAnimationFrame(() => toolbarRef.current?.focusSearch())
+    requestAnimationFrame(() => toolbarSearchInputRef.current?.focus())
+  }, [setActiveTab])
+
+  const handleToolbarSearchChange = useCallback((query: string) => {
+    toolbarRef.current?.setSearchQuery(query)
+  }, [])
+
+  const handleToolbarSearchNavigate = useCallback(() => {
+    toolbarRef.current?.focusFirstItem()
+  }, [])
+
+  const handleEditorSelect = useCallback(() => {
+    toolbarSearchInputRef.current?.blur()
+    setActiveTab('editor')
   }, [setActiveTab])
 
   // Compute run button state
@@ -185,7 +196,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
 
   return (
     <>
-      <header className='workflow-header pointer-events-none absolute inset-x-0 top-0 z-30 flex h-[40px] items-stretch border-[var(--border)] border-b'>
+      <header className='workflow-header pointer-events-none absolute top-0 right-[var(--panel-width)] left-0 z-30 flex h-[40px] items-stretch border-[var(--border)] border-b'>
         <div className='pointer-events-auto flex min-w-0 flex-1 items-center gap-3 bg-[var(--bg)] px-3'>
           <div className='flex min-w-0 flex-1 items-center gap-1'>
             <h1 className='min-w-0 truncate text-[var(--text-body)] text-sm'>
@@ -195,9 +206,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
           </div>
           <WorkflowHistoryControls />
           <WorkflowControls />
-        </div>
-        <div className='pointer-events-none flex w-[var(--panel-width)] flex-shrink-0 items-center justify-end border-[var(--border)] border-l bg-[var(--bg)] pr-1 pl-3.5'>
-          <div className='pointer-events-auto flex items-center gap-1.5'>
+          <div className='flex items-center gap-1.5'>
             <Deploy
               activeWorkflowId={activeWorkflowId}
               userPermissions={userPermissions}
@@ -231,21 +240,23 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
         </div>
       </header>
 
-      <div className='workflow-right-tools pointer-events-none absolute top-[40px] right-0 bottom-0 z-20 flex w-[var(--panel-width)] [container-type:size]'>
+      <div className='workflow-right-tools pointer-events-none absolute top-0 right-0 bottom-0 z-20 flex w-[var(--panel-width)] [container-type:size]'>
         <aside
           ref={panelRef}
           className='panel-container pointer-events-auto relative flex h-full min-h-0 w-full flex-col overflow-hidden border-[var(--border)] border-l bg-[var(--bg)]'
           aria-label='Workflow panel'
         >
           <div className='flex h-full min-h-0 flex-col'>
-            <div className='flex h-[40px] flex-shrink-0 items-center border-[var(--border)] border-b px-3'>
-              <ChipSwitch
-                options={PANEL_TABS}
-                value={activeTab}
-                onChange={setActiveTab}
-                aria-label='Workflow panel view'
-              />
-            </div>
+            <PanelViewControls
+              key={activeWorkflowId ?? 'workflow'}
+              activeTab={activeTab}
+              searchInputRef={toolbarSearchInputRef}
+              onSearchChange={handleToolbarSearchChange}
+              onSearchNavigate={handleToolbarSearchNavigate}
+              onToolbarSelect={handleFocusToolbarSearch}
+              onEditorSelect={handleEditorSelect}
+              editorActions={<EditorPanelActions onClose={handleCloseEditor} />}
+            />
 
             <div className='min-h-0 flex-1 overflow-hidden'>
               <div
@@ -259,6 +270,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
                   key={activeWorkflowId ?? 'workflow'}
                   ref={toolbarRef}
                   isActive={activeTab === 'toolbar'}
+                  onFocusSearch={handleFocusToolbarSearch}
                 />
               </div>
               <div
@@ -268,7 +280,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
                   activeTab === 'editor' ? 'flex' : 'hidden'
                 )}
               >
-                <Editor onClose={handleCloseEditor} />
+                <Editor />
               </div>
             </div>
           </div>
