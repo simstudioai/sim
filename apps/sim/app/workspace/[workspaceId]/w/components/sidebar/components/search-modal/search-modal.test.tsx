@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -40,6 +40,15 @@ vi.mock('@/lib/core/config/env-flags', () => ({
 
 vi.mock('@/lib/posthog/client', () => ({
   captureEvent: vi.fn(),
+}))
+
+/**
+ * The real implementation runs the integration matcher over the block
+ * registry (globally mocked in jsdom); the palette only needs the store
+ * side effect, so delegate straight to LandingPromptStorage.
+ */
+vi.mock('@/blocks/integration-matcher', () => ({
+  storeCuratedPrompt: (prompt: string) => LandingPromptStorage.store(prompt),
 }))
 
 vi.mock('@/app/workspace/[workspaceId]/providers/global-commands-provider', () => ({
@@ -162,11 +171,8 @@ describe('SearchModal', () => {
     })
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
-    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home?handoff=1')
-    expect(MothershipHandoffStorage.consume('workspace-1')).toEqual({
-      message: 'plan our Slack launch week',
-      contexts: undefined,
-    })
+    expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home')
+    expect(LandingPromptStorage.consume()).toBe('plan our Slack launch week')
   })
 
   it('returns to search results when Tab is pressed again in ask mode', async () => {
@@ -233,6 +239,32 @@ describe('SearchModal', () => {
     expect(rows[2]).toContain('Onboarding')
   })
 
+  it('puts Create workflow first for the module-name query, then the workflows', async () => {
+    const workflows = [
+      { id: 'workflow-a', name: 'Alpha', href: '/workspace/workspace-1/w/workflow-a' },
+      { id: 'workflow-b', name: 'Beta', href: '/workspace/workspace-1/w/workflow-b' },
+    ]
+    await act(async () => {
+      root.render(
+        <SearchModal
+          open
+          onOpenChange={vi.fn()}
+          canEdit
+          onCreateWorkflow={vi.fn()}
+          workflows={workflows}
+        />
+      )
+    })
+
+    await enterSearchQuery('workflows')
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+      (el) => el.textContent ?? ''
+    )
+    expect(rows[0]).toContain('Create workflow')
+    expect(rows[1]).toContain('Alpha')
+    expect(rows[2]).toContain('Beta')
+  })
+
   it('shows an empty state when search has no results', async () => {
     await act(async () => {
       root.render(<SearchModal open onOpenChange={vi.fn()} />)
@@ -272,10 +304,154 @@ describe('SearchModal', () => {
 
       expect(receivedMessages).toEqual(['summarize this workspace'])
       expect(mockPush).not.toHaveBeenCalled()
-      expect(MothershipHandoffStorage.consume('workspace-1')).toBeNull()
+      expect(LandingPromptStorage.consume()).toBeNull()
     } finally {
       window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handleMessage)
     }
+  })
+
+  it('puts the Start Trigger first when the query is its exact name', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      triggers: [{ id: 'start', name: 'Start', icon: Icon, bgColor: '#111', type: 'start' }],
+      toolOperations: [
+        {
+          id: 'browser_start_task',
+          name: 'Start Task',
+          serviceName: 'Browser',
+          searchValue: 'browser start-task',
+          icon: Icon,
+          bgColor: '#611f69',
+          blockType: 'browser',
+          operationId: 'start_task',
+        },
+      ],
+    }
+    const workflows = [
+      { id: 'workflow-start', name: 'Start', href: '/workspace/workspace-1/w/workflow-start' },
+    ]
+
+    try {
+      await act(async () => {
+        root.render(
+          <SearchModal open onOpenChange={vi.fn()} pageContext='workflow' workflows={workflows} />
+        )
+      })
+
+      await enterSearchQuery('start')
+      const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Start Trigger')
+      expect(rows.some((row) => row.includes('Start Task'))).toBe(true)
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
+  it('puts the workflow verb actions first for their bare-verb queries', async () => {
+    const Icon = () => null
+    const original = { ...mockSearchState.data }
+    mockSearchState.data = {
+      ...mockSearchState.data,
+      toolOperations: [
+        {
+          id: 'vercel_deploy',
+          name: 'Deploy',
+          serviceName: 'Vercel',
+          searchValue: 'vercel deploy',
+          icon: Icon,
+          bgColor: '#000',
+          blockType: 'vercel',
+          operationId: 'deploy',
+        },
+        {
+          id: 'sheets_copy',
+          name: 'Copy',
+          serviceName: 'Sheets',
+          searchValue: 'sheets copy',
+          icon: Icon,
+          bgColor: '#0f9d58',
+          blockType: 'sheets',
+          operationId: 'copy',
+        },
+      ],
+    }
+
+    try {
+      await act(async () => {
+        root.render(<SearchModal open onOpenChange={vi.fn()} pageContext='workflow' canAdmin />)
+      })
+
+      await enterSearchQuery('deploy')
+      let rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Deploy workflow')
+      expect(rows.some((row) => row.includes('Vercel'))).toBe(true)
+
+      await enterSearchQuery('copy')
+      rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+        (el) => el.textContent ?? ''
+      )
+      expect(rows[0]).toContain('Copy workflow link')
+      expect(rows.some((row) => row.includes('Sheets'))).toBe(true)
+    } finally {
+      mockSearchState.data = original
+    }
+  })
+
+  it('browses every section uncapped', async () => {
+    const Icon = () => null
+    const workflows = Array.from({ length: 10 }, (_, index) => ({
+      id: `workflow-${index}`,
+      name: `Zeta ${index}`,
+      href: `/workspace/workspace-1/w/workflow-${index}`,
+    }))
+    const integrations = Array.from({ length: 30 }, (_, index) => ({
+      id: `catalog-${index}`,
+      name: `Acme ${index}`,
+      href: `/workspace/workspace-1/integrations/catalog-${index}`,
+      icon: Icon,
+      bgColor: '#111',
+    }))
+
+    await act(async () => {
+      root.render(
+        <SearchModal
+          open
+          onOpenChange={vi.fn()}
+          integrations={integrations}
+          workflows={workflows}
+        />
+      )
+    })
+
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+      (el) => el.textContent ?? ''
+    )
+    expect(rows.filter((row) => /Zeta \d/.test(row))).toHaveLength(10)
+    expect(rows.filter((row) => /Acme \d/.test(row))).toHaveLength(30)
+  })
+
+  it('ranks a matched action above an exact-named entity from another section', async () => {
+    const workflows = [
+      { id: 'workflow-run', name: 'Run', href: '/workspace/workspace-1/w/workflow-run' },
+    ]
+    await act(async () => {
+      root.render(
+        <SearchModal open onOpenChange={vi.fn()} pageContext='workflow' workflows={workflows} />
+      )
+    })
+
+    await enterSearchQuery('run')
+    const rows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).map(
+      (el) => el.textContent ?? ''
+    )
+    expect(rows[0]).toContain('Run workflow')
+    expect(rows.some((row) => row.includes('Run') && !row.includes('Run workflow'))).toBe(true)
   })
 
   it('orders canvas browse groups as Actions, Sim, building blocks, then the standard tail', async () => {
@@ -330,16 +506,16 @@ describe('SearchModal', () => {
       const headings = Array.from(
         document.querySelectorAll<HTMLElement>('[cmdk-group-heading]')
       ).map((el) => el.textContent)
-      expect(headings.slice(0, 8)).toEqual([
+      expect(headings.slice(0, 7)).toEqual([
         'Actions',
         'Sim',
         'Blocks',
         'Triggers',
         'Tools',
-        'Tool operations',
         'Pages',
         'Workflows',
       ])
+      expect(headings).not.toContain('Tool operations')
       expect(headings).not.toContain('Integrations')
       expect(headings).not.toContain('Connected Integrations')
     } finally {
@@ -440,7 +616,7 @@ describe('SearchModal', () => {
     expect(document.querySelector('input[aria-label="Ask Sim"]')).toBeNull()
   })
 
-  it('bounds browse rows while keeping later tool operations searchable', async () => {
+  it('hides tool operations in browse but keeps them searchable', async () => {
     const Icon = () => null
     const original = { ...mockSearchState.data }
     mockSearchState.data = {
@@ -465,7 +641,7 @@ describe('SearchModal', () => {
       const browseRows = Array.from(document.querySelectorAll<HTMLElement>('[cmdk-item]')).filter(
         (row) => row.textContent?.includes('Operation')
       )
-      expect(browseRows).toHaveLength(8)
+      expect(browseRows).toHaveLength(0)
 
       await enterSearchQuery('Operation')
       expect(document.querySelectorAll('[cmdk-item]')).toHaveLength(50)
@@ -524,7 +700,7 @@ describe('SearchModal', () => {
 
   it('keeps the palette open when the query handoff cannot be persisted', async () => {
     const onOpenChange = vi.fn()
-    const storeSpy = vi.spyOn(MothershipHandoffStorage, 'store').mockReturnValue(false)
+    const storeSpy = vi.spyOn(LandingPromptStorage, 'store').mockReturnValue(false)
 
     try {
       await act(async () => {

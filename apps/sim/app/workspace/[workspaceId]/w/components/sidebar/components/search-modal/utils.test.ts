@@ -3,6 +3,7 @@
  */
 import { describe, expect, it } from 'vitest'
 import {
+  ACTION_MATCH_BIAS,
   filterAndCap,
   filterAndSort,
   fuzzyMatch,
@@ -74,7 +75,7 @@ describe('getGlobalSearchResults', () => {
     expect(matches.map((entry) => entry.item.id)).toEqual(['chat-1', 'workflow-1', 'create-folder'])
   })
 
-  it('breaks identical visible-name matches by the original section order', () => {
+  it('biases matched actions above equal-quality matches from entity sections', () => {
     const action = {
       id: 'new-chat-action',
       name: 'New chat',
@@ -87,7 +88,7 @@ describe('getGlobalSearchResults', () => {
     const [actionMatch] = scoreActions([action], 'new c')
     const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
 
-    expect(actionMatch.score).toBe(chatMatch.score)
+    expect(actionMatch.score).toBe(chatMatch.score + ACTION_MATCH_BIAS)
     expect(
       getGlobalSearchResults(
         {
@@ -97,6 +98,24 @@ describe('getGlobalSearchResults', () => {
         ['actions', 'chats']
       ).map((entry) => entry.item.id)
     ).toEqual(['new-chat-action', 'new-chat-result'])
+  })
+
+  it('breaks identical visible-name matches by the original section order', () => {
+    const workflow = { id: 'new-chat-workflow', name: 'New chat', href: '/new-chat-workflow' }
+    const chat = { id: 'new-chat-result', name: 'New chat', href: '/new-chat-result' }
+    const [workflowMatch] = scoreAndSort([workflow], (item) => item.name, 'new c')
+    const [chatMatch] = scoreAndSort([chat], (item) => item.name, 'new c')
+
+    expect(workflowMatch.score).toBe(chatMatch.score)
+    expect(
+      getGlobalSearchResults(
+        {
+          workflows: [{ section: 'workflows', ...workflowMatch }],
+          chats: [{ section: 'chats', ...chatMatch }],
+        },
+        ['workflows', 'chats']
+      ).map((entry) => entry.item.id)
+    ).toEqual(['new-chat-workflow', 'new-chat-result'])
   })
 
   it('keeps every matching entry in score order', () => {
@@ -147,6 +166,20 @@ describe('scoreSectionItems', () => {
         (workspace) => workspace.keywords
       ).map(({ item }) => item.name)
     ).toEqual(['Workspaces demo', 'Acme', 'Beta'])
+  })
+
+  it('never fills or lifts tool operations from their section label', () => {
+    const operations = [{ name: 'Send Message' }, { name: 'Create Row' }]
+
+    expect(
+      scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool operations')
+    ).toHaveLength(0)
+    expect(scoreSectionItems('toolOperations', operations, (op) => op.name, 'tool')).toHaveLength(0)
+    expect(
+      scoreSectionItems('toolOperations', operations, (op) => op.name, 'send').map(
+        ({ item }) => item.name
+      )
+    ).toEqual(['Send Message'])
   })
 
   it('lifts a whole section above other sections’ name matches when the query is exactly its name', () => {

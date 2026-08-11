@@ -22,8 +22,8 @@ export const SEARCH_SECTIONS = [
   'knowledgeBases',
   'logs',
   'connectedAccounts',
-  'integrations',
   'chats',
+  'integrations',
 ] as const
 
 /** A single search-modal result group. */
@@ -127,6 +127,14 @@ export interface ActionItem {
   name: string
   /** Extra terms folded into the search value (e.g. "new add"). */
   keywords?: string
+  /**
+   * Lowercase queries that name this action outright — the module it heads
+   * (`'workflows'` for Create workflow) or its bare verb (`'deploy'`,
+   * `'copy'`). When the trimmed query IS one of these, the action ranks like
+   * a page row ({@link PAGE_MATCH_TIER}), above section-lifted and
+   * exact-name entity rows.
+   */
+  exactQueries?: readonly string[]
   icon: ComponentType<{ className?: string }>
   shortcut?: string
   context: ActionContext
@@ -557,6 +565,14 @@ function scoreItemsForSection<T>(
   return results
 }
 
+/**
+ * Sections whose label never participates in matching. Tool operations are a
+ * 1000+ registry-ordered list, so label-driven behavior ("tool operations"
+ * lifting the section, or a partial hit like "tool" filling it) would surface
+ * arbitrary rows; individual operations stay searchable by name and alias.
+ */
+const LABEL_MATCH_EXEMPT_SECTIONS = new Set<SearchSection>(['toolOperations'])
+
 export function scoreSectionItems<T>(
   section: SearchSection,
   items: T[],
@@ -565,16 +581,34 @@ export function scoreSectionItems<T>(
   toExtra?: (item: T) => string | undefined,
   maxResults = Number.POSITIVE_INFINITY
 ): Array<{ item: T; score: number }> {
+  if (LABEL_MATCH_EXEMPT_SECTIONS.has(section)) {
+    return scoreAndSort(items, toValue, search, toExtra).slice(0, maxResults)
+  }
   return scoreItemsForSection(SECTION_LABELS[section], items, toValue, search, toExtra, maxResults)
 }
 
-/** Scores actions by visible name before falling back to their keywords. */
+/**
+ * Rank offset added to every matched action. Actions are the palette's few
+ * runnable verbs, so a matched action outranks entity rows of the same match
+ * quality — a name-matched action beats name-matched entities, a
+ * keyword-matched action beats other secondary-text matches — while the
+ * half-tier offset deliberately cannot bridge into the next tier up
+ * ({@link SECTION_MATCH_TIER}, {@link PAGE_MATCH_TIER}).
+ */
+export const ACTION_MATCH_BIAS = 500_000
+
+/**
+ * Scores actions by visible name before falling back to their keywords.
+ * Every match is lifted by {@link ACTION_MATCH_BIAS}; a query listed in the
+ * action's `exactQueries` ranks it like a page row instead.
+ */
 export function scoreActions(
   actions: ActionItem[],
   search: string,
   maxResults = Number.POSITIVE_INFINITY,
   groupLabel: ActionGroupLabel = 'Sim'
 ): Array<{ item: ActionItem; score: number }> {
+  const query = search.trim().toLowerCase()
   return scoreItemsForSection(
     groupLabel,
     actions,
@@ -582,7 +616,10 @@ export function scoreActions(
     search,
     (action) => `${toSearchToken(action.name)} ${action.keywords ?? ''}`,
     maxResults
-  )
+  ).map(({ item, score }) => ({
+    item,
+    score: item.exactQueries?.includes(query) ? PAGE_MATCH_TIER : score + ACTION_MATCH_BIAS,
+  }))
 }
 
 /**

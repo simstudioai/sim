@@ -40,12 +40,10 @@ import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
 import { hasTriggerCapability } from '@/lib/workflows/triggers/trigger-utils'
-import { getMothershipHandoffHref } from '@/app/workspace/[workspaceId]/home/search-params'
 import { useInvokeGlobalCommand } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import {
   CommandFadedList,
@@ -85,13 +83,20 @@ import {
   CMDK_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
 import { SIDEBAR_SCROLL_EVENT } from '@/app/workspace/[workspaceId]/w/components/sidebar/sidebar'
+import { storeCuratedPrompt } from '@/blocks/integration-matcher'
 import { usePermissionConfig } from '@/hooks/use-permission-config'
 import { useSettingsNavigation } from '@/hooks/use-settings-navigation'
 import { useSearchModalStore } from '@/stores/modals/search/store'
 import type { SearchBlockItem, SearchToolOperationItem } from '@/stores/modals/search/types'
 
 const logger = createLogger('SearchModal')
-const MAX_BROWSE_RESULTS_PER_GROUP = 8
+/**
+ * Global row budget for the browse (empty-query) list, applied cumulatively in
+ * section order. Individual sections are never capped in browse — the budget
+ * exists purely to bound render cost when the combined lists are huge.
+ * Currently disabled (Infinity); set a finite number to re-enable the bound.
+ */
+export const MAX_BROWSE_RESULTS = Number.POSITIVE_INFINITY
 const MAX_SEARCH_RESULTS = 50
 
 export type { SearchModalProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -248,6 +253,7 @@ function SearchModalContent({
         id: 'deploy-workflow',
         name: 'Deploy workflow',
         keywords: 'ship release publish api',
+        exactQueries: ['deploy'],
         icon: Rocket,
         context: 'workflow',
         run: invoke('deploy-workflow'),
@@ -267,6 +273,7 @@ function SearchModalContent({
         id: 'copy-workflow-url',
         name: 'Copy workflow link',
         keywords: 'url share clipboard',
+        exactQueries: ['copy'],
         icon: Duplicate,
         context: 'workflow',
         run: () => {
@@ -290,7 +297,8 @@ function SearchModalContent({
       list.push({
         id: 'create-workflow',
         name: 'Create workflow',
-        keywords: 'new add build',
+        keywords: 'new add build workflows',
+        exactQueries: ['workflows'],
         icon: Plus,
         context: 'global',
         run: onCreateWorkflow,
@@ -831,13 +839,18 @@ function SearchModalContent({
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
     if (!sentToMountedHome) {
-      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
+      /* Prefill (not auto-send) via the same seam as the integrations "Explore"
+         showcase: seed the chat input on the freshly mounted home surface. The
+         MothershipHandoffStorage auto-send path drops sends started during
+         Home's mount-settling window (use-chat's cleanup abort), so the message
+         would silently vanish. */
+      if (!storeCuratedPrompt(query)) {
         logger.warn('Failed to persist command palette query for a new chat', {
           workspaceId,
         })
         return
       }
-      routerRef.current.push(getMothershipHandoffHref(workspaceId))
+      routerRef.current.push(homeHref)
     }
 
     onOpenChangeRef.current(false)
@@ -879,14 +892,14 @@ function SearchModalContent({
     ) =>
       query
         ? scoreSectionItems(section, items, toValue, search, toExtra, MAX_RESULTS_PER_GROUP)
-        : items.slice(0, MAX_BROWSE_RESULTS_PER_GROUP).map((item) => ({ item, score: 0 }))
+        : items.map((item) => ({ item, score: 0 }))
     const availableActions = actions.filter(
       (action) => action.context === 'global' || action.context === pageContext
     )
     const rankActionGroup = (items: ActionItem[], groupLabel: ActionGroupLabel) =>
       query
         ? scoreActions(items, search, MAX_RESULTS_PER_GROUP, groupLabel)
-        : items.slice(0, MAX_BROWSE_RESULTS_PER_GROUP).map((item) => ({ item, score: 0 }))
+        : items.map((item) => ({ item, score: 0 }))
     const pageGroupLabel = pageContext ? ('Actions' as const) : null
     const rankedActions = [
       ...(pageGroupLabel
@@ -926,21 +939,30 @@ function SearchModalContent({
         onCanvas
           ? triggers.map((trigger) => ({
               ...trigger,
+              baseName: trigger.name,
               name: trigger.name.endsWith('Trigger') ? trigger.name : `${trigger.name} Trigger`,
             }))
           : [],
         (item) => item.name,
         (item) => `${toSearchToken(item.name)} ${item.id}`
-      ).map(({ item, score }) => ({ section: 'triggers', item, score })),
+      ).map(({ item, score }) => ({
+        section: 'triggers',
+        item,
+        /* The display rename ("Start" → "Start Trigger") costs the exact-name
+           bonus, so a query that IS the trigger's name ranks it like a page row. */
+        score: item.baseName.toLowerCase() === query.toLowerCase() ? PAGE_MATCH_TIER : score,
+      })),
       tools: rank(
         'tools',
         availableTools,
         (item) => item.name,
         (item) => item.searchValue
       ).map(({ item, score }) => ({ section: 'tools', item, score })),
+      /* Tool operations are the one huge list (1000+ rows); browsing them
+         uncapped makes modal open/close laggy, so they are search-only. */
       toolOperations: rank(
         'toolOperations',
-        onCanvas ? toolOperations : [],
+        onCanvas && query ? toolOperations : [],
         (item) => item.name,
         (item) => item.searchValue
       ).map(({ item, score }) => ({ section: 'toolOperations', item, score })),
@@ -1056,7 +1078,7 @@ function SearchModalContent({
     const hoisted = pageContext ? PAGE_CONTEXT_HOISTED_SECTION[pageContext] : undefined
 
     const canvasSections = new Set<SearchSection>(CANVAS_SECTIONS)
-    return [
+    const groups = [
       ...(pageGroupLabel
         ? [
             {
@@ -1077,6 +1099,17 @@ function SearchModalContent({
         (section) => section !== 'actions' && section !== hoisted && !canvasSections.has(section)
       ).map(entityGroup),
     ]
+
+    let remaining = MAX_BROWSE_RESULTS
+    return groups.map((group) => {
+      if (group.entries.length <= remaining) {
+        remaining -= group.entries.length
+        return group
+      }
+      const truncated = { ...group, entries: group.entries.slice(0, remaining) }
+      remaining = 0
+      return truncated
+    })
   }, [entriesBySection, pageContext])
 
   const entryHandlers = useMemo(
