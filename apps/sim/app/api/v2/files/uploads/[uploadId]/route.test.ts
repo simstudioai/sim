@@ -99,14 +99,8 @@ describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
     expect(await response.json()).toMatchObject({ data: { id: UPLOAD_ID, status: 'aborted' } })
   })
 
-  it.each([
-    ['no workspace access', () => new NoWorkspaceAccessError()],
-    [
-      'a workspace API key barred from the operation',
-      () => new WorkspaceApiKeyAuthorizationError(),
-    ],
-  ])('conceals %s as a missing upload session', async (_label, makeError) => {
-    mocks.abort.mockRejectedValueOnce(makeError())
+  it('conceals a cross-tenant reach as a missing upload session', async () => {
+    mocks.abort.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await DELETE(abortRequest(), context)
 
@@ -114,6 +108,19 @@ describe('DELETE /api/v2/files/uploads/[uploadId]', () => {
     expect(await response.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Upload session not found' },
     })
+  })
+
+  /**
+   * Only cross-tenant reaches are concealed. A workspace key barred from this
+   * operation is a same-workspace policy denial — the caller owns the session
+   * and needs to be told why, not handed a misleading 404.
+   */
+  it('keeps a workspace-key policy denial as a 403', async () => {
+    mocks.abort.mockRejectedValueOnce(new WorkspaceApiKeyAuthorizationError())
+
+    const response = await DELETE(abortRequest(), context)
+
+    expect(response.status).toBe(403)
   })
 
   it('does not conceal a workspace-policy denial behind a not-found', async () => {
