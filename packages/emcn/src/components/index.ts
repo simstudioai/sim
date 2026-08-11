@@ -19,6 +19,7 @@ export {
 export { ChipChevronDown } from './chip/chip-chevron'
 export {
   cellIconNodeClass,
+  chipActiveSurfaceClass,
   chipBorderShadowRing,
   chipContentGap,
   chipContentIconClass,
@@ -28,6 +29,7 @@ export {
   chipFilledFillTokens,
   chipFilledSurfaceTokens,
   chipGeometryClass,
+  chipHoverSurfaceClass,
   chipIconSlotClass,
   chipPrimaryFillTokens,
   disclosureChevronClass,

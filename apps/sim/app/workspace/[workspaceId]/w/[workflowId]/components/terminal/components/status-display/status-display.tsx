@@ -7,7 +7,7 @@ import { BADGE_STYLE } from '@/app/workspace/[workspaceId]/w/[workflowId]/compon
 /**
  * Running badge component - displays a consistent "Running" indicator
  */
-export const RunningBadge = memo(function RunningBadge() {
+const RunningBadge = memo(function RunningBadge() {
   return (
     <Badge variant='green' className={BADGE_STYLE}>
       Running
