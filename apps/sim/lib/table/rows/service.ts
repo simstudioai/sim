@@ -41,6 +41,7 @@ import {
   withSeqscanOff,
 } from '@/lib/table/planner'
 import { encodeCursor } from '@/lib/table/rows/cursor'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import {
   applyExecutionsPatch,
   deriveExecClearsForDataPatch,
@@ -1504,7 +1505,7 @@ export async function updateRow(
   // Get existing row
   const existingRow = await getRowById(data.tableId, data.rowId, data.workspaceId)
   if (!existingRow) {
-    throw new Error('Row not found')
+    throw new TableRowNotFoundError()
   }
 
   // Merge partial update with existing row data so callers can pass only changed fields
@@ -1576,7 +1577,7 @@ export async function updateRow(
             .where(eq(userTableRows.id, data.rowId))
             .returning({ id: userTableRows.id, updatedAt: userTableRows.updatedAt })
           const [updatedRow] = updatedRows
-          if (!updatedRow) throw new Error('Table row no longer exists')
+          if (!updatedRow) throw new TableRowNotFoundError()
 
           const result = await writeExecutionsPatch(
             trx,
