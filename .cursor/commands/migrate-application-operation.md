@@ -1,6 +1,6 @@
-# Migrate Application Operation
+# Create Or Migrate Application Operation
 
-Migrate one bounded semantic operation at a time. Share authorization and business behavior without forcing internal APIs, public APIs, Copilot, and other tools to share authentication, input schemas, or response shapes.
+Create or migrate one bounded semantic operation at a time. Share authorization and business behavior without forcing internal APIs, public APIs, Copilot, and other tools to share authentication, input schemas, or response shapes.
 
 ## Enforce the application boundary
 
@@ -38,8 +38,12 @@ Read these files completely before editing:
 - `apps/sim/lib/core/application/workspace-operation.ts`
 - `apps/sim/lib/core/application/workspace-authorization.ts`
 - `apps/sim/lib/core/application/authorized-workspace-use-case.ts`
+- `apps/sim/lib/api/server/routes/definition.ts`
 - `apps/sim/lib/api/server/routes/internal-json-route.ts`
 - `apps/sim/lib/api/server/routes/v2-json-route.ts`
+- `apps/sim/lib/auth/internal-delegation.ts`
+- `apps/sim/lib/copilot/application/application-adapter.ts`
+- `apps/sim/lib/copilot/auth/application-delegation.ts`
 
 Use the file domain only as a representative golden slice:
 
@@ -111,10 +115,11 @@ rename: defineWorkspaceOperation({
   minimumRole: 'write',
   workspaceApiKey: 'allow',
   principalKinds: ['session', 'personal_api_key', 'workspace_api_key', 'delegated'],
+  delegatedServices: ['copilot'],
 })
 ```
 
-Do not create internal-, public-, or Copilot-specific versions of the same semantic operation. If two callers have materially different business or transactional semantics, define separate use cases and explain the distinction.
+Do not create internal-, public-, or Copilot-specific versions of the same semantic operation. If two callers have materially different business or transactional semantics, define separate semantic operations and use cases and explain the distinction.
 
 Choose principal kinds from actual behavior. Do not accept every principal merely because the use case is shared. Workspace API keys have a write ceiling and cannot satisfy admin operations. The operation definition must fail fast when its role, workspace-key policy, and principal kinds disagree.
 
@@ -160,17 +165,21 @@ Do not call shared authorization, principal audit attribution, or `recordAudit` 
 
 Inspect legacy orchestration before reusing it. If it already authorizes, audits, notifies, or captures analytics, call a lower-level primitive or remove duplicate responsibility for migrated callers.
 
+Application code must remain surface-neutral. It must not import `app/api/**`, `next/server`, internal/v1/v2 contracts or presenters, or Copilot tool handlers. Return domain values and let each surface presenter project its own wire result.
+
 ## Adapt internal APIs
 
-Use `defineInternalJsonRoute` for ordinary JSON routes. Explicitly declare the contract, session authentication policy, semantic operation, rate policy, error policy, input mapping, use case, and presenter when the wire result differs.
+Use `defineInternalJsonRoute` for ordinary JSON routes. Explicitly declare the contract, authentication policy, semantic operation, rate policy, error policy, input mapping, use case, and presenter when the wire result differs.
 
-The internal adapter owns session authentication and internal response envelopes. It must not implement workspace authorization. Preserve internal-only analytics through `onSuccess` after application success.
+Use `internalSessionAuth` for session-only routes. Use `createInternalSessionOrExecutorAuth` only when the endpoint genuinely supports signed executor delegation; the semantic operation must then allow `delegated` principals from the `executor` service. Never turn an actorless legacy JWT into a fake session, owner, or user principal.
+
+The internal adapter owns authentication and internal response envelopes. It must not implement workspace authorization. Preserve internal-only analytics through `onSuccess` after application success.
 
 Keep the route module declarative. If several internal routes repeat authentication, parsing, error rendering, or response construction, improve the shared internal route builder instead of adding a domain-specific route wrapper.
 
 ## Adapt public or versioned APIs
 
-Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit operation rate policy, rollout policy, external error projection, and an external presenter.
+Use the appropriate public/versioned route builder, such as `defineV2JsonRoute`, with API-key authentication, explicit semantic operation and rate policy, external error projection, input mapping, application use case, and an external presenter. V2 rollout admission is centralized by the builder; do not invent a route-local rollout policy.
 
 Authentication and HTTP formatting may differ from internal APIs; authorization and business behavior must not. Rate-limit using the credential or principal subject, never a billed owner. Resolve billing attribution only for billing, quota, or legacy required-user fields.
 
@@ -180,7 +189,9 @@ Keep v1 middleware and routes unchanged unless explicitly included.
 
 ## Adapt Copilot
 
-Create one domain-level Copilot application adapter instead of constructing delegated principals in every tool:
+Copilot is a surface adapter, not a separate application layer. If an HTTP or other surface already uses an application use case, Copilot must call that exact use case rather than reimplementing protected business behavior under `lib/copilot`.
+
+Create one domain-level Copilot application adapter with `createCopilotApplicationAdapter` instead of constructing delegated principals in every tool:
 
 ```ts
 executeCopilotWidgetUseCase(context, renameWidget, input, { resourceId })
@@ -193,15 +204,16 @@ That adapter must:
 - Construct the shared delegated `Principal` in one place.
 - Optionally bind the canonical resource scope after trusted resolution.
 - Verify that the use case exposes a registered code-defined operation.
+- Use the domain's exact immutable operation registry so operation-object membership and identity are checked centrally.
 - Call the application use case directly.
 
 Never construct authoritative delegation from model-provided workspace IDs, user IDs, operation IDs, resource scope, or permission tags. Model arguments are requested targets only and must be checked against trusted execution context and canonical data.
 
-Tool handlers own argument aliases, resumable legacy names, abort checks, and tool-specific presentation. They must not query managers directly for protected operations or manually authorize.
+Tool handlers own argument aliases, resumable legacy names, abort checks, tool-call reporting, and tool-specific presentation. They must not query managers directly for protected operations, manually authorize, or implement protected business behavior. If a Copilot-only compound action expresses real domain behavior, define a surface-neutral domain operation and application use case for it.
 
-A Copilot reference helper may translate a path to a resource only by calling an authorized application resolver under the intended semantic operation. Passing a code-defined operation object is acceptable; passing a model-provided operation string is not. Reauthorizing during later execution is safe but redundant. When resolution and execution form one business operation, need a consistent snapshot, or appear repeatedly together, prefer a top-level application use case such as `renameWidgetByReference`.
+A Copilot reference helper may translate a path to a resource only by calling an authorized application resolver under the intended semantic operation. Passing a code-defined operation object is acceptable; passing a model-provided operation string is not. An immediate same-request resolver followed by the operation may reuse one trusted principal, though the application operation still performs its own canonical authorization. Fresh authentication and authorization are required across lifecycle boundaries such as resumed tool calls, executor callbacks, queued or background work, upload control legs and finalization, durable completion, and long-running provider operations. When resolution and execution form one business operation, need a consistent snapshot, or appear repeatedly together, prefer a top-level application use case such as `renameWidgetByReference`.
 
-Special composition roots may resolve one principal and deliberately thread it through several application calls or lower-level admission stages. Keep this exceptional and explicit; ordinary tools should use the shared execution adapter.
+Surface adapters must not compose protected mutations. An atomic compound action requires one top-level semantic domain operation and application use case that owns the transaction and authoritative result. An explicitly best-effort application command may coordinate multiple operations only when it defines hard input and expansion caps, cancellation checkpoints, partial-result semantics, audit behavior, and rate/quota policy. Keep composition exceptional and explicit; ordinary tools should use the shared execution adapter.
 
 Map expected typed errors to safe tool results. Unknown errors must become generic system/retryable messages while retaining full causes in server logs. Never return raw database or storage errors to the model.
 
@@ -247,10 +259,11 @@ Stop and report a missing design rather than weakening identity, authorization, 
 Add focused tests for every migrated surface and principal kind allowed by the operation:
 
 - Application: allowed and disallowed roles, principal-kind rejection before canonical loading, workspace assertion mismatch, delegated scope, not found, conflict, no-op, and infrastructure propagation.
+- Operation registry: role/workspace-key/principal-kind/delegated-service consistency and fail-fast rejection of invalid definitions.
 - Repository: canonical active lookup, workspace-predicated writes, archived resources, authoritative affected rows, and database error propagation.
 - Internal API: authentication before parsing, exact contract, typed errors, and surface analytics only after success.
 - Public API: personal and workspace keys, rate and rollout behavior, concealment, exact external envelope, and rate headers.
-- Copilot or tools: trusted context, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
+- Copilot or tools: trusted context, exact registered operation membership, rejected forged scope, aliases and resume paths, permission re-check, safe errors, and unchanged tool result shapes.
 - Side effects: audit derives from authoritative results; shared notifications follow audit; neither occurs for rejection or no-op.
 
 Run at minimum:
