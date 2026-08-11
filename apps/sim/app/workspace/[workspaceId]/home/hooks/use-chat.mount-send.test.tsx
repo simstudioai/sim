@@ -143,6 +143,31 @@ describe('useChat mount-settling send recovery', () => {
     vi.clearAllMocks()
   })
 
+  it('delivers an aborted chatless send directly to a live replacement surface', async () => {
+    const received: string[] = []
+    const claim = (event: Event) => {
+      received.push((event as CustomEvent<{ message: string }>).detail.message)
+      event.preventDefault()
+    }
+    window.addEventListener('mothership-send-message', claim)
+
+    try {
+      const { getResult, unmount } = renderUseChat()
+      await act(async () => {
+        void getResult().sendMessage('hello from the palette')
+      })
+      await waitFor(() => state.postCalls === 1)
+
+      unmount()
+      await waitFor(() => received.length === 1)
+
+      expect(received).toEqual(['hello from the palette'])
+      expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
+    } finally {
+      window.removeEventListener('mothership-send-message', claim)
+    }
+  })
+
   it('re-persists an aborted chatless send as a handoff for the next mount', async () => {
     const { getResult, unmount } = renderUseChat()
 

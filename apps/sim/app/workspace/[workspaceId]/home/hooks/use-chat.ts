@@ -92,6 +92,7 @@ import {
   migrateDesktopChatScopes,
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -4518,13 +4519,19 @@ export function useChat(
           dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX) &&
           !msg.fileAttachments?.length
         ) {
-          MothershipHandoffStorage.store(
-            {
-              message: msg.content,
-              ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
-            },
-            workspaceId
-          )
+          /* The settling remount has already run its mount effects by the time
+             this microtask executes, so the replacement surface's send listener
+             is live — deliver directly. The stored-handoff fallback covers a
+             real navigation away, where the next mount's consumer picks it up. */
+          if (!sendMothershipMessage(msg.content, msg.contexts)) {
+            MothershipHandoffStorage.store(
+              {
+                message: msg.content,
+                ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
+              },
+              workspaceId
+            )
+          }
           return
         }
         useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
