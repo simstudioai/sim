@@ -60,8 +60,7 @@ describe('CommandFadedList', () => {
     const search = container.querySelector('[cmdk-input]')?.parentElement
     expect(list?.className).toContain('transparent_8%,black_13%,black_97%')
     expect(list?.className).not.toContain('scrollbar-track')
-    expect(search?.className).toContain('var(--surface-4)')
-    expect(search?.className).toContain('dark:bg-[linear-gradient(to_bottom,var(--surface-5)')
+    expect(search?.className).toContain('var(--bg)')
   })
 
   it('cycles through palette results with Tab and Shift+Tab', () => {

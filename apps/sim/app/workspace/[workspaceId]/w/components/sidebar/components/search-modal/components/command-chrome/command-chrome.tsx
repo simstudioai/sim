@@ -27,13 +27,14 @@ interface CommandFadedListProps extends CommandListProps {
 /**
  * The fog must repaint its host's exact background or it reads as a tinted
  * band under the input: the canvas selector card fills with `--surface-2`,
- * the palette dialog with `--surface-4` (light) / `--surface-5` (dark).
+ * while the palette's rows sit on the inner `--bg` panel (the dialog's
+ * surface-4/5 is only the 3px ring around it).
  */
 const SEARCH_SURFACE_CLASSNAME = {
   canvas:
     'bg-[linear-gradient(to_bottom,var(--surface-2)_0%,color-mix(in_srgb,var(--surface-2)_88%,transparent)_68%,transparent_100%)]',
   palette:
-    'bg-[linear-gradient(to_bottom,var(--surface-4)_0%,color-mix(in_srgb,var(--surface-4)_88%,transparent)_68%,transparent_100%)] dark:bg-[linear-gradient(to_bottom,var(--surface-5)_0%,color-mix(in_srgb,var(--surface-5)_88%,transparent)_68%,transparent_100%)]',
+    'bg-[linear-gradient(to_bottom,var(--bg)_0%,color-mix(in_srgb,var(--bg)_88%,transparent)_68%,transparent_100%)]',
 } as const
 
 /**
