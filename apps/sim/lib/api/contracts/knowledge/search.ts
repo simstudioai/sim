@@ -1,5 +1,7 @@
 import { z } from 'zod'
+import { resolvedSecretTraceProvenanceSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { RESOLVED_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { DEFAULT_RERANKER_MODEL, rerankerModelSchema } from '@/lib/knowledge/reranker-models'
 
 export const knowledgeSearchTagFilterSchema = z.object({
@@ -92,6 +94,7 @@ export const internalKnowledgeSearchBodySchema = z.intersection(
   z.object({
     workflowId: z.string().optional(),
     skipUsageBilling: z.boolean().optional(),
+    [RESOLVED_SECRET_PROVENANCE_FIELD]: resolvedSecretTraceProvenanceSchema.optional(),
   })
 )
 
