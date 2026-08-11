@@ -1,6 +1,7 @@
 import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -17,20 +18,6 @@ import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
-
-/**
- * Thrown when the user-authored Python script itself fails (raised an exception
- * or produced no output) — i.e. an error the agent should fix by editing the
- * script. Infra failures (E2B sandbox create/timeout, S3) propagate as plain
- * Errors so callers can return 5xx instead of telling the agent its script was
- * wrong.
- */
-export class DocCompileUserError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DocCompileUserError'
-  }
-}
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'

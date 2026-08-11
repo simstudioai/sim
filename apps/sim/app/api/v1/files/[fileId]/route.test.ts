@@ -37,7 +37,7 @@ vi.mock('@sim/audit', () => ({
 }))
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: vi.fn() }))
 
-import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { GET } from '@/app/api/v1/files/[fileId]/route'
 
 const WORKSPACE_ID = 'ws-1'

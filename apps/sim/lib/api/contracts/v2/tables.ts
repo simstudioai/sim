@@ -408,12 +408,10 @@ export const v2CreateTableBodySchema = v1CreateTableBodySchema
 export type V2CreateTableBody = z.input<typeof v2CreateTableBodySchema>
 
 /**
- * Table list. `listTables` returns every table in the workspace (a small,
- * bounded per-workspace set), so today the cursor list is a single full page
- * (`nextCursor` is always `null`). Using the canonical cursor envelope keeps the
- * whole v2 list surface uniform, and real pagination can be added later behind
- * the opaque cursor without an interface change. Search, folder filter, and
- * sort all run in that query, not over its result.
+ * Table list. Keyset-paged over the active sort: `limit` (default 100, clamped
+ * to 1..1000) plus an opaque sort-stamped `cursor`, so `nextCursor` is a real
+ * cursor and not always `null`. Search, folder filter, sort, and the keyset all
+ * run in the query, not over its result.
  */
 export const v2ListTablesContract = defineRouteContract({
   method: 'GET',
@@ -767,8 +765,13 @@ export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema.ex
 })
 export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicateBodySchema>
 
+/**
+ * PATCH, not PUT: the body carries a row-data *patch* applied to every matching
+ * row, never a replacement row. Pairs with `PATCH /rows/[rowId]` so partial
+ * update is the same verb whether it targets one row or a predicate's worth.
+ */
 export const v2UpdateRowsByFilterContract = defineRouteContract({
-  method: 'PUT',
+  method: 'PATCH',
   path: '/api/v2/tables/[tableId]/rows',
   params: tableIdParamsSchema,
   body: v2UpdateRowsByPredicateBodySchema,

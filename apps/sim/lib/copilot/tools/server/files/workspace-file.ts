@@ -16,6 +16,7 @@ import {
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { asOrchestrationError } from '@/lib/core/orchestration/types'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
@@ -33,7 +34,6 @@ import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
   DOCXJS_SOURCE_MIME,
-  DocCompileUserError,
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'

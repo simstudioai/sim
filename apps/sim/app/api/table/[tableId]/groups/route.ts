@@ -48,7 +48,11 @@ export const POST = defineInternalJsonRoute({
   auth: internalTableSessionOrExecutorAuth,
   rateLimit,
   errorPolicy,
-  mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
+  mapInput: ({ params, body }) => ({
+    tableId: params.tableId,
+    ...body,
+    autoRun: body.autoRun ?? true,
+  }),
   present: ({ table }) => presentTable(table),
 })
 

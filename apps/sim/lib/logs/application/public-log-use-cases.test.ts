@@ -35,8 +35,12 @@ vi.mock('@/lib/folders/queries', () => ({
   loadActiveFolderPathIndex: mocks.loadFolders,
 }))
 
+/**
+ * Only the display projection is exposed: these public readers must never reach
+ * for raw `materializeExecutionData`, which skips resolved-secret redaction.
+ */
 vi.mock('@/lib/logs/execution/trace-store', () => ({
-  materializeExecutionData: mocks.materialize,
+  materializeExecutionDataForDisplay: mocks.materialize,
 }))
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
@@ -111,10 +115,46 @@ describe('public log application use cases', () => {
     )
     expect(mocks.materialize).toHaveBeenCalledWith(
       { pointer: true },
-      { workspaceId: 'workspace-1', workflowId: 'workflow-1', executionId: 'run-1' }
+      {
+        workspaceId: 'workspace-1',
+        workflowId: 'workflow-1',
+        executionId: 'run-1',
+        userId: undefined,
+      }
     )
     expect(result.workflowFolderPath).toBe('/agents')
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  it('passes the personal-key subject through as the projection reader', async () => {
+    await getPublicLog.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
+      input: { runId: 'run-1' },
+    })
+
+    expect(mocks.materialize).toHaveBeenCalledWith(
+      { pointer: true },
+      expect.objectContaining({ userId: 'user-9' })
+    )
+  })
+
+  it('projects listed runs for display when trace spans are requested', async () => {
+    await listPublicLogs.execute({
+      principal: { kind: 'personal_api_key', userId: 'user-9', keyId: 'key-9' },
+      input: {
+        workspaceId: 'workspace-1',
+        filters: {},
+        limit: 50,
+        includeFullDetails: false,
+        includeFinalOutput: false,
+        includeTraceSpans: true,
+      },
+    })
+
+    expect(mocks.materialize).toHaveBeenCalledWith(
+      { pointer: true },
+      expect.objectContaining({ executionId: 'run-1', userId: 'user-9' })
+    )
   })
 
   it('rejects a workspace key outside the run workspace before materialization', async () => {

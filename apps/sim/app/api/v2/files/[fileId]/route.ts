@@ -25,6 +25,8 @@ export const revalidate = 0
  * The response carries no JSON envelope, so rate-limit state is surfaced via
  * `X-RateLimit-*` headers. Errors still render the canonical v2 JSON error body.
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
+ *
+ * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadFileContract,
@@ -37,11 +39,11 @@ export const GET = defineV2BinaryRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: downloadWorkspaceFileStream,
-  present: ({ file, stream }) => ({
+  present: ({ file, stream, contentType, contentLength }) => ({
     body: stream,
-    contentType: file.type || 'application/octet-stream',
+    contentType,
     contentDisposition: `attachment; filename="${file.name.replace(/[^\w.-]/g, '_')}"; filename*=UTF-8''${encodeURIComponent(file.name)}`,
-    contentLength: file.size,
+    contentLength,
   }),
 })
 

@@ -2843,12 +2843,20 @@
           "description": "Get information about the currently authenticated Calendly user"
         },
         {
+          "name": "Get User",
+          "description": "Get information about a specific Calendly user"
+        },
+        {
           "name": "List Event Types",
           "description": "Retrieve a list of all event types for a user or organization"
         },
         {
           "name": "Get Event Type",
           "description": "Get detailed information about a specific event type"
+        },
+        {
+          "name": "List Event Type Available Times",
+          "description": "Retrieve bookable time slots for an event type within a date range"
         },
         {
           "name": "List Scheduled Events",
@@ -2863,11 +2871,51 @@
           "description": "Retrieve a list of invitees for a scheduled event"
         },
         {
+          "name": "Get Event Invitee",
+          "description": "Retrieve a single invitee of a scheduled event, including their intake answers"
+        },
+        {
+          "name": "Book Meeting",
+          "description": "Book a meeting by creating an invitee on an event type at a chosen time. Requires a paid Calendly plan"
+        },
+        {
           "name": "Cancel Event",
           "description": "Cancel a scheduled event"
+        },
+        {
+          "name": "Mark Invitee No-Show",
+          "description": "Mark an invitee of a scheduled event as a no-show"
+        },
+        {
+          "name": "Unmark Invitee No-Show",
+          "description": "Remove the no-show status from an invitee"
+        },
+        {
+          "name": "Create Scheduling Link",
+          "description": "Create a single-use scheduling link for an event type"
+        },
+        {
+          "name": "List User Busy Times",
+          "description": "Retrieve a user's internal and external busy times within a date range, based on their connected calendars"
+        },
+        {
+          "name": "List User Availability Schedules",
+          "description": "Retrieve a user's availability schedules, working hours, and date overrides"
+        },
+        {
+          "name": "List Organization Memberships",
+          "description": "Retrieve the members of an organization, including each member profile and role"
+        },
+        {
+          "name": "List Routing Forms",
+          "description": "Retrieve the routing forms of an organization, including their questions"
+        },
+        {
+          "name": "List Routing Form Submissions",
+          "description": "Retrieve the submissions of a routing form, including answers and routing result"
         }
       ],
-      "operationCount": 7,
+      "operationCount": 19,
       "triggers": [
         {
           "id": "calendly_invitee_created",

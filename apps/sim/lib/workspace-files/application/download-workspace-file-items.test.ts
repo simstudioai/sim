@@ -45,8 +45,10 @@ vi.mock('@/lib/uploads/utils/file-utils', () => ({
   isGeneratedDocumentSourceType: mockIsGenerated,
   isRenderableDocumentName: mockIsRenderable,
   MAX_RENDERED_DOCUMENT_BYTES: 50 * 1024 * 1024,
+  needsRenderedArtifact: (contentType: string | null | undefined, fileName: string) =>
+    contentType ? mockIsGenerated(contentType) : mockIsRenderable(fileName),
 }))
-vi.mock('@/lib/uploads/utils/servable-file-response', () => ({
+vi.mock('@/lib/uploads/utils/doc-not-ready', () => ({
   docNotReadyMessage: (names: string[]) => `Pending: ${names.join(', ')}`,
   isDocNotReadyError: mockIsDocNotReady,
 }))

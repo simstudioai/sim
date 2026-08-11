@@ -9,13 +9,12 @@ import {
   loadWorkspaceFileOperationContext,
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace'
+import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/doc-not-ready'
 import {
   formatFileSize,
-  isGeneratedDocumentSourceType,
-  isRenderableDocumentName,
   MAX_RENDERED_DOCUMENT_BYTES,
+  needsRenderedArtifact,
 } from '@/lib/uploads/utils/file-utils'
-import { docNotReadyMessage, isDocNotReadyError } from '@/lib/uploads/utils/servable-file-response'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
 import { fileOperations } from '@/lib/workspace-files/application/operations'
 
@@ -35,10 +34,6 @@ export interface DownloadWorkspaceFileItemsResult {
   folderPaths: Map<string, string>
   renderedDocuments: Map<string, Buffer>
   declaredBytes: number
-}
-
-function needsRendering(file: WorkspaceFileRecord): boolean {
-  return file.type ? isGeneratedDocumentSourceType(file.type) : isRenderableDocumentName(file.name)
 }
 
 function collectDescendantFolderIds(
@@ -120,14 +115,14 @@ async function executeDownloadWorkspaceFileItems({
   }
 
   const reservedForStreamed = filesToZip
-    .filter((file) => !needsRendering(file))
+    .filter((file) => !needsRenderedArtifact(file.type, file.name))
     .reduce((sum, file) => sum + file.size, 0)
   const renderedDocuments = new Map<string, Buffer>()
   const pendingNames: string[] = []
   let renderedBytes = 0
 
   for (const file of filesToZip) {
-    if (!needsRendering(file)) continue
+    if (!needsRenderedArtifact(file.type, file.name)) continue
     const remaining = Math.max(0, MAX_ZIP_DOWNLOAD_BYTES - reservedForStreamed - renderedBytes)
     const allowance = Math.min(remaining, MAX_RENDERED_DOCUMENT_BYTES)
     try {

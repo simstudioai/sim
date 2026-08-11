@@ -1,27 +1,43 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { usageLimitsRequestSchema } from '@/lib/api/contracts/usage-limits'
-import { checkHybridAuth } from '@/lib/auth/hybrid'
+import { getUsageLimitsContract, usageLimitsRequestSchema } from '@/lib/api/contracts/usage-limits'
+import { AuthType, checkHybridAuth } from '@/lib/auth/hybrid'
 import { checkServerSideUsageLimits } from '@/lib/billing'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { getUserStorageLimit, getUserStorageUsage } from '@/lib/billing/storage'
+import { RateLimiter } from '@/lib/core/rate-limiter'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { createErrorResponse } from '@/app/api/workflows/utils'
 
 const logger = createLogger('UsageLimitsAPI')
 
 export const GET = withRouteHandler(async (request: NextRequest) => {
-  usageLimitsRequestSchema.parse({})
-
   try {
     const auth = await checkHybridAuth(request, { requireWorkflowId: false })
     if (!auth.success || !auth.userId) {
       return createErrorResponse('Authentication required', 401)
     }
+    usageLimitsRequestSchema.parse({})
     const authenticatedUserId = auth.userId
 
     const userSubscription = await getHighestPrioritySubscription(authenticatedUserId)
+    const rateLimiter = new RateLimiter()
+    const triggerType = auth.authType === AuthType.API_KEY ? 'api' : 'manual'
+    const [syncStatus, asyncStatus] = await Promise.all([
+      rateLimiter.getRateLimitStatusWithSubscription(
+        authenticatedUserId,
+        userSubscription,
+        triggerType,
+        false
+      ),
+      rateLimiter.getRateLimitStatusWithSubscription(
+        authenticatedUserId,
+        userSubscription,
+        triggerType,
+        true
+      ),
+    ])
 
     const [usageCheck, storageUsage, storageLimit] = await Promise.all([
       checkServerSideUsageLimits(authenticatedUserId),
@@ -29,12 +45,27 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       getUserStorageLimit(authenticatedUserId),
     ])
 
-    // Same computation as `limit` (one source, one tier) — the pair can never
-    // disagree under replication lag or mixed baseline/ledger tiers.
     const currentPeriodCost = usageCheck.currentUsage
 
-    return NextResponse.json({
+    const response = getUsageLimitsContract.response.schema.parse({
       success: true,
+      rateLimit: {
+        sync: {
+          isLimited: syncStatus.remaining === 0,
+          requestsPerMinute: syncStatus.requestsPerMinute,
+          maxBurst: syncStatus.maxBurst,
+          remaining: syncStatus.remaining,
+          resetAt: syncStatus.resetAt.toISOString(),
+        },
+        async: {
+          isLimited: asyncStatus.remaining === 0,
+          requestsPerMinute: asyncStatus.requestsPerMinute,
+          maxBurst: asyncStatus.maxBurst,
+          remaining: asyncStatus.remaining,
+          resetAt: asyncStatus.resetAt.toISOString(),
+        },
+        authType: triggerType,
+      },
       usage: {
         currentPeriodCost,
         limit: usageCheck.limit,
@@ -46,6 +77,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
         percentUsed: storageLimit > 0 ? (storageUsage / storageLimit) * 100 : 0,
       },
     })
+    return NextResponse.json(response)
   } catch (error) {
     logger.error('Error checking usage limits:', error)
     return createErrorResponse(getErrorMessage(error, 'Failed to check usage limits'), 500)
