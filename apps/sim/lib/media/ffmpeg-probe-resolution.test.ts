@@ -52,6 +52,17 @@ describe('probing without a discoverable ffmpeg binary', () => {
     expect(execFileMock.mock.calls[0][0]).toContain('ffprobe')
   })
 
+  it('always hands ffprobe a positive timeout', async () => {
+    // Node reads `timeout: 0` as "no timeout", so the computed cap is floored.
+    // Asserted on a healthy budget rather than an expired one: forcing the
+    // expired window means racing the abort timer, which makes the test flaky.
+    await runFfmpegOperation('probe', [{ buffer: Buffer.from('media'), mimeType: 'video/mp4' }])
+
+    const opts = execFileMock.mock.calls[0][2] as { timeout: number }
+    expect(opts.timeout).toBeGreaterThan(0)
+    expect(opts.timeout).toBeLessThanOrEqual(15_000)
+  })
+
   it('still refuses to transcode, which genuinely needs ffmpeg', async () => {
     await expect(
       runFfmpegOperation('convert', [{ buffer: Buffer.from('m'), mimeType: 'video/mp4' }], {

@@ -104,6 +104,15 @@ describe('runFfmpegOperation per-operation validation', () => {
     )
   })
 
+  it('allows webm for extract_audio but not weba', async () => {
+    const error = await runFfmpegOperation('extract_audio', [mediaFile()], {
+      format: 'weba',
+    }).catch((e: Error) => e)
+
+    expect(error.message).toContain('Unsupported output format')
+    expect(error.message).toContain('webm')
+  })
+
   it('restricts extract_audio to audio containers', async () => {
     await expect(
       runFfmpegOperation('extract_audio', [mediaFile()], { format: 'png' })

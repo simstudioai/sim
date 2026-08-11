@@ -246,6 +246,11 @@ const OUTPUT_EXTS = new Set([
  */
 const AUDIO_EXTS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'webm'])
 
+/** Containers shared with video, whose content type differs for an audio-only output. */
+const AUDIO_ONLY_MIME: Record<string, string> = {
+  webm: 'audio/webm',
+}
+
 /**
  * Temp-file names are built as `${prefix}.${ext}` and joined against the temp
  * dir, so an extension carrying `/` or `..` escapes that dir once `path.join`
@@ -493,12 +498,17 @@ function describeProbeFailure(err: Error & { killed?: boolean; code?: unknown },
 function probeFile(filePath: string, limit: TimeoutAbortController): Promise<MediaProbe> {
   assertOperationLive(limit)
   const remaining = getRemainingExecutionMs(limit.signal) ?? PROBE_TIMEOUT_MS
+  // Floored at 1ms: Node reads `timeout: 0` as "no timeout", so an expired
+  // budget would otherwise remove the probe cap entirely — the opposite of what
+  // an exhausted budget should do. Reachable between the deadline passing and
+  // the abort timer firing, where assertOperationLive still sees a live signal.
+  const timeout = Math.max(1, Math.min(PROBE_TIMEOUT_MS, remaining))
   return new Promise((resolve, reject) => {
     execFile(
       resolveFfprobePath(),
       ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', '-i', filePath],
       {
-        timeout: Math.min(PROBE_TIMEOUT_MS, remaining),
+        timeout,
         killSignal: 'SIGKILL',
         maxBuffer: PROBE_MAX_OUTPUT_BYTES,
         signal: limit.signal,
@@ -597,9 +607,13 @@ export async function runFfmpegOperation(
   }
 }
 
-async function readOut(outputPath: string, ext: string): Promise<FfmpegResult> {
+async function readOut(
+  outputPath: string,
+  ext: string,
+  contentType = mimeFromExt(ext)
+): Promise<FfmpegResult> {
   const buffer = await fs.readFile(outputPath)
-  return { buffer, ext, contentType: mimeFromExt(ext) }
+  return { buffer, ext, contentType }
 }
 
 async function overlayAudio(
@@ -863,7 +877,9 @@ async function extractAudio(
   const outputPath = tempPath(dir, `out.${ext}`)
   const command = ffmpeg(inputPath).noVideo()
   await runCommand(command, outputPath, limit)
-  return readOut(outputPath, ext)
+  // A container shared with video (webm) resolves to a video content type by
+  // default, but this output has had its video stream dropped.
+  return readOut(outputPath, ext, AUDIO_ONLY_MIME[ext] ?? mimeFromExt(ext))
 }
 
 async function convert(
