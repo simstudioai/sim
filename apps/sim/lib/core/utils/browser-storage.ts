@@ -310,6 +310,13 @@ export interface MothershipHandoff {
   contexts?: ChatContext[]
   /** Already-uploaded attachment references riding along with the message. */
   fileAttachments?: FileAttachmentForApi[]
+  /**
+   * Set only when a cleanup abort withdrew an in-flight send and this handoff
+   * is the recovery of it: the aborted send's stream id. The consuming chat
+   * probes it before sending, so a request the server had already accepted is
+   * adopted rather than sent a second time.
+   */
+  recoverStreamId?: string
 }
 
 interface StoredHandoff extends MothershipHandoff {
@@ -357,6 +364,7 @@ export class MothershipHandoffStorage {
         ? contexts
         : [...MothershipHandoffStorage.pendingContexts(workspaceId), ...contexts],
       ...(handoff.fileAttachments?.length ? { fileAttachments: handoff.fileAttachments } : {}),
+      ...(handoff.recoverStreamId ? { recoverStreamId: handoff.recoverStreamId } : {}),
       workspaceId,
       timestamp: Date.now(),
     })
@@ -418,6 +426,9 @@ export class MothershipHandoffStorage {
       contexts,
       ...(Array.isArray(data.fileAttachments) && data.fileAttachments.length > 0
         ? { fileAttachments: data.fileAttachments }
+        : {}),
+      ...(typeof data.recoverStreamId === 'string' && data.recoverStreamId
+        ? { recoverStreamId: data.recoverStreamId }
         : {}),
     }
   }
