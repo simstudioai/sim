@@ -45,10 +45,20 @@ function ensureFfmpeg(): void {
   }
 }
 
+function lookupOnPath(binary: string): string | null {
+  try {
+    const cmd = process.platform === 'win32' ? `where ${binary}` : `which ${binary}`
+    return execSync(cmd, { encoding: 'utf-8' }).trim().split('\n')[0] || null
+  } catch {
+    return null
+  }
+}
+
 /**
- * Mirrors fluent-ffmpeg's resolution order (FFPROBE_PATH, then PATH, then
- * ffmpeg's own directory) so replacing its ffprobe call does not narrow where
- * the binary may live for self-hosters.
+ * Mirrors fluent-ffmpeg's resolution order — FFPROBE_PATH, then PATH, then
+ * ffmpeg's own directory — so replacing its ffprobe call does not narrow where
+ * the binary may live for self-hosters. PATH outranks the sibling deliberately:
+ * a stray or unusable file next to ffmpeg must not mask a working install.
  */
 function resolveFfprobePath(): string {
   if (ffprobePath) return ffprobePath
@@ -60,8 +70,14 @@ function resolveFfprobePath(): string {
     return ffprobePath
   }
 
+  const onPath = lookupOnPath(binary)
+  if (onPath) {
+    ffprobePath = onPath
+    return ffprobePath
+  }
+
   // Deliberately initFfmpegPath, not ensureFfmpeg: a missing ffmpeg must not
-  // stop a probe, since ffprobe may still be on PATH.
+  // stop a probe when ffprobe is installed on its own.
   initFfmpegPath()
   const sibling = ffmpegPath ? path.join(path.dirname(ffmpegPath), binary) : undefined
   ffprobePath = sibling && existsSync(sibling) ? sibling : binary
