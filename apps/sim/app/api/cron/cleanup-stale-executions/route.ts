@@ -438,7 +438,6 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    // Delete completed/failed jobs older than retention period
     const retentionThreshold = new Date(Date.now() - JOB_RETENTION_HOURS * 60 * 60 * 1000)
     let asyncJobsDeleted = 0
 

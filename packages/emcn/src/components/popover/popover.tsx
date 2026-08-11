@@ -55,6 +55,7 @@ import * as PopoverPrimitive from '@radix-ui/react-popover'
 import { createPortal } from 'react-dom'
 import { Check, ChevronLeft, ChevronRight, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 
 type PopoverSize = 'sm' | 'md'
 type PopoverColorScheme = 'default' | 'inverted'
@@ -115,8 +116,13 @@ const STYLES = {
   /** Interactive state styles: default, and inverted (dark bg in light mode) */
   states: {
     default: {
-      active: 'bg-[var(--surface-active)]',
-      hover: 'hover-hover:bg-[var(--surface-active)]',
+      /**
+       * The shared row-state pair — see {@link chipHoverSurfaceClass}.
+       * `getItemStateClasses` returns active OR hover and never both, which is
+       * what holds a checked item's surface through hover.
+       */
+      active: chipActiveSurfaceClass,
+      hover: chipHoverSurfaceClass,
     },
     inverted: {
       active:

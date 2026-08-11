@@ -96,7 +96,11 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+  mapMicrosoftProfileToUser,
+} from '@/lib/oauth/microsoft'
 import {
   isSalesforceLoginOrigin,
   isSalesforceOAuthProviderId,
@@ -756,6 +760,13 @@ export const auth = betterAuth({
             clientId: env.MICROSOFT_CLIENT_ID,
             clientSecret: env.MICROSOFT_CLIENT_SECRET,
             scope: ['openid', 'profile', 'email'],
+            /**
+             * `/common/` otherwise silently reuses whichever Microsoft session
+             * the browser holds, stranding the user on an orphan Sim account
+             * under their personal address.
+             */
+            prompt: 'select_account' as const,
+            mapProfileToUser: mapMicrosoftProfileToUser,
           },
         }),
     },

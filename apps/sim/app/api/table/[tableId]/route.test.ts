@@ -33,6 +33,13 @@ vi.mock('@/lib/table', () => ({
   updateTableLocks: mockUpdateTableLocks,
   TableConflictError: class extends Error {},
 }))
+vi.mock('@/lib/table/service', () => ({
+  deleteTable: mockDeleteTable,
+  getTableById: mockGetTableById,
+  moveTableToFolder: mockMoveTableToFolder,
+  renameTable: mockRenameTable,
+  updateTableLocks: mockUpdateTableLocks,
+}))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetLimits }))
 vi.mock('@/lib/folders/queries', () => ({ findActiveFolder: mockFindActiveFolder }))
 vi.mock('@/lib/core/config/feature-flags', () => ({ isFeatureEnabled: vi.fn() }))
@@ -77,6 +84,13 @@ const routeContext = { params: Promise.resolve({ tableId: 'tbl_1' }) }
 describe('PATCH /api/table/[tableId] folder moves', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockMoveTableToFolder.mockResolvedValue({ name: 'Table' })
+    mockRenameTable.mockResolvedValue({ id: 'tbl_1', name: 'Table' })
+    mockDeleteTable.mockResolvedValue({ archived: { name: 'Table', workspaceId: 'workspace-1' } })
+    mockUpdateTableLocks.mockResolvedValue({
+      table: { ...TABLE, locks: {} },
+      previousLocks: {},
+    })
     hybridAuthMockFns.mockCheckSessionOrInternalAuth.mockResolvedValue({
       success: true,
       userId: 'user-1',
@@ -99,8 +113,7 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
       'tbl_1',
       'workspace-1',
       'folder-1',
-      expect.any(String),
-      'user-1'
+      expect.any(String)
     )
   })
 
@@ -118,8 +131,7 @@ describe('PATCH /api/table/[tableId] folder moves', () => {
       'tbl_1',
       'workspace-1',
       null,
-      expect.any(String),
-      'user-1'
+      expect.any(String)
     )
   })
 

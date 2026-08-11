@@ -1,6 +1,7 @@
+import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { sha256Hex } from '@sim/security/hash'
-import { getErrorMessage } from '@sim/utils/errors'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { isDocSandboxEnabled } from '@/lib/core/config/env-flags'
 import { CodeLanguage } from '@/lib/execution/languages'
 import {
@@ -9,30 +10,14 @@ import {
   type SandboxFile,
 } from '@/lib/execution/remote-sandbox'
 import { runSandboxTask } from '@/lib/execution/sandbox/run-task'
-import {
-  fetchWorkspaceFileBuffer,
-  getWorkspaceFile,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import type { WorkspaceFileSecretProvenanceIdentity } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getContentType } from '@/app/api/files/utils'
 import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import { loadCompiledDoc, storeCompiledDoc } from './doc-compiled-store'
 
 const logger = createLogger('CopilotDocCompile')
-
-/**
- * Thrown when the user-authored Python script itself fails (raised an exception
- * or produced no output) — i.e. an error the agent should fix by editing the
- * script. Infra failures (E2B sandbox create/timeout, S3) propagate as plain
- * Errors so callers can return 5xx instead of telling the agent its script was
- * wrong.
- */
-export class DocCompileUserError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'DocCompileUserError'
-  }
-}
 
 const PPTX_MIME = 'application/vnd.openxmlformats-officedocument.presentationml.presentation'
 const DOCX_MIME = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
@@ -126,7 +111,7 @@ const MAX_STAGED_TOTAL_BYTES = 50 * 1024 * 1024
 
 interface ResolvedReferencedImage {
   fileId: string
-  record: NonNullable<Awaited<ReturnType<typeof getWorkspaceFile>>>
+  record: Awaited<ReturnType<typeof readWorkspaceFileMetadata.execute>>['file']
 }
 
 interface ReferencedImageResolution {
@@ -176,6 +161,7 @@ export function collectReferencedFileIds(source: string): Set<string> {
 async function resolveReferencedImages(
   source: string,
   workspaceId: string,
+  principal: Principal,
   ids = collectReferencedFileIds(source)
 ): Promise<ReferencedImageResolution> {
   if (ids.size > MAX_STAGED_INPUTS) {
@@ -190,22 +176,10 @@ async function resolveReferencedImages(
   const images: ResolvedReferencedImage[] = []
   const identity: Array<Record<string, unknown>> = []
   for (const fileId of ids) {
-    let record: Awaited<ReturnType<typeof getWorkspaceFile>>
-    try {
-      record = await getWorkspaceFile(workspaceId, fileId)
-    } catch (err) {
-      logger.warn('Failed to resolve referenced image for doc compile', {
-        workspaceId,
-        fileId,
-        error: getErrorMessage(err),
-      })
-      identity.push({ fileId, state: 'unavailable' })
-      continue
-    }
-    if (!record) {
-      identity.push({ fileId, state: 'missing' })
-      continue
-    }
+    const { file: record } = await readWorkspaceFileMetadata.execute({
+      principal,
+      input: { fileId, assertedWorkspaceId: workspaceId },
+    })
     identity.push({
       fileId,
       key: record.key,
@@ -225,7 +199,8 @@ async function resolveReferencedImages(
 
 async function stageReferencedImages(
   resolution: ReferencedImageResolution,
-  workspaceId: string
+  workspaceId: string,
+  principal: Principal
 ): Promise<SandboxFile[]> {
   if (resolution.referenceCount > MAX_STAGED_INPUTS) {
     throw new Error(
@@ -249,17 +224,25 @@ async function stageReferencedImages(
         `Referenced input files exceed the ${MAX_STAGED_TOTAL_BYTES} byte staging budget.`
       )
     }
-    let buffer: Buffer
-    try {
-      buffer = await fetchWorkspaceFileBuffer(record, { maxBytes: MAX_STAGED_FILE_BYTES })
-    } catch (err) {
-      logger.warn('Failed to stage referenced image for doc compile', {
-        workspaceId,
-        fileId,
-        error: getErrorMessage(err),
-      })
-      continue
+    const content = await readWorkspaceFileContent.execute({
+      principal,
+      input: {
+        fileId: record.id,
+        assertedWorkspaceId: workspaceId,
+        maxBytes: MAX_STAGED_FILE_BYTES,
+      },
+    })
+    const contentRecord = content.file
+    const expectedVersion = record.contentUpdatedAt ?? record.updatedAt
+    const actualVersion = contentRecord.contentUpdatedAt ?? contentRecord.updatedAt
+    if (
+      contentRecord.key !== record.key ||
+      (contentRecord.storageContext ?? 'workspace') !== (record.storageContext ?? 'workspace') ||
+      actualVersion.getTime() !== expectedVersion.getTime()
+    ) {
+      throw new Error(`Referenced input file changed during document compilation: ${fileId}`)
     }
+    const buffer = content.content
     // Enforce the per-file cap on actual bytes too: record.size can be null/stale,
     // in which case the pre-fetch check above is skipped and a single oversized
     // file would otherwise be fully base64-held in memory.
@@ -311,12 +294,16 @@ except Exception as __sim_recalc_err:
     print("xlsx recalc skipped:", __sim_recalc_err)
 `.trim()
 
-interface CompileArgs {
+interface LegacyCompileArgs {
   source: string
   fileName: string
   workspaceId: string
   ownerKey?: string
   signal?: AbortSignal
+}
+
+interface CompileArgs extends LegacyCompileArgs {
+  filePrincipal: Principal
 }
 
 /**
@@ -326,11 +313,11 @@ interface CompileArgs {
  * Internal — callers use compileDoc (load-or-build + store).
  */
 async function compileDocViaE2BPython(
-  { source, workspaceId }: CompileArgs,
+  { source, workspaceId, filePrincipal }: CompileArgs,
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${fmt.ext}`
 
   // openpyxl writes formula strings but no cached values, so a web viewer (SheetJS)
@@ -408,11 +395,11 @@ fs.writeFileSync('/home/user/output.docx', __buf);
  * engines. Throws DocCompileUserError on a script error.
  */
 async function compileDocViaE2BNode(
-  { source, fileName, workspaceId }: CompileArgs,
+  { source, fileName, workspaceId, filePrincipal }: CompileArgs,
   ext: 'pptx' | 'docx',
   referencedImages: ReferencedImageResolution
 ): Promise<Buffer> {
-  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId)
+  const sandboxFiles = await stageReferencedImages(referencedImages, workspaceId, filePrincipal)
   const outputSandboxPath = `/home/user/output.${ext}`
   const preamble = ext === 'pptx' ? PPTX_NODE_PREAMBLE : DOCX_NODE_PREAMBLE
   const finalize = ext === 'pptx' ? PPTX_NODE_FINALIZE : DOCX_NODE_FINALIZE
@@ -468,15 +455,19 @@ async function buildCompiledDoc(
   fmt: E2BDocFormat,
   referencedImages: ReferencedImageResolution
 ): Promise<CompiledDocResult> {
-  const { source, fileName, workspaceId } = args
+  const { source, fileName, workspaceId, filePrincipal } = args
   const buffer =
     fmt.engine === 'node'
       ? await compileDocViaE2BNode(
-          { source, fileName, workspaceId },
+          { source, fileName, workspaceId, filePrincipal },
           fmt.ext as 'pptx' | 'docx',
           referencedImages
         )
-      : await compileDocViaE2BPython({ source, fileName, workspaceId }, fmt, referencedImages)
+      : await compileDocViaE2BPython(
+          { source, fileName, workspaceId, filePrincipal },
+          fmt,
+          referencedImages
+        )
   await storeCompiledDoc(
     workspaceId,
     source,
@@ -509,7 +500,7 @@ const COMPILABLE_FORMATS: Record<string, CompilableFormat> = {
 }
 
 async function compileDocInLegacySandbox(
-  args: CompileArgs,
+  args: LegacyCompileArgs,
   fmt: E2BDocFormat
 ): Promise<CompiledDocResult> {
   const format = COMPILABLE_FORMATS[`.${fmt.ext}`]
@@ -562,7 +553,12 @@ export async function compileDoc(args: CompileArgs): Promise<CompiledDocResult> 
   if (!isDocSandboxEnabled) return compileDocInLegacySandbox(args, fmt)
 
   const referencedFileIds = collectReferencedFileIds(source)
-  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+  const referencedImages = await resolveReferencedImages(
+    source,
+    workspaceId,
+    args.filePrincipal,
+    referencedFileIds
+  )
 
   const existing = await loadCompiledDoc(
     workspaceId,
@@ -590,17 +586,29 @@ export async function loadCompiledDocByExt(
   workspaceId: string,
   source: string,
   ext: string,
-  options: { allowLegacyReferencedArtifact?: boolean } = {}
+  options: {
+    allowLegacyReferencedArtifact?: boolean
+    filePrincipal?: Principal
+  } = {}
 ): Promise<{ buffer: Buffer; contentType: string } | null> {
   const fmt = await getE2BDocFormat(`x.${ext}`)
   if (!fmt) return null
   const referencedFileIds = collectReferencedFileIds(source)
-  if (referencedFileIds.size > MAX_STAGED_INPUTS) {
+  if (referencedFileIds.size > MAX_STAGED_INPUTS || !options.filePrincipal) {
+    if (referencedFileIds.size === 0) {
+      const buffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
+      return buffer ? { buffer, contentType: fmt.contentType } : null
+    }
     if (!options.allowLegacyReferencedArtifact) return null
     const legacyBuffer = await loadCompiledDoc(workspaceId, source, fmt.ext)
     return legacyBuffer ? { buffer: legacyBuffer, contentType: fmt.contentType } : null
   }
-  const referencedImages = await resolveReferencedImages(source, workspaceId, referencedFileIds)
+  const referencedImages = await resolveReferencedImages(
+    source,
+    workspaceId,
+    options.filePrincipal,
+    referencedFileIds
+  )
   const buffer = await loadCompiledDoc(
     workspaceId,
     source,
@@ -706,10 +714,11 @@ export async function resolveServableDocBytes(args: {
   rawBuffer: Buffer
   fileName: string
   workspaceId: string | undefined
+  filePrincipal?: Principal
   ownerKey?: string
   signal?: AbortSignal
 }): Promise<CompiledDocResult> {
-  const { rawBuffer, fileName, workspaceId, ownerKey, signal } = args
+  const { rawBuffer, fileName, workspaceId, filePrincipal, ownerKey, signal } = args
   const ext = fileName.slice(fileName.lastIndexOf('.')).toLowerCase()
   const extNoDot = ext.replace(/^\./, '')
   const format = COMPILABLE_FORMATS[ext]
@@ -728,10 +737,19 @@ export async function resolveServableDocBytes(args: {
   const source = rawBuffer.toString('utf-8')
 
   if (workspaceId) {
-    if (!isDocSandboxEnabled || collectReferencedFileIds(source).size > 0) {
-      return compileDoc({ source, fileName, workspaceId, ownerKey, signal })
+    if (!isDocSandboxEnabled) {
+      const fmt = await getE2BDocFormat(fileName)
+      if (!fmt) throw new Error(`Unsupported document format: ${fileName}`)
+      return compileDocInLegacySandbox({ source, fileName, workspaceId, ownerKey, signal }, fmt)
     }
-    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot)
+    const referencedFileIds = collectReferencedFileIds(source)
+    if (referencedFileIds.size > 0 && filePrincipal) {
+      return compileDoc({ source, fileName, workspaceId, filePrincipal, ownerKey, signal })
+    }
+    const stored = await loadCompiledDocByExt(workspaceId, source, extNoDot, {
+      allowLegacyReferencedArtifact: true,
+      filePrincipal,
+    })
     if (stored) return stored
     throw new DocCompileUserError('Document is still being generated')
   }

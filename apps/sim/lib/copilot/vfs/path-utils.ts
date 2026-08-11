@@ -1,37 +1,18 @@
-const CONTROL_CHARS = /[\x00-\x1f\x7f]/g
-const WHITESPACE = /\s+/g
-
-export class VfsPathError extends Error {
-  constructor(message: string) {
-    super(message)
-    this.name = 'VfsPathError'
-  }
-}
-
-function normalizeDisplaySegment(segment: string): string {
-  return segment.normalize('NFC').trim().replace(CONTROL_CHARS, '').replace(WHITESPACE, ' ')
-}
+import {
+  canonicalizeVfsPath as canonicalizeNeutralVfsPath,
+  decodeVfsPathSegments as decodeNeutralVfsPathSegments,
+  decodeVfsSegment as decodeNeutralVfsSegment,
+  decodeVfsSegmentSafe as decodeNeutralVfsSegmentSafe,
+  encodeVfsPathSegments as encodeNeutralVfsPathSegments,
+  encodeVfsSegment as encodeNeutralVfsSegment,
+} from '@/lib/vfs/path'
 
 export function encodeVfsSegment(segment: string): string {
-  const normalized = normalizeDisplaySegment(segment)
-  if (!normalized || normalized === '.' || normalized === '..') {
-    throw new VfsPathError('VFS path segment cannot be empty or a dot segment')
-  }
-  return encodeURIComponent(normalized)
+  return encodeNeutralVfsSegment(segment)
 }
 
 export function decodeVfsSegment(segment: string): string {
-  try {
-    const decoded = decodeURIComponent(segment)
-    const normalized = normalizeDisplaySegment(decoded)
-    if (!normalized || normalized === '.' || normalized === '..') {
-      throw new VfsPathError('VFS path segment cannot be empty or a dot segment')
-    }
-    return normalized
-  } catch (error) {
-    if (error instanceof VfsPathError) throw error
-    throw new VfsPathError(`Invalid encoded VFS path segment: ${segment}`)
-  }
+  return decodeNeutralVfsSegment(segment)
 }
 
 /**
@@ -39,25 +20,19 @@ export function decodeVfsSegment(segment: string): string {
  * it is not valid encoding (e.g. a literal "%" that was never encoded).
  */
 export function decodeVfsSegmentSafe(segment: string): string {
-  try {
-    return decodeVfsSegment(segment)
-  } catch {
-    return segment
-  }
+  return decodeNeutralVfsSegmentSafe(segment)
 }
 
 export function encodeVfsPathSegments(segments: string[]): string {
-  return segments.map(encodeVfsSegment).join('/')
+  return encodeNeutralVfsPathSegments(segments)
 }
 
 export function decodeVfsPathSegments(path: string): string[] {
-  const trimmed = path.trim().replace(/^\/+|\/+$/g, '')
-  if (!trimmed) return []
-  return trimmed.split('/').map(decodeVfsSegment)
+  return decodeNeutralVfsPathSegments(path)
 }
 
 export function canonicalizeVfsPath(path: string): string {
-  return encodeVfsPathSegments(decodeVfsPathSegments(path))
+  return canonicalizeNeutralVfsPath(path)
 }
 
 export function canonicalWorkspaceFilePath(parts: {

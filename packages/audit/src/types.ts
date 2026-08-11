@@ -185,6 +185,7 @@ export const AuditAction = {
 
   // Workflows
   WORKFLOW_CREATED: 'workflow.created',
+  WORKFLOW_UPDATED: 'workflow.updated',
   WORKFLOW_DELETED: 'workflow.deleted',
   WORKFLOW_RESTORED: 'workflow.restored',
   WORKFLOW_DEPLOYED: 'workflow.deployed',

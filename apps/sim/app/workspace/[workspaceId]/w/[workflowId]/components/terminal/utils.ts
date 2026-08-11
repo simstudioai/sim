@@ -1,5 +1,6 @@
 import type React from 'react'
 import { Ban, CircleX, Repeat, Split, TriangleAlert, Workflow } from '@sim/emcn/icons'
+import { hasWorkflowTypeRole } from '@sim/workflow-renderer'
 import { getBlock } from '@/blocks'
 import { isWorkflowBlockType } from '@/executor/constants'
 import { TERMINAL_BLOCK_COLUMN_WIDTH } from '@/stores/constants'
@@ -91,6 +92,23 @@ export function getBlockColor(blockType: string): string {
     return SPECIAL_BLOCK_COLORS.cancelled
   }
   return '#6b7280'
+}
+
+/**
+ * The type a log row's tile takes its accent from, or `undefined` when the row
+ * must fall back to the block's own provider colour.
+ *
+ * Same rule the block toolbar applies, so a block is accented identically
+ * wherever it is listed: a core block always takes the canvas role accent (an
+ * unmapped one lands on `neutral`, exactly as it does in the toolbar), and
+ * anything else — integrations, triggers, subflows — takes one only if it has a
+ * role. That second clause is what leaves the terminal's synthesized
+ * `error`/`validation`/`cancelled` rows on their own status fill: they carry no
+ * config and no role, so they fall through to the provider-colour branch.
+ */
+export function getEntryAccentType(blockType: string): string | undefined {
+  const isCoreBlock = getBlock(blockType)?.category === 'blocks'
+  return isCoreBlock || hasWorkflowTypeRole(blockType) ? blockType : undefined
 }
 
 /**
@@ -642,20 +660,6 @@ export function groupEntriesByExecution(entries: ConsoleEntry[]): ExecutionGroup
   // Sort by start time descending (newest first)
   result.sort((a, b) => b.startTimeMs - a.startTimeMs)
 
-  return result
-}
-
-/**
- * Flattens entry tree into display order for keyboard navigation
- */
-export function flattenEntryTree(nodes: EntryNode[]): ConsoleEntry[] {
-  const result: ConsoleEntry[] = []
-  for (const node of nodes) {
-    result.push(node.entry)
-    if (node.children.length > 0) {
-      result.push(...flattenEntryTree(node.children))
-    }
-  }
   return result
 }
 

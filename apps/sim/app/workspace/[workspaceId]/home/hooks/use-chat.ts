@@ -82,6 +82,7 @@ import { executeTerminalToolOnClient } from '@/lib/copilot/tools/client/terminal
 import { setCurrentChatTraceparent } from '@/lib/copilot/tools/client/trace-context'
 import { isUserLocalVfsToolCall } from '@/lib/copilot/tools/local-filesystem'
 import { isWorkflowToolName } from '@/lib/copilot/tools/workflow-tools'
+import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { readSSELines } from '@/lib/core/utils/sse'
 import { getDesktopBridge, getDesktopChatCapabilities } from '@/lib/desktop'
 import {
@@ -91,6 +92,7 @@ import {
   migrateDesktopChatScopes,
   PENDING_CHAT_KEY_PREFIX,
 } from '@/lib/desktop/chat-scope'
+import { sendMothershipMessage } from '@/lib/mothership/events'
 import { initTerminalTransport } from '@/lib/terminal/transport'
 import { getQueryClient } from '@/app/_shell/providers/get-query-client'
 import { useFilePreviewController } from '@/app/workspace/[workspaceId]/home/hooks/preview'
@@ -134,6 +136,46 @@ import type {
   ToolCallInfo,
 } from '../types'
 
+export interface SendMessageOptions {
+  /**
+   * Message id of a prior attempt this send retries, set when recovering a send
+   * an unmount cleanup withdrew. Reusing it lets the server deduplicate the two
+   * attempts instead of opening a second chat.
+   */
+  resumeUserMessageId?: string
+}
+
+/**
+ * `true` when the send owns the transcript (rendered, or handed to reconnect),
+ * `false` when the caller should restore the queue entry, and the object form
+ * when an unmount cleanup withdrew it — `userMessageId` is what a retry reuses
+ * so the server deduplicates the two attempts.
+ */
+type StartSendMessageResult = boolean | { userMessageId: string }
+
+interface StartSendMessageOptions {
+  /** Awaited before dispatch. Defaults to the hook's in-flight stop, if any. */
+  pendingStop?: Promise<void> | null
+  /** Runs once the optimistic user/assistant pair is in the transcript. */
+  onOptimisticSendApplied?: () => void
+  /** Seed for a queued send that superseded a stopped stream. */
+  queuedSendHandoff?: QueuedSendHandoffSeed
+  /**
+   * Message id of a prior attempt this send retries. Reusing it is what makes
+   * the retry safe: the server deduplicates against that attempt rather than
+   * opening a second chat and billing a second turn.
+   */
+  resumeUserMessageId?: string
+}
+
+/** A send an unmount cleanup withdrew, as handed to the next chat surface. */
+interface WithdrawnSend {
+  content: string
+  fileAttachments?: FileAttachmentForApi[]
+  contexts?: ChatContext[]
+  userMessageId: string
+}
+
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
@@ -145,7 +187,8 @@ export interface UseChatReturn {
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
+    contexts?: ChatContext[],
+    options?: SendMessageOptions
   ) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -3345,7 +3388,8 @@ export function useChat(
     (
       message: string,
       fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[]
+      contexts?: ChatContext[],
+      resumeUserMessageId?: string
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3365,6 +3409,7 @@ export function useChat(
         content: message,
         fileAttachments,
         contexts,
+        ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3451,12 +3496,11 @@ export function useChat(
       message: string,
       fileAttachments?: FileAttachmentForApi[],
       contexts?: ChatContext[],
-      pendingStopOverride?: Promise<void> | null,
-      onOptimisticSendApplied?: () => void,
-      queuedSendHandoff?: QueuedSendHandoffSeed
-    ) => {
+      options?: StartSendMessageOptions
+    ): Promise<StartSendMessageResult> => {
       if (!message.trim() || !workspaceId) return false
-      const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
+      const { onOptimisticSendApplied, queuedSendHandoff } = options ?? {}
+      const pendingStop = options?.pendingStop ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
         ? queuedSendHandoff?.supersededStreamId ||
           locallyTerminalStreamIdRef.current ||
@@ -3465,11 +3509,16 @@ export function useChat(
         : undefined
 
       let consumedByTranscript = false
+      let sendReachedServer = false
+      let sendAbortSignal: AbortSignal | null = null
 
       setError(null)
       setTransportStreaming()
 
-      const userMessageId = queuedSendHandoff?.userMessageId ?? generateId()
+      /* A retry of a withdrawn send reuses its id so the server deduplicates
+         the two attempts; anything else mints a fresh one. */
+      const userMessageId =
+        queuedSendHandoff?.userMessageId ?? options?.resumeUserMessageId ?? generateId()
       const assistantId = getLiveAssistantMessageId(userMessageId)
 
       const storedAttachments: PersistedFileAttachment[] | undefined =
@@ -3697,6 +3746,7 @@ export function useChat(
         }
         const abortController = new AbortController()
         abortControllerRef.current = abortController
+        sendAbortSignal = abortController.signal
 
         const resourceAttachments = buildResourceAttachments(
           resourcesRef.current,
@@ -3725,6 +3775,7 @@ export function useChat(
           }),
           signal: abortController.signal,
         })
+        sendReachedServer = true
 
         // Capture for propagation on side-channel calls + non-React
         // tool-completion callbacks (via trace-context singleton).
@@ -3761,6 +3812,19 @@ export function useChat(
               }
               setError('Previous response is still shutting down; queued message was restored.')
               return false
+            }
+            /* A send deduplicated against an earlier attempt comes back naming
+               the chat that attempt opened. Adopting it here spares a chatless
+               surface the stream-to-chat lookup and puts the user in the right
+               chat before the reconnect below replays it. */
+            const conflictChatId =
+              typeof errorData.chatId === 'string' ? errorData.chatId : undefined
+            if (conflictChatId && !streamTargetChatId) {
+              adoptResolvedChatId(conflictChatId, {
+                replaceHomeHistory: true,
+                invalidateList: true,
+              })
+              streamTargetChatId = conflictChatId
             }
             streamIdRef.current = conflictStreamId
             const succeeded = await retryReconnect({
@@ -3823,7 +3887,28 @@ export function useChat(
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') return consumedByTranscript
+        /* fetch rejects with the RAW abort reason (here a plain string) when
+           its signal was aborted with abort(reason) — an `err.name` check alone
+           misses those, so abort detection also consults the signal itself. */
+        const sendWasAborted =
+          (err instanceof Error && err.name === 'AbortError') || sendAbortSignal?.aborted === true
+        if (sendWasAborted) {
+          if (sendAbortSignal?.reason === 'unmount:client_cleanup' && !sendReachedServer) {
+            /* A remount ran the unmount cleanup before this send's response
+               arrived — a chat-route `key` change, or StrictMode's dev
+               double-mount. Nothing was rendered from it, so withdraw the
+               optimistic pair and report the message id, which a retry reuses.
+
+               The request itself may well have been accepted: the route never
+               reads `request.signal`, so it runs to completion regardless of
+               the abort. Reusing the id is what makes the retry safe — the
+               server deduplicates it against that turn instead of billing
+               another one. */
+            rollbackOptimisticSend()
+            return { userMessageId }
+          }
+          return consumedByTranscript
+        }
         if (isStreamSchemaValidationError(err)) {
           setError(err.message)
           if (gen !== undefined && streamGenRef.current === gen) {
@@ -3873,8 +3958,39 @@ export function useChat(
       setTransportStreaming,
     ]
   )
+  /**
+   * Hands a send the unmount cleanup withdrew to whatever chat surface comes
+   * next: the live replacement's listener when one is mounted, else a one-shot
+   * stored handoff for the next mount. Both lanes carry `userMessageId`, so
+   * whoever picks it up retries as the same send rather than a new one.
+   */
+  const handOffWithdrawnSend = useCallback(
+    (send: WithdrawnSend) => {
+      if (
+        sendMothershipMessage(send.content, send.contexts, send.fileAttachments, send.userMessageId)
+      ) {
+        return
+      }
+      MothershipHandoffStorage.store(
+        {
+          message: send.content,
+          ...(send.contexts?.length ? { contexts: send.contexts } : {}),
+          ...(send.fileAttachments?.length ? { fileAttachments: send.fileAttachments } : {}),
+          resumeUserMessageId: send.userMessageId,
+        },
+        workspaceId
+      )
+    },
+    [workspaceId]
+  )
+
   const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+    async (
+      message: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      options?: SendMessageOptions
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       const queueStore = useMothershipQueueStore.getState()
@@ -3901,20 +4017,45 @@ export function useChat(
         queueStore.setEditing(activeChatKey, null)
       }
 
-      if (sendingRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+      // An in-flight send drains the queue from `finalize`; a pending stop kicks
+      // the dispatcher itself, since nothing else will once the stop settles.
+      if (sendingRef.current || pendingStopPromiseRef.current) {
+        queueStore.enqueue(
+          activeChatKey,
+          createQueuedMessage(message, fileAttachments, contexts, options?.resumeUserMessageId)
+        )
+        if (pendingStopPromiseRef.current) {
+          void enqueueQueueDispatchRef.current({ type: 'send_head' })
+        }
         return
       }
 
-      if (pendingStopPromiseRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
-        void enqueueQueueDispatchRef.current({ type: 'send_head' })
+      const result = await startSendMessage(message, fileAttachments, contexts, options)
+      if (typeof result !== 'object') return
+
+      /* An unmount cleanup withdrew the send. A chat-bound key is the stable
+         chat id, so re-queueing under the key this was sent to is the durable
+         retry — and keeps the message in that chat rather than following the
+         user into whichever one they opened next. Only a chatless surface,
+         whose key dies with the mount, goes to the cross-surface lanes. */
+      const withdrawn = {
+        content: message,
+        fileAttachments,
+        contexts,
+        userMessageId: result.userMessageId,
+      }
+      if (activeChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+        handOffWithdrawnSend(withdrawn)
         return
       }
-
-      await startSendMessage(message, fileAttachments, contexts)
+      useMothershipQueueStore
+        .getState()
+        .enqueue(
+          activeChatKey,
+          createQueuedMessage(message, fileAttachments, contexts, result.userMessageId)
+        )
     },
-    [workspaceId, startSendMessage, createQueuedMessage]
+    [workspaceId, createQueuedMessage, startSendMessage, handOffWithdrawnSend]
   )
   useEffect(() => {
     if (typeof window === 'undefined') return
@@ -4083,19 +4224,15 @@ export function useChat(
 
     const claimOwnerId = writeQueuedSendHandoffClaim(handoff.id)
     recoveringQueuedSendHandoffRef.current = { id: handoff.id, ownerId: claimOwnerId }
-    void startSendMessage(
-      handoff.message,
-      handoff.fileAttachments,
-      handoff.contexts,
-      null,
-      undefined,
-      {
+    void startSendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+      pendingStop: null,
+      queuedSendHandoff: {
         id: handoff.id,
         chatId: handoff.chatId,
         supersededStreamId: handoff.supersededStreamId,
         userMessageId: handoff.userMessageId,
-      }
-    ).finally(() => {
+      },
+    }).finally(() => {
       if (
         recoveringQueuedSendHandoffRef.current?.id === handoff.id &&
         recoveringQueuedSendHandoffRef.current.ownerId === claimOwnerId
@@ -4456,12 +4593,23 @@ export function useChat(
         useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
-      const restoreQueuedMessage = (handoff?: QueuedSendHandoffSeed) => {
+      /* What actually went out. `msg` is the snapshot from when the dispatch was
+         scheduled; the send below uses the re-read live entry, so recovery
+         tracks that rather than assuming the two still match. */
+      let dispatched = msg
+      const restoreQueuedMessage = (
+        handoff?: QueuedSendHandoffSeed,
+        withdrawnUserMessageId?: string
+      ) => {
+        const withdrawnByCleanup = withdrawnUserMessageId !== undefined
         if (!handoff) {
           clearQueuedSendHandoffState(msg.id)
         }
         clearQueuedSendHandoffClaim(msg.id)
-        if (!removedFromQueue || options.epoch !== queueDispatchEpochRef.current) {
+        if (!removedFromQueue) {
+          return
+        }
+        if (options.epoch !== queueDispatchEpochRef.current && !withdrawnByCleanup) {
           return
         }
         // If the user explicitly removed this message during dispatch, honor
@@ -4469,7 +4617,23 @@ export function useChat(
         if (userRemovedDuringDispatchRef.current.delete(msg.id)) {
           return
         }
-        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
+        /* A chatless surface regenerates its queue key every mount, so a
+           restore would strand this under the dead instance's key — hand it to
+           the next surface instead. A chat-bound key is the stable chat id, so
+           the queue itself is the durable retry. */
+        if (withdrawnByCleanup && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+          handOffWithdrawnSend({
+            content: dispatched.content,
+            fileAttachments: dispatched.fileAttachments,
+            contexts: dispatched.contexts,
+            userMessageId: withdrawnUserMessageId,
+          })
+          return
+        }
+        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
+          ...dispatched,
+          ...(withdrawnUserMessageId ? { resumeUserMessageId: withdrawnUserMessageId } : {}),
+        })
       }
 
       let activeQueuedSendHandoff: QueuedSendHandoffSeed | undefined =
@@ -4486,18 +4650,28 @@ export function useChat(
         // Re-read live: the user may have applied an in-place edit (`replaceAt`)
         // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
+        dispatched = liveMsg
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
-        const consumed = await startSendMessage(
+
+        const sendResult = await startSendMessage(
           liveMsg.content,
           liveMsg.fileAttachments,
           liveMsg.contexts,
-          options.pendingStop,
-          removeQueuedMessage,
-          activeQueuedSendHandoff
+          {
+            pendingStop: options.pendingStop,
+            onOptimisticSendApplied: removeQueuedMessage,
+            queuedSendHandoff: activeQueuedSendHandoff,
+            ...(liveMsg.resumeUserMessageId
+              ? { resumeUserMessageId: liveMsg.resumeUserMessageId }
+              : {}),
+          }
         )
 
-        if (!consumed) {
-          restoreQueuedMessage(activeQueuedSendHandoff)
+        if (sendResult !== true) {
+          restoreQueuedMessage(
+            activeQueuedSendHandoff,
+            typeof sendResult === 'object' ? sendResult.userMessageId : undefined
+          )
         }
       } catch {
         restoreQueuedMessage(activeQueuedSendHandoff)
@@ -4507,7 +4681,7 @@ export function useChat(
         userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
-    [startSendMessage]
+    [startSendMessage, handOffWithdrawnSend]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {

@@ -49,33 +49,6 @@ vi.mock('@/lib/api/client/errors', () => ({
   extractValidationIssues: vi.fn(() => []),
 }))
 
-vi.mock('@/lib/api/contracts/tables', () => ({
-  addTableColumnContract: {},
-  addWorkflowGroupContract: {},
-  batchCreateTableRowsContract: {},
-  batchUpdateTableRowsContract: {},
-  cancelTableRunsContract: {},
-  createTableContract: {},
-  createTableRowContract: {},
-  deleteTableColumnContract: {},
-  deleteTableContract: {},
-  deleteTableRowContract: {},
-  deleteTableRowsContract: {},
-  deleteWorkflowGroupContract: {},
-  getTableContract: {},
-  importCsvContract: {},
-  listTableRowsContract: {},
-  listTablesContract: {},
-  renameTableContract: {},
-  restoreTableContract: {},
-  runWorkflowGroupContract: {},
-  updateTableColumnContract: {},
-  updateTableMetadataContract: {},
-  updateTableRowContract: {},
-  updateWorkflowGroupContract: {},
-  uploadCsvContract: {},
-}))
-
 vi.mock('@/app/workspace/providers/socket-provider', () => ({
   useSocket: vi.fn(() => ({ socket: null })),
 }))

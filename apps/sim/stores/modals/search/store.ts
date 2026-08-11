@@ -1,6 +1,7 @@
 import { Repeat, Split } from '@sim/emcn/icons'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
+import { toSearchToken } from '@/lib/search/tokens'
 import { getToolOperationsIndex } from '@/lib/search/tool-operations'
 import { getTriggersForSidebar } from '@/lib/workflows/triggers/trigger-utils'
 import { getAllBlocks } from '@/blocks'
@@ -8,7 +9,6 @@ import type { BlockConfig, SubBlockConfig } from '@/blocks/types'
 import type {
   SearchBlockItem,
   SearchData,
-  SearchDocItem,
   SearchModalState,
   SearchToolOperationItem,
 } from './types'
@@ -18,7 +18,6 @@ const initialData: SearchData = {
   tools: [],
   triggers: [],
   toolOperations: [],
-  docs: [],
   isInitialized: false,
 }
 
@@ -54,8 +53,8 @@ export function buildCommandSearchableOptionSearchValue(block: BlockConfig): str
       if (option.hidden) continue
 
       const subBlockTitle = subBlock.title ?? subBlock.id
-      terms.add(subBlockTitle)
-      terms.add(option.label)
+      terms.add(toSearchToken(subBlockTitle))
+      terms.add(toSearchToken(option.label))
       terms.add(option.id)
     }
   }
@@ -67,24 +66,18 @@ export const useSearchModalStore = create<SearchModalState>()(
   devtools(
     (set, _) => ({
       isOpen: false,
-      sections: null,
-      pendingConnect: null,
       data: initialData,
 
       setOpen: (open: boolean) => {
-        set({ isOpen: open, sections: null, pendingConnect: null })
+        set({ isOpen: open })
       },
 
-      open: (options) => {
-        set({
-          isOpen: true,
-          sections: options?.sections ?? null,
-          pendingConnect: options?.pendingConnect ?? null,
-        })
+      open: () => {
+        set({ isOpen: true })
       },
 
       close: () => {
-        set({ isOpen: false, sections: null, pendingConnect: null })
+        set({ isOpen: false })
       },
 
       initializeData: (filterBlocks) => {
@@ -93,7 +86,6 @@ export const useSearchModalStore = create<SearchModalState>()(
 
         const regularBlocks: SearchBlockItem[] = []
         const tools: SearchBlockItem[] = []
-        const docs: SearchDocItem[] = []
 
         for (const block of filteredAllBlocks) {
           if (block.hideFromToolbar) continue
@@ -104,7 +96,7 @@ export const useSearchModalStore = create<SearchModalState>()(
             icon: block.icon,
             bgColor: block.bgColor || '#6B7280',
             type: block.type,
-            searchValue: `${block.name} ${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
+            searchValue: `${toSearchToken(block.name)} ${block.type} ${buildCommandSearchableOptionSearchValue(block)}`,
             sourceWorkflowId: block.sourceWorkflowId,
           }
 
@@ -112,15 +104,6 @@ export const useSearchModalStore = create<SearchModalState>()(
             regularBlocks.push(searchItem)
           } else if (block.category === 'tools') {
             tools.push(searchItem)
-          }
-
-          if (block.docsLink) {
-            docs.push({
-              id: `docs-${block.type}`,
-              name: block.name,
-              icon: block.icon,
-              href: block.docsLink,
-            })
           }
         }
 
@@ -176,11 +159,14 @@ export const useSearchModalStore = create<SearchModalState>()(
         const toolOperations: SearchToolOperationItem[] = getToolOperationsIndex()
           .filter((op) => allowedBlockTypes.has(op.blockType))
           .map((op) => {
-            const aliasesStr = op.aliases?.length ? ` ${op.aliases.join(' ')}` : ''
+            const aliasesStr = op.aliases?.length
+              ? ` ${op.aliases.map(toSearchToken).join(' ')}`
+              : ''
             return {
               id: op.id,
               name: op.operationName,
-              searchValue: `${op.serviceName} ${op.operationName}${aliasesStr}`,
+              serviceName: op.serviceName,
+              searchValue: `${toSearchToken(op.serviceName)} ${toSearchToken(op.operationName)}${aliasesStr}`,
               icon: op.icon,
               bgColor: op.bgColor,
               blockType: op.blockType,
@@ -194,7 +180,6 @@ export const useSearchModalStore = create<SearchModalState>()(
             tools,
             triggers,
             toolOperations,
-            docs,
             isInitialized: true,
           },
         })

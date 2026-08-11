@@ -4,7 +4,7 @@ import { generateId } from '@sim/utils/id'
 import { isPlainRecord } from '@sim/utils/object'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { WorkflowBlockHandler } from '@/executor/handlers/workflow/workflow-handler'
-import type { ExecutionContext } from '@/executor/types'
+import type { ExecutionContext, ExecutorDelegationOrigin } from '@/executor/types'
 import { projectResolvedSecretDiagnosticContent } from '@/executor/utils/resolved-secret-content-projection'
 import type { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import type { SerializedBlock } from '@/serializer/types'
@@ -13,7 +13,7 @@ import type { ToolResponse } from '@/tools/types'
 const logger = createLogger('CustomBlockToolRunner')
 
 /** Server-set execution context propagated to every agent tool call. */
-interface CustomBlockExecutorContext {
+export interface CustomBlockExecutorContext {
   workspaceId?: string
   userId?: string
   workflowId?: string
@@ -55,6 +55,7 @@ export function buildCustomBlockExecutionContext(
   options: {
     abortSignal?: AbortSignal
     resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    executorDelegationOrigin?: ExecutorDelegationOrigin
   } = {}
 ): ExecutionContext {
   // Prefer the invoking agent run's ids so correlation and cancellation both
@@ -64,6 +65,7 @@ export function buildCustomBlockExecutionContext(
     workflowId: context.workflowId ?? 'custom-block-tool',
     workspaceId: context.workspaceId,
     userId: context.userId,
+    executorDelegationOrigin: options.executorDelegationOrigin,
     executionId,
     isDeployedContext: context.isDeployedContext,
     // Inherit the accumulated chain so the handler appends + validates depth;

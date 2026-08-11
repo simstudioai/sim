@@ -145,6 +145,16 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   uploadWorkspaceFile: vi.fn(),
 }))
 
+vi.mock('@/lib/workspace-files/application/resolve-workspace-file-reference', () => ({
+  resolveWorkspaceFileReference: mockResolveWorkspaceFileReference,
+}))
+
+vi.mock('@/lib/workspace-files/application/read-workspace-file-content', () => ({
+  readWorkspaceFileContent: {
+    execute: vi.fn(async () => ({ content: await mockFetchWorkspaceFileBuffer() })),
+  },
+}))
+
 vi.mock('@/lib/uploads', () => ({
   StorageService: {
     uploadFile: mockUploadFile,
@@ -206,7 +216,13 @@ describe('Function Execute API Route', () => {
       url: '/api/files/view/existing',
       key: 'workspace/existing.png',
     })
-    mockResolveWorkspaceFileReference.mockResolvedValue(null)
+    mockResolveWorkspaceFileReference.mockResolvedValue({
+      id: 'wf_existing',
+      workspaceId: 'workspace-1',
+      name: 'existing.txt',
+      size: 0,
+      key: 'workspace/existing.txt',
+    })
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.alloc(0))
     mockValidateWorkspaceFileWriteTarget.mockImplementation(async ({ target }) => ({
       mode: target.mode,
@@ -1519,6 +1535,45 @@ describe('Function Execute API Route', () => {
       expect(data.output.result.unchanged).toBe(true)
       expect(data.output.result.message).toContain('byte-identical to the previous version')
       expect(data.output.result.message).toContain('/home/user/doc.md')
+    })
+
+    it('continues an overwrite when the advisory comparison fails', async () => {
+      envFlagsMock.isRemoteSandboxEnabled = true
+      const newContent = '# doc\nnew content\n'
+      mockExecuteInSandbox.mockResolvedValueOnce({
+        result: 'done',
+        stdout: 'ok',
+        sandboxId: 'sandbox-123',
+        exportedFiles: { '/home/user/doc.md': newContent },
+      })
+      mockResolveWorkspaceFileReference.mockRejectedValueOnce(
+        new Error('comparison storage unavailable')
+      )
+
+      const response = await POST(
+        createMockRequest('POST', {
+          code: 'print("done")',
+          language: 'python',
+          workspaceId: 'workspace-1',
+          outputs: {
+            files: [
+              {
+                path: 'files/doc.md',
+                mode: 'overwrite',
+                sandboxPath: '/home/user/doc.md',
+                mimeType: 'text/markdown',
+              },
+            ],
+          },
+        })
+      )
+      const data = await response.json()
+
+      expect(response.status).toBe(200)
+      expect(data.success).toBe(true)
+      expect(mockWriteWorkspaceFileByPath).toHaveBeenCalledTimes(1)
+      expect(data.output.result).toMatchObject({ unchanged: false })
+      expect(data.output.result).not.toHaveProperty('previousSize')
     })
 
     it('reports size, previousSize, and sha256 receipts on a successful overwrite export', async () => {

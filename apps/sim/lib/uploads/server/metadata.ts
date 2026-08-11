@@ -4,7 +4,7 @@ import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm'
 import type { DbOrTx, DbTransaction } from '@/lib/db/types'
-import type { StorageContext } from '../shared/types'
+import { type StorageContext, toLegacyWorkspaceFileSize } from '../shared/types'
 
 const logger = createLogger('FileMetadata')
 
@@ -43,7 +43,7 @@ function isSameFileMetadataInsert(
     existing.context === options.context &&
     existing.originalName === options.originalName &&
     existing.contentType === options.contentType &&
-    existing.size === options.size &&
+    (existing.sizeBytes ?? existing.size) === options.size &&
     existing.deletedAt === null &&
     (options.id === undefined || existing.id === options.id)
   )
@@ -118,7 +118,8 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
         contentUpdatedAt: sql<Date>`GREATEST(CURRENT_TIMESTAMP, ${workspaceFiles.contentUpdatedAt} + INTERVAL '1 millisecond')`,
@@ -146,7 +147,8 @@ async function insertFileMetadataWithExecutor(
         originalName,
         displayName: originalName,
         contentType,
-        size,
+        size: toLegacyWorkspaceFileSize(size),
+        sizeBytes: size,
         deletedAt: null,
         uploadedAt: new Date(),
       })
@@ -190,7 +192,8 @@ async function insertImmutableFileMetadataWithExecutor(
       originalName,
       displayName: originalName,
       contentType,
-      size,
+      size: toLegacyWorkspaceFileSize(size),
+      sizeBytes: size,
       deletedAt: null,
       uploadedAt: new Date(),
     })
@@ -267,7 +270,8 @@ export async function insertFileMetadataMany(
         originalName: row.originalName,
         displayName: row.originalName,
         contentType: row.contentType,
-        size: row.size,
+        size: toLegacyWorkspaceFileSize(row.size),
+        sizeBytes: row.size,
         deletedAt: null,
         uploadedAt: new Date(),
       }))
@@ -433,8 +437,8 @@ export interface KnowledgeBaseFileOwnership {
  * Record the ownership binding for a single knowledge-base upload. KB file
  * authorization (`verifyKBFileAccess`) resolves the owning workspace from this
  * binding, so every KB object must have exactly one. Single source of truth for
- * the binding shape across the presigned, batch-presigned, and multipart upload
- * paths — keep all callers routed through here so they cannot drift.
+ * the binding shape for knowledge upload sessions — keep all callers routed
+ * through here so they cannot drift.
  */
 export async function recordKnowledgeBaseFileOwnership(
   ownership: KnowledgeBaseFileOwnership,
@@ -448,19 +452,4 @@ export async function recordKnowledgeBaseFileOwnership(
     ...ownership,
     context: 'knowledge-base',
   })
-}
-
-/**
- * Bulk variant of {@link recordKnowledgeBaseFileOwnership} for batch upload flows.
- * Idempotent against the active-key unique index (ON CONFLICT DO NOTHING).
- */
-export async function recordKnowledgeBaseFileOwnershipMany(
-  ownerships: KnowledgeBaseFileOwnership[]
-): Promise<void> {
-  if (ownerships.length === 0) {
-    return
-  }
-  await insertFileMetadataMany(
-    ownerships.map((ownership) => ({ ...ownership, context: 'knowledge-base' }))
-  )
 }

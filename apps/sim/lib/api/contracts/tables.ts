@@ -34,7 +34,7 @@ import {
   SORT_DIRECTIONS,
   TABLE_LIMITS,
 } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 import {
   getTablePredicateTreeSizeError,
   MAX_PREDICATE_GROUP_SIZE,
@@ -51,11 +51,12 @@ export const columnTypeSchema = z.enum(COLUMN_TYPES)
 
 /** One choice in a `select` column. `id` is the stable cell key. */
 export const selectOptionSchema = z.object({
-  id: requiredFieldSchema('Option id is required'),
+  id: requiredFieldSchema('Option id is required').describe('Stable select-option identifier.'),
   name: z
     .string()
     .min(1, 'Option name is required')
-    .max(100, 'Option name must be 100 characters or less'),
+    .max(100, 'Option name must be 100 characters or less')
+    .describe('Display name of the select option.'),
 })
 
 export const selectOptionsSchema = z
@@ -74,7 +75,7 @@ export const selectOptionsSchema = z
 export const currencyCodeSchema = z
   .string()
   .regex(/^[A-Za-z]{3}$/, 'Must be a 3-letter ISO 4217 currency code, e.g. USD')
-  .transform((code) => code.toUpperCase())
+  .overwrite((code) => code.toUpperCase())
 
 /**
  * Cross-field rule: a `select` column must declare a non-empty option set;
@@ -82,7 +83,7 @@ export const currencyCodeSchema = z
  * column may carry `currencyCode`. Skipped when `type` is absent (a
  * metadata-only update on an existing column).
  */
-function refineColumnOptions(
+export function refineColumnOptions(
   data: {
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
@@ -134,7 +135,7 @@ function refineColumnOptions(
  * Identifier for tables/columns: starts with letter or underscore, contains
  * only alphanumerics + underscores, capped at `MAX_TABLE_NAME_LENGTH`.
  */
-const tableNameSchema = z
+export const tableNameSchema = z
   .string()
   .min(1, 'Name is required')
   .max(
@@ -146,7 +147,7 @@ const tableNameSchema = z
     'Name must start with a letter or underscore and contain only alphanumeric characters and underscores'
   )
 
-const columnNameSchema = z
+export const columnNameSchema = z
   .string()
   .min(1, 'Column name is required')
   .max(
@@ -168,11 +169,11 @@ const descriptionSchema = z
 export const tableScopeSchema = z.enum(['active', 'archived', 'all'])
 
 export const tableIdParamsSchema = z.object({
-  tableId: z.string().min(1),
+  tableId: z.string().min(1).describe('Unique table identifier.'),
 })
 
 export const tableRowParamsSchema = tableIdParamsSchema.extend({
-  rowId: z.string().min(1),
+  rowId: z.string().min(1).describe('Unique table row identifier.'),
 })
 
 export const listTablesQuerySchema = z.object({
@@ -187,34 +188,51 @@ export const getTableQuerySchema = z.object({
 export const tableColumnSchema = z
   .object({
     /** Stable column id (server-assigned). Absent on legacy/ pre-backfill columns. */
-    id: z.string().optional(),
-    name: columnNameSchema,
-    type: columnTypeSchema,
-    required: z.boolean().optional().default(false),
-    unique: z.boolean().optional().default(false),
+    id: z.string().optional().describe('Stable server-assigned column identifier.'),
+    name: columnNameSchema.describe('Column name used as the public row-data key.'),
+    type: columnTypeSchema.describe('Data type of values stored in the column.'),
+    required: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Whether inserts require a value for this column.'),
+    unique: z
+      .boolean()
+      .optional()
+      .default(false)
+      .describe('Whether values must be unique across table rows.'),
     /** Set when the column is a workflow group's output. */
-    workflowGroupId: z.string().optional(),
+    workflowGroupId: z
+      .string()
+      .optional()
+      .describe('Workflow group whose output populates this column.'),
     /** Declared options for a `select` column. */
-    options: selectOptionsSchema.optional(),
+    options: selectOptionsSchema.optional().describe('Options declared for a select column.'),
     /** A `select` column that accepts multiple options per cell. */
-    multiple: z.boolean().optional(),
+    multiple: z.boolean().optional().describe('Whether a select column accepts multiple options.'),
     /** ISO 4217 code for a `currency` column. */
-    currencyCode: currencyCodeSchema.optional(),
+    currencyCode: currencyCodeSchema
+      .optional()
+      .describe('ISO 4217 code for a currency column, normalized to uppercase.'),
   })
   .superRefine(refineColumnOptions)
+  .describe('A typed column in a table schema.')
 
 export const createTableBodySchema = z.object({
-  name: tableNameSchema,
-  description: descriptionSchema.optional(),
-  schema: z.object({
-    columns: z
-      .array(tableColumnSchema)
-      .min(1, 'Table must have at least one column')
-      .max(
-        TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
-        `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
-      ),
-  }),
+  name: tableNameSchema.describe('Table name.'),
+  description: descriptionSchema.optional().describe('Optional table description.'),
+  schema: z
+    .object({
+      columns: z
+        .array(tableColumnSchema)
+        .min(1, 'Table must have at least one column')
+        .max(
+          TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+          `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+        )
+        .describe('Initial typed column definitions.'),
+    })
+    .describe('Initial table schema.'),
   workspaceId: workspaceIdSchema,
   /**
    * Folder to create the table in. Omitted or `null` creates it at the workspace
@@ -232,10 +250,10 @@ export const renameTableBodySchema = z.object({
 
 /** Full per-table lock set (all four flags). */
 export const tableLocksSchema = z.object({
-  schemaLocked: z.boolean(),
-  insertLocked: z.boolean(),
-  updateLocked: z.boolean(),
-  deleteLocked: z.boolean(),
+  schemaLocked: z.boolean().describe('Whether column-schema changes are locked.'),
+  insertLocked: z.boolean().describe('Whether row insertion is locked.'),
+  updateLocked: z.boolean().describe('Whether row updates are locked.'),
+  deleteLocked: z.boolean().describe('Whether row and table deletion is locked.'),
 }) satisfies z.ZodType<TableLocks>
 
 /**
@@ -269,45 +287,53 @@ export const createTableColumnBodySchema = z.object({
     .object({
       // Optional stable id — first-party undo of a delete re-creates the column
       // with its original id so saved (id-keyed) cell data restores correctly.
-      id: z.string().optional(),
-      name: columnNameSchema,
-      type: columnTypeSchema,
-      required: z.boolean().optional(),
-      unique: z.boolean().optional(),
-      position: z.number().int().min(0).optional(),
-      options: selectOptionsSchema.optional(),
-      multiple: z.boolean().optional(),
-      currencyCode: currencyCodeSchema.optional(),
+      id: z.string().optional().describe('Optional stable column identifier.'),
+      name: columnNameSchema.describe('Column name used as the row-data key.'),
+      type: columnTypeSchema.describe('Data type of values stored in the column.'),
+      required: z.boolean().optional().describe('Whether inserts require a value.'),
+      unique: z.boolean().optional().describe('Whether values must be unique.'),
+      position: z.number().int().min(0).optional().describe('Zero-based insertion position.'),
+      options: selectOptionsSchema.optional().describe('Options for a select column.'),
+      multiple: z.boolean().optional().describe('Whether a select column accepts multiple values.'),
+      currencyCode: currencyCodeSchema.optional().describe('ISO 4217 code for a currency column.'),
     })
-    .superRefine(refineColumnOptions),
+    .superRefine(refineColumnOptions)
+    .describe('Typed column definition to add.'),
 })
 
 export const updateTableColumnBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  columnName: columnNameSchema,
+  columnName: columnNameSchema.describe('Current name of the column to update.'),
   updates: z
     .object({
-      name: columnNameSchema.optional(),
-      type: columnTypeSchema.optional(),
-      required: z.boolean().optional(),
-      unique: z.boolean().optional(),
-      options: selectOptionsSchema.optional(),
-      multiple: z.boolean().optional(),
-      currencyCode: currencyCodeSchema.optional(),
+      name: columnNameSchema.optional().describe('New column name.'),
+      type: columnTypeSchema.optional().describe('New column data type.'),
+      required: z.boolean().optional().describe('New required-value setting.'),
+      unique: z.boolean().optional().describe('New uniqueness setting.'),
+      options: selectOptionsSchema.optional().describe('Replacement select options.'),
+      multiple: z.boolean().optional().describe('New multi-select setting.'),
+      currencyCode: currencyCodeSchema.optional().describe('New ISO 4217 currency code.'),
     })
-    .superRefine(refineColumnOptions),
+    .superRefine(refineColumnOptions)
+    .describe('Column fields to update.'),
 })
 
 export const deleteTableColumnBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  columnName: columnNameSchema,
+  columnName: columnNameSchema.describe('Name of the column to delete.'),
 })
 
 export const tableMetadataSchema = z.object({
-  columnWidths: z.record(z.string(), z.number().positive()).optional(),
-  columnOrder: z.array(z.string()).optional(),
-  pinnedColumns: z.array(z.string()).optional(),
-  hiddenColumns: z.array(z.string()).optional(),
+  columnWidths: z
+    .record(z.string(), z.number().positive())
+    .optional()
+    .describe('Column widths keyed by stable column identifier.'),
+  columnOrder: z
+    .array(z.string())
+    .optional()
+    .describe('Stable column identifiers in display order.'),
+  pinnedColumns: z.array(z.string()).optional().describe('Stable identifiers of pinned columns.'),
+  hiddenColumns: z.array(z.string()).optional().describe('Stable identifiers of hidden columns.'),
 }) satisfies z.ZodType<TableMetadata>
 
 export const updateTableMetadataBodySchema = z.object({
@@ -326,13 +352,15 @@ export const tableRowSchema = domainObjectSchema<TableRow>()
  */
 export const insertTableRowBodyBaseSchema = z.object({
   workspaceId: workspaceIdSchema,
-  data: rowDataSchema,
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  data: rowDataSchema.describe('Row cells keyed by column name.'),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema
+    .optional()
+    .describe('Private encrypted secret provenance for trusted internal callers.'),
   position: z.number().int().min(0).optional(),
   /** Fractional ordering: insert directly after this row id. Takes precedence over `position`. */
-  afterRowId: z.string().min(1).optional(),
+  afterRowId: z.string().min(1).optional().describe('Row after which to insert the new row.'),
   /** Fractional ordering: insert directly before this row id. Takes precedence over `position`. */
-  beforeRowId: z.string().min(1).optional(),
+  beforeRowId: z.string().min(1).optional().describe('Row before which to insert the new row.'),
 })
 
 /** `afterRowId` and `beforeRowId` are mutually exclusive insert anchors. */
@@ -350,9 +378,11 @@ export const insertTableRowBodySchema = insertTableRowBodyBaseSchema.refine(...r
  */
 export const upsertTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  data: rowDataSchema,
-  conflictTarget: z.string().min(1).optional(),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  data: rowDataSchema.describe('Row cells keyed by column name.'),
+  conflictTarget: z.string().min(1).optional().describe('Unique column used to detect a conflict.'),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema
+    .optional()
+    .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
 export const batchInsertTableRowsBodySchema = z
@@ -387,8 +417,10 @@ export const insertTableRowsBodySchema = z.union([
 
 export const updateTableRowBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  data: rowDataSchema,
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  data: rowDataSchema.describe('Partial row-data patch keyed by column name.'),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema
+    .optional()
+    .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
 export const batchUpdateTableRowsBodySchema = z.object({
@@ -452,14 +484,16 @@ const MAX_SORT_KEYS = 16
  * before it ran. Strict on BOTH branches is required: strict on the group alone
  * would just fall through to the leaf branch, which is the more dangerous reading.
  */
-// double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
-// is arbitrary JSON), but infers `unknown`, which is wider than
-// `Predicate['value']`. The narrowing is type-level only — nothing is coerced.
-const predicateLeafSchema = z.strictObject({
+const predicateLeafObjectSchema = z.strictObject({
   field: z.string().min(1, 'field is required').max(128),
   op: z.enum(FILTER_OPS),
   value: z.unknown().optional(),
-}) as unknown as z.ZodType<Predicate>
+})
+
+// double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
+// is arbitrary JSON), but infers `unknown`, which is wider than
+// `Predicate['value']`. The narrowing is type-level only — nothing is coerced.
+const predicateLeafSchema = predicateLeafObjectSchema as unknown as z.ZodType<Predicate>
 
 const predicateNodeSchema: z.ZodType<PredicateNode> = z.lazy(() =>
   z.union([predicateGroupSchema, predicateLeafSchema])
@@ -495,10 +529,14 @@ const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
  * its root group-only prevents a legacy filter with columns named `field`,
  * `op`, and `value` from being reinterpreted as a v2 predicate.
  */
-export const predicateSchema = predicateBoundarySchema
-  // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS
-  // widen the recursive lazy union through it makes typecheck OOM
-  .pipe(predicateTreeSchema) as unknown as z.ZodType<TablePredicate>
+const documentedPredicateSchema = predicateBoundarySchema
+  .pipe(predicateTreeSchema)
+  .describe(
+    'Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node.'
+  )
+
+// double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS widen the recursive lazy union through it makes typecheck OOM
+export const predicateSchema = documentedPredicateSchema as unknown as z.ZodType<TablePredicate>
 
 /**
  * The v2-only input schema accepts either a root leaf or a logical group and
@@ -508,14 +546,17 @@ export const predicateSchema = predicateBoundarySchema
  */
 export const predicateInputSchema = predicateBoundarySchema
   .pipe(predicateNodeSchema)
-  .transform(normalizeTablePredicate) as z.ZodType<TablePredicate, PredicateNode>
+  .transform(normalizeTablePredicate)
+  .describe(
+    'Recursive predicate condition or group, normalized to a grouped predicate after validation.'
+  ) as z.ZodType<TablePredicate, PredicateNode>
 
 /** v2 sort wire format: an ordered list of `{ field, direction }`. */
 export const sortSpecSchema: z.ZodType<SortSpec> = z
   .array(
     z.object({
-      field: z.string().min(1, 'field is required').max(128),
-      direction: z.enum(SORT_DIRECTIONS),
+      field: z.string().min(1, 'field is required').max(128).describe('Column name to sort by.'),
+      direction: z.enum(SORT_DIRECTIONS).describe('Sort direction for this column.'),
     })
   )
   .max(MAX_SORT_KEYS)
@@ -630,9 +671,13 @@ export const tableRowsQuerySchema = tableRowsQueryBaseSchema.refine(
 export const updateRowsByFilterBodySchema = z.object({
   workspaceId: workspaceIdSchema,
   filter: bulkFilterSchema,
-  data: rowDataSchema,
-  limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit').optional(),
-  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema.optional(),
+  data: rowDataSchema.describe('Row-data patch applied to every matching row.'),
+  limit: optionalPositiveLimit(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
+    .optional()
+    .describe('Maximum matching rows to update.'),
+  [PRIVATE_SECRET_PROVENANCE_FIELD]: privateSecretProvenanceBundleSchema
+    .optional()
+    .describe('Private encrypted secret provenance for trusted internal callers.'),
 })
 
 const successResponseSchema = <T extends z.ZodType>(dataSchema: T) =>
@@ -1021,7 +1066,7 @@ export const csvFileSchema = z
     if (value.size > CSV_MAX_FILE_SIZE_BYTES) {
       ctx.addIssue({
         code: 'custom',
-        message: `File exceeds maximum allowed size of ${CSV_MAX_FILE_SIZE_BYTES / (1024 * 1024)} MB`,
+        message: CSV_MAX_FILE_SIZE_MESSAGE,
       })
     }
   })
@@ -1116,7 +1161,7 @@ export const tableExportFormatSchema = z
 
 export const exportTableAsyncBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  format: z.enum(['csv', 'json']).default('csv'),
+  format: z.enum(['csv', 'json']).default('csv').describe('Export file format.'),
 })
 
 export type ExportTableAsyncBody = z.input<typeof exportTableAsyncBodySchema>
@@ -1362,14 +1407,14 @@ export const deleteTableRowsAsyncContract = defineRouteContract({
 const workflowGroupOutputSchema = z.object({
   // Workflow outputs carry blockId/path; enrichment outputs carry outputId and
   // leave these empty. `.default('')` keeps the parsed value a plain string.
-  blockId: z.string().default(''),
-  path: z.string().default(''),
-  outputId: z.string().optional(),
-  columnName: z.string().min(1),
+  blockId: z.string().default('').describe('Workflow block producing this output.'),
+  path: z.string().default('').describe('Path to the value in the workflow block output.'),
+  outputId: z.string().optional().describe('Registry enrichment output identifier.'),
+  columnName: z.string().min(1).describe('Table column receiving the output.'),
 })
 
 const workflowGroupDependenciesSchema = z.object({
-  columns: z.array(z.string()).optional(),
+  columns: z.array(z.string()).optional().describe('Columns required as producer inputs.'),
 })
 
 const workflowGroupTypeSchema = z.enum(['manual', 'enrichment'])
@@ -1381,16 +1426,16 @@ const workflowGroupDeploymentModeSchema = z.enum(['live', 'deployed'])
 
 /** One workflow Start-block input field ← one table column. */
 const workflowGroupInputMappingSchema = z.object({
-  inputName: z.string().min(1, 'inputName cannot be empty'),
-  columnName: z.string().min(1, 'columnName cannot be empty'),
+  inputName: z.string().min(1, 'inputName cannot be empty').describe('Workflow input name.'),
+  columnName: z.string().min(1, 'columnName cannot be empty').describe('Source table column name.'),
 })
 
-const workflowGroupOutputColumnSchema = z.object({
-  name: z.string().min(1),
-  type: columnTypeSchema,
-  required: z.boolean().optional(),
-  unique: z.boolean().optional(),
-  workflowGroupId: z.string().min(1),
+export const workflowGroupOutputColumnSchema = z.object({
+  name: z.string().min(1).describe('Output column name.'),
+  type: columnTypeSchema.describe('Output column data type.'),
+  required: z.boolean().optional().describe('Whether the output column is required.'),
+  unique: z.boolean().optional().describe('Whether the output column must be unique.'),
+  workflowGroupId: z.string().min(1).describe('Workflow group that populates the column.'),
 })
 
 export const groupIdParamsSchema = tableIdParamsSchema.extend({
@@ -1399,32 +1444,56 @@ export const groupIdParamsSchema = tableIdParamsSchema.extend({
 
 export const addWorkflowGroupBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  group: z.object({
-    id: z.string().min(1),
-    /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
-    workflowId: z.string().default(''),
-    /** Registry enrichment id for enrichment groups. */
-    enrichmentId: z.string().min(1).optional(),
-    name: z.string().optional(),
-    /** Provenance of the group; defaults to `'manual'` when omitted. */
-    type: workflowGroupTypeSchema.optional(),
-    dependencies: workflowGroupDependenciesSchema.optional(),
-    outputs: z.array(workflowGroupOutputSchema).min(1),
-    /** Maps the workflow's Start-block inputs to table columns. */
-    inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
-    /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
-    deploymentMode: workflowGroupDeploymentModeSchema.optional(),
-    /** When `false`, the group never auto-fires from the scheduler — it can
-     *  only be triggered manually. Defaults to `true`. Persisted on the
-     *  group; distinct from the top-level `autoRun` below which is a
-     *  one-shot "schedule existing rows on creation" flag. */
-    autoRun: z.boolean().optional(),
-  }),
-  outputColumns: z.array(workflowGroupOutputColumnSchema).min(1),
+  group: z
+    .object({
+      id: z.string().min(1).describe('Optional client-provided workflow-group identifier.'),
+      /** Workflow id for manual groups; `''` (or omitted) for enrichment groups. */
+      workflowId: z
+        .string()
+        .default('')
+        .describe('Backing workflow identifier for a manual group.'),
+      /** Registry enrichment id for enrichment groups. */
+      enrichmentId: z.string().min(1).optional().describe('Registry enrichment identifier.'),
+      name: z.string().optional().describe('Workflow-group display name.'),
+      /** Provenance of the group; defaults to `'manual'` when omitted. */
+      type: workflowGroupTypeSchema.optional().describe('Workflow-group producer type.'),
+      dependencies: workflowGroupDependenciesSchema
+        .optional()
+        .describe('Producer input dependencies.'),
+      outputs: z
+        .array(workflowGroupOutputSchema)
+        .min(1)
+        .describe('Producer outputs mapped to columns.'),
+      /** Maps the workflow's Start-block inputs to table columns. */
+      inputMappings: z
+        .array(workflowGroupInputMappingSchema)
+        .optional()
+        .describe('Workflow inputs mapped from table columns.'),
+      /** Which workflow state per-cell runs execute against. Defaults to `'live'`. */
+      deploymentMode: workflowGroupDeploymentModeSchema
+        .optional()
+        .describe('Workflow state used for cell runs.'),
+      /** When `false`, the group never auto-fires from the scheduler — it can
+       *  only be triggered manually. Defaults to `true`. Persisted on the
+       *  group; distinct from the top-level `autoRun` below which is a
+       *  one-shot "schedule existing rows on creation" flag. */
+      autoRun: z
+        .boolean()
+        .optional()
+        .describe('Whether this group automatically runs for new rows.'),
+    })
+    .describe('Workflow or enrichment producer definition.'),
+  outputColumns: z
+    .array(workflowGroupOutputColumnSchema)
+    .min(1)
+    .describe('Columns created for producer outputs.'),
   /** When false, skip auto-scheduling existing rows after the group is added.
    *  Defaults to true so UI adds populate cells immediately; the Mothership
    *  tool sends `false` so the AI can stage groups without firing runs. */
-  autoRun: z.boolean().optional(),
+  autoRun: z
+    .boolean()
+    .optional()
+    .describe('Whether to schedule existing rows after group creation.'),
 })
 
 /**
@@ -1437,38 +1506,51 @@ export const addWorkflowGroupBodySchema = z.object({
  * — rows whose log has no value for the new mapping end up empty.
  */
 const workflowGroupMappingUpdateSchema = z.object({
-  columnName: z.string().min(1),
-  blockId: z.string().min(1),
-  path: z.string().min(1),
+  columnName: z.string().min(1).describe('Existing output column to remap.'),
+  blockId: z.string().min(1).describe('New workflow block producing the value.'),
+  path: z.string().min(1).describe('New path to the workflow output value.'),
 })
 
 export const updateWorkflowGroupBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  groupId: z.string().min(1),
-  workflowId: z.string().min(1).optional(),
-  name: z.string().optional(),
-  dependencies: workflowGroupDependenciesSchema.optional(),
-  outputs: z.array(workflowGroupOutputSchema).optional(),
-  newOutputColumns: z.array(workflowGroupOutputColumnSchema).optional(),
+  groupId: z.string().min(1).describe('Workflow group to update.'),
+  workflowId: z.string().min(1).optional().describe('Replacement backing workflow identifier.'),
+  name: z.string().optional().describe('Replacement workflow-group display name.'),
+  dependencies: workflowGroupDependenciesSchema
+    .optional()
+    .describe('Replacement input dependencies.'),
+  outputs: z.array(workflowGroupOutputSchema).optional().describe('Replacement producer outputs.'),
+  newOutputColumns: z
+    .array(workflowGroupOutputColumnSchema)
+    .optional()
+    .describe('Columns to add for new outputs.'),
   /**
    * Per-column mapping swaps: keep the column, change the source `(blockId,
    * path)`. Applied before the `outputs` add/remove diff. Each entry's
    * `columnName` must already exist in the group's outputs.
    */
-  mappingUpdates: z.array(workflowGroupMappingUpdateSchema).optional(),
+  mappingUpdates: z
+    .array(workflowGroupMappingUpdateSchema)
+    .optional()
+    .describe('Existing output-column mapping changes.'),
   /** Replace the group's input mappings. Omit to leave unchanged. */
-  inputMappings: z.array(workflowGroupInputMappingSchema).optional(),
+  inputMappings: z
+    .array(workflowGroupInputMappingSchema)
+    .optional()
+    .describe('Replacement workflow input mappings.'),
   /** Change which workflow state the group runs against. Omit to leave unchanged. */
-  deploymentMode: workflowGroupDeploymentModeSchema.optional(),
+  deploymentMode: workflowGroupDeploymentModeSchema
+    .optional()
+    .describe('Replacement workflow execution mode.'),
   /** Update the group's provenance. Omit to leave unchanged. */
-  type: workflowGroupTypeSchema.optional(),
+  type: workflowGroupTypeSchema.optional().describe('Replacement workflow-group producer type.'),
   /** Toggle the group's persisted auto-run flag. Omit to leave unchanged. */
-  autoRun: z.boolean().optional(),
+  autoRun: z.boolean().optional().describe('Replacement automatic-run setting.'),
 })
 
 export const deleteWorkflowGroupBodySchema = z.object({
   workspaceId: workspaceIdSchema,
-  groupId: z.string().min(1),
+  groupId: z.string().min(1).describe('Workflow group to delete.'),
 })
 
 const workflowGroupColumnsResponseSchema = successResponseSchema(
@@ -1517,44 +1599,61 @@ export const deleteWorkflowGroupContract = defineRouteContract({
  *                cells on rows matching it (filtered "select all" Stop)
  *  - `row`     — every running/pending cell for a specific row (`rowId` required)
  */
-export const cancelTableRunsBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    scope: z.enum(['all', 'row']),
-    rowId: z.string().min(1).optional(),
-    filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
-    /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
-    excludeRowIds: z
-      .array(z.string().min(1))
-      .max(
-        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
-        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
-      )
-      .optional(),
-  })
-  .superRefine((value, ctx) => {
-    if (value.scope === 'row' && !value.rowId) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['rowId'],
-        message: 'rowId is required when scope is "row"',
-      })
-    }
-    if (value.scope === 'row' && value.filter) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['filter'],
-        message: 'filter only applies to scope "all"',
-      })
-    }
-    if (value.scope === 'row' && value.excludeRowIds) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['excludeRowIds'],
-        message: 'excludeRowIds only applies to scope "all"',
-      })
-    }
-  })
+/**
+ * Plain-object base for the cancel-runs body. Kept un-refined so callers (e.g.
+ * the v2 public contract, which narrows `filter` to the predicate grammar) can
+ * `.extend()` before applying {@link refineCancelTableRunsScope} — Zod forbids
+ * `.extend()` on a refined schema.
+ */
+export const cancelTableRunsBodyBaseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  scope: z.enum(['all', 'row']).describe('Whether to cancel across the table or one row.'),
+  rowId: z.string().min(1).optional().describe('Row whose runs should be canceled for row scope.'),
+  filter: z.union([predicateSchema, domainObjectSchema<Filter>()]).optional(),
+  /** Scope-`all` only: rows deselected from the selection — their cells keep running. */
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional()
+    .describe('Rows excluded from an all-scope cancellation.'),
+})
+
+/**
+ * `row` scope names exactly one row, so it requires `rowId` and rejects the
+ * two select-all-only narrowing fields rather than ignoring them — a caller
+ * that sends both has misunderstood the scope.
+ */
+export function refineCancelTableRunsScope(value: {
+  scope: 'all' | 'row'
+  rowId?: string
+  filter?: unknown
+  excludeRowIds?: string[]
+}): { path: string[]; message: string }[] {
+  if (value.scope !== 'row') return []
+  const issues: { path: string[]; message: string }[] = []
+  if (!value.rowId) {
+    issues.push({ path: ['rowId'], message: 'rowId is required when scope is "row"' })
+  }
+  if (value.filter) {
+    issues.push({ path: ['filter'], message: 'filter only applies to scope "all"' })
+  }
+  if (value.excludeRowIds) {
+    issues.push({
+      path: ['excludeRowIds'],
+      message: 'excludeRowIds only applies to scope "all"',
+    })
+  }
+  return issues
+}
+
+export const cancelTableRunsBodySchema = cancelTableRunsBodyBaseSchema.superRefine((value, ctx) => {
+  for (const issue of refineCancelTableRunsScope(value)) {
+    ctx.addIssue({ code: 'custom', ...issue })
+  }
+})
 
 export const cancelTableRunsContract = defineRouteContract({
   method: 'POST',
@@ -1610,40 +1709,60 @@ export type CancelTableJobBody = z.input<typeof cancelTableJobBodySchema>
  * (`'cells'`, `'cost'`, …) can extend the union without reshaping the request.
  */
 export const runLimitSchema = z.object({
-  type: z.literal('rows'),
+  type: z.literal('rows').describe('Unit constrained by the run cap.'),
   max: z
     .number()
     .int('max must be a whole number')
     .min(1, 'max must be at least 1')
-    .max(1_000_000, 'max cannot exceed 1,000,000'),
+    .max(1_000_000, 'max cannot exceed 1,000,000')
+    .describe('Maximum eligible rows to run.'),
 })
 
-export const runColumnBodySchema = z
-  .object({
-    workspaceId: workspaceIdSchema,
-    groupIds: z.array(z.string().min(1)).min(1),
-    runMode: z.enum(['all', 'incomplete']).default('all'),
-    rowIds: z.array(z.string().min(1)).min(1).optional(),
-    /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
-     *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
-    filter: bulkFilterSchema.optional(),
-    /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
-    excludeRowIds: z
-      .array(z.string().min(1))
-      .max(
-        TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
-        `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
-      )
-      .optional(),
-    /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
-    limit: runLimitSchema.optional(),
-  })
-  .refine((data) => !(data.rowIds && data.filter), {
-    message: 'Provide either filter or rowIds, but not both',
-  })
-  .refine((data) => !(data.rowIds && data.excludeRowIds), {
-    message: 'excludeRowIds only applies to select-all scope (no rowIds)',
-  })
+/**
+ * Plain-object base for the run-column body. Kept un-refined so callers (e.g.
+ * the v2 public contract, which narrows `filter` to the predicate grammar) can
+ * `.extend()` before applying the mutex refines — Zod forbids `.extend()` on a
+ * refined schema.
+ */
+export const runColumnBodyBaseSchema = z.object({
+  workspaceId: workspaceIdSchema,
+  groupIds: z.array(z.string().min(1)).min(1).describe('Workflow or enrichment groups to run.'),
+  runMode: z
+    .enum(['all', 'incomplete'])
+    .default('all')
+    .describe('Whether to run all or only incomplete cells.'),
+  rowIds: z.array(z.string().min(1)).min(1).optional().describe('Explicit row subset to run.'),
+  /** "Select all under a filter" — run every row matching this filter instead of `rowIds`. The
+   *  dispatcher walks only matching rows (paginated), so no id list is materialized. */
+  filter: bulkFilterSchema.optional(),
+  /** Select-all scope only: rows deselected from the selection — the dispatcher skips them. */
+  excludeRowIds: z
+    .array(z.string().min(1))
+    .max(
+      TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS,
+      `Cannot exclude more than ${TABLE_LIMITS.MAX_EXCLUDE_ROW_IDS} rows`
+    )
+    .optional()
+    .describe('Rows excluded from a select-all run scope.'),
+  /** Cap the run to the first `max` eligible rows. Omit for an unbounded run. */
+  limit: runLimitSchema.optional().describe('Optional cap on eligible rows to run.'),
+})
+
+/** An explicit row set and a select-all filter are mutually exclusive scopes. */
+export const runColumnScopeMutexRefine = [
+  (data: { rowIds?: string[]; filter?: unknown }) => !(data.rowIds && data.filter),
+  { message: 'Provide either filter or rowIds, but not both' },
+] as const
+
+/** Deselections only mean something under select-all scope. */
+export const runColumnExcludeMutexRefine = [
+  (data: { rowIds?: string[]; excludeRowIds?: string[] }) => !(data.rowIds && data.excludeRowIds),
+  { message: 'excludeRowIds only applies to select-all scope (no rowIds)' },
+] as const
+
+export const runColumnBodySchema = runColumnBodyBaseSchema
+  .refine(...runColumnScopeMutexRefine)
+  .refine(...runColumnExcludeMutexRefine)
 
 export const runColumnContract = defineRouteContract({
   method: 'POST',
@@ -1755,8 +1874,14 @@ export const tableViewConfigSchema = tableMetadataSchema.extend({
   // The v2 predicate/sort grammar — same wire as the query routes, so a saved
   // view gets the same strictness and depth bounds as a live filter, and its
   // config can later feed the v2 surfaces without conversion.
-  filter: predicateInputSchema.nullable().optional(),
-  sort: sortSpecSchema.nullable().optional(),
+  filter: predicateInputSchema
+    .nullable()
+    .optional()
+    .describe('Saved row predicate, or null when the view is unfiltered.'),
+  sort: sortSpecSchema
+    .nullable()
+    .optional()
+    .describe('Saved ordered sort specification, or null for default ordering.'),
 }) satisfies z.ZodType<TableViewConfig>
 
 export const tableViewSchema = z.object({
@@ -1776,7 +1901,7 @@ export const tableViewSchema = z.object({
 const viewNameSchema = z.string().trim().min(1, 'View name is required')
 
 export const tableViewParamsSchema = tableIdParamsSchema.extend({
-  viewId: z.string().min(1),
+  viewId: z.string().min(1).describe('Unique saved-view identifier.'),
 })
 
 export const listTableViewsQuerySchema = z.object({
@@ -1795,9 +1920,12 @@ export const listTableViewsContract = defineRouteContract({
 })
 
 export const createTableViewBodySchema = z.object({
-  workspaceId: z.string().min(1, 'Workspace ID is required'),
-  name: viewNameSchema,
-  config: tableViewConfigSchema,
+  workspaceId: z
+    .string()
+    .min(1, 'Workspace ID is required')
+    .describe('Workspace that owns the table.'),
+  name: viewNameSchema.describe('Saved-view display name.'),
+  config: tableViewConfigSchema.describe('Saved filter, sort, and column-layout configuration.'),
 })
 
 export const createTableViewContract = defineRouteContract({
@@ -1818,17 +1946,27 @@ export const createTableViewContract = defineRouteContract({
  */
 export const updateTableViewBodySchema = z
   .object({
-    workspaceId: z.string().min(1, 'Workspace ID is required'),
-    name: viewNameSchema.optional(),
+    workspaceId: z
+      .string()
+      .min(1, 'Workspace ID is required')
+      .describe('Workspace that owns the table.'),
+    name: viewNameSchema.optional().describe('Replacement saved-view display name.'),
     /** Full replace. Use for an explicit Save, where dropping a removed filter is the point. */
-    config: tableViewConfigSchema.optional(),
+    config: tableViewConfigSchema
+      .optional()
+      .describe('Complete replacement saved-view configuration.'),
     /**
      * Shallow-merged into the stored config server-side (jsonb `||`), so concurrent
      * partial writes can't clobber each other from a stale client snapshot. Use for
      * the grid's incremental layout saves.
      */
-    configPatch: tableViewConfigSchema.optional(),
-    isDefault: z.boolean().optional(),
+    configPatch: tableViewConfigSchema
+      .optional()
+      .describe('Saved-view configuration fields to shallow-merge.'),
+    isDefault: z
+      .boolean()
+      .optional()
+      .describe('Whether to promote this view to the table default.'),
   })
   .refine(
     (value) =>

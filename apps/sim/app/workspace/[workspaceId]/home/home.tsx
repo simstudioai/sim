@@ -341,7 +341,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
       e.preventDefault()
-      sendMessage(detail.message, undefined, detail.contexts)
+      sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
+      })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -370,7 +372,11 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     const handoff = MothershipHandoffStorage.consume(workspaceId)
     if (!handoff) return
     if (handoff.message) {
-      sendMessage(handoff.message, undefined, handoff.contexts)
+      sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
+        ...(handoff.resumeUserMessageId
+          ? { resumeUserMessageId: handoff.resumeUserMessageId }
+          : {}),
+      })
       return
     }
     const contexts = handoff.contexts ?? []

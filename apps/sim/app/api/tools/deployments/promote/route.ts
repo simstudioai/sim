@@ -3,10 +3,10 @@ import { assertWorkflowMutable, WorkflowLockedError } from '@sim/platform-authz/
 import { type NextRequest, NextResponse } from 'next/server'
 import { deploymentsPromoteContract } from '@/lib/api/contracts/tools/deployments'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
+import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performActivateVersion } from '@/lib/workflows/orchestration'
-import { statusForOrchestrationError } from '@/lib/workflows/orchestration/types'
 import {
   authenticateDeploymentToolRequest,
   authorizeDeploymentWorkflow,

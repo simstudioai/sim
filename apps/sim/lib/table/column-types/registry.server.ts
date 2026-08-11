@@ -39,6 +39,7 @@ import type { JsonValue, SelectOption } from '@/lib/table/types'
 async function migrateSelectCellsToNames(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   options: SelectOption[]
 ): Promise<void> {
@@ -46,6 +47,7 @@ async function migrateSelectCellsToNames(
   await updateTableRowsWithDerivedSecretProvenance(trx, {
     rowWhere: and(
       eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
       sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'string'`
     )!,
     transformation: {
@@ -60,6 +62,7 @@ async function migrateSelectCellsToNames(
   await updateTableRowsWithDerivedSecretProvenance(trx, {
     rowWhere: and(
       eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
       sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
     )!,
     transformation: {
@@ -95,6 +98,7 @@ const COERCED_WRITE_BACK_BATCH_SIZE = 5000
 export async function writeBackCoercedCells(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   valueByRowId: ReadonlyMap<string, JsonValue>
 ): Promise<void> {
@@ -108,6 +112,7 @@ export async function writeBackCoercedCells(
     await updateTableRowsWithDerivedSecretProvenance(trx, {
       rowWhere: and(
         eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
         sql`${batch}::jsonb ? ${userTableRows.id}`
       )!,
       transformation: {
@@ -148,6 +153,7 @@ export async function writeBackCoercedCells(
 async function migrateCellsToSelectIds(
   trx: DbTransaction,
   tableId: string,
+  workspaceId: string,
   columnKey: string,
   options: SelectOption[],
   multiple: boolean
@@ -177,6 +183,7 @@ async function migrateCellsToSelectIds(
     await updateTableRowsWithDerivedSecretProvenance(trx, {
       rowWhere: and(
         eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
         sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) IN ('string', 'number', 'boolean')`
       )!,
       transformation: {
@@ -199,6 +206,7 @@ async function migrateCellsToSelectIds(
     await updateTableRowsWithDerivedSecretProvenance(trx, {
       rowWhere: and(
         eq(userTableRows.tableId, tableId),
+        eq(userTableRows.workspaceId, workspaceId),
         sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
       )!,
       transformation: {
@@ -219,6 +227,7 @@ async function migrateCellsToSelectIds(
   await updateTableRowsWithDerivedSecretProvenance(trx, {
     rowWhere: and(
       eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
       sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) IN ('string', 'number', 'boolean')`
     )!,
     transformation: {
@@ -238,6 +247,7 @@ async function migrateCellsToSelectIds(
   await updateTableRowsWithDerivedSecretProvenance(trx, {
     rowWhere: and(
       eq(userTableRows.tableId, tableId),
+      eq(userTableRows.workspaceId, workspaceId),
       sql`jsonb_typeof(${userTableRows.data}->${columnKey}::text) = 'array'`
     )!,
     transformation: {
@@ -266,10 +276,17 @@ export const COLUMN_TYPE_SERVER_REGISTRY: Record<ColumnType, ColumnTypeServerEnt
   json: COLUMN_TYPE_REGISTRY.json,
   select: {
     ...COLUMN_TYPE_REGISTRY.select,
-    migrateCellsTo: ({ trx, tableId, columnKey, target }) =>
-      migrateCellsToSelectIds(trx, tableId, columnKey, target.options ?? [], !!target.multiple),
-    migrateCellsFrom: ({ trx, tableId, columnKey, previous }) =>
-      migrateSelectCellsToNames(trx, tableId, columnKey, previous.options ?? []),
+    migrateCellsTo: ({ trx, tableId, workspaceId, columnKey, target }) =>
+      migrateCellsToSelectIds(
+        trx,
+        tableId,
+        workspaceId,
+        columnKey,
+        target.options ?? [],
+        !!target.multiple
+      ),
+    migrateCellsFrom: ({ trx, tableId, workspaceId, columnKey, previous }) =>
+      migrateSelectCellsToNames(trx, tableId, workspaceId, columnKey, previous.options ?? []),
   },
   currency: COLUMN_TYPE_REGISTRY.currency,
 }

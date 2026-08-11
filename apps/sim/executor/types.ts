@@ -338,6 +338,19 @@ export interface BlockState {
   resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
 }
 
+/**
+ * Canonical signed execution identity used for executor-delegated internal operations.
+ *
+ * A nested workflow changes {@link ExecutionContext.workflowId} for execution semantics, but it
+ * still belongs to the parent log row identified here. Custom blocks replace this origin with the
+ * publisher-owned child execution after opening their own source-workspace log row.
+ */
+export interface ExecutorDelegationOrigin {
+  subjectUserId: string
+  workflowId: string
+  executionId?: string
+}
+
 export interface ExecutionContext {
   workflowId: string
   workspaceId?: string
@@ -347,6 +360,8 @@ export interface ExecutionContext {
   fileKeys?: string[]
   allowLargeValueWorkflowScope?: boolean
   userId?: string
+  /** Trusted origin for signed executor delegation, distinct from the currently executing child. */
+  executorDelegationOrigin?: ExecutorDelegationOrigin
   isDeployedContext?: boolean
   enforceCredentialAccess?: boolean
   copilotToolExecution?: boolean

@@ -1,6 +1,10 @@
 import { GoogleGenAI, type Part } from '@google/genai'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
+import {
+  executeCopilotFileUseCase,
+  resolveCopilotWorkspaceFileReference,
+} from '@/lib/copilot/application/execute-file-use-case'
 import { GenerateImage } from '@/lib/copilot/generated/tool-catalog-v1'
 import {
   assertServerToolNotAborted,
@@ -11,12 +15,11 @@ import {
   assertOpaqueWorkspaceFileModelSafe,
   ServerToolModelInputError,
 } from '@/lib/copilot/tools/server/model-input'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
+import { writeCopilotWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
 import { getRotatingApiKey } from '@/lib/core/config/api-keys'
-import {
-  fetchWorkspaceFileBuffer,
-  resolveWorkspaceFileReference,
-} from '@/lib/uploads/contexts/workspace/workspace-file-manager'
+import { MAX_MEDIA_BYTES } from '@/lib/media/falai'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
+import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 
 const logger = createLogger('GenerateImageTool')
 
@@ -91,24 +94,36 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       if (referencePaths.length) {
         for (const filePath of referencePaths) {
           try {
-            const fileRecord = await resolveWorkspaceFileReference(workspaceId, filePath)
-            if (fileRecord) {
-              await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
-              const buffer = await fetchWorkspaceFileBuffer(fileRecord)
-              const base64 = buffer.toString('base64')
-              const mime = fileRecord.type || 'image/png'
-              parts.push({
-                inlineData: { mimeType: mime, data: base64 },
-              })
-              logger.info('Loaded reference image', {
-                filePath,
-                name: fileRecord.name,
-                size: buffer.length,
-                mimeType: mime,
-              })
-            } else {
-              logger.warn('Reference file not found, skipping', { filePath })
-            }
+            const fileRecord = await resolveCopilotWorkspaceFileReference(
+              context,
+              fileOperations.readContent,
+              {
+                workspaceId,
+                reference: filePath,
+              }
+            )
+            await assertOpaqueWorkspaceFileModelSafe({ workspaceId, file: fileRecord })
+            const { content: buffer } = await executeCopilotFileUseCase(
+              context,
+              readWorkspaceFileContent,
+              {
+                fileId: fileRecord.id,
+                assertedWorkspaceId: workspaceId,
+                maxBytes: MAX_MEDIA_BYTES,
+              },
+              { fileId: fileRecord.id }
+            )
+            const base64 = buffer.toString('base64')
+            const mime = fileRecord.type || 'image/png'
+            parts.push({
+              inlineData: { mimeType: mime, data: base64 },
+            })
+            logger.info('Loaded reference image', {
+              filePath,
+              name: fileRecord.name,
+              size: buffer.length,
+              mimeType: mime,
+            })
           } catch (err) {
             if (err instanceof ServerToolModelInputError) throw err
             logger.warn('Failed to load reference image, skipping', {
@@ -173,9 +188,8 @@ export const generateImageServerTool: BaseServerTool<GenerateImageArgs, Generate
       const mode = outputFile?.mode ?? 'create'
 
       assertServerToolNotAborted(context)
-      const written = await writeWorkspaceFileByPath({
+      const written = await writeCopilotWorkspaceFileByPath(context, {
         workspaceId,
-        userId: context.userId,
         target: {
           path: outputPath,
           mode,

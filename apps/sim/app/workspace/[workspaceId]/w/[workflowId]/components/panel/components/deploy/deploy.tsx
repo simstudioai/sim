@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Chip, Tooltip } from '@sim/emcn'
+import { Chip, Tooltip, toast } from '@sim/emcn'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -62,7 +63,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
-    if (disabled || !canDeploy || !activeWorkflowId) return
+    if (isRegistryLoading || isDisabled || !activeWorkflowId) return
 
     if (isDeploymentSettling) {
       setIsModalOpen(true)
@@ -74,6 +75,21 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
       setIsModalOpen(true)
     }
   }
+
+  useRegisterGlobalCommands(() => [
+    {
+      id: 'deploy-workflow',
+      handler: () => {
+        /* The palette can't render a disabled state for this action yet, so a
+           gated invocation reports the same reason the button's tooltip shows. */
+        if (isRegistryLoading || isDisabled) {
+          toast({ message: isRegistryLoading ? 'Workflow is still loading' : getTooltipText() })
+          return
+        }
+        void onDeployClick()
+      },
+    },
+  ])
 
   const getTooltipText = () => {
     if (isEmpty) {

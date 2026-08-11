@@ -1,0 +1,84 @@
+import type { Principal } from '@sim/auth/principal'
+import {
+  createInternalSessionOrExecutorAuth,
+  createV2ResourceConcealmentPolicy,
+  type InternalAuthPolicy,
+  type InternalErrorPolicy,
+  InternalUnauthenticatedError,
+  internalErrorResponse,
+  type V2ErrorPolicy,
+  v2OrchestrationErrorPolicy,
+} from '@/lib/api/server/routes'
+import { authenticateApiKeyFromHeader, updateApiKeyLastUsed } from '@/lib/api-key/service'
+import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
+import { WORKFLOW_DELEGATION_AUDIENCE } from '@/lib/workflows/application/authorization'
+import { WorkflowImportError } from '@/lib/workflows/application/workflow-import-error'
+import { v2CaughtOrchestrationError, v2ErrorForOrchestration } from '@/app/api/v2/lib/response'
+
+export const v2WorkflowErrorPolicies = {
+  default: v2OrchestrationErrorPolicy,
+  import: {
+    render(error) {
+      if (error instanceof WorkflowImportError) {
+        return v2ErrorForOrchestration(error.code, error.message, error.details)
+      }
+      return v2CaughtOrchestrationError(error)
+    },
+  } satisfies V2ErrorPolicy,
+  concealWorkflowAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Workflow not found',
+  }),
+  concealRunAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Run not found',
+  }),
+} as const
+
+export const internalWorkflowSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
+  audience: WORKFLOW_DELEGATION_AUDIENCE,
+})
+
+export const internalWorkflowReadAuth: InternalAuthPolicy<Principal> = {
+  async authenticate(request, params) {
+    const rawApiKey = request.headers.get('x-api-key')
+    if (!rawApiKey) {
+      return internalWorkflowSessionOrExecutorAuth.authenticate(request, params)
+    }
+
+    const result = await authenticateApiKeyFromHeader(rawApiKey)
+    if (!result.success || !result.keyId || !result.keyType) {
+      throw new InternalUnauthenticatedError('Unauthorized')
+    }
+    await updateApiKeyLastUsed(result.keyId)
+
+    if (result.keyType === 'workspace') {
+      if (!result.workspaceId) throw new Error('Workspace API key is missing its workspace scope')
+      return { kind: 'workspace_api_key', workspaceId: result.workspaceId, keyId: result.keyId }
+    }
+    if (!result.userId) throw new Error('Personal API key is missing its credential owner')
+    return { kind: 'personal_api_key', userId: result.userId, keyId: result.keyId }
+  },
+}
+
+function legacyWorkflowErrorCode(message: string): string {
+  return message.toUpperCase().replace(/\s+/g, '_')
+}
+
+export function createInternalWorkflowErrorPolicy(fallback: string): InternalErrorPolicy {
+  if (!fallback.trim()) throw new Error('Internal workflow error fallback is required')
+  return {
+    project(error) {
+      const classified = asOrchestrationError(error)
+      if (!classified) return null
+      return internalErrorResponse(statusForOrchestrationError(classified.code), {
+        error: classified.message,
+        code: legacyWorkflowErrorCode(classified.message),
+      })
+    },
+    unhandled() {
+      return internalErrorResponse(500, {
+        error: fallback,
+        code: legacyWorkflowErrorCode(fallback),
+      })
+    },
+  }
+}

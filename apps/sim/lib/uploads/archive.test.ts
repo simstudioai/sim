@@ -10,12 +10,20 @@ const { mockEnsureFolder, mockUpload, mockDelete } = vi.hoisted(() => ({
   mockUpload: vi.fn(),
   mockDelete: vi.fn(),
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  ensureWorkspaceFileFolderPath: mockEnsureFolder,
+vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+  createWorkspaceFileFolderOperation: {
+    execute: mockEnsureFolder,
+  },
 }))
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
-  uploadWorkspaceFile: mockUpload,
-  deleteWorkspaceFile: mockDelete,
+vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
+  createWorkspaceFileFromBuffer: {
+    execute: mockUpload,
+  },
+}))
+vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
+  deleteWorkspaceFileOperation: {
+    execute: mockDelete,
+  },
 }))
 
 import {
@@ -24,6 +32,12 @@ import {
   MAX_ARCHIVE_CENTRAL_DIR_RECORDS,
   MAX_ARCHIVE_ENTRY_BYTES,
 } from '@/lib/uploads/archive'
+
+const TEST_PRINCIPAL = {
+  kind: 'session',
+  userId: 'u',
+  sessionId: 'session-1',
+} as const
 
 async function buildZip(
   files: Record<string, string | Buffer>,
@@ -71,16 +85,20 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockEnsureFolder.mockResolvedValue('folder_1')
+  mockEnsureFolder.mockResolvedValue({ folder: { id: 'folder_1' } })
   mockDelete.mockResolvedValue(undefined)
-  mockUpload.mockImplementation(async (_ws: string, _uid: string, buf: Buffer, name: string) => ({
-    id: `f_${name}`,
-    name,
-    url: `/api/files/serve/${name}`,
-    key: `workspace/ws/${name}`,
-    size: buf.length,
-    type: 'text/plain',
-  }))
+  mockUpload.mockImplementation(
+    async ({ input }: { input: { content: Buffer; name: string } }) => ({
+      file: {
+        id: `f_${input.name}`,
+        name: input.name,
+        url: `/api/files/serve/${input.name}`,
+        key: `workspace/ws/${input.name}`,
+        size: input.content.length,
+        type: 'text/plain',
+      },
+    })
+  )
 })
 
 describe('decompressArchiveBufferToWorkspaceFiles', () => {
@@ -89,21 +107,21 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
       rootFolderSegments: ['bundle'],
     })
 
     expect(result.extracted).toHaveLength(2)
     expect(result.skippedUnsafePaths).toEqual([])
     expect(mockUpload).toHaveBeenCalledTimes(2)
-    const leafNames = mockUpload.mock.calls.map((c) => c[3]).sort()
+    const leafNames = mockUpload.mock.calls.map(([args]) => args.input.name).sort()
     expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
     // Entries are rooted under the archive's folder; nested paths are preserved.
     expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ pathSegments: ['bundle'] })
+      expect.objectContaining({ input: { workspaceId: 'ws', path: 'bundle' } })
     )
     expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ pathSegments: ['bundle', 'data'] })
+      expect.objectContaining({ input: { workspaceId: 'ws', path: 'bundle/data' } })
     )
   })
 
@@ -116,13 +134,15 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
       secretProvenance,
     })
 
     expect(mockUpload).toHaveBeenCalledTimes(2)
     for (const call of mockUpload.mock.calls) {
-      expect(call[5]).toEqual(expect.objectContaining({ secretProvenance: { status: 'unknown' } }))
+      expect(call[0].input).toEqual(
+        expect.objectContaining({ secretProvenance: { status: 'unknown' } })
+      )
     }
   })
 
@@ -131,18 +151,19 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
       secretProvenance: { status: 'exact', entries: [] },
     })
 
     expect(mockUpload).toHaveBeenCalledWith(
-      'ws',
-      'u',
-      expect.any(Buffer),
-      'one.txt',
-      'text/plain',
       expect.objectContaining({
-        secretProvenance: { status: 'exact', entries: [] },
+        principal: TEST_PRINCIPAL,
+        input: expect.objectContaining({
+          workspaceId: 'ws',
+          name: 'one.txt',
+          contentType: 'text/plain',
+          secretProvenance: { status: 'exact', entries: [] },
+        }),
       })
     )
   })
@@ -155,7 +176,10 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     const buffer = craftCentralDirectory(MAX_ARCHIVE_CENTRAL_DIR_RECORDS + 1, 0)
 
     await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
     ).rejects.toMatchObject({
       name: 'ArchiveError',
       reason: 'central_dir_too_large',
@@ -176,7 +200,10 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     const buffer = craftCentralDirectory(records, EXTRA_PER_RECORD)
 
     await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'central_dir_too_large' })
     expect(mockUpload).not.toHaveBeenCalled()
   })
@@ -196,7 +223,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
     })
 
     expect(result.extracted).toHaveLength(1)
@@ -222,7 +249,10 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     buffer.fill(0xff, nameOffset + 'bad.bin'.length, nameOffset + 'bad.bin'.length + 256)
 
     await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'invalid' })
     expect(mockUpload).not.toHaveBeenCalled()
   })
@@ -233,17 +263,28 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     // must be deleted so callers and retries never observe a partial tree.
     const buffer = await buildZip({ 'a.txt': 'first', 'b.txt': 'second', 'c.txt': 'third' })
     mockUpload
-      .mockResolvedValueOnce({ id: 'f_a', name: 'a.txt', url: '/a', key: 'k/a', size: 5 })
-      .mockResolvedValueOnce({ id: 'f_b', name: 'b.txt', url: '/b', key: 'k/b', size: 6 })
+      .mockResolvedValueOnce({
+        file: { id: 'f_a', name: 'a.txt', url: '/a', key: 'k/a', size: 5 },
+      })
+      .mockResolvedValueOnce({
+        file: { id: 'f_b', name: 'b.txt', url: '/b', key: 'k/b', size: 6 },
+      })
       .mockRejectedValueOnce(new Error('storage quota exceeded'))
 
     await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
     ).rejects.toThrow('storage quota exceeded')
 
     expect(mockDelete).toHaveBeenCalledTimes(2)
-    expect(mockDelete).toHaveBeenCalledWith('ws', 'f_a')
-    expect(mockDelete).toHaveBeenCalledWith('ws', 'f_b')
+    expect(mockDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { fileId: 'f_a', assertedWorkspaceId: 'ws' } })
+    )
+    expect(mockDelete).toHaveBeenCalledWith(
+      expect.objectContaining({ input: { fileId: 'f_b', assertedWorkspaceId: 'ws' } })
+    )
   })
 
   it('does not count noise entries toward the extraction cap when they are being skipped', async () => {
@@ -260,7 +301,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
       skipNoiseEntries: true,
     })
 
@@ -272,7 +313,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     await expect(
       decompressArchiveBufferToWorkspaceFiles(Buffer.from('not a zip at all'), {
         workspaceId: 'ws',
-        userId: 'u',
+        principal: TEST_PRINCIPAL,
       })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'invalid' })
     expect(mockUpload).not.toHaveBeenCalled()
@@ -290,7 +331,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
     })
 
     // Only the traversal entry counts toward `skipped`; the symlink is filtered
@@ -300,7 +341,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(result.skipped).toBe(1)
     expect(result.skippedUnsafePaths).toEqual(['..\\evil.txt'])
     expect(mockUpload).toHaveBeenCalledTimes(1)
-    expect(mockUpload.mock.calls[0][3]).toBe('safe.txt')
+    expect(mockUpload.mock.calls[0][0].input.name).toBe('safe.txt')
   })
 
   it('extracts macOS/Windows filesystem-noise entries by default (skipNoiseEntries unset)', async () => {
@@ -308,7 +349,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
     })
 
     // Parity with the HTTP decompress route, which extracts these verbatim.
@@ -322,7 +363,7 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
-      userId: 'u',
+      principal: TEST_PRINCIPAL,
       skipNoiseEntries: true,
     })
 
@@ -341,7 +382,10 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     )
 
     await expect(
-      decompressArchiveBufferToWorkspaceFiles(buffer, { workspaceId: 'ws', userId: 'u' })
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+      })
     ).rejects.toMatchObject({ name: 'ArchiveError', reason: 'entry_too_large' })
     expect(mockUpload).not.toHaveBeenCalled()
   })

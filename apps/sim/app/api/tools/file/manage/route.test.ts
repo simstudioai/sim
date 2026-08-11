@@ -13,6 +13,9 @@ const {
   mockEnsureWorkspaceFileFolderPath,
   mockFetchWorkspaceFileBuffer,
   mockGetBoundWorkspaceFileSecretProvenance,
+  mockLoadActiveWorkspaceContext,
+  mockLoadActiveWorkspaceFileContext,
+  mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
   mockGetWorkspaceFile,
   mockResolveWorkspaceFileReference,
@@ -26,6 +29,9 @@ const {
   mockEnsureWorkspaceFileFolderPath: vi.fn(),
   mockFetchWorkspaceFileBuffer: vi.fn(),
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
+  mockLoadActiveWorkspaceContext: vi.fn(),
+  mockLoadActiveWorkspaceFileContext: vi.fn(),
+  mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
@@ -38,16 +44,56 @@ vi.mock('@/lib/file-parsers', () => ({
   parseBuffer: vi.fn(),
 }))
 
+vi.mock('@sim/audit', () => ({
+  AuditAction: { FILE_UPLOADED: 'file_uploaded', FILE_UPDATED: 'file_updated' },
+  AuditResourceType: { FILE: 'file' },
+  recordAudit: vi.fn(),
+}))
+
+vi.mock('@/lib/realtime/notify', () => ({
+  notifyWorkspaceFilesChanged: vi.fn(async () => undefined),
+}))
+
+vi.mock('@/lib/public-shares/share-manager', () => ({
+  getShareForResource: vi.fn().mockResolvedValue(null),
+  getSharesForResources: vi.fn().mockResolvedValue(new Map()),
+  ShareValidationError: class ShareValidationError extends Error {},
+}))
+
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (permission: string | null, required: string) =>
+    permission === 'admin' ||
+    permission === required ||
+    (permission === 'write' && required === 'read'),
+  resolveEffectiveWorkspacePermission: (...args: unknown[]) =>
+    mockResolveEffectiveWorkspacePermission(...args),
+}))
+
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
   fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
   getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
+  loadActiveWorkspaceFileContext: (...args: unknown[]) =>
+    mockLoadActiveWorkspaceFileContext(...args),
   resolveWorkspaceFileReference: (...args: unknown[]) => mockResolveWorkspaceFileReference(...args),
   updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
   uploadWorkspaceFile: (...args: unknown[]) => mockUploadWorkspaceFile(...args),
 }))
 
-vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  ensureWorkspaceFileFolderPath: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
+vi.mock('@/lib/uploads/contexts/workspace', () => ({
+  FileConflictError: class FileConflictError extends Error {},
+  ContentVersionConflictError: class ContentVersionConflictError extends Error {},
+  fetchWorkspaceFileBuffer: (...args: unknown[]) => mockFetchWorkspaceFileBuffer(...args),
+  getWorkspaceFile: (...args: unknown[]) => mockGetWorkspaceFile(...args),
+  loadActiveWorkspaceContext: (...args: unknown[]) => mockLoadActiveWorkspaceContext(...args),
+  updateWorkspaceFileContent: (...args: unknown[]) => mockUpdateWorkspaceFileContent(...args),
+  uploadWorkspaceFile: (...args: unknown[]) => mockUploadWorkspaceFile(...args),
+}))
+
+vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
+  createWorkspaceFileFolderOperation: {
+    execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
+  },
 }))
 
 vi.mock('@/lib/core/config/redis', () => ({
@@ -56,6 +102,7 @@ vi.mock('@/lib/core/config/redis', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
+  EXACT_EMPTY_WORKSPACE_FILE_SECRET_PROVENANCE: { status: 'exact', entries: [] },
   getBoundWorkspaceFileSecretProvenance: (...args: unknown[]) =>
     mockGetBoundWorkspaceFileSecretProvenance(...args),
   mergeWorkspaceFileSecretProvenance: (
@@ -131,12 +178,30 @@ describe('POST /api/tools/file/manage content provenance', () => {
       authType: 'internal_jwt',
     })
     mockAssertActiveWorkspaceAccess.mockResolvedValue(undefined)
+    mockResolveEffectiveWorkspacePermission.mockResolvedValue('write')
+    mockGetWorkspaceFile.mockImplementation(async (_workspaceId: string, fileId: string) =>
+      workspaceFile(fileId)
+    )
+    mockLoadActiveWorkspaceContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    })
+    mockLoadActiveWorkspaceFileContext.mockImplementation(async (fileId: string) => ({
+      fileId,
+      workspaceId: 'workspace-1',
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'user-1',
+    }))
     mockAssertToolFileAccess.mockResolvedValue(undefined)
-    mockEnsureWorkspaceFileFolderPath.mockResolvedValue(null)
+    mockEnsureWorkspaceFileFolderPath.mockResolvedValue({ folder: { id: 'folder-1' } })
     mockDownloadServableFileFromStorage.mockImplementation(async (file: { name: string }) => ({
       buffer: Buffer.from(`content:${file.name}`),
     }))
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
+    mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
     mockUploadWorkspaceFile.mockResolvedValue({
       id: 'new-file',
       name: 'new.txt',
@@ -146,9 +211,6 @@ describe('POST /api/tools/file/manage content provenance', () => {
   })
 
   it('returns a scoped, deduplicated union of exact canonical file provenance', async () => {
-    mockGetWorkspaceFile.mockImplementation(async (_workspaceId: string, fileId: string) =>
-      workspaceFile(fileId)
-    )
     mockGetBoundWorkspaceFileSecretProvenance.mockImplementation(
       async (_workspaceId: string, identity: { fileId: string }) =>
         identity.fileId === 'file-1'
@@ -229,7 +291,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'new.txt',
       'text/plain',
       {
+        exactName: false,
         folderId: null,
+        folderPath: undefined,
         secretProvenance: {
           status: 'exact',
           entries: [
@@ -308,11 +372,12 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith({
-      workspaceId: 'workspace-1',
-      userId: 'user-1',
-      pathSegments: ['Reports'],
-    })
+    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
+        input: { workspaceId: 'workspace-1', path: 'Reports' },
+      })
+    )
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
       'workspace-1',
       'user-1',
@@ -320,7 +385,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'secret-value.txt',
       'text/plain',
       {
-        folderId: null,
+        exactName: false,
+        folderId: 'folder-1',
+        folderPath: undefined,
         secretProvenance: { status: 'exact', entries: [] },
       }
     )
@@ -335,7 +402,6 @@ describe('POST /api/tools/file/manage content provenance', () => {
         content: 'ordinary text',
       })
     )
-
     expect(response.status).toBe(200)
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
       'workspace-1',
@@ -343,7 +409,12 @@ describe('POST /api/tools/file/manage content provenance', () => {
       Buffer.from('ordinary text'),
       'new.txt',
       'text/plain',
-      { folderId: null }
+      {
+        exactName: false,
+        folderId: null,
+        folderPath: undefined,
+        secretProvenance: { status: 'exact', entries: [] },
+      }
     )
   })
 
@@ -374,7 +445,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'new.txt',
       'text/plain',
       {
+        exactName: false,
         folderId: null,
+        folderPath: undefined,
         secretProvenance: { status: 'unknown' },
       }
     )
@@ -504,19 +577,20 @@ describe('POST /api/tools/file/manage content provenance', () => {
     )
 
     expect(response.status).toBe(200)
+    expect(Buffer.isBuffer(mockUploadWorkspaceFile.mock.calls[0]?.[2])).toBe(true)
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
       'workspace-1',
       'user-1',
-      expect.any(Buffer),
+      expect.anything(),
       'bundle.zip',
       'application/zip',
-      {
+      expect.objectContaining({
         folderId: null,
         secretProvenance: {
           status: 'exact',
           entries: [{ name: 'TOKEN', encryptedValue: 'encrypted-token' }],
         },
-      }
+      })
     )
   })
 
@@ -553,7 +627,9 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'child.txt',
       'text/plain',
       {
+        exactName: true,
         folderId: null,
+        folderPath: undefined,
         secretProvenance: { status: 'unknown' },
       }
     )
@@ -649,5 +725,27 @@ describe('POST /api/tools/file/manage content provenance', () => {
     const body = await response.json()
     expect(body).not.toHaveProperty('__resolvedSecretTraceProvenance')
     expect(mockGetBoundWorkspaceFileSecretProvenance).not.toHaveBeenCalled()
+  })
+
+  it('never uses query.userId as the authorization identity', async () => {
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile('file-1'))
+
+    const response = await POST(
+      createMockRequest(
+        'POST',
+        { operation: 'get', workspaceId: 'workspace-1', fileId: 'file-1' },
+        {},
+        'http://localhost:3000/api/tools/file/manage?userId=attacker'
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockResolveEffectiveWorkspacePermission).toHaveBeenCalledWith(
+      'user-1',
+      'workspace-1',
+      null,
+      undefined,
+      { forUpdate: undefined }
+    )
   })
 })

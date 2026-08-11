@@ -59,6 +59,7 @@ import {
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
 import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { CONNECTOR_META_REGISTRY } from '@/connectors/registry'
@@ -725,6 +726,11 @@ export function Knowledge() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [workspaceId])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'knowledge-new-base', handler: () => handleOpenCreateModal() },
+    { id: 'knowledge-new-folder', handler: () => void handleCreateFolder() },
+  ])
 
   const handleRenameFolder = useCallback(() => {
     const folder = activeFolderRef.current

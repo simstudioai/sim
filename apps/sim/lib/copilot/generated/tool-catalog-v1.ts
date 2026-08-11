@@ -1248,14 +1248,16 @@ export const Cp: ToolCatalogEntry = {
     properties: {
       destination: {
         type: 'string',
+        maxLength: 4096,
         description:
           'Target path under workflows/. An existing folder (or a path ending in "/") duplicates sources into it keeping their names; otherwise the last segment names the copy and the preceding segments are the target folder (created automatically when missing).',
       },
       sources: {
         type: 'array',
+        maxItems: 100,
         description:
           'Canonical workflow VFS paths to duplicate, e.g. ["workflows/My%20Workflow"]. Copy paths verbatim from glob/grep/read output.',
-        items: { type: 'string' },
+        items: { type: 'string', maxLength: 4096 },
       },
       toolTitle: {
         type: 'string',
@@ -3714,9 +3716,10 @@ export const Mkdir: ToolCatalogEntry = {
     properties: {
       paths: {
         type: 'array',
+        maxItems: 100,
         description:
           'Canonical folder VFS paths to create, e.g. ["files/Reports/2026"]. Missing parent segments are created automatically.',
-        items: { type: 'string' },
+        items: { type: 'string', maxLength: 4096 },
       },
       toolTitle: {
         type: 'string',
@@ -3739,14 +3742,16 @@ export const Mv: ToolCatalogEntry = {
     properties: {
       destination: {
         type: 'string',
+        maxLength: 4096,
         description:
           'Target path. A path ending in "/" (or naming an existing folder) moves sources into it keeping their names — always use the trailing "/" form when targeting a folder. Otherwise the last segment is the new name and the preceding segments are the target folder (created automatically when missing).',
       },
       sources: {
         type: 'array',
+        maxItems: 100,
         description:
           'Canonical VFS paths to move or rename, e.g. ["files/draft.md"]. All sources must share one category. Copy paths verbatim from glob/grep/read output.',
-        items: { type: 'string' },
+        items: { type: 'string', maxLength: 4096 },
       },
       toolTitle: {
         type: 'string',
@@ -4179,9 +4184,10 @@ export const Rm: ToolCatalogEntry = {
     properties: {
       paths: {
         type: 'array',
+        maxItems: 100,
         description:
           'Canonical VFS paths to delete, e.g. ["files/Reports/draft.md"]. Copy paths verbatim from glob/grep/read output. Paths from different categories may be mixed in one call.',
-        items: { type: 'string' },
+        items: { type: 'string', maxLength: 4096 },
       },
       toolTitle: {
         type: 'string',

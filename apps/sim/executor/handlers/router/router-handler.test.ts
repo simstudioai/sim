@@ -13,7 +13,7 @@ const { mockResolveAutoModel } = vi.hoisted(() => ({
   mockResolveAutoModel: vi.fn(),
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 
 vi.mock('@/lib/credentials/access', () => ({

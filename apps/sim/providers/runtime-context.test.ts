@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { createExecutionContext } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { mockExecuteTool } = vi.hoisted(() => ({
@@ -17,7 +18,10 @@ import {
   executeProviderTool as executeProviderToolWithInput,
   runWithProviderRuntimeContext,
 } from '@/providers/runtime-context'
-import { registerProviderToolInputProvenance } from '@/providers/tool-input-provenance'
+import {
+  registerProviderToolInputProvenance,
+  registerProviderToolModelInputRegistry,
+} from '@/providers/tool-input-provenance'
 import { prepareToolExecution } from '@/providers/utils'
 
 async function executeProviderTool(
@@ -83,6 +87,92 @@ describe('provider runtime context', () => {
     expect(toolCall?.[1]).toEqual({ visible: true })
     expect(toolCall?.[2]?.resolvedSecretTraceRegistry).toBeInstanceOf(ResolvedSecretTraceRegistry)
     expect(toolCall?.[2]?.resolvedSecretTraceRegistry).not.toBe(registry)
+  })
+
+  it('passes the trusted execution context to provider-emitted tool calls', async () => {
+    const registry = new ResolvedSecretTraceRegistry()
+    const executionContext = createExecutionContext({
+      workflowId: 'workflow-parent',
+      environmentVariables: {},
+    })
+
+    await runWithProviderRuntimeContext(
+      { executionContext, resolvedSecretTraceRegistry: registry },
+      () => executeProviderTool('protected-tool', {})
+    )
+
+    expect(mockExecuteTool).toHaveBeenCalledWith(
+      'protected-tool',
+      {},
+      expect.objectContaining({ executionContext })
+    )
+  })
+
+  it('rebinds a prompt-exposed environment placeholder for the exact tool call', async () => {
+    const sourceRegistry = new ResolvedSecretTraceRegistry([
+      {
+        name: 'TEST_API_KEY_PERSONAL',
+        plaintext: 'personal-secret-value',
+        encryptedValue: 'encrypted-personal-secret',
+      },
+    ])
+    sourceRegistry.recordResolvedAtInputPath('TEST_API_KEY_PERSONAL', 'personal-secret-value', [
+      'userPrompt',
+    ])
+    sourceRegistry.recordResolvedInputProjection(
+      ['userPrompt'],
+      'Use personal-secret-value',
+      'Use {{TEST_API_KEY_PERSONAL}}'
+    )
+    const modelInputRegistry = sourceRegistry.forkForInputPaths([['userPrompt']])
+    const runtimeRegistry = sourceRegistry.forkForInputPaths([])
+    const tool = {
+      id: 'custom_canary',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    registerProviderToolModelInputRegistry(tool, modelInputRegistry)
+    mockExecuteTool.mockResolvedValueOnce({
+      success: true,
+      output: { reflected: 'personal-secret-value' },
+    })
+
+    const execution = await runWithProviderRuntimeContext(
+      { resolvedSecretTraceRegistry: runtimeRegistry },
+      () => {
+        const { executionParams } = prepareToolExecution(
+          tool,
+          { secret: '{{TEST_API_KEY_PERSONAL}}' },
+          {}
+        )
+        return executeProviderToolWithInput(tool.id, executionParams)
+      }
+    )
+
+    expect(mockExecuteTool.mock.calls.at(-1)?.[1]).toEqual({
+      secret: 'personal-secret-value',
+      _toolSchema: { type: 'object', properties: {}, required: [] },
+    })
+    expect(execution.rawResponse.output).toEqual({ reflected: 'personal-secret-value' })
+    expect(execution.modelResponse.output).toEqual({
+      reflected: '{{TEST_API_KEY_PERSONAL}}',
+    })
+  })
+
+  it('does not bind an environment placeholder absent from the model input', async () => {
+    const sourceRegistry = new ResolvedSecretTraceRegistry([
+      { name: 'UNEXPOSED', plaintext: 'hidden-value', encryptedValue: 'encrypted-hidden' },
+    ])
+    const tool = {
+      id: 'custom_canary',
+      params: {},
+      parameters: { type: 'object', properties: {}, required: [] },
+    }
+    registerProviderToolModelInputRegistry(tool, sourceRegistry)
+
+    const { executionParams } = prepareToolExecution(tool, { secret: '{{UNEXPOSED}}' }, {})
+
+    expect(executionParams.secret).toBe('{{UNEXPOSED}}')
   })
 
   it('does not treat an arbitrary tool-result collision as secret provenance', async () => {

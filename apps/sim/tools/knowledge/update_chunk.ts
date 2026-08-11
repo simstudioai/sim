@@ -41,6 +41,7 @@ export const knowledgeUpdateChunkTool: ToolConfig<any, KnowledgeUpdateChunkRespo
   },
 
   request: {
+    internalAuth: 'executor_delegation',
     url: (params) =>
       `/api/knowledge/${params.knowledgeBaseId}/documents/${params.documentId}/chunks/${params.chunkId}`,
     method: 'PUT',

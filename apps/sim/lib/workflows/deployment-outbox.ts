@@ -1,4 +1,5 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
+import type { PrincipalActor } from '@sim/auth/principal'
 import { db, workflowDeploymentVersion, workflow as workflowTable } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
@@ -21,7 +22,7 @@ import {
   removeMcpToolsForWorkflow,
   syncMcpToolsForWorkflow,
 } from '@/lib/mcp/workflow-mcp-sync'
-import { captureServerEvent } from '@/lib/posthog/server'
+import { deliverOutboxServerEvent } from '@/lib/posthog/server'
 import {
   cleanupWebhooksForWorkflow,
   prepareStableTriggerWebhooksForDeploy,
@@ -100,6 +101,8 @@ export interface PrepareDeploymentV2Payload {
   deploymentVersionId: string
   version: number
   userId: string
+  actor?: PrincipalActor
+  captureAnalytics?: false
   requestId: string
   checkpoints: DeploymentPreparationCheckpoints
 }
@@ -632,6 +635,7 @@ async function emitPostActivationSideEffects(params: {
         deploymentVersionId: params.payload.deploymentVersionId,
         version: params.payload.version,
         previousVersionId: params.operation.previousActiveVersionId || undefined,
+        ...(params.payload.actor ? { actor: params.payload.actor } : {}),
       },
     })
     params.context.signal.throwIfAborted()
@@ -640,23 +644,26 @@ async function emitPostActivationSideEffects(params: {
 
   if (!params.checkpoints.analyticsCaptured) {
     params.context.signal.throwIfAborted()
-    const workspaceId = (params.workflow.workspaceId as string) || ''
-    const isVersionActivation = params.operation.action === 'activate'
-    captureServerEvent(
-      params.payload.userId,
-      isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
-      {
-        workflow_id: params.payload.workflowId,
-        workspace_id: workspaceId,
-        ...(isVersionActivation ? { version: params.payload.version } : {}),
-      },
-      {
-        groups: workspaceId ? { workspace: workspaceId } : undefined,
-        ...(isVersionActivation
-          ? {}
-          : { setOnce: { first_workflow_deployed_at: new Date().toISOString() } }),
-      }
-    )
+    if (params.payload.captureAnalytics !== false) {
+      const workspaceId = (params.workflow.workspaceId as string) || ''
+      const isVersionActivation = params.operation.action === 'activate'
+      await deliverOutboxServerEvent(
+        params.payload.userId,
+        isVersionActivation ? 'deployment_version_activated' : 'workflow_deployed',
+        {
+          workflow_id: params.payload.workflowId,
+          workspace_id: workspaceId,
+          ...(isVersionActivation ? { version: params.payload.version } : {}),
+        },
+        {
+          insertId: params.context.eventId,
+          groups: workspaceId ? { workspace: workspaceId } : undefined,
+          ...(isVersionActivation
+            ? {}
+            : { setOnce: { first_workflow_deployed_at: new Date().toISOString() } }),
+        }
+      )
+    }
     await params.checkpoint({ analyticsCaptured: true })
   }
 
@@ -1314,6 +1321,7 @@ function parsePrepareDeploymentV2Payload(payload: unknown): PrepareDeploymentV2P
   const deploymentVersionId = parseRequiredString(record.deploymentVersionId, 'deploymentVersionId')
   const version = parseRequiredPositiveInteger(record.version, 'version')
   const userId = parseRequiredString(record.userId, 'userId')
+  const actor = parseOptionalPrincipalActor(record.actor)
   const requestId = parseRequiredString(record.requestId, 'requestId')
   const checkpoints = parseDeploymentPreparationCheckpoints(record.checkpoints)
 
@@ -1325,9 +1333,47 @@ function parsePrepareDeploymentV2Payload(payload: unknown): PrepareDeploymentV2P
     deploymentVersionId,
     version,
     userId,
+    ...(actor ? { actor } : {}),
+    ...(record.captureAnalytics === false ? { captureAnalytics: false as const } : {}),
     requestId,
     checkpoints,
   }
+}
+
+function parseOptionalPrincipalActor(value: unknown): PrincipalActor | undefined {
+  if (value === undefined) return undefined
+  const record = parsePayloadRecord(value)
+  const kind = parseRequiredString(record.kind, 'actor.kind')
+  if (kind === 'session') {
+    return { kind, userId: parseRequiredString(record.userId, 'actor.userId') }
+  }
+  if (kind === 'personal_api_key') {
+    return {
+      kind,
+      keyId: parseRequiredString(record.keyId, 'actor.keyId'),
+      userId: parseRequiredString(record.userId, 'actor.userId'),
+    }
+  }
+  if (kind === 'workspace_api_key') {
+    return {
+      kind,
+      keyId: parseRequiredString(record.keyId, 'actor.keyId'),
+      workspaceId: parseRequiredString(record.workspaceId, 'actor.workspaceId'),
+    }
+  }
+  if (kind === 'delegated') {
+    const serviceId = parseRequiredString(record.serviceId, 'actor.serviceId')
+    if (serviceId !== 'copilot' && serviceId !== 'executor' && serviceId !== 'realtime') {
+      throw new Error(`Invalid deployment outbox actor service: ${serviceId}`)
+    }
+    return {
+      kind,
+      serviceId,
+      subjectUserId: parseRequiredString(record.subjectUserId, 'actor.subjectUserId'),
+      delegationId: parseRequiredString(record.delegationId, 'actor.delegationId'),
+    }
+  }
+  throw new Error(`Invalid deployment outbox actor kind: ${kind}`)
 }
 
 function parseDeploymentPreparationCheckpoints(value: unknown): DeploymentPreparationCheckpoints {

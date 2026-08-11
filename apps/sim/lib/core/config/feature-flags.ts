@@ -104,6 +104,15 @@ const FEATURE_FLAGS = {
       'custom-block publish/list routes. Off-AppConfig falls back to DEPLOY_AS_BLOCK.',
     fallback: 'DEPLOY_AS_BLOCK',
   },
+  'v2-api': {
+    description:
+      'Gate the whole /api/v2 HTTP surface (workflows incl. execute/executions, tables, logs, ' +
+      'knowledge, files, audit-logs, billing). One check per request, immediately after auth: ' +
+      'when off, every v2 route returns 404 as if the surface does not exist. The gate is keyed ' +
+      'on userId only — it never reads workspace/org membership, so an ungated caller learns ' +
+      'nothing beyond "no such route". Off-AppConfig falls back to V2_API.',
+    fallback: 'V2_API',
+  },
   'tables-v2-api': {
     description:
       'Gate the v2 tables HTTP API — the public read API (GET /api/v2/tables, POST ' +

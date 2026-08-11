@@ -103,6 +103,7 @@ import {
   isUntitledName,
   uniqueMarkdownName,
 } from '@/app/workspace/[workspaceId]/files/untitled-title'
+import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
@@ -116,6 +117,7 @@ import {
   type WorkspaceFileFolderApi,
 } from '@/hooks/queries/workspace-file-folders'
 import {
+  useCreateWorkspaceFile,
   useDeleteWorkspaceFile,
   useRenameWorkspaceFile,
   useUploadWorkspaceFile,
@@ -264,6 +266,7 @@ export function Files() {
     return map
   }, [members])
   const uploadFile = useUploadWorkspaceFile()
+  const createWorkspaceFile = useCreateWorkspaceFile()
   const notifyLimit = useLimitUpgradeToast()
   const deleteFile = useDeleteWorkspaceFile()
   const renameFile = useRenameWorkspaceFile()
@@ -1300,15 +1303,13 @@ export function Files() {
       const name = uniqueMarkdownName(DEFAULT_UNTITLED_NAME, existingNames)
 
       const mimeType = getMimeTypeFromExtension('md')
-      const blob = new Blob([''], { type: mimeType })
-      const file = new File([blob], name, { type: mimeType })
-      const result = await uploadFile.mutateAsync({
+      const result = await createWorkspaceFile.mutateAsync({
         workspaceId,
-        file,
-        folderId: currentFolderId,
-        skipToast: true,
+        name,
+        contentType: mimeType,
+        folderId: currentFolderId ?? undefined,
       })
-      const fileId = result.file?.id
+      const fileId = result.file.id
       if (fileId) {
         justCreatedFileIdRef.current = fileId
         const params = new URLSearchParams({ new: '1' })
@@ -1680,6 +1681,16 @@ export function Files() {
     if (!canEdit || uploading) return
     fileInputRef.current?.click()
   }, [canEdit, uploading])
+
+  useRegisterGlobalCommands(() => [
+    { id: 'files-upload', handler: () => handleUploadClick() },
+    { id: 'files-new-file', handler: () => void handleCreateFile() },
+    { id: 'files-new-folder', handler: () => void handleCreateFolder() },
+    { id: 'file-download', handler: () => handleDownloadSelected() },
+    { id: 'file-rename', handler: () => handleStartHeaderRename() },
+    { id: 'file-share', handler: () => handleShareSelected() },
+    { id: 'file-delete', handler: () => handleDeleteSelected() },
+  ])
 
   const searchConfig: SearchConfig = {
     value: urlSearchTerm,

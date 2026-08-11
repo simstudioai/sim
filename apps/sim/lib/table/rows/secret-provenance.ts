@@ -444,13 +444,13 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     rowWhere: SQL
     transformation: DerivedTableRowTransformation
   }
-): Promise<void> {
+): Promise<number> {
   const removedColumnIds =
     options.transformation.mode === 'remove-columns'
       ? [...new Set(options.transformation.columnIds)]
       : []
   if (options.transformation.mode === 'remove-columns') {
-    if (removedColumnIds.length === 0) return
+    if (removedColumnIds.length === 0) return 0
     if (
       removedColumnIds.length > MAX_PROVENANCE_COLUMNS_PER_ROW ||
       removedColumnIds.some((columnId) => columnId.length === 0)
@@ -491,6 +491,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     : sql`source.provenance_entries`
 
   let afterId: string | undefined
+  let updatedCount = 0
   for (;;) {
     const page = await trx
       .select({ id: userTableRows.id })
@@ -501,6 +502,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
       .for('update')
     if (page.length === 0) break
     const rowIds = page.map((row) => row.id)
+    updatedCount += rowIds.length
 
     await trx.execute(sql`
       WITH source AS MATERIALIZED (
@@ -638,6 +640,7 @@ export async function updateTableRowsWithDerivedSecretProvenance(
     afterId = rowIds[rowIds.length - 1]
     if (page.length < QUERY_CHUNK_SIZE) break
   }
+  return updatedCount
 }
 
 async function readTableRowsVersion(tableId: string, workspaceId: string): Promise<number | null> {

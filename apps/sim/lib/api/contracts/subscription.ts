@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
+import { INTERNAL_CHAT_BILLING_SOURCES } from '@/lib/billing/usage-sources'
 import {
   BILLING_ACCOUNT_DECISION_HEADER,
   BILLING_ACCOUNT_DECISION_HEADER_MAX_BYTES,
@@ -26,9 +27,7 @@ export const billingUpdateCostBodySchema = z.object({
   model: z.string().min(1, 'Model is required'),
   inputTokens: z.number().min(0).default(0),
   outputTokens: z.number().min(0).default(0),
-  source: z
-    .enum(['copilot', 'workspace-chat', 'mcp_copilot', 'mothership_block'])
-    .default('copilot'),
+  source: z.enum(INTERNAL_CHAT_BILLING_SOURCES).default('copilot'),
   idempotencyKey: z.string().min(1, 'Idempotency key is required'),
   /**
    * Originating workspace, used for org-workspace cost attribution on hosted

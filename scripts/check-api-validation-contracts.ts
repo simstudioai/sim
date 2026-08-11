@@ -9,8 +9,8 @@ const QUERY_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/queries')
 const SELECTOR_HOOKS_DIR = path.join(ROOT, 'apps/sim/hooks/selectors')
 
 const BASELINE = {
-  totalRoutes: 1010,
-  zodRoutes: 1010,
+  totalRoutes: 1093,
+  zodRoutes: 1093,
   nonZodRoutes: 0,
 } as const
 
@@ -24,7 +24,7 @@ const BOUNDARY_POLICY_BASELINE = {
   clientHookLocalSchemaConstructors: 0,
   clientHookRawFetches: 0,
   clientSameOriginApiFetches: 0,
-  doubleCasts: 9,
+  doubleCasts: 6,
   rawJsonReads: 5,
   untypedResponses: 0,
   annotationsMissingReason: 0,
@@ -142,11 +142,17 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
   'apps/sim/app/api/tools/file/manage/route.ts',
   'apps/sim/app/api/workspaces/invitations/batch/route.ts',
   'apps/sim/app/api/workspaces/[id]/route.ts',
-  'apps/sim/app/api/workspaces/[id]/files/[fileId]/route.ts',
   'apps/sim/app/api/workspaces/[id]/files/[fileId]/content/route.ts',
 ])
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
+const PUBLIC_API_ROUTE_HANDLER_IMPORT_PATTERN =
+  /\bimport\s*\{[^}]*\bwithPublicApiRouteHandler\b[^}]*\}\s*from\s*['"]@\/app\/api\/public-api-route-handler['"]/
+const PUBLIC_API_ROUTE_HANDLER_USAGE_PATTERN = /\bwithPublicApiRouteHandler\s*\(/
+const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
+  /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
+const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
+  /\b(?:defineInternalJsonRoute|defineV2JsonRoute|defineInternalBinaryRoute|defineV2BinaryRoute)\s*\(/
 const SERVER_VALIDATION_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/server(?:\/validation)?['"]/
 const SCHEMA_PARSE_PATTERN = /\b\w+Schema\.(?:safeParse|parse)\(/
 const CONTRACT_SERVER_HELPER_PATTERN = /\bparseToolRequest\(/
@@ -714,6 +720,20 @@ function hasZodUsage(relativePath: string, content: string): boolean {
     /\bparseRequest\(/.test(content) &&
     /\bfrom\s+['"]@\/lib\/api\/server['"]/.test(content) &&
     CONTRACT_IMPORT_PATTERN.test(content)
+  ) {
+    return true
+  }
+  if (
+    CONTRACT_IMPORT_PATTERN.test(content) &&
+    PUBLIC_API_ROUTE_HANDLER_IMPORT_PATTERN.test(content) &&
+    PUBLIC_API_ROUTE_HANDLER_USAGE_PATTERN.test(content)
+  ) {
+    return true
+  }
+  if (
+    CONTRACT_IMPORT_PATTERN.test(content) &&
+    DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN.test(content) &&
+    DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN.test(content)
   ) {
     return true
   }

@@ -10,6 +10,7 @@ import {
   defineCapabilitySetup,
   EMAIL_SETUP,
   getOAuthClientSetupFields,
+  KNOWLEDGE_EMBEDDINGS_SETUP,
   STORAGE_SETUP,
 } from './capability-config.ts'
 import { getCapabilitySetupOptions } from './capability-setup.ts'
@@ -74,6 +75,12 @@ describe('capability setup configuration', () => {
     expect(getCapabilitySetupOptions(STORAGE_SETUP).map((option) => option.id)).not.toContain(
       's3-compatible'
     )
+  })
+
+  it('offers OpenAI first for fresh knowledge embedding setup', () => {
+    expect(
+      getCapabilitySetupOptions(KNOWLEDGE_EMBEDDINGS_SETUP).map((option) => option.id)
+    ).toEqual(['openai', 'azure-openai', 'openrouter'])
   })
 
   it('maps every OAuth runtime field to a CLI input mode in runtime order', () => {

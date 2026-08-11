@@ -57,7 +57,7 @@ export interface FolderDeleteRejection {
 
 /**
  * Everything that differs between the four folder-bearing resource types, expressed as
- * data. The folder engine in `lib/folders/lifecycle.ts` and the cascade in
+ * data. The folder engine in `lib/folders/orchestration.ts` and the cascade in
  * `lib/folders/cascade.ts` read this instead of branching on `resourceType`, so
  * create/update/delete/restore/reorder each exist exactly once and adding a fifth
  * foldered resource means adding one entry here.
@@ -304,7 +304,7 @@ async function archiveTableChildren(context: CascadeChildrenContext): Promise<nu
   const ids = await selectChildIds(FOLDER_RESOURCES.table, context, 'active')
 
   for (const id of ids) {
-    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, undefined, {
+    await deleteTable(id, `folder-cascade-${context.folderIds[0]}`, {
       archivedAt: context.timestamp,
       // deleteFolder fires one folder-level live-list notify for the whole subtree.
       skipNotify: true,

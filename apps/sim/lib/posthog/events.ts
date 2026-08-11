@@ -197,20 +197,20 @@ export interface PostHogEventMap {
     skill_id: string
     skill_name: string
     workspace_id: string
-    source?: 'settings' | 'tool_input'
+    source?: 'settings' | 'tool_input' | 'api'
   }
 
   skill_updated: {
     skill_id: string
     skill_name: string
     workspace_id: string
-    source?: 'settings' | 'tool_input'
+    source?: 'settings' | 'tool_input' | 'api'
   }
 
   skill_deleted: {
     skill_id: string
     workspace_id: string
-    source?: 'settings' | 'tool_input'
+    source?: 'settings' | 'tool_input' | 'api'
   }
 
   skill_shared: {
@@ -575,10 +575,8 @@ export interface PostHogEventMap {
       | 'table'
       | 'file'
       | 'knowledge_base'
+      | 'log'
       | 'page'
-      | 'docs'
-      | 'connected_account'
-      | 'integration'
       | 'action'
     query_length: number
     workspace_id: string

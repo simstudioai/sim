@@ -12,15 +12,15 @@ import { AuthType, checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
-import { captureServerEvent } from '@/lib/posthog/server'
 import {
   getCredential,
   getOAuthToken,
   refreshTokenIfNeeded,
   resolveOAuthAccountId,
   resolveServiceAccountToken,
-} from '@/app/api/auth/oauth/utils'
+} from '@/lib/oauth/credential-service'
+import { extractSalesforceInstanceUrl, isSalesforceOAuthProviderId } from '@/lib/oauth/salesforce'
+import { captureServerEvent } from '@/lib/posthog/server'
 import { extractZohoDeskBaseFromScope } from '@/tools/zoho_desk/host-allowlist'
 
 export const dynamic = 'force-dynamic'

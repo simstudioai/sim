@@ -42,6 +42,7 @@ interface PreviewPanelProps {
   mimeType: string | null
   filename: string
   workspaceId: string
+  fileId: string
   fileKey: string
   isStreaming?: boolean
   /**
@@ -57,6 +58,7 @@ export const PreviewPanel = memo(function PreviewPanel({
   mimeType,
   filename,
   workspaceId,
+  fileId,
   fileKey,
   isStreaming,
   readOnly,
@@ -69,7 +71,7 @@ export const PreviewPanel = memo(function PreviewPanel({
       <CsvPreview
         content={content}
         workspaceId={workspaceId}
-        file={{ key: fileKey, name: filename }}
+        file={{ id: fileId, key: fileKey, name: filename }}
         readOnly={readOnly}
       />
     )

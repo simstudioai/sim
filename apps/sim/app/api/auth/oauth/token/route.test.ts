@@ -17,7 +17,7 @@ const { mockAuthorizeCredentialUse, mockResolveServiceAccountToken } = vi.hoiste
   mockResolveServiceAccountToken: vi.fn(),
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   ...authOAuthUtilsMock,
   resolveServiceAccountToken: mockResolveServiceAccountToken,
 }))

@@ -1,0 +1,258 @@
+/**
+ * @vitest-environment node
+ */
+import { NextRequest } from 'next/server'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { z } from 'zod'
+import { defineRouteContract } from '@/lib/api/contracts'
+import {
+  defineInternalJsonRoute,
+  internalErrorResponse,
+  internalPlainOrchestrationErrorPolicy,
+  internalRateLimits,
+} from '@/lib/api/server/routes/internal-json-route'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+
+const operation = { id: 'test.read' } as const
+const auth = {
+  authenticate: vi.fn(async () => ({
+    kind: 'session' as const,
+    userId: 'user-1',
+    sessionId: 'session-1',
+  })),
+}
+
+const contract = defineRouteContract({
+  method: 'GET',
+  path: '/api/test/internal-json-route',
+  response: {
+    mode: 'json',
+    schema: z.object({ value: z.string() }),
+  },
+})
+
+describe('defineInternalJsonRoute', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('uses the use-case result directly when it already matches the contract', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(200)
+    await expect(response.json()).resolves.toEqual({ value: 'ok' })
+    expect(response.headers.get('x-request-id')).toBeTruthy()
+  })
+
+  it('renders typed error descriptors through the shared builder', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute(): Promise<{ value: string }> {
+          throw new OrchestrationError('conflict', 'Already exists')
+        },
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({ error: 'Already exists' })
+  })
+
+  it('rejects invalid error statuses immediately', () => {
+    expect(() => internalErrorResponse(200, { error: 'Invalid' })).toThrow(
+      'Internal error responses require a 4xx or 5xx status'
+    )
+  })
+
+  it('orders auth, rate limiting, parsing, async mapping, and application execution', async () => {
+    const events: string[] = []
+    const orderedContract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/internal-json-route',
+      body: z.object({ value: z.string() }).transform((body) => {
+        events.push('parse')
+        return body
+      }),
+      response: { mode: 'json', schema: z.object({ value: z.string() }) },
+    })
+    const handler = defineInternalJsonRoute({
+      contract: orderedContract,
+      auth: {
+        async authenticate() {
+          events.push('auth')
+          return { kind: 'session' as const, userId: 'user-1', sessionId: 'session-1' }
+        },
+      },
+      operation,
+      rateLimit: {
+        kind: 'none',
+        reason: 'Unit test',
+        async enforce() {
+          events.push('rate')
+        },
+      },
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      async mapInput({ body }) {
+        events.push('map:start')
+        await Promise.resolve()
+        events.push('map:end')
+        return body.value
+      },
+      useCase: {
+        operation,
+        async execute({ input }) {
+          events.push('use-case')
+          return { value: input }
+        },
+      },
+    })
+
+    const response = await handler(
+      new NextRequest('http://localhost/api/test/internal-json-route', {
+        method: 'POST',
+        body: JSON.stringify({ value: 'ok' }),
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(events).toEqual(['auth', 'rate', 'parse', 'map:start', 'map:end', 'use-case'])
+  })
+
+  it('projects async mapping errors before application execution', async () => {
+    const execute = vi.fn()
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      async mapInput() {
+        await Promise.resolve()
+        throw new OrchestrationError('validation', 'Invalid mapped input')
+      },
+      useCase: { operation, execute },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toEqual({ error: 'Invalid mapped input' })
+    expect(execute).not.toHaveBeenCalled()
+  })
+
+  it('validates the contract response before invoking the finalizer', async () => {
+    const finalizeResponse = vi.fn()
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 42 }
+        },
+      },
+      present: ({ value }) => ({ value: value as unknown as string }),
+      finalizeResponse,
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(500)
+    expect(finalizeResponse).not.toHaveBeenCalled()
+  })
+
+  it('projects finalizer failures through the declared error policy', async () => {
+    const handler = defineInternalJsonRoute({
+      contract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+      finalizeResponse() {
+        throw new OrchestrationError('conflict', 'Metadata conflict')
+      },
+    })
+
+    const response = await handler(new NextRequest('http://localhost/api/test/internal-json-route'))
+
+    expect(response.status).toBe(409)
+    await expect(response.json()).resolves.toEqual({ error: 'Metadata conflict' })
+  })
+
+  it('appends finalizer metadata while preserving the success status and declared headers', async () => {
+    const createdContract = defineRouteContract({
+      method: 'POST',
+      path: '/api/test/internal-json-route',
+      response: {
+        mode: 'json',
+        schema: z.object({ value: z.string() }),
+        status: 201,
+      },
+    })
+    const handler = defineInternalJsonRoute({
+      contract: createdContract,
+      auth,
+      operation,
+      rateLimit: internalRateLimits.none({ reason: 'Unit test' }),
+      errorPolicy: internalPlainOrchestrationErrorPolicy,
+      mapInput: () => undefined,
+      useCase: {
+        operation,
+        async execute() {
+          return { value: 'ok' }
+        },
+      },
+      responseHeaders: () => ({ 'x-contract-header': 'preserved' }),
+      finalizeResponse: ({ body }) => ({
+        bodyFields: { __privateMetadata: { value: body.value } },
+        headers: { 'x-private-metadata': 'v1' },
+      }),
+    })
+
+    const response = await handler(
+      new NextRequest('http://localhost/api/test/internal-json-route', { method: 'POST' })
+    )
+
+    expect(response.status).toBe(201)
+    expect(response.headers.get('x-contract-header')).toBe('preserved')
+    expect(response.headers.get('x-private-metadata')).toBe('v1')
+    await expect(response.json()).resolves.toEqual({
+      value: 'ok',
+      __privateMetadata: { value: 'ok' },
+    })
+  })
+})

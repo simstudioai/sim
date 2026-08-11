@@ -41,7 +41,7 @@ const {
   mockRefreshAccessTokenIfNeeded: vi.fn(),
   mockFetchSlackTeamId: vi.fn(),
 }))
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   getSlackBotCredential: mockGetSlackBotCredential,
   resolveOAuthAccountId: mockResolveOAuthAccountId,
   refreshAccessTokenIfNeeded: mockRefreshAccessTokenIfNeeded,

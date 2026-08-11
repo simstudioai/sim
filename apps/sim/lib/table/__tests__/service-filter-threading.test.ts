@@ -45,7 +45,12 @@ vi.mock('@/lib/table/validation', () => ({
   checkBatchUniqueConstraintsDb: vi.fn(async () => ({ valid: true, errors: [] })),
 }))
 
-import { deleteRowsByFilter, queryRows, updateRowsByFilter } from '@/lib/table/rows/service'
+import {
+  deleteRowsByFilter,
+  queryRows,
+  requireTableRowIds,
+  updateRowsByFilter,
+} from '@/lib/table/rows/service'
 
 const COLUMNS: ColumnDefinition[] = [
   { name: 'name', type: 'string' },
@@ -99,7 +104,6 @@ describe('service filter threading', () => {
   })
 
   it('updateRowsByFilter forwards table.schema.columns to buildFilterClause', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
     await updateRowsByFilter(
       TABLE,
       { filter: { birthDate: { $lt: '2024-06-01' } }, data: { name: 'x' } },
@@ -114,8 +118,20 @@ describe('service filter threading', () => {
     )
   })
 
+  it('treats an empty bulk patch as a no-op before selecting rows', async () => {
+    const result = await updateRowsByFilter(
+      TABLE,
+      { filter: { score: { $gt: 0 } }, data: {} },
+      'req-1'
+    )
+
+    expect(result).toEqual({ affectedCount: 0, affectedRowIds: [] })
+    expect(buildFilterClause).not.toHaveBeenCalled()
+    expect(dbChainMockFns.select).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
+  })
+
   it('deleteRowsByFilter forwards table.schema.columns to buildFilterClause', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
     await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 90 } } }, 'req-1')
 
     expect(buildFilterClause).toHaveBeenCalledTimes(1)
@@ -124,6 +140,28 @@ describe('service filter threading', () => {
       expect.any(String),
       COLUMNS
     )
+  })
+
+  it('verifies explicit row selections in bounded canonical-scope chunks', async () => {
+    const rowIds = Array.from(
+      { length: TABLE_LIMITS.DELETE_BATCH_SIZE + 1 },
+      (_, index) => `row-${index}`
+    )
+    dbChainMockFns.where
+      .mockResolvedValueOnce([{ count: TABLE_LIMITS.DELETE_BATCH_SIZE }])
+      .mockResolvedValueOnce([{ count: 1 }])
+
+    await expect(requireTableRowIds(TABLE.id, TABLE.workspaceId, rowIds)).resolves.toBeUndefined()
+    expect(dbChainMockFns.select).toHaveBeenCalledTimes(2)
+    expect(dbChainMockFns.where).toHaveBeenCalledTimes(2)
+  })
+
+  it('conceals a missing explicit row selection', async () => {
+    dbChainMockFns.where.mockResolvedValueOnce([{ count: 0 }])
+
+    await expect(
+      requireTableRowIds(TABLE.id, TABLE.workspaceId, ['missing-row'])
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })
 
@@ -143,10 +181,10 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
   })
 
-  it('does not order an unbounded updateRowsByFilter', async () => {
-    dbChainMockFns.where.mockResolvedValueOnce([])
+  it('orders and caps an updateRowsByFilter without an explicit limit', async () => {
     await updateRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, data: { name: 'x' } }, 'req-1')
-    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1)
   })
 
   it('orders the match query when deleteRowsByFilter has a limit', async () => {

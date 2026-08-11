@@ -42,6 +42,13 @@ vi.mock('@/lib/table', () => ({
   updateColumnOptions: mockUpdateColumnOptions,
   updateColumnType: mockUpdateColumnType,
 }))
+vi.mock('@/lib/table/columns/service', () => ({
+  renameColumn: mockRenameColumn,
+  updateColumnConstraints: mockUpdateColumnConstraints,
+  updateColumnCurrency: mockUpdateColumnCurrency,
+  updateColumnOptions: mockUpdateColumnOptions,
+  updateColumnType: mockUpdateColumnType,
+}))
 vi.mock('@/app/api/table/utils', () => ({
   accessError: () => new Response('denied', { status: 403 }),
   checkAccess: mockCheckAccess,
@@ -50,6 +57,7 @@ vi.mock('@/app/api/table/utils', () => ({
   tableLockErrorResponse: () => null,
 }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PATCH } from '@/app/api/table/[tableId]/columns/route'
 
 const WORKSPACE_ID = '11111111-1111-4111-8111-111111111111'
@@ -159,7 +167,10 @@ describe('PATCH /api/table/[tableId]/columns — pre-flight guards', () => {
     // Stands in for the race the guards cannot close: the column stopped being
     // a currency between the snapshot the guards read and this write.
     mockUpdateColumnCurrency.mockRejectedValue(
-      new Error('Cannot set currency on column "amount" of type "string"')
+      new OrchestrationError(
+        'validation',
+        'Cannot set currency on column "amount" of type "string"'
+      )
     )
 
     const response = await patch({ name: 'renamed', currencyCode: 'USD' })
