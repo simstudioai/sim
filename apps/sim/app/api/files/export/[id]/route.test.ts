@@ -12,12 +12,14 @@ const {
   mockVerifyFileAccess,
   mockDownloadFile,
   mockExtractEmbeddedImageIds,
+  mockRenderMarkdownPdf,
 } = vi.hoisted(() => ({
   mockCheckAuth: vi.fn(),
   mockGetFileMetadataById: vi.fn(),
   mockVerifyFileAccess: vi.fn(),
   mockDownloadFile: vi.fn(),
   mockExtractEmbeddedImageIds: vi.fn(),
+  mockRenderMarkdownPdf: vi.fn(),
 }))
 
 vi.mock('@/lib/auth/hybrid', () => ({ checkSessionOrInternalAuth: mockCheckAuth }))
@@ -28,6 +30,9 @@ vi.mock('@/app/api/files/authorization', () => ({ verifyFileAccess: mockVerifyFi
 vi.mock('@/lib/uploads/core/storage-service', () => ({ downloadFile: mockDownloadFile }))
 vi.mock('@/lib/copilot/tools/server/files/embedded-image-refs', () => ({
   extractEmbeddedImageIds: mockExtractEmbeddedImageIds,
+}))
+vi.mock('@/app/api/files/export/[id]/markdown-pdf', () => ({
+  renderMarkdownPdf: mockRenderMarkdownPdf,
 }))
 vi.mock('@sim/audit', () => ({
   recordAudit: vi.fn(),
@@ -42,8 +47,14 @@ const MB = 1024 * 1024
 const DOC_ID = 'doc-1'
 const context = { params: Promise.resolve({ id: DOC_ID }) }
 
-function request() {
-  return createMockRequest('GET', undefined, {}, `http://localhost:3000/api/files/export/${DOC_ID}`)
+function request(format?: 'pdf') {
+  const query = format ? `?format=${format}` : ''
+  return createMockRequest(
+    'GET',
+    undefined,
+    {},
+    `http://localhost:3000/api/files/export/${DOC_ID}${query}`
+  )
 }
 
 function assetRecord(id: string, size: number) {
@@ -78,6 +89,68 @@ describe('markdown export bundling', () => {
     )
     mockDownloadFile.mockResolvedValue(Buffer.from('# Doc\n'))
     mockExtractEmbeddedImageIds.mockReturnValue([])
+    mockRenderMarkdownPdf.mockResolvedValue(Buffer.from('%PDF-generated'))
+  })
+
+  it('returns the stored Markdown unchanged when no format is requested', async () => {
+    const response = await GET(request(), context)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8')
+    expect(response.headers.get('Content-Disposition')).toContain('doc.md')
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('# Doc\n')
+    expect(mockRenderMarkdownPdf).not.toHaveBeenCalled()
+  })
+
+  it('renders Markdown as a directly downloadable PDF', async () => {
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(200)
+    expect(response.headers.get('Content-Type')).toBe('application/pdf')
+    expect(response.headers.get('Content-Disposition')).toContain('doc.pdf')
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('%PDF-generated')
+    expect(mockRenderMarkdownPdf).toHaveBeenCalledWith({
+      markdown: '# Doc\n',
+      title: 'doc',
+      images: expect.any(Map),
+    })
+    expect(mockRenderMarkdownPdf.mock.calls[0][0].images.size).toBe(0)
+  })
+
+  it('passes only authorized, readable embedded images to the PDF renderer', async () => {
+    mockExtractEmbeddedImageIds.mockReturnValue(['good', 'secret', 'broken'])
+    mockVerifyFileAccess.mockImplementation(async (key: string) => !key.endsWith('secret'))
+    mockDownloadFile.mockImplementation(async ({ key }: { key: string }) => {
+      if (key.endsWith('doc.md')) return Buffer.from('![image](/api/files/view/good)')
+      if (key.endsWith('broken')) throw new Error('storage down')
+      return Buffer.from('png-bytes')
+    })
+
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(200)
+    const images = mockRenderMarkdownPdf.mock.calls[0][0].images as Map<string, Buffer>
+    expect(Array.from(images.keys())).toEqual(['good'])
+    expect(images.get('good')).toEqual(Buffer.from('png-bytes'))
+  })
+
+  it('rejects PDF format for a non-Markdown file', async () => {
+    mockGetFileMetadataById.mockResolvedValue({
+      id: DOC_ID,
+      key: 'workspace/ws-1/doc.txt',
+      originalName: 'doc.txt',
+      contentType: 'text/plain',
+      context: 'workspace',
+      size: 1024,
+      workspaceId: 'ws-1',
+    })
+
+    const response = await GET(request('pdf'), context)
+
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toContain('only available for Markdown')
+    expect(mockDownloadFile).not.toHaveBeenCalled()
+    expect(mockRenderMarkdownPdf).not.toHaveBeenCalled()
   })
 
   it('rejects on declared asset bytes before downloading any of them', async () => {

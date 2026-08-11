@@ -19,6 +19,7 @@ import { downloadFile } from '@/lib/uploads/core/storage-service'
 import { getFileMetadataById } from '@/lib/uploads/server/metadata'
 import { formatFileSize } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
+import { renderMarkdownPdf } from '@/app/api/files/export/[id]/markdown-pdf'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
 const logger = createLogger('FilesExportAPI')
@@ -66,6 +67,7 @@ export const GET = withRouteHandler(
     if (!parsed.success) return parsed.response
 
     const { id } = parsed.data.params
+    const { format } = parsed.data.query
 
     const authResult = await checkSessionOrInternalAuth(request, { requireWorkflowId: false })
     if (!authResult.success || !authResult.userId) {
@@ -90,7 +92,7 @@ export const GET = withRouteHandler(
      * markdown, or bundled zip) so a mid-export failure never logs a download
      * that never happened.
      */
-    const auditExport = (format: 'file' | 'markdown' | 'zip', assetCount: number) => {
+    const auditExport = (format: 'file' | 'markdown' | 'pdf' | 'zip', assetCount: number) => {
       recordAudit({
         workspaceId: record.workspaceId ?? null,
         actorId: userId,
@@ -121,6 +123,12 @@ export const GET = withRouteHandler(
     }
 
     if (!isMarkdown(record.originalName, record.contentType)) {
+      if (format === 'pdf') {
+        return NextResponse.json(
+          { error: 'PDF export is only available for Markdown files.' },
+          { status: 400 }
+        )
+      }
       const storagePrefix = getServeStoragePrefix()
       const servePath = `/api/files/serve/${storagePrefix}/${encodeURIComponent(record.key)}`
       auditExport('file', 0)
@@ -151,9 +159,29 @@ export const GET = withRouteHandler(
 
     const imageIds = extractEmbeddedImageIds(mdContent)
 
-    logger.info('Exporting markdown', { id, imageCount: imageIds.length })
+    logger.info('Exporting markdown', {
+      id,
+      format: format ?? 'source',
+      imageCount: imageIds.length,
+    })
+
+    const respondWithPdf = async (images: ReadonlyMap<string, Buffer>) => {
+      const title = record.originalName.replace(/\.(?:md|markdown)$/i, '')
+      const pdfName = safeFilename(`${title}.pdf`)
+      const pdfBuffer = await renderMarkdownPdf({ markdown: mdContent, title, images })
+      auditExport('pdf', images.size)
+      return new NextResponse(new Uint8Array(pdfBuffer), {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; ${encodeFilenameForHeader(pdfName)}`,
+          'Content-Length': String(pdfBuffer.length),
+        },
+      })
+    }
 
     if (imageIds.length === 0) {
+      if (format === 'pdf') return respondWithPdf(new Map())
       const mdName = safeFilename(record.originalName)
       const mdBytes = Buffer.from(mdContent, 'utf-8')
       auditExport('markdown', 0)
@@ -232,6 +260,12 @@ export const GET = withRouteHandler(
       const filename = deduplicatedFilename(preferred, usedFilenames, imageId)
       usedFilenames.add(filename)
       assetMap.set(imageId, { filename, buffer })
+    }
+
+    if (format === 'pdf') {
+      return respondWithPdf(
+        new Map(Array.from(assetMap, ([imageId, asset]) => [imageId, asset.buffer]))
+      )
     }
 
     for (const [imageId, asset] of assetMap) {

@@ -30,21 +30,30 @@ function fileNameFromDisposition(response: Response, fallback: string): string {
   return disposition.match(/filename="([^"]+)"/)?.[1] ?? fallback
 }
 
-export async function triggerFileDownload(record: WorkspaceFileRecord): Promise<void> {
+export async function triggerFileDownload(
+  record: WorkspaceFileRecord,
+  options?: { format?: 'pdf' }
+): Promise<void> {
   const isMarkdown =
     record.type === 'text/markdown' ||
     record.type === 'text/x-markdown' ||
     /\.(?:md|markdown)$/i.test(record.name)
 
+  if (options?.format === 'pdf' && !isMarkdown) {
+    throw new Error('PDF export is only available for Markdown files')
+  }
+
   const url = isMarkdown
-    ? `/api/files/export/${encodeURIComponent(record.id)}`
+    ? `/api/files/export/${encodeURIComponent(record.id)}${options?.format === 'pdf' ? '?format=pdf' : ''}`
     : `/api/files/serve/${encodeURIComponent(record.key)}?context=workspace&t=${Date.now()}`
 
   // boundary-raw-fetch: binary download read as a blob; these paths have no contract
   const response = await fetch(url, { cache: 'no-store' })
   if (!response.ok) throw new Error(`Failed to download "${record.name}"`)
 
-  saveBlob(await response.blob(), fileNameFromDisposition(response, record.name))
+  const fallbackName =
+    options?.format === 'pdf' ? `${record.name.replace(/\.[^.]+$/, '')}.pdf` : record.name
+  saveBlob(await response.blob(), fileNameFromDisposition(response, fallbackName))
 }
 
 /**

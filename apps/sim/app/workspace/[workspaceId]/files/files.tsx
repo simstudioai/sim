@@ -17,7 +17,7 @@ import {
   toast,
   Upload,
 } from '@sim/emcn'
-import { Download, Send } from '@sim/emcn/icons'
+import { Download, FileText, Send } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage, toError } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -1062,9 +1062,9 @@ export function Files() {
   }
 
   const handleDownload = useCallback(
-    async (file: WorkspaceFileRecord) => {
+    async (file: WorkspaceFileRecord, format?: 'pdf') => {
       try {
-        await triggerFileDownload(file)
+        await triggerFileDownload(file, format ? { format } : undefined)
         captureEvent(posthogRef.current, 'file_downloaded', {
           workspace_id: workspaceId,
           is_bulk: false,
@@ -1159,6 +1159,11 @@ export function Files() {
   const handleDownloadSelected = useCallback(() => {
     const file = selectedFileRef.current
     if (file) handleDownload(file)
+  }, [handleDownload])
+
+  const handleDownloadPdfSelected = useCallback(() => {
+    const file = selectedFileRef.current
+    if (file) handleDownload(file, 'pdf')
   }, [handleDownload])
 
   const handleDeleteSelected = useCallback(() => {
@@ -1627,6 +1632,15 @@ export function Files() {
         icon: Download,
         onSelect: handleDownloadSelected,
       },
+      ...(isInlineMarkdown
+        ? [
+            {
+              text: 'Download PDF',
+              icon: FileText,
+              onSelect: handleDownloadPdfSelected,
+            },
+          ]
+        : []),
       ...(canEdit
         ? [
             {
@@ -1650,6 +1664,7 @@ export function Files() {
     handleCyclePreviewMode,
     handleTogglePreview,
     handleDownloadSelected,
+    handleDownloadPdfSelected,
     handleShareSelected,
     handleDeleteSelected,
   ])
