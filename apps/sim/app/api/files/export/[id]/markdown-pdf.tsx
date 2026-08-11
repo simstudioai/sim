@@ -15,12 +15,12 @@ import {
 } from '@react-pdf/renderer'
 import type { JSONContent } from '@tiptap/core'
 import sharp from 'sharp'
-import { parseServerMarkdownToDoc } from '@/lib/collab-doc/server-markdown'
 import {
   type EmbeddedFileRef,
   extractEmbeddedFileRef,
 } from '@/lib/uploads/utils/embedded-image-ref'
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
+import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
 type PdfImage = { data: Buffer; format: 'png' }
 type ResolvedPdfImageRef = Exclude<EmbeddedFileRef, null>
@@ -40,6 +40,23 @@ interface PdfFont {
 }
 
 const require = createRequire(import.meta.url)
+
+/**
+ * Ensure a DOM exists for the TipTap Markdown parser used by this PDF-only server module. The
+ * renderer is loaded lazily by the PDF export branch, so this setup never affects ordinary exports.
+ * Re-check both globals on every call to avoid accepting the partial `document` exposed by Next.
+ */
+function ensureDomForMarkdownPdf(): void {
+  if (typeof window !== 'undefined' && typeof document !== 'undefined') return
+  const { JSDOM } = require('jsdom') as typeof import('jsdom')
+  const { window: jsdomWindow } = new JSDOM('<!doctype html><html><body></body></html>')
+  // double-cast-allowed: assigning the jsdom shims onto the global needs an
+  // index-signature view of `globalThis`, whose declared type has none.
+  const globals = globalThis as unknown as Record<string, unknown>
+  globals.window = jsdomWindow
+  globals.document = jsdomWindow.document
+  globals.navigator ??= jsdomWindow.navigator
+}
 
 function resolveBrandFont(filename: string): string {
   const candidates = [
@@ -678,7 +695,8 @@ export async function renderMarkdownPdf({
 }: MarkdownPdfInput): Promise<Buffer> {
   const normalizedImages = await normalizeImages(images)
   const { body } = splitFrontmatter(markdown)
-  const document = parseServerMarkdownToDoc(body)
+  ensureDomForMarkdownPdf()
+  const document = parseMarkdownToDoc(body)
   assertDocumentWithinLimits(document)
   return renderToBuffer(
     <MarkdownDocument document={document} title={title} images={normalizedImages} />
