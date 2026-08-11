@@ -2,11 +2,12 @@ import { describe, expect, it } from 'bun:test'
 import {
   EMAIL_CAPABILITY,
   inspectCapability,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   requireCapability,
   STORAGE_CAPABILITY,
   validateCapabilityFieldInput,
 } from '../../apps/sim/lib/core/config/env-capabilities.ts'
-import { EMAIL_SETUP, STORAGE_SETUP } from './capability-config.ts'
+import { EMAIL_SETUP, KNOWLEDGE_EMBEDDINGS_SETUP, STORAGE_SETUP } from './capability-config.ts'
 import {
   buildCapabilitySetupTransition,
   resolveCurrentCapabilitySetupOptionId,
@@ -39,6 +40,15 @@ describe('setup provider reconciliation', () => {
         new Map([['SMTP_HOST', 'smtp.example.com']])
       )
     ).toBe('smtp')
+  })
+
+  it('allows setup when no knowledge embedding provider is configured', () => {
+    expect(resolveCurrentCapabilitySetupOptionId(KNOWLEDGE_EMBEDDINGS_SETUP, {})).toBeUndefined()
+    expect(
+      resolveCurrentCapabilitySetupOptionId(KNOWLEDGE_EMBEDDINGS_SETUP, {
+        OPENROUTER_API_KEY: 'openrouter-key',
+      })
+    ).toBe('openrouter')
   })
 
   it('uses canonical storage selection for setup defaults', () => {
@@ -77,6 +87,20 @@ describe('setup provider reconciliation', () => {
 
     expect(result.remove).not.toEqual(expect.arrayContaining(['SMTP_HOST', 'SMTP_PORT']))
     expect(inspectCapability(EMAIL_CAPABILITY, reconciled).providerIds).toEqual(['resend', 'smtp'])
+  })
+
+  it('configures a knowledge embedding provider from an empty state', () => {
+    const result = buildCapabilitySetupTransition(
+      KNOWLEDGE_EMBEDDINGS_SETUP,
+      'openrouter',
+      { OPENROUTER_API_KEY: 'openrouter-key' },
+      {}
+    )
+    const reconciled = applyResult({}, result)
+
+    expect(inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, reconciled).providerIds).toEqual([
+      'openrouter',
+    ])
   })
 
   it('clears stale SMTP auth for an unauthenticated relay', () => {

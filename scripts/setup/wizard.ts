@@ -163,7 +163,7 @@ export async function runWizard(flags: WizardFlags): Promise<void> {
   p.note(
     [
       mode === 'k8s' ? `port-forward, then open ${APP_SIGNUP_URL}` : `open ${APP_SIGNUP_URL}`,
-      'manage it:  bun run sim start · stop · status · logs',
+      'manage it:  bun run sim start · stop · update · status · logs',
       'check your setup:  bun run sim doctor',
       mode === 'dev' && !startDevNow ? `start Sim:  bun run ${devScript}` : null,
       `prefer a bare "sim"? ${theme.command('bun link')} once (needs ~/.bun/bin on PATH)`,

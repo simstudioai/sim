@@ -15,6 +15,7 @@ import {
   collectSecrets,
   mothershipOverride,
   promptCopilotKey,
+  promptKnowledgeEmbeddings,
   promptLlmKeys,
   promptSecurity,
   promptSignInProviders,
@@ -120,9 +121,14 @@ export async function runDevMode(
     writeEnvValues('realtime', { REDIS_URL: redisUrl })
   }
 
+  const stagedVars = new Map(simAfter.vars)
+  for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
+  const embeddings = await promptKnowledgeEmbeddings(stagedVars, { containerized: false })
+  if (embeddings) {
+    stageCapabilitySetupTransition(stagedVars, values, remove, embeddings)
+  }
+
   if (!quick) {
-    const stagedVars = new Map(simAfter.vars)
-    for (const [key, value] of Object.entries(values)) stagedVars.set(key, value)
     for (const setup of [JOBS_SETUP, STORAGE_SETUP, EMAIL_SETUP] as const) {
       const transition = await promptCapabilitySetup(setup, stagedVars, {
         containerized: false,
