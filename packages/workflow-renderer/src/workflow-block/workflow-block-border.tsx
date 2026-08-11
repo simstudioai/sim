@@ -147,6 +147,8 @@ interface WorkflowBlockBorderProps {
   isSelected?: boolean
   /** Overrides the selected silhouette while preserving the canonical idle and ring colors. */
   selectedSilhouetteColor?: string
+  /** Paints the action-menu swell at its resting size immediately instead of springing in. */
+  staticActionMenuSwell?: boolean
   /** Overrides the resolved silhouette without changing selected or ring state. */
   silhouetteColorOverride?: string
   /** Fills the card body without changing its silhouette or border color. */
@@ -843,6 +845,7 @@ export function WorkflowBlockBorder({
   ringStyles,
   isSelected = false,
   selectedSilhouetteColor,
+  staticActionMenuSwell = false,
   silhouetteColorOverride,
   bodyFill = 'var(--surface-2)',
   width,
@@ -952,10 +955,14 @@ export function WorkflowBlockBorder({
     }
     const actionMenuPort = resolvedPorts.find((port) => port.id === 'action-menu')
     actionMenuSpringRef.current.target = (actionMenuPort?.restAmplitude ?? 0) > 0 ? 1 : 0
+    if (staticActionMenuSwell) {
+      actionMenuSpringRef.current.value = actionMenuSpringRef.current.target
+      actionMenuSpringRef.current.velocity = 0
+    }
     /* Repaint in the same commit: ports or size changed, and a silhouette
        that lags the content by an animation frame reads as a flash. */
     renderNowRef.current()
-  }, [ports, radius, size.height, size.width])
+  }, [ports, radius, size.height, size.width, staticActionMenuSwell])
 
   useLayoutEffect(() => {
     const svg = svgRef.current

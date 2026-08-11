@@ -66,7 +66,7 @@ export const WorkflowHistoryControls = memo(function WorkflowHistoryControls() {
         <Tooltip.Trigger asChild>
           <Button
             variant='ghost'
-            className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+            className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
             onClick={undo}
             disabled={!canUndo}
             aria-label='Undo'
@@ -83,7 +83,7 @@ export const WorkflowHistoryControls = memo(function WorkflowHistoryControls() {
         <Tooltip.Trigger asChild>
           <Button
             variant='ghost'
-            className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+            className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
             onClick={redo}
             disabled={!canRedo}
             aria-label='Redo'
@@ -159,7 +159,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           <Tooltip.Trigger asChild>
             <Button
               variant='ghost'
-              className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
+              className='size-[30px] rounded-lg p-0 hover-hover:bg-[var(--surface-5)]'
               onClick={handleFitToView}
             >
               <SelectAll className='size-[16px]' />

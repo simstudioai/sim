@@ -29,10 +29,7 @@ export function BlockEditorSections({ blockType, subBlocks, children }: BlockEdi
         <section
           key={section.id}
           aria-labelledby={`block-editor-section-${section.id}`}
-          className={cn(
-            'flex flex-col',
-            index === 0 ? 'pt-1 pb-4' : 'border-[var(--border)] border-t pt-4 pb-4'
-          )}
+          className={cn('flex flex-col', index === 0 ? 'pt-1 pb-4' : 'pt-4 pb-4')}
         >
           <div className='mb-4 flex items-center gap-1 pl-0.5'>
             <h3

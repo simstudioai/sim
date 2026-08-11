@@ -4,15 +4,25 @@ import {
   type ComponentType,
   forwardRef,
   memo,
+  type RefObject,
   useCallback,
   useEffect,
   useImperativeHandle,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
 } from 'react'
-import { ChipInput, ChipTag, cn, handleKeyboardActivation, ScrollEdgeFade } from '@sim/emcn'
-import { Search } from '@sim/emcn/icons'
+import {
+  ChipTag,
+  cn,
+  disclosureChevronClass,
+  Expandable,
+  ExpandableContent,
+  handleKeyboardActivation,
+  ScrollEdgeFade,
+} from '@sim/emcn'
+import { ChevronDown } from '@sim/emcn/icons'
 import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -290,6 +300,8 @@ interface ToolbarSectionProps {
   items: BlockItem[]
   isTrigger: boolean
   showWorkflowAccent: boolean
+  forceExpanded: boolean
+  scrollContainerRef: RefObject<HTMLDivElement | null>
   onDragStart: ToolbarItemProps['onDragStart']
   onItemClick: ToolbarItemProps['onClick']
   onContextMenu: ToolbarItemProps['onContextMenu']
@@ -300,30 +312,86 @@ const ToolbarSection = memo(function ToolbarSection({
   items,
   isTrigger,
   showWorkflowAccent,
+  forceExpanded,
+  scrollContainerRef,
   onDragStart,
   onItemClick,
   onContextMenu,
 }: ToolbarSectionProps) {
+  const [expanded, setExpanded] = useState(true)
+  const sectionRef = useRef<HTMLElement>(null)
+  const headerRef = useRef<HTMLDivElement>(null)
+  const anchorAfterCollapseRef = useRef(false)
+
+  const isExpanded = forceExpanded || expanded
+
+  const handleToggle = () => {
+    if (forceExpanded) return
+
+    if (isExpanded) {
+      const scrollContainer = scrollContainerRef.current
+      const section = sectionRef.current
+      const header = headerRef.current
+
+      if (scrollContainer && section && header) {
+        const scrollContainerTop = scrollContainer.getBoundingClientRect().top
+        const sectionBottom = section.getBoundingClientRect().bottom
+        const headerTop = header.getBoundingClientRect().top
+
+        anchorAfterCollapseRef.current =
+          Math.abs(headerTop - scrollContainerTop) <= 1 && sectionBottom > scrollContainerTop
+      }
+    }
+
+    setExpanded((current) => !current)
+  }
+
+  useLayoutEffect(() => {
+    if (isExpanded || !anchorAfterCollapseRef.current) return
+
+    const scrollContainer = scrollContainerRef.current
+    const section = sectionRef.current
+    if (scrollContainer && section) {
+      scrollContainer.scrollTop = section.offsetTop
+    }
+    anchorAfterCollapseRef.current = false
+  }, [isExpanded, scrollContainerRef])
+
   if (items.length === 0) return null
 
   return (
-    <section>
-      <div className='mb-2 flex h-[18px] items-center px-2 text-[var(--text-muted)] text-small'>
-        {label}
+    <section ref={sectionRef} className='group/toolbar-section flex flex-col'>
+      <div
+        ref={headerRef}
+        className='-mx-1.5 sticky top-0 z-20 flex h-[30px] flex-shrink-0 items-center bg-[var(--bg)] px-3.5'
+      >
+        <button
+          type='button'
+          onClick={handleToggle}
+          aria-expanded={isExpanded}
+          className='group/section-toggle flex h-full min-w-0 items-center gap-1.5 text-[var(--text-muted)] text-small transition-colors hover-hover:text-[var(--text-secondary)]'
+        >
+          <span className='min-w-0 truncate'>{label}</span>
+          <ChevronDown className={cn(disclosureChevronClass, !isExpanded && '-rotate-90')} />
+        </button>
       </div>
-      <div className='flex flex-col gap-[1px]'>
-        {items.map((item) => (
-          <ToolbarItem
-            key={`${isTrigger ? 'trigger' : 'block'}-${item.type}`}
-            item={item}
-            isTrigger={isTrigger}
-            showWorkflowAccent={showWorkflowAccent}
-            onDragStart={onDragStart}
-            onClick={onItemClick}
-            onContextMenu={onContextMenu}
-          />
-        ))}
-      </div>
+      <Expandable expanded={isExpanded}>
+        <ExpandableContent className='!animate-none'>
+          <div className='flex flex-col gap-[1px] pt-1 pb-6'>
+            {items.map((item) => (
+              <ToolbarItem
+                key={`${isTrigger ? 'trigger' : 'block'}-${item.type}`}
+                item={item}
+                isTrigger={isTrigger}
+                showWorkflowAccent={showWorkflowAccent}
+                onDragStart={onDragStart}
+                onClick={onItemClick}
+                onContextMenu={onContextMenu}
+              />
+            ))}
+          </div>
+        </ExpandableContent>
+      </Expandable>
     </section>
   )
 })
@@ -331,16 +399,20 @@ const ToolbarSection = memo(function ToolbarSection({
 interface ToolbarProps {
   /** Whether the toolbar tab is currently active */
   isActive?: boolean
+  /** Returns keyboard focus to the Toolbar search control. */
+  onFocusSearch?: () => void
 }
 
 /**
  * Imperative handle exposed by the Toolbar component.
  */
 interface ToolbarRef {
+  /** Moves focus into the first visible catalog result. */
+  focusFirstItem: () => void
   /**
-   * Focuses the search input and ensures search mode is active.
+   * Updates the catalog query from the panel-level search control.
    */
-  focusSearch: () => void
+  setSearchQuery: (query: string) => void
 }
 
 /**
@@ -349,12 +421,15 @@ interface ToolbarRef {
  *
  * @param props - Component props
  * @param props.isActive - Whether the toolbar tab is currently active
+ * @param props.onFocusSearch - Moves keyboard focus back to the catalog search control
  * @returns Toolbar view with triggers, blocks, and tools sections
  */
 export const Toolbar = memo(
-  forwardRef<ToolbarRef, ToolbarProps>(function Toolbar({ isActive = true }: ToolbarProps, ref) {
+  forwardRef<ToolbarRef, ToolbarProps>(function Toolbar(
+    { isActive = true, onFocusSearch }: ToolbarProps,
+    ref
+  ) {
     const rootRef = useRef<HTMLDivElement>(null)
-    const searchInputRef = useRef<HTMLInputElement>(null)
     const scrollContainerRef = useRef<HTMLDivElement>(null)
 
     const posthog = usePostHog()
@@ -362,8 +437,6 @@ export const Toolbar = memo(
     const sandboxAllowedBlocks = useSandboxBlockConstraints()
 
     const [searchQuery, setSearchQuery] = useState('')
-    const [hasScrolledContent, setHasScrolledContent] = useState(false)
-
     const [contextMenuPosition, setContextMenuPosition] = useState({ x: 0, y: 0 })
     const contextMenuRef = useRef<HTMLDivElement>(null)
     const [activeItemInfo, setActiveItemInfo] = useState<{
@@ -468,25 +541,21 @@ export const Toolbar = memo(
       filteredBlocks.length > 0 ||
       filteredTools.length > 0 ||
       filteredCustomBlocks.length > 0
+    const forceSectionsExpanded = searchQuery.trim().length > 0
 
-    const focusSearch = useCallback(() => {
-      queueMicrotask(() => searchInputRef.current?.focus())
+    const handleSearchChange = useCallback((query: string) => {
+      setSearchQuery(query)
+      scrollContainerRef.current?.scrollTo({ top: 0 })
     }, [])
 
-    const handleScroll = (event: React.UIEvent<HTMLDivElement>) => {
-      const nextHasScrolledContent = event.currentTarget.scrollTop > 4
-      setHasScrolledContent((current) =>
-        current === nextHasScrolledContent ? current : nextHasScrolledContent
-      )
-    }
+    const focusFirstItem = useCallback(() => {
+      rootRef.current?.querySelector<HTMLDivElement>('[data-toolbar-item]')?.focus()
+    }, [])
 
-    const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-      setSearchQuery(event.target.value)
-      scrollContainerRef.current?.scrollTo({ top: 0 })
-      setHasScrolledContent(false)
-    }
-
-    useImperativeHandle(ref, () => ({ focusSearch }), [focusSearch])
+    useImperativeHandle(ref, () => ({ focusFirstItem, setSearchQuery: handleSearchChange }), [
+      focusFirstItem,
+      handleSearchChange,
+    ])
 
     const handleItemContextMenu = useCallback(
       (e: React.MouseEvent, type: string, isTrigger: boolean, docsLink?: string) => {
@@ -563,7 +632,7 @@ export const Toolbar = memo(
         if (activeIndex <= 0) {
           event.preventDefault()
           event.stopPropagation()
-          searchInputRef.current?.focus()
+          onFocusSearch?.()
           return
         }
         event.preventDefault()
@@ -573,22 +642,23 @@ export const Toolbar = memo(
 
       window.addEventListener('keydown', handleKeyDown)
       return () => window.removeEventListener('keydown', handleKeyDown)
-    }, [isActive])
+    }, [isActive, onFocusSearch])
 
     return (
       <div ref={rootRef} data-toolbar-root className='relative flex h-full min-h-0 flex-col'>
         <div
           ref={scrollContainerRef}
-          className='scrollbar-none h-full overflow-y-auto overflow-x-hidden overscroll-none px-1.5 pt-[55px] pb-12'
-          onScroll={handleScroll}
+          className='scrollbar-none h-full overflow-y-auto overflow-x-hidden overscroll-none px-1.5 pb-12'
         >
           {hasVisibleResults ? (
-            <div className='flex flex-col gap-6'>
+            <div className='flex flex-col'>
               <ToolbarSection
                 label='Triggers'
                 items={filteredTriggers}
                 isTrigger={true}
                 showWorkflowAccent={false}
+                forceExpanded={forceSectionsExpanded}
+                scrollContainerRef={scrollContainerRef}
                 onDragStart={handleDragStart}
                 onItemClick={handleItemClick}
                 onContextMenu={handleItemContextMenu}
@@ -598,6 +668,8 @@ export const Toolbar = memo(
                 items={filteredBlocks}
                 isTrigger={false}
                 showWorkflowAccent
+                forceExpanded={forceSectionsExpanded}
+                scrollContainerRef={scrollContainerRef}
                 onDragStart={handleDragStart}
                 onItemClick={handleItemClick}
                 onContextMenu={handleItemContextMenu}
@@ -607,15 +679,19 @@ export const Toolbar = memo(
                 items={filteredTools}
                 isTrigger={false}
                 showWorkflowAccent={false}
+                forceExpanded={forceSectionsExpanded}
+                scrollContainerRef={scrollContainerRef}
                 onDragStart={handleDragStart}
                 onItemClick={handleItemClick}
                 onContextMenu={handleItemContextMenu}
               />
               <ToolbarSection
-                label='Custom Blocks'
+                label='Custom'
                 items={filteredCustomBlocks}
                 isTrigger={false}
                 showWorkflowAccent
+                forceExpanded={forceSectionsExpanded}
+                scrollContainerRef={scrollContainerRef}
                 onDragStart={handleDragStart}
                 onItemClick={handleItemClick}
                 onContextMenu={handleItemContextMenu}
@@ -628,31 +704,7 @@ export const Toolbar = memo(
           )}
         </div>
 
-        <ScrollEdgeFade
-          position='top'
-          variant='panel'
-          visible={hasScrolledContent}
-          className='top-[32px] h-16'
-        />
         <ScrollEdgeFade position='bottom' variant='panel' />
-
-        <div
-          className='absolute inset-x-0 top-0 z-20 h-16 cursor-text bg-[linear-gradient(to_bottom,var(--bg)_0%,var(--bg)_62%,transparent_100%)] px-3.5'
-          onClick={focusSearch}
-        >
-          <div className='flex h-10 items-center'>
-            <ChipInput
-              ref={searchInputRef}
-              icon={Search}
-              type='search'
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder='Search blocks...'
-              aria-label='Search blocks'
-              className='min-w-0 flex-1'
-            />
-          </div>
-        </div>
 
         <ToolbarItemContextMenu
           isOpen={isContextMenuOpen}

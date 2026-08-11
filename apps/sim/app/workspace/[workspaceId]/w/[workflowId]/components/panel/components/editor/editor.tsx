@@ -2,14 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Button, ChipTag, cn, Loader, Tooltip, thinScrollbarClass } from '@sim/emcn'
-import { SquareArrowUpRight, X } from '@sim/emcn/icons'
+import { SquareArrowUpRight } from '@sim/emcn/icons'
 import { getWorkflowTypeAccent } from '@sim/workflow-renderer'
 import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
-import { usePostHog } from 'posthog-js/react'
 import { useShallow } from 'zustand/react/shallow'
 import { useStoreWithEqualityFn } from 'zustand/traditional'
-import { captureEvent } from '@/lib/posthog/client'
 import {
   buildCanonicalIndex,
   isCanonicalPair,
@@ -24,6 +22,7 @@ import {
   SubflowEditor,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components'
 import { BlockEditorSections } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/block-editor-sections'
+import { EditorEmptyState } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/editor-empty-state/editor-empty-state'
 import { formatDisplayText } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/editor/components/sub-block/components/formatted-text'
 import {
   useBlockConnections,
@@ -70,11 +69,7 @@ const IconComponent = ({ icon: Icon, className }: { icon: any; className?: strin
  *
  * @returns Editor panel content
  */
-interface EditorProps {
-  onClose: () => void
-}
-
-export function Editor({ onClose }: EditorProps) {
+export function Editor() {
   const { currentBlockId, registerRenameCallback, clearCurrentBlock } = usePanelEditorStore(
     useShallow((state) => ({
       currentBlockId: state.currentBlockId,
@@ -85,6 +80,8 @@ export function Editor({ onClose }: EditorProps) {
   const activeSearchTarget = usePanelEditorSearchStore((state) => state.activeSearchTarget)
   const currentWorkflow = useCurrentWorkflow()
   const currentBlock = currentBlockId ? currentWorkflow.getBlockById(currentBlockId) : null
+  const isBlockRunning = useIsBlockActive(currentBlockId ?? '')
+  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
   const blockConfig = currentBlock ? getBlock(currentBlock.type) : null
   const typeAccent = getWorkflowTypeAccent(currentBlock?.type ?? '')
   const isIntegration = blockConfig?.category === 'tools'
@@ -117,7 +114,6 @@ export function Editor({ onClose }: EditorProps) {
 
   const params = useParams()
   const workspaceId = params.workspaceId as string
-  const posthog = usePostHog()
 
   const subBlocksRef = useRef<HTMLDivElement>(null)
 
@@ -134,8 +130,6 @@ export function Editor({ onClose }: EditorProps) {
   const blocks = useWorkflowStore((state) => state.blocks)
   const isLocked = currentBlockId ? isBlockProtected(currentBlockId, blocks) : false
   const canEditBlock = userPermissions.canEdit && !workflowLocked && !isLocked
-  const isBlockRunning = useIsBlockActive(currentBlockId ?? '')
-  const isWorkflowRunning = useIsCurrentWorkflowExecuting()
 
   const { triggerMode } = useEditorBlockProperties(currentBlockId, currentWorkflow.isSnapshotView)
 
@@ -332,18 +326,6 @@ export function Editor({ onClose }: EditorProps) {
     return () => registerRenameCallback(null)
   }, [registerRenameCallback, handleStartRename])
 
-  /**
-   * Handles opening documentation link in a new secure tab.
-   */
-  const handleOpenDocs = useCallback(() => {
-    const docsLink = isSubflow ? subflowConfig?.docsLink : blockConfig?.docsLink
-    window.open(docsLink || 'https://docs.sim.ai/quick-reference', '_blank', 'noopener,noreferrer')
-    captureEvent(posthog, 'docs_opened', {
-      source: 'editor_button',
-      block_type: currentBlock?.type,
-    })
-  }, [isSubflow, subflowConfig?.docsLink, blockConfig?.docsLink, posthog, currentBlock?.type])
-
   const childWorkflowId = isWorkflowBlock ? blockSubBlockValues?.workflowId : null
 
   const { data: childWorkflowState, isLoading: isLoadingChildWorkflow } =
@@ -365,11 +347,11 @@ export function Editor({ onClose }: EditorProps) {
       <div className='flex h-full max-h-full min-h-0 flex-col overflow-hidden'>
         <div
           className={cn(
-            'flex flex-shrink-0 flex-col border-[var(--border)] border-b bg-[var(--bg)] px-3.5 pt-3 pb-3',
+            'flex flex-shrink-0 flex-col border-[var(--border)] border-b bg-[var(--bg)] px-3.5 pt-0.5 pb-1.5',
             !currentBlock && 'hidden'
           )}
         >
-          <div className='flex min-w-0 items-start justify-between gap-3'>
+          <div className='flex min-w-0 items-center gap-3'>
             <div className='flex min-w-0 flex-1 items-center gap-2'>
               {(blockConfig || isSubflow) && (
                 <ChipTag
@@ -431,34 +413,17 @@ export function Editor({ onClose }: EditorProps) {
                 </h2>
               )}
             </div>
-            <div className='flex shrink-0 items-center gap-1'>
-              {currentBlock && (
-                <ActionBar
-                  blockId={currentBlock.id}
-                  blockType={currentBlock.type}
-                  disabled={!userPermissions.canEdit || workflowLocked}
-                  variant='inline'
-                  isRunning={isBlockRunning}
-                  isWorkflowRunning={isWorkflowRunning}
-                  onOpenDocs={handleOpenDocs}
-                />
-              )}
-              <Tooltip.Root>
-                <Tooltip.Trigger asChild>
-                  <Button
-                    variant='ghost'
-                    className='size-[28px] rounded-md p-0 hover-hover:bg-[var(--surface-5)]'
-                    onClick={onClose}
-                    aria-label='Close editor and clear block selection'
-                  >
-                    <X className='size-[16px] text-[var(--text-icon)]' />
-                  </Button>
-                </Tooltip.Trigger>
-                <Tooltip.Content side='top'>
-                  <p>Close editor</p>
-                </Tooltip.Content>
-              </Tooltip.Root>
-            </div>
+            {currentBlock && (
+              <ActionBar
+                blockId={currentBlock.id}
+                blockType={currentBlock.type}
+                disabled={!userPermissions.canEdit || workflowLocked}
+                variant='inline'
+                inlineActions='run'
+                isRunning={isBlockRunning}
+                isWorkflowRunning={isWorkflowRunning}
+              />
+            )}
           </div>
 
           {currentBlock &&
@@ -481,7 +446,7 @@ export function Editor({ onClose }: EditorProps) {
                   }
                 }}
                 className={cn(
-                  'mt-3 h-10 overflow-y-auto whitespace-pre-wrap break-words text-[var(--text-secondary)] text-small leading-5 outline-none selection:bg-[var(--surface-active)]',
+                  'mt-2 h-10 overflow-y-auto whitespace-pre-wrap break-words text-[var(--text-secondary)] text-small leading-5 outline-none selection:bg-[var(--surface-active)]',
                   thinScrollbarClass
                 )}
               />
@@ -489,7 +454,7 @@ export function Editor({ onClose }: EditorProps) {
               <button
                 type='button'
                 className={cn(
-                  'mt-3 flex h-10 w-full items-start justify-start overflow-hidden p-0 text-start text-small leading-5 outline-none focus-visible:underline',
+                  'mt-2 flex h-10 w-full items-start justify-start overflow-hidden p-0 text-start text-small leading-5 outline-none focus-visible:underline',
                   blockDescription ? 'text-[var(--text-secondary)]' : 'text-[var(--text-muted)]',
                   canEditBlock ? 'cursor-text' : 'cursor-default'
                 )}
@@ -506,12 +471,7 @@ export function Editor({ onClose }: EditorProps) {
         </div>
 
         {!currentBlockId || !currentBlock ? (
-          <div className='flex flex-1 flex-col items-center justify-center gap-1 px-6 text-center'>
-            <p className='font-medium text-[var(--text-secondary)] text-small'>No block selected</p>
-            <p className='max-w-[240px] text-[var(--text-muted)] text-small'>
-              Select a block on the canvas to view and edit its settings.
-            </p>
-          </div>
+          <EditorEmptyState />
         ) : isSubflow ? (
           <SubflowEditor
             currentBlock={currentBlock}

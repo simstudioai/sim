@@ -27,9 +27,11 @@
  */
 import * as React from 'react'
 import { cn } from '../../lib/cn'
+import { chipVariants } from '../chip/chip'
 import { chipFieldSurfaceClass, chipFieldTextClass } from '../chip/chip-chrome'
 
 type ChipInputIcon = React.ComponentType<{ className?: string }>
+type ChipInputSurface = 'field' | 'button'
 
 export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInputElement>, 'size'> {
   /** Leading icon component (e.g. `Search` from `@sim/emcn/icons`). Rendered at 14px in `--text-icon`, with the chip's 1.5 gap. */
@@ -38,6 +40,12 @@ export interface ChipInputProps extends Omit<React.InputHTMLAttributes<HTMLInput
   endAdornment?: React.ReactNode
   /** Marks the field invalid; swaps the border to the error token. */
   error?: boolean
+  /**
+   * Controls the outer surface while preserving the same input geometry.
+   * `button` uses the canonical bare Chip treatment for controls that
+   * progressively reveal an input without swapping DOM surfaces.
+   */
+  surface?: ChipInputSurface
   /** Class applied to the outer container (the chrome), not the inner input. */
   className?: string
   /** Class applied to the inner `<input>` (e.g. `font-mono`). */
@@ -56,6 +64,7 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
       icon: Icon,
       endAdornment,
       error,
+      surface = 'field',
       disabled,
       type = 'text',
       ...props
@@ -64,8 +73,10 @@ export const ChipInput = React.forwardRef<HTMLInputElement, ChipInputProps>(
   ) => (
     <div
       className={cn(
-        'flex h-[30px] w-full items-center gap-1.5 px-2',
-        chipFieldSurfaceClass,
+        'w-full',
+        surface === 'field'
+          ? cn('flex h-[30px] items-center gap-1.5 px-2', chipFieldSurfaceClass)
+          : chipVariants({ fullWidth: true }),
         error && 'border-[var(--text-error)]',
         disabled && 'opacity-50',
         className
