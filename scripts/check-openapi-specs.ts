@@ -55,6 +55,7 @@ const LEGACY_CORE_REPLACEMENTS = {
 const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
 const REQUIRED_API_REFERENCE_GROUPS = [
   '(generated)/workflows',
+  '(generated)/workflow-runs',
   '(generated)/logs',
   '(generated)/audit-logs',
   '(generated)/billing',
@@ -608,6 +609,7 @@ function checkExamples(operation: Operation, contract: ContractLike, name: strin
 const registry = await loadContracts()
 const documentedKeys = new Set<string>()
 const globalOperationIds = new Map<string, string>()
+const globalOperationTags = new Map<string, readonly string[]>()
 
 for (const specFile of SPEC_FILES) {
   const spec = JSON.parse(readFileSync(path.join(DOCS_DIR, specFile), 'utf8')) as Json
@@ -628,7 +630,15 @@ for (const specFile of SPEC_FILES) {
       const previous = globalOperationIds.get(operationId)
       if (previous)
         fail(specFile, `duplicate global operationId "${operationId}" (also in ${previous})`)
-      else globalOperationIds.set(operationId, specFile)
+      else {
+        globalOperationIds.set(operationId, specFile)
+        globalOperationTags.set(
+          operationId,
+          Array.isArray(operation.op.tags)
+            ? operation.op.tags.filter((tag): tag is string => typeof tag === 'string')
+            : []
+        )
+      }
     }
     if (!operation.path.startsWith('/api/v2/')) {
       fail(specFile, `${key}: public OpenAPI operations must use the /api/v2/ namespace`)
@@ -662,24 +672,41 @@ for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLAC
   }
 }
 
-const workflowMetaFile = 'content/docs/en/api-reference/(generated)/workflows/meta.json'
-const workflowMeta = JSON.parse(readFileSync(path.join(DOCS_DIR, workflowMetaFile), 'utf8')) as Json
-if (
-  !Array.isArray(workflowMeta.pages) ||
-  !workflowMeta.pages.every((page) => typeof page === 'string')
-) {
-  fail(workflowMetaFile, 'pages must be an array of operationIds')
-} else {
-  const visibleWorkflowOperationIds = new Set(workflowMeta.pages as string[])
-  for (const [operationId, specFile] of globalOperationIds) {
-    if (specFile === 'openapi-v2-workflows.json' && !visibleWorkflowOperationIds.has(operationId)) {
-      fail(workflowMetaFile, `${operationId} is documented but hidden from the Workflows group`)
+const workflowMetaGroups = [
+  {
+    tag: 'Workflows',
+    file: 'content/docs/en/api-reference/(generated)/workflows/meta.json',
+  },
+  {
+    tag: 'Workflow Runs',
+    file: 'content/docs/en/api-reference/(generated)/workflow-runs/meta.json',
+  },
+] as const
+const visibleWorkflowOperationIds = new Set<string>()
+for (const group of workflowMetaGroups) {
+  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, group.file), 'utf8')) as Json
+  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
+    fail(group.file, 'pages must be an array of operationIds')
+    continue
+  }
+  for (const operationId of meta.pages as string[]) {
+    if (visibleWorkflowOperationIds.has(operationId)) {
+      fail(group.file, `${operationId} is listed in more than one workflow group`)
+      continue
+    }
+    visibleWorkflowOperationIds.add(operationId)
+    if (globalOperationIds.get(operationId) !== 'openapi-v2-workflows.json') {
+      fail(group.file, `${operationId} is not an operation in openapi-v2-workflows.json`)
+      continue
+    }
+    if (!globalOperationTags.get(operationId)?.includes(group.tag)) {
+      fail(group.file, `${operationId} is not tagged ${group.tag}`)
     }
   }
-  for (const operationId of visibleWorkflowOperationIds) {
-    if (globalOperationIds.get(operationId) !== 'openapi-v2-workflows.json') {
-      fail(workflowMetaFile, `${operationId} is not an operation in openapi-v2-workflows.json`)
-    }
+}
+for (const [operationId, specFile] of globalOperationIds) {
+  if (specFile === 'openapi-v2-workflows.json' && !visibleWorkflowOperationIds.has(operationId)) {
+    errors.push(`${operationId} is documented but hidden from the workflow API reference groups`)
   }
 }
 

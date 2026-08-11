@@ -247,6 +247,20 @@ export const v2BatchInsertRowsDataSchema = z
   })
 export type V2BatchInsertRowsData = z.output<typeof v2BatchInsertRowsDataSchema>
 
+export const v2CreateSingleTableRowResponseSchema = v2DataResponse(v2TableRowDataSchema).meta({
+  id: 'V2CreateSingleTableRowResponse',
+  title: 'Create single table row response',
+  description: 'Response returned after inserting one table row.',
+})
+
+export const v2CreateBatchTableRowsResponseSchema = v2DataResponse(
+  v2BatchInsertRowsDataSchema
+).meta({
+  id: 'V2CreateBatchTableRowsResponse',
+  title: 'Create batch table rows response',
+  description: 'Response returned after inserting a batch of table rows.',
+})
+
 /**
  * Bulk update-by-filter payload. v2 always returns `updatedRowIds` (`[]` when
  * nothing matched) — v1 dropped the field on the zero-match branch.
@@ -742,10 +756,7 @@ export const v2CreateTableRowsContract = defineRouteContract({
   body: v2CreateTableRowsBodySchema,
   response: {
     mode: 'json',
-    schema: z.union([
-      v2DataResponse(v2TableRowDataSchema),
-      v2DataResponse(v2BatchInsertRowsDataSchema),
-    ]),
+    schema: z.union([v2CreateSingleTableRowResponseSchema, v2CreateBatchTableRowsResponseSchema]),
   },
 })
 

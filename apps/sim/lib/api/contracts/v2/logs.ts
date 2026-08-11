@@ -37,96 +37,111 @@ const v2LogWorkflowSummarySchema = z.object({
   deleted: z.boolean().describe('Whether the workflow has been deleted.'),
 })
 
-export const v2LogListItemSchema = z.object({
-  runId: z.string().describe('Unique run identifier.'),
-  workflowId: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
-  deploymentVersionId: z
-    .string()
-    .nullable()
-    .describe('Deployment version identifier, or null when unavailable.'),
-  status: v2LogStatusSchema,
-  level: z.string().describe('Log severity level.'),
-  trigger: z.string().describe('Trigger that started the run.'),
-  startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
-  endedAt: z
-    .string()
-    .nullable()
-    .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
-  totalDurationMs: z
-    .number()
-    .nullable()
-    .describe('Total execution duration in milliseconds, or null while unavailable.'),
-  cost: v2LogCostSchema,
-  files: v2LogFilesSchema,
-  /** Present only when `details=full`. */
-  workflow: v2LogWorkflowSummarySchema
-    .describe('Workflow summary for a full-detail result.')
-    .optional(),
-  /** Present when `includeFinalOutput=true`; the flag implies full detail. */
-  finalOutput: z.unknown().describe('Final workflow output.').optional(),
-  /** Present when `includeTraceSpans=true`; the flag implies full detail. */
-  traceSpans: traceSpansSchema.describe('Block-level execution trace spans.').optional(),
-})
+export const v2LogListItemSchema = z
+  .object({
+    runId: z.string().describe('Unique run identifier.'),
+    workflowId: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
+    deploymentVersionId: z
+      .string()
+      .nullable()
+      .describe('Deployment version identifier, or null when unavailable.'),
+    status: v2LogStatusSchema,
+    level: z.string().describe('Log severity level.'),
+    trigger: z.string().describe('Trigger that started the run.'),
+    startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
+    endedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
+    totalDurationMs: z
+      .number()
+      .nullable()
+      .describe('Total execution duration in milliseconds, or null while unavailable.'),
+    cost: v2LogCostSchema,
+    files: v2LogFilesSchema,
+    /** Present only when `details=full`. */
+    workflow: v2LogWorkflowSummarySchema
+      .describe('Workflow summary for a full-detail result.')
+      .optional(),
+    /** Present when `includeFinalOutput=true`; the flag implies full detail. */
+    finalOutput: z.unknown().describe('Final workflow output.').optional(),
+    /** Present when `includeTraceSpans=true`; the flag implies full detail. */
+    traceSpans: traceSpansSchema.describe('Block-level execution trace spans.').optional(),
+  })
+  .meta({
+    id: 'V2LogListItem',
+    title: 'Execution log summary',
+    description: 'Summary information for one workflow execution log.',
+  })
 
 export type V2LogListItem = z.output<typeof v2LogListItemSchema>
 
-export const v2LogDetailSchema = z.object({
-  runId: z.string().describe('Unique run identifier.'),
-  workflowId: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
-  deploymentVersionId: z
-    .string()
-    .nullable()
-    .describe('Deployment version identifier, or null when unavailable.'),
-  status: v2LogStatusSchema,
-  level: z.string().describe('Log severity level.'),
-  trigger: z.string().describe('Trigger that started the run.'),
-  startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
-  endedAt: z
-    .string()
-    .nullable()
-    .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
-  totalDurationMs: z
-    .number()
-    .nullable()
-    .describe('Total execution duration in milliseconds, or null while unavailable.'),
-  files: v2LogFilesSchema,
-  workflow: z
-    .object({
-      id: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
-      name: z.string().describe('Workflow name.'),
-      description: z.string().nullable().describe('Workflow description, or null when unset.'),
-      folderPath: v2FolderPathSchema
-        .nullable()
-        .describe('Workflow folder path, or null when unavailable.'),
-      ownerEmail: z.email().nullable().describe('Workflow owner email, or null when unavailable.'),
-      workspaceId: z
-        .string()
-        .nullable()
-        .describe('Owning workspace identifier, or null when unavailable.'),
-      createdAt: z
-        .string()
-        .nullable()
-        .describe('ISO 8601 workflow creation timestamp, or null when unavailable.'),
-      updatedAt: z
-        .string()
-        .nullable()
-        .describe('ISO 8601 workflow update timestamp, or null when unavailable.'),
-      deleted: z.boolean().describe('Whether the workflow has been deleted.'),
-    })
-    .describe('Workflow snapshot associated with the execution.'),
-  /** Workflow state snapshot captured for this execution. */
-  workflowState: z.unknown().describe('Workflow state snapshot captured for the run.'),
-  /** Materialized block-level execution trace spans. */
-  traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
-  /** Materialized final output, when the execution produced one. */
-  finalOutput: z
-    .unknown()
-    .describe('Materialized final workflow output value.')
-    .nullable()
-    .describe('Materialized final workflow output, or null when none was produced.'),
-  cost: v2LogCostSchema,
-  createdAt: z.string().describe('ISO 8601 log creation timestamp.'),
-})
+export const v2LogDetailSchema = z
+  .object({
+    runId: z.string().describe('Unique run identifier.'),
+    workflowId: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
+    deploymentVersionId: z
+      .string()
+      .nullable()
+      .describe('Deployment version identifier, or null when unavailable.'),
+    status: v2LogStatusSchema,
+    level: z.string().describe('Log severity level.'),
+    trigger: z.string().describe('Trigger that started the run.'),
+    startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
+    endedAt: z
+      .string()
+      .nullable()
+      .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
+    totalDurationMs: z
+      .number()
+      .nullable()
+      .describe('Total execution duration in milliseconds, or null while unavailable.'),
+    files: v2LogFilesSchema,
+    workflow: z
+      .object({
+        id: z.string().nullable().describe('Workflow identifier, or null when unavailable.'),
+        name: z.string().describe('Workflow name.'),
+        description: z.string().nullable().describe('Workflow description, or null when unset.'),
+        folderPath: v2FolderPathSchema
+          .nullable()
+          .describe('Workflow folder path, or null when unavailable.'),
+        ownerEmail: z
+          .email()
+          .nullable()
+          .describe('Workflow owner email, or null when unavailable.'),
+        workspaceId: z
+          .string()
+          .nullable()
+          .describe('Owning workspace identifier, or null when unavailable.'),
+        createdAt: z
+          .string()
+          .nullable()
+          .describe('ISO 8601 workflow creation timestamp, or null when unavailable.'),
+        updatedAt: z
+          .string()
+          .nullable()
+          .describe('ISO 8601 workflow update timestamp, or null when unavailable.'),
+        deleted: z.boolean().describe('Whether the workflow has been deleted.'),
+      })
+      .describe('Workflow snapshot associated with the execution.'),
+    /** Workflow state snapshot captured for this execution. */
+    workflowState: z.unknown().describe('Workflow state snapshot captured for the run.'),
+    /** Materialized block-level execution trace spans. */
+    traceSpans: traceSpansSchema.describe('Materialized block-level execution trace spans.'),
+    /** Materialized final output, when the execution produced one. */
+    finalOutput: z
+      .unknown()
+      .describe('Materialized final workflow output value.')
+      .nullable()
+      .describe('Materialized final workflow output, or null when none was produced.'),
+    cost: v2LogCostSchema,
+    createdAt: z.string().describe('ISO 8601 log creation timestamp.'),
+  })
+  .meta({
+    id: 'V2LogDetail',
+    title: 'Execution log detail',
+    description: 'Detailed workflow execution log including state, trace, output, and cost.',
+  })
 
 export type V2LogDetail = z.output<typeof v2LogDetailSchema>
 

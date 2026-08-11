@@ -2023,72 +2023,63 @@
           }
         ]
       },
+      "V2Workspace": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Unique workspace identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Workspace display name."
+          },
+          "color": {
+            "type": "string",
+            "description": "Workspace color as a hexadecimal color value."
+          },
+          "logoUrl": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace logo URL, or null when none is configured."
+          },
+          "memberCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Number of effective members, including inherited organization administrators."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the workspace was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the workspace was last updated."
+          }
+        },
+        "required": ["id", "name", "color", "logoUrl", "memberCount", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Workspace",
+        "description": "Public metadata for an accessible workspace."
+      },
       "GetWorkspaceResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Unique workspace identifier."
-              },
-              "name": {
-                "type": "string",
-                "description": "Workspace display name."
-              },
-              "color": {
-                "type": "string",
-                "description": "Workspace color as a hexadecimal color value."
-              },
-              "logoUrl": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Workspace logo URL, or null when none is configured."
-              },
-              "mode": {
-                "type": "string",
-                "enum": ["personal", "organization", "grandfathered_shared"],
-                "description": "Workspace ownership and collaboration mode."
-              },
-              "memberCount": {
-                "type": "integer",
-                "minimum": 0,
-                "maximum": 9007199254740991,
-                "description": "Number of effective members, including inherited organization administrators."
-              },
-              "createdAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                "description": "ISO 8601 timestamp when the workspace was created."
-              },
-              "updatedAt": {
-                "type": "string",
-                "format": "date-time",
-                "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                "description": "ISO 8601 timestamp when the workspace was last updated."
-              }
-            },
-            "required": [
-              "id",
-              "name",
-              "color",
-              "logoUrl",
-              "mode",
-              "memberCount",
-              "createdAt",
-              "updatedAt"
-            ],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2Workspace"
           }
         },
         "required": ["data"],
@@ -2102,7 +2093,6 @@
               "name": "Engineering",
               "color": "#33C482",
               "logoUrl": null,
-              "mode": "organization",
               "memberCount": 14,
               "createdAt": "2026-01-15T10:30:00.000Z",
               "updatedAt": "2026-06-20T14:02:11.000Z"
@@ -2110,53 +2100,58 @@
           }
         ]
       },
+      "V2WorkspaceMember": {
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string",
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
+            "description": "Member email address and public member identifier."
+          },
+          "name": {
+            "type": "string",
+            "description": "Member display name."
+          },
+          "image": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Member profile image URL, or null when absent."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "write", "read"],
+            "description": "Effective role in the workspace."
+          },
+          "isExternal": {
+            "type": "boolean",
+            "description": "Whether access is inherited from outside the explicit workspace member list."
+          },
+          "joinedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when access was granted."
+          }
+        },
+        "required": ["email", "name", "image", "role", "isExternal", "joinedAt"],
+        "additionalProperties": false,
+        "title": "Workspace member",
+        "description": "An effective workspace member and their public access role."
+      },
       "ListWorkspaceMembersResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "email": {
-                  "type": "string",
-                  "format": "email",
-                  "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$",
-                  "description": "Member email address and public member identifier."
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Member display name."
-                },
-                "image": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Member profile image URL, or null when absent."
-                },
-                "role": {
-                  "type": "string",
-                  "enum": ["admin", "write", "read"],
-                  "description": "Effective role in the workspace."
-                },
-                "isExternal": {
-                  "type": "boolean",
-                  "description": "Whether access is inherited from outside the explicit workspace member list."
-                },
-                "joinedAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "description": "ISO 8601 timestamp when access was granted."
-                }
-              },
-              "required": ["email", "name", "image", "role", "isExternal", "joinedAt"],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2WorkspaceMember"
             },
             "description": "Items in the current page."
           },
@@ -2192,122 +2187,127 @@
           }
         ]
       },
+      "V2McpServer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique server identifier derived from the workspace and endpoint URL."
+          },
+          "name": {
+            "type": "string",
+            "description": "Server display name."
+          },
+          "description": {
+            "description": "Optional server description.",
+            "type": "string"
+          },
+          "transport": {
+            "default": "streamable-http",
+            "description": "Transport used to communicate with the server.",
+            "type": "string",
+            "enum": ["streamable-http"]
+          },
+          "authType": {
+            "description": "Authentication method used by the server.",
+            "type": "string",
+            "enum": ["none", "headers", "oauth"]
+          },
+          "url": {
+            "description": "Server endpoint URL.",
+            "type": "string"
+          },
+          "timeout": {
+            "description": "Per-request timeout in milliseconds.",
+            "type": "number"
+          },
+          "retries": {
+            "description": "Number of retries attempted per request.",
+            "type": "number"
+          },
+          "enabled": {
+            "type": "boolean",
+            "description": "Whether the server tools are available to workflows."
+          },
+          "connectionStatus": {
+            "description": "Result of the most recent connection attempt.",
+            "type": "string",
+            "enum": ["connected", "disconnected", "error"]
+          },
+          "lastError": {
+            "description": "Message from the most recent failed connection, or null when absent.",
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "toolCount": {
+            "description": "Number of tools discovered on the server.",
+            "type": "number"
+          },
+          "lastToolsRefresh": {
+            "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
+            "type": "string"
+          },
+          "lastConnected": {
+            "description": "ISO 8601 timestamp of the most recent successful connection.",
+            "type": "string"
+          },
+          "createdAt": {
+            "description": "ISO 8601 timestamp when the server was registered.",
+            "type": "string"
+          },
+          "updatedAt": {
+            "description": "ISO 8601 timestamp when the server was last updated.",
+            "type": "string"
+          },
+          "oauthClientId": {
+            "description": "Pre-registered OAuth client identifier, when configured.",
+            "type": "string"
+          },
+          "hasHeaders": {
+            "type": "boolean",
+            "description": "Whether any request headers are configured."
+          },
+          "headerNames": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "description": "Configured header name."
+            },
+            "description": "Names of configured request headers. Header values are never returned."
+          },
+          "hasOauthClientSecret": {
+            "type": "boolean",
+            "description": "Whether an OAuth client secret is stored. The value is never returned."
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "transport",
+          "enabled",
+          "createdAt",
+          "updatedAt",
+          "hasHeaders",
+          "headerNames",
+          "hasOauthClientSecret"
+        ],
+        "additionalProperties": false,
+        "title": "MCP server",
+        "description": "Public MCP server configuration without write-only credential values."
+      },
       "ListMcpServersResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Unique server identifier derived from the workspace and endpoint URL."
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Server display name."
-                },
-                "description": {
-                  "description": "Optional server description.",
-                  "type": "string"
-                },
-                "transport": {
-                  "default": "streamable-http",
-                  "description": "Transport used to communicate with the server.",
-                  "type": "string",
-                  "enum": ["streamable-http"]
-                },
-                "authType": {
-                  "description": "Authentication method used by the server.",
-                  "type": "string",
-                  "enum": ["none", "headers", "oauth"]
-                },
-                "url": {
-                  "description": "Server endpoint URL.",
-                  "type": "string"
-                },
-                "timeout": {
-                  "description": "Per-request timeout in milliseconds.",
-                  "type": "number"
-                },
-                "retries": {
-                  "description": "Number of retries attempted per request.",
-                  "type": "number"
-                },
-                "enabled": {
-                  "type": "boolean",
-                  "description": "Whether the server tools are available to workflows."
-                },
-                "connectionStatus": {
-                  "description": "Result of the most recent connection attempt.",
-                  "type": "string",
-                  "enum": ["connected", "disconnected", "error"]
-                },
-                "lastError": {
-                  "description": "Message from the most recent failed connection, or null when absent.",
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ]
-                },
-                "toolCount": {
-                  "description": "Number of tools discovered on the server.",
-                  "type": "number"
-                },
-                "lastToolsRefresh": {
-                  "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
-                  "type": "string"
-                },
-                "lastConnected": {
-                  "description": "ISO 8601 timestamp of the most recent successful connection.",
-                  "type": "string"
-                },
-                "createdAt": {
-                  "description": "ISO 8601 timestamp when the server was registered.",
-                  "type": "string"
-                },
-                "updatedAt": {
-                  "description": "ISO 8601 timestamp when the server was last updated.",
-                  "type": "string"
-                },
-                "oauthClientId": {
-                  "description": "Pre-registered OAuth client identifier, when configured.",
-                  "type": "string"
-                },
-                "hasHeaders": {
-                  "type": "boolean",
-                  "description": "Whether any request headers are configured."
-                },
-                "headerNames": {
-                  "type": "array",
-                  "items": {
-                    "type": "string",
-                    "description": "Configured header name."
-                  },
-                  "description": "Names of configured request headers. Header values are never returned."
-                },
-                "hasOauthClientSecret": {
-                  "type": "boolean",
-                  "description": "Whether an OAuth client secret is stored. The value is never returned."
-                }
-              },
-              "required": [
-                "id",
-                "name",
-                "transport",
-                "enabled",
-                "createdAt",
-                "updatedAt",
-                "hasHeaders",
-                "headerNames",
-                "hasOauthClientSecret"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2McpServer"
             },
             "description": "Items in the current page."
           },
@@ -2356,129 +2356,25 @@
           }
         ]
       },
+      "V2McpServerData": {
+        "type": "object",
+        "properties": {
+          "mcpServer": {
+            "description": "The MCP server.",
+            "$ref": "#/components/schemas/V2McpServer"
+          }
+        },
+        "required": ["mcpServer"],
+        "additionalProperties": false,
+        "title": "MCP server data",
+        "description": "A single public MCP server payload."
+      },
       "CreateMcpServerResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "mcpServer": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique server identifier derived from the workspace and endpoint URL."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Server display name."
-                  },
-                  "description": {
-                    "description": "Optional server description.",
-                    "type": "string"
-                  },
-                  "transport": {
-                    "default": "streamable-http",
-                    "description": "Transport used to communicate with the server.",
-                    "type": "string",
-                    "enum": ["streamable-http"]
-                  },
-                  "authType": {
-                    "description": "Authentication method used by the server.",
-                    "type": "string",
-                    "enum": ["none", "headers", "oauth"]
-                  },
-                  "url": {
-                    "description": "Server endpoint URL.",
-                    "type": "string"
-                  },
-                  "timeout": {
-                    "description": "Per-request timeout in milliseconds.",
-                    "type": "number"
-                  },
-                  "retries": {
-                    "description": "Number of retries attempted per request.",
-                    "type": "number"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Whether the server tools are available to workflows."
-                  },
-                  "connectionStatus": {
-                    "description": "Result of the most recent connection attempt.",
-                    "type": "string",
-                    "enum": ["connected", "disconnected", "error"]
-                  },
-                  "lastError": {
-                    "description": "Message from the most recent failed connection, or null when absent.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "toolCount": {
-                    "description": "Number of tools discovered on the server.",
-                    "type": "number"
-                  },
-                  "lastToolsRefresh": {
-                    "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
-                    "type": "string"
-                  },
-                  "lastConnected": {
-                    "description": "ISO 8601 timestamp of the most recent successful connection.",
-                    "type": "string"
-                  },
-                  "createdAt": {
-                    "description": "ISO 8601 timestamp when the server was registered.",
-                    "type": "string"
-                  },
-                  "updatedAt": {
-                    "description": "ISO 8601 timestamp when the server was last updated.",
-                    "type": "string"
-                  },
-                  "oauthClientId": {
-                    "description": "Pre-registered OAuth client identifier, when configured.",
-                    "type": "string"
-                  },
-                  "hasHeaders": {
-                    "type": "boolean",
-                    "description": "Whether any request headers are configured."
-                  },
-                  "headerNames": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "Configured header name."
-                    },
-                    "description": "Names of configured request headers. Header values are never returned."
-                  },
-                  "hasOauthClientSecret": {
-                    "type": "boolean",
-                    "description": "Whether an OAuth client secret is stored. The value is never returned."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "transport",
-                  "enabled",
-                  "createdAt",
-                  "updatedAt",
-                  "hasHeaders",
-                  "headerNames",
-                  "hasOauthClientSecret"
-                ],
-                "additionalProperties": false,
-                "description": "The MCP server."
-              }
-            },
-            "required": ["mcpServer"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServerData"
           }
         },
         "required": ["data"],
@@ -2623,125 +2519,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "mcpServer": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique server identifier derived from the workspace and endpoint URL."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Server display name."
-                  },
-                  "description": {
-                    "description": "Optional server description.",
-                    "type": "string"
-                  },
-                  "transport": {
-                    "default": "streamable-http",
-                    "description": "Transport used to communicate with the server.",
-                    "type": "string",
-                    "enum": ["streamable-http"]
-                  },
-                  "authType": {
-                    "description": "Authentication method used by the server.",
-                    "type": "string",
-                    "enum": ["none", "headers", "oauth"]
-                  },
-                  "url": {
-                    "description": "Server endpoint URL.",
-                    "type": "string"
-                  },
-                  "timeout": {
-                    "description": "Per-request timeout in milliseconds.",
-                    "type": "number"
-                  },
-                  "retries": {
-                    "description": "Number of retries attempted per request.",
-                    "type": "number"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Whether the server tools are available to workflows."
-                  },
-                  "connectionStatus": {
-                    "description": "Result of the most recent connection attempt.",
-                    "type": "string",
-                    "enum": ["connected", "disconnected", "error"]
-                  },
-                  "lastError": {
-                    "description": "Message from the most recent failed connection, or null when absent.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "toolCount": {
-                    "description": "Number of tools discovered on the server.",
-                    "type": "number"
-                  },
-                  "lastToolsRefresh": {
-                    "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
-                    "type": "string"
-                  },
-                  "lastConnected": {
-                    "description": "ISO 8601 timestamp of the most recent successful connection.",
-                    "type": "string"
-                  },
-                  "createdAt": {
-                    "description": "ISO 8601 timestamp when the server was registered.",
-                    "type": "string"
-                  },
-                  "updatedAt": {
-                    "description": "ISO 8601 timestamp when the server was last updated.",
-                    "type": "string"
-                  },
-                  "oauthClientId": {
-                    "description": "Pre-registered OAuth client identifier, when configured.",
-                    "type": "string"
-                  },
-                  "hasHeaders": {
-                    "type": "boolean",
-                    "description": "Whether any request headers are configured."
-                  },
-                  "headerNames": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "Configured header name."
-                    },
-                    "description": "Names of configured request headers. Header values are never returned."
-                  },
-                  "hasOauthClientSecret": {
-                    "type": "boolean",
-                    "description": "Whether an OAuth client secret is stored. The value is never returned."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "transport",
-                  "enabled",
-                  "createdAt",
-                  "updatedAt",
-                  "hasHeaders",
-                  "headerNames",
-                  "hasOauthClientSecret"
-                ],
-                "additionalProperties": false,
-                "description": "The MCP server."
-              }
-            },
-            "required": ["mcpServer"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServerData"
           }
         },
         "required": ["data"],
@@ -2780,125 +2559,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "mcpServer": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique server identifier derived from the workspace and endpoint URL."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Server display name."
-                  },
-                  "description": {
-                    "description": "Optional server description.",
-                    "type": "string"
-                  },
-                  "transport": {
-                    "default": "streamable-http",
-                    "description": "Transport used to communicate with the server.",
-                    "type": "string",
-                    "enum": ["streamable-http"]
-                  },
-                  "authType": {
-                    "description": "Authentication method used by the server.",
-                    "type": "string",
-                    "enum": ["none", "headers", "oauth"]
-                  },
-                  "url": {
-                    "description": "Server endpoint URL.",
-                    "type": "string"
-                  },
-                  "timeout": {
-                    "description": "Per-request timeout in milliseconds.",
-                    "type": "number"
-                  },
-                  "retries": {
-                    "description": "Number of retries attempted per request.",
-                    "type": "number"
-                  },
-                  "enabled": {
-                    "type": "boolean",
-                    "description": "Whether the server tools are available to workflows."
-                  },
-                  "connectionStatus": {
-                    "description": "Result of the most recent connection attempt.",
-                    "type": "string",
-                    "enum": ["connected", "disconnected", "error"]
-                  },
-                  "lastError": {
-                    "description": "Message from the most recent failed connection, or null when absent.",
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ]
-                  },
-                  "toolCount": {
-                    "description": "Number of tools discovered on the server.",
-                    "type": "number"
-                  },
-                  "lastToolsRefresh": {
-                    "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
-                    "type": "string"
-                  },
-                  "lastConnected": {
-                    "description": "ISO 8601 timestamp of the most recent successful connection.",
-                    "type": "string"
-                  },
-                  "createdAt": {
-                    "description": "ISO 8601 timestamp when the server was registered.",
-                    "type": "string"
-                  },
-                  "updatedAt": {
-                    "description": "ISO 8601 timestamp when the server was last updated.",
-                    "type": "string"
-                  },
-                  "oauthClientId": {
-                    "description": "Pre-registered OAuth client identifier, when configured.",
-                    "type": "string"
-                  },
-                  "hasHeaders": {
-                    "type": "boolean",
-                    "description": "Whether any request headers are configured."
-                  },
-                  "headerNames": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "Configured header name."
-                    },
-                    "description": "Names of configured request headers. Header values are never returned."
-                  },
-                  "hasOauthClientSecret": {
-                    "type": "boolean",
-                    "description": "Whether an OAuth client secret is stored. The value is never returned."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "transport",
-                  "enabled",
-                  "createdAt",
-                  "updatedAt",
-                  "hasHeaders",
-                  "headerNames",
-                  "hasOauthClientSecret"
-                ],
-                "additionalProperties": false,
-                "description": "The MCP server."
-              }
-            },
-            "required": ["mcpServer"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServerData"
           }
         },
         "required": ["data"],
@@ -3034,25 +2696,30 @@
           }
         ]
       },
+      "V2McpServerDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted MCP server."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the server was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete MCP server data",
+        "description": "MCP server deletion acknowledgement."
+      },
       "DeleteMcpServerResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Identifier of the deleted MCP server."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Whether the server was deleted."
-              }
-            },
-            "required": ["id", "deleted"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2McpServerDeleteData"
           }
         },
         "required": ["data"],
@@ -3068,41 +2735,46 @@
           }
         ]
       },
+      "V2SkillSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique skill identifier. Built-in skills use their name as the id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Kebab-case name that agents use to reference the skill."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of when the skill applies."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Whether this is a built-in skill that cannot be modified or deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the skill was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the skill was last updated."
+          }
+        },
+        "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Skill summary",
+        "description": "Public summary metadata for a workspace or built-in skill."
+      },
       "ListSkillsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Unique skill identifier. Built-in skills use their name as the id."
-                },
-                "name": {
-                  "type": "string",
-                  "description": "Kebab-case name that agents use to reference the skill."
-                },
-                "description": {
-                  "type": "string",
-                  "description": "One-line summary of when the skill applies."
-                },
-                "readOnly": {
-                  "type": "boolean",
-                  "description": "Whether this is a built-in skill that cannot be modified or deleted."
-                },
-                "createdAt": {
-                  "type": "string",
-                  "description": "ISO 8601 timestamp when the skill was created."
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "description": "ISO 8601 timestamp when the skill was last updated."
-                }
-              },
-              "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt"],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2SkillSummary"
             },
             "description": "Items in the current page."
           },
@@ -3138,60 +2810,62 @@
           }
         ]
       },
+      "V2Skill": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique skill identifier. Built-in skills use their name as the id."
+          },
+          "name": {
+            "type": "string",
+            "description": "Kebab-case name that agents use to reference the skill."
+          },
+          "description": {
+            "type": "string",
+            "description": "One-line summary of when the skill applies."
+          },
+          "readOnly": {
+            "type": "boolean",
+            "description": "Whether this is a built-in skill that cannot be modified or deleted."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the skill was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the skill was last updated."
+          },
+          "content": {
+            "type": "string",
+            "description": "Skill body containing the instructions given to the agent."
+          }
+        },
+        "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt", "content"],
+        "additionalProperties": false,
+        "title": "Skill",
+        "description": "A workspace or built-in skill including its instruction body."
+      },
+      "V2SkillData": {
+        "type": "object",
+        "properties": {
+          "skill": {
+            "description": "The skill.",
+            "$ref": "#/components/schemas/V2Skill"
+          }
+        },
+        "required": ["skill"],
+        "additionalProperties": false,
+        "title": "Skill data",
+        "description": "A single skill payload including its instruction body."
+      },
       "CreateSkillResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "skill": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique skill identifier. Built-in skills use their name as the id."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Kebab-case name that agents use to reference the skill."
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "One-line summary of when the skill applies."
-                  },
-                  "readOnly": {
-                    "type": "boolean",
-                    "description": "Whether this is a built-in skill that cannot be modified or deleted."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was last updated."
-                  },
-                  "content": {
-                    "type": "string",
-                    "description": "Skill body containing the instructions given to the agent."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "description",
-                  "readOnly",
-                  "createdAt",
-                  "updatedAt",
-                  "content"
-                ],
-                "additionalProperties": false,
-                "description": "The skill."
-              }
-            },
-            "required": ["skill"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SkillData"
           }
         },
         "required": ["data"],
@@ -3259,56 +2933,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "skill": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique skill identifier. Built-in skills use their name as the id."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Kebab-case name that agents use to reference the skill."
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "One-line summary of when the skill applies."
-                  },
-                  "readOnly": {
-                    "type": "boolean",
-                    "description": "Whether this is a built-in skill that cannot be modified or deleted."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was last updated."
-                  },
-                  "content": {
-                    "type": "string",
-                    "description": "Skill body containing the instructions given to the agent."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "description",
-                  "readOnly",
-                  "createdAt",
-                  "updatedAt",
-                  "content"
-                ],
-                "additionalProperties": false,
-                "description": "The skill."
-              }
-            },
-            "required": ["skill"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SkillData"
           }
         },
         "required": ["data"],
@@ -3335,56 +2961,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "skill": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique skill identifier. Built-in skills use their name as the id."
-                  },
-                  "name": {
-                    "type": "string",
-                    "description": "Kebab-case name that agents use to reference the skill."
-                  },
-                  "description": {
-                    "type": "string",
-                    "description": "One-line summary of when the skill applies."
-                  },
-                  "readOnly": {
-                    "type": "boolean",
-                    "description": "Whether this is a built-in skill that cannot be modified or deleted."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the skill was last updated."
-                  },
-                  "content": {
-                    "type": "string",
-                    "description": "Skill body containing the instructions given to the agent."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "description",
-                  "readOnly",
-                  "createdAt",
-                  "updatedAt",
-                  "content"
-                ],
-                "additionalProperties": false,
-                "description": "The skill."
-              }
-            },
-            "required": ["skill"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SkillData"
           }
         },
         "required": ["data"],
@@ -3446,25 +3024,30 @@
           }
         ]
       },
+      "V2SkillDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted skill."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the skill was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete skill data",
+        "description": "Skill deletion acknowledgement."
+      },
       "DeleteSkillResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Identifier of the deleted skill."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Whether the skill was deleted."
-              }
-            },
-            "required": ["id", "deleted"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SkillDeleteData"
           }
         },
         "required": ["data"],
@@ -3480,102 +3063,107 @@
           }
         ]
       },
+      "V2CustomTool": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique custom tool identifier."
+          },
+          "title": {
+            "type": "string",
+            "description": "Display title, unique within the workspace."
+          },
+          "schema": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "const": "function",
+                "description": "Function declaration discriminator."
+              },
+              "function": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "Function name presented to the model."
+                  },
+                  "description": {
+                    "description": "Optional explanation of what the function does.",
+                    "type": "string"
+                  },
+                  "parameters": {
+                    "type": "object",
+                    "properties": {
+                      "type": {
+                        "type": "string",
+                        "description": "JSON Schema type for the arguments, usually `object`."
+                      },
+                      "properties": {
+                        "type": "object",
+                        "propertyNames": {
+                          "type": "string"
+                        },
+                        "additionalProperties": {
+                          "description": "Caller-defined JSON Schema for one tool argument."
+                        },
+                        "description": "Caller-defined argument schemas keyed by argument name."
+                      },
+                      "required": {
+                        "description": "Names of required arguments.",
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["type", "properties"],
+                    "additionalProperties": {
+                      "description": "Caller-defined extension value preserved by the public API."
+                    },
+                    "description": "JSON Schema describing the arguments accepted by the tool."
+                  }
+                },
+                "required": ["name", "parameters"],
+                "additionalProperties": {
+                  "description": "Caller-defined extension value preserved by the public API."
+                },
+                "description": "OpenAI-style function definition."
+              }
+            },
+            "required": ["type", "function"],
+            "additionalProperties": {
+              "description": "Caller-defined extension value preserved by the public API."
+            },
+            "description": "OpenAI-style function declaration describing the callable tool surface."
+          },
+          "code": {
+            "type": "string",
+            "description": "Tool implementation executed in the sandboxed function runtime."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the tool was last updated."
+          }
+        },
+        "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Custom tool",
+        "description": "A workspace custom tool and its callable function declaration."
+      },
       "ListCustomToolsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Unique custom tool identifier."
-                },
-                "title": {
-                  "type": "string",
-                  "description": "Display title, unique within the workspace."
-                },
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "type": {
-                      "type": "string",
-                      "const": "function",
-                      "description": "Function declaration discriminator."
-                    },
-                    "function": {
-                      "type": "object",
-                      "properties": {
-                        "name": {
-                          "type": "string",
-                          "minLength": 1,
-                          "description": "Function name presented to the model."
-                        },
-                        "description": {
-                          "description": "Optional explanation of what the function does.",
-                          "type": "string"
-                        },
-                        "parameters": {
-                          "type": "object",
-                          "properties": {
-                            "type": {
-                              "type": "string",
-                              "description": "JSON Schema type for the arguments, usually `object`."
-                            },
-                            "properties": {
-                              "type": "object",
-                              "propertyNames": {
-                                "type": "string"
-                              },
-                              "additionalProperties": {
-                                "description": "Caller-defined JSON Schema for one tool argument."
-                              },
-                              "description": "Caller-defined argument schemas keyed by argument name."
-                            },
-                            "required": {
-                              "description": "Names of required arguments.",
-                              "type": "array",
-                              "items": {
-                                "type": "string"
-                              }
-                            }
-                          },
-                          "required": ["type", "properties"],
-                          "additionalProperties": {
-                            "description": "Caller-defined extension value preserved by the public API."
-                          },
-                          "description": "JSON Schema describing the arguments accepted by the tool."
-                        }
-                      },
-                      "required": ["name", "parameters"],
-                      "additionalProperties": {
-                        "description": "Caller-defined extension value preserved by the public API."
-                      },
-                      "description": "OpenAI-style function definition."
-                    }
-                  },
-                  "required": ["type", "function"],
-                  "additionalProperties": {
-                    "description": "Caller-defined extension value preserved by the public API."
-                  },
-                  "description": "OpenAI-style function declaration describing the callable tool surface."
-                },
-                "code": {
-                  "type": "string",
-                  "description": "Tool implementation executed in the sandboxed function runtime."
-                },
-                "createdAt": {
-                  "type": "string",
-                  "description": "ISO 8601 timestamp when the tool was created."
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "description": "ISO 8601 timestamp when the tool was last updated."
-                }
-              },
-              "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2CustomTool"
             },
             "description": "Items in the current page."
           },
@@ -3626,109 +3214,25 @@
           }
         ]
       },
+      "V2CustomToolData": {
+        "type": "object",
+        "properties": {
+          "customTool": {
+            "description": "The custom tool.",
+            "$ref": "#/components/schemas/V2CustomTool"
+          }
+        },
+        "required": ["customTool"],
+        "additionalProperties": false,
+        "title": "Custom tool data",
+        "description": "A single workspace custom tool payload."
+      },
       "CreateCustomToolResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "customTool": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique custom tool identifier."
-                  },
-                  "title": {
-                    "type": "string",
-                    "description": "Display title, unique within the workspace."
-                  },
-                  "schema": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "function",
-                        "description": "Function declaration discriminator."
-                      },
-                      "function": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "minLength": 1,
-                            "description": "Function name presented to the model."
-                          },
-                          "description": {
-                            "description": "Optional explanation of what the function does.",
-                            "type": "string"
-                          },
-                          "parameters": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "description": "JSON Schema type for the arguments, usually `object`."
-                              },
-                              "properties": {
-                                "type": "object",
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "additionalProperties": {
-                                  "description": "Caller-defined JSON Schema for one tool argument."
-                                },
-                                "description": "Caller-defined argument schemas keyed by argument name."
-                              },
-                              "required": {
-                                "description": "Names of required arguments.",
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            },
-                            "required": ["type", "properties"],
-                            "additionalProperties": {
-                              "description": "Caller-defined extension value preserved by the public API."
-                            },
-                            "description": "JSON Schema describing the arguments accepted by the tool."
-                          }
-                        },
-                        "required": ["name", "parameters"],
-                        "additionalProperties": {
-                          "description": "Caller-defined extension value preserved by the public API."
-                        },
-                        "description": "OpenAI-style function definition."
-                      }
-                    },
-                    "required": ["type", "function"],
-                    "additionalProperties": {
-                      "description": "Caller-defined extension value preserved by the public API."
-                    },
-                    "description": "OpenAI-style function declaration describing the callable tool surface."
-                  },
-                  "code": {
-                    "type": "string",
-                    "description": "Tool implementation executed in the sandboxed function runtime."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was last updated."
-                  }
-                },
-                "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
-                "additionalProperties": false,
-                "description": "The custom tool."
-              }
-            },
-            "required": ["customTool"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomToolData"
           }
         },
         "required": ["data"],
@@ -3882,105 +3386,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "customTool": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique custom tool identifier."
-                  },
-                  "title": {
-                    "type": "string",
-                    "description": "Display title, unique within the workspace."
-                  },
-                  "schema": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "function",
-                        "description": "Function declaration discriminator."
-                      },
-                      "function": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "minLength": 1,
-                            "description": "Function name presented to the model."
-                          },
-                          "description": {
-                            "description": "Optional explanation of what the function does.",
-                            "type": "string"
-                          },
-                          "parameters": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "description": "JSON Schema type for the arguments, usually `object`."
-                              },
-                              "properties": {
-                                "type": "object",
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "additionalProperties": {
-                                  "description": "Caller-defined JSON Schema for one tool argument."
-                                },
-                                "description": "Caller-defined argument schemas keyed by argument name."
-                              },
-                              "required": {
-                                "description": "Names of required arguments.",
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            },
-                            "required": ["type", "properties"],
-                            "additionalProperties": {
-                              "description": "Caller-defined extension value preserved by the public API."
-                            },
-                            "description": "JSON Schema describing the arguments accepted by the tool."
-                          }
-                        },
-                        "required": ["name", "parameters"],
-                        "additionalProperties": {
-                          "description": "Caller-defined extension value preserved by the public API."
-                        },
-                        "description": "OpenAI-style function definition."
-                      }
-                    },
-                    "required": ["type", "function"],
-                    "additionalProperties": {
-                      "description": "Caller-defined extension value preserved by the public API."
-                    },
-                    "description": "OpenAI-style function declaration describing the callable tool surface."
-                  },
-                  "code": {
-                    "type": "string",
-                    "description": "Tool implementation executed in the sandboxed function runtime."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was last updated."
-                  }
-                },
-                "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
-                "additionalProperties": false,
-                "description": "The custom tool."
-              }
-            },
-            "required": ["customTool"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomToolData"
           }
         },
         "required": ["data"],
@@ -4021,105 +3428,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "customTool": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "type": "string",
-                    "description": "Unique custom tool identifier."
-                  },
-                  "title": {
-                    "type": "string",
-                    "description": "Display title, unique within the workspace."
-                  },
-                  "schema": {
-                    "type": "object",
-                    "properties": {
-                      "type": {
-                        "type": "string",
-                        "const": "function",
-                        "description": "Function declaration discriminator."
-                      },
-                      "function": {
-                        "type": "object",
-                        "properties": {
-                          "name": {
-                            "type": "string",
-                            "minLength": 1,
-                            "description": "Function name presented to the model."
-                          },
-                          "description": {
-                            "description": "Optional explanation of what the function does.",
-                            "type": "string"
-                          },
-                          "parameters": {
-                            "type": "object",
-                            "properties": {
-                              "type": {
-                                "type": "string",
-                                "description": "JSON Schema type for the arguments, usually `object`."
-                              },
-                              "properties": {
-                                "type": "object",
-                                "propertyNames": {
-                                  "type": "string"
-                                },
-                                "additionalProperties": {
-                                  "description": "Caller-defined JSON Schema for one tool argument."
-                                },
-                                "description": "Caller-defined argument schemas keyed by argument name."
-                              },
-                              "required": {
-                                "description": "Names of required arguments.",
-                                "type": "array",
-                                "items": {
-                                  "type": "string"
-                                }
-                              }
-                            },
-                            "required": ["type", "properties"],
-                            "additionalProperties": {
-                              "description": "Caller-defined extension value preserved by the public API."
-                            },
-                            "description": "JSON Schema describing the arguments accepted by the tool."
-                          }
-                        },
-                        "required": ["name", "parameters"],
-                        "additionalProperties": {
-                          "description": "Caller-defined extension value preserved by the public API."
-                        },
-                        "description": "OpenAI-style function definition."
-                      }
-                    },
-                    "required": ["type", "function"],
-                    "additionalProperties": {
-                      "description": "Caller-defined extension value preserved by the public API."
-                    },
-                    "description": "OpenAI-style function declaration describing the callable tool surface."
-                  },
-                  "code": {
-                    "type": "string",
-                    "description": "Tool implementation executed in the sandboxed function runtime."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "description": "ISO 8601 timestamp when the tool was last updated."
-                  }
-                },
-                "required": ["id", "title", "schema", "code", "createdAt", "updatedAt"],
-                "additionalProperties": false,
-                "description": "The custom tool."
-              }
-            },
-            "required": ["customTool"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomToolData"
           }
         },
         "required": ["data"],
@@ -4252,25 +3562,30 @@
           }
         ]
       },
+      "V2CustomToolDeleteData": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted custom tool."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the custom tool was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete custom tool data",
+        "description": "Custom tool deletion acknowledgement."
+      },
       "DeleteCustomToolResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Identifier of the deleted custom tool."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Whether the custom tool was deleted."
-              }
-            },
-            "required": ["id", "deleted"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CustomToolDeleteData"
           }
         },
         "required": ["data"],
@@ -4286,95 +3601,100 @@
           }
         ]
       },
+      "V2Credential": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique credential identifier."
+          },
+          "type": {
+            "type": "string",
+            "enum": ["oauth", "service_account"],
+            "description": "Authenticated connection type."
+          },
+          "displayName": {
+            "type": "string",
+            "description": "Credential display name."
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Optional credential description."
+          },
+          "providerId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Integration provider authenticated by this credential."
+          },
+          "accountId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Linked account identifier for OAuth credentials."
+          },
+          "hasServiceAccountKey": {
+            "type": "boolean",
+            "description": "Whether a service-account payload is stored. Its contents are never returned."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the credential."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the credential was last updated."
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "displayName",
+          "description",
+          "providerId",
+          "accountId",
+          "hasServiceAccountKey",
+          "role",
+          "createdAt",
+          "updatedAt"
+        ],
+        "additionalProperties": false,
+        "title": "Credential",
+        "description": "Public authenticated-connection metadata without secret material."
+      },
       "ListCredentialsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Unique credential identifier."
-                },
-                "type": {
-                  "type": "string",
-                  "enum": ["oauth", "service_account"],
-                  "description": "Authenticated connection type."
-                },
-                "displayName": {
-                  "type": "string",
-                  "description": "Credential display name."
-                },
-                "description": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Optional credential description."
-                },
-                "providerId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Integration provider authenticated by this credential."
-                },
-                "accountId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Linked account identifier for OAuth credentials."
-                },
-                "hasServiceAccountKey": {
-                  "type": "boolean",
-                  "description": "Whether a service-account payload is stored. Its contents are never returned."
-                },
-                "role": {
-                  "type": "string",
-                  "enum": ["admin", "member"],
-                  "description": "Caller role for the credential."
-                },
-                "createdAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "description": "ISO 8601 timestamp when the credential was created."
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "description": "ISO 8601 timestamp when the credential was last updated."
-                }
-              },
-              "required": [
-                "id",
-                "type",
-                "displayName",
-                "description",
-                "providerId",
-                "accountId",
-                "hasServiceAccountKey",
-                "role",
-                "createdAt",
-                "updatedAt"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2Credential"
             },
             "description": "Items in the current page."
           },
@@ -4414,46 +3734,51 @@
           }
         ]
       },
+      "V2Secret": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "description": "Secret name containing only letters, numbers, and underscores."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or the caller."
+          },
+          "role": {
+            "type": "string",
+            "enum": ["admin", "member"],
+            "description": "Caller role for the secret."
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was created."
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the secret was last updated."
+          }
+        },
+        "required": ["name", "scope", "role", "createdAt", "updatedAt"],
+        "additionalProperties": false,
+        "title": "Secret metadata",
+        "description": "Public secret metadata without the stored secret value."
+      },
       "ListSecretsResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "name": {
-                  "type": "string",
-                  "minLength": 1,
-                  "maxLength": 255,
-                  "pattern": "^[A-Za-z0-9_]+$",
-                  "description": "Secret name containing only letters, numbers, and underscores."
-                },
-                "scope": {
-                  "type": "string",
-                  "enum": ["workspace", "personal"],
-                  "description": "Whether the secret belongs to the workspace or the caller."
-                },
-                "role": {
-                  "type": "string",
-                  "enum": ["admin", "member"],
-                  "description": "Caller role for the secret."
-                },
-                "createdAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "description": "ISO 8601 timestamp when the secret was created."
-                },
-                "updatedAt": {
-                  "type": "string",
-                  "format": "date-time",
-                  "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                  "description": "ISO 8601 timestamp when the secret was last updated."
-                }
-              },
-              "required": ["name", "scope", "role", "createdAt", "updatedAt"],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2Secret"
             },
             "description": "Items in the current page."
           },
@@ -4488,53 +3813,25 @@
           }
         ]
       },
+      "V2SecretData": {
+        "type": "object",
+        "properties": {
+          "secret": {
+            "description": "Secret metadata. The stored value is never returned.",
+            "$ref": "#/components/schemas/V2Secret"
+          }
+        },
+        "required": ["secret"],
+        "additionalProperties": false,
+        "title": "Secret data",
+        "description": "A single secret-metadata payload without its stored value."
+      },
       "SetSecretResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "secret": {
-                "type": "object",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "minLength": 1,
-                    "maxLength": 255,
-                    "pattern": "^[A-Za-z0-9_]+$",
-                    "description": "Secret name containing only letters, numbers, and underscores."
-                  },
-                  "scope": {
-                    "type": "string",
-                    "enum": ["workspace", "personal"],
-                    "description": "Whether the secret belongs to the workspace or the caller."
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": ["admin", "member"],
-                    "description": "Caller role for the secret."
-                  },
-                  "createdAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                    "description": "ISO 8601 timestamp when the secret was created."
-                  },
-                  "updatedAt": {
-                    "type": "string",
-                    "format": "date-time",
-                    "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                    "description": "ISO 8601 timestamp when the secret was last updated."
-                  }
-                },
-                "required": ["name", "scope", "role", "createdAt", "updatedAt"],
-                "additionalProperties": false,
-                "description": "Secret metadata. The stored value is never returned."
-              }
-            },
-            "required": ["secret"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SecretData"
           }
         },
         "required": ["data"],
@@ -4588,33 +3885,38 @@
           }
         ]
       },
+      "V2SecretDeleteData": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 255,
+            "pattern": "^[A-Za-z0-9_]+$",
+            "description": "Secret name containing only letters, numbers, and underscores."
+          },
+          "scope": {
+            "type": "string",
+            "enum": ["workspace", "personal"],
+            "description": "Whether the secret belongs to the workspace or the caller."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Whether the secret was deleted."
+          }
+        },
+        "required": ["name", "scope", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete secret data",
+        "description": "Secret deletion acknowledgement without the stored value."
+      },
       "DeleteSecretResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 255,
-                "pattern": "^[A-Za-z0-9_]+$",
-                "description": "Secret name containing only letters, numbers, and underscores."
-              },
-              "scope": {
-                "type": "string",
-                "enum": ["workspace", "personal"],
-                "description": "Whether the secret belongs to the workspace or the caller."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Whether the secret was deleted."
-              }
-            },
-            "required": ["name", "scope", "deleted"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2SecretDeleteData"
           }
         },
         "required": ["data"],

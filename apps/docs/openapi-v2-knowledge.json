@@ -2719,59 +2719,69 @@
       "V2KnowledgeUploadTransfer": {
         "oneOf": [
           {
-            "type": "object",
-            "properties": {
-              "method": {
-                "type": "string",
-                "const": "put",
-                "description": "Upload strategy discriminator."
-              },
-              "url": {
-                "type": "string",
-                "format": "uri",
-                "description": "Signed URL to which the file bytes are uploaded."
-              },
-              "headers": {
-                "type": "object",
-                "propertyNames": {
-                  "type": "string"
-                },
-                "additionalProperties": {
-                  "type": "string"
-                },
-                "description": "Headers that must be included with the upload request."
-              }
-            },
-            "required": ["method", "url", "headers"],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/V2PutUploadTransfer"
           },
           {
-            "type": "object",
-            "properties": {
-              "method": {
-                "type": "string",
-                "const": "multipart",
-                "description": "Upload strategy discriminator."
-              },
-              "partSize": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 9007199254740991,
-                "description": "Required size of each non-final part in bytes."
-              },
-              "partCount": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "maximum": 640,
-                "description": "Total number of upload parts."
-              }
-            },
-            "required": ["method", "partSize", "partCount"],
-            "additionalProperties": false
+            "$ref": "#/components/schemas/V2MultipartUploadTransfer"
           }
         ],
         "description": "Provider transfer strategy for a knowledge document upload.",
         "title": "Knowledge upload transfer"
+      },
+      "V2PutUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "put",
+            "description": "Upload strategy discriminator."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL to which the file bytes are uploaded."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the upload request."
+          }
+        },
+        "required": ["method", "url", "headers"],
+        "additionalProperties": false,
+        "title": "Direct upload transfer",
+        "description": "Instructions for uploading bytes to one signed URL."
+      },
+      "V2MultipartUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "multipart",
+            "description": "Upload strategy discriminator."
+          },
+          "partSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Required size of each non-final part in bytes."
+          },
+          "partCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 640,
+            "description": "Total number of upload parts."
+          }
+        },
+        "required": ["method", "partSize", "partCount"],
+        "additionalProperties": false,
+        "title": "Multipart upload transfer",
+        "description": "Instructions for splitting bytes into a multipart upload."
       },
       "V2CreateKnowledgeDocumentUploadData": {
         "type": "object",
@@ -2914,55 +2924,65 @@
         "title": "Knowledge document upload response",
         "description": "Current state of a knowledge document upload session."
       },
+      "V2UploadPartUrl": {
+        "type": "object",
+        "properties": {
+          "partNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Multipart part number."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL for this upload part."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the part upload."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 expiration time for the signed URL."
+          }
+        },
+        "required": ["partNumber", "url", "headers", "expiresAt"],
+        "additionalProperties": false,
+        "title": "Upload part URL",
+        "description": "A signed URL and required headers for one multipart upload part."
+      },
+      "V2PartUrlsData": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2UploadPartUrl"
+            },
+            "description": "Signed URLs for requested parts."
+          }
+        },
+        "required": ["parts"],
+        "additionalProperties": false,
+        "title": "Upload part URLs",
+        "description": "Signed transfer URLs for the requested multipart upload parts."
+      },
       "V2KnowledgeDocumentUploadPartUrlsResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "parts": {
-                "maxItems": 100,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "partNumber": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 9007199254740991,
-                      "description": "Multipart part number."
-                    },
-                    "url": {
-                      "type": "string",
-                      "format": "uri",
-                      "description": "Signed URL for this upload part."
-                    },
-                    "headers": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "description": "Headers that must be included with the part upload."
-                    },
-                    "expiresAt": {
-                      "type": "string",
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                      "description": "ISO 8601 expiration time for the signed URL."
-                    }
-                  },
-                  "required": ["partNumber", "url", "headers", "expiresAt"],
-                  "additionalProperties": false
-                },
-                "description": "Signed URLs for requested parts."
-              }
-            },
-            "required": ["parts"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PartUrlsData"
           }
         },
         "required": ["data"],

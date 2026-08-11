@@ -483,97 +483,102 @@
           }
         ]
       },
+      "V2BillingStatus": {
+        "type": "object",
+        "properties": {
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace whose payer was resolved, or null for account billing."
+          },
+          "period": {
+            "type": "object",
+            "properties": {
+              "start": {
+                "type": "string",
+                "description": "ISO 8601 start of the current billing period.",
+                "format": "date-time"
+              },
+              "end": {
+                "type": "string",
+                "description": "ISO 8601 end of the current billing period.",
+                "format": "date-time"
+              }
+            },
+            "required": ["start", "end"],
+            "additionalProperties": false,
+            "description": "Current billing period."
+          },
+          "plan": {
+            "type": "string",
+            "description": "Current billing plan."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["active", "limit_exceeded", "billing_blocked"],
+            "description": "Current billing standing."
+          },
+          "credits": {
+            "type": "object",
+            "properties": {
+              "used": {
+                "type": "number",
+                "description": "Credits consumed during the current billing period."
+              },
+              "limit": {
+                "type": "number",
+                "description": "Credit allowance for the current billing period."
+              },
+              "remaining": {
+                "type": "number",
+                "description": "Credits remaining in the current billing period."
+              }
+            },
+            "required": ["used", "limit", "remaining"],
+            "additionalProperties": false,
+            "description": "Credit usage and allowance for the current billing period."
+          },
+          "storage": {
+            "type": "object",
+            "properties": {
+              "usedBytes": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Storage currently consumed, in bytes."
+              },
+              "limitBytes": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Storage quota, in bytes."
+              },
+              "percentUsed": {
+                "type": "number",
+                "minimum": 0,
+                "description": "Percentage of the storage quota consumed."
+              }
+            },
+            "required": ["usedBytes", "limitBytes", "percentUsed"],
+            "additionalProperties": false,
+            "description": "Current storage consumption and quota."
+          }
+        },
+        "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
+        "additionalProperties": false,
+        "title": "Billing status",
+        "description": "Current billing standing, credit allowance, and storage quota."
+      },
       "V2BillingStatusResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "workspaceId": {
-                "anyOf": [
-                  {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Workspace whose payer was resolved, or null for account billing."
-              },
-              "period": {
-                "type": "object",
-                "properties": {
-                  "start": {
-                    "type": "string",
-                    "description": "ISO 8601 start of the current billing period.",
-                    "format": "date-time"
-                  },
-                  "end": {
-                    "type": "string",
-                    "description": "ISO 8601 end of the current billing period.",
-                    "format": "date-time"
-                  }
-                },
-                "required": ["start", "end"],
-                "additionalProperties": false,
-                "description": "Current billing period."
-              },
-              "plan": {
-                "type": "string",
-                "description": "Current billing plan."
-              },
-              "status": {
-                "type": "string",
-                "enum": ["active", "limit_exceeded", "billing_blocked"],
-                "description": "Current billing standing."
-              },
-              "credits": {
-                "type": "object",
-                "properties": {
-                  "used": {
-                    "type": "number",
-                    "description": "Credits consumed during the current billing period."
-                  },
-                  "limit": {
-                    "type": "number",
-                    "description": "Credit allowance for the current billing period."
-                  },
-                  "remaining": {
-                    "type": "number",
-                    "description": "Credits remaining in the current billing period."
-                  }
-                },
-                "required": ["used", "limit", "remaining"],
-                "additionalProperties": false,
-                "description": "Credit usage and allowance for the current billing period."
-              },
-              "storage": {
-                "type": "object",
-                "properties": {
-                  "usedBytes": {
-                    "type": "number",
-                    "minimum": 0,
-                    "description": "Storage currently consumed, in bytes."
-                  },
-                  "limitBytes": {
-                    "type": "number",
-                    "minimum": 0,
-                    "description": "Storage quota, in bytes."
-                  },
-                  "percentUsed": {
-                    "type": "number",
-                    "minimum": 0,
-                    "description": "Percentage of the storage quota consumed."
-                  }
-                },
-                "required": ["usedBytes", "limitBytes", "percentUsed"],
-                "additionalProperties": false,
-                "description": "Current storage consumption and quota."
-              }
-            },
-            "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BillingStatus"
           }
         },
         "required": ["data"],
@@ -604,105 +609,102 @@
           }
         ]
       },
+      "V2BillingLogEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Unique usage-event identifier."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 timestamp when the usage event was recorded.",
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string",
+            "enum": [
+              "workflow",
+              "wand",
+              "sim-chat",
+              "mcp_copilot",
+              "mothership_block",
+              "knowledge-base",
+              "voice-input",
+              "enrichment",
+              "voice-output"
+            ],
+            "description": "Product surface that consumed the credits."
+          },
+          "workspaceId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workspace attributed to the event, or null for account-level usage."
+          },
+          "workflow": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "description": "Workflow identifier."
+                  },
+                  "name": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Workflow display name, when available."
+                  }
+                },
+                "required": ["id", "name"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow attributed to the event, when applicable."
+          },
+          "runId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow run attributed to the event, when applicable."
+          },
+          "creditCost": {
+            "type": "number",
+            "description": "Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event."
+          }
+        },
+        "required": ["id", "createdAt", "source", "workspaceId", "workflow", "runId", "creditCost"],
+        "additionalProperties": false,
+        "title": "Billing log entry",
+        "description": "One credit-consuming usage event in the billing ledger."
+      },
       "V2BillingLogListResponse": {
         "type": "object",
         "properties": {
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string",
-                  "description": "Unique usage-event identifier."
-                },
-                "createdAt": {
-                  "type": "string",
-                  "description": "ISO 8601 timestamp when the usage event was recorded.",
-                  "format": "date-time"
-                },
-                "source": {
-                  "type": "string",
-                  "enum": [
-                    "workflow",
-                    "wand",
-                    "sim-chat",
-                    "mcp_copilot",
-                    "mothership_block",
-                    "knowledge-base",
-                    "voice-input",
-                    "enrichment",
-                    "voice-output"
-                  ],
-                  "description": "Product surface that consumed the credits."
-                },
-                "workspaceId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Workspace attributed to the event, or null for account-level usage."
-                },
-                "workflow": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string",
-                          "description": "Workflow identifier."
-                        },
-                        "name": {
-                          "anyOf": [
-                            {
-                              "type": "string"
-                            },
-                            {
-                              "type": "null"
-                            }
-                          ],
-                          "description": "Workflow display name, when available."
-                        }
-                      },
-                      "required": ["id", "name"],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Workflow attributed to the event, when applicable."
-                },
-                "runId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Workflow run attributed to the event, when applicable."
-                },
-                "creditCost": {
-                  "type": "number",
-                  "description": "Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event."
-                }
-              },
-              "required": [
-                "id",
-                "createdAt",
-                "source",
-                "workspaceId",
-                "workflow",
-                "runId",
-                "creditCost"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2BillingLogEntry"
             },
             "description": "Items in the current page."
           },

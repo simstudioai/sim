@@ -53,7 +53,6 @@ const WORKSPACE_EXAMPLE = {
   name: 'Engineering',
   color: '#33C482',
   logoUrl: null,
-  mode: 'organization',
   memberCount: 14,
   createdAt: '2026-01-15T10:30:00.000Z',
   updatedAt: '2026-06-20T14:02:11.000Z',

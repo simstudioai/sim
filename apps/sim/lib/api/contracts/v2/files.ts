@@ -193,12 +193,23 @@ export const v2CreateFileUploadDataSchema = z
     transfer: v2UploadTransferSchema.describe('Instructions for transferring the file bytes.'),
   })
   .strict()
+  .meta({
+    id: 'V2CreateFileUploadData',
+    title: 'Create file upload data',
+    description: 'A new file upload session, its control token, and byte-transfer instructions.',
+  })
 export type V2CreateFileUploadData = z.output<typeof v2CreateFileUploadDataSchema>
 
-export const v2DeleteFileResultSchema = z.object({
-  id: z.string().describe('Identifier of the deleted file.'),
-  deleted: z.literal(true).describe('Confirms that the file was deleted.'),
-})
+export const v2DeleteFileResultSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted file.'),
+    deleted: z.literal(true).describe('Confirms that the file was deleted.'),
+  })
+  .meta({
+    id: 'V2DeleteFileResult',
+    title: 'Delete file result',
+    description: 'File deletion acknowledgement.',
+  })
 
 export type V2DeleteFileResult = z.output<typeof v2DeleteFileResultSchema>
 
@@ -319,13 +330,19 @@ export const v2MoveFileItemsBodySchema = z
 
 export type V2MoveFileItemsBody = z.input<typeof v2MoveFileItemsBodySchema>
 
-export const v2MoveFileItemsResultSchema = z.object({
-  movedItems: z
-    .object({
-      files: z.number().int().describe('Number of files moved.'),
-    })
-    .describe('Counts of file items moved by the request.'),
-})
+export const v2MoveFileItemsResultSchema = z
+  .object({
+    movedItems: z
+      .object({
+        files: z.number().int().describe('Number of files moved.'),
+      })
+      .describe('Counts of file items moved by the request.'),
+  })
+  .meta({
+    id: 'V2MoveFileItemsResult',
+    title: 'Move file items result',
+    description: 'Counts of workspace file items moved by the request.',
+  })
 
 export type V2MoveFileItemsResult = z.output<typeof v2MoveFileItemsResultSchema>
 
@@ -338,30 +355,48 @@ export const v2BulkDeleteFilesBodySchema = z
 
 export type V2BulkDeleteFilesBody = z.input<typeof v2BulkDeleteFilesBodySchema>
 
-export const v2BulkDeleteFilesResultSchema = z.object({
-  deletedItems: z
-    .object({
-      files: z.number().int().describe('Number of files deleted.'),
-    })
-    .describe('Counts of file items deleted by the request.'),
-})
+export const v2BulkDeleteFilesResultSchema = z
+  .object({
+    deletedItems: z
+      .object({
+        files: z.number().int().describe('Number of files deleted.'),
+      })
+      .describe('Counts of file items deleted by the request.'),
+  })
+  .meta({
+    id: 'V2BulkDeleteFilesResult',
+    title: 'Bulk delete files result',
+    description: 'Counts of workspace files deleted by the request.',
+  })
 
 export type V2BulkDeleteFilesResult = z.output<typeof v2BulkDeleteFilesResultSchema>
 
-export const v2FileFolderDataSchema = z.object({
-  folder: v2FolderSchema.describe('Created or relocated folder.'),
-})
+export const v2FileFolderDataSchema = z
+  .object({
+    folder: v2FolderSchema.describe('Created or relocated folder.'),
+  })
+  .meta({
+    id: 'V2FileFolderData',
+    title: 'File folder data',
+    description: 'A created or relocated file folder.',
+  })
 
-export const v2DeleteFileFolderDataSchema = z.object({
-  path: v2FolderPathSchema.describe('Deleted folder path.'),
-  deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
-  deletedItems: z
-    .object({
-      folders: z.number().int().describe('Number of folders deleted.'),
-      files: z.number().int().describe('Number of files deleted.'),
-    })
-    .describe('Counts of folders and files deleted by the request.'),
-})
+export const v2DeleteFileFolderDataSchema = z
+  .object({
+    path: v2FolderPathSchema.describe('Deleted folder path.'),
+    deleted: z.literal(true).describe('Confirms that the folder was deleted.'),
+    deletedItems: z
+      .object({
+        folders: z.number().int().describe('Number of folders deleted.'),
+        files: z.number().int().describe('Number of files deleted.'),
+      })
+      .describe('Counts of folders and files deleted by the request.'),
+  })
+  .meta({
+    id: 'V2DeleteFileFolderData',
+    title: 'Delete file folder data',
+    description: 'File-folder deletion acknowledgement and deletion counts.',
+  })
 
 export const v2ListFileFoldersContract = defineRouteContract({
   method: 'GET',
@@ -391,17 +426,29 @@ export const v2DeleteFileFolderContract = defineRouteContract({
   response: { mode: 'json', schema: v2DataResponse(v2DeleteFileFolderDataSchema) },
 })
 
-export const v2GetFileShareResultSchema = z.object({
-  share: v2FileShareSchema
-    .nullable()
-    .describe('Current public share, or null when the file has never been shared.'),
-})
+export const v2GetFileShareResultSchema = z
+  .object({
+    share: v2FileShareSchema
+      .nullable()
+      .describe('Current public share, or null when the file has never been shared.'),
+  })
+  .meta({
+    id: 'V2GetFileShareResult',
+    title: 'File share result',
+    description: 'The nullable public-share state for a file.',
+  })
 
 export type V2GetFileShareResult = z.output<typeof v2GetFileShareResultSchema>
 
-export const v2UpsertFileShareResultSchema = z.object({
-  share: v2FileShareSchema.describe('Updated public share.'),
-})
+export const v2UpsertFileShareResultSchema = z
+  .object({
+    share: v2FileShareSchema.describe('Updated public share.'),
+  })
+  .meta({
+    id: 'V2UpsertFileShareResult',
+    title: 'Updated file share',
+    description: 'The updated public-share state for a file.',
+  })
 
 export type V2UpsertFileShareResult = z.output<typeof v2UpsertFileShareResultSchema>
 

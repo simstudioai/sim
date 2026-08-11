@@ -596,6 +596,173 @@
           }
         ]
       },
+      "V2LogListItem": {
+        "type": "object",
+        "properties": {
+          "runId": {
+            "type": "string",
+            "description": "Unique run identifier."
+          },
+          "workflowId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow identifier, or null when unavailable."
+          },
+          "deploymentVersionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployment version identifier, or null when unavailable."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed", "cancelled"],
+            "description": "Current execution status."
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity level."
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Trigger that started the run."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO 8601 execution start timestamp."
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 execution end timestamp, or null while the run is active."
+          },
+          "totalDurationMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total execution duration in milliseconds, or null while unavailable."
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "number",
+                    "description": "Total execution cost in USD."
+                  }
+                },
+                "required": ["total"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost charged for the run, or null when unavailable."
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "Attachment metadata captured for the execution."
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Files attached to the run, or null when none are recorded."
+          },
+          "workflow": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Workflow identifier, or null when unavailable."
+              },
+              "name": {
+                "type": "string",
+                "description": "Workflow name."
+              },
+              "description": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Workflow description, or null when unset."
+              },
+              "deleted": {
+                "type": "boolean",
+                "description": "Whether the workflow has been deleted."
+              }
+            },
+            "required": ["id", "name", "description", "deleted"],
+            "additionalProperties": false,
+            "description": "Workflow summary for a full-detail result."
+          },
+          "finalOutput": {
+            "description": "Final workflow output."
+          },
+          "traceSpans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogTraceSpan"
+            },
+            "description": "Block-level execution trace spans."
+          }
+        },
+        "required": [
+          "runId",
+          "workflowId",
+          "deploymentVersionId",
+          "status",
+          "level",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "totalDurationMs",
+          "cost",
+          "files"
+        ],
+        "additionalProperties": false,
+        "title": "Execution log summary",
+        "description": "Summary information for one workflow execution log."
+      },
       "LogTraceSpan": {
         "title": "Log trace span",
         "description": "One recursive operation span in a workflow execution trace.",
@@ -770,169 +937,7 @@
           "data": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "runId": {
-                  "type": "string",
-                  "description": "Unique run identifier."
-                },
-                "workflowId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Workflow identifier, or null when unavailable."
-                },
-                "deploymentVersionId": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Deployment version identifier, or null when unavailable."
-                },
-                "status": {
-                  "type": "string",
-                  "enum": ["pending", "running", "completed", "failed", "cancelled"],
-                  "description": "Current execution status."
-                },
-                "level": {
-                  "type": "string",
-                  "description": "Log severity level."
-                },
-                "trigger": {
-                  "type": "string",
-                  "description": "Trigger that started the run."
-                },
-                "startedAt": {
-                  "type": "string",
-                  "description": "ISO 8601 execution start timestamp."
-                },
-                "endedAt": {
-                  "anyOf": [
-                    {
-                      "type": "string"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "ISO 8601 execution end timestamp, or null while the run is active."
-                },
-                "totalDurationMs": {
-                  "anyOf": [
-                    {
-                      "type": "number"
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Total execution duration in milliseconds, or null while unavailable."
-                },
-                "cost": {
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "total": {
-                          "type": "number",
-                          "description": "Total execution cost in USD."
-                        }
-                      },
-                      "required": ["total"],
-                      "additionalProperties": false
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Cost charged for the run, or null when unavailable."
-                },
-                "files": {
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "description": "Attachment metadata captured for the execution."
-                      }
-                    },
-                    {
-                      "type": "null"
-                    }
-                  ],
-                  "description": "Files attached to the run, or null when none are recorded."
-                },
-                "workflow": {
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "description": "Workflow identifier, or null when unavailable."
-                    },
-                    "name": {
-                      "type": "string",
-                      "description": "Workflow name."
-                    },
-                    "description": {
-                      "anyOf": [
-                        {
-                          "type": "string"
-                        },
-                        {
-                          "type": "null"
-                        }
-                      ],
-                      "description": "Workflow description, or null when unset."
-                    },
-                    "deleted": {
-                      "type": "boolean",
-                      "description": "Whether the workflow has been deleted."
-                    }
-                  },
-                  "required": ["id", "name", "description", "deleted"],
-                  "additionalProperties": false,
-                  "description": "Workflow summary for a full-detail result."
-                },
-                "finalOutput": {
-                  "description": "Final workflow output."
-                },
-                "traceSpans": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/LogTraceSpan"
-                  },
-                  "description": "Block-level execution trace spans."
-                }
-              },
-              "required": [
-                "runId",
-                "workflowId",
-                "deploymentVersionId",
-                "status",
-                "level",
-                "trigger",
-                "startedAt",
-                "endedAt",
-                "totalDurationMs",
-                "cost",
-                "files"
-              ],
-              "additionalProperties": false
+              "$ref": "#/components/schemas/V2LogListItem"
             },
             "description": "Items in the current page."
           },
@@ -975,17 +980,92 @@
           }
         ]
       },
-      "V2LogDetailResponse": {
+      "V2LogDetail": {
         "type": "object",
         "properties": {
-          "data": {
+          "runId": {
+            "type": "string",
+            "description": "Unique run identifier."
+          },
+          "workflowId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Workflow identifier, or null when unavailable."
+          },
+          "deploymentVersionId": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Deployment version identifier, or null when unavailable."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "running", "completed", "failed", "cancelled"],
+            "description": "Current execution status."
+          },
+          "level": {
+            "type": "string",
+            "description": "Log severity level."
+          },
+          "trigger": {
+            "type": "string",
+            "description": "Trigger that started the run."
+          },
+          "startedAt": {
+            "type": "string",
+            "description": "ISO 8601 execution start timestamp."
+          },
+          "endedAt": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "ISO 8601 execution end timestamp, or null while the run is active."
+          },
+          "totalDurationMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Total execution duration in milliseconds, or null while unavailable."
+          },
+          "files": {
+            "anyOf": [
+              {
+                "type": "array",
+                "items": {
+                  "description": "Attachment metadata captured for the execution."
+                }
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Files attached to the run, or null when none are recorded."
+          },
+          "workflow": {
             "type": "object",
             "properties": {
-              "runId": {
-                "type": "string",
-                "description": "Unique run identifier."
-              },
-              "workflowId": {
+              "id": {
                 "anyOf": [
                   {
                     "type": "string"
@@ -996,7 +1076,11 @@
                 ],
                 "description": "Workflow identifier, or null when unavailable."
               },
-              "deploymentVersionId": {
+              "name": {
+                "type": "string",
+                "description": "Workflow name."
+              },
+              "description": {
                 "anyOf": [
                   {
                     "type": "string"
@@ -1005,232 +1089,158 @@
                     "type": "null"
                   }
                 ],
-                "description": "Deployment version identifier, or null when unavailable."
+                "description": "Workflow description, or null when unset."
               },
-              "status": {
-                "type": "string",
-                "enum": ["pending", "running", "completed", "failed", "cancelled"],
-                "description": "Current execution status."
-              },
-              "level": {
-                "type": "string",
-                "description": "Log severity level."
-              },
-              "trigger": {
-                "type": "string",
-                "description": "Trigger that started the run."
-              },
-              "startedAt": {
-                "type": "string",
-                "description": "ISO 8601 execution start timestamp."
-              },
-              "endedAt": {
+              "folderPath": {
                 "anyOf": [
                   {
-                    "type": "string"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "ISO 8601 execution end timestamp, or null while the run is active."
-              },
-              "totalDurationMs": {
-                "anyOf": [
-                  {
-                    "type": "number"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Total execution duration in milliseconds, or null while unavailable."
-              },
-              "files": {
-                "anyOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "description": "Attachment metadata captured for the execution."
-                    }
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Files attached to the run, or null when none are recorded."
-              },
-              "workflow": {
-                "type": "object",
-                "properties": {
-                  "id": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow identifier, or null when unavailable."
-                  },
-                  "name": {
                     "type": "string",
-                    "description": "Workflow name."
-                  },
-                  "description": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow description, or null when unset."
-                  },
-                  "folderPath": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow folder path, or null when unavailable."
-                  },
-                  "ownerEmail": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "format": "email",
-                        "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Workflow owner email, or null when unavailable."
-                  },
-                  "workspaceId": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "Owning workspace identifier, or null when unavailable."
-                  },
-                  "createdAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "ISO 8601 workflow creation timestamp, or null when unavailable."
-                  },
-                  "updatedAt": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "null"
-                      }
-                    ],
-                    "description": "ISO 8601 workflow update timestamp, or null when unavailable."
-                  },
-                  "deleted": {
-                    "type": "boolean",
-                    "description": "Whether the workflow has been deleted."
-                  }
-                },
-                "required": [
-                  "id",
-                  "name",
-                  "description",
-                  "folderPath",
-                  "ownerEmail",
-                  "workspaceId",
-                  "createdAt",
-                  "updatedAt",
-                  "deleted"
-                ],
-                "additionalProperties": false,
-                "description": "Workflow snapshot associated with the execution."
-              },
-              "workflowState": {
-                "description": "Workflow state snapshot captured for the run."
-              },
-              "traceSpans": {
-                "type": "array",
-                "items": {
-                  "$ref": "#/components/schemas/LogTraceSpan"
-                },
-                "description": "Materialized block-level execution trace spans."
-              },
-              "finalOutput": {
-                "anyOf": [
-                  {
-                    "description": "Materialized final workflow output value."
+                    "description": "Canonical slash-prefixed folder path. `/` is the workspace root."
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Materialized final workflow output, or null when none was produced."
+                "description": "Workflow folder path, or null when unavailable."
               },
-              "cost": {
+              "ownerEmail": {
                 "anyOf": [
                   {
-                    "type": "object",
-                    "properties": {
-                      "total": {
-                        "type": "number",
-                        "description": "Total execution cost in USD."
-                      }
-                    },
-                    "required": ["total"],
-                    "additionalProperties": false
+                    "type": "string",
+                    "format": "email",
+                    "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
                   },
                   {
                     "type": "null"
                   }
                 ],
-                "description": "Cost charged for the run, or null when unavailable."
+                "description": "Workflow owner email, or null when unavailable."
+              },
+              "workspaceId": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "Owning workspace identifier, or null when unavailable."
               },
               "createdAt": {
-                "type": "string",
-                "description": "ISO 8601 log creation timestamp."
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 workflow creation timestamp, or null when unavailable."
+              },
+              "updatedAt": {
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "ISO 8601 workflow update timestamp, or null when unavailable."
+              },
+              "deleted": {
+                "type": "boolean",
+                "description": "Whether the workflow has been deleted."
               }
             },
             "required": [
-              "runId",
-              "workflowId",
-              "deploymentVersionId",
-              "status",
-              "level",
-              "trigger",
-              "startedAt",
-              "endedAt",
-              "totalDurationMs",
-              "files",
-              "workflow",
-              "workflowState",
-              "traceSpans",
-              "finalOutput",
-              "cost",
-              "createdAt"
+              "id",
+              "name",
+              "description",
+              "folderPath",
+              "ownerEmail",
+              "workspaceId",
+              "createdAt",
+              "updatedAt",
+              "deleted"
             ],
             "additionalProperties": false,
-            "description": "Response data."
+            "description": "Workflow snapshot associated with the execution."
+          },
+          "workflowState": {
+            "description": "Workflow state snapshot captured for the run."
+          },
+          "traceSpans": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/LogTraceSpan"
+            },
+            "description": "Materialized block-level execution trace spans."
+          },
+          "finalOutput": {
+            "anyOf": [
+              {
+                "description": "Materialized final workflow output value."
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Materialized final workflow output, or null when none was produced."
+          },
+          "cost": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "total": {
+                    "type": "number",
+                    "description": "Total execution cost in USD."
+                  }
+                },
+                "required": ["total"],
+                "additionalProperties": false
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Cost charged for the run, or null when unavailable."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "ISO 8601 log creation timestamp."
+          }
+        },
+        "required": [
+          "runId",
+          "workflowId",
+          "deploymentVersionId",
+          "status",
+          "level",
+          "trigger",
+          "startedAt",
+          "endedAt",
+          "totalDurationMs",
+          "files",
+          "workflow",
+          "workflowState",
+          "traceSpans",
+          "finalOutput",
+          "cost",
+          "createdAt"
+        ],
+        "additionalProperties": false,
+        "title": "Execution log detail",
+        "description": "Detailed workflow execution log including state, trace, output, and cost."
+      },
+      "V2LogDetailResponse": {
+        "type": "object",
+        "properties": {
+          "data": {
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2LogDetail"
           }
         },
         "required": ["data"],

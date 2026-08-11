@@ -115,12 +115,16 @@ const MUTATION_ERRORS = [
   'Locked',
 ] as const satisfies readonly ErrorResponseId[]
 
-function workflowOperation(
-  operation: Omit<OpenApiOperationMetadata, 'tags' | 'errors'> & {
-    errors: readonly ErrorResponseId[]
-  }
-): OpenApiOperationMetadata {
+type WorkflowOperationInput = Omit<OpenApiOperationMetadata, 'tags' | 'errors'> & {
+  errors: readonly ErrorResponseId[]
+}
+
+function workflowOperation(operation: WorkflowOperationInput): OpenApiOperationMetadata {
   return { ...operation, tags: ['Workflows'] }
+}
+
+function workflowRunOperation(operation: WorkflowOperationInput): OpenApiOperationMetadata {
+  return { ...operation, tags: ['Workflow Runs'] }
 }
 
 function jsonSuccess(description: string): OpenApiOperationMetadata['success'] {
@@ -526,7 +530,7 @@ const routes = [
   ),
   defineOpenApiRoute(
     v2ListWorkflowRunsContract,
-    workflowOperation({
+    workflowRunOperation({
       operationId: 'listWorkflowRunsV2',
       summary: 'List Workflow Runs',
       description: 'List recorded runs of a workflow with filtering and opaque cursor pagination.',
@@ -563,7 +567,7 @@ const routes = [
   ),
   defineOpenApiRoute(
     v2GetWorkflowRunContract,
-    workflowOperation({
+    workflowRunOperation({
       operationId: 'getWorkflowRunV2',
       summary: 'Get Workflow Run',
       description: 'Get current workflow run state, optionally including final and block outputs.',
@@ -601,7 +605,7 @@ const routes = [
   ),
   defineOpenApiRoute(
     v2ResumeWorkflowContract,
-    workflowOperation({
+    workflowRunOperation({
       operationId: 'resumeWorkflowRunV2',
       summary: 'Resume Workflow Run',
       description:
@@ -629,7 +633,7 @@ const routes = [
   ),
   defineOpenApiRoute(
     v2CancelWorkflowRunContract,
-    workflowOperation({
+    workflowRunOperation({
       operationId: 'cancelRunV2',
       summary: 'Cancel Workflow Run',
       description: 'Request cancellation of a running, queued, or paused workflow run.',
@@ -800,7 +804,11 @@ export const workflowsOpenApiDocument = defineOpenApiDocument({
     {
       name: 'Workflows',
       description:
-        'Manage workflows, folders, deployment versions, executions, run lifecycle, and portable imports and exports.',
+        'Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports.',
+    },
+    {
+      name: 'Workflow Runs',
+      description: 'Inspect, resume, and cancel workflow runs.',
     },
   ],
   security: V2_API_KEY_SECURITY,

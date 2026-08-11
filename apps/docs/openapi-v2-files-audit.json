@@ -2351,81 +2351,96 @@
         "title": "File upload session",
         "description": "Current state of a resumable workspace-file upload session."
       },
+      "V2PutUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "put",
+            "description": "Upload strategy discriminator."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL to which the file bytes are uploaded."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the upload request."
+          }
+        },
+        "required": ["method", "url", "headers"],
+        "additionalProperties": false,
+        "title": "Direct upload transfer",
+        "description": "Instructions for uploading bytes to one signed URL."
+      },
+      "V2MultipartUploadTransfer": {
+        "type": "object",
+        "properties": {
+          "method": {
+            "type": "string",
+            "const": "multipart",
+            "description": "Upload strategy discriminator."
+          },
+          "partSize": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991,
+            "description": "Required size of each non-final part in bytes."
+          },
+          "partCount": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 640,
+            "description": "Total number of upload parts."
+          }
+        },
+        "required": ["method", "partSize", "partCount"],
+        "additionalProperties": false,
+        "title": "Multipart upload transfer",
+        "description": "Instructions for splitting bytes into a multipart upload."
+      },
+      "V2CreateFileUploadData": {
+        "type": "object",
+        "properties": {
+          "session": {
+            "description": "New upload session.",
+            "$ref": "#/components/schemas/V2FileUpload"
+          },
+          "uploadToken": {
+            "type": "string",
+            "minLength": 1,
+            "description": "Signed control token required by later upload-session requests."
+          },
+          "transfer": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/V2PutUploadTransfer"
+              },
+              {
+                "$ref": "#/components/schemas/V2MultipartUploadTransfer"
+              }
+            ],
+            "description": "Instructions for transferring the file bytes."
+          }
+        },
+        "required": ["session", "uploadToken", "transfer"],
+        "additionalProperties": false,
+        "title": "Create file upload data",
+        "description": "A new file upload session, its control token, and byte-transfer instructions."
+      },
       "CreateFileUploadResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "session": {
-                "description": "New upload session.",
-                "$ref": "#/components/schemas/V2FileUpload"
-              },
-              "uploadToken": {
-                "type": "string",
-                "minLength": 1,
-                "description": "Signed control token required by later upload-session requests."
-              },
-              "transfer": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "properties": {
-                      "method": {
-                        "type": "string",
-                        "const": "put",
-                        "description": "Upload strategy discriminator."
-                      },
-                      "url": {
-                        "type": "string",
-                        "format": "uri",
-                        "description": "Signed URL to which the file bytes are uploaded."
-                      },
-                      "headers": {
-                        "type": "object",
-                        "propertyNames": {
-                          "type": "string"
-                        },
-                        "additionalProperties": {
-                          "type": "string"
-                        },
-                        "description": "Headers that must be included with the upload request."
-                      }
-                    },
-                    "required": ["method", "url", "headers"],
-                    "additionalProperties": false
-                  },
-                  {
-                    "type": "object",
-                    "properties": {
-                      "method": {
-                        "type": "string",
-                        "const": "multipart",
-                        "description": "Upload strategy discriminator."
-                      },
-                      "partSize": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0,
-                        "maximum": 9007199254740991,
-                        "description": "Required size of each non-final part in bytes."
-                      },
-                      "partCount": {
-                        "type": "integer",
-                        "exclusiveMinimum": 0,
-                        "maximum": 640,
-                        "description": "Total number of upload parts."
-                      }
-                    },
-                    "required": ["method", "partSize", "partCount"],
-                    "additionalProperties": false
-                  }
-                ],
-                "description": "Instructions for transferring the file bytes."
-              }
-            },
-            "required": ["session", "uploadToken", "transfer"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2CreateFileUploadData"
           }
         },
         "required": ["data"],
@@ -2482,55 +2497,65 @@
         "title": "File upload response",
         "description": "Current upload-session state."
       },
+      "V2UploadPartUrl": {
+        "type": "object",
+        "properties": {
+          "partNumber": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 9007199254740991,
+            "description": "Multipart part number."
+          },
+          "url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Signed URL for this upload part."
+          },
+          "headers": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Headers that must be included with the part upload."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 expiration time for the signed URL."
+          }
+        },
+        "required": ["partNumber", "url", "headers", "expiresAt"],
+        "additionalProperties": false,
+        "title": "Upload part URL",
+        "description": "A signed URL and required headers for one multipart upload part."
+      },
+      "V2PartUrlsData": {
+        "type": "object",
+        "properties": {
+          "parts": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/V2UploadPartUrl"
+            },
+            "description": "Signed URLs for requested parts."
+          }
+        },
+        "required": ["parts"],
+        "additionalProperties": false,
+        "title": "Upload part URLs",
+        "description": "Signed transfer URLs for the requested multipart upload parts."
+      },
       "CreateFileUploadPartUrlsResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "parts": {
-                "maxItems": 100,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "partNumber": {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 9007199254740991,
-                      "description": "Multipart part number."
-                    },
-                    "url": {
-                      "type": "string",
-                      "format": "uri",
-                      "description": "Signed URL for this upload part."
-                    },
-                    "headers": {
-                      "type": "object",
-                      "propertyNames": {
-                        "type": "string"
-                      },
-                      "additionalProperties": {
-                        "type": "string"
-                      },
-                      "description": "Headers that must be included with the part upload."
-                    },
-                    "expiresAt": {
-                      "type": "string",
-                      "format": "date-time",
-                      "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
-                      "description": "ISO 8601 expiration time for the signed URL."
-                    }
-                  },
-                  "required": ["partNumber", "url", "headers", "expiresAt"],
-                  "additionalProperties": false
-                },
-                "description": "Signed URLs for requested parts."
-              }
-            },
-            "required": ["parts"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2PartUrlsData"
           }
         },
         "required": ["data"],
@@ -2563,25 +2588,30 @@
           }
         ]
       },
+      "V2DeleteFileResult": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Identifier of the deleted file."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the file was deleted."
+          }
+        },
+        "required": ["id", "deleted"],
+        "additionalProperties": false,
+        "title": "Delete file result",
+        "description": "File deletion acknowledgement."
+      },
       "V2DeleteFileResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "id": {
-                "type": "string",
-                "description": "Identifier of the deleted file."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Confirms that the file was deleted."
-              }
-            },
-            "required": ["id", "deleted"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteFileResult"
           }
         },
         "required": ["data"],
@@ -3008,30 +3038,35 @@
           }
         ]
       },
+      "V2MoveFileItemsResult": {
+        "type": "object",
+        "properties": {
+          "movedItems": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of files moved."
+              }
+            },
+            "required": ["files"],
+            "additionalProperties": false,
+            "description": "Counts of file items moved by the request."
+          }
+        },
+        "required": ["movedItems"],
+        "additionalProperties": false,
+        "title": "Move file items result",
+        "description": "Counts of workspace file items moved by the request."
+      },
       "V2MoveFileItemsResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "movedItems": {
-                "type": "object",
-                "properties": {
-                  "files": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Number of files moved."
-                  }
-                },
-                "required": ["files"],
-                "additionalProperties": false,
-                "description": "Counts of file items moved by the request."
-              }
-            },
-            "required": ["movedItems"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2MoveFileItemsResult"
           }
         },
         "required": ["data"],
@@ -3076,27 +3111,32 @@
         "title": "Move files request",
         "description": "Files and destination selected for a bulk move."
       },
+      "V2GetFileShareResult": {
+        "type": "object",
+        "properties": {
+          "share": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/V2FileShare"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Current public share, or null when the file has never been shared."
+          }
+        },
+        "required": ["share"],
+        "additionalProperties": false,
+        "title": "File share result",
+        "description": "The nullable public-share state for a file."
+      },
       "V2GetFileShareResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "share": {
-                "anyOf": [
-                  {
-                    "$ref": "#/components/schemas/V2FileShare"
-                  },
-                  {
-                    "type": "null"
-                  }
-                ],
-                "description": "Current public share, or null when the file has never been shared."
-              }
-            },
-            "required": ["share"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2GetFileShareResult"
           }
         },
         "required": ["data"],
@@ -3126,20 +3166,25 @@
           }
         ]
       },
+      "V2UpsertFileShareResult": {
+        "type": "object",
+        "properties": {
+          "share": {
+            "description": "Updated public share.",
+            "$ref": "#/components/schemas/V2FileShare"
+          }
+        },
+        "required": ["share"],
+        "additionalProperties": false,
+        "title": "Updated file share",
+        "description": "The updated public-share state for a file."
+      },
       "V2UpsertFileShareResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "share": {
-                "description": "Updated public share.",
-                "$ref": "#/components/schemas/V2FileShare"
-              }
-            },
-            "required": ["share"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2UpsertFileShareResult"
           }
         },
         "required": ["data"],
@@ -3245,30 +3290,35 @@
           }
         ]
       },
+      "V2BulkDeleteFilesResult": {
+        "type": "object",
+        "properties": {
+          "deletedItems": {
+            "type": "object",
+            "properties": {
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of files deleted."
+              }
+            },
+            "required": ["files"],
+            "additionalProperties": false,
+            "description": "Counts of file items deleted by the request."
+          }
+        },
+        "required": ["deletedItems"],
+        "additionalProperties": false,
+        "title": "Bulk delete files result",
+        "description": "Counts of workspace files deleted by the request."
+      },
       "BulkDeleteFilesResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "deletedItems": {
-                "type": "object",
-                "properties": {
-                  "files": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Number of files deleted."
-                  }
-                },
-                "required": ["files"],
-                "additionalProperties": false,
-                "description": "Counts of file items deleted by the request."
-              }
-            },
-            "required": ["deletedItems"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2BulkDeleteFilesResult"
           }
         },
         "required": ["data"],
@@ -3373,20 +3423,25 @@
         "title": "File folder list response",
         "description": "Workspace file folders in the current page."
       },
+      "V2FileFolderData": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "Created or relocated folder.",
+            "$ref": "#/components/schemas/V2Folder"
+          }
+        },
+        "required": ["folder"],
+        "additionalProperties": false,
+        "title": "File folder data",
+        "description": "A created or relocated file folder."
+      },
       "FileFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "folder": {
-                "description": "Created or relocated folder.",
-                "$ref": "#/components/schemas/V2Folder"
-              }
-            },
-            "required": ["folder"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2FileFolderData"
           }
         },
         "required": ["data"],
@@ -3434,45 +3489,50 @@
         "title": "Relocate file folder request",
         "description": "Current and destination canonical paths for a folder."
       },
+      "V2DeleteFileFolderData": {
+        "type": "object",
+        "properties": {
+          "path": {
+            "type": "string",
+            "description": "Deleted folder path."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the folder was deleted."
+          },
+          "deletedItems": {
+            "type": "object",
+            "properties": {
+              "folders": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of folders deleted."
+              },
+              "files": {
+                "type": "integer",
+                "minimum": -9007199254740991,
+                "maximum": 9007199254740991,
+                "description": "Number of files deleted."
+              }
+            },
+            "required": ["folders", "files"],
+            "additionalProperties": false,
+            "description": "Counts of folders and files deleted by the request."
+          }
+        },
+        "required": ["path", "deleted", "deletedItems"],
+        "additionalProperties": false,
+        "title": "Delete file folder data",
+        "description": "File-folder deletion acknowledgement and deletion counts."
+      },
       "DeleteFileFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "path": {
-                "type": "string",
-                "description": "Deleted folder path."
-              },
-              "deleted": {
-                "type": "boolean",
-                "const": true,
-                "description": "Confirms that the folder was deleted."
-              },
-              "deletedItems": {
-                "type": "object",
-                "properties": {
-                  "folders": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Number of folders deleted."
-                  },
-                  "files": {
-                    "type": "integer",
-                    "minimum": -9007199254740991,
-                    "maximum": 9007199254740991,
-                    "description": "Number of files deleted."
-                  }
-                },
-                "required": ["folders", "files"],
-                "additionalProperties": false,
-                "description": "Counts of folders and files deleted by the request."
-              }
-            },
-            "required": ["path", "deleted", "deletedItems"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/V2DeleteFileFolderData"
           }
         },
         "required": ["data"],

@@ -73,28 +73,46 @@ const v2CustomToolDeclarationSchema = customToolSchemaSchema
   .catchall(customToolExtensionSchema)
   .describe('OpenAI-style function declaration describing the callable tool surface.')
 
-export const v2CustomToolSchema = z.object({
-  id: z.string().describe('Unique custom tool identifier.'),
-  title: z.string().describe('Display title, unique within the workspace.'),
-  /** OpenAI-style function declaration describing the tool's callable surface. */
-  schema: v2CustomToolDeclarationSchema,
-  /** The tool's implementation body, executed in Sim's sandboxed function runtime. */
-  code: z.string().describe('Tool implementation executed in the sandboxed function runtime.'),
-  createdAt: z.string().describe('ISO 8601 timestamp when the tool was created.'),
-  updatedAt: z.string().describe('ISO 8601 timestamp when the tool was last updated.'),
-})
+export const v2CustomToolSchema = z
+  .object({
+    id: z.string().describe('Unique custom tool identifier.'),
+    title: z.string().describe('Display title, unique within the workspace.'),
+    /** OpenAI-style function declaration describing the tool's callable surface. */
+    schema: v2CustomToolDeclarationSchema,
+    /** The tool's implementation body, executed in Sim's sandboxed function runtime. */
+    code: z.string().describe('Tool implementation executed in the sandboxed function runtime.'),
+    createdAt: z.string().describe('ISO 8601 timestamp when the tool was created.'),
+    updatedAt: z.string().describe('ISO 8601 timestamp when the tool was last updated.'),
+  })
+  .meta({
+    id: 'V2CustomTool',
+    title: 'Custom tool',
+    description: 'A workspace custom tool and its callable function declaration.',
+  })
 export type V2CustomTool = z.output<typeof v2CustomToolSchema>
 
 /** `{ customTool }` payload for single-tool reads and mutations. */
-export const v2CustomToolDataSchema = z.object({
-  customTool: v2CustomToolSchema.describe('The custom tool.'),
-})
+export const v2CustomToolDataSchema = z
+  .object({
+    customTool: v2CustomToolSchema.describe('The custom tool.'),
+  })
+  .meta({
+    id: 'V2CustomToolData',
+    title: 'Custom tool data',
+    description: 'A single workspace custom tool payload.',
+  })
 export type V2CustomToolData = z.output<typeof v2CustomToolDataSchema>
 
-export const v2CustomToolDeleteDataSchema = z.object({
-  id: z.string().describe('Identifier of the deleted custom tool.'),
-  deleted: z.literal(true).describe('Whether the custom tool was deleted.'),
-})
+export const v2CustomToolDeleteDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted custom tool.'),
+    deleted: z.literal(true).describe('Whether the custom tool was deleted.'),
+  })
+  .meta({
+    id: 'V2CustomToolDeleteData',
+    title: 'Delete custom tool data',
+    description: 'Custom tool deletion acknowledgement.',
+  })
 export type V2CustomToolDeleteData = z.output<typeof v2CustomToolDeleteDataSchema>
 
 export const v2CustomToolParamsSchema = z.object({

@@ -33,6 +33,11 @@ export const v2PutUploadTransferSchema = z
       .describe('Headers that must be included with the upload request.'),
   })
   .strict()
+  .meta({
+    id: 'V2PutUploadTransfer',
+    title: 'Direct upload transfer',
+    description: 'Instructions for uploading bytes to one signed URL.',
+  })
 export type V2PutUploadTransfer = z.output<typeof v2PutUploadTransferSchema>
 
 export const v2MultipartUploadTransferSchema = z
@@ -46,6 +51,11 @@ export const v2MultipartUploadTransferSchema = z
     partCount: z.number().int().positive().max(640).describe('Total number of upload parts.'),
   })
   .strict()
+  .meta({
+    id: 'V2MultipartUploadTransfer',
+    title: 'Multipart upload transfer',
+    description: 'Instructions for splitting bytes into a multipart upload.',
+  })
 export type V2MultipartUploadTransfer = z.output<typeof v2MultipartUploadTransferSchema>
 
 export const v2UploadTransferSchema = z.discriminatedUnion('method', [
@@ -65,17 +75,29 @@ export const v2PartUrlsBodySchema = z
   .strict()
 export type V2PartUrlsBody = z.input<typeof v2PartUrlsBodySchema>
 
-export const v2UploadPartUrlSchema = z.object({
-  partNumber: z.number().int().min(1).describe('Multipart part number.'),
-  url: z.string().url().describe('Signed URL for this upload part.'),
-  headers: z
-    .record(z.string(), z.string())
-    .describe('Headers that must be included with the part upload.'),
-  expiresAt: z.string().datetime().describe('ISO 8601 expiration time for the signed URL.'),
-})
+export const v2UploadPartUrlSchema = z
+  .object({
+    partNumber: z.number().int().min(1).describe('Multipart part number.'),
+    url: z.string().url().describe('Signed URL for this upload part.'),
+    headers: z
+      .record(z.string(), z.string())
+      .describe('Headers that must be included with the part upload.'),
+    expiresAt: z.string().datetime().describe('ISO 8601 expiration time for the signed URL.'),
+  })
+  .meta({
+    id: 'V2UploadPartUrl',
+    title: 'Upload part URL',
+    description: 'A signed URL and required headers for one multipart upload part.',
+  })
 export type V2UploadPartUrl = z.output<typeof v2UploadPartUrlSchema>
 
-export const v2PartUrlsDataSchema = z.object({
-  parts: z.array(v2UploadPartUrlSchema).max(100).describe('Signed URLs for requested parts.'),
-})
+export const v2PartUrlsDataSchema = z
+  .object({
+    parts: z.array(v2UploadPartUrlSchema).max(100).describe('Signed URLs for requested parts.'),
+  })
+  .meta({
+    id: 'V2PartUrlsData',
+    title: 'Upload part URLs',
+    description: 'Signed transfer URLs for the requested multipart upload parts.',
+  })
 export type V2PartUrlsData = z.output<typeof v2PartUrlsDataSchema>

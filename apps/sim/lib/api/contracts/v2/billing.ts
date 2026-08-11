@@ -36,42 +36,48 @@ export const v2BillingStatusQuerySchema = z.object({
  * Current billing standing, credit allowance, and storage quota. Ledger rows
  * and source analytics deliberately live outside this status resource.
  */
-export const v2BillingStatusDataSchema = z.object({
-  workspaceId: z
-    .string()
-    .nullable()
-    .describe('Workspace whose payer was resolved, or null for account billing.'),
-  period: z
-    .object({
-      start: z
-        .string()
-        .describe('ISO 8601 start of the current billing period.')
-        .meta({ format: 'date-time' }),
-      end: z
-        .string()
-        .describe('ISO 8601 end of the current billing period.')
-        .meta({ format: 'date-time' }),
-    })
-    .describe('Current billing period.'),
-  plan: z.string().describe('Current billing plan.'),
-  status: z
-    .enum(['active', 'limit_exceeded', 'billing_blocked'])
-    .describe('Current billing standing.'),
-  credits: z
-    .object({
-      used: z.number().describe('Credits consumed during the current billing period.'),
-      limit: z.number().describe('Credit allowance for the current billing period.'),
-      remaining: z.number().describe('Credits remaining in the current billing period.'),
-    })
-    .describe('Credit usage and allowance for the current billing period.'),
-  storage: z
-    .object({
-      usedBytes: z.number().nonnegative().describe('Storage currently consumed, in bytes.'),
-      limitBytes: z.number().nonnegative().describe('Storage quota, in bytes.'),
-      percentUsed: z.number().nonnegative().describe('Percentage of the storage quota consumed.'),
-    })
-    .describe('Current storage consumption and quota.'),
-})
+export const v2BillingStatusDataSchema = z
+  .object({
+    workspaceId: z
+      .string()
+      .nullable()
+      .describe('Workspace whose payer was resolved, or null for account billing.'),
+    period: z
+      .object({
+        start: z
+          .string()
+          .describe('ISO 8601 start of the current billing period.')
+          .meta({ format: 'date-time' }),
+        end: z
+          .string()
+          .describe('ISO 8601 end of the current billing period.')
+          .meta({ format: 'date-time' }),
+      })
+      .describe('Current billing period.'),
+    plan: z.string().describe('Current billing plan.'),
+    status: z
+      .enum(['active', 'limit_exceeded', 'billing_blocked'])
+      .describe('Current billing standing.'),
+    credits: z
+      .object({
+        used: z.number().describe('Credits consumed during the current billing period.'),
+        limit: z.number().describe('Credit allowance for the current billing period.'),
+        remaining: z.number().describe('Credits remaining in the current billing period.'),
+      })
+      .describe('Credit usage and allowance for the current billing period.'),
+    storage: z
+      .object({
+        usedBytes: z.number().nonnegative().describe('Storage currently consumed, in bytes.'),
+        limitBytes: z.number().nonnegative().describe('Storage quota, in bytes.'),
+        percentUsed: z.number().nonnegative().describe('Percentage of the storage quota consumed.'),
+      })
+      .describe('Current storage consumption and quota.'),
+  })
+  .meta({
+    id: 'V2BillingStatus',
+    title: 'Billing status',
+    description: 'Current billing standing, credit allowance, and storage quota.',
+  })
 export type V2BillingStatusData = z.output<typeof v2BillingStatusDataSchema>
 
 export const v2GetBillingStatusContract = defineRouteContract({
@@ -129,31 +135,37 @@ export const v2BillingLogsQuerySchema = z
  * legitimately be 0 for a sub-credit event once a sibling row absorbs the
  * shared rounding remainder.
  */
-export const v2BillingLogEntrySchema = z.object({
-  id: z.string().describe('Unique usage-event identifier.'),
-  createdAt: z
-    .string()
-    .describe('ISO 8601 timestamp when the usage event was recorded.')
-    .meta({ format: 'date-time' }),
-  source: usageLogSourceSchema.describe('Product surface that consumed the credits.'),
-  workspaceId: z
-    .string()
-    .nullable()
-    .describe('Workspace attributed to the event, or null for account-level usage.'),
-  workflow: z
-    .object({
-      id: z.string().describe('Workflow identifier.'),
-      name: z.string().nullable().describe('Workflow display name, when available.'),
-    })
-    .nullable()
-    .describe('Workflow attributed to the event, when applicable.'),
-  runId: z.string().nullable().describe('Workflow run attributed to the event, when applicable.'),
-  creditCost: z
-    .number()
-    .describe(
-      'Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event.'
-    ),
-})
+export const v2BillingLogEntrySchema = z
+  .object({
+    id: z.string().describe('Unique usage-event identifier.'),
+    createdAt: z
+      .string()
+      .describe('ISO 8601 timestamp when the usage event was recorded.')
+      .meta({ format: 'date-time' }),
+    source: usageLogSourceSchema.describe('Product surface that consumed the credits.'),
+    workspaceId: z
+      .string()
+      .nullable()
+      .describe('Workspace attributed to the event, or null for account-level usage.'),
+    workflow: z
+      .object({
+        id: z.string().describe('Workflow identifier.'),
+        name: z.string().nullable().describe('Workflow display name, when available.'),
+      })
+      .nullable()
+      .describe('Workflow attributed to the event, when applicable.'),
+    runId: z.string().nullable().describe('Workflow run attributed to the event, when applicable.'),
+    creditCost: z
+      .number()
+      .describe(
+        'Credits apportioned to the event so page rows sum to the rounded page total; may be zero for a sub-credit event.'
+      ),
+  })
+  .meta({
+    id: 'V2BillingLogEntry',
+    title: 'Billing log entry',
+    description: 'One credit-consuming usage event in the billing ledger.',
+  })
 export type V2BillingLogEntry = z.output<typeof v2BillingLogEntrySchema>
 
 export const v2ListBillingLogsContract = defineRouteContract({

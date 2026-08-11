@@ -72,86 +72,106 @@ const v2McpServerHeadersSchema = z.record(
  * passing them through — that strip is what keeps `headers` and
  * `oauthClientSecret` out of the response when a whole row is handed to it.
  */
-export const v2McpServerSchema = z.object({
-  ...mcpServerSchema.pick({
-    id: true,
-    name: true,
-    description: true,
-    transport: true,
-    authType: true,
-    url: true,
-    timeout: true,
-    retries: true,
-    enabled: true,
-    connectionStatus: true,
-    lastError: true,
-    toolCount: true,
-    lastToolsRefresh: true,
-    lastConnected: true,
-    createdAt: true,
-    updatedAt: true,
-    oauthClientId: true,
-  }).shape,
-  id: mcpServerSchema.shape.id.describe(
-    'Unique server identifier derived from the workspace and endpoint URL.'
-  ),
-  name: mcpServerSchema.shape.name.describe('Server display name.'),
-  description: mcpServerSchema.shape.description.describe('Optional server description.'),
-  transport: mcpServerSchema.shape.transport.describe(
-    'Transport used to communicate with the server.'
-  ),
-  authType: mcpServerSchema.shape.authType.describe('Authentication method used by the server.'),
-  url: mcpServerSchema.shape.url.describe('Server endpoint URL.'),
-  timeout: mcpServerSchema.shape.timeout.describe('Per-request timeout in milliseconds.'),
-  retries: mcpServerSchema.shape.retries.describe('Number of retries attempted per request.'),
-  enabled: mcpServerSchema.shape.enabled.describe(
-    'Whether the server tools are available to workflows.'
-  ),
-  connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
-    'Result of the most recent connection attempt.'
-  ),
-  lastError: mcpServerSchema.shape.lastError.describe(
-    'Message from the most recent failed connection, or null when absent.'
-  ),
-  toolCount: mcpServerSchema.shape.toolCount.describe('Number of tools discovered on the server.'),
-  lastToolsRefresh: mcpServerSchema.shape.lastToolsRefresh.describe(
-    'ISO 8601 timestamp of the most recent tool-list refresh.'
-  ),
-  lastConnected: mcpServerSchema.shape.lastConnected.describe(
-    'ISO 8601 timestamp of the most recent successful connection.'
-  ),
-  createdAt: mcpServerSchema.shape.createdAt.describe(
-    'ISO 8601 timestamp when the server was registered.'
-  ),
-  updatedAt: mcpServerSchema.shape.updatedAt.describe(
-    'ISO 8601 timestamp when the server was last updated.'
-  ),
-  oauthClientId: mcpServerSchema.shape.oauthClientId.describe(
-    'Pre-registered OAuth client identifier, when configured.'
-  ),
-  /** Whether any request headers are configured. Values are never returned. */
-  hasHeaders: z.boolean().describe('Whether any request headers are configured.'),
-  /** Names of the configured request headers. Values are never returned. */
-  headerNames: z
-    .array(z.string().describe('Configured header name.'))
-    .describe('Names of configured request headers. Header values are never returned.'),
-  hasOauthClientSecret: z
-    .boolean()
-    .describe('Whether an OAuth client secret is stored. The value is never returned.'),
-})
+export const v2McpServerSchema = z
+  .object({
+    ...mcpServerSchema.pick({
+      id: true,
+      name: true,
+      description: true,
+      transport: true,
+      authType: true,
+      url: true,
+      timeout: true,
+      retries: true,
+      enabled: true,
+      connectionStatus: true,
+      lastError: true,
+      toolCount: true,
+      lastToolsRefresh: true,
+      lastConnected: true,
+      createdAt: true,
+      updatedAt: true,
+      oauthClientId: true,
+    }).shape,
+    id: mcpServerSchema.shape.id.describe(
+      'Unique server identifier derived from the workspace and endpoint URL.'
+    ),
+    name: mcpServerSchema.shape.name.describe('Server display name.'),
+    description: mcpServerSchema.shape.description.describe('Optional server description.'),
+    transport: mcpServerSchema.shape.transport.describe(
+      'Transport used to communicate with the server.'
+    ),
+    authType: mcpServerSchema.shape.authType.describe('Authentication method used by the server.'),
+    url: mcpServerSchema.shape.url.describe('Server endpoint URL.'),
+    timeout: mcpServerSchema.shape.timeout.describe('Per-request timeout in milliseconds.'),
+    retries: mcpServerSchema.shape.retries.describe('Number of retries attempted per request.'),
+    enabled: mcpServerSchema.shape.enabled.describe(
+      'Whether the server tools are available to workflows.'
+    ),
+    connectionStatus: mcpServerSchema.shape.connectionStatus.describe(
+      'Result of the most recent connection attempt.'
+    ),
+    lastError: mcpServerSchema.shape.lastError.describe(
+      'Message from the most recent failed connection, or null when absent.'
+    ),
+    toolCount: mcpServerSchema.shape.toolCount.describe(
+      'Number of tools discovered on the server.'
+    ),
+    lastToolsRefresh: mcpServerSchema.shape.lastToolsRefresh.describe(
+      'ISO 8601 timestamp of the most recent tool-list refresh.'
+    ),
+    lastConnected: mcpServerSchema.shape.lastConnected.describe(
+      'ISO 8601 timestamp of the most recent successful connection.'
+    ),
+    createdAt: mcpServerSchema.shape.createdAt.describe(
+      'ISO 8601 timestamp when the server was registered.'
+    ),
+    updatedAt: mcpServerSchema.shape.updatedAt.describe(
+      'ISO 8601 timestamp when the server was last updated.'
+    ),
+    oauthClientId: mcpServerSchema.shape.oauthClientId.describe(
+      'Pre-registered OAuth client identifier, when configured.'
+    ),
+    /** Whether any request headers are configured. Values are never returned. */
+    hasHeaders: z.boolean().describe('Whether any request headers are configured.'),
+    /** Names of the configured request headers. Values are never returned. */
+    headerNames: z
+      .array(z.string().describe('Configured header name.'))
+      .describe('Names of configured request headers. Header values are never returned.'),
+    hasOauthClientSecret: z
+      .boolean()
+      .describe('Whether an OAuth client secret is stored. The value is never returned.'),
+  })
+  .meta({
+    id: 'V2McpServer',
+    title: 'MCP server',
+    description: 'Public MCP server configuration without write-only credential values.',
+  })
 export type V2McpServer = z.output<typeof v2McpServerSchema>
 
 /** `{ mcpServer }` payload for single-server reads and mutations. */
-export const v2McpServerDataSchema = z.object({
-  mcpServer: v2McpServerSchema.describe('The MCP server.'),
-})
+export const v2McpServerDataSchema = z
+  .object({
+    mcpServer: v2McpServerSchema.describe('The MCP server.'),
+  })
+  .meta({
+    id: 'V2McpServerData',
+    title: 'MCP server data',
+    description: 'A single public MCP server payload.',
+  })
 export type V2McpServerData = z.output<typeof v2McpServerDataSchema>
 
 /** Delete acknowledgement — the id of the server that was deleted. */
-export const v2McpServerDeleteDataSchema = z.object({
-  id: z.string().describe('Identifier of the deleted MCP server.'),
-  deleted: z.literal(true).describe('Whether the server was deleted.'),
-})
+export const v2McpServerDeleteDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted MCP server.'),
+    deleted: z.literal(true).describe('Whether the server was deleted.'),
+  })
+  .meta({
+    id: 'V2McpServerDeleteData',
+    title: 'Delete MCP server data',
+    description: 'MCP server deletion acknowledgement.',
+  })
 export type V2McpServerDeleteData = z.output<typeof v2McpServerDeleteDataSchema>
 
 export const v2McpServerParamsSchema = z.object({

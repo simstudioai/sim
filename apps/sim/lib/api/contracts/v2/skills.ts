@@ -32,33 +32,55 @@ import {
  */
 
 /** List item — everything but the skill body. */
-export const v2SkillSummarySchema = z.object({
-  id: z.string().describe('Unique skill identifier. Built-in skills use their name as the id.'),
-  name: z.string().describe('Kebab-case name that agents use to reference the skill.'),
-  description: z.string().describe('One-line summary of when the skill applies.'),
-  /** True for built-in template skills, which ship with Sim and cannot be written to. */
-  readOnly: z
-    .boolean()
-    .describe('Whether this is a built-in skill that cannot be modified or deleted.'),
-  createdAt: z.string().describe('ISO 8601 timestamp when the skill was created.'),
-  updatedAt: z.string().describe('ISO 8601 timestamp when the skill was last updated.'),
-})
+export const v2SkillSummarySchema = z
+  .object({
+    id: z.string().describe('Unique skill identifier. Built-in skills use their name as the id.'),
+    name: z.string().describe('Kebab-case name that agents use to reference the skill.'),
+    description: z.string().describe('One-line summary of when the skill applies.'),
+    /** True for built-in template skills, which ship with Sim and cannot be written to. */
+    readOnly: z
+      .boolean()
+      .describe('Whether this is a built-in skill that cannot be modified or deleted.'),
+    createdAt: z.string().describe('ISO 8601 timestamp when the skill was created.'),
+    updatedAt: z.string().describe('ISO 8601 timestamp when the skill was last updated.'),
+  })
+  .meta({
+    id: 'V2SkillSummary',
+    title: 'Skill summary',
+    description: 'Public summary metadata for a workspace or built-in skill.',
+  })
 export type V2SkillSummary = z.output<typeof v2SkillSummarySchema>
 
 /** Detail — the summary plus the skill body. */
-export const v2SkillSchema = v2SkillSummarySchema.extend({
-  content: z.string().describe('Skill body containing the instructions given to the agent.'),
-})
+export const v2SkillSchema = v2SkillSummarySchema
+  .extend({
+    content: z.string().describe('Skill body containing the instructions given to the agent.'),
+  })
+  .meta({
+    id: 'V2Skill',
+    title: 'Skill',
+    description: 'A workspace or built-in skill including its instruction body.',
+  })
 export type V2Skill = z.output<typeof v2SkillSchema>
 
 /** `{ skill }` payload for single-skill reads and mutations. */
-export const v2SkillDataSchema = z.object({ skill: v2SkillSchema.describe('The skill.') })
+export const v2SkillDataSchema = z.object({ skill: v2SkillSchema.describe('The skill.') }).meta({
+  id: 'V2SkillData',
+  title: 'Skill data',
+  description: 'A single skill payload including its instruction body.',
+})
 export type V2SkillData = z.output<typeof v2SkillDataSchema>
 
-export const v2SkillDeleteDataSchema = z.object({
-  id: z.string().describe('Identifier of the deleted skill.'),
-  deleted: z.literal(true).describe('Whether the skill was deleted.'),
-})
+export const v2SkillDeleteDataSchema = z
+  .object({
+    id: z.string().describe('Identifier of the deleted skill.'),
+    deleted: z.literal(true).describe('Whether the skill was deleted.'),
+  })
+  .meta({
+    id: 'V2SkillDeleteData',
+    title: 'Delete skill data',
+    description: 'Skill deletion acknowledgement.',
+  })
 export type V2SkillDeleteData = z.output<typeof v2SkillDeleteDataSchema>
 
 export const v2SkillParamsSchema = z.object({

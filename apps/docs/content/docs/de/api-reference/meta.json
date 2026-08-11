@@ -10,9 +10,8 @@
     "typescript",
     "---Endpoints---",
     "(generated)/workflows",
+    "(generated)/workflow-runs",
     "(generated)/logs",
-    "(generated)/audit-logs",
-    "(generated)/billing",
     "(generated)/tables",
     "(generated)/files",
     "(generated)/knowledge-bases",
@@ -21,6 +20,8 @@
     "(generated)/skills",
     "(generated)/custom-tools",
     "(generated)/credentials",
-    "(generated)/secrets"
+    "(generated)/secrets",
+    "(generated)/billing",
+    "(generated)/audit-logs"
   ]
 }

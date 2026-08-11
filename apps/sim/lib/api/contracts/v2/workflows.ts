@@ -469,9 +469,15 @@ export const v2WorkflowFolderSchema = v2FolderSchema
   })
 export type V2WorkflowFolder = z.output<typeof v2WorkflowFolderSchema>
 
-export const v2WorkflowFolderDataSchema = z.object({
-  folder: v2WorkflowFolderSchema.describe('Created or relocated workflow folder.'),
-})
+export const v2WorkflowFolderDataSchema = z
+  .object({
+    folder: v2WorkflowFolderSchema.describe('Created or relocated workflow folder.'),
+  })
+  .meta({
+    id: 'WorkflowFolderData',
+    title: 'Workflow folder data',
+    description: 'A created or relocated workflow folder.',
+  })
 
 export const v2DeleteWorkflowFolderDataSchema = z
   .object({

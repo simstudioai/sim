@@ -66,7 +66,6 @@ describe('v2 workspace routes', () => {
         name: 'Engineering',
         color: '#33C482',
         logoUrl: null,
-        mode: 'organization',
         memberCount: 1,
         createdAt: new Date('2026-01-01T00:00:00Z'),
         updatedAt: new Date('2026-01-02T00:00:00Z'),
@@ -97,6 +96,7 @@ describe('v2 workspace routes', () => {
 
     expect(response.status).toBe(200)
     expect(body.data).toMatchObject({ id: WORKSPACE_ID, name: 'Engineering' })
+    expect(body.data).not.toHaveProperty('mode')
     expect(body.data).not.toHaveProperty('ownerId')
     expect(body.data).not.toHaveProperty('billedAccountUserId')
     expect(mocks.getWorkspace).toHaveBeenCalledWith({

@@ -557,10 +557,12 @@ describe('OpenAPI generator', () => {
     const response = schemas.V2BillingStatusResponse as JsonObject
     const responseProperties = response.properties as JsonObject
     const data = responseProperties.data as JsonObject
-    const dataProperties = data.properties as JsonObject
+    const billingStatus = schemas.V2BillingStatus as JsonObject
+    const dataProperties = billingStatus.properties as JsonObject
     const storage = dataProperties.storage as JsonObject
 
     expect(Object.keys(paths).sort()).toEqual(['/api/v2/billing/logs', '/api/v2/billing/status'])
+    expect(data.$ref).toBe('#/components/schemas/V2BillingStatus')
     expect(storage).toMatchObject({
       required: ['usedBytes', 'limitBytes', 'percentUsed'],
       properties: {

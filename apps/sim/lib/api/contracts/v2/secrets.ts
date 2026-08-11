@@ -25,25 +25,46 @@ export const v2SecretNameSchema = z
   .describe('Secret name containing only letters, numbers, and underscores.')
 
 /** Secret metadata. The stored value is intentionally absent from every response schema. */
-export const v2SecretSchema = z.object({
-  name: v2SecretNameSchema,
-  scope: v2SecretScopeSchema,
-  role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
-  createdAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was created.'),
-  updatedAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was last updated.'),
-})
+export const v2SecretSchema = z
+  .object({
+    name: v2SecretNameSchema,
+    scope: v2SecretScopeSchema,
+    role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
+    createdAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was created.'),
+    updatedAt: z
+      .string()
+      .datetime()
+      .describe('ISO 8601 timestamp when the secret was last updated.'),
+  })
+  .meta({
+    id: 'V2Secret',
+    title: 'Secret metadata',
+    description: 'Public secret metadata without the stored secret value.',
+  })
 export type V2Secret = z.output<typeof v2SecretSchema>
 
-export const v2SecretDataSchema = z.object({
-  secret: v2SecretSchema.describe('Secret metadata. The stored value is never returned.'),
-})
+export const v2SecretDataSchema = z
+  .object({
+    secret: v2SecretSchema.describe('Secret metadata. The stored value is never returned.'),
+  })
+  .meta({
+    id: 'V2SecretData',
+    title: 'Secret data',
+    description: 'A single secret-metadata payload without its stored value.',
+  })
 export type V2SecretData = z.output<typeof v2SecretDataSchema>
 
-export const v2SecretDeleteDataSchema = z.object({
-  name: v2SecretNameSchema,
-  scope: v2SecretScopeSchema,
-  deleted: z.literal(true).describe('Whether the secret was deleted.'),
-})
+export const v2SecretDeleteDataSchema = z
+  .object({
+    name: v2SecretNameSchema,
+    scope: v2SecretScopeSchema,
+    deleted: z.literal(true).describe('Whether the secret was deleted.'),
+  })
+  .meta({
+    id: 'V2SecretDeleteData',
+    title: 'Delete secret data',
+    description: 'Secret deletion acknowledgement without the stored value.',
+  })
 export type V2SecretDeleteData = z.output<typeof v2SecretDeleteDataSchema>
 
 export const v2SecretSortFields = ['name', 'createdAt', 'updatedAt'] as const

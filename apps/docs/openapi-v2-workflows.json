@@ -23,7 +23,11 @@
   "tags": [
     {
       "name": "Workflows",
-      "description": "Manage workflows, folders, deployment versions, executions, run lifecycle, and portable imports and exports."
+      "description": "Manage and execute workflow definitions, folders, deployment versions, and portable imports and exports."
+    },
+    {
+      "name": "Workflow Runs",
+      "description": "Inspect, resume, and cancel workflow runs."
     }
   ],
   "security": [
@@ -1132,7 +1136,7 @@
         "operationId": "listWorkflowRunsV2",
         "summary": "List Workflow Runs",
         "description": "List recorded runs of a workflow with filtering and opaque cursor pagination.",
-        "tags": ["Workflows"],
+        "tags": ["Workflow Runs"],
         "parameters": [
           {
             "name": "id",
@@ -1280,7 +1284,7 @@
         "operationId": "getWorkflowRunV2",
         "summary": "Get Workflow Run",
         "description": "Get current workflow run state, optionally including final and block outputs.",
-        "tags": ["Workflows"],
+        "tags": ["Workflow Runs"],
         "parameters": [
           {
             "name": "id",
@@ -1380,7 +1384,7 @@
         "operationId": "resumeWorkflowRunV2",
         "summary": "Resume Workflow Run",
         "description": "Resume one human-in-the-loop pause context. The resumed attempt receives a new run identifier and may complete synchronously or return a queue receipt.",
-        "tags": ["Workflows"],
+        "tags": ["Workflow Runs"],
         "parameters": [
           {
             "name": "id",
@@ -1509,7 +1513,7 @@
         "operationId": "cancelRunV2",
         "summary": "Cancel Workflow Run",
         "description": "Request cancellation of a running, queued, or paused workflow run.",
-        "tags": ["Workflows"],
+        "tags": ["Workflow Runs"],
         "parameters": [
           {
             "name": "id",
@@ -4460,20 +4464,25 @@
           }
         ]
       },
+      "WorkflowFolderData": {
+        "type": "object",
+        "properties": {
+          "folder": {
+            "description": "Created or relocated workflow folder.",
+            "$ref": "#/components/schemas/WorkflowFolder"
+          }
+        },
+        "required": ["folder"],
+        "additionalProperties": false,
+        "title": "Workflow folder data",
+        "description": "A created or relocated workflow folder."
+      },
       "CreateWorkflowFolderResponse": {
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "folder": {
-                "description": "Created or relocated workflow folder.",
-                "$ref": "#/components/schemas/WorkflowFolder"
-              }
-            },
-            "required": ["folder"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowFolderData"
           }
         },
         "required": ["data"],
@@ -4517,16 +4526,8 @@
         "type": "object",
         "properties": {
           "data": {
-            "type": "object",
-            "properties": {
-              "folder": {
-                "description": "Created or relocated workflow folder.",
-                "$ref": "#/components/schemas/WorkflowFolder"
-              }
-            },
-            "required": ["folder"],
-            "additionalProperties": false,
-            "description": "Response data."
+            "description": "Response data.",
+            "$ref": "#/components/schemas/WorkflowFolderData"
           }
         },
         "required": ["data"],

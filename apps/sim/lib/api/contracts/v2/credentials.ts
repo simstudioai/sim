@@ -11,26 +11,35 @@ export const v2CredentialTypeSchema = z
 export type V2CredentialType = z.output<typeof v2CredentialTypeSchema>
 
 /** Public credential metadata. No token, key, or service-account payload is returned. */
-export const v2CredentialSchema = z.object({
-  id: z.string().describe('Unique credential identifier.'),
-  type: v2CredentialTypeSchema,
-  displayName: z.string().describe('Credential display name.'),
-  description: z.string().nullable().describe('Optional credential description.'),
-  providerId: z
-    .string()
-    .nullable()
-    .describe('Integration provider authenticated by this credential.'),
-  accountId: z.string().nullable().describe('Linked account identifier for OAuth credentials.'),
-  hasServiceAccountKey: z
-    .boolean()
-    .describe('Whether a service-account payload is stored. Its contents are never returned.'),
-  role: workspaceCredentialRoleSchema.describe('Caller role for the credential.'),
-  createdAt: z.string().datetime().describe('ISO 8601 timestamp when the credential was created.'),
-  updatedAt: z
-    .string()
-    .datetime()
-    .describe('ISO 8601 timestamp when the credential was last updated.'),
-})
+export const v2CredentialSchema = z
+  .object({
+    id: z.string().describe('Unique credential identifier.'),
+    type: v2CredentialTypeSchema,
+    displayName: z.string().describe('Credential display name.'),
+    description: z.string().nullable().describe('Optional credential description.'),
+    providerId: z
+      .string()
+      .nullable()
+      .describe('Integration provider authenticated by this credential.'),
+    accountId: z.string().nullable().describe('Linked account identifier for OAuth credentials.'),
+    hasServiceAccountKey: z
+      .boolean()
+      .describe('Whether a service-account payload is stored. Its contents are never returned.'),
+    role: workspaceCredentialRoleSchema.describe('Caller role for the credential.'),
+    createdAt: z
+      .string()
+      .datetime()
+      .describe('ISO 8601 timestamp when the credential was created.'),
+    updatedAt: z
+      .string()
+      .datetime()
+      .describe('ISO 8601 timestamp when the credential was last updated.'),
+  })
+  .meta({
+    id: 'V2Credential',
+    title: 'Credential',
+    description: 'Public authenticated-connection metadata without secret material.',
+  })
 export type V2Credential = z.output<typeof v2CredentialSchema>
 
 /** A credential's natural name field is `displayName`, so that is what `search` matches. */
