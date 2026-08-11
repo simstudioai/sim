@@ -40,6 +40,12 @@ export const createCopilotWorkspaceApiKey = defineAuthorizedWorkspaceUseCase({
       if (result.errorCode === 'conflict') {
         throw new OrchestrationError('conflict', result.error ?? 'API key name already exists')
       }
+      if (result.errorCode === 'forbidden') {
+        throw new OrchestrationError(
+          'forbidden',
+          result.error ?? 'Admin permission is required to create a workspace API key'
+        )
+      }
       throw new Error('Failed to create workspace API key')
     }
     return { key: result.key, workspaceId: context.workspaceId }

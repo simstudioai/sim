@@ -53,7 +53,7 @@ export async function authorizeDeploymentWorkflow(
   userId: string,
   workflowId: string,
   workspaceId: string,
-  action: 'read' | 'write' | 'admin'
+  action: 'read' | 'write'
 ): Promise<
   { ok: true; workflow: AuthorizedDeploymentWorkflow } | { ok: false; response: NextResponse }
 > {

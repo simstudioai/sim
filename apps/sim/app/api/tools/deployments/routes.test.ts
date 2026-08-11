@@ -221,6 +221,28 @@ describe('POST /api/tools/deployments/undeploy', () => {
     expect(mockPerformFullUndeploy).not.toHaveBeenCalled()
   })
 
+  it('requires write permission on the workflow workspace', async () => {
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 403,
+      message: 'Insufficient permissions',
+      workflow: WORKFLOW_RECORD,
+      workspacePermission: 'read',
+    })
+
+    const response = await undeployPost(
+      makePost('undeploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
+    )
+
+    expect(response.status).toBe(403)
+    expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+      workflowId: WORKFLOW_ID,
+      userId: 'user-1',
+      action: 'write',
+    })
+    expect(mockPerformFullUndeploy).not.toHaveBeenCalled()
+  })
+
   it('undeploys a deployed workflow', async () => {
     const response = await undeployPost(
       makePost('undeploy', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1' })
@@ -252,6 +274,28 @@ describe('POST /api/tools/deployments/promote', () => {
         deployedAt: '2026-06-12T00:00:00.000Z',
       },
     })
+  })
+
+  it('requires write permission on the workflow workspace', async () => {
+    workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission.mockResolvedValue({
+      allowed: false,
+      status: 403,
+      message: 'Insufficient permissions',
+      workflow: WORKFLOW_RECORD,
+      workspacePermission: 'read',
+    })
+
+    const response = await promotePost(
+      makePost('promote', { workflowId: WORKFLOW_ID, workspaceId: 'ws-1', version: 3 })
+    )
+
+    expect(response.status).toBe(403)
+    expect(workflowAuthzMockFns.mockAuthorizeWorkflowByWorkspacePermission).toHaveBeenCalledWith({
+      workflowId: WORKFLOW_ID,
+      userId: 'user-1',
+      action: 'write',
+    })
+    expect(mockPerformActivateVersion).not.toHaveBeenCalled()
   })
 
   it('promotes the given version to live', async () => {
