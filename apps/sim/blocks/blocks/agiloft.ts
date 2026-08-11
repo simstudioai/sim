@@ -409,6 +409,8 @@ export const AgiloftBlock: BlockConfig = {
       'agiloft_remove_attachment',
       'agiloft_retrieve_attachment',
       'agiloft_run_action_button',
+      // Retired, but retained so blocks saved with operation='saved_search' still resolve.
+      'agiloft_saved_search',
       'agiloft_search_records',
       'agiloft_select_records',
       'agiloft_update_record',
@@ -525,7 +527,7 @@ export const AgiloftBlock: BlockConfig = {
     },
     recordId: {
       type: 'string',
-      description: 'ID of the record the file operation was performed on',
+      description: 'ID of the record the operation was performed on',
       condition: {
         field: 'operation',
         value: ['attach_file', 'remove_attachment', 'run_action_button'],

@@ -71,10 +71,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         /**
          * EWSearch answers with EWREST_length plus one EWREST_<field>_<index>
-         * assignment per field per row. An empty result set is reported as
-         * EWREST_id_length = '0'.
+         * assignment per field per row, and reports an empty result set as
+         * EWREST_id_length = '0'. A body with no assignments at all is therefore
+         * never a legitimate empty search — it is a refusal Agiloft returned
+         * with HTTP 200, such as an invalid query or an unknown saved search.
          */
-        const { records, count } = toSearchRecords(parseEwRest(body))
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { records: [], totalCount: 0, page, limit },
+            error: `Agiloft did not return search results: ${body.trim() || '(empty response)'}`,
+          }
+        }
+
+        const { records, count } = toSearchRecords(values)
 
         return {
           success: true,

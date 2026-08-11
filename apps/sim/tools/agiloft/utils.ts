@@ -28,9 +28,17 @@ function buildEwBaseQuery(params: AgiloftBaseParams): string {
 }
 
 /**
+ * EWCreate and EWUpdate carry record data in the query string, so an oversized
+ * payload hits the server's request-line limit rather than a body limit. Tomcat
+ * allows 8 KB for the whole request line by default; this leaves headroom for
+ * the method, protocol, and surrounding headers.
+ */
+export const AGILOFT_MAX_RECORD_URL_LENGTH = 6000
+
+/**
  * Serializes a record's field values as the `&field=value` pairs EWCreate and
  * EWUpdate expect. Agiloft reads record data straight off the query string;
- * there is no JSON body form of these operations.
+ * there is no documented JSON body form of these operations.
  */
 function encodeRecordData(data: Record<string, unknown>): string {
   let encoded = ''
@@ -39,6 +47,20 @@ function encodeRecordData(data: Record<string, unknown>): string {
     encoded += `&${encodeURIComponent(field)}=${encodeURIComponent(String(value))}`
   }
   return encoded
+}
+
+/**
+ * Returns an explanatory message when a record's field data would push the
+ * request line past what Agiloft accepts, so the caller reports the real cause
+ * instead of surfacing an opaque 414 from the server.
+ */
+export function recordUrlLengthError(
+  instanceUrl: string,
+  build: (base: string) => string
+): string | null {
+  const url = build(instanceUrl.replace(/\/$/, ''))
+  if (url.length <= AGILOFT_MAX_RECORD_URL_LENGTH) return null
+  return `Record data is too large: Agiloft's create and update operations carry field values in the URL, and this request is ${url.length} characters against a ${AGILOFT_MAX_RECORD_URL_LENGTH} limit. Split it into smaller updates or move long text into an attachment.`
 }
 
 export function buildCreateRecordUrl(

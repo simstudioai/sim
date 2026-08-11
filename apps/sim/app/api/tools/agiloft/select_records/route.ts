@@ -69,9 +69,21 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         /**
          * EWSelect answers with EWREST_id_length followed by one EWREST_id_<n>
-         * assignment per match. Zero matches yields the length line alone.
+         * assignment per match, and zero matches still yields the length line.
+         * A body with no assignments at all is therefore never a legitimate
+         * empty result — it is a refusal Agiloft returned with HTTP 200, most
+         * often invalid WHERE-clause SQL.
          */
-        const { recordIds, count } = toRecordIds(parseEwRest(body))
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { recordIds: [], totalCount: 0 },
+            error: `Agiloft did not return a result set: ${body.trim() || '(empty response)'}`,
+          }
+        }
+
+        const { recordIds, count } = toRecordIds(values)
 
         return { success: true, output: { recordIds, totalCount: count } }
       }

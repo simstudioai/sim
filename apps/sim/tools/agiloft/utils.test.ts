@@ -10,6 +10,7 @@ import {
   buildRunActionButtonUrl,
   buildSearchRecordsUrl,
   buildUpdateRecordUrl,
+  recordUrlLengthError,
 } from '@/tools/agiloft/utils'
 
 const BASE = 'https://example.agiloft.com'
@@ -83,6 +84,25 @@ describe('CRUD endpoints', () => {
     expect(
       buildLockRecordUrl(BASE, { ...baseParams, recordId: '18', lockAction: 'check' })
     ).not.toContain('.json')
+  })
+})
+
+describe('recordUrlLengthError', () => {
+  it('accepts an ordinary record payload', () => {
+    const error = recordUrlLengthError(BASE, (base) =>
+      buildCreateRecordUrl(base, baseParams, { summary: 'A normal contract title' })
+    )
+
+    expect(error).toBeNull()
+  })
+
+  it('explains the URL ceiling rather than letting Agiloft answer 414', () => {
+    const error = recordUrlLengthError(BASE, (base) =>
+      buildCreateRecordUrl(base, baseParams, { description: 'x'.repeat(7000) })
+    )
+
+    expect(error).toContain('too large')
+    expect(error).toContain('carry field values in the URL')
   })
 })
 

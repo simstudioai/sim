@@ -8,7 +8,7 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseEwRest, toRecord } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildCreateRecordUrl } from '@/tools/agiloft/utils'
+import { buildCreateRecordUrl, recordUrlLengthError } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
@@ -62,6 +62,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         success: false,
         output: { id: null, fields: {} },
         error: 'The data parameter must be a JSON object of field names to values',
+      })
+    }
+
+    const oversized = recordUrlLengthError(params.instanceUrl, (base) =>
+      buildCreateRecordUrl(base, params, fieldValues)
+    )
+    if (oversized) {
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: oversized,
       })
     }
 

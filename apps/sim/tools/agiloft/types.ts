@@ -181,3 +181,11 @@ export interface AgiloftRunActionButtonResponse extends ToolResponse {
     callbackId: string | null
   }
 }
+
+export type AgiloftSavedSearchParams = Partial<AgiloftBaseParams>
+
+export interface AgiloftSavedSearchResponse extends ToolResponse {
+  output: {
+    searches: unknown[]
+  }
+}

@@ -12,6 +12,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock)
 
 import { POST } from '@/app/api/tools/agiloft/create_record/route'
+import { POST as SEARCH } from '@/app/api/tools/agiloft/search_records/route'
+import { POST as SELECT } from '@/app/api/tools/agiloft/select_records/route'
 
 const PINNED_IP = '93.184.216.34'
 
@@ -97,5 +99,78 @@ describe('POST /api/tools/agiloft/create_record', () => {
     expect(data.success).toBe(false)
     expect(data.error).toContain('must be a JSON object')
     expect(inputValidationMockFns.mockSecureFetchWithPinnedIP).not.toHaveBeenCalled()
+  })
+})
+
+describe('empty EWREST bodies on search and select', () => {
+  const listBase = {
+    instanceUrl: 'https://example.agiloft.com',
+    knowledgeBase: 'Demo',
+    login: 'admin',
+    password: 'secret',
+    table: 'helpdesk_case',
+  }
+
+  function arrange(text: string) {
+    inputValidationMockFns.mockSecureFetchWithPinnedIP
+      .mockResolvedValueOnce(mockSecureFetchResponse({ json: { access_token: 'tok' } }))
+      .mockResolvedValueOnce(mockSecureFetchResponse({ text }))
+      .mockResolvedValueOnce(mockSecureFetchResponse({}))
+  }
+
+  it('treats a plain-text refusal from EWSearch as a failure, not an empty result', async () => {
+    arrange('Error executing query, please consult logs')
+
+    const response = await SEARCH(
+      createMockRequest('POST', { ...listBase, query: "priority='High'" })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('did not return search results')
+  })
+
+  it('still reports a genuinely empty EWSearch result as a success', async () => {
+    arrange("EWREST_id_length = '0';")
+
+    const response = await SEARCH(
+      createMockRequest('POST', { ...listBase, query: "priority='High'" })
+    )
+    const data = (await response.json()) as {
+      success: boolean
+      output: { records: unknown[]; totalCount: number }
+    }
+
+    expect(data.success).toBe(true)
+    expect(data.output.records).toEqual([])
+    expect(data.output.totalCount).toBe(0)
+  })
+
+  it('treats a plain-text refusal from EWSelect as a failure, not an empty result', async () => {
+    arrange('Error executing query, please consult logs')
+
+    const response = await SELECT(
+      createMockRequest('POST', { ...listBase, where: "summary like '%new%'" })
+    )
+    const data = (await response.json()) as { success: boolean; error?: string }
+
+    expect(data.success).toBe(false)
+    expect(data.error).toContain('did not return a result set')
+  })
+
+  it('still reports a genuinely empty EWSelect result as a success', async () => {
+    arrange("EWREST_id_length = '0';")
+
+    const response = await SELECT(
+      createMockRequest('POST', { ...listBase, where: "summary like '%new%'" })
+    )
+    const data = (await response.json()) as {
+      success: boolean
+      output: { recordIds: string[]; totalCount: number }
+    }
+
+    expect(data.success).toBe(true)
+    expect(data.output.recordIds).toEqual([])
+    expect(data.output.totalCount).toBe(0)
   })
 })
