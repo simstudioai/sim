@@ -425,11 +425,18 @@ describe('projectResolvedSecretModelJsonContent', () => {
     expect(registry.recordResolved('X_LONGER_NAME', 'xxxxxxxx')).toBe(true)
 
     /**
-     * `{"a":"xxxxxxxx"}` is 16 bytes and fits; projecting it to
-     * `{"a":"{{X_LONGER_NAME}}"}` takes it to 25. The limit has to be applied to the projected
-     * bytes, so the first call must fail and the second must not.
+     * Three separate limits can reject this value, and only the last one is what this test is for:
+     * the raw encoding (16 bytes), the content walk's running budget, and the JSON re-encoding of
+     * the projected object (25 bytes). A limit of 20 is the only band that isolates the third —
+     * the walk charges the key `a` and then admits the 17-byte alias against the remaining 19, so
+     * anything that rejects at 20 can only be the wire check. Pinning both halves keeps it that
+     * way: drop the re-encoding check and the second assertion starts passing.
      */
-    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 16)).toEqual({
+    expect(projectResolvedSecretModelContent({ a: 'xxxxxxxx' }, registry, 20)).toEqual({
+      safe: true,
+      value: { a: '{{X_LONGER_NAME}}' },
+    })
+    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 20)).toEqual({
       safe: false,
     })
     expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 25)).toEqual({
