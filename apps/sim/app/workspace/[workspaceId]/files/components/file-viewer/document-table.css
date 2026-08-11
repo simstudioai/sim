@@ -28,9 +28,9 @@
 /* A preview table is data, not prose. A CSV can carry dozens of columns, so sizing the table to the
    frame (`width: 100%`) divides that frame between them and — with `overflow-wrap: anywhere` able to
    break every column down to one character — renders each header a vertical column of letters.
-   `max-content` sizes columns to their values and lets the table exceed the frame so
-   `.document-table`'s `overflow-x-auto` scrolls it; `min-width: 100%` keeps a narrow table filling
-   the frame rather than hugging the left edge. */
+   `max-content` sizes columns to their values and lets the table exceed the frame, which the
+   caller's own scroll container then scrolls; `min-width: 100%` keeps a narrow table filling the
+   frame rather than hugging the left edge. */
 .document-table table {
   width: max-content;
   min-width: 100%;
