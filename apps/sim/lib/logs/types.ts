@@ -133,6 +133,13 @@ export interface WorkflowExecutionLog {
   // Execution details
   executionData: {
     secretProjectionVersion?: 1
+    /**
+     * Run-level provenance, stored alongside the contract marker rather than
+     * only inside `executionState` so it survives both compaction and PII
+     * redaction dropping the state. The display projection needs it to rebuild
+     * its registry.
+     */
+    resolvedSecretTraceProvenance?: ResolvedSecretTraceProvenanceV1
     environment?: ExecutionEnvironment
     trigger?: ExecutionTrigger
     billingAttribution?: BillingAttributionSnapshot

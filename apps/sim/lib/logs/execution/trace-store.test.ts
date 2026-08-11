@@ -22,6 +22,7 @@ import {
   externalizeExecutionData,
   materializeExecutionData,
   projectExecutionDataForDisplay,
+  RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
   TRACE_STORE_REF_KEY,
 } from '@/lib/logs/execution/trace-store'
@@ -282,5 +283,85 @@ describe('projectExecutionDataForDisplay', () => {
     )
 
     expect(displayData).not.toHaveProperty('traceSpans')
+  })
+})
+
+describe('projectExecutionDataForDisplay provenance handling', () => {
+  const PROVENANCE = { version: 1, complete: true, entries: [] } as const
+
+  /** A truncated row: spans and markers survive, `executionState` does not. */
+  function truncatedRow(overrides: Record<string, unknown> = {}) {
+    return {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      executionDataTruncated: true,
+      finalOutput: { result: 'unknown-secret' },
+      traceSpans: [
+        {
+          id: 'span-1',
+          name: 'activeEmails',
+          type: 'function',
+          duration: 16,
+          startTime: '2026-08-11T00:38:53.000Z',
+          endTime: '2026-08-11T00:38:53.016Z',
+          status: 'error',
+          input: { code: 'const activeEmails = rows.length' },
+          output: { error: 'nested large values' },
+        },
+      ],
+      ...overrides,
+    }
+  }
+
+  it.each([
+    ['a contract row', () => truncatedRow({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE })],
+    ['a legacy row', () => ({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE, finalOutput: {} })],
+  ])('never returns the resolved-secret provenance to the client from %s', async (_case, row) => {
+    const displayData = await projectExecutionDataForDisplay(row(), CONTEXT)
+
+    expect(displayData).not.toHaveProperty(RESOLVED_SECRET_PROVENANCE_KEY)
+  })
+
+  it('rebuilds the registry from the top-level key alone', async () => {
+    const { secretProjectionVersion: _marker, ...withoutMarker } = truncatedRow()
+
+    const displayData = await projectExecutionDataForDisplay(
+      { ...withoutMarker, [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE },
+      CONTEXT
+    )
+
+    expect(displayData.finalOutput).toEqual({ result: 'unknown-secret' })
+    expect((displayData.traceSpans as any[])[0]).toHaveProperty('input')
+  })
+
+  it('keeps write-time-projected spans on a truncated row with no provenance', async () => {
+    const displayData = await projectExecutionDataForDisplay(truncatedRow(), CONTEXT)
+
+    expect((displayData.traceSpans as any[])[0]).toMatchObject({
+      input: { code: 'const activeEmails = rows.length' },
+      output: { error: 'nested large values' },
+    })
+    // The envelope has no write-time guarantee, so it still fails closed.
+    expect(displayData).not.toHaveProperty('finalOutput')
+  })
+
+  it.each([
+    ['the row was never truncated', { executionDataTruncated: undefined }],
+    ['the provenance key is present but null', { [RESOLVED_SECRET_PROVENANCE_KEY]: null }],
+    ['the provenance is malformed', { [RESOLVED_SECRET_PROVENANCE_KEY]: { version: 99 } }],
+  ])('fails closed when %s', async (_case, overrides) => {
+    const displayData = await projectExecutionDataForDisplay(truncatedRow(overrides), CONTEXT)
+
+    const [span] = displayData.traceSpans as Record<string, unknown>[]
+    expect(span).not.toHaveProperty('input')
+    expect(span).not.toHaveProperty('output')
+  })
+
+  it('leaves an empty span array intact', async () => {
+    const displayData = await projectExecutionDataForDisplay(
+      truncatedRow({ traceSpans: [] }),
+      CONTEXT
+    )
+
+    expect(displayData.traceSpans).toEqual([])
   })
 })
