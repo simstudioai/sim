@@ -342,7 +342,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       if (!detail?.message) return
       e.preventDefault()
       sendMessage(detail.message, detail.fileAttachments, detail.contexts, {
-        ...(detail.recoverStreamId ? { recoverStreamId: detail.recoverStreamId } : {}),
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
@@ -373,7 +373,9 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
     if (!handoff) return
     if (handoff.message) {
       sendMessage(handoff.message, handoff.fileAttachments, handoff.contexts, {
-        ...(handoff.recoverStreamId ? { recoverStreamId: handoff.recoverStreamId } : {}),
+        ...(handoff.resumeUserMessageId
+          ? { resumeUserMessageId: handoff.resumeUserMessageId }
+          : {}),
       })
       return
     }

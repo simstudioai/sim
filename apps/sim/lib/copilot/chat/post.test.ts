@@ -36,6 +36,9 @@ const {
   appendCopilotChatMessages,
   persistChatResources,
   mockPublishStatusChanged,
+  atomicallyClaimChatSend,
+  storeChatSendResult,
+  releaseChatSendClaim,
 } = vi.hoisted(() => ({
   generateWorkspaceSnapshot: vi.fn(),
   processContextsServer: vi.fn(),
@@ -51,6 +54,9 @@ const {
   appendCopilotChatMessages: vi.fn(),
   persistChatResources: vi.fn(),
   mockPublishStatusChanged: vi.fn(),
+  atomicallyClaimChatSend: vi.fn(),
+  storeChatSendResult: vi.fn(),
+  releaseChatSendClaim: vi.fn(),
 }))
 
 const getSession = authMockFns.mockGetSession
@@ -103,6 +109,14 @@ vi.mock('@/lib/copilot/chat/lifecycle', () => ({
   resolveOrCreateChat,
 }))
 
+vi.mock('@/lib/core/idempotency', () => ({
+  chatSendIdempotency: {
+    atomicallyClaim: atomicallyClaimChatSend,
+    storeResult: storeChatSendResult,
+    release: releaseChatSendClaim,
+  },
+}))
+
 vi.mock('@/lib/copilot/chat/terminal-state', () => ({
   finalizeAssistantTurn,
 }))
@@ -132,6 +146,14 @@ describe('handleUnifiedChatPost', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     resetDbChainMock()
+    atomicallyClaimChatSend.mockResolvedValue({
+      claimed: true,
+      normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+      storageMethod: 'database',
+      claimToken: 'claim-1',
+    })
+    storeChatSendResult.mockResolvedValue(true)
+    releaseChatSendClaim.mockResolvedValue(undefined)
     getSession.mockResolvedValue({ user: { id: 'user-1' } })
     resolveWorkflowIdForUser.mockResolvedValue({
       status: 'resolved',
@@ -721,8 +743,158 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(400)
+    // Returns without throwing, so only a `finally` can free the claim.
+    expect(releaseChatSendClaim).toHaveBeenCalled()
     await expect(response.json()).resolves.toMatchObject({
       error: 'workspaceId is required when workflowId is not provided',
+    })
+  })
+
+  describe('deduplicating a repeated send', () => {
+    /**
+     * The client cannot tell whether a request it aborted reached the server —
+     * the route never reads `request.signal`, so an accepted one runs to
+     * completion regardless. Recovering such a send therefore retries it under
+     * the original `userMessageId`, and this is what makes that safe.
+     */
+    it('answers an already-claimed send with the chat the first attempt opened', async () => {
+      atomicallyClaimChatSend.mockResolvedValue({
+        claimed: false,
+        normalizedKey: 'chat-send:user-message:msg-1:userId=user-1',
+        storageMethod: 'database',
+        existingResult: { success: true, status: 'completed', result: { chatId: 'chat-first' } },
+      })
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(409)
+      await expect(response.json()).resolves.toMatchObject({
+        activeStreamId: 'msg-1',
+        chatId: 'chat-first',
+      })
+      // The whole point: no second chat, no second billed turn.
+      expect(resolveOrCreateChat).not.toHaveBeenCalled()
+      expect(createSSEStream).not.toHaveBeenCalled()
+    })
+
+    it('scopes the claim to the caller so one user cannot probe another', async () => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(atomicallyClaimChatSend).toHaveBeenCalledWith('user-message', 'msg-1', {
+        userId: 'user-1',
+      })
+    })
+
+    it('records the chat against the send so a retry resolves to it', async () => {
+      await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(storeChatSendResult).toHaveBeenCalledWith(
+        'chat-send:user-message:msg-1:userId=user-1',
+        expect.objectContaining({ result: { chatId: 'chat-1' } }),
+        'database',
+        'claim-1'
+      )
+    })
+
+    /**
+     * Deduplication saves a duplicate chat; the send IS the user's message.
+     * An unreachable bookkeeping store must degrade chat, never take it down.
+     */
+    it('sends normally when the claim store is unavailable', async () => {
+      atomicallyClaimChatSend.mockRejectedValue(new Error('idempotency store down'))
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(createSSEStream).toHaveBeenCalled()
+      expect(storeChatSendResult).not.toHaveBeenCalled()
+    })
+
+    /**
+     * The queued-send-handoff path deliberately retries under the original
+     * `userMessageId` after a stream collision. If the collided attempt left a
+     * permanent claim, that retry would deduplicate against a chat whose turn
+     * never started and reattach to a stream that does not exist.
+     */
+    it('releases the claim when a stream collision stops the turn from starting', async () => {
+      acquirePendingChatStream.mockResolvedValue(false)
+      getPendingChatStreamId.mockResolvedValue('other-stream')
+
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(409)
+      expect(releaseChatSendClaim).toHaveBeenCalledWith(
+        'chat-send:user-message:msg-1:userId=user-1',
+        'database',
+        'claim-1'
+      )
+    })
+
+    it('keeps the claim once a turn is actually streaming', async () => {
+      const response = await handleUnifiedChatPost(
+        new NextRequest('http://localhost/api/mothership/chat', {
+          method: 'POST',
+          body: JSON.stringify({
+            message: 'Hello',
+            workspaceId: 'ws-1',
+            userMessageId: 'msg-1',
+            createNewChat: true,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(200)
+      expect(releaseChatSendClaim).not.toHaveBeenCalled()
     })
   })
 })

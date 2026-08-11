@@ -28,12 +28,12 @@ export interface MothershipSendMessageDetail {
   /** Already-uploaded attachments riding along with the message. */
   fileAttachments?: FileAttachmentForApi[]
   /**
-   * Set only when a cleanup abort withdrew an in-flight send and this is the
-   * recovery of it: the aborted send's stream id. The receiving chat probes it
-   * before sending, so a request the server had already accepted is adopted
-   * rather than sent a second time.
+   * Set only when this message is the recovery of a send an unmount cleanup
+   * withdrew: that attempt's message id. The receiving chat reuses it so the
+   * server deduplicates against the first attempt instead of opening a second
+   * chat and billing a second turn.
    */
-  recoverStreamId?: string
+  resumeUserMessageId?: string
 }
 
 /**
@@ -49,7 +49,7 @@ export function sendMothershipMessage(
   message: string,
   contexts?: ChatContext[],
   fileAttachments?: FileAttachmentForApi[],
-  recoverStreamId?: string
+  resumeUserMessageId?: string
 ): boolean {
   const trimmed = message.trim()
   if (!trimmed) {
@@ -60,7 +60,7 @@ export function sendMothershipMessage(
     message: trimmed,
     contexts,
     fileAttachments,
-    ...(recoverStreamId ? { recoverStreamId } : {}),
+    ...(resumeUserMessageId ? { resumeUserMessageId } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed

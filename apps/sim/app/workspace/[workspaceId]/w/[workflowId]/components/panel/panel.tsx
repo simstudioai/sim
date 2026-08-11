@@ -490,7 +490,7 @@ export const Panel = memo(function Panel() {
       e.preventDefault()
       setActiveTab('copilot')
       copilotSendMessage(detail.message, detail.fileAttachments, detail.contexts, {
-        ...(detail.recoverStreamId ? { recoverStreamId: detail.recoverStreamId } : {}),
+        ...(detail.resumeUserMessageId ? { resumeUserMessageId: detail.resumeUserMessageId } : {}),
       })
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
