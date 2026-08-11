@@ -74,6 +74,10 @@ export const agiloftSelectRecordsTool: ToolConfig<
   },
 
   outputs: {
+    truncated: {
+      type: 'boolean',
+      description: 'True when more IDs matched than this call reports',
+    },
     recordIds: {
       type: 'array',
       description: 'Array of record IDs matching the query',
@@ -83,7 +87,7 @@ export const agiloftSelectRecordsTool: ToolConfig<
     },
     totalCount: {
       type: 'number',
-      description: 'Total number of matching records',
+      description: 'Number of IDs in this response — compare with `truncated`',
     },
   },
 }

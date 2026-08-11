@@ -1,10 +1,11 @@
-import type { AgiloftLockRecordParams, AgiloftLockResponse } from '@/tools/agiloft/types'
+import type { AgiloftNlpSearchParams, AgiloftNlpSearchResponse } from '@/tools/agiloft/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftLockResponse> = {
-  id: 'agiloft_lock_record',
-  name: 'Agiloft Lock Record',
-  description: 'Lock, unlock, or check the lock status of an Agiloft record.',
+export const agiloftNlpSearchTool: ToolConfig<AgiloftNlpSearchParams, AgiloftNlpSearchResponse> = {
+  id: 'agiloft_nlp_search',
+  name: 'Agiloft Natural Language Search',
+  description:
+    'Search Agiloft records by describing what you want in plain language, such as "active NDAs submitted last month".',
   version: '1.0.0',
 
   params: {
@@ -32,34 +33,36 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       visibility: 'user-only',
       description: 'Agiloft password',
     },
-    table: {
+    nlpQuery: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name (e.g., "contracts")',
+      description:
+        'The request in plain language, e.g. "Show me open, high-priority contracts". Structured field filters are not accepted — use Search Records for those.',
     },
-    recordId: {
+    fields: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'ID of the record to lock, unlock, or check',
+      description:
+        'Comma-separated field names to return, e.g. "id, contract_title1, company_name"',
     },
-    lockAction: {
+    page: {
       type: 'string',
-      required: true,
-      visibility: 'user-or-llm',
-      description: 'Action to perform: "lock", "unlock", or "check"',
-    },
-    force: {
-      type: 'boolean',
       required: false,
       visibility: 'user-or-llm',
-      description: 'Unlock only: release a lock held by another user.',
+      description: 'Page number, starting from 0',
+    },
+    limit: {
+      type: 'string',
+      required: false,
+      visibility: 'user-or-llm',
+      description: 'Records per page',
     },
   },
 
   request: {
-    url: () => '/api/tools/agiloft/lock_record',
+    url: () => '/api/tools/agiloft/nlp_search',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
@@ -67,10 +70,10 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
       knowledgeBase: params.knowledgeBase,
       login: params.login,
       password: params.password,
-      table: params.table,
-      recordId: params.recordId,
-      lockAction: params.lockAction,
-      force: params.force,
+      nlpQuery: params.nlpQuery,
+      fields: params.fields,
+      page: params.page,
+      limit: params.limit,
     }),
   },
 
@@ -84,28 +87,11 @@ export const agiloftLockRecordTool: ToolConfig<AgiloftLockRecordParams, AgiloftL
   },
 
   outputs: {
-    id: {
-      type: 'string',
-      description: 'Record ID',
-    },
-    tableId: {
-      type: 'number',
-      description: 'Numeric system identifier of the table holding the record',
-      optional: true,
-    },
-    lockStatus: {
-      type: 'string',
-      description: 'Lock status: "LOCKED" when the record is held, "NO_LOCK" when it is free',
-    },
-    lockedBy: {
-      type: 'string',
-      description: 'Username of the user who locked the record',
-      optional: true,
-    },
-    lockExpiresInMinutes: {
-      type: 'number',
-      description: 'Minutes until the lock expires',
-      optional: true,
+    records: { type: 'json', description: 'Matching records with the requested field values' },
+    totalCount: { type: 'number', description: 'Number of records in this response' },
+    truncated: {
+      type: 'boolean',
+      description: 'True when more records were returned upstream than this call reports',
     },
   },
 }

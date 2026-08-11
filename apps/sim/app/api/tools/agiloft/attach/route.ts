@@ -12,12 +12,9 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
-import { buildAttachFileUrl } from '@/tools/agiloft/utils'
-import {
-  agiloftLoginPinned,
-  agiloftLogoutPinned,
-  resolveAgiloftInstance,
-} from '@/tools/agiloft/utils.server'
+import { parseEwRest } from '@/tools/agiloft/ewrest'
+import { buildAttachFileUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { resolveAgiloftInstance } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -99,10 +96,14 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       return NextResponse.json({ success: false, error: toError(error).message }, { status: 400 })
     }
 
-    const token = await agiloftLoginPinned(data, resolvedIP)
     const base = data.instanceUrl.replace(/\/$/, '')
 
-    try {
+    {
+      /**
+       * EWAttach lives on the legacy surface, which authenticates from the
+       * inline credentials in the URL and rejects a bearer token — so there is
+       * no login/logout pair here.
+       */
       const url = buildAttachFileUrl(base, data, resolvedFileName)
 
       logger.info(`[${requestId}] Uploading file to Agiloft: ${resolvedFileName}`)
@@ -111,7 +112,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/octet-stream',
-          Authorization: `Bearer ${token}`,
         },
         body: new Uint8Array(fileBuffer),
       })
@@ -122,19 +122,40 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           `[${requestId}] Agiloft attach error: ${agiloftResponse.status} - ${errorText}`
         )
         return NextResponse.json(
-          { success: false, error: `Agiloft error: ${agiloftResponse.status} - ${errorText}` },
+          {
+            success: false,
+            error: `Agiloft error ${agiloftResponse.status}: ${describeAgiloftError(errorText)}`,
+          },
           { status: agiloftResponse.status }
         )
       }
 
-      let totalAttachments = 0
+      /**
+       * EWAttach reports the new file count against the field it wrote to, as
+       * EWREST_<fieldName>.length='1'; — the key is field-specific, so the
+       * single returned assignment is read rather than a fixed key.
+       */
       const responseText = await agiloftResponse.text()
-      try {
-        const responseData = JSON.parse(responseText)
-        const result = responseData.result ?? responseData
-        totalAttachments = typeof result === 'number' ? result : (result.count ?? result.total ?? 1)
-      } catch {
-        totalAttachments = Number(responseText) || 1
+      const assignments = parseEwRest(responseText)
+      const countRaw =
+        assignments.get(`${data.fieldName.trim()}.length`) ?? [...assignments.values()][0]
+      const totalAttachments = Number(countRaw)
+
+      /**
+       * A 200 with no parsable count is not a confirmed write, so it fails
+       * closed rather than reporting success with zero attachments.
+       */
+      if (!Number.isFinite(totalAttachments)) {
+        logger.error(`[${requestId}] Agiloft attach returned an unrecognised body`, {
+          body: responseText.slice(0, 200),
+        })
+        return NextResponse.json(
+          {
+            success: false,
+            error: `Agiloft did not confirm the attachment: ${describeAgiloftError(responseText) || '(empty response)'}`,
+          },
+          { status: 502 }
+        )
       }
 
       logger.info(
@@ -150,8 +171,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           totalAttachments,
         },
       })
-    } finally {
-      await agiloftLogoutPinned(data.instanceUrl, data.knowledgeBase, token, resolvedIP)
     }
   } catch (error) {
     logger.error(`[${requestId}] Error attaching file to Agiloft:`, error)

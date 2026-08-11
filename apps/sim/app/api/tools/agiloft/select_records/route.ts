@@ -8,8 +8,13 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseEwRest, toRecordIds } from '@/tools/agiloft/ewrest'
 import type { AgiloftSelectResponse } from '@/tools/agiloft/types'
-import { buildSelectRecordsUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import {
+  AGILOFT_MAX_SELECT_IDS,
+  buildSelectRecordsUrl,
+  describeAgiloftError,
+  ewCredentialBody,
+} from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -50,11 +55,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftSelectResponse>(
+    const result = await executeEwRequest<AgiloftSelectResponse>(
       params,
       (base) => ({
         url: buildSelectRecordsUrl(base, params),
-        method: 'GET',
+        /**
+         * POST with the credentials in the body: EWSelect is one of the five
+         * operations that support it, and it keeps the password out of the URL
+         * and out of the server's access logs.
+         */
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: ewCredentialBody(params),
       }),
       async (response) => {
         const body = await response.text()
@@ -62,8 +74,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (!response.ok) {
           return {
             success: false,
-            output: { recordIds: [], totalCount: 0 },
-            error: `Agiloft error: ${response.status} - ${body}`,
+            output: { recordIds: [], totalCount: 0, truncated: false },
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(body)}`,
           }
         }
 
@@ -78,14 +90,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         if (values.size === 0) {
           return {
             success: false,
-            output: { recordIds: [], totalCount: 0 },
+            output: { recordIds: [], totalCount: 0, truncated: false },
             error: `Agiloft did not return a result set: ${body.trim() || '(empty response)'}`,
           }
         }
 
-        const { recordIds, count } = toRecordIds(values)
+        const { recordIds } = toRecordIds(values)
+        const capped = recordIds.slice(0, AGILOFT_MAX_SELECT_IDS)
 
-        return { success: true, output: { recordIds, totalCount: count } }
+        if (recordIds.length > capped.length) {
+          logger.warn(
+            `[${requestId}] Agiloft select returned ${recordIds.length} IDs; truncated to ${AGILOFT_MAX_SELECT_IDS}`,
+            { table: params.table }
+          )
+        }
+
+        return {
+          success: true,
+          output: {
+            recordIds: capped,
+            totalCount: capped.length,
+            truncated: recordIds.length > capped.length,
+          },
+        }
       }
     )
 

@@ -281,6 +281,10 @@
       "docsUrl": "https://docs.sim.ai/integrations/agiloft",
       "operations": [
         {
+          "name": "List Tables & Fields",
+          "description": "List the tables and fields in an Agiloft knowledge base, to discover the logical names other operations need."
+        },
+        {
           "name": "Create Record",
           "description": "Create a new record in an Agiloft table."
         },
@@ -293,12 +297,20 @@
           "description": "Update an existing record in an Agiloft table."
         },
         {
+          "name": "Upsert Record",
+          "description": "Create an Agiloft record, or update it when a record already matches the given fields."
+        },
+        {
           "name": "Delete Record",
           "description": "Delete a record from an Agiloft table."
         },
         {
           "name": "Search Records",
           "description": "Search for records in an Agiloft table using a query."
+        },
+        {
+          "name": "Natural Language Search",
+          "description": "Search Agiloft records by describing what you want in plain language, such as \"active NDAs submitted last month\"."
         },
         {
           "name": "Select Records",
@@ -329,11 +341,19 @@
           "description": "Run an action button on an Agiloft record, such as an approval or send-for-signature step."
         },
         {
+          "name": "Async Status",
+          "description": "Check whether an asynchronous Agiloft call, such as a run action button, has completed."
+        },
+        {
+          "name": "Saved Search",
+          "description": "List the saved searches defined for an Agiloft table."
+        },
+        {
           "name": "Get Choice Line ID",
           "description": "Resolve the internal numeric ID of a choice-list value, for use in EWSelect WHERE clauses against choice fields."
         }
       ],
-      "operationCount": 13,
+      "operationCount": 18,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

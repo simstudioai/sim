@@ -1,23 +1,29 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
-import { agiloftSearchRecordsContract } from '@/lib/api/contracts/tools/agiloft'
+import { agiloftSavedSearchContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { AgiloftSearchResponse } from '@/tools/agiloft/types'
-import { AGILOFT_MAX_SEARCH_RECORDS, alrestSearchUrl, parseFieldList } from '@/tools/agiloft/utils'
+import type { AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
+import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
 import {
-  executeAlrestRequest,
+  executeAgiloftRequest,
   isAgiloftRefusal,
   readAlrestJson,
 } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('AgiloftSearchRecordsAPI')
+const logger = createLogger('AgiloftSavedSearchAPI')
+
+interface SavedSearchRow {
+  name?: string
+  label?: string
+  id?: number
+  description?: string
+}
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -26,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized Agiloft search_records attempt: ${authResult.error}`)
+      logger.warn(`[${requestId}] Unauthorized Agiloft saved_search attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
@@ -34,7 +40,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const parsed = await parseRequest(
-      agiloftSearchRecordsContract,
+      agiloftSavedSearchContract,
       request,
       {},
       {
@@ -54,46 +60,29 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const page = params.page ? Number(params.page) : 0
-    const limit = params.limit ? Number(params.limit) : 0
-
-    const result = await executeAlrestRequest<AgiloftSearchResponse>(
+    /**
+     * EWSavedSearch must run under EWLogin or OAuth authorization, so this goes
+     * through the token-bearing executor rather than the inline-credential one
+     * the other legacy operations use.
+     */
+    const result = await executeAgiloftRequest<AgiloftSavedSearchResponse>(
       params,
       (base) => ({
-        url: alrestSearchUrl(base, params.table),
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        body: JSON.stringify(
-          filterUndefined({
-            search: params.search?.trim() || undefined,
-            query: params.query?.trim() || undefined,
-            field: parseFieldList(params.fields),
-            page: params.page ? page : undefined,
-            limit: params.limit ? limit : undefined,
-          })
-        ),
+        url: buildSavedSearchUrl(base, params),
+        method: 'GET',
+        headers: { Accept: 'application/json' },
       }),
       async (response) => {
-        const returned = (await readAlrestJson<Record<string, unknown>[]>(response)) ?? []
-        const records = returned.slice(0, AGILOFT_MAX_SEARCH_RECORDS)
+        const rows = (await readAlrestJson<SavedSearchRow[]>(response)) ?? []
 
-        if (returned.length > records.length) {
-          logger.warn(
-            `[${requestId}] Agiloft search returned ${returned.length} records; truncated to ${AGILOFT_MAX_SEARCH_RECORDS}`,
-            { table: params.table }
-          )
-        }
+        const searches = rows.map((row) => ({
+          name: row.name ?? '',
+          label: row.label ?? row.name ?? '',
+          id: row.id ?? null,
+          description: row.description ?? null,
+        }))
 
-        return {
-          success: true,
-          output: {
-            records,
-            totalCount: records.length,
-            page,
-            limit,
-            truncated: returned.length > records.length,
-          },
-        }
+        return { success: true, output: { searches, totalCount: searches.length } }
       }
     )
 
@@ -107,12 +96,12 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
       return NextResponse.json({
         success: false,
-        output: { records: [], totalCount: 0, page: 0, limit: 0, truncated: false },
+        output: { searches: [], totalCount: 0 },
         error: error.message,
       })
     }
 
-    logger.error(`[${requestId}] Error searching Agiloft records:`, error)
+    logger.error(`[${requestId}] Error listing Agiloft saved searches:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }

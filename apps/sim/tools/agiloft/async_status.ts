@@ -1,13 +1,14 @@
-import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
+import type { AgiloftAsyncStatusParams, AgiloftAsyncStatusResponse } from '@/tools/agiloft/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const agiloftSavedSearchTool: ToolConfig<
-  AgiloftSavedSearchParams,
-  AgiloftSavedSearchResponse
+export const agiloftAsyncStatusTool: ToolConfig<
+  AgiloftAsyncStatusParams,
+  AgiloftAsyncStatusResponse
 > = {
-  id: 'agiloft_saved_search',
-  name: 'Agiloft Saved Search',
-  description: 'List the saved searches defined for an Agiloft table.',
+  id: 'agiloft_async_status',
+  name: 'Agiloft Async Status',
+  description:
+    'Check whether an asynchronous Agiloft call, such as a run action button, has completed.',
   version: '1.0.0',
 
   params: {
@@ -39,12 +40,18 @@ export const agiloftSavedSearchTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Logical table name to list saved searches for (e.g., "contract")',
+      description: 'Table the asynchronous call was made against',
+    },
+    callbackId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Callback ID returned by the asynchronous call, e.g. from Run Action Button',
     },
   },
 
   request: {
-    url: () => '/api/tools/agiloft/saved_search',
+    url: () => '/api/tools/agiloft/async_status',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
@@ -53,6 +60,7 @@ export const agiloftSavedSearchTool: ToolConfig<
       login: params.login,
       password: params.password,
       table: params.table,
+      callbackId: params.callbackId,
     }),
   },
 
@@ -66,19 +74,15 @@ export const agiloftSavedSearchTool: ToolConfig<
   },
 
   outputs: {
-    searches: {
-      type: 'array',
-      description: 'Saved searches defined on the table',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Internal saved search name' },
-          label: { type: 'string', description: 'Display label, as used by Search Records' },
-          id: { type: 'number', description: 'Saved search identifier in the Agiloft database' },
-          description: { type: 'string', description: 'Saved search description' },
-        },
-      },
+    callbackId: { type: 'string', description: 'Callback ID that was checked' },
+    statusCode: { type: 'number', description: 'Raw status code Agiloft returned' },
+    status: {
+      type: 'string',
+      description: 'completed, queued, in_progress, failed, or unknown_callback',
     },
-    totalCount: { type: 'number', description: 'Number of saved searches returned' },
+    complete: {
+      type: 'boolean',
+      description: 'True when the operation has finished, whether it succeeded or failed',
+    },
   },
 }

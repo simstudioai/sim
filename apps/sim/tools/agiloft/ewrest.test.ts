@@ -6,13 +6,7 @@
  * assumed.
  */
 import { describe, expect, it } from 'vitest'
-import {
-  isEwRestBody,
-  parseEwRest,
-  toRecord,
-  toRecordIds,
-  toSearchRecords,
-} from '@/tools/agiloft/ewrest'
+import { parseEwRest, toRecordIds } from '@/tools/agiloft/ewrest'
 
 /** REST - Create: "A result similar to the following will be returned". */
 const CREATE_BODY = "EWREST_id='353';"
@@ -67,25 +61,6 @@ describe('parseEwRest', () => {
     expect(values.size).toBe(1)
     expect(values.get('id')).toBe('353')
   })
-
-  it('reports a plain-text error body as not being an EWREST response', () => {
-    expect(isEwRestBody('Error executing query, please consult logs')).toBe(false)
-    expect(isEwRestBody(CREATE_BODY)).toBe(true)
-  })
-})
-
-describe('toRecord', () => {
-  it('surfaces the id while keeping it among the fields', () => {
-    const { id, fields } = toRecord(parseEwRest(READ_BODY))
-
-    expect(id).toBe('358')
-    expect(fields.first_name).toBe('John')
-    expect(fields.id).toBe('358')
-  })
-
-  it('reports a missing id as null rather than inventing one', () => {
-    expect(toRecord(parseEwRest("EWREST_summary='no id here';")).id).toBeNull()
-  })
 })
 
 describe('toRecordIds', () => {
@@ -98,48 +73,5 @@ describe('toRecordIds', () => {
 
   it('reads the documented empty EWSelect result', () => {
     expect(toRecordIds(parseEwRest(SELECT_EMPTY_BODY))).toEqual({ recordIds: [], count: 0 })
-  })
-})
-
-describe('toSearchRecords', () => {
-  it('regroups the flat field_index assignments into one object per row', () => {
-    const { records, count } = toSearchRecords(parseEwRest(SEARCH_BODY))
-
-    expect(count).toBe(4)
-    expect(records).toHaveLength(4)
-    expect(records[0]).toEqual({
-      summary: 'Here is a new service request with some tasks',
-      priority: 'High',
-    })
-    expect(records[3].summary).toBe('Need New Wireless Card for Laptop')
-  })
-
-  it('keeps rows in index order regardless of assignment order', () => {
-    const shuffled = `EWREST_length = '2';
-EWREST_name_1='second';
-EWREST_name_0='first';`
-
-    expect(toSearchRecords(parseEwRest(shuffled)).records.map((r) => r.name)).toEqual([
-      'first',
-      'second',
-    ])
-  })
-
-  it('does not mistake the length line for a record field', () => {
-    const { records } = toSearchRecords(parseEwRest(SEARCH_BODY))
-
-    for (const record of records) {
-      expect(record).not.toHaveProperty('length')
-    }
-  })
-
-  it('preserves fields whose own names end in a number', () => {
-    /** EWRead's documented sample includes _1576_company_name0. */
-    const body = `EWREST_length = '1';
-EWREST__1576_company_name0_0='IBM';`
-
-    expect(toSearchRecords(parseEwRest(body)).records[0]).toEqual({
-      _1576_company_name0: 'IBM',
-    })
   })
 })

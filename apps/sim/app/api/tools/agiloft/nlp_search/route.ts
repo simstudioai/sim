@@ -2,22 +2,23 @@ import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { filterUndefined } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
-import { agiloftSearchRecordsContract } from '@/lib/api/contracts/tools/agiloft'
+import { agiloftNlpSearchContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { AgiloftSearchResponse } from '@/tools/agiloft/types'
-import { AGILOFT_MAX_SEARCH_RECORDS, alrestSearchUrl, parseFieldList } from '@/tools/agiloft/utils'
+import type { AgiloftNlpSearchResponse } from '@/tools/agiloft/types'
 import {
-  executeAlrestRequest,
-  isAgiloftRefusal,
-  readAlrestJson,
-} from '@/tools/agiloft/utils.server'
+  AGILOFT_LANG,
+  AGILOFT_MAX_SEARCH_RECORDS,
+  buildNlpSearchUrl,
+  parseFieldList,
+} from '@/tools/agiloft/utils'
+import { executeEwRequest, readAlrestJson } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('AgiloftSearchRecordsAPI')
+const logger = createLogger('AgiloftNlpSearchAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -26,7 +27,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized Agiloft search_records attempt: ${authResult.error}`)
+      logger.warn(`[${requestId}] Unauthorized Agiloft nlp_search attempt: ${authResult.error}`)
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
@@ -34,7 +35,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const parsed = await parseRequest(
-      agiloftSearchRecordsContract,
+      agiloftNlpSearchContract,
       request,
       {},
       {
@@ -54,22 +55,26 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const page = params.page ? Number(params.page) : 0
-    const limit = params.limit ? Number(params.limit) : 0
-
-    const result = await executeAlrestRequest<AgiloftSearchResponse>(
+    const result = await executeEwRequest<AgiloftNlpSearchResponse>(
       params,
       (base) => ({
-        url: alrestSearchUrl(base, params.table),
+        url: buildNlpSearchUrl(base),
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        /**
+         * EWNLPSearch accepts application/json, so credentials travel in the
+         * body rather than the query string.
+         */
         body: JSON.stringify(
           filterUndefined({
-            search: params.search?.trim() || undefined,
-            query: params.query?.trim() || undefined,
+            $KB: params.knowledgeBase,
+            $login: params.login,
+            $password: params.password,
+            $lang: AGILOFT_LANG,
             field: parseFieldList(params.fields),
-            page: params.page ? page : undefined,
-            limit: params.limit ? limit : undefined,
+            nlp_query: params.nlpQuery.trim(),
+            page: params.page ? Number(params.page) : undefined,
+            limit: params.limit ? Number(params.limit) : undefined,
           })
         ),
       }),
@@ -79,8 +84,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
         if (returned.length > records.length) {
           logger.warn(
-            `[${requestId}] Agiloft search returned ${returned.length} records; truncated to ${AGILOFT_MAX_SEARCH_RECORDS}`,
-            { table: params.table }
+            `[${requestId}] Agiloft NLP search returned ${returned.length} records; truncated to ${AGILOFT_MAX_SEARCH_RECORDS}`
           )
         }
 
@@ -89,8 +93,6 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           output: {
             records,
             totalCount: records.length,
-            page,
-            limit,
             truncated: returned.length > records.length,
           },
         }
@@ -99,20 +101,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    /**
-     * A refusal Agiloft already decided on is a final answer, not a transient
-     * fault — returning 500 would make the tool runner retry it.
-     */
-    if (isAgiloftRefusal(error)) {
-      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
-      return NextResponse.json({
-        success: false,
-        output: { records: [], totalCount: 0, page: 0, limit: 0, truncated: false },
-        error: error.message,
-      })
-    }
-
-    logger.error(`[${requestId}] Error searching Agiloft records:`, error)
+    logger.error(`[${requestId}] Error running Agiloft NLP search:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }
