@@ -1,17 +1,17 @@
 import type {
-  CalendlyDeleteWebhookParams,
-  CalendlyDeleteWebhookResponse,
+  CalendlyDeleteInviteeNoShowParams,
+  CalendlyDeleteInviteeNoShowResponse,
 } from '@/tools/calendly/types'
 import { toUuid } from '@/tools/calendly/utils'
 import type { ToolConfig } from '@/tools/types'
 
-export const deleteWebhookTool: ToolConfig<
-  CalendlyDeleteWebhookParams,
-  CalendlyDeleteWebhookResponse
+export const deleteInviteeNoShowTool: ToolConfig<
+  CalendlyDeleteInviteeNoShowParams,
+  CalendlyDeleteInviteeNoShowResponse
 > = {
-  id: 'calendly_delete_webhook',
-  name: 'Calendly Delete Webhook',
-  description: 'Delete a webhook subscription',
+  id: 'calendly_delete_invitee_no_show',
+  name: 'Calendly Unmark Invitee No-Show',
+  description: 'Remove the no-show status from an invitee',
   version: '1.0.0',
 
   params: {
@@ -21,20 +21,18 @@ export const deleteWebhookTool: ToolConfig<
       visibility: 'user-only',
       description: 'Calendly Personal Access Token',
     },
-    webhookUuid: {
+    noShowUuid: {
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Webhook subscription UUID to delete. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/webhook_subscriptions/abc123-def456")',
+        'No-show UUID to remove. Format: UUID (e.g., "abc123-def456") or full URI (e.g., "https://api.calendly.com/invitee_no_shows/abc123-def456")',
     },
   },
 
   request: {
-    url: (params: CalendlyDeleteWebhookParams) => {
-      const uuid = toUuid(params.webhookUuid)
-      return `https://api.calendly.com/webhook_subscriptions/${uuid}`
-    },
+    url: (params: CalendlyDeleteInviteeNoShowParams) =>
+      `https://api.calendly.com/invitee_no_shows/${toUuid(params.noShowUuid)}`,
     method: 'DELETE',
     headers: (params) => ({
       Authorization: `Bearer ${params.apiKey}`,
@@ -48,7 +46,7 @@ export const deleteWebhookTool: ToolConfig<
         success: true,
         output: {
           deleted: true,
-          message: 'Webhook subscription deleted successfully',
+          message: 'No-show status removed successfully',
         },
       }
     }
@@ -58,7 +56,7 @@ export const deleteWebhookTool: ToolConfig<
       success: false,
       output: {
         deleted: false,
-        message: data.message || 'Failed to delete webhook subscription',
+        message: data.message || 'Failed to remove no-show status',
       },
     }
   },
@@ -66,7 +64,7 @@ export const deleteWebhookTool: ToolConfig<
   outputs: {
     deleted: {
       type: 'boolean',
-      description: 'Whether the webhook was successfully deleted',
+      description: 'Whether the no-show status was successfully removed',
     },
     message: {
       type: 'string',
