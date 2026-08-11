@@ -42,7 +42,7 @@ import {
 } from '@/handlers/file-doc'
 import { beginRoomPermissionRead, commitRoomPermission } from '@/middleware/permissions'
 
-type Handler = (...args: unknown[]) => Promise<void> | void
+type Handler = (payload?: unknown) => Promise<void> | void
 
 const ROOM_NAME = 'workspace-file-doc:file-1'
 
@@ -366,56 +366,6 @@ describe('setupWorkspaceFileDocHandlers', () => {
     cleanupFileDocForSocket('socket-1', io, true)
     await flushMicrotasks()
     expect(mockFetchFileDocPersist).toHaveBeenCalled()
-  })
-
-  it('acknowledges an export flush only after the latest live edit is persisted', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
-    const { io } = createIo()
-    const { handlers } = setup('socket-1', io)
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
-
-    const edit = new Y.Doc()
-    edit.getText(FILE_DOC_FIELD).insert(0, 'latest edit')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
-      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
-        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
-      )
-    )
-    await flushMicrotasks()
-    mockFetchFileDocPersist.mockClear()
-    const acknowledge = vi.fn()
-
-    await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' }, acknowledge)
-
-    expect(mockFetchFileDocPersist).toHaveBeenCalledTimes(1)
-    expect(acknowledge).toHaveBeenCalledWith({ ok: true })
-  })
-
-  it('rejects an export flush when the live document cannot be persisted', async () => {
-    mockFetchFileDocSeed.mockResolvedValue(seedResult('# From server'))
-    const { io } = createIo()
-    const { handlers } = setup('socket-1', io)
-    await handlers[FILE_DOC_EVENTS.JOIN]({ fileId: 'file-1', clientId: 1 })
-    await flushMicrotasks()
-
-    const edit = new Y.Doc()
-    edit.getText(FILE_DOC_FIELD).insert(0, 'latest edit')
-    handlers[FILE_DOC_EVENTS.MESSAGE](
-      frame(FILE_DOC_MESSAGE_TYPE.SYNC, (e) =>
-        syncProtocol.writeUpdate(e, Y.encodeStateAsUpdate(edit))
-      )
-    )
-    await flushMicrotasks()
-    mockFetchFileDocPersist.mockResolvedValueOnce({ status: 'conflict' })
-    const acknowledge = vi.fn()
-
-    await handlers[FILE_DOC_EVENTS.FLUSH]({ fileId: 'file-1' }, acknowledge)
-
-    expect(acknowledge).toHaveBeenCalledWith({
-      ok: false,
-      error: 'Unable to save the latest document changes for export',
-    })
   })
 
   it('drops document frames and evicts once the editor loses write access mid-session', async () => {

@@ -31,8 +31,6 @@ import {
   FILE_DOC_SEED,
   FILE_DOC_TIMEOUTS,
   type FileDocPresenceUser,
-  type FlushFileDocPayload,
-  type FlushFileDocResult,
   type JoinFileDocPayload,
   type LeaveFileDocPayload,
   toFileDocBytes,
@@ -82,16 +80,6 @@ const PERSIST_MAX_WAIT_MS = 20_000
  * appears, so a long wait buys nothing). */
 const FINAL_VERSION_RETRIES = 2
 const FINAL_VERSION_RETRY_MS = 100
-
-type PersistMode = 'debounced' | 'final' | 'requested'
-type PersistOutcome =
-  | 'unchanged'
-  | 'persisted'
-  | 'missing'
-  | 'deferred'
-  | 'conflict'
-  | 'deduplicated'
-  | 'failed'
 
 /** Cross-task merge lock. The TTL must exceed the whole critical section it guards — stream fold +
  * `fetchFileDocMerge` (bounded at `mergeRequestMs`) + the awaited publish — so the lock never expires
@@ -272,31 +260,27 @@ function schedulePersist(name: string, room: FileDocRoom): void {
   room.persistTimer = setTimeout(() => {
     room.persistTimer = null
     room.persistDeadline = null
-    void flushPersist(name, room, 'debounced')
+    void flushPersist(name, room, false)
   }, delay)
 }
 
 /**
- * Project the live doc to markdown and write it durably via the app. A final or explicitly requested
- * flush always writes; a debounced mid-edit flush first claims a best-effort cross-task dedup WINDOW
+ * Project the live doc to markdown and write it durably via the app. `final` (last collaborator
+ * leaving) always writes; a debounced mid-edit flush first claims a best-effort cross-task dedup WINDOW
  * (a TTL key that just expires, so at most ~one persist per window cluster-wide) so concurrent tasks
- * editing the same file don't each write a redundant blob version. Returns an outcome so an export can
- * wait for durable success; background callers still treat failures as best-effort.
+ * editing the same file don't each write a redundant blob version. Best-effort: never throws (a failure
+ * is retried on the next debounce; the stream holds the state meanwhile).
  *
  * Persists the AUTHORITATIVE shared state (the stream), not this task's local doc: a copilot merge — or
  * a peer's edit — published by another task may not be integrated into `room.doc` yet (and the stream
  * holds content even when THIS task's doc was never locally seeded), so a last-disconnect flush can't
  * clobber the durable file with a lagging projection. The local doc is captured SYNCHRONOUSLY as a
- * fallback before any await, so a `void flushPersist(name, room, 'final')` fired immediately before the
+ * fallback before any await, so a `void flushPersist(name, room, true)` fired immediately before the
  * caller destroys `room.doc` never encodes a destroyed doc, and the disabled path stays authoritative.
  */
-async function flushPersist(
-  name: string,
-  room: FileDocRoom,
-  mode: PersistMode
-): Promise<PersistOutcome> {
+async function flushPersist(name: string, room: FileDocRoom, final: boolean): Promise<void> {
   // Never project a doc no user actually edited back over the file (see {@link FileDocRoom.edited}).
-  if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return 'unchanged'
+  if (!room.edited || !room.workspaceId || !room.lastEditorUserId) return
   const store = getFileDocStore()
   const workspaceId = room.workspaceId
   const userId = room.lastEditorUserId
@@ -306,10 +290,7 @@ async function flushPersist(
 
   // Capture the AUTHORITATIVE doc state: the shared stream when enabled (a copilot merge or a peer's
   // edit published by another task may not be integrated into THIS task's `room.doc` yet), else the
-  // local snapshot. A requested export flush merges both CRDT snapshots: the socket's immediately
-  // preceding edit can still be in the stream publisher's fire-and-forget queue, while a peer edit can
-  // already be in the stream but not this task's doc. The CRDT union covers both without another save
-  // path or waiting on the normal debounce.
+  // local snapshot. Re-read each attempt so a post-reconcile retry projects the converged state.
   const captureState = async (): Promise<Uint8Array | null> => {
     if (!store.enabled) {
       // Single-pod: re-read the live doc so a post-reconcile retry projects the CONVERGED state, not the
@@ -321,23 +302,12 @@ async function flushPersist(
         : localState
     }
     try {
-      const sharedState = await store.getStreamState(name)
-      if (mode !== 'requested' || !sharedState || !localState) return sharedState ?? localState
-
-      const merged = new Y.Doc()
-      try {
-        Y.applyUpdate(merged, sharedState)
-        Y.applyUpdate(merged, localState)
-        return Y.encodeStateAsUpdate(merged)
-      } finally {
-        merged.destroy()
-      }
+      return (await store.getStreamState(name)) ?? localState
     } catch (streamError) {
       // A transient Redis read must NOT drop the write when we already hold a valid local snapshot —
-      // else the last-disconnect flush loses the session's edits as the room is torn down. An explicit
-      // export flush can safely fail and retry, so do not risk omitting a peer edit when the shared state
-      // is temporarily unavailable.
-      if (mode === 'requested') throw streamError
+      // else the last-disconnect flush loses the session's edits as the room is torn down. But once a
+      // reconcile has run, `localState` is NULLED (it predates the merged-in out-of-band edit), so a
+      // failed read then correctly THROWS and aborts rather than clobbering with the stale snapshot.
       if (!localState) throw streamError
       logger.warn(`Stream state unavailable for file ${room.fileId}; persisting local snapshot`, {
         error: getErrorMessage(streamError),
@@ -357,11 +327,8 @@ async function flushPersist(
   }
 
   try {
-    if (
-      mode === 'debounced' &&
-      !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs))
-    )
-      return 'deduplicated'
+    if (!final && !(await store.tryClaimPersistWindow(name, FILE_DOC_TIMEOUTS.persistRequestMs)))
+      return
 
     // The If-Match token: the durable content version the live doc is synced to.
     let ifMatch = await currentVersion()
@@ -371,7 +338,7 @@ async function flushPersist(
     // unset version never appears, and the flush must not stall teardown.
     for (
       let i = 0;
-      ifMatch === undefined && mode !== 'debounced' && store.enabled && i < FINAL_VERSION_RETRIES;
+      ifMatch === undefined && final && store.enabled && i < FINAL_VERSION_RETRIES;
       i++
     ) {
       await sleep(FINAL_VERSION_RETRY_MS)
@@ -382,24 +349,19 @@ async function flushPersist(
     // still at the version the live doc synced from, so a projection can never silently clobber an
     // out-of-band edit. A single attempt — on conflict we STOP rather than retry (see below).
     const docState = await captureState()
-    if (!docState) return 'unchanged' // nothing seeded/authoritative to persist yet
-    // Make an acknowledged multi-replica flush a real snapshot handshake: the normal keystroke publish
-    // is fire-and-forget, so append the converged snapshot and await Redis before updating the durable
-    // blob. If Redis is unavailable, fail the export instead of acknowledging state that a later relay
-    // persist could overwrite from an incomplete stream.
-    if (mode === 'requested' && store.enabled) await store.publishAndWait(name, docState)
+    if (!docState) return // nothing seeded/authoritative to persist yet
     const result = await fetchFileDocPersist(workspaceId, room.fileId, userId, docState, ifMatch)
-    if (result.status === 'missing') return 'missing' // the file was deleted; nothing to write
+    if (result.status === 'missing') return // the file was deleted; nothing to write
     if (result.status === 'deferred') {
       // No version token available (momentarily — a Redis blip on a peer-seeded task). Leave the edits in
       // the stream; a later persist writes them once the version is re-established.
       logger.warn(`Persist deferred for file ${room.fileId} (no synced version available yet)`)
-      return 'deferred'
+      return
     }
     if (result.status === 'persisted') {
       room.syncedVersion = Math.max(room.syncedVersion ?? 0, result.version)
       void store.setSyncedVersion(name, result.version)
-      return 'persisted'
+      return
     }
     // status === 'conflict': the durable file advanced out-of-band since our If-Match token. We do NOT
     // re-persist against the current stream: an external write commits durable BEFORE its chokepoint merge
@@ -413,10 +375,8 @@ async function flushPersist(
     logger.warn(
       `Persist conflict for file ${room.fileId}; durable content advanced out-of-band, left authoritative`
     )
-    return 'conflict'
   } catch (error) {
     logger.warn(`Persist failed for file ${room.fileId}`, { error: getErrorMessage(error) })
-    return 'failed'
   }
 }
 
@@ -486,7 +446,7 @@ function destroyRoomIfIdle(name: string) {
   }
   // Final durable flush BEFORE teardown — `flushPersist` encodes the doc synchronously (before the
   // destroy below) and awaits the write in the background. Best-effort; never throws.
-  void flushPersist(name, room, 'final')
+  void flushPersist(name, room, true)
   getFileDocStore().detachRoom(name)
   room.awareness.destroy()
   room.doc.destroy()
@@ -501,9 +461,9 @@ function destroyRoomIfIdle(name: string) {
  * process is exiting); only their durable state is secured.
  */
 export async function flushAllFileDocRooms(): Promise<void> {
-  const flushes: Promise<PersistOutcome>[] = []
+  const flushes: Promise<void>[] = []
   for (const [name, room] of fileDocRooms) {
-    if (room.edited) flushes.push(flushPersist(name, room, 'final'))
+    if (room.edited) flushes.push(flushPersist(name, room, true))
   }
   await Promise.all(flushes)
 }
@@ -1268,44 +1228,6 @@ export function setupWorkspaceFileDocHandlers(
       emitJoinError(socket, fileId, 'Failed to join file document', 'JOIN_FAILED', true)
     }
   })
-
-  socket.on(
-    FILE_DOC_EVENTS.FLUSH,
-    async (payload: FlushFileDocPayload, acknowledge?: (result: FlushFileDocResult) => void) => {
-      if (typeof acknowledge !== 'function') return
-      if (!payload || typeof payload.fileId !== 'string' || payload.fileId.length === 0) {
-        acknowledge({ ok: false, error: 'Invalid file document flush request' })
-        return
-      }
-
-      const name = socketToRoomName.get(socket.id)
-      const requestedName = roomName(fileDocRoom(payload.fileId))
-      // A file with no live editor on this socket has no pending client edits to flush; its durable
-      // blob is already the export source. This also keeps cold-load and read-only exports immediate.
-      if (name !== requestedName) {
-        acknowledge({ ok: true })
-        return
-      }
-
-      const room = fileDocRooms.get(name)
-      if (!room || !isFileDocWriteAllowed(socket, io, name)) {
-        acknowledge({ ok: false, error: 'Unable to prepare the current document for export' })
-        return
-      }
-
-      // Socket.IO preserves event order on one connection, so all Yjs update frames emitted before
-      // this request have already been applied. Replace the pending debounce with this awaited write.
-      if (room.persistTimer) clearTimeout(room.persistTimer)
-      room.persistTimer = null
-      room.persistDeadline = null
-      const outcome = await flushPersist(name, room, 'requested')
-      if (outcome === 'persisted' || outcome === 'unchanged' || outcome === 'missing') {
-        acknowledge({ ok: true })
-        return
-      }
-      acknowledge({ ok: false, error: 'Unable to save the latest document changes for export' })
-    }
-  )
 
   socket.on(FILE_DOC_EVENTS.MESSAGE, (data: unknown) => handleMessage(socket, io, data))
 

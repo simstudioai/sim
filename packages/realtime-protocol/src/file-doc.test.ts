@@ -9,7 +9,5 @@ describe('FILE_DOC_TIMEOUTS ordering invariants', () => {
     // The relay's `/seed` fetch must finish before the client's readiness deadline lapses into its
     // read-only fallback, or a late-but-successful seed can never reach the client.
     expect(FILE_DOC_TIMEOUTS.seedRequestMs).toBeLessThan(FILE_DOC_TIMEOUTS.readinessDeadlineMs)
-    // An export flush waits for the relay's durable `/persist` request to finish before acking.
-    expect(FILE_DOC_TIMEOUTS.persistRequestMs).toBeLessThan(FILE_DOC_TIMEOUTS.flushAckMs)
   })
 })

@@ -86,7 +86,6 @@ import {
   isTextEditable,
 } from '@/app/workspace/[workspaceId]/files/components/file-viewer'
 import { FileDocAvatars } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-avatars'
-import { flushFileDocForExport } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-provider'
 import { FileDocRoomProvider } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/collaboration/file-doc-room-context'
 import { FilesListContextMenu } from '@/app/workspace/[workspaceId]/files/components/files-list-context-menu'
 import { ShareModal } from '@/app/workspace/[workspaceId]/files/components/share-modal'
@@ -107,7 +106,6 @@ import {
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
-import { useSocket } from '@/app/workspace/providers/socket-provider'
 import { usePinItem, usePinnedIds, useUnpinItem } from '@/hooks/queries/pinned-items'
 import { useWorkspaceMembersQuery, type WorkspaceMember } from '@/hooks/queries/workspace'
 import {
@@ -241,7 +239,6 @@ export function Files() {
     typeof params?.fileId === 'string' && params.fileId.length > 0 ? params.fileId : null
   const userPermissions = useUserPermissionsContext()
   const canEdit = userPermissions.canEdit === true
-  const { socket } = useSocket()
   const { config: permissionConfig } = usePermissionConfig()
 
   // Joined for the live file tree: a `workspace-files-changed` broadcast invalidates the
@@ -1075,7 +1072,6 @@ export function Files() {
         setPdfDownloadPending(true)
       }
       try {
-        if (isPdf && canEdit) await flushFileDocForExport(socket, file.id)
         await triggerFileDownload(file, format ? { format } : undefined)
         captureEvent(posthogRef.current, 'file_downloaded', {
           workspace_id: workspaceId,
@@ -1092,7 +1088,7 @@ export function Files() {
         }
       }
     },
-    [canEdit, socket, workspaceId]
+    [workspaceId]
   )
 
   const deleteTargetRef = useRef(deleteTarget)

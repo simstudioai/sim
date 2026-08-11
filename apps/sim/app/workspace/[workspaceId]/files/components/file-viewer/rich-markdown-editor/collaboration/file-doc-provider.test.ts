@@ -13,7 +13,7 @@ import * as awarenessProtocol from 'y-protocols/awareness'
 import * as syncProtocol from 'y-protocols/sync'
 import * as Y from 'yjs'
 import { AGENT_STREAM_ORIGIN } from './apply-streamed-markdown'
-import { FileDocProvider, flushFileDocForExport } from './file-doc-provider'
+import { FileDocProvider } from './file-doc-provider'
 
 /** A minimal fake Socket.IO client whose server→client events can be fired in tests. */
 function createSocket(connected = true) {
@@ -56,34 +56,6 @@ function emittedMessages(emit: ReturnType<typeof vi.fn>) {
     )
     .map(([, payload]) => payload as Uint8Array)
 }
-
-describe('flushFileDocForExport', () => {
-  it('resolves only after the relay acknowledges a durable flush', async () => {
-    const emit = vi.fn(
-      (event: string, payload: { fileId: string }, acknowledge: (result: { ok: true }) => void) => {
-        expect(event).toBe(FILE_DOC_EVENTS.FLUSH)
-        expect(payload).toEqual({ fileId: 'file-1' })
-        acknowledge({ ok: true })
-      }
-    )
-    const socket = { connected: true, emit } as unknown as Socket
-
-    await expect(flushFileDocForExport(socket, 'file-1')).resolves.toBeUndefined()
-  })
-
-  it('surfaces a failed flush and a disconnected socket', async () => {
-    const emit = vi.fn(
-      (_event: string, _payload: unknown, acknowledge: (result: unknown) => void) =>
-        acknowledge({ ok: false, error: 'Persist failed' })
-    )
-    await expect(
-      flushFileDocForExport({ connected: true, emit } as unknown as Socket, 'file-1')
-    ).rejects.toThrow('Persist failed')
-    await expect(flushFileDocForExport(null, 'file-1')).rejects.toThrow(
-      'Connect to realtime before exporting your latest changes.'
-    )
-  })
-})
 
 describe('FileDocProvider', () => {
   it('joins immediately with its client id when the socket is already connected', () => {

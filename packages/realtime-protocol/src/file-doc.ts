@@ -23,8 +23,6 @@ export const FILE_DOC_EVENTS = {
   JOIN_ERROR: 'join-file-doc-error',
   /** Client → server: leave the session ({@link LeaveFileDocPayload}). */
   LEAVE: 'leave-file-doc',
-  /** Client → server: durably persist the current live document before export. */
-  FLUSH: 'flush-file-doc',
   /** Both directions: a framed Yjs message (binary), tagged by {@link FILE_DOC_MESSAGE_TYPE}. */
   MESSAGE: 'file-doc-message',
   /**
@@ -104,9 +102,10 @@ export const FILE_DOC_SEED = {
  * The seed request gets more headroom than the merge because it reads a (possibly cold) blob before
  * converting; the merge is a pure in-memory conversion the caller fully supplies.
  *
- * `flushAckMs` (client → relay `flush`) wraps `persistRequestMs` (relay → app `/persist`), so
- * `persistRequestMs < flushAckMs`. The acknowledged flush is used before exporting a live document;
- * ordinary editing still persists on the relay's debounce and last-collaborator leave.
+ * `persistRequestMs` (relay → app `/persist`) stands alone — no client waits on it (the relay flushes
+ * the live doc to durable markdown debounced during editing and on the last collaborator leaving), so
+ * it forms no ordering invariant. It gets seed-level headroom because, like the seed, it crosses a
+ * durable blob write (Yjs → markdown → storage), not just an in-memory conversion.
  */
 export const FILE_DOC_TIMEOUTS = {
   seedRequestMs: 8_000,
@@ -114,7 +113,6 @@ export const FILE_DOC_TIMEOUTS = {
   applyEditMs: 6_000,
   readinessDeadlineMs: 12_000,
   persistRequestMs: 8_000,
-  flushAckMs: 10_000,
 } as const
 
 /** Client → server join request. `fileId` is the `workspace_files.id`. */
@@ -145,14 +143,6 @@ export interface JoinFileDocError {
 export interface LeaveFileDocPayload {
   fileId: string
 }
-
-/** Client → server request to durably persist a joined live document before an export reads it. */
-export interface FlushFileDocPayload {
-  fileId: string
-}
-
-/** Server acknowledgement for a {@link FlushFileDocPayload}. */
-export type FlushFileDocResult = { ok: true } | { ok: false; error: string }
 
 /** One collaborator session in a {@link FileDocPresence} roster — server-authenticated identity.
  * Keyed per socket (session), not per user: the client excludes its OWN `socketId` and then
