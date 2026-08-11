@@ -27,6 +27,10 @@ import { usePromptEditor } from '@/app/workspace/[workspaceId]/home/components/u
  * stands for the scroller's content width and `contentHeight` for the height
  * the text wraps to at that width. Narrowing raises the content height, exactly
  * as rewrapping does in a browser.
+ *
+ * Scroll height is the greater of the text height and the box the element is
+ * pinned to, so the stub reports `contentHeight` only while the inline height
+ * is cleared.
  */
 let contentHeight = 240
 let editorWidth = 700
@@ -135,7 +139,7 @@ describe('PromptEditor autosize', () => {
       get() {
         if (!(this instanceof HTMLTextAreaElement)) return 0
         autosizeCalls++
-        return contentHeight
+        return Math.max(contentHeight, Number.parseFloat(this.style.height) || 0)
       },
     })
     vi.stubGlobal('ResizeObserver', FakeResizeObserver)
@@ -152,6 +156,29 @@ describe('PromptEditor autosize', () => {
     const { textarea, unmount } = mountEditor()
 
     expect(textarea.style.height).toBe('240px')
+    unmount()
+  })
+
+  /**
+   * Guards the `height = 'auto'` collapse: a textarea pinned taller than its
+   * text reports the pinned height, so measuring without collapsing first can
+   * only ever grow the box.
+   */
+  it('shrinks the textarea again when the prompt becomes shorter', () => {
+    const { textarea, unmount } = mountEditor()
+    const valueSetter = Object.getOwnPropertyDescriptor(
+      window.HTMLTextAreaElement.prototype,
+      'value'
+    )?.set
+    if (!valueSetter) throw new Error('textarea value setter is unavailable')
+
+    act(() => {
+      contentHeight = 24
+      valueSetter.call(textarea, 'short')
+      textarea.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+
+    expect(textarea.style.height).toBe('24px')
     unmount()
   })
 

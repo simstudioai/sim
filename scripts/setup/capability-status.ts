@@ -15,6 +15,7 @@ import {
   inspectCapability,
   inspectOAuthClientCapability,
   isTruthyEnvCapabilityValue,
+  KNOWLEDGE_EMBEDDINGS_CAPABILITY,
   LLM_KEY_POOLS,
   OAUTH_CLIENT_CAPABILITIES,
   type OAuthClientCapabilityId,
@@ -43,6 +44,8 @@ interface FeatureStatusBase<TId extends SetupStatusFeatureId> {
 }
 
 type EmailProviderId = (typeof EMAIL_CAPABILITY.providers)[number]['id']
+type KnowledgeEmbeddingsProviderId =
+  (typeof KNOWLEDGE_EMBEDDINGS_CAPABILITY.providers)[number]['id']
 type StorageProviderId =
   | (typeof STORAGE_CAPABILITY)['defaultProvider']['id']
   | (typeof STORAGE_CAPABILITY.providers)[number]['id']
@@ -77,6 +80,13 @@ export interface KnowledgeCapabilityStatus extends FeatureStatusBase<'knowledge'
   providerId: 'local' | 'mistral' | 'azure-mistral' | null
 }
 
+export interface KnowledgeEmbeddingsCapabilityStatus
+  extends FeatureStatusBase<'knowledge-embeddings'> {
+  strategy: 'fallback'
+  providerIds: readonly KnowledgeEmbeddingsProviderId[]
+  providers: readonly ProviderInspection<KnowledgeEmbeddingsProviderId>[]
+}
+
 export interface LlmKeyPoolStatus {
   id: LlmKeyPoolId
   state: 'configured' | 'missing'
@@ -99,6 +109,7 @@ interface FeatureStatusById {
   jobs: JobsCapabilityStatus
   cache: CacheCapabilityStatus
   knowledge: KnowledgeCapabilityStatus
+  'knowledge-embeddings': KnowledgeEmbeddingsCapabilityStatus
   llm: LlmCapabilityStatus
 }
 
@@ -391,6 +402,26 @@ function inspectKnowledge(values: EnvCapabilityValues): KnowledgeCapabilityStatu
   }
 }
 
+function inspectKnowledgeEmbeddings(
+  values: EnvCapabilityValues
+): KnowledgeEmbeddingsCapabilityStatus {
+  const inspection = inspectCapability(KNOWLEDGE_EMBEDDINGS_CAPABILITY, values)
+  const brokenState = brokenProviderState(inspection.providers)
+  const state = inspection.configured ? 'configured' : (brokenState ?? 'missing')
+  const configurationError =
+    inspection.error ??
+    getCapabilityConfigurationError(KNOWLEDGE_EMBEDDINGS_CAPABILITY, inspection.providers)
+
+  return {
+    ...featureMetadata('knowledge-embeddings'),
+    strategy: 'fallback',
+    state,
+    providerIds: inspection.providerIds,
+    providers: inspection.providers,
+    ...(configurationError ? { issue: issue(brokenState ?? 'invalid', configurationError) } : {}),
+  }
+}
+
 function inspectLlm(values: EnvCapabilityValues): LlmCapabilityStatus {
   const pools = {} as Record<LlmKeyPoolId, LlmKeyPoolStatus>
   let configuredPoolCount = 0
@@ -463,6 +494,7 @@ const FEATURE_STATUS_BUILDERS = {
   jobs: inspectJobs,
   cache: inspectCache,
   knowledge: inspectKnowledge,
+  'knowledge-embeddings': inspectKnowledgeEmbeddings,
   llm: inspectLlm,
 } satisfies Record<SetupStatusFeatureId, (values: EnvCapabilityValues) => unknown>
 
@@ -476,6 +508,7 @@ export function buildEnvCapabilityStatus(values: EnvCapabilityValues): EnvCapabi
       jobs: FEATURE_STATUS_BUILDERS.jobs(values),
       cache: FEATURE_STATUS_BUILDERS.cache(values),
       knowledge: FEATURE_STATUS_BUILDERS.knowledge(values),
+      'knowledge-embeddings': FEATURE_STATUS_BUILDERS['knowledge-embeddings'](values),
       llm: FEATURE_STATUS_BUILDERS.llm(values),
     },
     oauthClients: inspectOAuthClients(values),

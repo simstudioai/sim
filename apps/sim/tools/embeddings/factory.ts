@@ -1,5 +1,6 @@
 import type { EmbeddingProvider } from '@/lib/api/contracts/tools/embeddings'
 import { BYOK_PROVIDER_IDS, DEFAULT_MODEL_BY_PROVIDER } from '@/lib/embeddings/catalog'
+import type { EmbeddingCatalogProvider } from '@/lib/embeddings/types'
 import { getEmbeddingModelPricing } from '@/providers/models'
 import type { EmbeddingsParams, EmbeddingsResponse } from '@/tools/embeddings/types'
 import type { ToolConfig } from '@/tools/types'
@@ -11,28 +12,68 @@ const HOSTED_KEY_RATE_LIMIT = {
   burstMultiplier: 1,
 } as const
 
-interface CreateEmbeddingToolOptions {
+interface EmbeddingToolBaseOptions {
   id: string
   name: string
-  provider: EmbeddingProvider
   description: string
-  /** Env var prefix for the hosted key pool. */
-  envKeyPrefix: string
 }
+
+interface HostedEmbeddingToolOptions extends EmbeddingToolBaseOptions {
+  provider: EmbeddingCatalogProvider
+  envKeyPrefix: string
+  defaultModel?: never
+}
+
+interface ExplicitKeyEmbeddingToolOptions extends EmbeddingToolBaseOptions {
+  provider: Extract<EmbeddingProvider, 'openrouter'>
+  envKeyPrefix?: never
+  defaultModel: string
+}
+
+type CreateEmbeddingToolOptions = HostedEmbeddingToolOptions | ExplicitKeyEmbeddingToolOptions
 
 /**
  * Builds a provider-specific embeddings tool. Every provider shares the same
  * params, transport, and output shape; only key resolution and the default
  * model differ, so they are produced from one definition rather than copied.
  */
-export function createEmbeddingTool({
-  id,
-  name,
-  provider,
-  description,
-  envKeyPrefix,
-}: CreateEmbeddingToolOptions): ToolConfig<EmbeddingsParams, EmbeddingsResponse> {
-  const defaultModel = DEFAULT_MODEL_BY_PROVIDER[provider]
+export function createEmbeddingTool(
+  options: CreateEmbeddingToolOptions
+): ToolConfig<EmbeddingsParams, EmbeddingsResponse> {
+  const { id, name, provider, description } = options
+  const defaultModel =
+    provider === 'openrouter' ? options.defaultModel : DEFAULT_MODEL_BY_PROVIDER[provider]
+  /**
+   * Sim-hosted catalog providers are billed per input token with no markup.
+   * OpenRouter requires an explicit user key and therefore has no hosting config.
+   */
+  const hostingConfig: ToolConfig<EmbeddingsParams, EmbeddingsResponse>['hosting'] =
+    provider === 'openrouter'
+      ? undefined
+      : {
+          envKeyPrefix: options.envKeyPrefix,
+          apiKeyParam: 'apiKey',
+          byokProviderId: BYOK_PROVIDER_IDS[provider],
+          pricing: {
+            type: 'custom',
+            getCost: (_params, output) => {
+              const tokens = output.__embeddingTokens
+              if (typeof tokens !== 'number' || Number.isNaN(tokens)) {
+                throw new Error('Embedding response missing token usage')
+              }
+              const model = typeof output.model === 'string' ? output.model : defaultModel
+              const pricing = getEmbeddingModelPricing(model)
+              if (!pricing) {
+                throw new Error(`No pricing configured for embedding model: ${model}`)
+              }
+              return {
+                cost: (tokens * pricing.input) / 1_000_000,
+                metadata: { model, totalTokens: tokens, inputPricePerMillion: pricing.input },
+              }
+            },
+          },
+          rateLimit: HOSTED_KEY_RATE_LIMIT,
+        }
 
   return {
     id,
@@ -75,34 +116,7 @@ export function createEmbeddingTool({
       },
     },
 
-    hosting: {
-      envKeyPrefix,
-      apiKeyParam: 'apiKey',
-      byokProviderId: BYOK_PROVIDER_IDS[provider],
-      /**
-       * Billed per input token with no markup, matching how the knowledge-base
-       * path bills the same models.
-       */
-      pricing: {
-        type: 'custom',
-        getCost: (_params, output) => {
-          const tokens = output.__embeddingTokens
-          if (typeof tokens !== 'number' || Number.isNaN(tokens)) {
-            throw new Error('Embedding response missing token usage')
-          }
-          const model = typeof output.model === 'string' ? output.model : defaultModel
-          const pricing = getEmbeddingModelPricing(model)
-          if (!pricing) {
-            throw new Error(`No pricing configured for embedding model: ${model}`)
-          }
-          return {
-            cost: (tokens * pricing.input) / 1_000_000,
-            metadata: { model, totalTokens: tokens, inputPricePerMillion: pricing.input },
-          }
-        },
-      },
-      rateLimit: HOSTED_KEY_RATE_LIMIT,
-    },
+    hosting: hostingConfig,
 
     request: {
       url: '/api/tools/embeddings',
