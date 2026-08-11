@@ -743,6 +743,8 @@ describe('handleUnifiedChatPost', () => {
     )
 
     expect(response.status).toBe(400)
+    // Returns without throwing, so only a `finally` can free the claim.
+    expect(releaseChatSendClaim).toHaveBeenCalled()
     await expect(response.json()).resolves.toMatchObject({
       error: 'workspaceId is required when workflowId is not provided',
     })

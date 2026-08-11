@@ -1142,12 +1142,12 @@ export async function handleUnifiedChatPost(req: NextRequest) {
       }
 
       /* Record the chat as soon as it is known — the earliest a retry can be
-         answered with somewhere to go. The claim is not permanent yet: several
-         exits below still return without starting a turn, and a retry of those
-         must be allowed to start one. Recording only fails open, so drop the
-         claim when it does. */
+         answered with somewhere to go. This does not make the claim permanent:
+         several exits below still return without starting a turn, and a retry
+         of those must be free to start one. Failing to record only costs a
+         retry the chat-id shortcut, so it must not fail the send. */
       if (sendClaim?.claimToken && actualChatId) {
-        const recorded = await chatSendIdempotency
+        await chatSendIdempotency
           .storeResult(
             sendClaim.normalizedKey,
             { success: true, status: 'completed', result: { chatId: actualChatId } },
@@ -1159,9 +1159,7 @@ export async function handleUnifiedChatPost(req: NextRequest) {
               userMessageId,
               error: getErrorMessage(error, 'Unknown error'),
             })
-            return false
           })
-        if (!recorded) sendClaim = undefined
       }
 
       if (chatIsNew && actualChatId && body.resourceAttachments?.length) {
