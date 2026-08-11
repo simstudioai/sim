@@ -1,10 +1,10 @@
 'use client'
 
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react'
-import { Button, cn, X } from '@sim/emcn'
+import { Button, cn } from '@sim/emcn'
+import { Search, X } from '@sim/emcn/icons'
 import { WorkflowBlockBorder, type WorkflowBorderPort } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
-import { Search } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { Handle, type NodeProps, Position } from 'reactflow'
