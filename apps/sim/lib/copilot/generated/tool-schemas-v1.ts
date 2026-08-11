@@ -1175,12 +1175,12 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         contentType: {
           type: 'string',
           description:
-            'Optional MIME type override. Usually omit and let the system infer from the file extension.',
+            'MIME type of the file when using the backward-compatible fileName parameter. Prefer outputs.files[0].mimeType for new calls.',
         },
         fileName: {
           type: 'string',
           description:
-            'Backward-compatible workspace filename. Prefer outputs.files[0].path for new calls.',
+            'Backward-compatible workspace filename. Prefer outputs.files[0].path for new calls; when using fileName, contentType is required.',
         },
         outputs: {
           type: 'object',
@@ -1195,7 +1195,8 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                 properties: {
                   mimeType: {
                     type: 'string',
-                    description: 'Optional MIME type override when inference is not enough.',
+                    description:
+                      'Required MIME type of the file, e.g. "text/markdown" for Markdown. This sets the file\'s stored type — the source of truth for how the file is treated. The extension in the name is cosmetic only and never determines the type.',
                   },
                   mode: {
                     type: 'string',
@@ -1207,7 +1208,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
                     description: 'Canonical destination VFS path, e.g. "files/Reports/result.csv".',
                   },
                 },
-                required: ['path', 'mode'],
+                required: ['path', 'mode', 'mimeType'],
               },
             },
           },
@@ -5337,7 +5338,7 @@ export const TOOL_RUNTIME_SCHEMAS: Record<string, ToolRuntimeSchemaEntry> = {
         contentType: {
           type: 'string',
           description:
-            'Optional MIME type override. Usually omit and let the system infer from the target file extension.',
+            "Optional MIME type override. Omit to keep the file's existing stored type; pass only to deliberately change it.",
           enum: [
             'text/markdown',
             'text/html',

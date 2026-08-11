@@ -10,7 +10,7 @@ import { updateWorkspaceFileContent } from '@/lib/uploads/contexts/workspace/wor
 import { getE2BDocFormat } from './doc-compile'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { consumeLatestFileIntent } from './file-intent-store'
-import { compileDocForWrite, getDocumentFormatInfo, inferContentType } from './workspace-file'
+import { compileDocForWrite, getDocumentFormatInfo } from './workspace-file'
 
 const logger = createLogger('EditContentServerTool')
 
@@ -218,14 +218,16 @@ export const editContentServerTool: BaseServerTool<EditContentArgs, EditContentR
       }
 
       // Compile once via the right engine (or isolated-vm fallback) and resolve
-      // the source MIME to store. Shared with the create path.
+      // the source MIME to store. Shared with the create path. Edits preserve the
+      // record's stored type — the load-bearing type lives in the type column,
+      // never in the name's extension — unless the caller explicitly converts.
       const compiled = await compileDocForWrite({
         source: finalContent,
         fileName: fileRecord.name,
         workspaceId,
         ownerKey: `user:${context.userId}`,
         signal: context.abortSignal,
-        fallbackMime: inferContentType(fileRecord.name, intent.contentType),
+        fallbackMime: intent.contentType || fileRecord.type,
       })
       if (!compiled.ok) {
         return { success: false, message: compiled.message }
