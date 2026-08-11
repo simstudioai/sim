@@ -136,6 +136,34 @@ import type {
   ToolCallInfo,
 } from '../types'
 
+export interface SendMessageOptions {
+  /**
+   * Stream id of a send a cleanup abort withdrew, when this call is the
+   * recovery of it. The dispatcher probes the id before sending and adopts the
+   * chat the server already created instead, when there is one.
+   */
+  recoverStreamId?: string
+}
+
+/**
+ * `true` when the send owns the transcript (rendered, or handed to reconnect),
+ * `false` when the caller should restore the queue entry, and the object form
+ * when a cleanup abort withdrew the send while its request was on the wire —
+ * `streamId` is what recovery probes before re-sending.
+ */
+type StartSendMessageResult = boolean | { kind: 'recoverable_cleanup_abort'; streamId: string }
+
+/**
+ * Outcome of asking the server whether it accepted the request a cleanup abort
+ * withdrew. `superseded` is deliberately distinct from `not_found`: the former
+ * means the answer is unknown because this dispatch is no longer current, and
+ * must not be treated as licence to re-send.
+ */
+type RecoveredSendProbe =
+  | { status: 'adopted'; chatId: string }
+  | { status: 'not_found' }
+  | { status: 'superseded' }
+
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
@@ -147,7 +175,8 @@ export interface UseChatReturn {
   sendMessage: (
     message: string,
     fileAttachments?: FileAttachmentForApi[],
-    contexts?: ChatContext[]
+    contexts?: ChatContext[],
+    options?: SendMessageOptions
   ) => Promise<void>
   stopGeneration: () => Promise<void>
   resources: MothershipResource[]
@@ -176,6 +205,16 @@ const RECONNECT_MAX_DELAY_MS = 30_000
 const STREAM_BATCH_FETCH_TIMEOUT_MS = 10_000
 const STREAM_CHAT_ID_RESOLVE_TIMEOUT_MS = 10_000
 const CHAT_HISTORY_RECOVERY_TIMEOUT_MS = 10_000
+/**
+ * How long a recovered send waits to find out whether the request its cleanup
+ * abort withdrew had in fact been accepted by the server. The server registers
+ * the stream early in the request (before it responds), so a short poll is
+ * enough; the ceiling is deliberately low because every millisecond here delays
+ * a send the user is watching for. Timing out re-sends, which is the safe
+ * direction: a lost message is worse than a rare duplicate.
+ */
+const RECOVERED_SEND_PROBE_TIMEOUT_MS = 2500
+const RECOVERED_SEND_PROBE_INTERVAL_MS = 250
 const STOP_REQUEST_TIMEOUT_MS = 15_000
 const QUEUED_SEND_HANDOFF_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff`
 const QUEUED_SEND_HANDOFF_CLAIM_STORAGE_KEY = `${STREAM_STORAGE_KEY}:queued-send-handoff-claim`
@@ -3347,7 +3386,8 @@ export function useChat(
     (
       message: string,
       fileAttachments?: FileAttachmentForApi[],
-      contexts?: ChatContext[]
+      contexts?: ChatContext[],
+      recoverStreamId?: string
     ): QueuedMothershipMessage => {
       const id = generateId()
       const handoffChatId = selectedChatIdRef.current ?? chatIdRef.current
@@ -3367,6 +3407,7 @@ export function useChat(
         content: message,
         fileAttachments,
         contexts,
+        ...(recoverStreamId ? { recoverStreamId } : {}),
         ...(supersededStreamId || handoffChatId
           ? {
               queuedSendHandoff: {
@@ -3456,7 +3497,7 @@ export function useChat(
       pendingStopOverride?: Promise<void> | null,
       onOptimisticSendApplied?: () => void,
       queuedSendHandoff?: QueuedSendHandoffSeed
-    ) => {
+    ): Promise<StartSendMessageResult> => {
       if (!message.trim() || !workspaceId) return false
       const pendingStop = pendingStopOverride ?? pendingStopPromiseRef.current
       const pendingStopStreamId = pendingStop
@@ -3836,12 +3877,19 @@ export function useChat(
           (err instanceof Error && err.name === 'AbortError') || sendAbortSignal?.aborted === true
         if (sendWasAborted) {
           if (sendAbortSignal?.reason === 'unmount:client_cleanup' && !sendReachedServer) {
-            /* The mount-settling remount ran the unmount cleanup while this
-               send was still pre-dispatch. Nothing reached the server, so the
-               send is fully recoverable: withdraw the optimistic pair and
-               report the distinct outcome so the dispatcher redelivers it. */
+            /* A remount (StrictMode's dev double-mount, or a real navigation
+               away) ran the unmount cleanup before this send's response headers
+               arrived. Nothing was rendered from it, so withdraw the optimistic
+               pair and report the distinct outcome so the dispatcher recovers
+               the message.
+
+               `sendReachedServer` only rules out a send whose RESPONSE landed —
+               the request itself may well have been accepted, and the route
+               never reads `request.signal`, so it runs to completion either
+               way. Recovery therefore carries `userMessageId` as the stream id
+               to probe before re-sending. */
             rollbackOptimisticSend()
-            return 'recoverable_cleanup_abort'
+            return { kind: 'recoverable_cleanup_abort', streamId: userMessageId }
           }
           return consumedByTranscript
         }
@@ -3895,7 +3943,12 @@ export function useChat(
     ]
   )
   const sendMessage = useCallback(
-    async (message: string, fileAttachments?: FileAttachmentForApi[], contexts?: ChatContext[]) => {
+    async (
+      message: string,
+      fileAttachments?: FileAttachmentForApi[],
+      contexts?: ChatContext[],
+      options?: SendMessageOptions
+    ) => {
       if (!message.trim() || !workspaceId) return
 
       const queueStore = useMothershipQueueStore.getState()
@@ -3922,23 +3975,30 @@ export function useChat(
         queueStore.setEditing(activeChatKey, null)
       }
 
+      const queued = createQueuedMessage(
+        message,
+        fileAttachments,
+        contexts,
+        options?.recoverStreamId
+      )
+
       if (sendingRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+        queueStore.enqueue(activeChatKey, queued)
         return
       }
 
       if (pendingStopPromiseRef.current) {
-        queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+        queueStore.enqueue(activeChatKey, queued)
         void enqueueQueueDispatchRef.current({ type: 'send_head' })
         return
       }
 
       /* Even an idle-path send goes through the durable queue: a direct
-         startSendMessage has no backing entry, so the cleanup abort that runs
-         when a Suspense hide/reveal cycles effects during mount-settling would
-         silently drop it. The dispatch loop claims the head immediately, so
-         the message never renders as queued. */
-      queueStore.enqueue(activeChatKey, createQueuedMessage(message, fileAttachments, contexts))
+         startSendMessage has no backing entry, so a cleanup abort mid-flight
+         silently drops it. The dispatch loop claims the head in the same tick
+         for a chatless send; a chat-bound one yields once on `cancelQueries`
+         first, so it can briefly show as queued. */
+      queueStore.enqueue(activeChatKey, queued)
       void enqueueQueueDispatchRef.current({ type: 'send_head' })
     },
     [workspaceId, createQueuedMessage]
@@ -4449,6 +4509,49 @@ export function useChat(
     ]
   )
 
+  /**
+   * Answers "did the server accept the request that a cleanup abort withdrew?"
+   * by polling for the stream it would have registered.
+   *
+   * The abort tears down the client's socket but the route handler never reads
+   * `request.signal`, so an accepted request still creates the chat, persists
+   * the user message, and runs the turn. Re-sending in that case bills a second
+   * run and leaves the user with two chats, so recovery adopts the existing
+   * chat instead whenever this resolves one.
+   *
+   * @returns The chat the orphaned stream belongs to, or `undefined` when the
+   * server has no such stream (never accepted, or already gone) — in which case
+   * the caller re-sends.
+   */
+  const resolveRecoveredSendChatId = useCallback(
+    async (streamId: string, epoch: number): Promise<RecoveredSendProbe> => {
+      const deadline = Date.now() + RECOVERED_SEND_PROBE_TIMEOUT_MS
+      while (true) {
+        const resolve = resolveDetachedChatForStreamRef.current
+        if (!resolve) return { status: 'not_found' }
+        /* "Superseded" is NOT the same answer as "the server has no such
+           stream", and the caller must not conflate them: adopting rewrites
+           the URL, and re-sending after an unmount would open a POST whose
+           abort controller the teardown has already dropped — a zombie request
+           nothing can cancel, duplicating the very send this recovery exists
+           to protect. Reported distinctly so the caller leaves the entry
+           queued for a later mount instead. */
+        if (epoch !== queueDispatchEpochRef.current) return { status: 'superseded' }
+        const resolution = await resolve(streamId)
+        if (epoch !== queueDispatchEpochRef.current) return { status: 'superseded' }
+        if (resolution.chatId) return { status: 'adopted', chatId: resolution.chatId }
+        // A terminal status means the stream existed and finished without a
+        // durable owner; polling cannot improve on that.
+        if (resolution.terminal) return { status: 'not_found' }
+        if (Date.now() + RECOVERED_SEND_PROBE_INTERVAL_MS >= deadline) {
+          return { status: 'not_found' }
+        }
+        await sleep(RECOVERED_SEND_PROBE_INTERVAL_MS)
+      }
+    },
+    []
+  )
+
   const dispatchQueuedMessage = useCallback(
     async (
       msg: QueuedMothershipMessage,
@@ -4483,10 +4586,32 @@ export function useChat(
         useMothershipQueueStore.getState().remove(dispatchChatKey, msg.id)
       }
 
-      const restoreQueuedMessage = (
-        handoff?: QueuedSendHandoffSeed,
-        recoverableCleanupAbort = false
-      ) => {
+      /**
+       * Hands a chatless send to whatever surface comes next, because its
+       * `pending::` queue key is regenerated per mount and anything left under
+       * this one is unreachable. Prefers the live replacement surface's
+       * listener and falls back to a one-shot stored handoff for a real
+       * navigation away. Both lanes carry attachments and the stream id, so the
+       * next surface probes before it sends.
+       */
+      const handOffChatlessRecovery = (recoverStreamId?: string) => {
+        if (
+          !sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments, recoverStreamId)
+        ) {
+          MothershipHandoffStorage.store(
+            {
+              message: msg.content,
+              ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
+              ...(msg.fileAttachments?.length ? { fileAttachments: msg.fileAttachments } : {}),
+              ...(recoverStreamId ? { recoverStreamId } : {}),
+            },
+            workspaceId
+          )
+        }
+      }
+
+      const restoreQueuedMessage = (handoff?: QueuedSendHandoffSeed, recoverStreamId?: string) => {
+        const recoverableCleanupAbort = recoverStreamId !== undefined
         if (!handoff) {
           clearQueuedSendHandoffState(msg.id)
         }
@@ -4508,22 +4633,17 @@ export function useChat(
            key. Deliver to the replacement surface instead: its send listener
            is live by the time this microtask executes. When nothing claims the
            event (a real navigation away), a one-shot handoff covers the next
-           mount; both lanes carry attachments. Chat-bound sends keep the queue
-           restore — their key is the stable chat id. */
+           mount; both lanes carry attachments and the stream id to probe.
+           Chat-bound sends keep the queue restore — their key is the stable
+           chat id — and carry the stream id on the restored entry. */
         if (recoverableCleanupAbort && dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
-          if (!sendMothershipMessage(msg.content, msg.contexts, msg.fileAttachments)) {
-            MothershipHandoffStorage.store(
-              {
-                message: msg.content,
-                ...(msg.contexts?.length ? { contexts: msg.contexts } : {}),
-                ...(msg.fileAttachments?.length ? { fileAttachments: msg.fileAttachments } : {}),
-              },
-              workspaceId
-            )
-          }
+          handOffChatlessRecovery(recoverStreamId)
           return
         }
-        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, msg)
+        useMothershipQueueStore.getState().insertAt(dispatchChatKey, originalIndex, {
+          ...msg,
+          ...(recoverStreamId ? { recoverStreamId } : {}),
+        })
       }
 
       let activeQueuedSendHandoff: QueuedSendHandoffSeed | undefined =
@@ -4541,6 +4661,52 @@ export function useChat(
         // between dispatch scheduling and this send.
         const liveMsg = queueAtSend[currentIndex]
         activeQueuedSendHandoff = options.queuedSendHandoff ?? liveMsg.queuedSendHandoff
+
+        /* This entry is the recovery of a send a cleanup abort withdrew while
+           its request was already on the wire. The server never sees that
+           abort, so if it had accepted the request it created the chat and
+           persisted the message regardless — re-sending would duplicate both
+           the chat and the billed run. Probe the orphaned stream first and
+           adopt its chat instead when it exists. */
+        if (liveMsg.recoverStreamId) {
+          const probe = await resolveRecoveredSendChatId(liveMsg.recoverStreamId, options.epoch)
+          /* Unknown, not "safe to send". A chat-bound key is the stable chat
+             id, so leaving the entry queued IS the retry — the next mount's
+             drain probes again. A chatless `pending::` key is regenerated per
+             mount, so the same move would strand the message under a dead key;
+             hand it to the recovery lanes instead, still carrying the stream
+             id. Skipped when the entry is no longer under this key (adoption
+             migrated it to a live chat), where it is already recoverable. */
+          if (probe.status === 'superseded') {
+            if (dispatchChatKey.startsWith(PENDING_CHAT_KEY_PREFIX)) {
+              const queueStore = useMothershipQueueStore.getState()
+              const stillUnderDeadKey = (queueStore.queues[dispatchChatKey] ?? []).some(
+                (queued) => queued.id === msg.id
+              )
+              if (stillUnderDeadKey) {
+                queueStore.remove(dispatchChatKey, msg.id)
+                handOffChatlessRecovery(liveMsg.recoverStreamId)
+              }
+            }
+            return
+          }
+          if (probe.status === 'adopted') {
+            removeQueuedMessage()
+            adoptResolvedChatId(probe.chatId, {
+              replaceHomeHistory: true,
+              invalidateList: true,
+            })
+            /* Adoption alone does not surface the running turn. Hydration only
+               reconnects when `chatHistory.activeStreamId` is set, and that
+               query is cached for `MOTHERSHIP_CHAT_HISTORY_STALE_TIME` — on a
+               chat-bound recover the client usually holds a copy predating this
+               stream, so without an explicit detail invalidation the adopted
+               chat renders with the live response invisible. */
+            invalidateChatQueries({ includeDetail: true, targetChatId: probe.chatId })
+            return
+          }
+        }
+
         const sendResult = await startSendMessage(
           liveMsg.content,
           liveMsg.fileAttachments,
@@ -4551,7 +4717,10 @@ export function useChat(
         )
 
         if (sendResult !== true) {
-          restoreQueuedMessage(activeQueuedSendHandoff, sendResult === 'recoverable_cleanup_abort')
+          restoreQueuedMessage(
+            activeQueuedSendHandoff,
+            typeof sendResult === 'object' ? sendResult.streamId : undefined
+          )
         }
       } catch {
         restoreQueuedMessage(activeQueuedSendHandoff)
@@ -4561,7 +4730,13 @@ export function useChat(
         userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
-    [startSendMessage, workspaceId]
+    [
+      startSendMessage,
+      workspaceId,
+      resolveRecoveredSendChatId,
+      adoptResolvedChatId,
+      invalidateChatQueries,
+    ]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {

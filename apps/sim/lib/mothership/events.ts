@@ -27,6 +27,13 @@ export interface MothershipSendMessageDetail {
   contexts?: ChatContext[]
   /** Already-uploaded attachments riding along with the message. */
   fileAttachments?: FileAttachmentForApi[]
+  /**
+   * Set only when a cleanup abort withdrew an in-flight send and this is the
+   * recovery of it: the aborted send's stream id. The receiving chat probes it
+   * before sending, so a request the server had already accepted is adopted
+   * rather than sent a second time.
+   */
+  recoverStreamId?: string
 }
 
 /**
@@ -41,7 +48,8 @@ export interface MothershipSendMessageDetail {
 export function sendMothershipMessage(
   message: string,
   contexts?: ChatContext[],
-  fileAttachments?: FileAttachmentForApi[]
+  fileAttachments?: FileAttachmentForApi[],
+  recoverStreamId?: string
 ): boolean {
   const trimmed = message.trim()
   if (!trimmed) {
@@ -52,6 +60,7 @@ export function sendMothershipMessage(
     message: trimmed,
     contexts,
     fileAttachments,
+    ...(recoverStreamId ? { recoverStreamId } : {}),
   })
   logger.info('Dispatched mothership message event', { messageLength: trimmed.length, consumed })
   return consumed
