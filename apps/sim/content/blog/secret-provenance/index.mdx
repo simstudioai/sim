@@ -78,7 +78,7 @@ Boundaries fall into four categories, and they behave differently enough to be w
 
 **Durable storage.** Files, table cells, knowledge base documents and agent memory all outlive the run that produced them. If provenance stopped at the end of an execution, a secret written in one run and read back in another would launder itself through storage. So durable writes carry an encrypted provenance record and a version marker alongside the content. An empty marker means the row predates the system and is treated as legacy; a set marker means the record has to match. Content whose provenance cannot be established is marked `unknown`, which is deliberately a different state from clean rather than a synonym for it.
 
-Not every surface enforces that state at the same strictness yet. Workspace files refuse an unknown classification outright; the others are being brought up to the same bar one at a time, behind configuration, because switching refusal on everywhere at once would reject a large volume of rows written before any of this existed.
+Enforcing that is a rollout, and it is deliberately opt-*out*. A caller that names no surface refuses an `unknown` classification outright, which is what anything unreviewed gets by default. The surfaces that do name one — agent memory, table rows, knowledge documents — currently record the gap instead of failing the run, while enforcement is switched on one surface at a time.
 
 **Tool results.** A result crossing back into the model goes through the same machinery, against the JSON-normalized value rather than the raw string, so a secret that arrives as a number, a boolean, or a nested field is handled rather than only the top-level strings.
 
