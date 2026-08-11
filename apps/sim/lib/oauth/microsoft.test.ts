@@ -2,9 +2,47 @@
  * @vitest-environment node
  */
 import { describe, expect, it } from 'vitest'
-import { deriveMicrosoftEmailVerified, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  deriveMicrosoftEmailVerified,
+  isMicrosoftProvider,
+  mapMicrosoftProfileToUser,
+} from '@/lib/oauth/microsoft'
 
 const EMAIL = 'user@contoso.com'
+
+describe('mapMicrosoftProfileToUser', () => {
+  it('marks the email verified when Entra asserts domain ownership', () => {
+    expect(mapMicrosoftProfileToUser({ email: EMAIL, xms_edov: true })).toEqual({
+      emailVerified: true,
+    })
+  })
+
+  it('accepts the string and numeric encodings Entra uses for xms_edov', () => {
+    for (const edov of ['true', '1', 1]) {
+      expect(mapMicrosoftProfileToUser({ email: EMAIL, xms_edov: edov })).toEqual({
+        emailVerified: true,
+      })
+    }
+  })
+
+  /**
+   * The nOAuth case: a hostile tenant sets `email` to a victim's address but
+   * cannot verify that domain, so `xms_edov` is absent or false.
+   */
+  it('does not vouch for an email the tenant has not verified', () => {
+    expect(mapMicrosoftProfileToUser({ email: 'victim@target.com' })).toEqual({})
+    expect(mapMicrosoftProfileToUser({ email: 'victim@target.com', xms_edov: false })).toEqual({})
+    expect(mapMicrosoftProfileToUser({ email: 'victim@target.com', xms_edov: '0' })).toEqual({})
+  })
+
+  /**
+   * Better Auth spreads this over its own derived profile, so an empty object
+   * must leave `emailVerified` alone rather than forcing it to `false`.
+   */
+  it('returns no key at all when unverified, so it can never downgrade', () => {
+    expect('emailVerified' in mapMicrosoftProfileToUser({ email: EMAIL })).toBe(false)
+  })
+})
 
 describe('deriveMicrosoftEmailVerified', () => {
   it('honors an explicit email_verified=true claim', () => {

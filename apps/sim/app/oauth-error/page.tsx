@@ -33,6 +33,21 @@ const FRIENDLY: Record<string, string> = {
    */
   signup_disabled:
     'Account creation is disabled on this instance. Ask your admin to create an account for you.',
+  /**
+   * An account already exists for this email but the provider doesn't assert a
+   * verified email, so Better Auth refuses to link (see
+   * `accountLinking.trustedProviders`). Retrying reproduces it exactly, so the
+   * generic "try again" strands the user — name the recovery path instead.
+   */
+  account_not_linked:
+    'An account already exists for this email address. Sign in using the method you originally signed up with.',
+  /**
+   * The provider returned no email claim — for Microsoft work accounts, the
+   * directory's mail attribute is unset or the `email` optional claim isn't
+   * configured on the app registration.
+   */
+  email_not_found:
+    'Your identity provider didn’t share an email address with us, so we couldn’t complete sign-in. Please contact your administrator.',
 }
 
 function messageForError(code: string | undefined): string {

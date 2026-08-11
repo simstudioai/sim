@@ -55,6 +55,45 @@ export function deriveMicrosoftEmailVerified(
 }
 
 /**
+ * True when Entra asserts the token's email is domain-verified via the
+ * `xms_edov` optional claim — emitted only when the email's domain belongs to
+ * the user's own tenant and a tenant admin verified that domain. This is the
+ * one email signal a hostile tenant cannot forge (the nOAuth attack turns on
+ * `email` being freely settable), and Microsoft's documented mitigation.
+ *
+ * The claim requires `xms_edov` and `email` to be configured as optional
+ * claims on the app registration; when absent this returns `false` and callers
+ * fall back to the prior behavior unchanged.
+ *
+ * @see https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference
+ */
+function isMicrosoftEmailDomainVerified(claims: Record<string, unknown>): boolean {
+  const edov = claims.xms_edov
+  return edov === true || edov === 'true' || edov === 1 || edov === '1'
+}
+
+/**
+ * Raises `emailVerified` for Microsoft *sign-in* when — and only when — Entra
+ * asserts domain ownership. Better Auth spreads this result over its own
+ * derived profile, so returning an empty object leaves its computation
+ * untouched: this can promote an unverified email to verified, never the
+ * reverse.
+ *
+ * Why it matters: `microsoft` is deliberately absent from
+ * `accountLinking.trustedProviders`, so Better Auth refuses to link a Microsoft
+ * identity onto an existing user row unless the IdP asserts a verified email.
+ * Entra never emits `email_verified` for work/school accounts, so without this
+ * every user who already has a Sim account is permanently locked out of the
+ * Microsoft button with an `account_not_linked` error. `xms_edov` is what lets
+ * the honest case through while still refusing the forged one.
+ */
+export function mapMicrosoftProfileToUser(
+  profile: Record<string, unknown>
+): { emailVerified: true } | Record<string, never> {
+  return isMicrosoftEmailDomainVerified(profile) ? { emailVerified: true } : {}
+}
+
+/**
  * Extracts user info from a Microsoft ID token JWT instead of calling Graph API /me.
  * This avoids 403 errors for external tenant users whose admin hasn't consented to Graph API scopes.
  * The ID token is always returned when the openid scope is requested.

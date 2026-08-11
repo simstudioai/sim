@@ -96,7 +96,11 @@ import { quickValidateEmail } from '@/lib/messaging/email/validation'
 import { validateSignupEmailMx } from '@/lib/messaging/email/validation.server'
 import { isEmailVerificationEffectivelyEnabled } from '@/lib/messaging/email/verification'
 import { scheduleLifecycleEmail } from '@/lib/messaging/lifecycle'
-import { getMicrosoftRefreshTokenExpiry, isMicrosoftProvider } from '@/lib/oauth/microsoft'
+import {
+  getMicrosoftRefreshTokenExpiry,
+  isMicrosoftProvider,
+  mapMicrosoftProfileToUser,
+} from '@/lib/oauth/microsoft'
 import {
   isSalesforceLoginOrigin,
   isSalesforceOAuthProviderId,
@@ -756,6 +760,15 @@ export const auth = betterAuth({
             clientId: env.MICROSOFT_CLIENT_ID,
             clientSecret: env.MICROSOFT_CLIENT_SECRET,
             scope: ['openid', 'profile', 'email'],
+            ...(env.MICROSOFT_TENANT_ID ? { tenantId: env.MICROSOFT_TENANT_ID } : {}),
+            /**
+             * Without this, `/common/` silently reuses whichever Microsoft
+             * session the browser already holds, so someone signed into a
+             * personal account never gets to pick their work account — and
+             * lands on an orphan Sim account under the wrong address.
+             */
+            prompt: 'select_account' as const,
+            mapProfileToUser: mapMicrosoftProfileToUser,
           },
         }),
     },
