@@ -69,6 +69,17 @@ describe('GET /api/v2/billing/status', () => {
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')
   })
 
+  it('serializes a withheld payer pool as null without failing response validation', async () => {
+    mocks.execute.mockResolvedValueOnce({ ...result, credits: null, storage: null })
+
+    const response = await GET(
+      new NextRequest('http://localhost:3000/api/v2/billing/status?workspaceId=workspace-1')
+    )
+
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ data: { ...result, credits: null, storage: null } })
+  })
+
   it('projects typed workspace-policy errors', async () => {
     mocks.execute.mockRejectedValueOnce(
       new OrchestrationError('forbidden', 'API key is not authorized for this workspace')

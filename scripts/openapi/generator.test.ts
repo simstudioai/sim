@@ -560,17 +560,25 @@ describe('OpenAPI generator', () => {
     const billingStatus = schemas.V2BillingStatus as JsonObject
     const dataProperties = billingStatus.properties as JsonObject
     const storage = dataProperties.storage as JsonObject
+    const credits = dataProperties.credits as JsonObject
 
     expect(Object.keys(paths).sort()).toEqual(['/api/v2/billing/logs', '/api/v2/billing/status'])
     expect(data.$ref).toBe('#/components/schemas/V2BillingStatus')
-    expect(storage).toMatchObject({
-      required: ['usedBytes', 'limitBytes', 'percentUsed'],
-      properties: {
-        usedBytes: { type: 'number', minimum: 0 },
-        limitBytes: { type: 'number', minimum: 0 },
-        percentUsed: { type: 'number', minimum: 0 },
-      },
-    })
+    expect(storage.anyOf).toEqual([
+      expect.objectContaining({
+        required: ['usedBytes', 'limitBytes', 'percentUsed'],
+        properties: {
+          usedBytes: expect.objectContaining({ type: 'number', minimum: 0 }),
+          limitBytes: expect.objectContaining({ type: 'number', minimum: 0 }),
+          percentUsed: expect.objectContaining({ type: 'number', minimum: 0 }),
+        },
+      }),
+      { type: 'null' },
+    ])
+    expect(credits.anyOf).toEqual([
+      expect.objectContaining({ required: ['used', 'limit', 'remaining'] }),
+      { type: 'null' },
+    ])
   })
 
   it('uses string wire values for transformed boolean defaults', () => {
