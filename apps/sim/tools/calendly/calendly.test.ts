@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { createEventInviteeTool } from '@/tools/calendly/create_event_invitee'
 import { createInviteeNoShowTool } from '@/tools/calendly/create_invitee_no_show'
+import { createWebhookTool } from '@/tools/calendly/create_webhook'
 import { getEventInviteeTool } from '@/tools/calendly/get_event_invitee'
 import { listEventTypesTool } from '@/tools/calendly/list_event_types'
 import { listScheduledEventsTool } from '@/tools/calendly/list_scheduled_events'
@@ -144,5 +145,38 @@ describe('calendly booking', () => {
         inviteeUuid: 'i-1',
       })
     ).toBe('https://api.calendly.com/scheduled_events/e-1/invitees/i-1')
+  })
+})
+
+describe('calendly webhook subscriptions', () => {
+  it('normalizes the organization and user identifiers when creating a webhook', () => {
+    expect(
+      buildBody(createWebhookTool, {
+        apiKey: 'k',
+        url: 'https://example.com/hook',
+        events: ['invitee.created'],
+        organization: 'org-1',
+        scope: 'user',
+        user: 'user-1',
+      })
+    ).toEqual({
+      url: 'https://example.com/hook',
+      events: ['invitee.created'],
+      organization: 'https://api.calendly.com/organizations/org-1',
+      scope: 'user',
+      user: 'https://api.calendly.com/users/user-1',
+    })
+  })
+
+  it('accepts webhook events supplied as a json string', () => {
+    const body = buildBody(createWebhookTool, {
+      apiKey: 'k',
+      url: 'https://example.com/hook',
+      events: '["invitee.created","invitee.canceled"]',
+      organization: 'https://api.calendly.com/organizations/org-1',
+      scope: 'organization',
+    })
+
+    expect(body.events).toEqual(['invitee.created', 'invitee.canceled'])
   })
 })
