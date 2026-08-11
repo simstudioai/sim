@@ -33,6 +33,7 @@ import type {
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
   folderRow,
@@ -110,8 +111,8 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
 
 const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
-const ROOT_BREADCRUMB_LABEL = 'Knowledge bases'
 const FOLDER_RESOURCE_TYPE = 'knowledge_base' as const
+const ROOT_BREADCRUMB_LABEL = FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootLabel
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
@@ -906,7 +907,7 @@ export function Knowledge() {
     () =>
       folderBreadcrumbItems({
         rootLabel: ROOT_BREADCRUMB_LABEL,
-        rootIcon: Database,
+        rootIcon: FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon,
         breadcrumbs,
         onNavigate: setCurrentFolderId,
         currentFolderEditing:
@@ -1106,7 +1107,7 @@ export function Knowledge() {
     <>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={Database}
+          icon={FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon}
           title={ROOT_BREADCRUMB_LABEL}
           breadcrumbs={listBreadcrumbs}
           actions={headerActions}

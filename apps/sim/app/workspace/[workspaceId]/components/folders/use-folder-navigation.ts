@@ -1,13 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useMemo } from 'react'
+import { useCallback, useEffect } from 'react'
 import { useQueryStates } from 'nuqs'
 import type { ServedFolderResourceType } from '@/lib/api/contracts/folders'
 import {
   folderNavParsers,
   folderNavUrlKeys,
 } from '@/app/workspace/[workspaceId]/components/folders/search-params'
-import { useFolders } from '@/hooks/queries/folders'
+import { useFolderAncestors } from '@/app/workspace/[workspaceId]/components/folders/use-folder-ancestors'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
 export interface UseFolderNavigationOptions {
@@ -41,8 +41,6 @@ export interface FolderNavigation {
   foldersResolved: boolean
 }
 
-const EMPTY_FOLDERS: WorkflowFolder[] = []
-
 /**
  * URL-backed folder navigation for a foldered resource list. Deliberately
  * resourceType-agnostic — the Workflows, Files, Knowledge, and Tables trees are separate
@@ -61,21 +59,11 @@ export function useFolderNavigation({
     folderNavUrlKeys
   )
 
-  const {
-    data: folders = EMPTY_FOLDERS,
-    isSuccess,
-    isPlaceholderData,
-  } = useFolders(workspaceId, { resourceType })
-
-  /**
-   * The folder list is only trustworthy enough to evict a `folderId` when the query has
-   * actually succeeded for THIS workspace. `isLoading` alone is not that signal: it is false
-   * for a disabled query (no `workspaceId`), false for an errored one, and — because
-   * `useFolders` sets `keepPreviousData` — false while showing the previous workspace's
-   * folders during a workspace switch. In all three the list is empty or stale, and healing
-   * off it would throw away a perfectly good folder.
-   */
-  const foldersResolved = isSuccess && !isPlaceholderData
+  const { ancestors, folders, folderById, foldersResolved } = useFolderAncestors({
+    resourceType,
+    workspaceId,
+    folderId: currentFolderId,
+  })
 
   const setCurrentFolderId = useCallback(
     (folderId: string | null) => {
@@ -83,12 +71,6 @@ export function useFolderNavigation({
     },
     [setFolderParams]
   )
-
-  const folderById = useMemo(() => {
-    const byId = new Map<string, WorkflowFolder>()
-    for (const folder of folders) byId.set(folder.id, folder)
-    return byId
-  }, [folders])
 
   /**
    * Heals a `?folderId=` that no longer resolves — a bookmark to a folder since deleted, or a
@@ -114,34 +96,10 @@ export function useFolderNavigation({
     void setFolderParams({ folderId: null }, { history: 'replace' })
   }, [foldersResolved, currentFolderId, folderById, setFolderParams])
 
-  const breadcrumbs = useMemo(() => {
-    if (!currentFolderId) return EMPTY_FOLDERS
-
-    /**
-     * Walks up via `parentId` rather than splitting a materialized path — the generic
-     * folder table stores no path — and guards against a cycle, which the DB permits
-     * between constraint checks. An unresolvable link collapses the whole trail so the
-     * header falls back to the root title instead of rendering a partial path.
-     */
-    const chain: WorkflowFolder[] = []
-    const seen = new Set<string>()
-    let cursor: string | null = currentFolderId
-
-    while (cursor && !seen.has(cursor)) {
-      seen.add(cursor)
-      const folder: WorkflowFolder | undefined = folderById.get(cursor)
-      if (!folder) return EMPTY_FOLDERS
-      chain.unshift(folder)
-      cursor = folder.parentId
-    }
-
-    return chain
-  }, [currentFolderId, folderById])
-
   return {
     currentFolderId,
     setCurrentFolderId,
-    breadcrumbs,
+    breadcrumbs: ancestors,
     folders,
     folderById,
     foldersResolved,

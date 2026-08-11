@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import { Chip, ChipConfirmModal, toast } from '@sim/emcn'
-import { Download, Lock, Pencil, Table as TableIcon, Trash, Upload } from '@sim/emcn/icons'
+import { Download, Lock, Pencil, Trash, Upload } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -28,6 +28,12 @@ import {
   Resource,
   type SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
+import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { PresenceAvatars } from '@/app/workspace/[workspaceId]/components/presence/presence-avatars'
 import { LogDetails } from '@/app/workspace/[workspaceId]/logs/components'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
@@ -1002,9 +1008,24 @@ export function Table({
     },
   })
 
-  const handleNavigateBack = useCallback(() => {
-    router.push(`/workspace/${workspaceId}/tables`)
-  }, [router, workspaceId])
+  /**
+   * The table's own folder trail, so the header reads `Tables / Reports / Q3` exactly as the
+   * list does one level up — and as a file's header does. Skipped in embedded mode, which
+   * renders no header at all.
+   */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'table',
+    workspaceId,
+    folderId: tableData?.folderId,
+    enabled: !embedded,
+  })
+
+  const handleNavigateToFolder = useCallback(
+    (folderId: string | null) => {
+      router.push(folderedResourceListHref('table', workspaceId, folderId))
+    },
+    [router, workspaceId]
+  )
 
   const handleStartTableRename = useCallback(() => {
     const data = tableDataRef.current
@@ -1078,55 +1099,63 @@ export function Table({
   }
 
   const breadcrumbs = useMemo(
-    (): BreadcrumbItem[] => [
-      { label: 'Tables', onClick: handleNavigateBack },
-      // While the table loads, mirror this route's loading.tsx (terminal "…" crumb)
-      // so no empty-label / orphaned-chevron frame renders in between.
-      tableData
-        ? {
-            label: tableData.name,
-            editing: tableHeaderRename.editingId
-              ? {
-                  isEditing: true,
-                  value: tableHeaderRename.editValue,
-                  onChange: tableHeaderRename.setEditValue,
-                  onSubmit: tableHeaderRename.submitRename,
-                  onCancel: tableHeaderRename.cancelRename,
-                }
-              : undefined,
-            dropdownItems: [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                onClick: handleStartTableRename,
-              },
-              // Reachable with the flag off when something is locked, so an
-              // admin can always clear locks (the route allows clearing).
-              ...(userPermissions.canAdmin &&
-              (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
-                ? [
-                    {
-                      label: 'Lock settings',
-                      icon: Lock,
-                      onClick: () => setShowLockSettings(true),
-                    },
-                  ]
-                : []),
-              {
-                label: 'Delete',
-                icon: Trash,
-                onClick: onRequestDeleteTable,
-                disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
-              },
-            ],
-          }
-        : { label: '…', terminal: true },
-    ],
+    (): BreadcrumbItem[] =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.table.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.table.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavigateToFolder,
+        trailing: [
+          // While the table loads, mirror this route's loading.tsx (terminal "…" crumb)
+          // so no empty-label / orphaned-chevron frame renders in between.
+          tableData
+            ? {
+                label: tableData.name,
+                editing: tableHeaderRename.editingId
+                  ? {
+                      isEditing: true,
+                      value: tableHeaderRename.editValue,
+                      onChange: tableHeaderRename.setEditValue,
+                      onSubmit: tableHeaderRename.submitRename,
+                      onCancel: tableHeaderRename.cancelRename,
+                    }
+                  : undefined,
+                dropdownItems: [
+                  {
+                    label: 'Rename',
+                    icon: Pencil,
+                    onClick: handleStartTableRename,
+                  },
+                  // Reachable with the flag off when something is locked, so an
+                  // admin can always clear locks (the route allows clearing).
+                  ...(userPermissions.canAdmin &&
+                  (tableLocksEnabled || lockedNouns(tableData.locks).length > 0)
+                    ? [
+                        {
+                          label: 'Lock settings',
+                          icon: Lock,
+                          onClick: () => setShowLockSettings(true),
+                        },
+                      ]
+                    : []),
+                  {
+                    label: 'Delete',
+                    icon: Trash,
+                    onClick: onRequestDeleteTable,
+                    disabled: userPermissions.canEdit !== true || tableData.locks.deleteLocked,
+                  },
+                ],
+              }
+            : { label: '…', terminal: true },
+        ],
+      }),
     [
-      handleNavigateBack,
+      folderChain,
+      handleNavigateToFolder,
       userPermissions.canAdmin,
       userPermissions.canEdit,
       tableData,
+      tableLocksEnabled,
       tableHeaderRename.editingId,
       tableHeaderRename.editValue,
       tableHeaderRename.setEditValue,
@@ -1332,7 +1361,7 @@ export function Table({
     <Resource>
       {!embedded && (
         <Resource.Header
-          icon={TableIcon}
+          icon={FOLDERED_RESOURCE_HEADERS.table.rootIcon}
           breadcrumbs={breadcrumbs}
           aside={
             <div className='flex items-center gap-1.5'>

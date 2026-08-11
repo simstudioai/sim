@@ -51,6 +51,12 @@ import type {
   SortConfig,
 } from '@/app/workspace/[workspaceId]/components'
 import { FloatingOverflowText, Resource } from '@/app/workspace/[workspaceId]/components'
+import {
+  FOLDERED_RESOURCE_HEADERS,
+  folderBreadcrumbItems,
+  folderedResourceListHref,
+  useFolderAncestors,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import { DocumentTagsModal } from '@/app/workspace/[workspaceId]/knowledge/[id]/[documentId]/components'
 import {
   ActionBar,
@@ -448,6 +454,23 @@ export function KnowledgeBase({
    */
   const knowledgeBaseCrumbLabel = knowledgeBase?.name || passedKnowledgeBaseName || '…'
   const error = knowledgeBaseError || documentsError
+
+  /**
+   * The base's own folder trail, so the header reads `Knowledge Base / Research / Papers`
+   * exactly as the list does one level up.
+   */
+  const { ancestors: folderChain } = useFolderAncestors({
+    resourceType: 'knowledge_base',
+    workspaceId,
+    folderId: knowledgeBase?.folderId,
+  })
+
+  const handleNavigateToFolder = useCallback(
+    (folderId: string | null) => {
+      router.push(folderedResourceListHref('knowledge_base', workspaceId, folderId))
+    },
+    [router, workspaceId]
+  )
 
   const totalPages = Math.ceil(pagination.total / pagination.limit)
 
@@ -870,64 +893,99 @@ export function KnowledgeBase({
     setContextMenuDocument(null)
   }, [closeContextMenu])
 
-  const breadcrumbs: BreadcrumbItem[] = [
-    {
-      label: 'Knowledge bases',
-      icon: Database,
-      onClick: () => router.push(`/workspace/${workspaceId}/knowledge`),
-    },
-    {
-      label: knowledgeBaseCrumbLabel,
-      icon: Database,
-      editing: kbRename.editingId
-        ? {
-            isEditing: true,
-            value: kbRename.editValue,
-            onChange: kbRename.setEditValue,
-            onSubmit: kbRename.submitRename,
-            onCancel: kbRename.cancelRename,
-            disabled: kbRename.isSaving,
-          }
-        : undefined,
-      dropdownItems: [
-        ...(userPermissions.canEdit || userPermissions.isLoading
-          ? [
-              {
-                label: 'Rename',
-                icon: Pencil,
-                disabled: !userPermissions.canEdit,
-                onClick: () => kbRename.startRename(id, knowledgeBaseName),
-              },
-              {
-                label: 'Tags',
-                icon: TagIcon,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowTagsModal(true),
-              },
-              {
-                label: 'Delete',
-                icon: Trash,
-                disabled: !userPermissions.canEdit,
-                onClick: () => setShowDeleteDialog(true),
-              },
-            ]
-          : []),
-      ],
-    },
-  ]
-
-  const headerActions: ResourceAction[] = [
-    ...(userPermissions.canEdit || userPermissions.isLoading
-      ? [
+  const breadcrumbs: BreadcrumbItem[] = useMemo(
+    () =>
+      folderBreadcrumbItems({
+        rootLabel: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel,
+        rootIcon: FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon,
+        breadcrumbs: folderChain,
+        onNavigate: handleNavigateToFolder,
+        trailing: [
           {
-            text: 'New connector',
-            icon: Plus,
-            disabled: !userPermissions.canEdit,
-            onSelect: () => setShowAddConnectorModal(true),
+            label: knowledgeBaseCrumbLabel,
+            icon: Database,
+            editing: kbRename.editingId
+              ? {
+                  isEditing: true,
+                  value: kbRename.editValue,
+                  onChange: kbRename.setEditValue,
+                  onSubmit: kbRename.submitRename,
+                  onCancel: kbRename.cancelRename,
+                  disabled: kbRename.isSaving,
+                }
+              : undefined,
+            dropdownItems: [
+              ...(userPermissions.canEdit || userPermissions.isLoading
+                ? [
+                    {
+                      label: 'Rename',
+                      icon: Pencil,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => kbRename.startRename(id, knowledgeBaseName),
+                    },
+                    {
+                      label: 'Tags',
+                      icon: TagIcon,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowTagsModal(true),
+                    },
+                    {
+                      label: 'Delete',
+                      icon: Trash,
+                      disabled: !userPermissions.canEdit,
+                      onClick: () => setShowDeleteDialog(true),
+                    },
+                  ]
+                : []),
+            ],
           },
-        ]
-      : []),
-  ]
+        ],
+      }),
+    [
+      folderChain,
+      handleNavigateToFolder,
+      knowledgeBaseCrumbLabel,
+      knowledgeBaseName,
+      id,
+      kbRename.editingId,
+      kbRename.editValue,
+      kbRename.isSaving,
+      kbRename.setEditValue,
+      kbRename.submitRename,
+      kbRename.cancelRename,
+      kbRename.startRename,
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+    ]
+  )
+
+  const headerActions: ResourceAction[] = useMemo(
+    () => [
+      ...(userPermissions.canEdit || userPermissions.isLoading
+        ? [
+            {
+              text: 'New connector',
+              icon: Plus,
+              disabled: !userPermissions.canEdit,
+              onSelect: () => setShowAddConnectorModal(true),
+            },
+          ]
+        : []),
+      {
+        text: 'New documents',
+        icon: Plus,
+        onSelect: handleAddDocuments,
+        disabled: userPermissions.canEdit !== true,
+        variant: 'primary',
+      },
+    ],
+    [
+      userPermissions.canEdit,
+      userPermissions.isLoading,
+      setShowAddConnectorModal,
+      handleAddDocuments,
+    ]
+  )
 
   const sortConfig: SortConfig = useMemo(
     () => ({
@@ -1181,19 +1239,10 @@ export function KnowledgeBase({
     <>
       <Resource onContextMenu={handleEmptyContextMenu}>
         <Resource.Header
-          icon={Database}
-          title='Knowledge bases'
+          icon={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootIcon}
+          title={FOLDERED_RESOURCE_HEADERS.knowledge_base.rootLabel}
           breadcrumbs={breadcrumbs}
-          actions={[
-            ...headerActions,
-            {
-              text: 'New documents',
-              icon: Plus,
-              onSelect: handleAddDocuments,
-              disabled: userPermissions.canEdit !== true,
-              variant: 'primary',
-            },
-          ]}
+          actions={headerActions}
         />
         <Resource.Options
           search={{
