@@ -150,7 +150,7 @@ describe('SearchModal', () => {
 
     const askRow = document.querySelector<HTMLElement>('[cmdk-item]')
     expect(document.querySelectorAll('[cmdk-item]')).toHaveLength(1)
-    expect(askRow?.textContent).toBe('Ask Sim: plan our Slack launch week')
+    expect(askRow?.textContent).toBe('New Chat: plan our Slack launch week')
     expect(askRow?.getAttribute('aria-selected')).toBe('true')
 
     act(() => {
@@ -193,7 +193,7 @@ describe('SearchModal', () => {
         new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
       )
     })
-    expect(document.querySelector('[cmdk-item]')?.textContent).toBe('Ask Sim: rainbow')
+    expect(document.querySelector('[cmdk-item]')?.textContent).toBe('New Chat: rainbow')
 
     act(() => {
       document

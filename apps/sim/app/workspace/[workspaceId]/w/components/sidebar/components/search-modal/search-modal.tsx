@@ -1068,7 +1068,7 @@ function SearchModalContent({
         : [],
     [orderedSections, entriesBySection, isSearching]
   )
-  const askSimLabel = searchQuery ? `Ask Sim: ${searchQuery}` : 'Start a new chat'
+  const askSimLabel = searchQuery ? `New Chat: ${searchQuery}` : 'Start a new chat'
   const sectionGroups = useMemo(() => {
     const actionEntriesByLabel = (label: ActionGroupLabel) =>
       entriesBySection.actions.filter(
