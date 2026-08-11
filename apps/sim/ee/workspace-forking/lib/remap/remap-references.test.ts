@@ -27,6 +27,7 @@ import {
   clearDependentsOnRemap,
   collectClearedDependents,
   createForkSubBlockTransform,
+  type ForkReferenceResolver,
   parseNestedDependentKey,
   readTargetDraftDependentValue,
   remapForkSubBlocks,
@@ -1392,6 +1393,173 @@ describe('canonical mode policy (fork/promote)', () => {
       () => null
     )
     expect(scan.references.map((ref) => ref.sourceId)).toEqual(['kb-active'])
+  })
+
+  /**
+   * `{{ENV}}` detection is gated on EXECUTION, not on ownership - unlike resource ids, which
+   * follow the verbatim/user-owned policy above. The shipped shape this protects is a Slack
+   * block whose advanced "Channel ID" (`manualChannel`) holds a `{{SECRET}}`: that field is
+   * live, so the secret must surface as a mapping entry and gate the sync. Suppressing it made
+   * the rewrite and detect halves disagree (`remapEnvInValue` rewrites a manual member's ref
+   * unconditionally), so the key could never originate a mapping row and a target missing that
+   * secret passed the required-env gate silently.
+   */
+  const envPairBlock = () =>
+    blockWith([
+      {
+        id: 'channel',
+        title: 'Channel',
+        type: 'channel-selector',
+        canonicalParamId: 'channel',
+        mode: 'basic',
+      },
+      {
+        id: 'manualChannel',
+        title: 'Channel ID',
+        type: 'short-input',
+        canonicalParamId: 'channel',
+        mode: 'advanced',
+      },
+    ])
+
+  const scanEnv = (
+    subBlocks: Record<string, unknown>,
+    canonicalModes?: Record<string, 'basic' | 'advanced'>,
+    resolve: ForkReferenceResolver = () => null
+  ) => {
+    vi.mocked(getBlock).mockReturnValue(envPairBlock())
+    return scanWorkflowReferences(
+      [{ id: 'b1', name: 'Slack', type: 'slack', subBlocks, canonicalModes }],
+      resolve
+    )
+  }
+
+  it('detects {{ENV}} in an ACTIVE advanced member - it executes, so it gates the sync', () => {
+    const scan = scanEnv(
+      {
+        channel: entry('channel', 'channel-selector', ''),
+        manualChannel: entry('manualChannel', 'short-input', '{{SLACK_CHANNEL}}'),
+      },
+      { channel: 'advanced' }
+    )
+    expect(scan.references).toEqual([
+      expect.objectContaining({
+        kind: 'env-var',
+        sourceId: 'SLACK_CHANNEL',
+        subBlockKey: 'manualChannel',
+        required: true,
+      }),
+    ])
+    // Unmapped by this resolver, so it is a required blocker rather than a silent pass.
+    expect(scan.unmapped.map((ref) => ref.sourceId)).toEqual(['SLACK_CHANNEL'])
+  })
+
+  it('detects it via the value heuristic too (no stored canonicalModes override)', () => {
+    const scan = scanEnv({
+      channel: entry('channel', 'channel-selector', ''),
+      manualChannel: entry('manualChannel', 'short-input', '{{SLACK_CHANNEL}}'),
+    })
+    expect(scan.references.map((ref) => ref.sourceId)).toEqual(['SLACK_CHANNEL'])
+  })
+
+  it('rewrite and detect agree: a mapped key is both recorded and rewritten', () => {
+    vi.mocked(getBlock).mockReturnValue(envPairBlock())
+    const resolve: ForkReferenceResolver = (kind, id) =>
+      kind === 'env-var' && id === 'SLACK_CHANNEL' ? 'SLACK_CHANNEL_PROD' : null
+    const result = remapForkSubBlocks(
+      {
+        channel: entry('channel', 'channel-selector', ''),
+        manualChannel: entry('manualChannel', 'short-input', '{{SLACK_CHANNEL}}'),
+      },
+      resolve,
+      'promote',
+      { blockType: 'slack', canonicalModes: { channel: 'advanced' } }
+    )
+    expect(result.subBlocks.manualChannel.value).toBe('{{SLACK_CHANNEL_PROD}}')
+    expect(result.references.map((ref) => ref.sourceId)).toEqual(['SLACK_CHANNEL'])
+    expect(result.unmapped).toEqual([])
+  })
+
+  it('still does NOT detect {{ENV}} in a DORMANT member (it never executes)', () => {
+    const scan = scanEnv(
+      {
+        channel: entry('channel', 'channel-selector', 'C123'),
+        manualChannel: entry('manualChannel', 'short-input', '{{SLACK_CHANNEL}}'),
+      },
+      { channel: 'basic' }
+    )
+    expect(scan.references.filter((ref) => ref.kind === 'env-var')).toEqual([])
+  })
+
+  it('still does NOT detect {{ENV}} in a condition-hidden field (it never executes)', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        { id: 'mode', title: 'Mode', type: 'dropdown' },
+        {
+          id: 'cloudKey',
+          title: 'Cloud Key',
+          type: 'short-input',
+          condition: { field: 'mode', value: 'cloud' },
+        },
+      ])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'Pi',
+          type: 'pi',
+          subBlocks: {
+            mode: entry('mode', 'dropdown', 'local'),
+            cloudKey: entry('cloudKey', 'short-input', '{{HIDDEN_SECRET}}'),
+          },
+        },
+      ],
+      () => null
+    )
+    expect(scan.references).toEqual([])
+  })
+
+  it('an active manual member keeps its RESOURCE-id escape hatch while its {{ENV}} is detected', () => {
+    vi.mocked(getBlock).mockReturnValue(
+      blockWith([
+        {
+          id: 'kbSelector',
+          title: 'KB',
+          type: 'knowledge-base-selector',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'basic',
+        },
+        {
+          id: 'manualKbId',
+          title: 'KB ID',
+          type: 'knowledge-base-selector',
+          canonicalParamId: 'knowledgeBaseId',
+          mode: 'advanced',
+        },
+        { id: 'note', title: 'Note', type: 'long-input', dependsOn: ['kbSelector'] },
+      ])
+    )
+    const scan = scanWorkflowReferences(
+      [
+        {
+          id: 'b1',
+          name: 'KB',
+          type: 'knowledge',
+          subBlocks: {
+            kbSelector: entry('kbSelector', 'knowledge-base-selector', ''),
+            manualKbId: entry('manualKbId', 'knowledge-base-selector', 'kb-typed-by-hand'),
+            note: entry('note', 'long-input', 'uses {{DEPENDENT_SECRET}}'),
+          },
+          canonicalModes: { knowledgeBaseId: 'advanced' },
+        },
+      ],
+      () => null
+    )
+    // The hand-typed resource id stays a user-owned escape hatch (unchanged policy)...
+    expect(scan.references.filter((ref) => ref.kind === 'knowledge-base')).toEqual([])
+    // ...but a live secret under that manual parent still executes, so it is detected.
+    expect(scan.references.map((ref) => ref.sourceId)).toEqual(['DEPENDENT_SECRET'])
   })
 
   it('nested tool: remaps a canonical-keyed param (and both keys when aliased)', () => {
