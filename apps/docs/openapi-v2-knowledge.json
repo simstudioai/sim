@@ -1760,6 +1760,7 @@
           "id",
           "name",
           "description",
+          "ownerEmail",
           "tokenCount",
           "embeddingModel",
           "embeddingDimension",
@@ -1783,6 +1784,12 @@
             "type": ["string", "null"],
             "description": "Optional description of the knowledge base. null when not set.",
             "example": "All product docs and guides"
+          },
+          "ownerEmail": {
+            "type": "string",
+            "format": "email",
+            "description": "Current email address of the knowledge base owner.",
+            "example": "owner@example.com"
           },
           "tokenCount": {
             "type": "integer",

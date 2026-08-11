@@ -56,8 +56,9 @@ import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 
 /**
  * Knowledge-base item — the exact subset `formatKnowledgeBase` projects from a
- * {@link KnowledgeBaseWithCounts}. `userId`, `workspaceId`, and `deletedAt` are
- * intentionally not exposed on the public surface.
+ * {@link KnowledgeBaseWithCounts}. The raw `userId`, `workspaceId`, and
+ * `deletedAt` fields are not exposed; owner attribution is resolved to
+ * `ownerEmail`.
  */
 export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
   .pick({
@@ -73,7 +74,11 @@ export const v2KnowledgeBaseSchema = knowledgeBaseDataSchema
     createdAt: true,
     updatedAt: true,
   })
-  .extend({ folderPath: v2FolderPathSchema })
+  .extend({
+    /** Current email address of the knowledge base owner. */
+    ownerEmail: z.email(),
+    folderPath: v2FolderPathSchema,
+  })
 export type V2KnowledgeBase = z.output<typeof v2KnowledgeBaseSchema>
 
 /** `{ knowledgeBase }` payload for single-KB reads and mutations. */

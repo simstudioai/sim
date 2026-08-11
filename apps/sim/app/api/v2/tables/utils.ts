@@ -1,4 +1,5 @@
 import type { NextResponse } from 'next/server'
+import type { V2ApiTable } from '@/lib/api/contracts/v2/tables'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
@@ -12,6 +13,7 @@ import {
 import { predicateToStorage } from '@/lib/table/select-values'
 import type { Filter, TableLockKind } from '@/lib/table/types'
 import type { TableView } from '@/lib/table/views/service'
+import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
 import {
   CSV_IMPORT_PROXY_BODY_CAP_BYTES,
   normalizeColumn,
@@ -53,11 +55,16 @@ export function v2BulkPredicateToFilter(predicate: TablePredicate, schema: Table
  * exposes, with timestamps serialized to ISO strings. Shared by every v2 table
  * endpoint so the table payload is identical across the surface.
  */
-export function toApiTable(table: TableDefinition, folderPath: string) {
+function serializeApiTable(
+  table: TableDefinition,
+  folderPath: string,
+  ownerEmail: string
+): V2ApiTable {
   return {
     id: table.id,
     name: table.name,
     description: table.description ?? null,
+    ownerEmail,
     schema: {
       columns: (table.schema as TableSchema).columns.map(normalizeColumn),
     },
@@ -80,6 +87,26 @@ export function toApiTable(table: TableDefinition, folderPath: string) {
     createdAt: toIso(table.createdAt),
     updatedAt: toIso(table.updatedAt),
   }
+}
+
+/** Resolves and serializes one table with public owner attribution. */
+export async function toApiTable(table: TableDefinition, folderPath: string): Promise<V2ApiTable> {
+  const emailByUserId = await getUserEmailsByIds([table.createdBy])
+  return serializeApiTable(
+    table,
+    folderPath,
+    requireResolvedUserEmail(emailByUserId, table.createdBy)
+  )
+}
+
+/** Batch-resolves owner emails before serializing a table list. */
+export async function toApiTables(
+  entries: readonly { table: TableDefinition; folderPath: string }[]
+): Promise<V2ApiTable[]> {
+  const emailByUserId = await getUserEmailsByIds(entries.map(({ table }) => table.createdBy))
+  return entries.map(({ table, folderPath }) =>
+    serializeApiTable(table, folderPath, requireResolvedUserEmail(emailByUserId, table.createdBy))
+  )
 }
 
 /**

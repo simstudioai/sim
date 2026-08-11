@@ -14,6 +14,7 @@ const mocks = vi.hoisted(() => ({
   update: vi.fn(),
   remove: vi.fn(),
   capture: vi.fn(),
+  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
@@ -33,6 +34,10 @@ vi.mock('@/lib/table/application/tables', () => ({
   readTableUseCase: { operation: { id: 'tables.read' }, execute: mocks.read },
   updateTableUseCase: { operation: { id: 'tables.update' }, execute: mocks.update },
   deleteTableUseCase: { operation: { id: 'tables.delete' }, execute: mocks.remove },
+}))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mocks.getUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
@@ -60,7 +65,7 @@ const rate = {
 const table = {
   id: 'table-1',
   workspaceId: WORKSPACE_ID,
-  userId: 'owner-1',
+  createdBy: 'owner-1',
   name: 'Contacts',
   description: null,
   schema: {
@@ -101,6 +106,7 @@ describe('/api/v2/tables/[tableId]', () => {
     mocks.preauthRate.mockResolvedValue(rate)
     mocks.operationRate.mockResolvedValue(rate)
     mocks.gate.mockResolvedValue(null)
+    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
     mocks.read.mockResolvedValue({ table, folderPath: '/' })
     mocks.update.mockResolvedValue({
       table,
@@ -123,7 +129,10 @@ describe('/api/v2/tables/[tableId]', () => {
     const response = await GET(req, context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.table.id).toBe('table-1')
+    expect((await response.json()).data.table).toMatchObject({
+      id: 'table-1',
+      ownerEmail: 'owner@example.com',
+    })
     expect(mocks.read).toHaveBeenCalledWith({
       principal,
       input: { tableId: 'table-1', workspaceId: WORKSPACE_ID },
@@ -138,7 +147,10 @@ describe('/api/v2/tables/[tableId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.table.name).toBe('Contacts')
+    expect((await response.json()).data.table).toMatchObject({
+      name: 'Contacts',
+      ownerEmail: 'owner@example.com',
+    })
   })
 
   it('reports committed fields when a later composite PATCH step fails', async () => {

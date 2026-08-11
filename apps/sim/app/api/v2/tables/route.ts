@@ -6,7 +6,7 @@ import { v2TableErrorPolicies } from '@/lib/table/api'
 import { tableOperations } from '@/lib/table/application/operations'
 import { createTableUseCase, listTablesUseCase } from '@/lib/table/application/tables'
 import { cursorSortKey, decodeSortedCursor, encodeSortedCursor } from '@/app/api/v2/lib/response'
-import { toApiTable } from '@/app/api/v2/tables/utils'
+import { toApiTable, toApiTables } from '@/app/api/v2/tables/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -34,8 +34,8 @@ export const GET = defineV2JsonRoute({
       after: decoded.status === 'ok' ? decoded.keys : undefined,
     }
   },
-  present: ({ tables, nextKeys, sortBy, sortOrder }) => ({
-    data: tables.map(({ table, folderPath }) => toApiTable(table, folderPath)),
+  present: async ({ tables, nextKeys, sortBy, sortOrder }) => ({
+    data: await toApiTables(tables),
     nextCursor: nextKeys ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextKeys) : null,
   }),
 })
@@ -54,5 +54,7 @@ export const POST = defineV2JsonRoute({
     schema: body.schema,
     folderPath: body.folderPath,
   }),
-  present: ({ table, folderPath }) => ({ data: { table: toApiTable(table, folderPath) } }),
+  present: async ({ table, folderPath }) => ({
+    data: { table: await toApiTable(table, folderPath) },
+  }),
 })

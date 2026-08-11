@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
   gate: vi.fn(),
   list: vi.fn(),
   create: vi.fn(),
+  getUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
@@ -29,6 +30,10 @@ vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 vi.mock('@/lib/table/application/tables', () => ({
   listTablesUseCase: { operation: { id: 'tables.list' }, execute: mocks.list },
   createTableUseCase: { operation: { id: 'tables.create' }, execute: mocks.create },
+}))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mocks.getUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
 import { GET, POST } from '@/app/api/v2/tables/route'
@@ -55,7 +60,7 @@ const rate = {
 const table = {
   id: 'table-1',
   workspaceId: WORKSPACE_ID,
-  userId: 'owner-1',
+  createdBy: 'owner-1',
   name: 'Contacts',
   description: null,
   schema: {
@@ -84,6 +89,7 @@ describe('/api/v2/tables', () => {
     mocks.preauthRate.mockResolvedValue(rate)
     mocks.operationRate.mockResolvedValue(rate)
     mocks.gate.mockResolvedValue(null)
+    mocks.getUserEmailsByIds.mockResolvedValue(new Map([['owner-1', 'owner@example.com']]))
     mocks.list.mockResolvedValue({
       tables: [{ table, folderPath: '/' }],
       nextKeys: undefined,
@@ -101,7 +107,14 @@ describe('/api/v2/tables', () => {
 
     expect(response.status).toBe(200)
     expect(await response.json()).toMatchObject({
-      data: [{ id: 'table-1', folderPath: '/', description: null }],
+      data: [
+        {
+          id: 'table-1',
+          folderPath: '/',
+          description: null,
+          ownerEmail: 'owner@example.com',
+        },
+      ],
       nextCursor: null,
     })
     expect(mocks.list).toHaveBeenCalledWith({
@@ -150,11 +163,30 @@ describe('/api/v2/tables', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.table.id).toBe('table-1')
+    expect((await response.json()).data.table).toMatchObject({
+      id: 'table-1',
+      ownerEmail: 'owner@example.com',
+    })
     expect(mocks.create).toHaveBeenCalledWith({
       principal,
       input: expect.objectContaining({ workspaceId: WORKSPACE_ID, name: 'Contacts' }),
       request,
     })
+  })
+
+  it('rejects required in a table column before calling the use case', async () => {
+    const request = new NextRequest('http://localhost:3000/api/v2/tables', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+      body: JSON.stringify({
+        workspaceId: WORKSPACE_ID,
+        name: 'Contacts',
+        schema: { columns: [{ name: 'Name', type: 'string', required: true }] },
+      }),
+    })
+    const response = await POST(request)
+
+    expect(response.status).toBe(400)
+    expect(mocks.create).not.toHaveBeenCalled()
   })
 })

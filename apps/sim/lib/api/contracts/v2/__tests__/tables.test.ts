@@ -1,13 +1,66 @@
 import { describe, expect, it } from 'vitest'
 import {
   V2_TABLE_IMPORT_OPTIONS_MAX_BYTES,
+  v2ApiTableSchema,
+  v2CreateTableBodySchema,
+  v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
   v2TableUploadImportSourceSchema,
+  v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
+
+describe('v2 table column contracts', () => {
+  it('rejects required on every public column write', () => {
+    expect(
+      v2CreateTableBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        name: 'contacts',
+        schema: { columns: [{ name: 'email', type: 'string', required: true }] },
+      }).success
+    ).toBe(false)
+    expect(
+      v2CreateTableColumnBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        column: { name: 'email', type: 'string', required: true },
+      }).success
+    ).toBe(false)
+    expect(
+      v2UpdateTableColumnBodySchema.safeParse({
+        workspaceId: WORKSPACE_ID,
+        columnName: 'email',
+        updates: { required: true },
+      }).success
+    ).toBe(false)
+  })
+
+  it('keeps required in table responses for existing stored schemas', () => {
+    expect(
+      v2ApiTableSchema.safeParse({
+        id: 'table-1',
+        name: 'contacts',
+        description: null,
+        ownerEmail: 'owner@example.com',
+        schema: { columns: [{ name: 'email', type: 'string', required: false }] },
+        rowCount: 0,
+        maxRows: 10_000,
+        folderPath: '/',
+        locks: {
+          schemaLocked: false,
+          insertLocked: false,
+          updateLocked: false,
+          deleteLocked: false,
+        },
+        job: null,
+        createdAt: '2026-01-01T00:00:00.000Z',
+        updatedAt: '2026-01-01T00:00:00.000Z',
+      }).success
+    ).toBe(true)
+  })
+})
 
 function uploadSource(size: number) {
   return {

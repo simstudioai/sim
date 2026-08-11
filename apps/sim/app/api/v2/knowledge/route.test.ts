@@ -12,6 +12,7 @@ const {
   mockCreate,
   mockPlatformCreated,
   mockCapture,
+  mockGetUserEmailsByIds,
 } = vi.hoisted(() => ({
   mockAuthenticate: vi.fn(),
   mockCheckPreAuth: vi.fn(),
@@ -20,6 +21,7 @@ const {
   mockCreate: vi.fn(),
   mockPlatformCreated: vi.fn(),
   mockCapture: vi.fn(),
+  mockGetUserEmailsByIds: vi.fn(),
 }))
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
@@ -52,6 +54,10 @@ vi.mock('@/lib/core/telemetry', () => ({
 }))
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mockCapture }))
+vi.mock('@/lib/users/queries', () => ({
+  getUserEmailsByIds: mockGetUserEmailsByIds,
+  requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
+}))
 
 import { GET, POST } from '@/app/api/v2/knowledge/route'
 
@@ -95,6 +101,7 @@ describe('/api/v2/knowledge route composition', () => {
       rateLimitSubscription: null,
       keyType: 'personal',
     })
+    mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'owner@example.com']]))
     mockList.mockResolvedValue({
       knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
     })
@@ -126,6 +133,7 @@ describe('/api/v2/knowledge route composition', () => {
         expect.objectContaining({
           id: 'kb-1',
           folderPath: '/',
+          ownerEmail: 'owner@example.com',
           connectorTypes: ['notion'],
           createdAt: '2024-01-01T00:00:00.000Z',
         }),
@@ -144,6 +152,7 @@ describe('/api/v2/knowledge route composition', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
+    expect((await response.clone().json()).data.knowledgeBase.ownerEmail).toBe('owner@example.com')
     expect(mockCreate).toHaveBeenCalledWith({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {

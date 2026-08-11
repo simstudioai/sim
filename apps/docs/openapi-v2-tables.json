@@ -4437,11 +4437,6 @@
             "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
             "description": "Data type of the column."
           },
-          "required": {
-            "type": "boolean",
-            "default": false,
-            "description": "Whether the column requires a value on insert."
-          },
           "unique": {
             "type": "boolean",
             "default": false,
@@ -4477,6 +4472,7 @@
           "id",
           "name",
           "description",
+          "ownerEmail",
           "schema",
           "rowCount",
           "maxRows",
@@ -4501,6 +4497,12 @@
             "type": ["string", "null"],
             "description": "Optional description of the table. Null when not set.",
             "example": "Customer contact records"
+          },
+          "ownerEmail": {
+            "type": "string",
+            "format": "email",
+            "description": "Current email address of the table owner.",
+            "example": "owner@example.com"
           },
           "schema": {
             "type": "object",
@@ -4706,10 +4708,6 @@
                 "type": "string",
                 "enum": ["string", "number", "currency", "boolean", "date", "json", "select"],
                 "description": "New data type for the column."
-              },
-              "required": {
-                "type": "boolean",
-                "description": "Whether the column requires a value on insert."
               },
               "unique": {
                 "type": "boolean",

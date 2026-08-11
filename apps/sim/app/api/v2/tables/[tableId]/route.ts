@@ -50,7 +50,9 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ tableId: params.tableId, workspaceId: query.workspaceId }),
-  present: ({ table, folderPath }) => ({ data: { table: toApiTable(table, folderPath) } }),
+  present: async ({ table, folderPath }) => ({
+    data: { table: await toApiTable(table, folderPath) },
+  }),
 })
 
 export const PATCH = defineV2JsonRoute({
@@ -61,12 +63,12 @@ export const PATCH = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.default,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
-  present: (result) => {
+  present: async (result) => {
     rethrowUpdateFailure(result)
     if (!result.table || result.folderPath === null) {
       throw new Error('Updated table is missing from the authoritative result')
     }
-    return { data: { table: toApiTable(result.table, result.folderPath) } }
+    return { data: { table: await toApiTable(result.table, result.folderPath) } }
   },
 })
 

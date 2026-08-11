@@ -82,7 +82,7 @@ export const currencyCodeSchema = z
  * column may carry `currencyCode`. Skipped when `type` is absent (a
  * metadata-only update on an existing column).
  */
-function refineColumnOptions(
+export function refineColumnOptions(
   data: {
     type?: (typeof COLUMN_TYPES)[number]
     options?: z.infer<typeof selectOptionsSchema>
@@ -146,7 +146,7 @@ export const tableNameSchema = z
     'Name must start with a letter or underscore and contain only alphanumeric characters and underscores'
   )
 
-const columnNameSchema = z
+export const columnNameSchema = z
   .string()
   .min(1, 'Column name is required')
   .max(

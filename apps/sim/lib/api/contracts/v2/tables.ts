@@ -3,16 +3,20 @@ import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import {
   addWorkflowGroupBodySchema,
   cancelTableRunsBodyBaseSchema,
-  createTableColumnBodySchema,
+  columnNameSchema,
+  columnTypeSchema,
   createTableViewBodySchema,
+  currencyCodeSchema,
   deleteTableColumnBodySchema,
   deleteWorkflowGroupBodySchema,
   exportTableAsyncBodySchema,
   predicateSchema,
   refineCancelTableRunsScope,
+  refineColumnOptions,
   runColumnBodyBaseSchema,
   runColumnExcludeMutexRefine,
   runColumnScopeMutexRefine,
+  selectOptionsSchema,
   sortSpecSchema,
   tableColumnSchema,
   tableIdParamsSchema,
@@ -23,7 +27,6 @@ import {
   tableViewConfigSchema,
   tableViewParamsSchema,
   updateRowsByFilterBodySchema,
-  updateTableColumnBodySchema,
   updateTableRowBodySchema,
   updateTableViewBodySchema,
   updateWorkflowGroupBodySchema,
@@ -113,6 +116,8 @@ export const v2ApiTableSchema = z.object({
   id: z.string(),
   name: z.string(),
   description: z.string().nullable(),
+  /** Current email address of the table owner. */
+  ownerEmail: z.email(),
   schema: z.object({ columns: z.array(tableColumnSchema) }),
   rowCount: z.number(),
   maxRows: z.number(),
@@ -232,10 +237,49 @@ export const v2ListTablesQuerySchema = z
 
 export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
 
-export const v2CreateTableBodySchema = v1CreateTableBodySchema
-  .omit({ folderId: true })
-  .extend({ folderPath: v2FolderPathInputSchema.optional() })
+const v2TableColumnInputShape = {
+  id: z.string().optional(),
+  name: columnNameSchema,
+  type: columnTypeSchema,
+  unique: z.boolean().optional(),
+  options: selectOptionsSchema.optional(),
+  multiple: z.boolean().optional(),
+  currencyCode: currencyCodeSchema.optional(),
+}
+
+/** Public column input. `required` is response-only and rejected on every v2 write. */
+export const v2TableColumnInputSchema = z
+  .object(v2TableColumnInputShape)
   .strict()
+  .superRefine(refineColumnOptions)
+
+const v2InitialTableColumnInputSchema = z
+  .object({
+    ...v2TableColumnInputShape,
+    workflowGroupId: z.string().optional(),
+  })
+  .strict()
+  .superRefine(refineColumnOptions)
+
+export const v2CreateTableBodySchema = v1CreateTableBodySchema
+  .omit({ folderId: true, schema: true })
+  .extend({
+    schema: z
+      .object({
+        columns: z
+          .array(v2InitialTableColumnInputSchema)
+          .min(1, 'Table must have at least one column')
+          .max(
+            TABLE_LIMITS.MAX_COLUMNS_PER_TABLE,
+            `Table cannot have more than ${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE} columns`
+          ),
+      })
+      .strict(),
+    folderPath: v2FolderPathInputSchema.optional(),
+  })
+  .strict()
+
+export type V2CreateTableBody = z.input<typeof v2CreateTableBodySchema>
 
 /**
  * Table list. `listTables` returns every table in the workspace (a small,
@@ -372,11 +416,46 @@ export const v2DeleteTableContract = defineRouteContract({
   },
 })
 
+export const v2CreateTableColumnBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    column: z
+      .object({
+        ...v2TableColumnInputShape,
+        position: z.number().int().min(0).optional(),
+      })
+      .strict()
+      .superRefine(refineColumnOptions),
+  })
+  .strict()
+
+export type V2CreateTableColumnBody = z.input<typeof v2CreateTableColumnBodySchema>
+
+export const v2UpdateTableColumnBodySchema = z
+  .object({
+    workspaceId: workspaceIdSchema,
+    columnName: columnNameSchema,
+    updates: z
+      .object({
+        name: columnNameSchema.optional(),
+        type: columnTypeSchema.optional(),
+        unique: z.boolean().optional(),
+        options: selectOptionsSchema.optional(),
+        multiple: z.boolean().optional(),
+        currencyCode: currencyCodeSchema.optional(),
+      })
+      .strict()
+      .superRefine(refineColumnOptions),
+  })
+  .strict()
+
+export type V2UpdateTableColumnBody = z.input<typeof v2UpdateTableColumnBodySchema>
+
 export const v2AddTableColumnContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/[tableId]/columns',
   params: tableIdParamsSchema,
-  body: createTableColumnBodySchema,
+  body: v2CreateTableColumnBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableColumnsDataSchema),
@@ -387,7 +466,7 @@ export const v2UpdateTableColumnContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/[tableId]/columns',
   params: tableIdParamsSchema,
-  body: updateTableColumnBodySchema,
+  body: v2UpdateTableColumnBodySchema,
   response: {
     mode: 'json',
     schema: v2DataResponse(v2TableColumnsDataSchema),
