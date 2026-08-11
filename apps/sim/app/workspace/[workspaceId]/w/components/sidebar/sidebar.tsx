@@ -819,7 +819,7 @@ export const Sidebar = memo(function Sidebar({
         },
         {
           id: 'knowledge-base',
-          label: 'Knowledge base',
+          label: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,

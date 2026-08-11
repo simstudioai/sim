@@ -180,7 +180,7 @@ export function SearchModal({
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge base',
+          name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
