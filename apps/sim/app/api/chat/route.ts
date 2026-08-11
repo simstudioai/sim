@@ -9,7 +9,7 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { getSession } from '@/lib/auth'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { performChatDeploy } from '@/lib/workflows/orchestration'
-import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import { canSetPublicChatAuth, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 import { createErrorResponse, createSuccessResponse } from '@/app/api/workflows/utils'
 import {
   ChatDeployAuthNotAllowedError,
@@ -113,6 +113,13 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     if (workflowRecord.workspaceId) {
+      if (
+        authType === 'public' &&
+        !(await canSetPublicChatAuth(session.user.id, workflowRecord.workspaceId))
+      ) {
+        return createErrorResponse('Only admins can deploy a public chat', 403)
+      }
+
       try {
         await validateChatDeployAuth(session.user.id, workflowRecord.workspaceId, authType)
       } catch (error) {

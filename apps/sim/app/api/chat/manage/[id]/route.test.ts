@@ -23,13 +23,17 @@ import {
 import { NextRequest } from 'next/server'
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockCheckChatAccess, mockCheckNeedsRedeployment, mockValidateChatDeployAuth } = vi.hoisted(
-  () => ({
-    mockCheckChatAccess: vi.fn(),
-    mockCheckNeedsRedeployment: vi.fn(),
-    mockValidateChatDeployAuth: vi.fn(),
-  })
-)
+const {
+  mockCheckChatAccess,
+  mockCanSetPublicChatAuth,
+  mockCheckNeedsRedeployment,
+  mockValidateChatDeployAuth,
+} = vi.hoisted(() => ({
+  mockCheckChatAccess: vi.fn(),
+  mockCanSetPublicChatAuth: vi.fn(),
+  mockCheckNeedsRedeployment: vi.fn(),
+  mockValidateChatDeployAuth: vi.fn(),
+}))
 
 const mockCreateSuccessResponse = workflowsApiUtilsMockFns.mockCreateSuccessResponse
 const mockCreateErrorResponse = workflowsApiUtilsMockFns.mockCreateErrorResponse
@@ -46,6 +50,7 @@ vi.mock('@/app/api/workflows/utils', () => workflowsApiUtilsMock)
 vi.mock('@/lib/core/security/encryption', () => encryptionMock)
 vi.mock('@/app/api/chat/utils', () => ({
   checkChatAccess: mockCheckChatAccess,
+  canSetPublicChatAuth: mockCanSetPublicChatAuth,
 }))
 vi.mock('@/ee/access-control/utils/permission-check', () => {
   class ChatDeployAuthNotAllowedError extends Error {
@@ -78,6 +83,9 @@ afterAll(() => {
 describe('Chat Edit API Route', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // Existing chat suites deploy with authType public; default to admin so they
+    // keep testing what they were written to test.
+    mockCanSetPublicChatAuth.mockResolvedValue(true)
     resetDbChainMock()
     mockPerformChatUndeploy.mockResolvedValue({ success: true })
 

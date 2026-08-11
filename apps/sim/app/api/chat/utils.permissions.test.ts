@@ -3,8 +3,17 @@
  */
 
 import { workflowAuthzMockFns } from '@sim/testing'
+
+const { mockGetUserEntityPermissions } = vi.hoisted(() => ({
+  mockGetUserEntityPermissions: vi.fn(),
+}))
+
+vi.mock('@/lib/workspaces/permissions/utils', () => ({
+  getUserEntityPermissions: mockGetUserEntityPermissions,
+}))
+
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
+import { canSetPublicChatAuth, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
 
 /**
  * Chat deployment dropped from `admin` to `write` alongside the rest of the
@@ -65,5 +74,32 @@ describe('chat deployment permission level', () => {
     const result = await checkWorkflowAccessForChatCreation('wf-1', 'user-1')
 
     expect(result.hasAccess).toBe(false)
+  })
+})
+
+/**
+ * A chat deployed with `authType: 'public'` is invocable by anyone with the URL
+ * and no authentication — the same exposure as a public workflow API, which is
+ * admin-only. Deploying an authenticated chat stays at `write`.
+ */
+describe('public chat auth is admin-only', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('allows an admin', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue('admin')
+    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(true)
+    expect(mockGetUserEntityPermissions).toHaveBeenCalledWith('user-1', 'workspace', 'ws-1')
+  })
+
+  it.each(['write', 'read'] as const)('refuses a %s member', async (permission) => {
+    mockGetUserEntityPermissions.mockResolvedValue(permission)
+    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(false)
+  })
+
+  it('refuses a member with no permission on the workspace', async () => {
+    mockGetUserEntityPermissions.mockResolvedValue(null)
+    await expect(canSetPublicChatAuth('user-1', 'ws-1')).resolves.toBe(false)
   })
 })

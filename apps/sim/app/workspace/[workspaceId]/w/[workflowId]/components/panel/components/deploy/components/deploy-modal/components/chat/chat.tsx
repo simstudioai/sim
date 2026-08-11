@@ -23,6 +23,7 @@ import { GeneratedPasswordInput } from '@/components/ui'
 import { isSsoEnabled } from '@/lib/core/config/env-flags'
 import { getBaseUrl, getEmailDomain } from '@/lib/core/utils/urls'
 import { validateAllowlistEntry } from '@/lib/messaging/email/validation'
+import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { OutputSelect } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/chat/components/output-select/output-select'
 import {
   type AuthType,
@@ -706,6 +707,14 @@ function AuthSelector({
 
   const { config: permissionConfig } = usePermissionConfig()
   const allowedAuthTypes = permissionConfig.allowedChatDeployAuthTypes
+  /**
+   * A public chat is invocable by anyone holding the URL with no auth, so it is
+   * admin-only — the same boundary the workflow's public API sits behind.
+   * Deploying an authenticated chat stays at `write`. An already-public chat
+   * keeps the option selectable so an editor can still edit its other fields.
+   */
+  const { canAdmin } = useUserPermissionsContext()
+  const canSetPublic = canAdmin || savedAuthType === 'public'
 
   const ssoAvailable =
     isSsoEnabled || savedAuthType === 'sso' || (allowedAuthTypes?.includes('sso') ?? false)
@@ -720,8 +729,15 @@ function AuthSelector({
   useEffect(() => {
     if (authOptions.length > 0 && !authOptions.includes(authType)) {
       onAuthTypeChange(authOptions[0])
+      return
     }
-  }, [authOptions, authType, onAuthTypeChange])
+    // A non-admin defaults to 'public' on a fresh chat, which they cannot use —
+    // move them to the first mode they can actually deploy.
+    if (authType === 'public' && !canSetPublic) {
+      const fallback = authOptions.find((type) => type !== 'public')
+      if (fallback) onAuthTypeChange(fallback)
+    }
+  }, [authOptions, authType, onAuthTypeChange, canSetPublic])
 
   return (
     <div className='space-y-4'>
@@ -734,11 +750,24 @@ function AuthSelector({
           onValueChange={(val) => onAuthTypeChange(val as AuthType)}
           disabled={disabled}
         >
-          {authOptions.map((type) => (
-            <ButtonGroupItem key={type} value={type}>
-              {AUTH_LABELS[type]}
-            </ButtonGroupItem>
-          ))}
+          {authOptions.map((type) =>
+            type === 'public' && !canSetPublic ? (
+              <Tooltip.Root key={type}>
+                <Tooltip.Trigger asChild>
+                  <span className='inline-flex'>
+                    <ButtonGroupItem value={type} disabled>
+                      {AUTH_LABELS[type]}
+                    </ButtonGroupItem>
+                  </span>
+                </Tooltip.Trigger>
+                <Tooltip.Content>Only admins can deploy a public chat</Tooltip.Content>
+              </Tooltip.Root>
+            ) : (
+              <ButtonGroupItem key={type} value={type}>
+                {AUTH_LABELS[type]}
+              </ButtonGroupItem>
+            )
+          )}
         </ButtonGroup>
       </div>
 
