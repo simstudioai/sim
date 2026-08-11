@@ -144,9 +144,17 @@ describe('useChat mount-settling send recovery', () => {
   })
 
   it('delivers an aborted chatless send directly to a live replacement surface', async () => {
-    const received: string[] = []
+    const attachment = {
+      id: 'file-1',
+      key: 'uploads/file-1',
+      filename: 'notes.txt',
+      media_type: 'text/plain',
+      size: 12,
+    }
+    const received: Array<{ message: string; fileAttachments?: unknown[] }> = []
     const claim = (event: Event) => {
-      received.push((event as CustomEvent<{ message: string }>).detail.message)
+      const detail = (event as CustomEvent<{ message: string; fileAttachments?: unknown[] }>).detail
+      received.push(detail)
       event.preventDefault()
     }
     window.addEventListener('mothership-send-message', claim)
@@ -154,14 +162,15 @@ describe('useChat mount-settling send recovery', () => {
     try {
       const { getResult, unmount } = renderUseChat()
       await act(async () => {
-        void getResult().sendMessage('hello from the palette')
+        void getResult().sendMessage('hello from the palette', [attachment])
       })
       await waitFor(() => state.postCalls === 1)
 
       unmount()
       await waitFor(() => received.length === 1)
 
-      expect(received).toEqual(['hello from the palette'])
+      expect(received[0].message).toBe('hello from the palette')
+      expect(received[0].fileAttachments).toEqual([attachment])
       expect(window.localStorage.getItem('sim_mothership_handoff')).toBeNull()
     } finally {
       window.removeEventListener('mothership-send-message', claim)

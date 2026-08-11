@@ -341,7 +341,7 @@ export function Home({ chatId, userName, userId, tableViewsEnabled }: HomeProps)
       const detail = (e as CustomEvent<MothershipSendMessageDetail>).detail
       if (!detail?.message) return
       e.preventDefault()
-      sendMessage(detail.message, undefined, detail.contexts)
+      sendMessage(detail.message, detail.fileAttachments, detail.contexts)
     }
     window.addEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
     return () => window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handler)
