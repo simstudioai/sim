@@ -22,6 +22,7 @@ import {
 import { splitFrontmatter } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-fidelity'
 import { parseMarkdownToDoc } from '@/app/workspace/[workspaceId]/files/components/file-viewer/rich-markdown-editor/markdown-parse'
 
+// Temporary no-op marker to retrigger external security checks.
 type PdfImage = { data: Buffer; format: 'png' }
 type ResolvedPdfImageRef = Exclude<EmbeddedFileRef, null>
 
