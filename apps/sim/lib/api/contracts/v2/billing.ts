@@ -38,11 +38,12 @@ export const v2BillingStatusQuerySchema = z.object({
  *
  * `credits` and `storage` report the resolved payer's pooled allowances, which
  * are shared across every workspace that payer funds. They are populated only
- * for a caller who may manage that payer's billing — the billed account
- * holder, an admin of the hosting organization, or a workspace API key, which
- * an admin of that workspace provisioned. Any other workspace member reads
- * both as `null` while still seeing the plan, period, and standing that the
- * workspace already surfaces to them.
+ * for a caller who may manage that payer's billing: the billed account holder,
+ * or an admin of the hosting organization. Billing authority is a property of
+ * a person, so an actor-less workspace API key never qualifies. Every other
+ * caller reads both as `null` while still seeing the plan, period, and
+ * standing that the workspace already surfaces to them — enough to monitor for
+ * `limit_exceeded` and `billing_blocked`.
  */
 export const v2BillingStatusDataSchema = z
   .object({
@@ -88,7 +89,7 @@ export const v2BillingStatusDataSchema = z
       })
       .nullable()
       .describe(
-        "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing."
+        "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
       ),
     storage: z
       .object({
@@ -98,7 +99,7 @@ export const v2BillingStatusDataSchema = z
       })
       .nullable()
       .describe(
-        "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing."
+        "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
       ),
   })
   .meta({

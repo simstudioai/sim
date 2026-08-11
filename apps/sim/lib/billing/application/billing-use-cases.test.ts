@@ -167,16 +167,51 @@ describe('billing application use cases', () => {
     })
 
     expect(result.workspaceId).toBe('workspace-1')
-    expect(result.storage).toEqual({
-      usedBytes: 5_242_880,
-      limitBytes: 1_073_741_824,
-      percentUsed: 0.48828125,
-    })
+    expect(result).toMatchObject({ plan: 'free', status: 'active' })
     expect(mocks.resolveSystemAttribution).toHaveBeenCalledWith('workspace-1')
-    expect(mocks.resolveStorageContext).toHaveBeenCalledWith('workspace-1')
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.resolveAttribution).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()
+  })
+
+  /**
+   * A workspace API key is actor-less, and any workspace `admin` may mint one,
+   * so granting it the pool would launder the exact role the projection
+   * excludes — across the whole organization on an organization-hosted
+   * workspace.
+   */
+  it('withholds the payer pool from an actor-less workspace key', async () => {
+    const result = await getBillingStatus.execute({
+      principal: workspacePrincipal,
+      input: {},
+    })
+
+    expect(result.credits).toBeNull()
+    expect(result.storage).toBeNull()
+    expect(mocks.canManageWorkspaceBilling).not.toHaveBeenCalled()
+  })
+
+  it('never reads the payer storage pool it may not disclose', async () => {
+    await getBillingStatus.execute({ principal: workspacePrincipal, input: {} })
+    await getBillingStatus.execute({
+      principal: personalPrincipal,
+      input: { workspaceId: 'workspace-1' },
+    })
+
+    expect(mocks.resolveStorageContext).not.toHaveBeenCalled()
+    expect(mocks.getStorageUsageForContext).not.toHaveBeenCalled()
+  })
+
+  it('still reports a workspace key an exceeded pooled limit it cannot read', async () => {
+    mocks.checkAttributedBlocks.mockResolvedValue({ blocked: true })
+
+    const result = await getBillingStatus.execute({
+      principal: workspacePrincipal,
+      input: {},
+    })
+
+    expect(result.status).toBe('billing_blocked')
+    expect(result.credits).toBeNull()
   })
 
   it('withholds the payer pool from a workspace member who cannot manage billing', async () => {
@@ -234,13 +269,6 @@ describe('billing application use cases', () => {
       limitBytes: 1_073_741_824,
       percentUsed: 0.48828125,
     })
-  })
-
-  it('never consults human billing authority for a workspace key', async () => {
-    const result = await getBillingStatus.execute({ principal: workspacePrincipal, input: {} })
-
-    expect(result.credits).not.toBeNull()
-    expect(mocks.canManageWorkspaceBilling).not.toHaveBeenCalled()
   })
 
   it('always reports the account-scoped pool the caller owns', async () => {

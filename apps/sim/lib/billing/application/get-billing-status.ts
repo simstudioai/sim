@@ -1,5 +1,5 @@
 import { defineAuthorizedBillingReadUseCase } from '@/lib/billing/application/authorized-billing-read-use-case'
-import { billingOperations } from '@/lib/billing/application/operations'
+import { type BillingReadPrincipal, billingOperations } from '@/lib/billing/application/operations'
 import {
   checkBillingBlocked,
   checkBillingEntityBlocked,
@@ -13,7 +13,10 @@ import {
 } from '@/lib/billing/core/billing-attribution'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { deriveBillingContext } from '@/lib/billing/core/usage-log'
-import { canUserManageWorkspaceBilling } from '@/lib/billing/core/workspace-billing-authority'
+import {
+  canUserManageWorkspaceBilling,
+  type WorkspaceBillingAuthorityContext,
+} from '@/lib/billing/core/workspace-billing-authority'
 import { dollarsToCredits } from '@/lib/billing/credits/conversion'
 import {
   getStorageLimitForBillingContext,
@@ -42,9 +45,9 @@ export interface BillingStorageStatus {
 /**
  * `credits` and `storage` describe the resolved payer's pooled allowances, not
  * the caller's own consumption, so they are only projected to a caller who may
- * manage that payer's billing. Every other workspace member reads them as
- * `null` while still seeing the plan and standing the workspace UI already
- * shows them.
+ * manage that payer's billing — see {@link canReadPayerPool}. Every other
+ * caller reads them as `null` while still seeing the plan and standing the
+ * workspace UI already shows them.
  */
 export interface BillingStatusResult {
   workspaceId: string | null
@@ -63,29 +66,63 @@ function storageStatus(usedBytes: number, limitBytes: number): BillingStorageSta
   }
 }
 
+/**
+ * Resolves whether a caller may read the resolved payer's pooled allowances.
+ *
+ * Only a human principal can hold billing authority: it is payer identity, or
+ * an admin role in the hosting organization, and never a workspace role. A
+ * workspace API key is deliberately actor-less — `WorkspaceApiKeyPrincipal`
+ * carries a key and a workspace but no user — so there is no identity to
+ * evaluate that authority against, and it is therefore never a billing
+ * manager.
+ *
+ * Attributing the key to whoever created it would close the gap on paper and
+ * open a worse one. Any workspace `admin` may mint a workspace key, and a
+ * workspace `admin` is not a billing manager, so the key would launder exactly
+ * the role this projection excludes. The pool is the payer's, not the
+ * workspace's — organization-wide on an organization-hosted workspace — so it
+ * spans workspaces that admin has no standing in at all. Substituting a key's
+ * owner for the acting principal is also what the application operation
+ * boundary forbids outright, and the creator's authority can be revoked while
+ * the key keeps working.
+ *
+ * A workspace key still reads the plan, period, and standing it needs to
+ * monitor the workspace, including `limit_exceeded` and `billing_blocked`.
+ */
+function canReadPayerPool(
+  principal: BillingReadPrincipal,
+  workspace: WorkspaceBillingAuthorityContext
+): Promise<boolean> {
+  if (principal.kind !== 'personal_api_key') return Promise.resolve(false)
+  return canUserManageWorkspaceBilling(workspace, principal.userId)
+}
+
+/** Reads the payer's storage pool. Only called once disclosure is authorized. */
+async function resolvePayerStorage(workspaceId: string): Promise<BillingStorageStatus> {
+  const storageContext = await resolveStorageBillingContext(workspaceId)
+  const usedBytes = await getStorageUsageForBillingContext(storageContext)
+  return storageStatus(usedBytes, getStorageLimitForBillingContext(storageContext))
+}
+
 export const getBillingStatus = defineAuthorizedBillingReadUseCase({
   operation: billingOperations.readStatus,
   requestedWorkspaceId: (input: GetBillingStatusInput) => input.workspaceId,
   execute: async ({ principal, scope }): Promise<BillingStatusResult> => {
     if (scope.kind === 'workspace') {
-      const [attribution, storageContext, canViewPayerPool] = await Promise.all([
+      const [attribution, canViewPayerPool] = await Promise.all([
         principal.kind === 'personal_api_key'
           ? resolveBillingAttribution({
               actorUserId: principal.userId,
               workspaceId: scope.workspace.workspaceId,
             })
           : resolveSystemBillingAttribution(scope.workspace.workspaceId),
-        resolveStorageBillingContext(scope.workspace.workspaceId),
-        principal.kind === 'personal_api_key'
-          ? canUserManageWorkspaceBilling(scope.workspace, principal.userId)
-          : Promise.resolve(true),
+        canReadPayerPool(principal, scope.workspace),
       ])
-      const [usage, block, storageUsedBytes] = await Promise.all([
+      const [usage, block, storage] = await Promise.all([
         checkUsageStatus(attribution.billedAccountUserId, toUsageLimitSubscription(attribution)),
         checkAttributedBillingBlocks(attribution),
-        getStorageUsageForBillingContext(storageContext),
+        canViewPayerPool ? resolvePayerStorage(scope.workspace.workspaceId) : null,
       ])
-      const storageLimitBytes = getStorageLimitForBillingContext(storageContext)
       return {
         workspaceId: scope.workspace.workspaceId,
         period: attribution.billingPeriod,
@@ -98,7 +135,7 @@ export const getBillingStatus = defineAuthorizedBillingReadUseCase({
               remaining: dollarsToCredits(usage.limit - usage.currentUsage),
             }
           : null,
-        storage: canViewPayerPool ? storageStatus(storageUsedBytes, storageLimitBytes) : null,
+        storage,
       }
     }
 
