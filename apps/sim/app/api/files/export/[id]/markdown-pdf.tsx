@@ -402,15 +402,13 @@ function renderBlock(token: Token, images: ReadonlyMap<string, PdfImage>, key: s
   }
 }
 
-function MarkdownDocument({
-  markdown,
-  title,
-  images,
-}: {
+interface MarkdownDocumentProps {
   markdown: string
   title: string
   images: ReadonlyMap<string, PdfImage>
-}) {
+}
+
+function MarkdownDocument({ markdown, title, images }: MarkdownDocumentProps) {
   const tokens = marked.lexer(markdown, { gfm: true })
   return (
     <Document creator='Sim' language='en' title={safeText(title)}>
