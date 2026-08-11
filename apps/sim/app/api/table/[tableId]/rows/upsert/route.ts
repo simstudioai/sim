@@ -15,7 +15,7 @@ import {
   resolveTableWriteSecretProvenance,
 } from '@/app/api/table/row-secret-provenance'
 import { rowWireTranslators } from '@/app/api/table/row-wire'
-import { accessError, checkAccess, rowWriteErrorResponse } from '@/app/api/table/utils'
+import { accessError, checkAccess, orchestrationErrorResponse } from '@/app/api/table/utils'
 
 const logger = createLogger('TableUpsertAPI')
 
@@ -105,7 +105,7 @@ export const POST = withRouteHandler(async (request: NextRequest, context: Upser
       return validationErrorResponse(error)
     }
 
-    const response = rowWriteErrorResponse(error)
+    const response = orchestrationErrorResponse(error)
     if (response) return response
 
     logger.error(`[${requestId}] Error upserting row:`, error)

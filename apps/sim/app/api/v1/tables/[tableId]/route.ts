@@ -2,7 +2,6 @@ import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
 import { v1DeleteTableContract, v1GetTableContract } from '@/lib/api/contracts/v1/tables'
 import { parseRequest } from '@/lib/api/server'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { TableSchema } from '@/lib/table'
@@ -11,6 +10,7 @@ import {
   accessError,
   checkAccess,
   normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
 import {
@@ -142,10 +142,7 @@ export const DELETE = withRouteHandler(async (request: NextRequest, context: Tab
 
     const outcome = await performDeleteTable({ table: result.table, userId, requestId, request })
     if (!outcome.success) {
-      return NextResponse.json(
-        { error: outcome.error ?? 'Failed to delete table' },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to delete table')
     }
 
     return NextResponse.json({
