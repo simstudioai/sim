@@ -7,7 +7,10 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import {
+  deleteWorkspaceFileFolderOperation,
+  ensureWorkspaceFileFolderPathOperation,
+} from '@/lib/workspace-files/application/workspace-file-folders'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -345,9 +348,14 @@ export async function decompressArchiveBufferToWorkspaceFiles(
 
   // Pass 2 — extract: the archive is proven within caps; inflate again and upload.
   // Uploads themselves can still fail mid-loop (storage/DB errors, quota crossed
-  // by another writer), so a failure rolls back every file written so far —
-  // callers and their retries must never observe a partial tree.
+  // by another writer), so a failure rolls back every file written so far *and*
+  // every folder this call materialized — callers and their retries must never
+  // observe a partial tree. Leftover folders are not cosmetic: `materialize_file`
+  // refuses to re-extract into a root folder that still has any child, so a
+  // half-extracted tree would make every retry fail until a human deletes it.
   const folderIdCache = new Map<string, string | null>()
+  /** Only folders this call inserted, in creation order — never a reused one. */
+  const createdFolderIds: string[] = []
   const extracted: UserFile[] = []
   let totalBytes = 0
   try {
@@ -365,12 +373,12 @@ export async function decompressArchiveBufferToWorkspaceFiles(
         // Ensure-semantics, not create-semantics: an archive addresses every folder
         // by its full chain, so intermediates must be materialized and any folder
         // that already exists (from a sibling entry or an earlier extraction) reused.
-        folderId = (
-          await ensureWorkspaceFileFolderPathOperation.execute({
-            principal,
-            input: { workspaceId, pathSegments: folderSegments },
-          })
-        ).folderId
+        const ensured = await ensureWorkspaceFileFolderPathOperation.execute({
+          principal,
+          input: { workspaceId, pathSegments: folderSegments },
+        })
+        folderId = ensured.folderId
+        createdFolderIds.push(...ensured.createdFolderIds)
         folderIdCache.set(folderKey, folderId)
       }
 
@@ -410,6 +418,19 @@ export async function decompressArchiveBufferToWorkspaceFiles(
         })
       } catch {
         // Best-effort: a file whose cleanup fails is still soft-deletable by hand;
+        // the original error is what the caller needs to see.
+      }
+    }
+    // Deepest-first (creation order records parents before children), so a parent is
+    // never removed out from under a child that is still being cleaned up.
+    for (let index = createdFolderIds.length - 1; index >= 0; index--) {
+      try {
+        await deleteWorkspaceFileFolderOperation.execute({
+          principal,
+          input: { workspaceId, folderId: createdFolderIds[index], recursive: true },
+        })
+      } catch {
+        // Best-effort: a folder whose cleanup fails is still deletable by hand;
         // the original error is what the caller needs to see.
       }
     }

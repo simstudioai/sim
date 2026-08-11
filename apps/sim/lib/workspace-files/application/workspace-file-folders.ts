@@ -56,6 +56,11 @@ export interface EnsureWorkspaceFileFolderPathInput {
 export interface EnsureWorkspaceFileFolderPathResult {
   /** Id of the deepest folder, or `null` when the path resolves to the root. */
   folderId: string | null
+  /**
+   * Ids this call inserted, outermost-first — never a folder it reused. Callers that
+   * materialize a tree use it to unwind exactly their own writes on failure.
+   */
+  createdFolderIds: string[]
 }
 
 export interface UpdateWorkspaceFileFolderInput {
@@ -168,12 +173,11 @@ async function executeEnsureWorkspaceFileFolderPath(args: {
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
-  const folderId = await ensureWorkspaceFileFolderPath({
+  return ensureWorkspaceFileFolderPath({
     workspaceId: args.context.workspaceId,
     userId: attribution.attributedUserId,
     pathSegments: args.input.pathSegments,
   })
-  return { folderId }
 }
 
 async function executeUpdateWorkspaceFileFolder(args: {
