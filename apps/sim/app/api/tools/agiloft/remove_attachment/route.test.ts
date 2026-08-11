@@ -13,13 +13,16 @@ vi.mock('@/lib/core/security/input-validation.server', () => inputValidationMock
 
 import { POST } from '@/app/api/tools/agiloft/remove_attachment/route'
 
+/** Obvious non-secret so credential scanners do not flag these fixtures. */
+const PLACEHOLDER_PASSWORD = 'not-a-real-password'
+
 const PINNED_IP = '93.184.216.34'
 
 const baseBody = {
   instanceUrl: 'https://example.agiloft.com',
   knowledgeBase: 'demo',
   login: 'admin',
-  password: 'secret',
+  password: PLACEHOLDER_PASSWORD,
   table: 'contracts',
   recordId: '42',
   fieldName: 'attachments',
@@ -33,7 +36,7 @@ function mockSecureFetchResponse(body: { ok?: boolean; json?: unknown; text?: st
     statusText: '',
     headers: new Headers(),
     body: null,
-    text: async () => body.text ?? '',
+    text: async () => body.text ?? JSON.stringify(body.json ?? {}),
     json: async () => body.json ?? {},
     arrayBuffer: async () => new ArrayBuffer(0),
   }
@@ -55,10 +58,9 @@ beforeEach(() => {
 
 describe('POST /api/tools/agiloft/remove_attachment', () => {
   it('calls EWRemoveAttachment with GET, the only verb it accepts besides POST', async () => {
-    inputValidationMockFns.mockSecureFetchWithPinnedIP
-      .mockResolvedValueOnce(mockSecureFetchResponse({ json: { access_token: 'tok-rm' } }))
-      .mockResolvedValueOnce(mockSecureFetchResponse({ text: '2' }))
-      .mockResolvedValueOnce(mockSecureFetchResponse({}))
+    inputValidationMockFns.mockSecureFetchWithPinnedIP.mockResolvedValueOnce(
+      mockSecureFetchResponse({ text: "EWREST_attachments.length='2';" })
+    )
 
     const response = await POST(createMockRequest('POST', baseBody))
     expect(response.status).toBe(200)
@@ -69,8 +71,14 @@ describe('POST /api/tools/agiloft/remove_attachment', () => {
     }
     expect(data.output.remainingAttachments).toBe(2)
 
-    const operationCall = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls[1]
-    expect(operationCall[0]).toContain('/ewws/EWRemoveAttachment')
-    expect(operationCall[2]).toMatchObject({ method: 'GET' })
+    /**
+     * One call, not three: the EW* surface rejects the bearer token, so it
+     * authenticates from inline credentials and needs no login/logout pair.
+     */
+    const calls = inputValidationMockFns.mockSecureFetchWithPinnedIP.mock.calls
+    expect(calls).toHaveLength(1)
+    expect(calls[0][0]).toContain('/ewws/EWRemoveAttachment')
+    expect(calls[0][0]).toContain('&$login=admin')
+    expect(calls[0][2]).toMatchObject({ method: 'GET' })
   })
 })

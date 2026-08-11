@@ -6,10 +6,13 @@ import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { parseEwRest, toRecord } from '@/tools/agiloft/ewrest'
 import type { AgiloftRecordResponse } from '@/tools/agiloft/types'
-import { buildCreateRecordUrl, recordUrlLengthError } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { alrestRecordCollectionUrl } from '@/tools/agiloft/utils'
+import {
+  executeAlrestRequest,
+  isAgiloftRefusal,
+  readAlrestJson,
+} from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -65,52 +68,53 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       })
     }
 
-    const oversized = recordUrlLengthError(params.instanceUrl, (base) =>
-      buildCreateRecordUrl(base, params, fieldValues)
-    )
-    if (oversized) {
-      return NextResponse.json({
-        success: false,
-        output: { id: null, fields: {} },
-        error: oversized,
-      })
-    }
-
-    const result = await executeAgiloftRequest<AgiloftRecordResponse>(
+    const result = await executeAlrestRequest<AgiloftRecordResponse>(
       params,
       (base) => ({
-        url: buildCreateRecordUrl(base, params, fieldValues),
+        url: alrestRecordCollectionUrl(base, params.table),
         method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+        body: JSON.stringify(fieldValues),
       }),
       async (response) => {
-        const body = await response.text()
+        const record = await readAlrestJson<Record<string, unknown>>(response)
+        const id = record?.id
 
-        if (!response.ok) {
+        /**
+         * A create that reports no ID did not create anything usable — callers
+         * chain on this ID, so surface it as a failure rather than handing back
+         * a successful-looking null.
+         */
+        if (id == null) {
           return {
             success: false,
-            output: { id: null, fields: {} },
-            error: `Agiloft error: ${response.status} - ${body}`,
+            output: { id: null, fields: record ?? {} },
+            error: 'Agiloft did not return an ID for the created record',
           }
         }
 
-        /** EWCreate answers with a single assignment: EWREST_id='353'; */
-        const { id, fields } = toRecord(parseEwRest(body))
-
-        if (id === null) {
-          return {
-            success: false,
-            output: { id: null, fields },
-            error: `Agiloft did not return a record ID: ${body.trim() || '(empty response)'}`,
-          }
+        return {
+          success: true,
+          output: { id: String(id), fields: record ?? {} },
         }
-
-        return { success: true, output: { id, fields } }
       }
     )
 
     return NextResponse.json(result)
   } catch (error) {
+    /**
+     * A refusal Agiloft already decided on is a final answer, not a transient
+     * fault — returning 500 would make the tool runner retry it.
+     */
+    if (isAgiloftRefusal(error)) {
+      logger.warn(`[${requestId}] Agiloft refused the request`, { error: error.message })
+      return NextResponse.json({
+        success: false,
+        output: { id: null, fields: {} },
+        error: error.message,
+      })
+    }
+
     logger.error(`[${requestId}] Error creating Agiloft record:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })

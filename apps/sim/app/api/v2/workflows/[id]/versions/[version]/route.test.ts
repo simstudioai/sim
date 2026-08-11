@@ -8,15 +8,38 @@ const mocks = vi.hoisted(() => ({
   authenticateV2ApiKey: vi.fn(),
   checkRateLimitDirect: vi.fn(),
   checkRateLimitDirectOrThrow: vi.fn(),
+  resolvePermission: vi.fn(),
+  resolveWorkflowContext: vi.fn(),
   readVersion: vi.fn(),
   gate: vi.fn(),
 }))
 
-vi.mock('@/lib/workflows/application/read-workflow-version', () => ({
-  readWorkflowVersion: {
-    operation: { id: 'workflows.versions.read' },
-    execute: mocks.readVersion,
+vi.mock('@sim/platform-authz/workspace', () => ({
+  permissionSatisfies: (actual: string | null, required: string) => {
+    const rank = { read: 1, write: 2, admin: 3 } as const
+    return (
+      actual !== null && rank[actual as keyof typeof rank] >= rank[required as keyof typeof rank]
+    )
   },
+  resolveEffectiveWorkspacePermission: mocks.resolvePermission,
+}))
+vi.mock('@/lib/workflows/application/context', () => ({
+  resolveActiveWorkflowApplicationContext: mocks.resolveWorkflowContext,
+}))
+vi.mock('@/lib/workflows/persistence/utils', () => ({
+  getWorkflowDeploymentVersion: mocks.readVersion,
+}))
+vi.mock('@/blocks/registry', () => ({
+  getBlock: () => ({
+    name: 'Slack',
+    subBlocks: [
+      { id: 'credential', type: 'oauth-input' },
+      { id: 'botToken', type: 'short-input', password: true },
+      { id: 'envToken', type: 'short-input', password: true },
+      { id: 'channel', type: 'short-input' },
+    ],
+    outputs: {},
+  }),
 }))
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => ({
   authenticateV2ApiKey: mocks.authenticateV2ApiKey,
@@ -45,11 +68,44 @@ const auth = {
   keyType: 'personal' as const,
 }
 
+const workflowContext = {
+  workspaceId: 'workspace-1',
+  workspaceOrganizationId: null,
+  allowPersonalApiKeys: true,
+  billedAccountUserId: 'billing-owner-1',
+  workflowId: 'workflow-1',
+  workflow: { id: 'workflow-1', workspaceId: 'workspace-1' },
+}
+
+function versionState() {
+  return {
+    blocks: {
+      'block-1': {
+        id: 'block-1',
+        type: 'slack',
+        name: 'Slack',
+        subBlocks: {
+          credential: { id: 'credential', type: 'oauth-input', value: 'oauth-credential-id' },
+          botToken: { id: 'botToken', type: 'short-input', value: 'xoxb-plaintext-secret' },
+          envToken: { id: 'envToken', type: 'short-input', value: '{{SLACK_BOT_TOKEN}}' },
+          channel: { id: 'channel', type: 'short-input', value: '#general' },
+        },
+      },
+    },
+    edges: [],
+    loops: {},
+    parallels: {},
+    version: '1.0',
+  }
+}
+
 describe('GET /api/v2/workflows/[id]/versions/[version]', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authenticateV2ApiKey.mockResolvedValue(auth)
     mocks.gate.mockResolvedValue(null)
+    mocks.resolvePermission.mockResolvedValue('admin')
+    mocks.resolveWorkflowContext.mockResolvedValue(workflowContext)
     mocks.checkRateLimitDirect.mockResolvedValue({
       allowed: true,
       remaining: 599,
@@ -61,30 +117,38 @@ describe('GET /api/v2/workflows/[id]/versions/[version]', () => {
       resetAt: new Date('2026-08-01T01:00:00.000Z'),
     })
     mocks.readVersion.mockResolvedValue({
-      version: {
-        id: 'version-2',
-        version: 2,
-        name: 'Production',
-        description: null,
-        isActive: true,
-        createdAt: new Date('2026-08-01T00:00:00.000Z'),
-        state: { blocks: {}, edges: [], loops: {}, parallels: {}, version: '1.0' },
-      },
+      id: 'version-2',
+      version: 2,
+      name: 'Production',
+      description: null,
+      isActive: true,
+      createdAt: new Date('2026-08-01T00:00:00.000Z'),
+      state: versionState(),
     })
   })
 
-  it('reads the requested version through the semantic use case', async () => {
+  async function get() {
     const request = new NextRequest('http://localhost/api/v2/workflows/workflow-1/versions/2')
-    const response = await GET(request, {
-      params: Promise.resolve({ id: 'workflow-1', version: '2' }),
-    })
+    return GET(request, { params: Promise.resolve({ id: 'workflow-1', version: '2' }) })
+  }
+
+  it('reads the requested version only after canonical workflow authorization', async () => {
+    const response = await get()
 
     expect(response.status).toBe(200)
     expect((await response.json()).data).toMatchObject({ id: 'version-2', version: 2 })
-    expect(mocks.readVersion).toHaveBeenCalledWith({
-      principal: auth.principal,
-      input: { workflowId: 'workflow-1', version: 2 },
-      request,
-    })
+    expect(mocks.resolveWorkflowContext).toHaveBeenCalledBefore(mocks.readVersion)
+    expect(mocks.readVersion).toHaveBeenCalledWith('workflow-1', 2)
+  })
+
+  it('never serves credential values in the pinned graph', async () => {
+    const response = await get()
+
+    expect(response.status).toBe(200)
+    const subBlocks = (await response.json()).data.state.blocks['block-1'].subBlocks
+    expect(subBlocks.credential.value).toBeNull()
+    expect(subBlocks.botToken.value).toBeNull()
+    expect(subBlocks.envToken.value).toBe('{{SLACK_BOT_TOKEN}}')
+    expect(subBlocks.channel.value).toBe('#general')
   })
 })

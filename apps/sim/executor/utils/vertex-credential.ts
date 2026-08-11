@@ -2,7 +2,7 @@ import { db } from '@sim/db'
 import { account } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { eq } from 'drizzle-orm'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { getServiceAccountToken, refreshTokenIfNeeded } from '@/lib/oauth/credential-service'
 
 const logger = createLogger('VertexCredential')
@@ -48,7 +48,7 @@ export async function resolveVertexCredential({
     })
     throw new Error('Credential is not accessible from this workflow workspace')
   }
-  if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+  if (!canUseCredential(access)) {
     throw new Error('Not authorized to use this Vertex AI credential')
   }
 

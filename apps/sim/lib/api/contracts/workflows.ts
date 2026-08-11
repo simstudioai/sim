@@ -596,11 +596,17 @@ export const workflowExecutionPausedDetailSchema = z.object({
     .string()
     .nullable()
     .describe('Resume context identifier, or null while every pause point is mid-resume.'),
-  pausedAt: z.string().describe('ISO 8601 timestamp when the execution entered the paused state.'),
+  pausedAt: z
+    .string()
+    .datetime()
+    .meta({ format: 'date-time' })
+    .describe('ISO 8601 timestamp when the execution entered the paused state.'),
   resumeAt: z
     .string()
+    .datetime()
+    .meta({ format: 'date-time' })
     .nullable()
-    .describe('Scheduled automatic-resume timestamp, or null when no resume time is set.'),
+    .describe('ISO 8601 scheduled automatic-resume timestamp, or null when no resume time is set.'),
   pauseKind: z
     .enum(['time', 'human'])
     .nullable()

@@ -21,10 +21,10 @@ export const GET = defineV2JsonRoute({
     assertedWorkspaceId: query.workspaceId,
   }),
   useCase: getWorkspaceFileShare,
-  present: ({ share }) => ({ data: { share } }),
+  present: ({ share }) => ({ data: share }),
 })
 
-export const PUT = defineV2JsonRoute({
+export const PATCH = defineV2JsonRoute({
   contract: v2UpsertFileShareContract,
   auth: v2ApiKeyAuth,
   operation: fileOperations.updateShare,
@@ -39,5 +39,5 @@ export const PUT = defineV2JsonRoute({
     allowedEmails: body.allowedEmails,
   }),
   useCase: updateWorkspaceFileShare,
-  present: ({ share }) => ({ data: { share } }),
+  present: ({ share }) => ({ data: share }),
 })

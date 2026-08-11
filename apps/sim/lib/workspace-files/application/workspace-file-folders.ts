@@ -50,11 +50,18 @@ export interface CreateWorkspaceFileFolderResult {
 
 export interface EnsureWorkspaceFileFolderPathInput {
   workspaceId: string
+  /** Decoded folder names, outermost first. An empty list resolves to the root. */
   pathSegments: string[]
 }
 
 export interface EnsureWorkspaceFileFolderPathResult {
+  /** Id of the deepest folder, or `null` when the path resolves to the root. */
   folderId: string | null
+  /**
+   * Ids this call inserted, outermost-first — never a folder it reused. Callers that
+   * materialize a tree use it to unwind exactly their own writes on failure.
+   */
+  createdFolderIds: string[]
 }
 
 export interface UpdateWorkspaceFileFolderInput {
@@ -167,12 +174,11 @@ async function executeEnsureWorkspaceFileFolderPath(args: {
   const attribution = resolvePrincipalAttribution(args.principal, {
     workspaceBillingOwnerUserId: args.context.billedAccountUserId,
   })
-  const folderId = await ensureWorkspaceFileFolderPath({
+  return ensureWorkspaceFileFolderPath({
     workspaceId: args.context.workspaceId,
     userId: attribution.attributedUserId,
     pathSegments: args.input.pathSegments,
   })
-  return { folderId }
 }
 
 async function executeUpdateWorkspaceFileFolder(args: {
@@ -267,8 +273,15 @@ export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
   },
 })
 
+/**
+ * Idempotently materializes a whole folder chain, reusing every folder that already
+ * exists and creating only the missing ones. Unlike {@link createWorkspaceFileFolderOperation}
+ * — which creates exactly one leaf and fails on an existing path or a missing parent —
+ * this is the primitive for writers that materialize a tree (archive extraction), where
+ * intermediate folders and repeat runs are expected rather than exceptional.
+ */
 export const ensureWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
-  operation: fileOperations.create,
+  operation: fileOperations.createFolder,
   resolveContext: (args: { input: EnsureWorkspaceFileFolderPathInput }) =>
     resolveFolderContext(args),
   execute: executeEnsureWorkspaceFileFolderPath,

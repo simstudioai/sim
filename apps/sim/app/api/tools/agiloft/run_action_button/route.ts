@@ -8,8 +8,8 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { parseEwRest } from '@/tools/agiloft/ewrest'
 import type { AgiloftRunActionButtonResponse } from '@/tools/agiloft/types'
-import { buildRunActionButtonUrl } from '@/tools/agiloft/utils'
-import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
+import { buildRunActionButtonUrl, describeAgiloftError } from '@/tools/agiloft/utils'
+import { executeEwRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
@@ -52,7 +52,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftRunActionButtonResponse>(
+    const result = await executeEwRequest<AgiloftRunActionButtonResponse>(
       params,
       (base) => ({
         url: buildRunActionButtonUrl(base, params),
@@ -68,7 +68,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           return {
             success: false,
             output: { recordId, callbackId: null },
-            error: `Agiloft error: ${response.status} - ${body}`,
+            error: `Agiloft error ${response.status}: ${describeAgiloftError(body)}`,
           }
         }
 

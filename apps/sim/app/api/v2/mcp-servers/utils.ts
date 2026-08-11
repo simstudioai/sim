@@ -1,5 +1,6 @@
 import type { NextResponse } from 'next/server'
 import { type V2McpServer, v2McpServerSchema } from '@/lib/api/contracts/v2/mcp-servers'
+import { projectMcpHeaders } from '@/lib/mcp/projection'
 import type { McpServerRow } from '@/lib/mcp/queries'
 import { v2Error } from '@/app/api/v2/lib/response'
 
@@ -13,15 +14,14 @@ import { v2Error } from '@/app/api/v2/lib/response'
  * The row is parsed through {@link v2McpServerSchema}, whose strip behaviour is
  * the security boundary: `headers`, `oauthClientSecret`, `statusConfig`, and the
  * rest of the row are dropped rather than enumerated by hand, so a column added
- * later cannot leak by omission. Header *names* are lifted out explicitly.
+ * later cannot leak by omission. Header *names* are lifted out explicitly by
+ * {@link projectMcpHeaders}, shared with the internal surface so both read
+ * surfaces withhold header values by the same rule.
  */
 export function toV2McpServer(row: McpServerRow): V2McpServer {
-  const headers = (row.headers ?? {}) as Record<string, string>
-  const headerNames = Object.keys(headers)
   return v2McpServerSchema.parse({
     ...row,
-    hasHeaders: headerNames.length > 0,
-    headerNames,
+    ...projectMcpHeaders(row.headers),
     hasOauthClientSecret: Boolean(row.oauthClientSecret),
   })
 }

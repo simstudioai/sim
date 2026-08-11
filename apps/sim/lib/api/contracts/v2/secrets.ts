@@ -7,6 +7,7 @@ import {
   v2DataResponse,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 const SECRET_NAME_REGEX = /^[A-Za-z0-9_]+$/
@@ -30,11 +31,8 @@ export const v2SecretSchema = z
     name: v2SecretNameSchema,
     scope: v2SecretScopeSchema,
     role: workspaceCredentialRoleSchema.describe('Caller role for the secret.'),
-    createdAt: z.string().datetime().describe('ISO 8601 timestamp when the secret was created.'),
-    updatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO 8601 timestamp when the secret was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the secret was last updated.'),
   })
   .meta({
     id: 'V2Secret',
@@ -42,17 +40,6 @@ export const v2SecretSchema = z
     description: 'Public secret metadata without the stored secret value.',
   })
 export type V2Secret = z.output<typeof v2SecretSchema>
-
-export const v2SecretDataSchema = z
-  .object({
-    secret: v2SecretSchema.describe('Secret metadata. The stored value is never returned.'),
-  })
-  .meta({
-    id: 'V2SecretData',
-    title: 'Secret data',
-    description: 'A single secret-metadata payload without its stored value.',
-  })
-export type V2SecretData = z.output<typeof v2SecretDataSchema>
 
 export const v2SecretDeleteDataSchema = z
   .object({
@@ -122,7 +109,7 @@ export const v2SetSecretContract = defineRouteContract({
   body: v2SetSecretBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SecretDataSchema),
+    schema: v2DataResponse(v2SecretSchema),
     status: [200, 201],
   },
 })

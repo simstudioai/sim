@@ -20,9 +20,7 @@ export const revalidate = 0
 async function presentView(result: { view: Parameters<typeof toApiView>[0] }) {
   const { view } = result
   return {
-    data: {
-      view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
-    },
+    data: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
   }
 }
 
@@ -56,5 +54,5 @@ export const DELETE = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ ...params, workspaceId: query.workspaceId }),
-  present: ({ viewId }) => ({ data: { id: viewId } }),
+  present: ({ viewId }) => ({ data: { id: viewId, deleted: true as const } }),
 })

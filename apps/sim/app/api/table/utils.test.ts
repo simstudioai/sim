@@ -6,7 +6,12 @@ import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
 import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { ColumnDefinition } from '@/lib/table/types'
-import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
+import {
+  orchestrationErrorResponse,
+  orchestrationOutcomeErrorResponse,
+  rootErrorMessage,
+  tableFilterError,
+} from '@/app/api/table/utils'
 
 /** Mimics drizzle's DrizzleQueryError: message is the failed SQL, real error on `cause`. */
 function wrapLikeDrizzle(cause: Error): Error {
@@ -30,9 +35,9 @@ describe('rootErrorMessage', () => {
   })
 })
 
-describe('rowWriteErrorResponse', () => {
+describe('orchestrationErrorResponse', () => {
   it('passes the plan row-limit error through as a 400', async () => {
-    const response = rowWriteErrorResponse(new TableRowLimitError(10000))
+    const response = orchestrationErrorResponse(new TableRowLimitError(10000))
     expect(response?.status).toBe(400)
     const body = await response?.json()
     expect(body.error).toBe(
@@ -41,7 +46,7 @@ describe('rowWriteErrorResponse', () => {
   })
 
   it('passes a classified validation failure through as 400', async () => {
-    const response = rowWriteErrorResponse(
+    const response = orchestrationErrorResponse(
       new OrchestrationError('validation', 'Value for column "email" must be unique')
     )
     expect(response?.status).toBe(400)
@@ -50,23 +55,25 @@ describe('rowWriteErrorResponse', () => {
   })
 
   it('answers the code the failure carries, not one derived from its wording', () => {
-    expect(rowWriteErrorResponse(new TableRowNotFoundError())?.status).toBe(404)
+    expect(orchestrationErrorResponse(new TableRowNotFoundError())?.status).toBe(404)
     // The phrase that used to force a 400 no longer decides anything.
     expect(
-      rowWriteErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))?.status
+      orchestrationErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))
+        ?.status
     ).toBe(409)
   })
 
   it('unwraps a classified failure drizzle wrapped in a query error', () => {
     expect(
-      rowWriteErrorResponse(wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad')))
-        ?.status
+      orchestrationErrorResponse(
+        wrapLikeDrizzle(new OrchestrationError('validation', 'Row 3: bad'))
+      )?.status
     ).toBe(400)
   })
 
   it('returns null for unknown errors so callers keep their generic 500', () => {
-    expect(rowWriteErrorResponse(new Error('connection refused'))).toBeNull()
-    expect(rowWriteErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
+    expect(orchestrationErrorResponse(new Error('connection refused'))).toBeNull()
+    expect(orchestrationErrorResponse(wrapLikeDrizzle(new Error('deadlock detected')))).toBeNull()
   })
 })
 
@@ -114,5 +121,62 @@ describe('tableFilterError', () => {
   it('still validates the legacy grammar through buildFilterClause', () => {
     expect(tableFilterError({ col_status: 'x' }, columns)).toBeNull()
     expect(tableFilterError({ col_status: { $regex: 'x' } } as never, columns)?.status).toBe(400)
+  })
+})
+
+describe('orchestrationOutcomeErrorResponse', () => {
+  /**
+   * Shaped like a driver fault surfacing verbatim — a statement plus its bound
+   * parameters — so the assertion proves none of it reaches the response body.
+   */
+  const leakyMessage =
+    'Failed query: delete from "user_table" where "user_table"."id" = $1 params: tbl-1'
+
+  it('replaces an unclassified failure message with the fallback', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { success: false, error: leakyMessage, errorCode: 'internal' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(500)
+    const body = await response.json()
+    expect(body).toEqual({ error: 'Failed to delete table' })
+    expect(JSON.stringify(body)).not.toContain('Failed query')
+    expect(JSON.stringify(body)).not.toContain('params:')
+  })
+
+  it('replaces an unclassified failure with no error code too', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: leakyMessage },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Failed to delete table' })
+  })
+
+  it('keeps the message of a classified failure', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: 'A table named "Orders" already exists in this workspace', errorCode: 'conflict' },
+      'Failed to rename table'
+    )
+
+    expect(response.status).toBe(409)
+    expect(await response.json()).toEqual({
+      error: 'A table named "Orders" already exists in this workspace',
+    })
+  })
+
+  it('carries the rejecting lock kind on a 423', async () => {
+    const response = orchestrationOutcomeErrorResponse(
+      { error: 'Table is locked against deletion', errorCode: 'locked', lock: 'delete' },
+      'Failed to delete table'
+    )
+
+    expect(response.status).toBe(423)
+    expect(await response.json()).toEqual({
+      error: 'Table is locked against deletion',
+      lock: 'delete',
+    })
   })
 })

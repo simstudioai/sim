@@ -26,6 +26,12 @@ export interface McpAuthContext {
   workspaceId: string
   canWrite: boolean
   requestId: string
+  /**
+   * The caller's resolved workspace permission, which satisfies but may exceed
+   * the level the route demanded — a `read` route still serves editors and
+   * admins. Surfaces use it to decide how much of a row to project.
+   */
+  permission?: PermissionType
 }
 
 export type McpRouteHandler<TParams = Record<string, string>> = (
@@ -199,6 +205,7 @@ async function validateMcpAuth(
         workspaceId,
         canWrite: permissionSatisfies(userPermissions as PermissionType, 'write'),
         requestId,
+        permission: userPermissions,
       },
     }
   } catch (error) {

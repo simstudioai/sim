@@ -87,6 +87,11 @@ export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
  *
  * An artifact that is still compiling is retryable rather than a fault, so it
  * surfaces as `conflict` — a 500 would give the caller no reason to try again.
+ * A generation script that failed permanently raises the same error class but
+ * will never succeed on a retry, so it keeps its own message instead of the
+ * "still being generated" copy, which would tell the caller to wait for an
+ * artifact that never appears. It stays a `conflict` only because the v2
+ * envelope has no 422; the message is what distinguishes the two.
  */
 async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']) {
   try {
@@ -95,7 +100,11 @@ async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']
     })
   } catch (error) {
     if (isDocNotReadyError(error)) {
-      throw new OrchestrationError('conflict', docNotReadyMessage())
+      if (error.pending) throw new OrchestrationError('conflict', docNotReadyMessage())
+      throw new OrchestrationError(
+        'conflict',
+        `"${file.name}" could not be generated: ${error.message}`
+      )
     }
     if (isPayloadSizeLimitError(error)) {
       throw new OrchestrationError(

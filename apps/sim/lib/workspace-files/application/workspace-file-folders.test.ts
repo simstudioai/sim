@@ -136,7 +136,10 @@ describe('workspace file folder operations', () => {
   })
 
   it('ensures an entire decoded folder chain for a file write', async () => {
-    mockEnsure.mockResolvedValue('nested-folder')
+    mockEnsure.mockResolvedValue({
+      folderId: 'nested-folder',
+      createdFolderIds: ['reports-folder', 'nested-folder'],
+    })
 
     const result = await ensureWorkspaceFileFolderPathOperation.execute({
       principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
@@ -144,6 +147,7 @@ describe('workspace file folder operations', () => {
     })
 
     expect(result.folderId).toBe('nested-folder')
+    expect(result.createdFolderIds).toEqual(['reports-folder', 'nested-folder'])
     expect(mockEnsure).toHaveBeenCalledWith({
       workspaceId: 'ws-1',
       userId: 'user-1',

@@ -22,6 +22,12 @@ import { ADMISSION_ERROR_DESCRIPTOR } from '@/lib/core/admission/transient-failu
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import {
+  buildNextCallChain,
+  parseCallChain,
+  SIM_VIA_HEADER,
+  validateCallChain,
+} from '@/lib/execution/call-chain'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { executeWorkflowOperation } from '@/lib/workflows/application/execute-workflow'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -119,6 +125,19 @@ export const POST = withRouteHandler(
       v2RateLimits.publicApi
     )
     if (!admission.success) return admission.response
+
+    /**
+     * Workflow-recursion guard. Mirrors the internal execute route: reject an
+     * incoming chain that is already at the depth limit, then append this
+     * workflow so the chain keeps growing across hops instead of resetting.
+     */
+    const incomingCallChain = parseCallChain(req.headers.get(SIM_VIA_HEADER))
+    const callChainError = validateCallChain(incomingCallChain)
+    if (callChainError) {
+      logger.warn(`[${requestId}] Call chain rejected`, { workflowId, error: callChainError })
+      return v2Error('CONFLICT', callChainError, { details: { code: 'CALL_CHAIN_DEPTH_EXCEEDED' } })
+    }
+    const callChain = buildNextCallChain(incomingCallChain, workflowId)
 
     if (admission.auth) {
       apiKeyPrincipal = admission.auth.principal
@@ -235,6 +254,7 @@ export const POST = withRouteHandler(
             requestHeaders: req.headers,
             includeThinking: body.includeThinking,
             includeToolCalls: body.includeToolCalls,
+            callChain,
           },
           request: req,
         })
@@ -271,6 +291,7 @@ export const POST = withRouteHandler(
           requestHeaders: req.headers,
           includeThinking: body.includeThinking,
           includeToolCalls: body.includeToolCalls,
+          callChain,
         })
       }
 

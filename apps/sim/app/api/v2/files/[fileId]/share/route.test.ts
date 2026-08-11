@@ -66,7 +66,7 @@ vi.mock('@/lib/workspace-files/application/share-workspace-file', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { GET, PUT } from '@/app/api/v2/files/[fileId]/share/route'
+import { GET, PATCH } from '@/app/api/v2/files/[fileId]/share/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const FILE_ID = 'wf_1'
@@ -107,10 +107,10 @@ function callGet(query = `workspaceId=${WORKSPACE_ID}`) {
   )
 }
 
-function callPut(body: unknown) {
-  return PUT(
+function callPatch(body: unknown) {
+  return PATCH(
     new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}/share`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json', 'x-api-key': 'key' },
       body: JSON.stringify(body),
     }),
@@ -176,7 +176,7 @@ describe('GET /api/v2/files/[fileId]/share', () => {
     const response = await callGet()
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
+    expect((await response.json()).data).toEqual(SHARE)
   })
 
   it('returns the rate-limit response when denied', async () => {
@@ -190,7 +190,7 @@ describe('GET /api/v2/files/[fileId]/share', () => {
   })
 })
 
-describe('PUT /api/v2/files/[fileId]/share', () => {
+describe('PATCH /api/v2/files/[fileId]/share', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.authenticate.mockResolvedValue(AUTH)
@@ -201,7 +201,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   })
 
   it('rejects a caller-supplied token at the v2 boundary', async () => {
-    const response = await callPut({
+    const response = await callPatch({
       workspaceId: WORKSPACE_ID,
       isActive: true,
       token: 'attacker-chosen-token',
@@ -217,7 +217,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
       new OrchestrationError('validation', 'Password is required for password-protected shares')
     )
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPatch({ workspaceId: WORKSPACE_ID, isActive: true })
     const body = await response.json()
 
     expect(response.status).toBe(400)
@@ -228,7 +228,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   })
 
   it('passes the shared principal and canonical workspace assertion to the use case', async () => {
-    const response = await callPut({
+    const response = await callPatch({
       workspaceId: WORKSPACE_ID,
       isActive: true,
       authType: 'password',
@@ -236,7 +236,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
     })
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data).toEqual({ share: SHARE })
+    expect((await response.json()).data).toEqual(SHARE)
     expect(mocks.updateShare).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -254,7 +254,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('preserves generic forbidden updates as forbidden', async () => {
     mocks.updateShare.mockRejectedValueOnce(new OrchestrationError('forbidden', 'Access denied'))
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPatch({ workspaceId: WORKSPACE_ID, isActive: true })
 
     expect(response.status).toBe(403)
     expect((await response.json()).error.code).toBe('FORBIDDEN')
@@ -263,7 +263,7 @@ describe('PUT /api/v2/files/[fileId]/share', () => {
   it('returns the rate-limit response when denied', async () => {
     mocks.operationRate.mockResolvedValueOnce({ ...RATE_LIMIT_OK, allowed: false, remaining: 0 })
 
-    const response = await callPut({ workspaceId: WORKSPACE_ID, isActive: true })
+    const response = await callPatch({ workspaceId: WORKSPACE_ID, isActive: true })
 
     expect(response.status).toBe(429)
     expect((await response.json()).error.code).toBe('RATE_LIMITED')

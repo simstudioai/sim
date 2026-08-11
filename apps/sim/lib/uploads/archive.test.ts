@@ -5,15 +5,33 @@ import { Buffer } from 'buffer'
 import JSZip from 'jszip'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockEnsureFolder, mockUpload, mockDelete } = vi.hoisted(() => ({
-  mockEnsureFolder: vi.fn(),
+/**
+ * The workspace-file store is faked in memory rather than stubbed, because the
+ * defects this suite guards against live in the *contract* between the extractor
+ * and the folder/file layers, not in the extractor's own arithmetic. The fake
+ * therefore enforces the real rules:
+ *
+ * - folder keys are built with the production {@link buildFolderPath}, so a segment
+ *   that needs encoding is rejected or encoded exactly as the folder layer would;
+ * - `exactName: true` throws `FileConflictError` on a duplicate leaf name, while
+ *   `exactName: false` auto-suffixes, mirroring `uploadWorkspaceFile`.
+ */
+const { store, mockUpload, mockDelete, mockEnsureFolder, mockDeleteFolder } = vi.hoisted(() => ({
+  store: {
+    folderIdByPath: new Map<string, string>(),
+    fileKeys: new Set<string>(),
+    /** Paths passed to the folder-delete operation, in call order. */
+    deletedFolderPaths: [] as string[],
+    sequence: 0,
+  },
   mockUpload: vi.fn(),
   mockDelete: vi.fn(),
+  mockEnsureFolder: vi.fn(),
+  mockDeleteFolder: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
-  ensureWorkspaceFileFolderPathOperation: {
-    execute: mockEnsureFolder,
-  },
+  ensureWorkspaceFileFolderPathOperation: { execute: mockEnsureFolder },
+  deleteWorkspaceFileFolderOperation: { execute: mockDeleteFolder },
 }))
 vi.mock('@/lib/workspace-files/application/create-workspace-file', () => ({
   createWorkspaceFileFromBuffer: {
@@ -26,6 +44,7 @@ vi.mock('@/lib/workspace-files/application/delete-workspace-file', () => ({
   },
 }))
 
+import { buildFolderPath } from '@/lib/folders/paths'
 import {
   decompressArchiveBufferToWorkspaceFiles,
   MAX_ARCHIVE_CENTRAL_DIR_EXTRA_BYTES,
@@ -83,27 +102,117 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
   return buffer
 }
 
+/** Mirrors `allocateUniqueWorkspaceFileName`'s " (n)" suffixing. */
+function allocateUniqueName(folderKey: string, name: string): string {
+  const dot = name.lastIndexOf('.')
+  const base = dot > 0 ? name.slice(0, dot) : name
+  const extension = dot > 0 ? name.slice(dot) : ''
+  for (let attempt = 1; ; attempt++) {
+    const candidate = `${base} (${attempt})${extension}`
+    if (!store.fileKeys.has(`${folderKey}|${candidate}`)) return candidate
+  }
+}
+
+/** Reverse lookup of the fake folder store: id -> path, or `undefined` if gone. */
+function folderPathById(folderId: string | undefined): string | undefined {
+  for (const [path, id] of store.folderIdByPath) {
+    if (id === folderId) return path
+  }
+  return undefined
+}
+
+/** Pre-seeds a folder chain that existed before extraction ran. */
+function seedExistingFolders(...paths: string[][]): void {
+  for (const segments of paths) {
+    store.folderIdByPath.set(buildFolderPath(segments), `preexisting_${++store.sequence}`)
+  }
+}
+
+/** Pre-seeds an already-existing workspace file so a later leaf name collides. */
+function seedExistingFile(folderId: string | null, name: string): void {
+  store.fileKeys.add(`${folderId ?? ''}|${name}`)
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
-  mockEnsureFolder.mockResolvedValue({ folderId: 'folder_1' })
+  store.folderIdByPath.clear()
+  store.fileKeys.clear()
+  store.deletedFolderPaths.length = 0
+  store.sequence = 0
+
+  mockEnsureFolder.mockImplementation(async ({ input }: { input: { pathSegments: string[] } }) => {
+    let folderId: string | null = null
+    const walked: string[] = []
+    // Only the segments this call actually inserts are reported as created; a
+    // segment resolved from the store was reused and must never be rolled back.
+    const createdFolderIds: string[] = []
+    for (const segment of input.pathSegments) {
+      walked.push(segment)
+      const path = buildFolderPath(walked)
+      const existing = store.folderIdByPath.get(path)
+      if (existing) {
+        folderId = existing
+        continue
+      }
+      folderId = `folder_${++store.sequence}`
+      store.folderIdByPath.set(path, folderId)
+      createdFolderIds.push(folderId)
+    }
+    return { folderId, createdFolderIds }
+  })
+
+  mockDeleteFolder.mockImplementation(
+    async ({ input }: { input: { folderId?: string; recursive?: boolean } }) => {
+      const path = folderPathById(input.folderId)
+      // Mirrors `deleteWorkspaceFileFolderOperation`, which raises `not_found` when
+      // nothing was archived — deleting a parent before its children would make the
+      // child's own delete hit this.
+      if (!path) throw new Error('Folder not found')
+      store.deletedFolderPaths.push(path)
+      for (const [candidate] of store.folderIdByPath) {
+        if (candidate === path || candidate.startsWith(`${path}/`)) {
+          store.folderIdByPath.delete(candidate)
+        }
+      }
+      return { deletedItems: { files: 0, folders: 1 } }
+    }
+  )
+
   mockDelete.mockResolvedValue(undefined)
   mockUpload.mockImplementation(
-    async ({ input }: { input: { content: Buffer; name: string } }) => ({
-      file: {
-        id: `f_${input.name}`,
-        name: input.name,
-        url: `/api/files/serve/${input.name}`,
-        key: `workspace/ws/${input.name}`,
-        size: input.content.length,
-        type: 'text/plain',
-      },
-    })
+    async ({
+      input,
+    }: {
+      input: { content: Buffer; name: string; folderId?: string | null; exactName: boolean }
+    }) => {
+      const folderKey = input.folderId ?? ''
+      let name = input.name
+      if (store.fileKeys.has(`${folderKey}|${name}`)) {
+        if (input.exactName) {
+          const conflict = new Error(`A file named "${name}" already exists`)
+          conflict.name = 'FileConflictError'
+          throw conflict
+        }
+        name = allocateUniqueName(folderKey, name)
+      }
+      store.fileKeys.add(`${folderKey}|${name}`)
+      return {
+        file: {
+          id: `f_${name}`,
+          name,
+          url: `/api/files/serve/${name}`,
+          key: `workspace/ws/${name}`,
+          size: input.content.length,
+          type: 'text/plain',
+        },
+      }
+    }
   )
 })
 
 describe('decompressArchiveBufferToWorkspaceFiles', () => {
   it('extracts entries as workspace files under the root folder', async () => {
-    const buffer = await buildZip({ 'report.txt': 'hi', 'data & sheets/sheet.csv': 'a,b' })
+    const buffer = await buildZip({ 'report.txt': 'hi', 'data/sheet.csv': 'a,b' })
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
@@ -121,10 +230,96 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
       expect.objectContaining({ input: { workspaceId: 'ws', pathSegments: ['bundle'] } })
     )
     expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({
-        input: { workspaceId: 'ws', pathSegments: ['bundle', 'data & sheets'] },
-      })
+      expect.objectContaining({ input: { workspaceId: 'ws', pathSegments: ['bundle', 'data'] } })
     )
+    // Every folder in the chain is materialized, intermediates included.
+    expect([...store.folderIdByPath.keys()].sort()).toEqual(['/bundle', '/bundle/data'])
+  })
+
+  it('creates intermediate folders for a deeply nested archive', async () => {
+    // `createWorkspaceFileFolderAtPath` semantics would ask for the full leaf path
+    // whose parents were never created and fail with "Parent folder not found";
+    // extraction must ensure the whole chain instead.
+    const buffer = await buildZip({ 'src/deep/nested/leaf.txt': 'x' })
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      principal: TEST_PRINCIPAL,
+      rootFolderSegments: ['bundle'],
+    })
+
+    expect(result.extracted).toHaveLength(1)
+    expect([...store.folderIdByPath.keys()].sort()).toEqual([
+      '/bundle',
+      '/bundle/src',
+      '/bundle/src/deep',
+      '/bundle/src/deep/nested',
+    ])
+    expect(mockUpload.mock.calls[0][0].input.folderId).toBe(
+      store.folderIdByPath.get('/bundle/src/deep/nested')
+    )
+  })
+
+  it('reuses a folder that already exists instead of failing on conflict', async () => {
+    // Two entries in the same directory, plus a directory that a previous
+    // extraction already created — neither may raise a folder conflict.
+    store.folderIdByPath.set('/bundle', 'preexisting-folder')
+    const buffer = await buildZip({ 'top.txt': 't', 'docs/a.txt': 'a', 'docs/b.txt': 'b' })
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      principal: TEST_PRINCIPAL,
+      rootFolderSegments: ['bundle'],
+    })
+
+    expect(result.extracted).toHaveLength(3)
+    expect([...store.folderIdByPath.keys()].sort()).toEqual(['/bundle', '/bundle/docs'])
+    expect(store.folderIdByPath.get('/bundle')).toBe('preexisting-folder')
+    const folderIdByFileName = new Map(
+      mockUpload.mock.calls.map(([args]) => [args.input.name, args.input.folderId])
+    )
+    expect(folderIdByFileName.get('top.txt')).toBe('preexisting-folder')
+    expect(folderIdByFileName.get('a.txt')).toBe(store.folderIdByPath.get('/bundle/docs'))
+    expect(folderIdByFileName.get('b.txt')).toBe(store.folderIdByPath.get('/bundle/docs'))
+  })
+
+  it('extracts into a folder whose name needs path encoding', async () => {
+    // A space (and other reserved characters) must never be handed to the folder
+    // layer as a raw path segment — `parseFolderPath` round-trip-checks the
+    // encoding and rejects "my report" while accepting "my%20report".
+    const buffer = await buildZip({ 'my report/q1 & q2.txt': 'x' })
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      principal: TEST_PRINCIPAL,
+      rootFolderSegments: ['bundle v2'],
+    })
+
+    expect(result.extracted).toHaveLength(1)
+    expect([...store.folderIdByPath.keys()].sort()).toEqual([
+      '/bundle%20v2',
+      '/bundle%20v2/my%20report',
+    ])
+    expect(mockUpload.mock.calls[0][0].input.name).toBe('q1 & q2.txt')
+  })
+
+  it('auto-suffixes a leaf whose name already exists instead of rolling back', async () => {
+    // One colliding name must not destroy an otherwise valid extraction: the
+    // upload layer allocates a unique name, nothing is deleted, and every entry
+    // still lands.
+    seedExistingFile(null, 'report.txt')
+    const buffer = await buildZip({ 'report.txt': 'hi', 'other.txt': 'yo' })
+
+    const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
+      workspaceId: 'ws',
+      principal: TEST_PRINCIPAL,
+    })
+
+    expect(result.extracted.map((file) => file.name).sort()).toEqual([
+      'other.txt',
+      'report (1).txt',
+    ])
+    expect(mockDelete).not.toHaveBeenCalled()
   })
 
   it('marks extracted files unknown when an archive has secret provenance', async () => {
@@ -287,6 +482,84 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(mockDelete).toHaveBeenCalledWith(
       expect.objectContaining({ input: { fileId: 'f_b', assertedWorkspaceId: 'ws' } })
     )
+  })
+
+  it('rolls back the folders it created when an upload fails mid-extraction', async () => {
+    // `materialize_file` refuses to re-extract into a root folder that still has any
+    // child, so a folder left behind by a failed run turns every retry into
+    // "already extracted" until a human deletes the tree by hand.
+    const buffer = await buildZip({ 'a/one.txt': 'first', 'b/two.txt': 'second' })
+    mockUpload
+      .mockResolvedValueOnce({
+        file: { id: 'f_one', name: 'one.txt', url: '/one', key: 'k/one', size: 5 },
+      })
+      .mockRejectedValueOnce(new Error('storage quota exceeded'))
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: ['bundle'],
+      })
+    ).rejects.toThrow('storage quota exceeded')
+
+    expect([...store.folderIdByPath.keys()]).toEqual([])
+    expect(mockDeleteFolder).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ workspaceId: 'ws', recursive: true }),
+      })
+    )
+  })
+
+  it('leaves a folder that already existed before the call untouched on rollback', async () => {
+    // Extracting into an existing path is normal — a sibling entry, or an earlier
+    // successful extraction. Deleting a reused folder would destroy unrelated data.
+    seedExistingFolders(['bundle'], ['bundle', 'keep'])
+    const preexistingIds = [...store.folderIdByPath.values()]
+    const buffer = await buildZip({ 'keep/kept.txt': 'a', 'fresh/new.txt': 'b' })
+    mockUpload
+      .mockResolvedValueOnce({
+        file: { id: 'f_kept', name: 'kept.txt', url: '/kept', key: 'k/kept', size: 1 },
+      })
+      .mockRejectedValueOnce(new Error('storage quota exceeded'))
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: ['bundle'],
+      })
+    ).rejects.toThrow('storage quota exceeded')
+
+    expect([...store.folderIdByPath.keys()].sort()).toEqual(['/bundle', '/bundle/keep'])
+    expect(store.deletedFolderPaths).toEqual(['/bundle/fresh'])
+    const deletedIds = mockDeleteFolder.mock.calls.map(([args]) => args.input.folderId)
+    for (const preexistingId of preexistingIds) {
+      expect(deletedIds).not.toContain(preexistingId)
+    }
+  })
+
+  it('deletes rolled-back folders deepest-first', async () => {
+    // A parent removed before its children would make the children's own deletes
+    // fail (nothing left to archive), so the unwind walks creation order backwards.
+    const buffer = await buildZip({ 'x/y/z/leaf.txt': 'a' })
+    mockUpload.mockRejectedValueOnce(new Error('storage quota exceeded'))
+
+    await expect(
+      decompressArchiveBufferToWorkspaceFiles(buffer, {
+        workspaceId: 'ws',
+        principal: TEST_PRINCIPAL,
+        rootFolderSegments: ['bundle'],
+      })
+    ).rejects.toThrow('storage quota exceeded')
+
+    expect(store.deletedFolderPaths).toEqual([
+      '/bundle/x/y/z',
+      '/bundle/x/y',
+      '/bundle/x',
+      '/bundle',
+    ])
+    expect([...store.folderIdByPath.keys()]).toEqual([])
   })
 
   it('does not count noise entries toward the extraction cap when they are being skipped', async () => {

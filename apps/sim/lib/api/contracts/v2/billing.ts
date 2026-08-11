@@ -1,4 +1,5 @@
 import { z } from 'zod'
+import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import { usageLogPeriodSchema, usageLogSourceSchema } from '@/lib/api/contracts/user'
 import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
@@ -24,8 +25,7 @@ export const v2BillingStatusQuerySchema = z.object({
    * Resolve status against one workspace's payer. A workspace-scoped API key
    * is always pinned to its own workspace; passing a different id returns 403.
    */
-  workspaceId: z
-    .string()
+  workspaceId: workspaceIdSchema
     .optional()
     .describe(
       'Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.'
@@ -35,6 +35,15 @@ export const v2BillingStatusQuerySchema = z.object({
 /**
  * Current billing standing, credit allowance, and storage quota. Ledger rows
  * and source analytics deliberately live outside this status resource.
+ *
+ * `credits` and `storage` report the resolved payer's pooled allowances, which
+ * are shared across every workspace that payer funds. They are populated only
+ * for a caller who may manage that payer's billing: the billed account holder,
+ * or an admin of the hosting organization. Billing authority is a property of
+ * a person, so an actor-less workspace API key never qualifies. Every other
+ * caller reads both as `null` while still seeing the plan, period, and
+ * standing that the workspace already surfaces to them — enough to monitor for
+ * `limit_exceeded` and `billing_blocked`.
  */
 export const v2BillingStatusDataSchema = z
   .object({
@@ -46,32 +55,52 @@ export const v2BillingStatusDataSchema = z
       .object({
         start: z
           .string()
-          .describe('ISO 8601 start of the current billing period.')
+          .describe(
+            'ISO 8601 start of the current billing period, or 1970-01-01T00:00:00.000Z when no Stripe subscription defines one.'
+          )
           .meta({ format: 'date-time' }),
         end: z
           .string()
-          .describe('ISO 8601 end of the current billing period.')
+          .describe(
+            'ISO 8601 end of the current billing period, or 9999-12-31T00:00:00.000Z when no Stripe subscription defines one.'
+          )
           .meta({ format: 'date-time' }),
       })
-      .describe('Current billing period.'),
+      .describe(
+        'Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window.'
+      ),
     plan: z.string().describe('Current billing plan.'),
     status: z
       .enum(['active', 'limit_exceeded', 'billing_blocked'])
       .describe('Current billing standing.'),
     credits: z
       .object({
-        used: z.number().describe('Credits consumed during the current billing period.'),
-        limit: z.number().describe('Credit allowance for the current billing period.'),
-        remaining: z.number().describe('Credits remaining in the current billing period.'),
+        used: z
+          .number()
+          .describe(
+            'Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption.'
+          ),
+        limit: z
+          .number()
+          .describe(
+            'Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan.'
+          ),
+        remaining: z.number().describe('Allowance minus consumption, over the same window.'),
       })
-      .describe('Credit usage and allowance for the current billing period.'),
+      .nullable()
+      .describe(
+        "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+      ),
     storage: z
       .object({
         usedBytes: z.number().nonnegative().describe('Storage currently consumed, in bytes.'),
         limitBytes: z.number().nonnegative().describe('Storage quota, in bytes.'),
         percentUsed: z.number().nonnegative().describe('Percentage of the storage quota consumed.'),
       })
-      .describe('Current storage consumption and quota.'),
+      .nullable()
+      .describe(
+        "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
+      ),
   })
   .meta({
     id: 'V2BillingStatus',
@@ -94,8 +123,7 @@ export const v2BillingLogsQuerySchema = z
   .object({
     source: usageLogSourceSchema.optional().describe('Restrict results to one usage source.'),
     /** See {@link v2BillingStatusQuerySchema}'s `workspaceId` — same pinning rules. */
-    workspaceId: z
-      .string()
+    workspaceId: workspaceIdSchema
       .optional()
       .describe('Restrict results to one workspace whose payer the caller can inspect.'),
     period: usageLogPeriodSchema

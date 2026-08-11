@@ -31,7 +31,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: readKnowledgeBase,
   present: async ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: await toV2KnowledgeBase(knowledgeBase, folderPath) },
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })
 
@@ -56,7 +56,7 @@ export const PATCH = defineV2JsonRoute({
   }),
   useCase: updateKnowledgeBaseOperation,
   present: async ({ knowledgeBase, folderPath }) => ({
-    data: { knowledgeBase: await toV2KnowledgeBase(knowledgeBase, folderPath) },
+    data: await toV2KnowledgeBase(knowledgeBase, folderPath),
   }),
 })
 

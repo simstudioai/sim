@@ -34,7 +34,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, serverId: params.id }),
   useCase: getMcpServerUseCase,
-  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
+  present: ({ server }) => ({ data: toV2McpServer(server) }),
 })
 
 /** PATCH /api/v2/mcp-servers/[id] — Update an MCP server's configuration. */
@@ -46,7 +46,7 @@ export const PATCH = defineV2JsonRoute({
   errorPolicy: mcpServerResourceErrorPolicy,
   mapInput: ({ params, body }) => ({ ...body, serverId: params.id, source: 'api' as const }),
   useCase: updateMcpServerUseCase,
-  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
+  present: ({ server }) => ({ data: toV2McpServer(server) }),
 })
 
 /** DELETE /api/v2/mcp-servers/[id] — Remove an MCP server from the workspace. */

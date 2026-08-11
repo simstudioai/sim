@@ -26,7 +26,7 @@ export const GET = defineV2JsonRoute({
   }),
   useCase: readTableRow,
   present: ({ table, row }) => ({
-    data: { row: toApiRow(row, namedRowMapper(table.schema.columns)) },
+    data: toApiRow(row, namedRowMapper(table.schema.columns)),
   }),
 })
 
@@ -44,7 +44,7 @@ export const PATCH = defineV2JsonRoute({
   }),
   useCase: updateTableRow,
   present: ({ table, row }) => ({
-    data: { row: toApiRow(row, namedRowMapper(table.schema.columns)) },
+    data: toApiRow(row, namedRowMapper(table.schema.columns)),
   }),
 })
 
@@ -61,6 +61,6 @@ export const DELETE = defineV2JsonRoute({
   }),
   useCase: deleteTableRow,
   present: ({ deletedRowId }) => ({
-    data: { deletedCount: 1, deletedRowIds: [deletedRowId] },
+    data: { id: deletedRowId, deleted: true as const },
   }),
 })
