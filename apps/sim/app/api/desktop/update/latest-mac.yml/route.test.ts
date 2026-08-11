@@ -4,7 +4,7 @@
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MANIFEST_ASSET_NAME } from '@/lib/desktop/update-feed'
-import { GET } from './route'
+import { GET } from '@/app/api/desktop/update/latest-mac.yml/route'
 
 const RELEASES_URL = 'https://api.github.com/repos/simstudioai/sim/releases?per_page=30'
 const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
