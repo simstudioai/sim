@@ -44,7 +44,7 @@ Pass your API key in the `X-API-Key` header with every request:
     curl -X POST https://www.sim.ai/api/v2/workflows/{workflowId}/execute \
       -H "Content-Type: application/json" \
       -H "X-API-Key: YOUR_API_KEY" \
-      -d '{"inputs": {}}'
+      -d '{"input": {}}'
     ```
   </Tab>
   <Tab value="TypeScript">
@@ -57,7 +57,7 @@ Pass your API key in the `X-API-Key` header with every request:
           'Content-Type': 'application/json',
           'X-API-Key': process.env.SIM_API_KEY!,
         },
-        body: JSON.stringify({ inputs: {} }),
+        body: JSON.stringify({ input: {} }),
       }
     )
     ```
@@ -72,7 +72,7 @@ Pass your API key in the `X-API-Key` header with every request:
             "Content-Type": "application/json",
             "X-API-Key": os.environ["SIM_API_KEY"],
         },
-        json={"inputs": {}},
+        json={"input": {}},
     )
     ```
   </Tab>

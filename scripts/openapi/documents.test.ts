@@ -297,6 +297,28 @@ describe('generated OpenAPI documents', () => {
     }
   })
 
+  it('keeps localized execution guides on the v2 request and run-status wire shape', () => {
+    for (const locale of ['de', 'es', 'fr', 'ja', 'zh']) {
+      const guideRoot = path.resolve(
+        process.cwd(),
+        `apps/docs/content/docs/${locale}/api-reference`
+      )
+      const authentication = readFileSync(path.join(guideRoot, 'authentication.mdx'), 'utf8')
+      const gettingStarted = readFileSync(path.join(guideRoot, 'getting-started.mdx'), 'utf8')
+      const guides = `${authentication}\n${gettingStarted}`
+
+      expect(guides).not.toContain('"inputs"')
+      expect(guides).not.toContain('{ inputs:')
+      expect(guides).not.toContain('/api/jobs/')
+      expect(gettingStarted).not.toContain('jobId')
+      expect(gettingStarted).toContain('-d \'{"input": {}, "async": true}\'')
+      expect(gettingStarted).toContain(
+        '/api/v2/workflows/{workflowId}/runs/{runId}?includeOutput=true'
+      )
+      expect(gettingStarted).toContain('"runId"')
+    }
+  })
+
   it('serializes all documents deterministically', () => {
     for (const document of DOCUMENTS) {
       expect(serializeOpenApiDocument(document)).toBe(serializeOpenApiDocument(document))
