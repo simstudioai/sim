@@ -20,34 +20,33 @@ import {
   Upload,
 } from '@sim/emcn'
 import {
-  BookOpen,
-  Calendar,
   Database,
   Files,
-  HelpCircle,
   Integration,
+  MoreHorizontal,
   PanelLeft,
+  Pin,
   Plus,
   Search,
-  Settings,
   Table,
   Task,
   Workflow,
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
-import { MoreHorizontal, Pin } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, usePathname, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
-import { SlackIcon } from '@/components/icons'
 import { useSession } from '@/lib/auth/auth-client'
 import { SIM_RESOURCES_DRAG_TYPE } from '@/lib/copilot/resource-types'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { isMacPlatform } from '@/lib/core/utils/platform'
-import { buildFolderTree, getFolderPath } from '@/lib/folders/tree'
+import { buildFolderTree, getFolderPathNames } from '@/lib/folders/tree'
 import { captureEvent } from '@/lib/posthog/client'
+import { CONNECT_MODE } from '@/app/workspace/[workspaceId]/integrations/connect-route'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
+import { useWorkspaceHostContext } from '@/app/workspace/[workspaceId]/providers/workspace-host-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
+import type { SettingsSection } from '@/app/workspace/[workspaceId]/settings/navigation'
 import { createCommands } from '@/app/workspace/[workspaceId]/utils/commands-utils'
 import {
   CollapsedChatFlyoutItem,
@@ -58,6 +57,8 @@ import {
   NavItemContextMenu,
   SearchModal,
   SettingsSidebar,
+  SidebarFooter,
+  SidebarSection,
   WorkflowList,
   WorkspaceHeader,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/components'
@@ -72,6 +73,8 @@ import type {
 import { ContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/context-menu/context-menu'
 import { DeleteModal } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/workflow-list/components/delete-modal/delete-modal'
 import {
+  SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+  SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
   SIDEBAR_ITEM_GAP_CLASS,
   SIDEBAR_SECTION_GAP_CLASS,
 } from '@/app/workspace/[workspaceId]/w/components/sidebar/constants'
@@ -131,6 +134,7 @@ const logger = createLogger('Sidebar')
  * invalidate every memo downstream of it.
  */
 const EMPTY_CHATS: MothershipChatMetadata[] = []
+/** Stable identity while a folder list loads, so the search-row memos don't churn. */
 const EMPTY_FOLDER_MAP: Record<string, WorkflowFolder> = {}
 
 /** Recent runs shown in the palette's Logs section on the logs pages. */
@@ -181,9 +185,10 @@ export function SidebarTooltip({
   )
 }
 
+/** Stands in for a chip row while a list loads, so it carries no margin either. */
 function SidebarItemSkeleton() {
   return (
-    <div className='sidebar-collapse-hide mx-0.5 flex h-[30px] items-center gap-2 rounded-lg px-2'>
+    <div className='sidebar-collapse-hide flex h-[30px] items-center gap-2 rounded-lg px-2'>
       <Skeleton className='h-[16px] w-[16px] flex-shrink-0 rounded-sm' />
     </div>
   )
@@ -217,6 +222,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
   onMoreClick: (e: React.MouseEvent<HTMLButtonElement>, chatId: string) => void
 }) {
   const dragGhostRef = useRef<HTMLElement | null>(null)
+
+  /**
+   * The trailing slot fits one glyph, and the dot wins over the pin: it reports
+   * transient state (a run in progress, or an unread reply elsewhere), while pinning
+   * is persistent and already conveyed by the row sorting to the top of the list.
+   */
+  const showStatusDot = isActive || (!isCurrentRoute && isUnread)
 
   function handleDragStart(e: React.DragEvent) {
     e.dataTransfer.effectAllowed = 'copyMove'
@@ -261,12 +273,12 @@ const SidebarChatItem = memo(function SidebarChatItem({
       >
         <div className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{chat.name}</div>
         {chat.id !== 'new' && (
-          <div className='relative flex h-[18px] w-[18px] flex-shrink-0 items-center justify-center'>
-            {(isActive || (!isCurrentRoute && isUnread)) && (
+          <div className='relative flex size-[18px] flex-shrink-0 items-center justify-center'>
+            {showStatusDot && (
               <span
                 aria-hidden='true'
                 className={cn(
-                  'h-[6px] w-[6px] rounded-full transition-opacity',
+                  'size-[6px] rounded-full transition-opacity',
                   isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
                 )}
                 style={{
@@ -274,10 +286,13 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 }}
               />
             )}
-            {!isActive && !isUnread && isPinned && !isCurrentRoute && !isMenuOpen && (
+            {!showStatusDot && isPinned && (
               <Pin
                 aria-hidden='true'
-                className='absolute size-[12px] text-[var(--text-icon)] group-hover:hidden'
+                className={cn(
+                  'absolute size-[12px] text-[var(--text-icon)] transition-opacity',
+                  isMenuOpen ? 'opacity-0' : 'group-hover:opacity-0'
+                )}
               />
             )}
             <button
@@ -294,7 +309,7 @@ const SidebarChatItem = memo(function SidebarChatItem({
                 isMenuOpen && 'opacity-100'
               )}
             >
-              <MoreHorizontal className='h-[16px] w-[16px] text-[var(--text-icon)]' />
+              <MoreHorizontal className='size-[14px] text-[var(--text-icon)]' />
             </button>
           </div>
         )}
@@ -382,6 +397,13 @@ export const SIDEBAR_SCROLL_EVENT = 'sidebar-scroll-to-item'
 const HIDDEN_STYLE = { display: 'none' } as const
 
 /**
+ * Opts a control out of the desktop shell's window-drag region. The header row is
+ * draggable chrome, so anything clickable inside it has to say so or the click is
+ * swallowed by the drag handler.
+ */
+const DRAG_EXEMPT_CLASS = '[-webkit-app-region:no-drag]'
+
+/**
  * Sidebar component with resizable width that persists across page refreshes.
  *
  * Uses a CSS-based approach to prevent hydration mismatches:
@@ -428,9 +450,15 @@ export const Sidebar = memo(function Sidebar({
 
   const posthog = usePostHog()
   const { data: sessionData, isPending: sessionLoading } = useSession()
+  const { workspace: routeWorkspace } = useWorkspaceHostContext()
   const { canAdmin, canEdit, isLoading: permissionsLoading } = useUserPermissionsContext()
-  const { config: permissionConfig, filterBlocks } = usePermissionConfig()
-  const { navigateToSettings, getSettingsHref } = useSettingsNavigation()
+  const {
+    config: permissionConfig,
+    filterBlocks,
+    isBlockAllowed,
+    integrationAvailability,
+  } = usePermissionConfig()
+  const { navigateToSettings } = useSettingsNavigation()
   const initializeSearchData = useSearchModalStore((state) => state.initializeData)
   const customBlockOverlayVersion = useCustomBlockOverlayVersion()
   const providers = useProvidersStore((state) => state.providers)
@@ -519,6 +547,8 @@ export const Sidebar = memo(function Sidebar({
 
   const {
     workspaces,
+    pinnedWorkspaceIds,
+    toggleWorkspacePin,
     workspaceCreationPolicy,
     activeWorkspace,
     isWorkspacesLoading,
@@ -567,7 +597,17 @@ export const Sidebar = memo(function Sidebar({
   })
 
   useFolders(workspaceId)
-  const { data: folderMap = {} } = useFolderMap(workspaceId)
+  const { data: folderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId)
+  // Tables and knowledge bases keep their folders in the generic folder tree,
+  // keyed by resource type, so each needs its own map to resolve a path.
+  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideTablesTab ? undefined : workspaceId,
+    'table'
+  )
+  const { data: knowledgeBaseFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
+    permissionConfig.hideKnowledgeBaseTab ? undefined : workspaceId,
+    'knowledge_base'
+  )
   const updateWorkflowMutation = useUpdateWorkflow()
 
   const folderTree = useMemo(
@@ -741,18 +781,13 @@ export const Sidebar = memo(function Sidebar({
 
   const searchModalWorkflows = useMemo(
     () =>
-      regularWorkflows.map((workflow) => {
-        const folderPath = workflow.folderId
-          ? getFolderPath(folderMap, workflow.folderId).map((folder) => folder.name)
-          : []
-        return {
-          id: workflow.id,
-          name: workflow.name,
-          href: `/workspace/${workspaceId}/w/${workflow.id}`,
-          folderPath: folderPath.length > 0 ? folderPath : undefined,
-          isCurrent: workflow.id === workflowId,
-        }
-      }),
+      regularWorkflows.map((workflow) => ({
+        id: workflow.id,
+        name: workflow.name,
+        href: `/workspace/${workspaceId}/w/${workflow.id}`,
+        folderPath: getFolderPathNames(folderMap, workflow.folderId),
+        isCurrent: workflow.id === workflowId,
+      })),
     [regularWorkflows, folderMap, workspaceId, workflowId]
   )
 
@@ -783,28 +818,17 @@ export const Sidebar = memo(function Sidebar({
           hidden: !isChatEnabled && !permissionsLoading && !canEdit,
         },
         {
-          id: 'search',
-          label: 'Search',
-          icon: Search,
-          onClick: openSearchModal,
-        },
-        {
           id: 'integrations',
           label: 'Integrations',
           icon: Integration,
           href: `/workspace/${workspaceId}/integrations`,
+          /* Skills is a tab of this surface, not its own nav item — keep the entry
+             lit while the user is on it. */
           additionalActivePaths: [`/workspace/${workspaceId}/skills`],
           hidden: permissionConfig.hideIntegrationsTab,
         },
       ].filter((item) => !item.hidden),
-    [
-      workspaceId,
-      openSearchModal,
-      createWorkflow,
-      canEdit,
-      permissionsLoading,
-      permissionConfig.hideIntegrationsTab,
-    ]
+    [workspaceId, createWorkflow, canEdit, permissionsLoading, permissionConfig.hideIntegrationsTab]
   )
 
   const workspaceNavItems = useMemo(
@@ -832,13 +856,6 @@ export const Sidebar = memo(function Sidebar({
           hidden: permissionConfig.hideKnowledgeBaseTab,
         },
         {
-          id: 'scheduled-tasks',
-          label: 'Scheduled tasks',
-          icon: Calendar,
-          href: `/workspace/${workspaceId}/scheduled-tasks`,
-          hidden: !isChatEnabled,
-        },
-        {
           id: 'logs',
           label: 'Logs',
           icon: Library,
@@ -853,22 +870,14 @@ export const Sidebar = memo(function Sidebar({
     ]
   )
 
-  const footerItems = useMemo(
-    () => [
-      {
-        id: 'settings',
-        label: 'Settings',
-        icon: Settings,
-        href: getSettingsHref(),
-        onClick: () => {
-          if (!isCollapsedRef.current) {
-            setSidebarWidth(SIDEBAR_WIDTH.MIN)
-          }
-          navigateToSettings()
-        },
-      },
-    ],
-    [navigateToSettings, getSettingsHref, setSidebarWidth]
+  const handleOpenSettings = useCallback(
+    (section: SettingsSection) => {
+      if (!isCollapsedRef.current) {
+        setSidebarWidth(SIDEBAR_WIDTH.MIN)
+      }
+      navigateToSettings({ section })
+    },
+    [navigateToSettings, setSidebarWidth]
   )
 
   const { data: fetchedChats = EMPTY_CHATS, isLoading: chatsLoading } = useMothershipChats(
@@ -895,27 +904,17 @@ export const Sidebar = memo(function Sidebar({
   const { data: fetchedTables = [] } = useTablesList(workspaceId)
   const { data: fetchedFiles = [] } = useWorkspaceFiles(workspaceId)
   const { data: fetchedKnowledgeBases = [] } = useKnowledgeBasesQuery(workspaceId)
-  const { data: tableFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(workspaceId, 'table')
-  const { data: knowledgeFolderMap = EMPTY_FOLDER_MAP } = useFolderMap(
-    workspaceId,
-    'knowledge_base'
-  )
 
   const searchModalTables = useMemo(
     () =>
       permissionConfig.hideTablesTab
         ? []
-        : fetchedTables.map((t) => {
-            const folderPath = t.folderId
-              ? getFolderPath(tableFolderMap, t.folderId).map((folder) => folder.name)
-              : []
-            return {
-              id: t.id,
-              name: t.name,
-              href: `/workspace/${workspaceId}/tables/${t.id}`,
-              folderPath: folderPath.length > 0 ? folderPath : undefined,
-            }
-          }),
+        : fetchedTables.map((t) => ({
+            id: t.id,
+            name: t.name,
+            href: `/workspace/${workspaceId}/tables/${t.id}`,
+            folderPath: getFolderPathNames(tableFolderMap, t.folderId),
+          })),
     [fetchedTables, tableFolderMap, workspaceId, permissionConfig.hideTablesTab]
   )
 
@@ -936,18 +935,18 @@ export const Sidebar = memo(function Sidebar({
     () =>
       permissionConfig.hideKnowledgeBaseTab
         ? []
-        : fetchedKnowledgeBases.map((kb) => {
-            const folderPath = kb.folderId
-              ? getFolderPath(knowledgeFolderMap, kb.folderId).map((folder) => folder.name)
-              : []
-            return {
-              id: kb.id,
-              name: kb.name,
-              href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
-              folderPath: folderPath.length > 0 ? folderPath : undefined,
-            }
-          }),
-    [fetchedKnowledgeBases, knowledgeFolderMap, workspaceId, permissionConfig.hideKnowledgeBaseTab]
+        : fetchedKnowledgeBases.map((kb) => ({
+            id: kb.id,
+            name: kb.name,
+            href: `/workspace/${workspaceId}/knowledge/${kb.id}`,
+            folderPath: getFolderPathNames(knowledgeBaseFolderMap, kb.folderId),
+          })),
+    [
+      fetchedKnowledgeBases,
+      knowledgeBaseFolderMap,
+      workspaceId,
+      permissionConfig.hideKnowledgeBaseTab,
+    ]
   )
 
   const chatIds = useMemo(() => chats.map((t) => t.id), [chats])
@@ -1085,7 +1084,6 @@ export const Sidebar = memo(function Sidebar({
   )
 
   const [hasOverflowTop, setHasOverflowTop] = useState(false)
-  const [hasOverflowBottom, setHasOverflowBottom] = useState(false)
 
   useEffect(() => {
     const container = scrollContainerRef.current
@@ -1093,9 +1091,6 @@ export const Sidebar = memo(function Sidebar({
 
     const updateScrollState = () => {
       setHasOverflowTop(container.scrollTop > 1)
-      setHasOverflowBottom(
-        container.scrollHeight > container.scrollTop + container.clientHeight + 1
-      )
     }
 
     updateScrollState()
@@ -1137,7 +1132,6 @@ export const Sidebar = memo(function Sidebar({
     if (pathname === `${base}/knowledge`) return 'knowledge'
     if (detailSegment(`${base}/knowledge/`)) return 'knowledgeBase'
     if (pathname === `${base}/logs`) return logsViewMode === 'dashboard' ? 'logsDashboard' : 'logs'
-    if (pathname === `${base}/scheduled-tasks`) return 'scheduledTasks'
     return null
   }, [pathname, workspaceId, workflowId, logsViewMode])
 
@@ -1162,8 +1156,17 @@ export const Sidebar = memo(function Sidebar({
   }, [logsPages.data, workspaceId])
 
   const searchModalIntegrations = useMemo(
-    () => (permissionConfig.hideIntegrationsTab ? [] : buildIntegrationSearchItems(workspaceId)),
-    [workspaceId, permissionConfig.hideIntegrationsTab]
+    () =>
+      permissionConfig.hideIntegrationsTab
+        ? []
+        : buildIntegrationSearchItems(workspaceId, isBlockAllowed, (blockType) => {
+            const availability = integrationAvailability.get(blockType.toLowerCase())
+            if (!availability) return CONNECT_MODE.oauth
+            if (availability?.oauthAvailable) return CONNECT_MODE.oauth
+            if (availability?.state === 'limited') return CONNECT_MODE.serviceAccount
+            return null
+          }),
+    [workspaceId, permissionConfig.hideIntegrationsTab, isBlockAllowed, integrationAvailability]
   )
 
   const searchModalConnectedAccounts = useMemo(
@@ -1402,7 +1405,7 @@ export const Sidebar = memo(function Sidebar({
       />
       <div className='relative h-full'>
         <aside
-          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)]'
+          className='sidebar-container relative h-full overflow-hidden bg-[var(--surface-1)] [&_.group.cursor-pointer]:duration-0'
           data-collapsed={isCollapsed || undefined}
           aria-label='Workspace sidebar'
           onClick={handleSidebarClick}
@@ -1423,9 +1426,11 @@ export const Sidebar = memo(function Sidebar({
               )}
             >
               <WorkspaceHeader
-                activeWorkspace={activeWorkspace}
+                activeWorkspace={activeWorkspace ?? routeWorkspace}
                 workspaceId={workspaceId}
                 workspaces={workspaces}
+                pinnedWorkspaceIds={pinnedWorkspaceIds}
+                onToggleWorkspacePin={toggleWorkspacePin}
                 workspaceCreationPolicy={workspaceCreationPolicy}
                 isWorkspacesLoading={isWorkspacesLoading}
                 isCreatingWorkspace={isCreatingWorkspace}
@@ -1443,25 +1448,57 @@ export const Sidebar = memo(function Sidebar({
                 isCollapsed={isCollapsed}
                 onExpandSidebar={toggleCollapsed}
               />
-              <SidebarTooltip
-                label='Collapse sidebar'
-                enabled={!isCollapsed}
-                side='bottom'
-                shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+              {/*
+               * The trailing chips collapse as one cluster rather than individually: a
+               * chip's own `px-2` still renders under border-box, so `w-0` on the chip
+               * would leave a 16px stub — the width animation has to sit on an unpadded
+               * wrapper.
+               *
+               * Chips carry no outer margin, so the gap here is the whole distance
+               * between them. `gap-[1px]` rather than `gap-px`: the `px` spacing key
+               * is remapped to `--border-width`, which thins to 0.5px on hidpi so
+               * hairline rules stay hairlines.
+               */}
+              <div
+                className={cn(
+                  'flex h-[30px] items-center gap-[1px] overflow-hidden transition-all duration-200',
+                  isCollapsed && 'w-0 opacity-0'
+                )}
               >
-                <button
-                  type='button'
-                  onClick={toggleCollapsed}
-                  className={cn(
-                    'ml-2 flex h-[30px] items-center justify-center overflow-hidden rounded-lg transition-all duration-200 [-webkit-app-region:no-drag] hover-hover:bg-[var(--surface-active)] [[data-sim-desktop-title-bar=inset]_&]:hidden',
-                    isCollapsed ? 'w-0 opacity-0' : 'w-[30px] opacity-100'
-                  )}
-                  aria-label='Collapse sidebar'
-                  tabIndex={isCollapsed ? -1 : undefined}
+                <SidebarTooltip
+                  label='Search'
+                  enabled={!isCollapsed}
+                  side='bottom'
+                  shortcut={isMac ? '⌘K' : 'Ctrl+K'}
                 >
-                  <PanelLeft className='size-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                </button>
-              </SidebarTooltip>
+                  <Chip
+                    leftIcon={Search}
+                    aria-label='Search'
+                    /* Called with no args — the store setter's first parameter is an
+                       options object, which a raw handler would fill with the event. */
+                    onClick={() => openSearchModal()}
+                    tabIndex={isCollapsed ? -1 : undefined}
+                    className={DRAG_EXEMPT_CLASS}
+                  />
+                </SidebarTooltip>
+                <SidebarTooltip
+                  label='Collapse sidebar'
+                  enabled={!isCollapsed}
+                  side='bottom'
+                  shortcut={isMac ? '⌘B' : 'Ctrl+B'}
+                >
+                  <Chip
+                    leftIcon={PanelLeft}
+                    aria-label='Collapse sidebar'
+                    onClick={toggleCollapsed}
+                    tabIndex={isCollapsed ? -1 : undefined}
+                    className={cn(
+                      DRAG_EXEMPT_CLASS,
+                      '[[data-sim-desktop-title-bar=inset]_&]:hidden'
+                    )}
+                  />
+                </SidebarTooltip>
+              </div>
             </div>
 
             {isOnSettingsPage ? (
@@ -1475,7 +1512,8 @@ export const Sidebar = memo(function Sidebar({
                   className={cn(
                     SIDEBAR_SECTION_GAP_CLASS,
                     SIDEBAR_ITEM_GAP_CLASS,
-                    'flex flex-shrink-0 flex-col px-2 pb-1.5'
+                    SIDEBAR_DIVIDER_PAD_ABOVE_CLASS,
+                    'flex flex-shrink-0 flex-col px-2'
                   )}
                 >
                   {topNavItems.map((item) => (
@@ -1492,22 +1530,23 @@ export const Sidebar = memo(function Sidebar({
                 <div
                   ref={isCollapsed ? undefined : scrollContainerRef}
                   className={cn(
-                    'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t pt-1.5 transition-colors duration-150',
+                    SIDEBAR_DIVIDER_PAD_BELOW_CLASS,
+                    'flex flex-1 flex-col overflow-y-auto overflow-x-hidden border-t transition-colors duration-150',
                     !hasOverflowTop && 'border-transparent'
                   )}
                 >
                   <div ref={scrollContentRef} className='flex flex-col'>
                     {isChatEnabled && (
-                      <div className='chats-section flex flex-shrink-0 flex-col'>
-                        <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                          <div className='text-[var(--text-muted)] text-small'>Chats</div>
-                        </div>
+                      <SidebarSection
+                        title='Chats'
+                        railCollapsed={isCollapsed}
+                        className='chats-section flex-shrink-0'
+                      >
                         {isCollapsed ? (
                           <CollapsedSidebarMenu
                             icon={chatsCollapsedIcon}
                             hover={chatsHover}
                             ariaLabel='Chats'
-                            className='mt-2'
                           >
                             {chatsLoading ? (
                               <DropdownMenuItem disabled>
@@ -1538,7 +1577,7 @@ export const Sidebar = memo(function Sidebar({
                             )}
                           </CollapsedSidebarMenu>
                         ) : (
-                          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'mt-2 flex flex-col px-2')}>
+                          <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                             {chatsLoading ? (
                               <SidebarItemSkeleton />
                             ) : (
@@ -1549,10 +1588,10 @@ export const Sidebar = memo(function Sidebar({
                                   </div>
                                 ) : null}
                                 {/* `selectChatOnly` populates `selectedChats` on every click, so
-                                  a single entry just means "last clicked" — already conveyed by
-                                  `isCurrentRoute`. Highlight from selection only for explicit
-                                  multi-selection (size > 1), otherwise it lingers after navigating
-                                  away from a chat. */}
+                                    a single entry just means "last clicked" — already conveyed by
+                                    `isCurrentRoute`. Highlight from selection only for explicit
+                                    multi-selection (size > 1), otherwise it lingers after navigating
+                                    away from a chat. */}
                                 {chats.slice(0, visibleChatCount).map((chat) => {
                                   const isCurrentRoute = pathname === chat.href
                                   const isRenaming = chatFlyoutRename.editingId === chat.id
@@ -1619,13 +1658,14 @@ export const Sidebar = memo(function Sidebar({
                             )}
                           </div>
                         )}
-                      </div>
+                      </SidebarSection>
                     )}
 
-                    <div className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex flex-shrink-0 flex-col')}>
-                      <div className='px-4 pb-2'>
-                        <div className='text-[var(--text-muted)] text-small'>Workspace</div>
-                      </div>
+                    <SidebarSection
+                      title='Workspace'
+                      railCollapsed={isCollapsed}
+                      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'flex-shrink-0')}
+                    >
                       <div className={cn(SIDEBAR_ITEM_GAP_CLASS, 'flex flex-col px-2')}>
                         {workspaceNavItems.map((item) => (
                           <SidebarNavItem
@@ -1637,17 +1677,14 @@ export const Sidebar = memo(function Sidebar({
                           />
                         ))}
                       </div>
-                    </div>
+                    </SidebarSection>
 
-                    <div
-                      className={cn(
-                        SIDEBAR_SECTION_GAP_CLASS,
-                        'workflows-section relative flex flex-col'
-                      )}
-                    >
-                      <div className='flex h-[18px] flex-shrink-0 items-center justify-between px-4'>
-                        <div className='text-[var(--text-muted)] text-small'>Workflows</div>
-                        {!isCollapsed && (
+                    <SidebarSection
+                      title='Workflows'
+                      railCollapsed={isCollapsed}
+                      className={cn(SIDEBAR_SECTION_GAP_CLASS, 'workflows-section relative')}
+                      action={
+                        isCollapsed ? undefined : (
                           <div className='flex items-center justify-center gap-2'>
                             <DropdownMenu>
                               <Tooltip.Root>
@@ -1655,13 +1692,13 @@ export const Sidebar = memo(function Sidebar({
                                   <DropdownMenuTrigger asChild>
                                     <Button
                                       variant='quiet'
-                                      className='h-[18px] w-[18px] rounded-sm p-0'
+                                      size='icon'
                                       disabled={!permissionsLoading && !canEdit}
                                     >
                                       {isImporting || isCreatingFolder ? (
                                         <Loader className='h-[16px] w-[16px]' animate />
                                       ) : (
-                                        <MoreHorizontal className='h-[16px] w-[16px]' />
+                                        <MoreHorizontal className='size-[14px]' />
                                       )}
                                     </Button>
                                   </DropdownMenuTrigger>
@@ -1695,7 +1732,7 @@ export const Sidebar = memo(function Sidebar({
                               <Tooltip.Trigger asChild>
                                 <Button
                                   variant='quiet'
-                                  className='h-[18px] w-[18px] rounded-sm p-0'
+                                  size='icon'
                                   onClick={handleCreateWorkflow}
                                   disabled={isCreatingWorkflow || (!permissionsLoading && !canEdit)}
                                 >
@@ -1713,14 +1750,14 @@ export const Sidebar = memo(function Sidebar({
                               </Tooltip.Content>
                             </Tooltip.Root>
                           </div>
-                        )}
-                      </div>
+                        )
+                      }
+                    >
                       {isCollapsed ? (
                         <CollapsedSidebarMenu
                           icon={workflowsCollapsedIcon}
                           hover={workflowsHover}
                           ariaLabel='Workflows'
-                          className='mt-2'
                           primaryAction={workflowsPrimaryAction}
                         >
                           {workflowsLoading && regularWorkflows.length === 0 ? (
@@ -1776,7 +1813,7 @@ export const Sidebar = memo(function Sidebar({
                           )}
                         </CollapsedSidebarMenu>
                       ) : (
-                        <div className='mt-2 px-2'>
+                        <div className='px-2'>
                           {workflowsLoading && regularWorkflows.length === 0 ? (
                             <SidebarItemSkeleton />
                           ) : (
@@ -1794,58 +1831,19 @@ export const Sidebar = memo(function Sidebar({
                           )}
                         </div>
                       )}
-                    </div>
+                    </SidebarSection>
                   </div>
                 </div>
 
-                <div
-                  className={cn(
-                    SIDEBAR_ITEM_GAP_CLASS,
-                    'flex flex-shrink-0 flex-col border-t px-2 pt-[9px] pb-2 transition-colors duration-150',
-                    !hasOverflowBottom && 'border-transparent'
-                  )}
-                >
-                  <DropdownMenu>
-                    <SidebarTooltip label='Help' enabled={showCollapsedTooltips}>
-                      <DropdownMenuTrigger asChild>
-                        <button
-                          type='button'
-                          data-item-id='help'
-                          className={chipVariants({ fullWidth: true })}
-                        >
-                          <HelpCircle className='h-[16px] w-[16px] flex-shrink-0 text-[var(--text-icon)]' />
-                          <span className='sidebar-collapse-hide truncate text-[var(--text-body)]'>
-                            Help
-                          </span>
-                        </button>
-                      </DropdownMenuTrigger>
-                    </SidebarTooltip>
-                    <DropdownMenuContent align='start' side='top' sideOffset={4}>
-                      <DropdownMenuItem onSelect={handleOpenDocs}>
-                        <BookOpen className='h-[14px] w-[14px]' />
-                        Docs
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={handleOpenSlackCommunity}>
-                        <SlackIcon className='size-[14px]' />
-                        Slack Community
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={handleOpenHelpFromMenu}>
-                        <HelpCircle className='h-[14px] w-[14px]' />
-                        Report an issue
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
-
-                  {footerItems.map((item) => (
-                    <SidebarNavItem
-                      key={item.id}
-                      item={item}
-                      active={false}
-                      showCollapsedTooltips={showCollapsedTooltips}
-                      onContextMenu={item.href ? handleNavItemContextMenu : undefined}
-                    />
-                  ))}
-                </div>
+                <SidebarFooter
+                  workspaceId={workspaceId}
+                  isCollapsed={isCollapsed}
+                  showCollapsedTooltips={showCollapsedTooltips}
+                  onOpenSettings={handleOpenSettings}
+                  onOpenDocs={handleOpenDocs}
+                  onJoinSlack={handleOpenSlackCommunity}
+                  onContactSupport={handleOpenHelpFromMenu}
+                />
 
                 <NavItemContextMenu
                   isOpen={isNavContextMenuOpen}
