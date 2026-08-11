@@ -88,7 +88,7 @@ export const WorkflowHistoryControls = memo(function WorkflowHistoryControls() {
 })
 
 /**
- * Floating controls for canvas mode and fit-to-view.
+ * Header controls for canvas mode and fit-to-view.
  */
 export const WorkflowControls = memo(function WorkflowControls() {
   const reactFlowInstance = useReactFlow()
@@ -136,7 +136,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
   return (
     <>
       <div
-        className='absolute bottom-4 left-[16px] z-10 flex h-[36px] items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
+        className='flex h-[36px] flex-shrink-0 items-center gap-0.5 rounded-lg border border-[var(--border)] bg-[var(--surface-1)] p-1'
         onContextMenu={handleContextMenu}
       >
         {/* Canvas Mode Selector */}

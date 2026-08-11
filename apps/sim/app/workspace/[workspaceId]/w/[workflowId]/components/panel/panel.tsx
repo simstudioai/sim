@@ -21,7 +21,10 @@ import {
   useUsageLimits,
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/hooks'
 import { Variables } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/variables/variables'
-import { WorkflowHistoryControls } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
+import {
+  WorkflowControls,
+  WorkflowHistoryControls,
+} from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-controls'
 import { WorkflowOptionsMenu } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/workflow-controls/workflow-options-menu'
 import { useWorkflowExecution } from '@/app/workspace/[workspaceId]/w/[workflowId]/hooks/use-workflow-execution'
 import { useFolderMap } from '@/hooks/queries/folders'
@@ -190,6 +193,7 @@ export const Panel = memo(function Panel({ onCloseEditor }: PanelProps) {
             <WorkflowOptionsMenu isExecuting={isExecuting} />
           </div>
           <WorkflowHistoryControls />
+          <WorkflowControls />
         </div>
         <div
           className={cn(
