@@ -35,6 +35,13 @@ export class InsufficientWorkspacePermissionsError extends OrchestrationError {
   }
 }
 
+export class NoWorkspaceAccessError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Insufficient workspace permissions')
+    this.name = 'NoWorkspaceAccessError'
+  }
+}
+
 export class PersonalApiKeysDisabledError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Personal API keys are not allowed for this workspace')
@@ -89,6 +96,9 @@ export function requireAllowedWorkspacePrincipal<O extends WorkspaceOperation>(
 }
 
 function requirePermission(permission: PermissionType | null, required: PermissionType): void {
+  if (permission === null) {
+    throw new NoWorkspaceAccessError()
+  }
   if (!permissionSatisfies(permission, required)) {
     throw new InsufficientWorkspacePermissionsError()
   }

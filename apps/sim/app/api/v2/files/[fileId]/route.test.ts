@@ -55,6 +55,10 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { DELETE, GET, PATCH } from '@/app/api/v2/files/[fileId]/route'
 
@@ -136,9 +140,7 @@ describe('v2 single-file routes', () => {
   })
 
   it('conceals download authorization failures', async () => {
-    mocks.download.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await GET(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}?workspaceId=${WORKSPACE_ID}`),
@@ -166,7 +168,7 @@ describe('v2 single-file routes', () => {
     })
   })
 
-  it('maps rename conflicts and conceals authorization failures', async () => {
+  it('maps rename conflicts and conceals absent workspace access', async () => {
     mocks.rename.mockRejectedValueOnce(new OrchestrationError('conflict', 'Name exists'))
     const conflict = await PATCH(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
@@ -178,9 +180,7 @@ describe('v2 single-file routes', () => {
     )
     expect(conflict.status).toBe(409)
 
-    mocks.rename.mockRejectedValueOnce(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.rename.mockRejectedValueOnce(new NoWorkspaceAccessError())
     const concealed = await PATCH(
       new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
         method: 'PATCH',
@@ -190,6 +190,23 @@ describe('v2 single-file routes', () => {
       context
     )
     expect(concealed.status).toBe(404)
+  })
+
+  it('returns forbidden when the current workspace role cannot rename the file', async () => {
+    mocks.rename.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    const response = await PATCH(
+      new NextRequest(`http://localhost:3000/api/v2/files/${FILE_ID}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspaceId: WORKSPACE_ID, name: 'renamed.csv' }),
+      }),
+      context
+    )
+
+    expect(response.status).toBe(403)
+    expect(await response.json()).toEqual({
+      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+    })
   })
 
   it('archives through the same principal and operation pipeline', async () => {

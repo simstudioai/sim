@@ -1,7 +1,7 @@
 import type { V2ErrorPolicy } from '@/lib/api/server/routes/v2-json-route'
 import {
   DelegatedWorkspaceAuthorizationError,
-  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
 } from '@/lib/core/application'
@@ -12,7 +12,7 @@ type V2ErrorRenderer = V2ErrorPolicy['render']
 function isResourceAuthorizationError(error: unknown): boolean {
   return (
     error instanceof DelegatedWorkspaceAuthorizationError ||
-    error instanceof InsufficientWorkspacePermissionsError ||
+    error instanceof NoWorkspaceAccessError ||
     error instanceof PrincipalKindAuthorizationError ||
     error instanceof WorkspaceApiKeyAuthorizationError
   )

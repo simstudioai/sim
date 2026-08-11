@@ -35,10 +35,7 @@ vi.mock('@/lib/workflows/application/list-workflow-runs', () => ({
   },
 }))
 
-import {
-  InsufficientWorkspacePermissionsError,
-  PersonalApiKeysDisabledError,
-} from '@/lib/core/application'
+import { NoWorkspaceAccessError, PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/route'
 
 const principal = {
@@ -176,7 +173,7 @@ describe('GET /api/v2/workflows/[id]/runs', () => {
   })
 
   it('conceals workflow authorization failures as absence', async () => {
-    mocks.listRuns.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    mocks.listRuns.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await callGet()
 

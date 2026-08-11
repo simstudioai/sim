@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   DelegatedWorkspaceAuthorizationError,
-  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
@@ -15,7 +15,7 @@ import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 
 describe('v2 knowledge error policies', () => {
   it.each([
-    new InsufficientWorkspacePermissionsError(),
+    new NoWorkspaceAccessError(),
     new WorkspaceApiKeyAuthorizationError(),
     new DelegatedWorkspaceAuthorizationError(),
     new PrincipalKindAuthorizationError('workspace_api_key', 'knowledge.read'),

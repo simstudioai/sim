@@ -41,7 +41,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
-import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { GET } from '@/app/api/v2/files/[fileId]/metadata/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -114,9 +114,7 @@ describe('GET /api/v2/files/[fileId]/metadata', () => {
   })
 
   it('conceals an authorization failure as not found', async () => {
-    mocks.readMetadata.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.readMetadata.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callGet(`workspaceId=${WORKSPACE_ID}`)
 

@@ -47,6 +47,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { NoWorkspaceAccessError } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/v2/files/[fileId]/content/route'
 
@@ -110,9 +111,7 @@ describe('PUT /api/v2/files/[fileId]/content', () => {
   })
 
   it('performs authenticated admission before parsing a large or malformed body', async () => {
-    mocks.admit.mockRejectedValue(
-      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
-    )
+    mocks.admit.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await callPut('{not-json')
 
