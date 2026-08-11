@@ -761,10 +761,9 @@ export const auth = betterAuth({
             clientSecret: env.MICROSOFT_CLIENT_SECRET,
             scope: ['openid', 'profile', 'email'],
             /**
-             * Without this, `/common/` silently reuses whichever Microsoft
-             * session the browser already holds, so someone signed into a
-             * personal account never gets to pick their work account — and
-             * lands on an orphan Sim account under the wrong address.
+             * `/common/` otherwise silently reuses whichever Microsoft session
+             * the browser holds, stranding the user on an orphan Sim account
+             * under their personal address.
              */
             prompt: 'select_account' as const,
             mapProfileToUser: mapMicrosoftProfileToUser,

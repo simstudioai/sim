@@ -55,15 +55,10 @@ export function deriveMicrosoftEmailVerified(
 }
 
 /**
- * True when Entra asserts the token's email is domain-verified via the
- * `xms_edov` optional claim — emitted only when the email's domain belongs to
- * the user's own tenant and a tenant admin verified that domain. This is the
- * one email signal a hostile tenant cannot forge (the nOAuth attack turns on
- * `email` being freely settable), and Microsoft's documented mitigation.
- *
- * The claim requires `xms_edov` and `email` to be configured as optional
- * claims on the app registration; when absent this returns `false` and callers
- * fall back to the prior behavior unchanged.
+ * True when Entra's `xms_edov` optional claim asserts the email's domain is
+ * owned by the user's own tenant and admin-verified — the one email signal a
+ * hostile tenant cannot forge, and Microsoft's documented nOAuth mitigation.
+ * Requires `xms_edov` and `email` as optional claims on the app registration.
  *
  * @see https://learn.microsoft.com/en-us/entra/identity-platform/optional-claims-reference
  */
@@ -73,19 +68,14 @@ function isMicrosoftEmailDomainVerified(claims: Record<string, unknown>): boolea
 }
 
 /**
- * Raises `emailVerified` for Microsoft *sign-in* when — and only when — Entra
- * asserts domain ownership. Better Auth spreads this result over its own
- * derived profile, so returning an empty object leaves its computation
- * untouched: this can promote an unverified email to verified, never the
- * reverse.
+ * Raises `emailVerified` for Microsoft sign-in only when Entra asserts domain
+ * ownership. Better Auth spreads this over its own derived profile, so the
+ * empty object leaves that computation untouched — this can promote unverified
+ * to verified, never the reverse.
  *
- * Why it matters: `microsoft` is deliberately absent from
- * `accountLinking.trustedProviders`, so Better Auth refuses to link a Microsoft
- * identity onto an existing user row unless the IdP asserts a verified email.
- * Entra never emits `email_verified` for work/school accounts, so without this
- * every user who already has a Sim account is permanently locked out of the
- * Microsoft button with an `account_not_linked` error. `xms_edov` is what lets
- * the honest case through while still refusing the forged one.
+ * Without it, `microsoft` being absent from `accountLinking.trustedProviders`
+ * (and Entra never emitting `email_verified` for work accounts) permanently
+ * locks anyone with an existing Sim account out of the Microsoft button.
  */
 export function mapMicrosoftProfileToUser(
   profile: Record<string, unknown>

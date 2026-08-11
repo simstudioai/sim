@@ -25,20 +25,14 @@ describe('mapMicrosoftProfileToUser', () => {
     }
   })
 
-  /**
-   * The nOAuth case: a hostile tenant sets `email` to a victim's address but
-   * cannot verify that domain, so `xms_edov` is absent or false.
-   */
+  /** nOAuth: a hostile tenant can set `email` but cannot verify the domain. */
   it('does not vouch for an email the tenant has not verified', () => {
     expect(mapMicrosoftProfileToUser({ email: 'victim@target.com' })).toEqual({})
     expect(mapMicrosoftProfileToUser({ email: 'victim@target.com', xms_edov: false })).toEqual({})
     expect(mapMicrosoftProfileToUser({ email: 'victim@target.com', xms_edov: '0' })).toEqual({})
   })
 
-  /**
-   * Better Auth spreads this over its own derived profile, so an empty object
-   * must leave `emailVerified` alone rather than forcing it to `false`.
-   */
+  /** The spread must leave `emailVerified` alone, not force it to `false`. */
   it('returns no key at all when unverified, so it can never downgrade', () => {
     expect('emailVerified' in mapMicrosoftProfileToUser({ email: EMAIL })).toBe(false)
   })
