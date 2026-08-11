@@ -267,19 +267,31 @@ function fontRuns(value: string): FontRun[] {
     }
   })
 
-  for (const [index, character] of characters.entries()) {
-    if (character.family !== 'Geist' || !character.neutral) continue
+  let index = 0
+  while (index < characters.length) {
+    if (!characters[index].neutral) {
+      index += 1
+      continue
+    }
 
-    let previous = index - 1
-    while (previous >= 0 && characters[previous].neutral) previous -= 1
-    let next = index + 1
-    while (next < characters.length && characters[next].neutral) next += 1
-    const previousFamily = characters[previous]?.family
-    const nextFamily = characters[next]?.family
-    if (previousFamily && previousFamily !== 'Geist' && previousFamily === nextFamily) {
-      character.family = previousFamily
-    } else if (previousFamily && previousFamily !== 'Geist' && next >= characters.length) {
-      character.family = previousFamily
+    const start = index
+    while (index < characters.length && characters[index].neutral) index += 1
+
+    const previousFamily = characters[start - 1]?.family
+    const nextFamily = characters[index]?.family
+    const inheritedFamily =
+      previousFamily &&
+      previousFamily !== 'Geist' &&
+      (previousFamily === nextFamily || index === characters.length)
+        ? previousFamily
+        : undefined
+
+    if (inheritedFamily) {
+      for (let neutralIndex = start; neutralIndex < index; neutralIndex += 1) {
+        if (characters[neutralIndex].family === 'Geist') {
+          characters[neutralIndex].family = inheritedFamily
+        }
+      }
     }
   }
 
@@ -489,6 +501,10 @@ function estimateTableRowHeight(row: JSONContent, columnCount: number): number {
 function chunkTableRows(header: JSONContent, rows: JSONContent[]): TableChunk[] {
   const columnCount = header.content?.length ?? rows[0]?.content?.length ?? 1
   const headerHeight = estimateTableRowHeight(header, columnCount)
+  if (rows.length === 0) {
+    return [{ rows: [], unbreakable: headerHeight <= MAX_UNBREAKABLE_TABLE_HEIGHT }]
+  }
+
   const chunks: TableChunk[] = []
   let current: JSONContent[] = []
   let currentHeight = headerHeight

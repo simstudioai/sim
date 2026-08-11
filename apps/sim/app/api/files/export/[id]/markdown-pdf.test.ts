@@ -120,6 +120,17 @@ ${repeatedParagraphs}`
     expect(tablePages.every((page) => page.includes('Name') && page.includes('Value'))).toBe(true)
   })
 
+  it('renders a table that contains only a header', async () => {
+    const buffer = await renderMarkdownPdf({
+      markdown: '| Name | Value |\n| --- | --- |',
+      title: 'Header-only table',
+    })
+
+    const text = (await pdfPagesText(buffer)).join(' ')
+    expect(text).toContain('Name')
+    expect(text).toContain('Value')
+  })
+
   it('falls back instead of decoding an image above the pixel ceiling', async () => {
     const oversizedSvg = Buffer.from(
       '<svg xmlns="http://www.w3.org/2000/svg" width="20000" height="20000"><rect width="100%" height="100%" fill="red"/></svg>'

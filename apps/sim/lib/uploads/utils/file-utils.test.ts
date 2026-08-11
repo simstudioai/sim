@@ -27,9 +27,10 @@ describe('isMarkdownFile', () => {
     expect(isMarkdownFile({ name: 'doc.markdown' })).toBe(true)
   })
 
-  it('is true for a text/markdown MIME even without a .md name', () => {
+  it('is true for Markdown MIME types even without a .md name', () => {
     expect(isMarkdownFile({ type: 'text/markdown', name: 'notes' })).toBe(true)
     expect(isMarkdownFile({ type: 'text/markdown', name: 'doc.txt' })).toBe(true)
+    expect(isMarkdownFile({ type: 'text/x-markdown', name: 'legacy' })).toBe(true)
   })
 
   it('is false for non-markdown files', () => {

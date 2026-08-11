@@ -25,7 +25,7 @@ import {
   type ResolvedEmbeddedFileRef,
   replaceEmbeddedFileRefs,
 } from '@/lib/uploads/utils/embedded-image-ref'
-import { formatFileSize } from '@/lib/uploads/utils/file-utils'
+import { formatFileSize, isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 import { verifyFileAccess } from '@/app/api/files/authorization'
 import { encodeFilenameForHeader } from '@/app/api/files/utils'
 
@@ -52,15 +52,6 @@ const PDF_EXPORT_RATE_LIMIT: TokenBucketConfig = {
   maxTokens: 3,
   refillRate: 3,
   refillIntervalMs: 60_000,
-}
-
-const MARKDOWN_MIME_TYPES = new Set(['text/markdown', 'text/x-markdown'])
-const MARKDOWN_EXTENSIONS = new Set(['md', 'markdown'])
-
-function isMarkdown(originalName: string, contentType: string): boolean {
-  if (MARKDOWN_MIME_TYPES.has(contentType)) return true
-  const ext = originalName.split('.').pop()?.toLowerCase() ?? ''
-  return MARKDOWN_EXTENSIONS.has(ext)
 }
 
 function safeFilename(name: string): string {
@@ -141,7 +132,7 @@ export const GET = withRouteHandler(
       )
     }
 
-    if (!isMarkdown(record.originalName, record.contentType)) {
+    if (!isMarkdownFile({ name: record.originalName, type: record.contentType })) {
       if (format === 'pdf') {
         return NextResponse.json(
           { error: 'PDF export is only available for Markdown files.' },

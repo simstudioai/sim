@@ -2,6 +2,7 @@ import { requestRaw } from '@/lib/api/client/request'
 import { fileExportContract } from '@/lib/api/contracts/storage-transfer'
 import { downloadWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { isMarkdownFile } from '@/lib/uploads/utils/file-utils'
 
 export function saveBlob(blob: Blob, fileName: string): void {
   const objectUrl = URL.createObjectURL(blob)
@@ -35,10 +36,7 @@ export async function triggerFileDownload(
   record: WorkspaceFileRecord,
   options?: { format?: 'pdf' }
 ): Promise<void> {
-  const isMarkdown =
-    record.type === 'text/markdown' ||
-    record.type === 'text/x-markdown' ||
-    /\.(?:md|markdown)$/i.test(record.name)
+  const isMarkdown = isMarkdownFile(record)
 
   if (options?.format === 'pdf' && !isMarkdown) {
     throw new Error('PDF export is only available for Markdown files')
