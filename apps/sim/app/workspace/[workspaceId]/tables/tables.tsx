@@ -1037,7 +1037,12 @@ export function Tables() {
   useRegisterGlobalCommands(() => [
     { id: 'tables-new-table', handler: () => void handleCreateTable() },
     { id: 'tables-new-folder', handler: () => void handleCreateFolder() },
-    { id: 'tables-import-csv', handler: () => csvInputRef.current?.click() },
+    {
+      id: 'tables-import-csv',
+      handler: () => {
+        if (!uploading) csvInputRef.current?.click()
+      },
+    },
   ])
 
   const headerActions: ResourceAction[] = useMemo(

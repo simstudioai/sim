@@ -367,6 +367,16 @@ function SearchModalContent({
         }
       )
     }
+    if (pageContext === 'tableDetail') {
+      list.push({
+        id: 'table-export-csv',
+        name: 'Export CSV',
+        keywords: 'download spreadsheet',
+        icon: Download,
+        context: 'tableDetail',
+        run: invoke('table-export-csv'),
+      })
+    }
     if (canEdit && pageContext === 'tableDetail') {
       list.push(
         {
@@ -376,14 +386,6 @@ function SearchModalContent({
           icon: Columns3,
           context: 'tableDetail',
           run: invoke('table-new-column'),
-        },
-        {
-          id: 'table-export-csv',
-          name: 'Export CSV',
-          keywords: 'download spreadsheet',
-          icon: Download,
-          context: 'tableDetail',
-          run: invoke('table-export-csv'),
         },
         {
           id: 'table-import-csv',
@@ -1065,7 +1067,9 @@ function SearchModalContent({
   ])
 
   const searchQuery = search.trim()
-  const isSearching = Boolean(searchQuery)
+  /* Mode follows the DEFERRED query the ranking ran against — keying it on the
+     live value would flip the layout a frame before the entries agree with it. */
+  const isSearching = Boolean(deferredSearch.trim())
   /**
    * Section order for both the browse list and the flat search tie-break: the
    * page's own entity section is hoisted directly under `actions`, the rest
