@@ -134,7 +134,7 @@ describe('/api/v2/workflows/[id]', () => {
     })
   })
 
-  it('preserves the personal-key-disabled 403 instead of concealing it', async () => {
+  it('returns the personal-key-disabled policy failure as forbidden', async () => {
     mocks.readWorkflow.mockRejectedValue(new PersonalApiKeysDisabledError())
     const response = await GET(
       new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`),

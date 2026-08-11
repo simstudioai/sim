@@ -169,7 +169,7 @@ describe('readWorkflowDeploymentOverview', () => {
     expect(result.mcpToolsTruncated).toBe(true)
   })
 
-  it('rejects a cross-workspace assertion before protected status loads', async () => {
+  it('returns forbidden for a cross-workspace delegated principal before protected status loads', async () => {
     queueTableRows(schemaMock.workflow, [
       {
         workflowId: workflowRecord.id,
@@ -183,7 +183,7 @@ describe('readWorkflowDeploymentOverview', () => {
         principal: { ...principal, workspaceId: 'workspace-2' },
         input: { workflowId: workflowRecord.id },
       })
-    ).rejects.toMatchObject({ code: 'not_found' })
+    ).rejects.toMatchObject({ code: 'forbidden' })
 
     expect(mocks.deploymentSummary).not.toHaveBeenCalled()
   })

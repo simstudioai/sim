@@ -48,15 +48,14 @@ export class WorkspaceFileMoveConflictError extends Error {
   }
 }
 
-export class WorkspaceFileItemsNotFoundError extends Error {
-  readonly code = 'WORKSPACE_FILE_ITEMS_NOT_FOUND' as const
-
+export class WorkspaceFileItemsNotFoundError extends OrchestrationError {
   constructor(fileIds: string[], folderIds: string[]) {
     const parts = [
       fileIds.length > 0 ? `files: ${fileIds.join(', ')}` : null,
       folderIds.length > 0 ? `folders: ${folderIds.join(', ')}` : null,
     ].filter(Boolean)
-    super(`Workspace file items not found (${parts.join('; ')})`)
+    super('not_found', `Workspace file items not found (${parts.join('; ')})`)
+    this.name = 'WorkspaceFileItemsNotFoundError'
   }
 }
 

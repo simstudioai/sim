@@ -35,7 +35,11 @@ vi.mock('@/lib/api/server/routes', () => {
   return {
     admitV2Request: mocks.admit,
     createInternalSessionOrExecutorAuth: vi.fn(() => ({ authenticate: vi.fn() })),
-    createV2ResourceConcealmentPolicy: vi.fn(() => ({ render: renderOrchestrationError })),
+    createV2ResourceConcealmentPolicy: vi.fn(
+      ({ render }: { render?: (error: unknown) => Response | null }) => ({
+        render: render ?? renderOrchestrationError,
+      })
+    ),
     V2RouteInfrastructureError,
     v2ApiKeyAuth: { kind: 'v2-api-key' },
     v2RateLimits: { publicApi: { kind: 'public-api' } },

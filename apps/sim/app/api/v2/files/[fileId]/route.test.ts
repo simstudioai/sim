@@ -141,7 +141,7 @@ describe('v2 single-file routes', () => {
     })
   })
 
-  it('conceals download authorization failures', async () => {
+  it('conceals cross-workspace download authorization', async () => {
     mocks.download.mockRejectedValue(new NoWorkspaceAccessError())
 
     const response = await GET(

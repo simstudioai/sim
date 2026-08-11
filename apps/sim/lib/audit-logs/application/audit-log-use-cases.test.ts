@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getOrgWorkspaceIds: vi.fn(),
   buildOrgScopeCondition: vi.fn(),
   buildFilterConditions: vi.fn(),
+  decodeAuditLogCursor: vi.fn(),
   queryAuditLogs: vi.fn(),
   recordAudit: vi.fn(),
 }))
@@ -22,6 +23,7 @@ vi.mock('@/lib/audit-logs/query', () => ({
   getOrgWorkspaceIds: mocks.getOrgWorkspaceIds,
   buildOrgScopeCondition: mocks.buildOrgScopeCondition,
   buildFilterConditions: mocks.buildFilterConditions,
+  decodeAuditLogCursor: mocks.decodeAuditLogCursor,
   queryAuditLogs: mocks.queryAuditLogs,
 }))
 
@@ -58,6 +60,10 @@ describe('audit-log application use cases', () => {
     mocks.getOrgWorkspaceIds.mockResolvedValue(['workspace-1'])
     mocks.buildOrgScopeCondition.mockReturnValue({ type: 'scope' })
     mocks.buildFilterConditions.mockReturnValue([])
+    mocks.decodeAuditLogCursor.mockReturnValue({
+      createdAt: '2026-01-01T00:00:00.000Z',
+      id: 'audit-1',
+    })
     mocks.queryAuditLogs.mockResolvedValue({ data: [], nextCursor: undefined })
   })
 
@@ -93,6 +99,20 @@ describe('audit-log application use cases', () => {
       })
     ).rejects.toMatchObject({ code: 'validation' })
 
+    expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
+  })
+
+  it('rejects a malformed cursor instead of restarting at page one', async () => {
+    mocks.decodeAuditLogCursor.mockReturnValueOnce(null)
+
+    await expect(
+      listAuditLogs.execute({
+        principal: sessionPrincipal,
+        input: { ...listInput, cursor: 'not-a-cursor' },
+      })
+    ).rejects.toMatchObject({ code: 'validation', message: 'Invalid audit-log cursor' })
+
+    expect(mocks.getOrgWorkspaceIds).not.toHaveBeenCalled()
     expect(mocks.queryAuditLogs).not.toHaveBeenCalled()
   })
 

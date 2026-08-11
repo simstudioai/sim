@@ -16,7 +16,7 @@ import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { CSV_MAX_FILE_SIZE_BYTES, type CsvHeaderMapping } from '@/lib/table'
+import { CSV_SYNC_MAX_FILE_SIZE_BYTES, type CsvHeaderMapping } from '@/lib/table'
 import { performTableCsvImport } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import {
@@ -53,7 +53,7 @@ export const POST = withRouteHandler(async (request: NextRequest, { params }: Ro
     let parsed: Awaited<ReturnType<typeof readMultipart>>
     try {
       parsed = await readMultipart(request, {
-        maxFileBytes: CSV_MAX_FILE_SIZE_BYTES,
+        maxFileBytes: CSV_SYNC_MAX_FILE_SIZE_BYTES,
         requiredFieldsBeforeFile: ['workspaceId'],
         signal: request.signal,
       })

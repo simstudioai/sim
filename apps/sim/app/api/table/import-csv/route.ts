@@ -10,7 +10,7 @@ import { isMultipartError, readMultipart } from '@/lib/core/utils/multipart'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { findActiveFolder } from '@/lib/folders/queries'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table'
+import { CSV_SYNC_MAX_FILE_SIZE_BYTES } from '@/lib/table'
 import { performCreateTableFromCsv } from '@/lib/table/orchestration'
 import { getUserSettings } from '@/lib/users/queries'
 import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
@@ -39,7 +39,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     let parsed: Awaited<ReturnType<typeof readMultipart>>
     try {
       parsed = await readMultipart(request, {
-        maxFileBytes: CSV_MAX_FILE_SIZE_BYTES,
+        maxFileBytes: CSV_SYNC_MAX_FILE_SIZE_BYTES,
         requiredFieldsBeforeFile: ['workspaceId'],
         signal: request.signal,
       })

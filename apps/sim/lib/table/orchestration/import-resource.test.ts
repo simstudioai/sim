@@ -46,7 +46,7 @@ vi.mock('@/lib/uploads/upload-session/service', () => ({
 }))
 vi.mock('@/lib/users/queries', () => ({ getUserSettings: mockGetUserSettings }))
 
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 import { createAuthorizedTableImportResource } from '@/lib/table/orchestration/import-resource'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
@@ -108,7 +108,7 @@ describe('createAuthorizedTableImportResource workspace file size', () => {
   })
 
   it('accepts a workspace CSV at the exact byte limit', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_MAX_FILE_SIZE_BYTES))
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_DURABLE_MAX_FILE_SIZE_BYTES))
 
     const result = await createImport({ workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET })
 
@@ -118,7 +118,7 @@ describe('createAuthorizedTableImportResource workspace file size', () => {
   })
 
   it('rejects a workspace CSV one byte over the limit before creating a table', async () => {
-    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_MAX_FILE_SIZE_BYTES + 1))
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(CSV_DURABLE_MAX_FILE_SIZE_BYTES + 1))
 
     await expect(
       createImport({ workspaceId: WORKSPACE_ID, source: SOURCE, target: TARGET })
@@ -150,13 +150,16 @@ describe('createAuthorizedTableImportResource upload size', () => {
         type: 'upload',
         name: 'data.csv',
         contentType: 'text/csv',
-        size: CSV_MAX_FILE_SIZE_BYTES,
+        size: CSV_DURABLE_MAX_FILE_SIZE_BYTES,
       },
       target: TARGET,
     })
 
     expect(mockCreateUploadSession).toHaveBeenCalledWith(
-      expect.objectContaining({ fileSize: CSV_MAX_FILE_SIZE_BYTES, purpose: 'table_import' })
+      expect.objectContaining({
+        fileSize: CSV_DURABLE_MAX_FILE_SIZE_BYTES,
+        purpose: 'table_import',
+      })
     )
   })
 
@@ -168,7 +171,7 @@ describe('createAuthorizedTableImportResource upload size', () => {
           type: 'upload',
           name: 'data.csv',
           contentType: 'text/csv',
-          size: CSV_MAX_FILE_SIZE_BYTES + 1,
+          size: CSV_DURABLE_MAX_FILE_SIZE_BYTES + 1,
         },
         target: TARGET,
       })

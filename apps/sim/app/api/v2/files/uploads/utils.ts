@@ -38,8 +38,12 @@ function uploadStatus(status: string): V2UploadStatus {
 
 import type { Principal } from '@sim/auth/principal'
 import type { NextRequest, NextResponse } from 'next/server'
+import { createV2ResourceConcealmentPolicy } from '@/lib/api/server/routes'
 import { authenticateV2ApiKey } from '@/lib/api/server/routes/v2-api-key-auth'
-import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
+
+const uploadControlErrorPolicy = createV2ResourceConcealmentPolicy({
+  notFoundMessage: 'Upload session not found',
+})
 
 /** Re-authenticates the API key for each upload control leg. */
 export async function authenticateUploadPrincipal(request: NextRequest): Promise<Principal> {
@@ -47,9 +51,7 @@ export async function authenticateUploadPrincipal(request: NextRequest): Promise
   return auth.principal
 }
 
-/** Resource-ID upload controls conceal authorization failures as absence. */
+/** Conceals cross-tenant upload-session authorization while preserving same-workspace denials. */
 export function v2UploadControlError(error: unknown): NextResponse | null {
-  const response = v2CaughtOrchestrationError(error)
-  if (!response) return null
-  return response.status === 403 ? v2Error('NOT_FOUND', 'Upload session not found') : response
+  return uploadControlErrorPolicy.render(error)
 }

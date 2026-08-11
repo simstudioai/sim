@@ -408,7 +408,7 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
-  it('masks a workspace-key/workflow mismatch as 404', async () => {
+  it('conceals a workspace-key/workflow mismatch as not found', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: {
         kind: 'workspace_api_key',
@@ -537,6 +537,28 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     ])
     const asyncRes = await callPublicExecute({ input: {}, async: true })
     expect(asyncRes.status).toBe(400)
+  })
+
+  it('returns not found when a public workflow disappears before authorization', async () => {
+    dbChainMockFns.limit.mockReset()
+    dbChainMockFns.limit.mockResolvedValueOnce([
+      { isPublicApi: true, isDeployed: true, userId: 'owner-1', workspaceId: 'workspace-1' },
+    ])
+    mockAuthorize.mockResolvedValueOnce({
+      allowed: false,
+      status: 404,
+      message: 'Workflow not found',
+      workflow: null,
+      workspacePermission: null,
+    })
+
+    const response = await callPublicExecute({ input: {} })
+
+    expect(response.status).toBe(404)
+    expect(await response.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Workflow not found' },
+    })
+    expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
   it('rejects anonymous abuse before looking up the workflow', async () => {

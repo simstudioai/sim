@@ -24,23 +24,14 @@ export interface ExecuteWorkflowInput {
   includeToolCalls?: boolean
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 function authenticatesExecutionCredentials(principal: Principal): boolean {
   return principal.kind !== 'workspace_api_key'
 }
 
 export const executeWorkflowOperation = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.execute,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ExecuteWorkflowInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
-    }),
+  resolveContext: ({ input }: { input: ExecuteWorkflowInput }) =>
+    resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
   async execute({ principal, context, input }): Promise<ExecuteWorkflowServiceResult> {
     const attribution = resolvePrincipalAttribution(principal, {
       workspaceBillingOwnerUserId: context.billedAccountUserId,

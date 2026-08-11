@@ -126,7 +126,7 @@ describe('Copilot workflow run application commands', () => {
     expect(result).toMatchObject({ success: true, output: { ok: true } })
     expect(mocks.resolveContext).toHaveBeenCalledWith({
       workflowId: 'workflow-1',
-      assertedWorkspaceId: 'workspace-1',
+      assertedWorkspaceId: undefined,
     })
     expect(mocks.permission).toHaveBeenCalledBefore(mocks.loadDraft)
     expect(mocks.admission).toHaveBeenCalledWith(

@@ -7,7 +7,11 @@
  */
 import { dbChainMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { buildOrgScopeCondition, getOrgWorkspaceIds } from '@/lib/audit-logs/query'
+import {
+  buildOrgScopeCondition,
+  decodeAuditLogCursor,
+  getOrgWorkspaceIds,
+} from '@/lib/audit-logs/query'
 
 const ORG_ID = 'org-1'
 const MEMBER_IDS = ['user-1', 'user-2']
@@ -165,5 +169,29 @@ describe('getOrgWorkspaceIds', () => {
     expect(dbChainMockFns.where).toHaveBeenCalledWith(
       expect.objectContaining({ type: 'eq', left: 'organizationId', right: ORG_ID })
     )
+  })
+})
+
+describe('decodeAuditLogCursor', () => {
+  it('accepts the exact timestamp and ID cursor shape', () => {
+    const cursor = Buffer.from(
+      JSON.stringify({ createdAt: '2026-01-01T00:00:00.000Z', id: 'audit-1' })
+    ).toString('base64')
+
+    expect(decodeAuditLogCursor(cursor)).toEqual({
+      createdAt: '2026-01-01T00:00:00.000Z',
+      id: 'audit-1',
+    })
+  })
+
+  it.each([
+    'not-base64',
+    Buffer.from('{}').toString('base64'),
+    Buffer.from(JSON.stringify({ createdAt: 'not-a-date', id: 'audit-1' })).toString('base64'),
+    Buffer.from(JSON.stringify({ createdAt: '2026-01-01T00:00:00.000Z', id: 1 })).toString(
+      'base64'
+    ),
+  ])('rejects malformed cursor %s', (cursor) => {
+    expect(decodeAuditLogCursor(cursor)).toBeNull()
   })
 })

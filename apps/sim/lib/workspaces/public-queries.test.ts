@@ -21,7 +21,7 @@ describe('queryPublicWorkspaceMembers', () => {
         image: null,
         role: 'write',
         joinedAt: new Date('2026-01-01T00:00:00.000Z'),
-        userOrganizationId: 'org-1',
+        hasRelevantOrganizationMembership: true,
       },
       {
         userId: 'user-2',
@@ -30,7 +30,7 @@ describe('queryPublicWorkspaceMembers', () => {
         image: null,
         role: 'read',
         joinedAt: new Date('2026-01-02T00:00:00.000Z'),
-        userOrganizationId: null,
+        hasRelevantOrganizationMembership: false,
       },
     ])
     queueTableRows(schemaMock.member, [
@@ -67,6 +67,48 @@ describe('queryPublicWorkspaceMembers', () => {
     ])
     expect(page?.nextEmail).toBeNull()
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(11)
+    expect(dbChainMockFns.leftJoin).not.toHaveBeenCalled()
+  })
+
+  it('marks organization members as external collaborators on a personal workspace', async () => {
+    queueTableRows(schemaMock.workspace, [{ ownerId: 'user-1', organizationId: null }])
+    queueTableRows(schemaMock.permissions, [
+      {
+        userId: 'user-1',
+        email: 'ada@example.com',
+        name: 'Ada',
+        image: null,
+        role: 'admin',
+        joinedAt: new Date('2026-01-01T00:00:00.000Z'),
+        hasRelevantOrganizationMembership: true,
+      },
+      {
+        userId: 'user-2',
+        email: 'grace@example.com',
+        name: 'Grace',
+        image: null,
+        role: 'read',
+        joinedAt: new Date('2026-01-02T00:00:00.000Z'),
+        hasRelevantOrganizationMembership: true,
+      },
+      {
+        userId: 'user-3',
+        email: 'katherine@example.com',
+        name: 'Katherine',
+        image: null,
+        role: 'read',
+        joinedAt: new Date('2026-01-03T00:00:00.000Z'),
+        hasRelevantOrganizationMembership: false,
+      },
+    ])
+
+    const page = await queryPublicWorkspaceMembers('workspace-1', { limit: 10 })
+
+    expect(page?.members.map(({ email, isExternal }) => ({ email, isExternal }))).toEqual([
+      { email: 'ada@example.com', isExternal: false },
+      { email: 'grace@example.com', isExternal: true },
+      { email: 'katherine@example.com', isExternal: false },
+    ])
   })
 
   it('returns null when the workspace is not active', async () => {

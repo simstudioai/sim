@@ -36,6 +36,8 @@ vi.mock('@/lib/billing/subscriptions/utils', () => ({
 import {
   CUMULATIVE_COST_EPSILON,
   CumulativeUsageContextMismatchError,
+  getUserUsageLogs,
+  getWorkspaceUsageLogs,
   recordCumulativeUsage,
   recordUsage,
   resolveCumulativeTopUp,
@@ -388,5 +390,51 @@ describe('recordCumulativeUsage', () => {
     expect(executedSqlContaining(tx, 'lock_timeout')).toBe(true)
     expect(executedSqlContaining(tx, 'pg_advisory_xact_lock')).toBe(true)
     expect(executedSqlContaining(tx, 'hashtextextended')).toBe(true)
+  })
+})
+
+interface MockCondition {
+  type?: string
+  conditions?: MockCondition[]
+  left?: string
+  right?: string
+}
+
+function latestWhereCondition(): MockCondition {
+  const condition = dbChainMockFns.where.mock.calls.at(-1)?.[0]
+  if (!condition) throw new Error('Expected a usage-log where condition')
+  return condition as MockCondition
+}
+
+describe('usage-log query scopes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('queries a complete workspace ledger without an actor predicate', async () => {
+    await getWorkspaceUsageLogs('workspace-1', { limit: 25, includeSummary: false })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [{ type: 'eq', left: 'workspaceId', right: 'workspace-1' }],
+    })
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(26)
+  })
+
+  it('keeps personal queries actor-scoped with an optional workspace filter', async () => {
+    await getUserUsageLogs('user-1', {
+      workspaceId: 'workspace-1',
+      limit: 25,
+      includeSummary: false,
+    })
+
+    expect(latestWhereCondition()).toMatchObject({
+      type: 'and',
+      conditions: [
+        { type: 'eq', left: 'userId', right: 'user-1' },
+        { type: 'eq', left: 'workspaceId', right: 'workspace-1' },
+      ],
+    })
   })
 })

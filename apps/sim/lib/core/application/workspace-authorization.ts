@@ -56,6 +56,13 @@ export class WorkspaceApiKeyAuthorizationError extends OrchestrationError {
   }
 }
 
+export class WorkspaceApiKeyScopeAuthorizationError extends OrchestrationError {
+  constructor() {
+    super('forbidden', 'Workspace API key cannot access this workspace')
+    this.name = 'WorkspaceApiKeyScopeAuthorizationError'
+  }
+}
+
 export class DelegatedWorkspaceAuthorizationError extends OrchestrationError {
   constructor() {
     super('forbidden', 'Delegated workspace access is no longer valid')
@@ -139,8 +146,10 @@ export async function authorizeWorkspaceOperation<C extends WorkspaceAuthorizati
       await requireCurrentHumanPermission(principal.userId, context, operation.minimumRole, options)
       return
     case 'workspace_api_key':
+      if (principal.workspaceId !== context.workspaceId) {
+        throw new WorkspaceApiKeyScopeAuthorizationError()
+      }
       if (
-        principal.workspaceId !== context.workspaceId ||
         operation.workspaceApiKey !== 'allow' ||
         !permissionSatisfies('write', operation.minimumRole)
       ) {

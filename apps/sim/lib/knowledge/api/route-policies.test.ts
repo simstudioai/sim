@@ -9,6 +9,7 @@ import {
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
+  WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
@@ -16,15 +17,23 @@ import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 describe('v2 knowledge error policies', () => {
   it.each([
     new NoWorkspaceAccessError(),
-    new WorkspaceApiKeyAuthorizationError(),
+    new WorkspaceApiKeyScopeAuthorizationError(),
     new DelegatedWorkspaceAuthorizationError(),
-    new PrincipalKindAuthorizationError('workspace_api_key', 'knowledge.read'),
-  ])('conceals canonical resource authorization failures as absence', async (error) => {
+  ])('conceals cross-tenant knowledge authorization failures', async (error) => {
     const response = v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization.render(error)
     expect(response?.status).toBe(404)
     expect(await response?.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Knowledge base not found' },
     })
+  })
+
+  it.each([
+    new WorkspaceApiKeyAuthorizationError(),
+    new PrincipalKindAuthorizationError('workspace_api_key', 'knowledge.read'),
+  ])('preserves same-workspace principal policy failures as forbidden', async (error) => {
+    const response = v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization.render(error)
+    expect(response?.status).toBe(403)
+    expect(await response?.json()).toMatchObject({ error: { code: 'FORBIDDEN' } })
   })
 
   it('preserves the personal-api-key policy failure as forbidden', async () => {
@@ -47,6 +56,16 @@ describe('v2 knowledge error policies', () => {
     expect(response?.status).toBe(403)
     expect(await response?.json()).toEqual({
       error: { code: 'FORBIDDEN', message: 'Knowledge base transition is forbidden' },
+    })
+  })
+
+  it('preserves genuine not-found failures', async () => {
+    const response = v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization.render(
+      new OrchestrationError('not_found', 'Knowledge base not found')
+    )
+    expect(response?.status).toBe(404)
+    expect(await response?.json()).toEqual({
+      error: { code: 'NOT_FOUND', message: 'Knowledge base not found' },
     })
   })
 })

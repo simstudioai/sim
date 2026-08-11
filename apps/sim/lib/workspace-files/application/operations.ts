@@ -12,6 +12,9 @@ const HUMAN_FILE_TOOL_PRINCIPAL_POLICY = {
   principalKinds: ['session', 'personal_api_key', 'delegated'],
   delegatedServices: ['copilot', 'executor'],
 } as const
+const UPLOAD_PRINCIPAL_POLICY = {
+  principalKinds: ['session', 'personal_api_key', 'workspace_api_key'],
+} as const
 
 export const fileOperations = {
   list: defineWorkspaceOperation({
@@ -153,25 +156,25 @@ export const fileOperations = {
     id: 'files.upload.create',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadParts: defineWorkspaceOperation({
     id: 'files.upload.parts',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadComplete: defineWorkspaceOperation({
     id: 'files.upload.complete',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
   uploadCancel: defineWorkspaceOperation({
     id: 'files.upload.cancel',
     minimumRole: 'write',
     workspaceApiKey: 'allow',
-    ...ALL_COPILOT_PRINCIPAL_POLICY,
+    ...UPLOAD_PRINCIPAL_POLICY,
   }),
 } as const
 

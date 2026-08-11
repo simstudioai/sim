@@ -34,7 +34,7 @@ import {
   SORT_DIRECTIONS,
   TABLE_LIMITS,
 } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
+import { CSV_SYNC_MAX_FILE_SIZE_BYTES, CSV_SYNC_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
 import {
   getTablePredicateTreeSizeError,
   MAX_PREDICATE_GROUP_SIZE,
@@ -1063,10 +1063,10 @@ export const csvFileSchema = z
       ctx.addIssue({ code: 'custom', message: 'CSV file is required' })
       return
     }
-    if (value.size > CSV_MAX_FILE_SIZE_BYTES) {
+    if (value.size > CSV_SYNC_MAX_FILE_SIZE_BYTES) {
       ctx.addIssue({
         code: 'custom',
-        message: CSV_MAX_FILE_SIZE_MESSAGE,
+        message: CSV_SYNC_MAX_FILE_SIZE_MESSAGE,
       })
     }
   })

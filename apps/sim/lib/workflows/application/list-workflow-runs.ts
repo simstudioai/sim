@@ -1,4 +1,3 @@
-import type { Principal } from '@sim/auth/principal'
 import { defineAuthorizedWorkflowUseCase } from '@/lib/workflows/application/authorized-workflow-use-case'
 import { resolveActiveWorkflowApplicationContext } from '@/lib/workflows/application/context'
 import { workflowOperations } from '@/lib/workflows/application/operations'
@@ -11,19 +10,10 @@ export interface ListWorkflowRunsInput extends Omit<ListWorkflowExecutionsInput,
   workflowId: string
 }
 
-function assertedWorkspaceId(principal: Principal): string | undefined {
-  return principal.kind === 'workspace_api_key' || principal.kind === 'delegated'
-    ? principal.workspaceId
-    : undefined
-}
-
 export const listWorkflowRuns = defineAuthorizedWorkflowUseCase({
   operation: workflowOperations.listRuns,
-  resolveContext: ({ principal, input }: { principal: Principal; input: ListWorkflowRunsInput }) =>
-    resolveActiveWorkflowApplicationContext({
-      workflowId: input.workflowId,
-      assertedWorkspaceId: assertedWorkspaceId(principal),
-    }),
+  resolveContext: ({ input }: { input: ListWorkflowRunsInput }) =>
+    resolveActiveWorkflowApplicationContext({ workflowId: input.workflowId }),
   async execute({ context, input }) {
     const result = await listWorkflowExecutions({
       workflowId: context.workflowId,

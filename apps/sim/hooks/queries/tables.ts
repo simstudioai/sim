@@ -1835,7 +1835,7 @@ export function useImportCsv() {
     },
     onError: (error) => {
       logger.error('Failed to start CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1879,7 +1879,7 @@ export function useImportFileAsTable() {
     },
     onError: (error) => {
       logger.error('Failed to start import from file:', error)
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: tableKeys.lists() })
@@ -1936,7 +1936,7 @@ export function useImportCsvIntoTable() {
     onError: (error, variables) => {
       if (handleTableLockRejection(error, queryClient, variables.tableId)) return
       logger.error('Failed to start CSV import:', error)
-      toast.error(error.message, { duration: 5000 })
+      toast.error(extractValidationIssues(error)[0]?.message ?? error.message, { duration: 5000 })
     },
     onSettled: (_data, _error, variables) => {
       invalidateRowCount(queryClient, variables.tableId)

@@ -3,6 +3,10 @@
  */
 import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 
 const { mocks, MockV2ApiKeyUnauthenticatedError } = vi.hoisted(() => {
   class MockV2ApiKeyUnauthenticatedError extends Error {}
@@ -164,5 +168,16 @@ describe('/api/v2/skills/[id]', () => {
 
     expect(response.status).toBe(401)
     expect(mocks.update).not.toHaveBeenCalled()
+  })
+
+  it('conceals cross-tenant access while preserving same-workspace role denials', async () => {
+    mocks.get.mockRejectedValueOnce(new NoWorkspaceAccessError())
+    expect((await GET(request('GET'), context)).status).toBe(404)
+
+    mocks.update.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    expect(
+      (await PATCH(request('PATCH', { workspaceId: WORKSPACE_ID, content: '# Updated' }), context))
+        .status
+    ).toBe(403)
   })
 })

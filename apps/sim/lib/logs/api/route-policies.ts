@@ -1,14 +1,11 @@
-import { type V2ErrorPolicy, v2OrchestrationErrorPolicy } from '@/lib/api/server/routes'
-import { v2CaughtOrchestrationError, v2Error } from '@/app/api/v2/lib/response'
+import {
+  createV2ResourceConcealmentPolicy,
+  v2OrchestrationErrorPolicy,
+} from '@/lib/api/server/routes'
 
 export const v2LogErrorPolicies = {
   default: v2OrchestrationErrorPolicy,
-  concealDetailAuthorization: {
-    render(error) {
-      const response = v2CaughtOrchestrationError(error)
-      if (!response) return null
-      if (response.status === 403) return v2Error('NOT_FOUND', 'Log not found')
-      return response
-    },
-  } satisfies V2ErrorPolicy,
+  concealDetailAuthorization: createV2ResourceConcealmentPolicy({
+    notFoundMessage: 'Log not found',
+  }),
 } as const
