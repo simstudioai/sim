@@ -292,13 +292,22 @@ describe('projectResolvedSecretModelContent', () => {
 
   it('atomically projects the selected provenance label when its name contains the value', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'TOKEN', plaintext: 'TOK', encryptedValue: 'ciphertext' },
+      { name: 'TOKENVALUE_NAME', plaintext: 'TOKENVALUE', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('TOKEN', 'TOK')
+    expect(registry.recordResolved('TOKENVALUE_NAME', 'TOKENVALUE')).toBe(true)
 
-    expect(projectResolvedSecretModelContent('Bearer {{TOKEN}}', registry)).toEqual({
+    /**
+     * The label `{{TOKENVALUE_NAME}}` contains the plaintext that produced it, so it is only left
+     * alone because the label is treated atomically. Projecting the bare plaintext first proves the
+     * matcher is live — without it an empty matcher would satisfy the second assertion too.
+     */
+    expect(projectResolvedSecretModelContent('Bearer TOKENVALUE', registry)).toEqual({
       safe: true,
-      value: 'Bearer {{TOKEN}}',
+      value: 'Bearer {{TOKENVALUE_NAME}}',
+    })
+    expect(projectResolvedSecretModelContent('Bearer {{TOKENVALUE_NAME}}', registry)).toEqual({
+      safe: true,
+      value: 'Bearer {{TOKENVALUE_NAME}}',
     })
   })
 
