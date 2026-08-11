@@ -146,9 +146,6 @@ const RAW_JSON_BASELINE_ROUTES = new Set([
 ])
 
 const CONTRACT_IMPORT_PATTERN = /\bfrom\s+['"]@\/lib\/api\/contracts(?:\/[^'"]*)?['"]/
-const PUBLIC_API_ROUTE_HANDLER_IMPORT_PATTERN =
-  /\bimport\s*\{[^}]*\bwithPublicApiRouteHandler\b[^}]*\}\s*from\s*['"]@\/app\/api\/public-api-route-handler['"]/
-const PUBLIC_API_ROUTE_HANDLER_USAGE_PATTERN = /\bwithPublicApiRouteHandler\s*\(/
 const DECLARATIVE_ROUTE_BUILDER_IMPORT_PATTERN =
   /\bimport\s*\{[^}]*(?:\bdefineInternalJsonRoute\b|\bdefineV2JsonRoute\b|\bdefineInternalBinaryRoute\b|\bdefineV2BinaryRoute\b)[^}]*\}\s*from\s*['"]@\/lib\/api\/server\/routes['"]/
 const DECLARATIVE_ROUTE_BUILDER_USAGE_PATTERN =
@@ -720,13 +717,6 @@ function hasZodUsage(relativePath: string, content: string): boolean {
     /\bparseRequest\(/.test(content) &&
     /\bfrom\s+['"]@\/lib\/api\/server['"]/.test(content) &&
     CONTRACT_IMPORT_PATTERN.test(content)
-  ) {
-    return true
-  }
-  if (
-    CONTRACT_IMPORT_PATTERN.test(content) &&
-    PUBLIC_API_ROUTE_HANDLER_IMPORT_PATTERN.test(content) &&
-    PUBLIC_API_ROUTE_HANDLER_USAGE_PATTERN.test(content)
   ) {
     return true
   }
