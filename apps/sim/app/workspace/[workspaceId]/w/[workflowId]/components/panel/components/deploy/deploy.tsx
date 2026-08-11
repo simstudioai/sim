@@ -63,7 +63,7 @@ export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: 
     (!isDeployed && deployReadiness.isBlocked && !deployReadiness.isSyncing)
 
   const onDeployClick = async () => {
-    if (isDisabled || !activeWorkflowId) return
+    if (isRegistryLoading || isDisabled || !activeWorkflowId) return
 
     if (isDeploymentSettling) {
       setIsModalOpen(true)
