@@ -25,7 +25,7 @@ const ACTIONS: ChromeActionSpec[] = [
 ]
 
 const BREADCRUMBS: BreadcrumbItem[] = [
-  { label: 'Knowledge Base', icon: Database, onClick: noop },
+  { label: 'Knowledge bases', icon: Database, onClick: noop },
   { label: '…', icon: Database, terminal: true },
 ]
 

@@ -110,7 +110,7 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
 
 const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
-const ROOT_BREADCRUMB_LABEL = 'Knowledge Base'
+const ROOT_BREADCRUMB_LABEL = 'Knowledge bases'
 const FOLDER_RESOURCE_TYPE = 'knowledge_base' as const
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
