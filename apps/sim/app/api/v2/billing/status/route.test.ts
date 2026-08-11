@@ -40,6 +40,7 @@ const result = {
   plan: 'team',
   status: 'active' as const,
   credits: { used: 500, limit: 20_000, remaining: 19_500 },
+  storage: { usedBytes: 5_242_880, limitBytes: 1_073_741_824, percentUsed: 0.48828125 },
 }
 
 describe('GET /api/v2/billing/status', () => {

@@ -10,9 +10,9 @@
  * 1. Spec integrity (every file): all `$ref`s resolve, operationIds are
  *    present and unique, every operation documents a success response, no
  *    orphaned component schemas.
- * 2. v2 conventions (every `/api/v2/` operation): 401 and 429 are documented,
- *    and every documented 4xx/5xx resolves to the canonical error envelope
- *    `{ error: { code, message } }`.
+ * 2. v2 conventions: every published operation is under `/api/v2/`, documents
+ *    401 and 429, and resolves every documented 4xx/5xx response to the
+ *    canonical error envelope `{ error: { code, message } }`.
  * 3. Contract cross-check: every contract exported from
  *    `lib/api/contracts/v2/*` must be documented, every documented `/api/v2/`
  *    operation must have a contract, and for each pair the query params,
@@ -39,8 +39,32 @@ const SPEC_FILES = OPENAPI_SPEC_FILES
 const GENERATED_SPEC_FILES = new Set<string>(GENERATED_OPENAPI_SPEC_FILES)
 const LEGACY_SPEC_FILES = new Set<string>(LEGACY_OPENAPI_SPEC_FILES)
 
-/** Extra non-v2 contracts that are documented in the core spec. */
-const EXTRA_CONTRACT_MODULES = [path.join(ROOT, 'apps/sim/lib/api/contracts/usage-limits.ts')]
+/**
+ * Every operation removed with the unversioned core specification has a
+ * public v2 replacement. Keeping this mapping executable prevents a future
+ * docs edit from accidentally dropping a migrated execution, HITL, or usage
+ * capability.
+ */
+const LEGACY_CORE_REPLACEMENTS = {
+  executeWorkflow: 'POST /api/v2/workflows/{id}/execute',
+  getWorkflowExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
+  cancelExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/cancel',
+  getJobStatus: 'GET /api/v2/workflows/{id}/runs/{runId}',
+  listPausedExecutions: 'GET /api/v2/workflows/{id}/runs',
+  getPausedExecution: 'GET /api/v2/workflows/{id}/runs/{runId}',
+  getPausedExecutionByResumePath: 'GET /api/v2/workflows/{id}/runs/{runId}',
+  getPauseContext: 'GET /api/v2/workflows/{id}/runs/{runId}',
+  resumeExecution: 'POST /api/v2/workflows/{id}/runs/{runId}/resume',
+  getUsageLimits: 'GET /api/v2/billing/status',
+} as const
+
+const API_REFERENCE_LOCALES = ['de', 'en', 'es', 'fr', 'ja', 'zh'] as const
+const REQUIRED_API_REFERENCE_GROUPS = ['(generated)/workflows', '(generated)/billing'] as const
+const REMOVED_API_REFERENCE_GROUPS = [
+  '(generated)/execution',
+  '(generated)/human-in-the-loop',
+  '(generated)/usage',
+] as const
 
 type Json = Record<string, unknown>
 const HTTP_METHODS = new Set(['get', 'post', 'put', 'patch', 'delete'])
@@ -76,7 +100,7 @@ async function loadContracts(): Promise<Map<string, { name: string; contract: Co
   const files = readdirSync(V2_CONTRACTS_DIR)
     .filter((f) => f.endsWith('.ts') && f !== 'shared.ts')
     .map((f) => path.join(V2_CONTRACTS_DIR, f))
-  for (const file of [...files, ...EXTRA_CONTRACT_MODULES]) {
+  for (const file of files) {
     const mod = (await import(file)) as Record<string, unknown>
     for (const [name, value] of Object.entries(mod)) {
       if (!isContract(value)) continue
@@ -492,14 +516,15 @@ for (const specFile of SPEC_FILES) {
         fail(specFile, `duplicate global operationId "${operationId}" (also in ${previous})`)
       else globalOperationIds.set(operationId, specFile)
     }
-    const isV2 = operation.path.startsWith('/api/v2/')
-    if (isV2) checkV2Conventions(operation)
+    if (!operation.path.startsWith('/api/v2/')) {
+      fail(specFile, `${key}: public OpenAPI operations must use the /api/v2/ namespace`)
+      continue
+    }
+    checkV2Conventions(operation)
 
     const entry = registry.get(key)
     if (!entry) {
-      // The core spec's execution/HITL surface predates the contract registry;
-      // only the v2 surface requires a contract for every documented operation.
-      if (isV2) fail(specFile, `${key}: documented but no contract exports this route`)
+      fail(specFile, `${key}: documented but no contract exports this route`)
       continue
     }
     checkQueryParams(operation, entry.contract, entry.name)
@@ -509,9 +534,53 @@ for (const specFile of SPEC_FILES) {
 }
 
 for (const [key, { name }] of registry) {
-  if (!key.includes('/api/v2/')) continue
   if (!documentedKeys.has(key)) {
     errors.push(`registry: ${name} (${key}) is not documented in any OpenAPI spec`)
+  }
+}
+
+for (const [legacyOperationId, replacement] of Object.entries(LEGACY_CORE_REPLACEMENTS)) {
+  if (!documentedKeys.has(replacement)) {
+    errors.push(
+      `legacy coverage: ${legacyOperationId} is missing its documented v2 replacement (${replacement})`
+    )
+  }
+}
+
+const workflowMetaFile = 'content/docs/en/api-reference/(generated)/workflows/meta.json'
+const workflowMeta = JSON.parse(readFileSync(path.join(DOCS_DIR, workflowMetaFile), 'utf8')) as Json
+if (
+  !Array.isArray(workflowMeta.pages) ||
+  !workflowMeta.pages.every((page) => typeof page === 'string')
+) {
+  fail(workflowMetaFile, 'pages must be an array of operationIds')
+} else {
+  const visibleWorkflowOperationIds = new Set(workflowMeta.pages as string[])
+  for (const [operationId, specFile] of globalOperationIds) {
+    if (specFile === 'openapi-v2-workflows.json' && !visibleWorkflowOperationIds.has(operationId)) {
+      fail(workflowMetaFile, `${operationId} is documented but hidden from the Workflows group`)
+    }
+  }
+  for (const operationId of visibleWorkflowOperationIds) {
+    if (globalOperationIds.get(operationId) !== 'openapi-v2-workflows.json') {
+      fail(workflowMetaFile, `${operationId} is not an operation in openapi-v2-workflows.json`)
+    }
+  }
+}
+
+for (const locale of API_REFERENCE_LOCALES) {
+  const metaFile = `content/docs/${locale}/api-reference/meta.json`
+  const meta = JSON.parse(readFileSync(path.join(DOCS_DIR, metaFile), 'utf8')) as Json
+  if (!Array.isArray(meta.pages) || !meta.pages.every((page) => typeof page === 'string')) {
+    fail(metaFile, 'pages must be an array of page identifiers')
+    continue
+  }
+  const pages = new Set(meta.pages as string[])
+  for (const group of REQUIRED_API_REFERENCE_GROUPS) {
+    if (!pages.has(group)) fail(metaFile, `missing public v2 group ${group}`)
+  }
+  for (const group of REMOVED_API_REFERENCE_GROUPS) {
+    if (pages.has(group)) fail(metaFile, `obsolete legacy group ${group} must not be published`)
   }
 }
 

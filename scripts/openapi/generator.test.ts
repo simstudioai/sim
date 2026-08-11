@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { z } from 'zod'
 import { defineRouteContract } from '../../apps/sim/lib/api/contracts/types'
+import { billingOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/files-audit'
 import {
   defineOpenApiDocument,
@@ -316,6 +317,27 @@ describe('OpenAPI generator', () => {
     const share = properties.share as JsonObject
 
     expect(share.anyOf).toEqual(expect.arrayContaining([expect.objectContaining({ type: 'null' })]))
+  })
+
+  it('documents v2 billing storage coverage from the response schema', () => {
+    const spec = generateOpenApiDocument(billingOpenApiDocument)
+    const paths = spec.paths as JsonObject
+    const schemas = (spec.components as JsonObject).schemas as JsonObject
+    const response = schemas.V2BillingStatusResponse as JsonObject
+    const responseProperties = response.properties as JsonObject
+    const data = responseProperties.data as JsonObject
+    const dataProperties = data.properties as JsonObject
+    const storage = dataProperties.storage as JsonObject
+
+    expect(Object.keys(paths).sort()).toEqual(['/api/v2/billing/logs', '/api/v2/billing/status'])
+    expect(storage).toMatchObject({
+      required: ['usedBytes', 'limitBytes', 'percentUsed'],
+      properties: {
+        usedBytes: { type: 'number', minimum: 0 },
+        limitBytes: { type: 'number', minimum: 0 },
+        percentUsed: { type: 'number', minimum: 0 },
+      },
+    })
   })
 
   it('uses string wire values for transformed boolean defaults', () => {

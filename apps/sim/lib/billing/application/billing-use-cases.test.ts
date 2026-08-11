@@ -16,6 +16,11 @@ const mocks = vi.hoisted(() => ({
   deriveBillingContext: vi.fn(),
   checkBillingBlocked: vi.fn(),
   checkBillingEntityBlocked: vi.fn(),
+  resolveStorageContext: vi.fn(),
+  getStorageLimitForContext: vi.fn(),
+  getStorageUsageForContext: vi.fn(),
+  getUserStorageLimit: vi.fn(),
+  getUserStorageUsage: vi.fn(),
   getUsageLogs: vi.fn(),
   getCredits: vi.fn(),
   recordAudit: vi.fn(),
@@ -52,6 +57,14 @@ vi.mock('@/lib/billing/core/usage-log', () => ({
   deriveBillingContext: mocks.deriveBillingContext,
   getUserUsageLogs: mocks.getUsageLogs,
   getUsageCreditsByLogId: mocks.getCredits,
+}))
+
+vi.mock('@/lib/billing/storage', () => ({
+  resolveStorageBillingContext: mocks.resolveStorageContext,
+  getStorageLimitForBillingContext: mocks.getStorageLimitForContext,
+  getStorageUsageForBillingContext: mocks.getStorageUsageForContext,
+  getUserStorageLimit: mocks.getUserStorageLimit,
+  getUserStorageUsage: mocks.getUserStorageUsage,
 }))
 
 vi.mock('@sim/audit', () => ({ recordAudit: mocks.recordAudit }))
@@ -94,6 +107,17 @@ describe('billing application use cases', () => {
       billingPeriod: { start: '2026-01-01', end: '2026-02-01' },
       payerSubscription: null,
     })
+    mocks.resolveStorageContext.mockResolvedValue({
+      workspaceId: 'workspace-1',
+      billedAccountUserId: 'billing-owner-1',
+      billingEntity: { type: 'user', id: 'billing-owner-1' },
+      plan: null,
+      customStorageLimitGB: null,
+    })
+    mocks.getStorageLimitForContext.mockReturnValue(1_073_741_824)
+    mocks.getStorageUsageForContext.mockResolvedValue(5_242_880)
+    mocks.getUserStorageLimit.mockResolvedValue(1_073_741_824)
+    mocks.getUserStorageUsage.mockResolvedValue(5_242_880)
     mocks.getUsageLogs.mockResolvedValue({
       logs: [],
       summary: { totalCost: 0, bySource: {} },
@@ -133,7 +157,13 @@ describe('billing application use cases', () => {
     })
 
     expect(result.workspaceId).toBe('workspace-1')
+    expect(result.storage).toEqual({
+      usedBytes: 5_242_880,
+      limitBytes: 1_073_741_824,
+      percentUsed: 0.48828125,
+    })
     expect(mocks.resolveSystemAttribution).toHaveBeenCalledWith('workspace-1')
+    expect(mocks.resolveStorageContext).toHaveBeenCalledWith('workspace-1')
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.resolveAttribution).not.toHaveBeenCalled()
     expect(mocks.recordAudit).not.toHaveBeenCalled()

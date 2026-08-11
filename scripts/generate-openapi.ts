@@ -1,12 +1,13 @@
 #!/usr/bin/env bun
 import { existsSync, readFileSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
+import { billingOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/billing'
 import { filesAuditOpenApiDocument } from '../apps/sim/lib/api/contracts/v2/openapi/files-audit'
 import { formatGeneratedSource } from './format-generated-source'
 import { serializeOpenApiDocument } from './openapi/generator'
 
 const ROOT = path.resolve(import.meta.dir, '..')
-const DOCUMENTS = [filesAuditOpenApiDocument] as const
+const DOCUMENTS = [filesAuditOpenApiDocument, billingOpenApiDocument] as const
 
 const args = process.argv.slice(2)
 if (args.some((arg) => arg !== '--check') || args.length > 1) {
@@ -41,6 +42,6 @@ if (stale.length > 0) {
 
 console.log(
   check
-    ? `Generated OpenAPI output is current (${DOCUMENTS.length} document).`
-    : `Generated ${DOCUMENTS.length} OpenAPI document.`
+    ? `Generated OpenAPI output is current (${DOCUMENTS.length} documents).`
+    : `Generated ${DOCUMENTS.length} OpenAPI documents.`
 )

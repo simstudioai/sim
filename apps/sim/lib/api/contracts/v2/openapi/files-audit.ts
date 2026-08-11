@@ -21,28 +21,23 @@ import {
   v2UpdateFileContentContract,
   v2UpsertFileShareContract,
 } from '@/lib/api/contracts/v2/files'
-import { v2ErrorResponseSchema } from '@/lib/api/contracts/v2/shared'
+import {
+  documentedSchema,
+  ERROR_RESPONSES,
+  type ErrorResponseId,
+  RATE_LIMIT_HEADERS,
+  STANDARD_ERRORS,
+  V2_API_KEY_SECURITY,
+  V2_API_KEY_SECURITY_SCHEMES,
+  V2_COMMON_HEADERS,
+  V2_ERROR_SCHEMA,
+  WORKSPACE_ERRORS,
+} from '@/lib/api/contracts/v2/openapi/shared'
 import {
   defineOpenApiDocument,
   defineOpenApiRoute,
   type OpenApiOperationMetadata,
 } from '@/lib/api/openapi/types'
-
-const RATE_LIMIT_HEADERS = [
-  'X-RateLimit-Limit',
-  'X-RateLimit-Remaining',
-  'X-RateLimit-Reset',
-] as const
-
-const STANDARD_ERRORS = ['Unauthorized', 'RateLimited', 'InternalError'] as const
-
-const WORKSPACE_ERRORS = [
-  'BadRequest',
-  'Unauthorized',
-  'Forbidden',
-  'RateLimited',
-  'InternalError',
-] as const
 
 const FILE_EXAMPLE = {
   id: 'wf_V1StGXR8z5jdHi6BmyT91',
@@ -81,37 +76,6 @@ const AUDIT_LOG_EXAMPLE = {
   metadata: { fileSize: 1024, fileType: 'text/csv' },
   createdAt: '2026-01-15T10:30:00Z',
 } as const
-
-const ERROR_RESPONSES = {
-  BadRequest: { status: 400, description: 'The request is invalid.' },
-  Unauthorized: { status: 401, description: 'The API key is missing or invalid.' },
-  Forbidden: { status: 403, description: 'The caller lacks access to the resource.' },
-  NotFound: { status: 404, description: 'The requested resource was not found.' },
-  Conflict: { status: 409, description: 'The request conflicts with current resource state.' },
-  PayloadTooLarge: { status: 413, description: 'The request body exceeds the allowed size.' },
-  RateLimited: {
-    status: 429,
-    description: 'The caller exceeded the request rate limit.',
-    headers: ['Retry-After'],
-  },
-  InternalError: { status: 500, description: 'An unexpected server error occurred.' },
-} as const
-
-type ErrorResponseId = keyof typeof ERROR_RESPONSES
-
-function documentedSchema<S extends z.ZodType | undefined>(
-  schema: S,
-  id: string,
-  title: string,
-  description: string,
-  examples?: readonly unknown[]
-): Exclude<S, undefined> {
-  if (!schema) throw new Error(`Cannot document missing schema ${id}`)
-  return schema.meta({ id, title, description, ...(examples ? { examples } : {}) }) as Exclude<
-    S,
-    undefined
-  >
-}
 
 function filesOperation(
   operation: Omit<OpenApiOperationMetadata, 'tags' | 'success' | 'errors'> & {
@@ -854,15 +818,8 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
       description: 'Query the organization audit trail with Enterprise authorization.',
     },
   ],
-  security: [{ apiKey: [] }],
-  securitySchemes: {
-    apiKey: {
-      type: 'apiKey',
-      in: 'header',
-      name: 'X-API-Key',
-      description: 'A personal or workspace Sim API key.',
-    },
-  },
+  security: V2_API_KEY_SECURITY,
+  securitySchemes: V2_API_KEY_SECURITY_SCHEMES,
   headers: {
     'Content-Type': {
       schema: z.string().meta({
@@ -889,41 +846,9 @@ export const filesAuditOpenApiDocument = defineOpenApiDocument({
           description: 'File size in bytes.',
         }),
     },
-    'X-RateLimit-Limit': {
-      schema: z.number().int().nonnegative().meta({
-        id: 'RateLimitLimitHeader',
-        title: 'Rate limit',
-        description: 'Maximum requests allowed in the current window.',
-      }),
-    },
-    'X-RateLimit-Remaining': {
-      schema: z.number().int().nonnegative().meta({
-        id: 'RateLimitRemainingHeader',
-        title: 'Rate limit remaining',
-        description: 'Requests remaining in the current window.',
-      }),
-    },
-    'X-RateLimit-Reset': {
-      schema: z.string().datetime().meta({
-        id: 'RateLimitResetHeader',
-        title: 'Rate limit reset',
-        description: 'ISO 8601 timestamp when the current rate-limit window resets.',
-      }),
-    },
-    'Retry-After': {
-      schema: z.number().int().nonnegative().meta({
-        id: 'RetryAfterHeader',
-        title: 'Retry after',
-        description: 'Seconds to wait before retrying a rate-limited request.',
-      }),
-    },
+    ...V2_COMMON_HEADERS,
   },
-  errorSchema: v2ErrorResponseSchema.meta({
-    id: 'V2Error',
-    title: 'v2 error response',
-    description: 'Canonical error envelope returned by the public v2 API.',
-    examples: [{ error: { code: 'BAD_REQUEST', message: 'The request is invalid.' } }],
-  }),
+  errorSchema: V2_ERROR_SCHEMA,
   errorResponses: ERROR_RESPONSES,
   routes,
 })
