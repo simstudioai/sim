@@ -24,7 +24,7 @@ export const GET = defineV2JsonRoute({
   present: ({ share }) => ({ data: { share } }),
 })
 
-export const PUT = defineV2JsonRoute({
+export const PATCH = defineV2JsonRoute({
   contract: v2UpsertFileShareContract,
   auth: v2ApiKeyAuth,
   operation: fileOperations.updateShare,

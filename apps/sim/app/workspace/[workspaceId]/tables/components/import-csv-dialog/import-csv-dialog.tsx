@@ -47,7 +47,7 @@ const CSV_PREVIEW_BYTES = 512 * 1024
 /**
  * Sentinel value for the "Do not import" option in the mapping combobox. The
  * whitespace is intentional: valid column names must match `NAME_PATTERN`
- * (`/^[a-z_][a-z0-9_]*$/i`), so no real column can share this value.
+ * (`/^[A-Za-z_][A-Za-z0-9_]*$/`), so no real column can share this value.
  */
 const SKIP_VALUE = '__ skip __'
 /**

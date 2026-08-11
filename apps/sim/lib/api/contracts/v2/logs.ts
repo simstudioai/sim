@@ -8,6 +8,7 @@ import {
   v2DataResponse,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -48,9 +49,8 @@ export const v2LogListItemSchema = z
     status: v2LogStatusSchema,
     level: z.string().describe('Log severity level.'),
     trigger: z.string().describe('Trigger that started the run.'),
-    startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
-    endedAt: z
-      .string()
+    startedAt: v2TimestampSchema.describe('ISO 8601 execution start timestamp.'),
+    endedAt: v2TimestampSchema
       .nullable()
       .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
     totalDurationMs: z
@@ -87,9 +87,8 @@ export const v2LogDetailSchema = z
     status: v2LogStatusSchema,
     level: z.string().describe('Log severity level.'),
     trigger: z.string().describe('Trigger that started the run.'),
-    startedAt: z.string().describe('ISO 8601 execution start timestamp.'),
-    endedAt: z
-      .string()
+    startedAt: v2TimestampSchema.describe('ISO 8601 execution start timestamp.'),
+    endedAt: v2TimestampSchema
       .nullable()
       .describe('ISO 8601 execution end timestamp, or null while the run is active.'),
     totalDurationMs: z
@@ -113,12 +112,10 @@ export const v2LogDetailSchema = z
           .string()
           .nullable()
           .describe('Owning workspace identifier, or null when unavailable.'),
-        createdAt: z
-          .string()
+        createdAt: v2TimestampSchema
           .nullable()
           .describe('ISO 8601 workflow creation timestamp, or null when unavailable.'),
-        updatedAt: z
-          .string()
+        updatedAt: v2TimestampSchema
           .nullable()
           .describe('ISO 8601 workflow update timestamp, or null when unavailable.'),
         deleted: z.boolean().describe('Whether the workflow has been deleted.'),
@@ -135,7 +132,7 @@ export const v2LogDetailSchema = z
       .nullable()
       .describe('Materialized final workflow output, or null when none was produced.'),
     cost: v2LogCostSchema,
-    createdAt: z.string().describe('ISO 8601 log creation timestamp.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 log creation timestamp.'),
   })
   .meta({
     id: 'V2LogDetail',

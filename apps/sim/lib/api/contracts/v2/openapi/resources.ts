@@ -22,6 +22,7 @@ import {
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  WORKSPACE_API_KEY_DENIED,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -250,8 +251,8 @@ const routes = [
       operationId: 'listMcpServers',
       summary: 'List MCP Servers',
       description:
-        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` set to null.',
-      errors: WORKSPACE_ERRORS,
+        'List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'MCP servers registered in the workspace.' },
     }),
     {
@@ -276,8 +277,8 @@ const routes = [
       operationId: 'createMcpServer',
       summary: 'Create MCP Server',
       description:
-        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict'],
+        'Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The MCP server was registered.' },
     }),
     {
@@ -343,7 +344,7 @@ const routes = [
       operationId: 'updateMcpServer',
       summary: 'Update MCP Server',
       description:
-        'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Authentication changes invalidate the existing OAuth grant.',
+        'Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.',
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The updated MCP server.' },
     }),
@@ -408,8 +409,8 @@ const routes = [
       operationId: 'listSkills',
       summary: 'List Skills',
       description:
-        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` set to null; fetch one skill to read its content.',
-      errors: WORKSPACE_ERRORS,
+        'List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Skills available in the workspace.' },
     }),
     {
@@ -434,8 +435,8 @@ const routes = [
       operationId: 'createSkill',
       summary: 'Create Skill',
       description:
-        'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict'],
+        'Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The skill was created.' },
     }),
     {
@@ -499,8 +500,7 @@ const routes = [
     resourceOperation('Skills', {
       operationId: 'updateSkill',
       summary: 'Update Skill',
-      description:
-        'Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only.',
+      description: `Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The updated skill.' },
     }),
@@ -538,7 +538,7 @@ const routes = [
     resourceOperation('Skills', {
       operationId: 'deleteSkill',
       summary: 'Delete Skill',
-      description: 'Delete a workspace skill. Built-in skills are read-only and cannot be deleted.',
+      description: `Delete a workspace skill. Built-in skills are read-only and cannot be deleted. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The skill was deleted.' },
     }),
@@ -570,8 +570,8 @@ const routes = [
       operationId: 'listCustomTools',
       summary: 'List Custom Tools',
       description:
-        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` set to null.',
-      errors: WORKSPACE_ERRORS,
+        'List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Custom tools defined in the workspace.' },
     }),
     {
@@ -597,7 +597,7 @@ const routes = [
       summary: 'Create Custom Tool',
       description:
         'Create a code-backed custom tool in a workspace. Its title must be unique because tools resolve by title at call time.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The custom tool was created.' },
     }),
     {
@@ -732,8 +732,8 @@ const routes = [
       operationId: 'listCredentials',
       summary: 'List Credentials',
       description:
-        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed.',
-      errors: WORKSPACE_ERRORS,
+        'List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Credentials visible to the caller.' },
     }),
     {
@@ -757,9 +757,8 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'listSecrets',
       summary: 'List Secrets',
-      description:
-        'List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned.',
-      errors: WORKSPACE_ERRORS,
+      description: `List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with \`nextCursor\` always null; there is no second page to fetch. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'Secret metadata visible to the caller.' },
     }),
     {
@@ -783,9 +782,8 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'setSecret',
       summary: 'Set Secret',
-      description:
-        'Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response.',
-      errors: WORKSPACE_ERRORS,
+      description: `Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: {
         byStatus: {
           200: { description: 'The existing secret value was replaced.' },
@@ -827,8 +825,7 @@ const routes = [
     resourceOperation('Secrets', {
       operationId: 'deleteSecret',
       summary: 'Delete Secret',
-      description:
-        'Delete a workspace or caller-owned personal secret without reading or returning its stored value.',
+      description: `Delete a workspace or caller-owned personal secret without reading or returning its stored value. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The secret was deleted.' },
     }),

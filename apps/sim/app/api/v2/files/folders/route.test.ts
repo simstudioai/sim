@@ -64,6 +64,10 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
+import {
+  WorkspaceFileFolderConflictError,
+  WorkspaceFileItemsNotFoundError,
+} from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/files/folders/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -158,7 +162,7 @@ describe('/api/v2/files/folders', () => {
       context
     )
 
-    expect(response.status).toBe(200)
+    expect(response.status).toBe(201)
     expect((await response.json()).data.folder).toEqual({
       name: 'Reports',
       path: '/Reports',
@@ -210,6 +214,52 @@ describe('/api/v2/files/folders', () => {
       deleted: true,
       deletedItems: { folders: 1, files: 2 },
     })
+  })
+
+  it('maps a duplicate folder name to 409 rather than a 500', async () => {
+    mocks.createFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await POST(
+      request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    const body = await response.json()
+    expect(body.error.code).toBe('CONFLICT')
+    expect(body.error.message).toContain('already exists')
+  })
+
+  it('maps a duplicate folder name raised inside a drizzle transaction to 409', async () => {
+    const wrapped = new Error('insert into "folder" ...', {
+      cause: new WorkspaceFileFolderConflictError('Reports'),
+    })
+    mocks.createFolder.mockRejectedValueOnce(wrapped)
+
+    const response = await POST(
+      request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+  })
+
+  it('maps missing folder items to 404 rather than a 500', async () => {
+    mocks.updateFolder.mockRejectedValueOnce(
+      new WorkspaceFileItemsNotFoundError([], ['folder-missing'])
+    )
+
+    const response = await PATCH(
+      request('PATCH', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/Reports',
+        destinationPath: '/Archive/Reports',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
   it('authenticates before parsing folder input', async () => {

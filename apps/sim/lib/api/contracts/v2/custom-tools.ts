@@ -10,6 +10,7 @@ import {
   v2DataResponse,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -81,8 +82,8 @@ export const v2CustomToolSchema = z
     schema: v2CustomToolDeclarationSchema,
     /** The tool's implementation body, executed in Sim's sandboxed function runtime. */
     code: z.string().describe('Tool implementation executed in the sandboxed function runtime.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the tool was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the tool was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the tool was last updated.'),
   })
   .meta({
     id: 'V2CustomTool',

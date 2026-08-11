@@ -28,6 +28,7 @@ import {
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
   v2PartUrlsBodySchema,
@@ -478,7 +479,7 @@ export const v2KnowledgeDocumentUploadSchema = z
     name: z.string().describe('Filename recorded on the knowledge document.'),
     contentType: z.string().describe('MIME type declared for the document.'),
     size: z.number().int().positive().describe('Exact file size in bytes.'),
-    expiresAt: z.string().datetime().describe('ISO 8601 upload-session expiration time.'),
+    expiresAt: v2TimestampSchema.describe('ISO 8601 upload-session expiration time.'),
     error: z.string().nullable().describe('Terminal upload error, or null when none occurred.'),
     document: v2KnowledgeDocumentSummarySchema
       .nullable()
@@ -767,12 +768,14 @@ export const v2KnowledgeSearchBodySchema = v1KnowledgeSearchBodySchema.safeExten
     .describe('Natural-language query; required when tag filters are omitted.')
     .meta({ examples: ['How do I reset my password?'] }),
   topK: v1KnowledgeSearchBodySchema.shape.topK.describe(
-    'Maximum number of search results to return.'
+    'Maximum number of search results to return. Must be a whole number between 1 and 100; the boundary schema only bounds the range, so a fractional value is admitted here and then rejected with 400 during search.'
   ),
   tagFilters: z
     .array(v2KnowledgeSearchTagFilterSchema)
     .optional()
-    .describe('Structured tag filters; supported only for one knowledge base.'),
+    .describe(
+      'Structured tag filters. Supported across multiple knowledge bases, but each filtered tag must resolve to the same slot and field type in every knowledge base selected; a tag missing from one of them, or defined inconsistently across them, is rejected and those knowledge bases must be searched separately. With a single knowledge base, an unknown tag name is simply ignored.'
+    ),
   searchMode: v1KnowledgeSearchBodySchema.shape.searchMode.describe(
     'Retrieval strategy: vector is semantic-only, while hybrid also runs full-text search.'
   ),

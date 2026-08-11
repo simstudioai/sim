@@ -210,7 +210,7 @@
       "get": {
         "operationId": "listMcpServers",
         "summary": "List MCP Servers",
-        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` set to null.",
+        "description": "List MCP servers registered in a workspace. Request-header values and OAuth client secrets are never returned. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -292,6 +292,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -306,7 +309,7 @@
       "post": {
         "operationId": "createMcpServer",
         "summary": "Create MCP Server",
-        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only.",
+        "description": "Register an MCP server in a workspace. The endpoint URL determines server identity, must be absolute HTTP or HTTPS, and cannot contain environment-variable references. Header values and OAuth client secrets are write-only. `transport`, `timeout`, `retries`, and `enabled` are applied server-side when omitted; the effective values are in the response.",
         "tags": ["MCP Servers"],
         "requestBody": {
           "required": true,
@@ -349,6 +352,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -443,7 +449,7 @@
       "patch": {
         "operationId": "updateMcpServer",
         "summary": "Update MCP Server",
-        "description": "Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Authentication changes invalidate the existing OAuth grant.",
+        "description": "Update the supplied MCP server fields. The URL is immutable because it determines server identity; delete and recreate the server to change endpoints. Two fields do not follow the omitted-fields-are-retained rule. `headers` is replaced wholesale rather than merged: sending it drops every stored header it does not repeat, and the only way to keep a header is to resend it. Changing `oauthClientId`, or sending `oauthClientSecret` as null or a new value, revokes the stored OAuth grant and forces reauthorization; switching away from OAuth authentication revokes it too.",
         "tags": ["MCP Servers"],
         "parameters": [
           {
@@ -593,7 +599,7 @@
       "get": {
         "operationId": "listSkills",
         "summary": "List Skills",
-        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` set to null; fetch one skill to read its content.",
+        "description": "List workspace and built-in skills. Built-ins are marked read-only. The list omits skill bodies and uses the standard cursor envelope with `nextCursor` always null, so there is no second page to fetch; fetch one skill to read its content.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -675,6 +681,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -689,7 +698,7 @@
       "post": {
         "operationId": "createSkill",
         "summary": "Create Skill",
-        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill.",
+        "description": "Create one skill in a workspace. Its kebab-case name must be unique and cannot be reserved by a built-in skill. Note that a workspace API key may create a skill but may not later update or delete it.",
         "tags": ["Skills"],
         "requestBody": {
           "required": true,
@@ -732,6 +741,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -826,7 +838,7 @@
       "patch": {
         "operationId": "updateSkill",
         "summary": "Update Skill",
-        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only.",
+        "description": "Update the supplied fields on a workspace skill. Omitted fields retain their stored values. Built-in skills are read-only. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -903,7 +915,7 @@
       "delete": {
         "operationId": "deleteSkill",
         "summary": "Delete Skill",
-        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted.",
+        "description": "Delete a workspace skill. Built-in skills are read-only and cannot be deleted. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Skills"],
         "parameters": [
           {
@@ -979,7 +991,7 @@
       "get": {
         "operationId": "listCustomTools",
         "summary": "List Custom Tools",
-        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` set to null.",
+        "description": "List code-backed custom tools defined in a workspace. Legacy personal tools are excluded. The bounded workspace set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Custom Tools"],
         "parameters": [
           {
@@ -1061,6 +1073,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1118,6 +1133,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
@@ -1365,7 +1383,7 @@
       "get": {
         "operationId": "listCredentials",
         "summary": "List Credentials",
-        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed.",
+        "description": "List OAuth and service-account connections visible to the caller. Secret material is never returned. Credential mutations and single-resource reads are intentionally not exposed. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Credentials"],
         "parameters": [
           {
@@ -1469,6 +1487,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1485,7 +1506,7 @@
       "get": {
         "operationId": "listSecrets",
         "summary": "List Secrets",
-        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned.",
+        "description": "List workspace and caller-owned personal secret metadata. Only names, scope, role, and timestamps are returned; secret values are never read or returned. The bounded set uses the standard cursor envelope with `nextCursor` always null; there is no second page to fetch. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1578,6 +1599,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1594,7 +1618,7 @@
       "put": {
         "operationId": "setSecret",
         "summary": "Set Secret",
-        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response.",
+        "description": "Create or replace a workspace or caller-owned personal secret. The value is encrypted at rest, is write-only, and is never included in the response. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1674,6 +1698,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1688,7 +1715,7 @@
       "delete": {
         "operationId": "deleteSecret",
         "summary": "Delete Secret",
-        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value.",
+        "description": "Delete a workspace or caller-owned personal secret without reading or returning its stored value. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Secrets"],
         "parameters": [
           {
@@ -1780,7 +1807,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -1921,7 +1948,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -1957,6 +1984,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -2131,7 +2168,7 @@
           },
           "isExternal": {
             "type": "boolean",
-            "description": "Whether access is inherited from outside the explicit workspace member list."
+            "description": "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
           },
           "joinedAt": {
             "type": "string",
@@ -2164,7 +2201,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2251,19 +2288,27 @@
           },
           "lastToolsRefresh": {
             "description": "ISO 8601 timestamp of the most recent tool-list refresh.",
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "lastConnected": {
             "description": "ISO 8601 timestamp of the most recent successful connection.",
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "createdAt": {
             "description": "ISO 8601 timestamp when the server was registered.",
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "updatedAt": {
             "description": "ISO 8601 timestamp when the server was last updated.",
-            "type": "string"
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$"
           },
           "oauthClientId": {
             "description": "Pre-registered OAuth client identifier, when configured.",
@@ -2320,7 +2365,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2429,7 +2474,8 @@
             "maxLength": 2000
           },
           "transport": {
-            "description": "Transport used to communicate with the server. Defaults to `streamable-http`.",
+            "description": "Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.",
+            "default": "streamable-http",
             "type": "string",
             "enum": ["streamable-http"]
           },
@@ -2458,19 +2504,22 @@
             }
           },
           "timeout": {
-            "description": "Per-request timeout in milliseconds. Defaults to 30000.",
+            "description": "Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.",
+            "default": 30000,
             "type": "integer",
             "minimum": 1000,
             "maximum": 300000
           },
           "retries": {
-            "description": "Number of retries per request. Defaults to 3.",
+            "description": "Number of retries per request. Applied server-side as 3 when omitted on create.",
+            "default": 3,
             "type": "integer",
             "minimum": 0,
             "maximum": 10
           },
           "enabled": {
-            "description": "Whether the server tools are available to workflows. Defaults to true.",
+            "description": "Whether the server tools are available to workflows. Applied server-side as true when omitted on create.",
+            "default": true,
             "type": "boolean"
           },
           "oauthClientId": {
@@ -2615,7 +2664,8 @@
             "maxLength": 2000
           },
           "transport": {
-            "description": "Transport used to communicate with the server. Defaults to `streamable-http`.",
+            "description": "Transport used to communicate with the server. Applied server-side as `streamable-http` when omitted on create.",
+            "default": "streamable-http",
             "type": "string",
             "enum": ["streamable-http"]
           },
@@ -2644,19 +2694,22 @@
             }
           },
           "timeout": {
-            "description": "Per-request timeout in milliseconds. Defaults to 30000.",
+            "description": "Per-request timeout in milliseconds. Applied server-side as 30000 when omitted on create.",
+            "default": 30000,
             "type": "integer",
             "minimum": 1000,
             "maximum": 300000
           },
           "retries": {
-            "description": "Number of retries per request. Defaults to 3.",
+            "description": "Number of retries per request. Applied server-side as 3 when omitted on create.",
+            "default": 3,
             "type": "integer",
             "minimum": 0,
             "maximum": 10
           },
           "enabled": {
-            "description": "Whether the server tools are available to workflows. Defaults to true.",
+            "description": "Whether the server tools are available to workflows. Applied server-side as true when omitted on create.",
+            "default": true,
             "type": "boolean"
           },
           "oauthClientId": {
@@ -2756,11 +2809,15 @@
           },
           "createdAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the skill was created."
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch."
           },
           "updatedAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the skill was last updated."
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch."
           }
         },
         "required": ["id", "name", "description", "readOnly", "createdAt", "updatedAt"],
@@ -2787,7 +2844,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2831,11 +2888,15 @@
           },
           "createdAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the skill was created."
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch."
           },
           "updatedAt": {
             "type": "string",
-            "description": "ISO 8601 timestamp when the skill was last updated."
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
+            "description": "ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch."
           },
           "content": {
             "type": "string",
@@ -3145,10 +3206,14 @@
           },
           "createdAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the tool was created."
           },
           "updatedAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the tool was last updated."
           }
         },
@@ -3176,7 +3241,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3707,7 +3772,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3791,7 +3856,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],

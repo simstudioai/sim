@@ -32,22 +32,33 @@ const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
 
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
-export class WorkspaceFileFolderConflictError extends Error {
-  readonly code = 'FOLDER_CONFLICT' as const
-
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class rather than each
+ * adapter restating the translation. Carries the inherited `code: 'conflict'`; the old
+ * `'FOLDER_CONFLICT'` discriminator had no readers.
+ */
+export class WorkspaceFileFolderConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A folder named "${name}" already exists in this location`)
+    super('conflict', `A folder named "${name}" already exists in this location`)
+    this.name = 'WorkspaceFileFolderConflictError'
   }
 }
 
-export class WorkspaceFileMoveConflictError extends Error {
-  readonly code = 'FILE_MOVE_CONFLICT' as const
-
+/**
+ * An {@link OrchestrationError} so every surface reaches 409 by class. Carries the inherited
+ * `code: 'conflict'`; the old `'FILE_MOVE_CONFLICT'` discriminator had no readers.
+ */
+export class WorkspaceFileMoveConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A file named "${name}" already exists in the destination folder`)
+    super('conflict', `A file named "${name}" already exists in the destination folder`)
+    this.name = 'WorkspaceFileMoveConflictError'
   }
 }
 
+/**
+ * An {@link OrchestrationError} so every surface reaches 404 by class. Carries the inherited
+ * `code: 'not_found'`; the old `'WORKSPACE_FILE_ITEMS_NOT_FOUND'` discriminator had no readers.
+ */
 export class WorkspaceFileItemsNotFoundError extends OrchestrationError {
   constructor(fileIds: string[], folderIds: string[]) {
     const parts = [

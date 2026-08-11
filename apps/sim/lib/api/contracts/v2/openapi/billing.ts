@@ -80,8 +80,8 @@ const routes = [
       operationId: 'getBillingStatus',
       summary: 'Get Billing Status',
       description:
-        'Return the current plan, billing standing, credit allowance, and storage quota. Billing history lives at `GET /api/v2/billing/logs`.',
-      errors: WORKSPACE_ERRORS,
+        'Return the current plan, billing standing, credit allowance, and storage quota. Billing history lives at `GET /api/v2/billing/logs`. Without a Stripe subscription — notably on the free plan — there is no real billing period: `period` is the open interval 1970-01-01 to 9999-12-31 and `credits.used` is lifetime consumption, not consumption since a period start.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The current billing and storage status.' },
     }),
     {
@@ -107,7 +107,7 @@ const routes = [
       summary: 'List Billing Logs',
       description:
         'List the credit-denominated billing ledger with source filtering and opaque cursor pagination.',
-      errors: WORKSPACE_ERRORS,
+      errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'A page of usage events.' },
     }),
     {

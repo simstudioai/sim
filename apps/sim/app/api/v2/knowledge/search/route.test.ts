@@ -24,9 +24,8 @@ vi.mock('@/lib/knowledge/application/search', () => ({
   searchKnowledge: { operation: { id: 'knowledge.search' }, execute: mockSearch },
 }))
 
-import { DEFAULT_MAX_JSON_BODY_BYTES } from '@/lib/api/server/validation'
 import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
-import { POST } from '@/app/api/v2/knowledge/search/route'
+import { POST, V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES } from '@/app/api/v2/knowledge/search/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = { kind: 'workspace_api_key', workspaceId: WORKSPACE_ID, keyId: 'key-1' } as const
@@ -103,6 +102,27 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')
   })
 
+  it('forwards an opted-in hybrid search mode to the application use case', async () => {
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 10,
+          searchMode: 'hybrid',
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({ searchMode: 'hybrid' }),
+      })
+    )
+  })
+
   it('authenticates before rejecting malformed JSON', async () => {
     const response = await POST(buildRequest('{'))
 
@@ -131,14 +151,14 @@ describe('POST /api/v2/knowledge/search', () => {
     })
   })
 
-  it('preserves the bounded JSON rejection before application execution', async () => {
+  it('rejects a body over the internal-parity cap before application execution', async () => {
     const response = await POST(
-      buildRequest('{}', { 'content-length': String(DEFAULT_MAX_JSON_BODY_BYTES + 1) })
+      buildRequest('{}', { 'content-length': String(V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES + 1) })
     )
 
     expect(response.status).toBe(413)
     expect(await response.json()).toEqual({
-      error: `Request body exceeds the maximum allowed size of ${DEFAULT_MAX_JSON_BODY_BYTES} bytes`,
+      error: `Request body exceeds the maximum allowed size of ${V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES} bytes`,
     })
     expect(mockSearch).not.toHaveBeenCalled()
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')

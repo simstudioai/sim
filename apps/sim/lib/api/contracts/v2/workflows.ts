@@ -35,6 +35,7 @@ import {
   workflowExecutionStatusQuerySchema,
   workflowIdParamsSchema,
 } from '@/lib/api/contracts/workflows'
+import { MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS } from '@/lib/billing/execution-timeout-defaults'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
@@ -49,16 +50,25 @@ export const v2WorkflowRunIdSchema = z
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
+/**
+ * `X-Run-Id` is a **one-shot uniqueness claim, not an idempotency key.** The
+ * first request to claim a value starts a run; every later request reusing it
+ * is rejected with `409 EXECUTION_ID_CONFLICT` and the original result is never
+ * replayed. Retry logic written against idempotency-key semantics either
+ * double-executes (fresh id per attempt) or hard-fails (same id per attempt).
+ */
+const X_RUN_ID_DESCRIPTION =
+  'Caller-supplied run identifier, available only to API-key callers. This is a one-shot uniqueness claim, NOT an idempotency key: the first request to use a value starts a run, and any later request reusing it fails with 409 `EXECUTION_ID_CONFLICT` instead of replaying the original result. To retry safely, generate a fresh value per attempt and reconcile duplicates yourself, or omit the header and let the server allocate the run identifier.'
+
 export const v2ExecuteWorkflowHeadersSchema = z
   .object({
-    'x-run-id': v2WorkflowRunIdSchema
-      .optional()
-      .describe('Caller-supplied run identifier. Available only to API-key callers.'),
+    'x-run-id': v2WorkflowRunIdSchema.optional().describe(X_RUN_ID_DESCRIPTION),
   })
   .meta({
     id: 'ExecuteWorkflowHeaders',
     title: 'Execute workflow headers',
-    description: 'Optional idempotency header for a workflow execution.',
+    description:
+      'Optional one-shot run-identifier claim for a workflow execution. Reusing a value returns 409 `EXECUTION_ID_CONFLICT`; it does not replay the earlier run.',
   })
 export type V2ExecuteWorkflowHeaders = z.input<typeof v2ExecuteWorkflowHeadersSchema>
 
@@ -291,7 +301,7 @@ export const v2DeployWorkflowDataSchema = v2DeploymentStateSchema
     id: 'DeployResult',
     title: 'Deploy result',
     description:
-      'Deployment attempt accepted for processing. Activation is asynchronous; inspect `isDeployed` and `latestDeploymentAttempt` for current state.',
+      'Deployment attempt accepted for processing. Activation is asynchronous; `latestDeploymentAttempt` on this response is the attempt handle. The request is NOT idempotent — every POST mints a new deployment version, so a retry after a timeout creates a second version rather than returning the first. `latestDeploymentAttempt` is returned only here: `GET /workflows/{id}` does not carry it, so poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`.',
   })
 export type V2DeployWorkflowData = z.output<typeof v2DeployWorkflowDataSchema>
 
@@ -737,10 +747,22 @@ export const v2ExecutionErrorSchema = z
 export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
 
 /**
+ * The mutually-exclusive execute option matrix, mirrored from the route's
+ * post-parse checks in `app/api/v2/workflows/[id]/execute/route.ts`. Kept as one
+ * exported string so the request-body description and the OpenAPI operation
+ * description cannot drift from each other.
+ */
+export const EXECUTE_OPTION_CONSTRAINTS =
+  'Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.'
+
+/**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
  * no `X-Execution-Mode`/`X-Stream-Response` headers. Internal caller facts
  * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
  * are typed options on the execution service.
+ *
+ * The five rejected option combinations are enumerated in
+ * {@link EXECUTE_OPTION_CONSTRAINTS} and enforced by the route after parsing.
  */
 export const v2ExecuteWorkflowBodySchema = z
   .object({
@@ -752,34 +774,52 @@ export const v2ExecuteWorkflowBodySchema = z
       .boolean()
       .optional()
       .default(false)
-      .describe('Queue the run and return a 202 receipt when true.'),
+      .describe(
+        'Queue the run and return a 202 receipt when true. Requires an API key, cannot be combined with `stream`, and rejects all streaming and output-shaping options (`selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, `base64MaxBytes`).'
+      ),
+    /**
+     * An upper bound on the request, not the effective timeout: the server
+     * applies `Math.min(planTimeout, requested)`, so a value above the account's
+     * plan timeout silently yields the plan timeout. Bounded by the shared
+     * `MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS` rather than a local literal.
+     */
     executionTimeoutSeconds: z
       .number()
       .int()
       .min(1)
-      .max(604_800)
+      .max(MAX_WORKFLOW_EXECUTION_TIMEOUT_SECONDS)
       .optional()
-      .describe('Server-side timeout for an asynchronous run, in seconds.'),
+      .describe(
+        "Requested server-side timeout for an asynchronous run, in seconds. This is an upper bound on the request, not the effective timeout: the run uses the smaller of this value and the account plan's execution timeout, so requesting more than the plan allows silently yields the plan timeout with no warning. Rejected with 400 unless `async` is true."
+      ),
     stream: z
       .boolean()
       .optional()
       .default(false)
-      .describe('Return Server-Sent Events instead of JSON when true.'),
+      .describe(
+        'Return Server-Sent Events instead of JSON when true. Cannot be combined with `async`.'
+      ),
     selectedOutputs: z
       .array(z.string().min(1))
       .max(100)
       .optional()
-      .describe('Block output references to include in a streamed response.'),
+      .describe(
+        'Block output references to include in a streamed response. Rejected when `async` is true.'
+      ),
     includeThinking: z
       .boolean()
       .optional()
       .default(false)
-      .describe('Include model reasoning events in an agent-event stream.'),
+      .describe(
+        'Include model reasoning events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
+      ),
     includeToolCalls: z
       .boolean()
       .optional()
       .default(false)
-      .describe('Include tool-call events in an agent-event stream.'),
+      .describe(
+        'Include tool-call events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
+      ),
     includeFileBase64: z
       .boolean()
       .optional()
@@ -797,7 +837,7 @@ export const v2ExecuteWorkflowBodySchema = z
   .meta({
     id: 'ExecuteWorkflowRequest',
     title: 'Execute workflow request',
-    description: 'Input and execution-mode options for a deployed workflow.',
+    description: `Input and execution-mode options for a deployed workflow. ${EXECUTE_OPTION_CONSTRAINTS}`,
     examples: [
       { input: { ticketId: 'ticket_123' } },
       { input: { ticketId: 'ticket_123' }, async: true },
@@ -838,7 +878,8 @@ export const v2ExecuteWorkflowDataSchema = z
   .meta({
     id: 'WorkflowRunResult',
     title: 'Workflow run result',
-    description: 'Synchronous workflow run output and in-band execution status.',
+    description:
+      'Synchronous workflow run output and in-band execution status. Run failures are reported in band, not as HTTP errors — a synchronous run that exceeds its execution timeout returns HTTP 200 with `status: "failed"` and `error.code: "TIMEOUT"`, so always branch on `status` rather than on the HTTP status alone.',
   })
 export type V2ExecuteWorkflowData = z.output<typeof v2ExecuteWorkflowDataSchema>
 
@@ -995,11 +1036,21 @@ export const v2ListWorkflowRunsQuerySchema = z
       .min(1, 'cursor cannot be empty')
       .optional()
       .describe('Opaque pagination cursor returned by a previous request.'),
+    /**
+     * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention. Runs
+     * have exactly one sortable column (start time), so there is no `sortBy` to
+     * pair with, and the run cursor is a keyset minted over `order`. Renaming or
+     * aliasing the param would require a route change and would introduce a
+     * second spelling with undefined precedence when both are sent — so the
+     * deviation is documented rather than papered over.
+     */
     order: z
       .enum(['asc', 'desc'])
       .optional()
       .default('desc')
-      .describe('Sort order by run start time.'),
+      .describe(
+        'Sort direction by run start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
+      ),
   })
   .strict()
   .refine(
@@ -1016,7 +1067,7 @@ export const v2ListWorkflowRunsQuerySchema = z
     id: 'ListWorkflowRunsQuery',
     title: 'List workflow runs query',
     description:
-      'Status, trigger, date-window, ordering, and pagination filters for workflow runs.',
+      'Status, trigger, date-window, ordering, and pagination filters for workflow runs. Ordering uses the single `order` param rather than the v2 `sortBy` + `sortOrder` pair, because runs are sortable only by start time.',
   })
 
 export type V2ListWorkflowRunsQuery = z.output<typeof v2ListWorkflowRunsQuerySchema>
@@ -1153,14 +1204,22 @@ export const v2CancelWorkflowRunDataSchema = z
     durablyRecorded: z.boolean().describe('Whether cancellation was recorded durably.'),
     locallyAborted: z.boolean().describe('Whether an in-process execution was aborted.'),
     pausedCancelled: z.boolean().describe('Whether a paused execution was cancelled.'),
+    /**
+     * Always emitted by the cancellation service — it is not a partial-failure
+     * marker. `recorded` is the full-success value; the other four name the step
+     * that degraded.
+     */
     reason: cancelWorkflowExecutionReasonSchema
       .optional()
-      .describe('Machine-readable cancellation outcome when cancellation was partial.'),
+      .describe(
+        'Machine-readable cancellation outcome. Present on every cancellation, including full successes — it is not a partial-failure marker. `recorded` means cancellation was durably recorded (the normal success value). `redis_unavailable` and `redis_write_failed` mean the distributed cancellation signal could not be written, so an already-running execution may not observe the cancellation. `paused_event_publish_failed` and `paused_database_cancel_failed` name the failing step when cancelling a paused human-in-the-loop run.'
+      ),
   })
   .meta({
     id: 'CancelWorkflowRunResult',
     title: 'Cancel workflow run result',
-    description: 'Outcome of a workflow run cancellation request.',
+    description:
+      'Outcome of a workflow run cancellation request. Cancelling a run that has already reached a terminal state (completed, failed, or cancelled) succeeds with no effect rather than returning an error — treat this endpoint as best-effort and poll the run to observe the final state.',
   })
 export type V2CancelWorkflowRunData = z.output<typeof v2CancelWorkflowRunDataSchema>
 

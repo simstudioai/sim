@@ -23,12 +23,15 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
-  STANDARD_ERRORS,
+  RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  VALIDATED_ERRORS,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -63,9 +66,8 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeBases',
       summary: 'List Knowledge Bases',
-      description:
-        'List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope.',
-      errors: WORKSPACE_ERRORS,
+      description: `List knowledge bases in a workspace with folder filtering, search, sorting, and the canonical cursor envelope. The bounded workspace set is returned in one page with \`nextCursor\` always null; there is no second page to fetch. An unknown \`folderPath\` is a 404. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge bases.' },
     }),
     {
@@ -89,8 +91,8 @@ const routes = [
       operationId: 'createKnowledgeBase',
       summary: 'Create Knowledge Base',
       description:
-        'Create a knowledge base in a workspace with optional folder placement and chunking configuration.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict', 'PayloadTooLarge'],
+        'Create a knowledge base in a workspace with optional folder placement and chunking configuration. An unknown `folderPath` is a 404',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge base.' },
     }),
     {
@@ -114,9 +116,8 @@ const routes = [
     knowledgeOperation({
       operationId: 'getKnowledgeBase',
       summary: 'Get Knowledge Base',
-      description:
-        'Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found.',
-      errors: [...STANDARD_ERRORS, 'NotFound'],
+      description: `Retrieve a knowledge base by identifier. Inaccessible knowledge bases are reported as not found. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...VALIDATED_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The requested knowledge base.' },
     }),
     {
@@ -147,7 +148,7 @@ const routes = [
       summary: 'Update Knowledge Base',
       description:
         'Update a knowledge base name, description, chunking configuration, or folder placement.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated knowledge base.' },
     }),
     {
@@ -242,7 +243,7 @@ const routes = [
       summary: 'List Documents',
       description:
         'List documents in a knowledge base with filename search, state filtering, sorting, and opaque cursor pagination.',
-      errors: [...STANDARD_ERRORS, 'NotFound'],
+      errors: [...VALIDATED_ERRORS, 'NotFound'],
       success: { description: 'A page of knowledge documents.' },
     }),
     {
@@ -443,13 +444,7 @@ const routes = [
       summary: 'Complete Document Upload',
       description:
         'Verify a direct upload or assemble multipart parts, create the knowledge document, and queue asynchronous processing.',
-      errors: [
-        ...WORKSPACE_ERRORS,
-        'UsageLimitExceeded',
-        'NotFound',
-        'Conflict',
-        'PayloadTooLarge',
-      ],
+      errors: [...WORKSPACE_ERRORS, 'UsageLimitExceeded', 'NotFound', 'Conflict'],
       success: { description: 'The completed upload and queued document.' },
     }),
     {
@@ -485,7 +480,7 @@ const routes = [
       operationId: 'getKnowledgeDocument',
       summary: 'Get Document',
       description: 'Retrieve document detail, processing state, and connector provenance.',
-      errors: [...STANDARD_ERRORS, 'NotFound'],
+      errors: [...VALIDATED_ERRORS, 'NotFound'],
       success: { description: 'The requested knowledge document.' },
     }),
     {
@@ -544,8 +539,9 @@ const routes = [
     knowledgeOperation({
       operationId: 'listKnowledgeFolders',
       summary: 'List Folders',
-      description: 'List folders in the knowledge-base folder tree with filtering and sorting.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      description:
+        'List folders in the knowledge-base folder tree with filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'A page of knowledge-base folders.' },
     }),
     {
@@ -569,7 +565,7 @@ const routes = [
       operationId: 'createKnowledgeFolder',
       summary: 'Create Folder',
       description: 'Create a folder in the knowledge-base folder tree.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created knowledge-base folder.' },
     }),
     {
@@ -594,7 +590,7 @@ const routes = [
       operationId: 'relocateKnowledgeFolder',
       summary: 'Rename or Move Folder',
       description: 'Rename or move a folder and atomically rewrite descendant paths.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The relocated knowledge-base folder.' },
     }),
     {
@@ -625,7 +621,7 @@ const routes = [
       operationId: 'deleteKnowledgeFolder',
       summary: 'Delete Folder',
       description: 'Delete a folder, optionally including nested folders and knowledge bases.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Folder deletion acknowledgement and deleted item counts.' },
     }),
     {

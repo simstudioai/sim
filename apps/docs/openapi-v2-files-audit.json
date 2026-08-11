@@ -356,6 +356,9 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
@@ -896,7 +899,7 @@
       "get": {
         "operationId": "listAuditLogs",
         "summary": "List Audit Logs",
-        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access.",
+        "description": "List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1065,7 +1068,7 @@
       "get": {
         "operationId": "getAuditLog",
         "summary": "Get Audit Log",
-        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access.",
+        "description": "Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Audit Logs"],
         "parameters": [
           {
@@ -1112,6 +1115,9 @@
                 }
               }
             }
+          },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -1277,10 +1283,10 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "operationId": "upsertFileShare",
         "summary": "Enable or Disable File Share",
-        "description": "Create or update a server-tokenized public share. Disabling retains its token and configuration for later re-enablement.",
+        "description": "Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1505,7 +1511,7 @@
       "get": {
         "operationId": "listFilesFolders",
         "summary": "List Folders",
-        "description": "List workspace file folders with optional parent-path filtering and sorting.",
+        "description": "List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Files"],
         "parameters": [
           {
@@ -1600,9 +1606,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "409": {
-            "$ref": "#/components/responses/Conflict"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1631,7 +1634,7 @@
           }
         },
         "responses": {
-          "200": {
+          "201": {
             "description": "The created folder.",
             "headers": {
               "X-RateLimit-Limit": {
@@ -1837,7 +1840,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -2003,7 +2006,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -2039,6 +2042,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -2192,7 +2205,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -2272,7 +2285,7 @@
           },
           "content": {
             "default": "",
-            "description": "Initial file content. Omit or send an empty string for a zero-byte file.",
+            "description": "Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.",
             "type": "string",
             "maxLength": 70000000
           },
@@ -2980,7 +2993,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -3276,7 +3289,7 @@
           "content": {
             "type": "string",
             "maxLength": 70000000,
-            "description": "Complete replacement content for the file."
+            "description": "Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413."
           },
           "encoding": {
             "default": "utf-8",
@@ -3421,7 +3434,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],

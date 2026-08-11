@@ -119,7 +119,7 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
     const response = await DELETE(request('DELETE'), context)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: 'view-1' } })
+    expect(await response.json()).toEqual({ data: { id: 'view-1', deleted: true } })
     expect(mocks.remove).toHaveBeenCalledOnce()
   })
 })

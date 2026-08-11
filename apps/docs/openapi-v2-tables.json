@@ -36,7 +36,7 @@
       "get": {
         "operationId": "listTables",
         "summary": "List Tables",
-        "description": "List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope.",
+        "description": "List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -100,11 +100,13 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum tables to return, clamped between 1 and 1000.",
+            "description": "Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.",
             "schema": {
-              "description": "Maximum tables to return, clamped between 1 and 1000.",
-              "default": 100,
-              "type": "number"
+              "description": "Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.",
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 1000,
+              "default": 100
             }
           },
           {
@@ -149,6 +151,9 @@
           },
           "403": {
             "$ref": "#/components/responses/Forbidden"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -211,6 +216,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -227,7 +235,7 @@
       "get": {
         "operationId": "getTable",
         "summary": "Get Table",
-        "description": "Retrieve a table with its metadata, column schema, locks, and current job.",
+        "description": "Retrieve a table with its metadata, column schema, locks, and current job. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -286,6 +294,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -378,7 +389,7 @@
       "patch": {
         "operationId": "updateTable",
         "summary": "Update Table",
-        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.",
+        "description": "Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries `details.applied`: the list of fields (`name`, `description`, `folderPath`) that were successfully written. Re-read the table, or retry with only the fields missing from `details.applied`.\n\nA workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -441,8 +452,8 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -724,6 +735,7 @@
             "required": false,
             "description": "Maximum rows to return in the current page.",
             "schema": {
+              "default": 100,
               "description": "Maximum rows to return in the current page.",
               "type": "integer",
               "minimum": 1,
@@ -1286,7 +1298,7 @@
       "post": {
         "operationId": "upsertTableRow",
         "summary": "Upsert Row",
-        "description": "Insert a row or update the existing row that conflicts on a selected unique column.",
+        "description": "Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1444,7 +1456,7 @@
       "get": {
         "operationId": "listTableViews",
         "summary": "List Views",
-        "description": "List the bounded set of saved table views, with references to removed columns pruned on read.",
+        "description": "List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -1577,9 +1589,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "423": {
-            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -1753,9 +1762,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1841,9 +1847,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -1860,7 +1863,7 @@
       "get": {
         "operationId": "listTableWorkflowGroups",
         "summary": "List Workflow Groups",
-        "description": "List the workflow and enrichment groups that can be dispatched for a table.",
+        "description": "List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2011,7 +2014,7 @@
       "patch": {
         "operationId": "updateTableWorkflowGroup",
         "summary": "Update Workflow Group",
-        "description": "Restructure a workflow group, its producer, outputs, or execution behavior.",
+        "description": "Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group’s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2070,6 +2073,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2227,9 +2233,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2327,9 +2330,6 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
-          },
-          "423": {
-            "$ref": "#/components/responses/Locked"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2540,8 +2540,14 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -2560,7 +2566,7 @@
       "delete": {
         "operationId": "cancelTableImport",
         "summary": "Cancel Table Import",
-        "description": "Cancel an upload or processing import without rolling back committed row batches.",
+        "description": "Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2619,17 +2625,20 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2647,7 +2656,7 @@
       "post": {
         "operationId": "createTableImportPartUrls",
         "summary": "Create Table Import Part URLs",
-        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.",
+        "description": "Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2717,17 +2726,20 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -2745,7 +2757,7 @@
       "post": {
         "operationId": "completeTableImportUpload",
         "summary": "Complete Table Import Upload",
-        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.",
+        "description": "Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -2804,17 +2816,20 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           },
           "423": {
             "$ref": "#/components/responses/Locked"
@@ -2898,9 +2913,6 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -2965,8 +2977,14 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -3033,8 +3051,14 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -3058,7 +3082,7 @@
       "get": {
         "operationId": "downloadTableExport",
         "summary": "Download Table Export",
-        "description": "Return a short-lived signed download URL for a completed table export.",
+        "description": "Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3106,17 +3130,20 @@
               }
             }
           },
+          "400": {
+            "$ref": "#/components/responses/BadRequest"
+          },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "$ref": "#/components/responses/Forbidden"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
             "$ref": "#/components/responses/Conflict"
-          },
-          "410": {
-            "$ref": "#/components/responses/Gone"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3194,9 +3221,6 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
-          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3213,7 +3237,7 @@
       "get": {
         "operationId": "listTablesFolders",
         "summary": "List Folders",
-        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path.",
+        "description": "List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
         "tags": ["Tables"],
         "parameters": [
           {
@@ -3305,6 +3329,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -3369,8 +3396,8 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3436,8 +3463,8 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
-          "423": {
-            "$ref": "#/components/responses/Locked"
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
           },
           "429": {
             "$ref": "#/components/responses/RateLimited"
@@ -3526,6 +3553,9 @@
           "409": {
             "$ref": "#/components/responses/Conflict"
           },
+          "413": {
+            "$ref": "#/components/responses/PayloadTooLarge"
+          },
           "423": {
             "$ref": "#/components/responses/Locked"
           },
@@ -3548,7 +3578,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -3689,7 +3719,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -3725,6 +3755,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -3836,7 +3876,7 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 50,
-                      "pattern": "^[a-z_][a-z0-9_]*$",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                       "description": "Column name used as the public row-data key."
                     },
                     "type": {
@@ -3951,10 +3991,14 @@
           },
           "createdAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the table was created."
           },
           "updatedAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the table was last modified."
           }
         },
@@ -4047,7 +4091,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4088,7 +4132,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "pattern": "^[a-z_][a-z0-9_]*$",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
             "description": "Table name."
           },
           "description": {
@@ -4119,7 +4163,7 @@
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 50,
-                      "pattern": "^[a-z_][a-z0-9_]*$",
+                      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                       "description": "Column name."
                     },
                     "type": {
@@ -4257,7 +4301,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 128,
-            "pattern": "^[a-z_][a-z0-9_]*$"
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
           },
           "description": {
             "anyOf": [
@@ -4298,7 +4342,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 50,
-                  "pattern": "^[a-z_][a-z0-9_]*$",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                   "description": "Column name used as the public row-data key."
                 },
                 "type": {
@@ -4397,7 +4441,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 50,
-                "pattern": "^[a-z_][a-z0-9_]*$",
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                 "description": "Column name."
               },
               "type": {
@@ -4478,7 +4522,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50,
-            "pattern": "^[a-z_][a-z0-9_]*$",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
             "description": "Current name of the column to update."
           },
           "updates": {
@@ -4489,7 +4533,7 @@
                 "type": "string",
                 "minLength": 1,
                 "maxLength": 50,
-                "pattern": "^[a-z_][a-z0-9_]*$"
+                "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
               },
               "type": {
                 "description": "Replacement column data type.",
@@ -4562,7 +4606,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 50,
-            "pattern": "^[a-z_][a-z0-9_]*$",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
             "description": "Name of the column to delete."
           }
         },
@@ -4589,10 +4633,14 @@
           },
           "createdAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the row was created."
           },
           "updatedAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the row was last modified."
           }
         },
@@ -4638,7 +4686,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -4751,102 +4799,6 @@
                 "description": "Row cells keyed by column name.",
                 "$ref": "#/components/schemas/V2TableRowData"
               },
-              "__privateSecretProvenance": {
-                "description": "Private encrypted secret provenance for trusted internal callers.",
-                "type": "object",
-                "properties": {
-                  "version": {
-                    "type": "number",
-                    "const": 1,
-                    "description": "Private provenance bundle format version."
-                  },
-                  "complete": {
-                    "type": "boolean",
-                    "description": "Whether the private provenance bundle is complete."
-                  },
-                  "selections": {
-                    "maxItems": 10000,
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "key": {
-                          "type": "string",
-                          "minLength": 1,
-                          "maxLength": 4096,
-                          "description": "Selection key carrying provenance."
-                        },
-                        "provenance": {
-                          "type": "object",
-                          "properties": {
-                            "version": {
-                              "type": "number",
-                              "const": 1,
-                              "description": "Secret provenance format version."
-                            },
-                            "complete": {
-                              "type": "boolean",
-                              "description": "Whether the provenance trace is complete."
-                            },
-                            "entries": {
-                              "maxItems": 10000,
-                              "type": "array",
-                              "items": {
-                                "type": "object",
-                                "properties": {
-                                  "encryptedValue": {
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 8388608,
-                                    "description": "Encrypted secret value carried across the trusted execution boundary."
-                                  },
-                                  "name": {
-                                    "description": "Optional source secret name.",
-                                    "type": "string",
-                                    "minLength": 1,
-                                    "maxLength": 1024
-                                  }
-                                },
-                                "required": ["encryptedValue"],
-                                "additionalProperties": false
-                              },
-                              "description": "Encrypted secret provenance entries."
-                            },
-                            "scope": {
-                              "description": "Authorization scope bound to the encrypted provenance.",
-                              "type": "object",
-                              "properties": {
-                                "userId": {
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 1024,
-                                  "description": "User scope for the encrypted provenance."
-                                },
-                                "workspaceId": {
-                                  "description": "Optional workspace scope for the encrypted provenance.",
-                                  "type": "string",
-                                  "minLength": 1,
-                                  "maxLength": 1024
-                                }
-                              },
-                              "required": ["userId"],
-                              "additionalProperties": false
-                            }
-                          },
-                          "required": ["version", "complete", "entries"],
-                          "additionalProperties": false,
-                          "description": "Encrypted provenance for this selection."
-                        }
-                      },
-                      "required": ["key", "provenance"],
-                      "additionalProperties": false
-                    },
-                    "description": "Selections and their encrypted provenance."
-                  }
-                },
-                "required": ["version", "complete", "selections"],
-                "additionalProperties": false
-              },
               "afterRowId": {
                 "description": "Row after which to insert the new row.",
                 "type": "string",
@@ -4926,102 +4878,6 @@
             "type": "integer",
             "minimum": 1,
             "maximum": 1000
-          },
-          "__privateSecretProvenance": {
-            "description": "Private encrypted secret provenance for trusted internal callers.",
-            "type": "object",
-            "properties": {
-              "version": {
-                "type": "number",
-                "const": 1,
-                "description": "Private provenance bundle format version."
-              },
-              "complete": {
-                "type": "boolean",
-                "description": "Whether the private provenance bundle is complete."
-              },
-              "selections": {
-                "maxItems": 10000,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 4096,
-                      "description": "Selection key carrying provenance."
-                    },
-                    "provenance": {
-                      "type": "object",
-                      "properties": {
-                        "version": {
-                          "type": "number",
-                          "const": 1,
-                          "description": "Secret provenance format version."
-                        },
-                        "complete": {
-                          "type": "boolean",
-                          "description": "Whether the provenance trace is complete."
-                        },
-                        "entries": {
-                          "maxItems": 10000,
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "encryptedValue": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8388608,
-                                "description": "Encrypted secret value carried across the trusted execution boundary."
-                              },
-                              "name": {
-                                "description": "Optional source secret name.",
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 1024
-                              }
-                            },
-                            "required": ["encryptedValue"],
-                            "additionalProperties": false
-                          },
-                          "description": "Encrypted secret provenance entries."
-                        },
-                        "scope": {
-                          "description": "Authorization scope bound to the encrypted provenance.",
-                          "type": "object",
-                          "properties": {
-                            "userId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024,
-                              "description": "User scope for the encrypted provenance."
-                            },
-                            "workspaceId": {
-                              "description": "Optional workspace scope for the encrypted provenance.",
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024
-                            }
-                          },
-                          "required": ["userId"],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": ["version", "complete", "entries"],
-                      "additionalProperties": false,
-                      "description": "Encrypted provenance for this selection."
-                    }
-                  },
-                  "required": ["key", "provenance"],
-                  "additionalProperties": false
-                },
-                "description": "Selections and their encrypted provenance."
-              }
-            },
-            "required": ["version", "complete", "selections"],
-            "additionalProperties": false
           }
         },
         "required": ["workspaceId", "filter", "data"],
@@ -5134,102 +4990,6 @@
           "data": {
             "description": "Partial row-data patch keyed by column name.",
             "$ref": "#/components/schemas/V2TableRowData"
-          },
-          "__privateSecretProvenance": {
-            "description": "Private encrypted secret provenance for trusted internal callers.",
-            "type": "object",
-            "properties": {
-              "version": {
-                "type": "number",
-                "const": 1,
-                "description": "Private provenance bundle format version."
-              },
-              "complete": {
-                "type": "boolean",
-                "description": "Whether the private provenance bundle is complete."
-              },
-              "selections": {
-                "maxItems": 10000,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 4096,
-                      "description": "Selection key carrying provenance."
-                    },
-                    "provenance": {
-                      "type": "object",
-                      "properties": {
-                        "version": {
-                          "type": "number",
-                          "const": 1,
-                          "description": "Secret provenance format version."
-                        },
-                        "complete": {
-                          "type": "boolean",
-                          "description": "Whether the provenance trace is complete."
-                        },
-                        "entries": {
-                          "maxItems": 10000,
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "encryptedValue": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8388608,
-                                "description": "Encrypted secret value carried across the trusted execution boundary."
-                              },
-                              "name": {
-                                "description": "Optional source secret name.",
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 1024
-                              }
-                            },
-                            "required": ["encryptedValue"],
-                            "additionalProperties": false
-                          },
-                          "description": "Encrypted secret provenance entries."
-                        },
-                        "scope": {
-                          "description": "Authorization scope bound to the encrypted provenance.",
-                          "type": "object",
-                          "properties": {
-                            "userId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024,
-                              "description": "User scope for the encrypted provenance."
-                            },
-                            "workspaceId": {
-                              "description": "Optional workspace scope for the encrypted provenance.",
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024
-                            }
-                          },
-                          "required": ["userId"],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": ["version", "complete", "entries"],
-                      "additionalProperties": false,
-                      "description": "Encrypted provenance for this selection."
-                    }
-                  },
-                  "required": ["key", "provenance"],
-                  "additionalProperties": false
-                },
-                "description": "Selections and their encrypted provenance."
-              }
-            },
-            "required": ["version", "complete", "selections"],
-            "additionalProperties": false
           }
         },
         "required": ["workspaceId", "data"],
@@ -5317,109 +5077,13 @@
             "description": "Unique workspace identifier."
           },
           "data": {
-            "description": "Row cells keyed by column name.",
+            "description": "Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.",
             "$ref": "#/components/schemas/V2TableRowData"
           },
           "conflictTarget": {
             "description": "Unique column used to detect a conflict.",
             "type": "string",
             "minLength": 1
-          },
-          "__privateSecretProvenance": {
-            "description": "Private encrypted secret provenance for trusted internal callers.",
-            "type": "object",
-            "properties": {
-              "version": {
-                "type": "number",
-                "const": 1,
-                "description": "Private provenance bundle format version."
-              },
-              "complete": {
-                "type": "boolean",
-                "description": "Whether the private provenance bundle is complete."
-              },
-              "selections": {
-                "maxItems": 10000,
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "key": {
-                      "type": "string",
-                      "minLength": 1,
-                      "maxLength": 4096,
-                      "description": "Selection key carrying provenance."
-                    },
-                    "provenance": {
-                      "type": "object",
-                      "properties": {
-                        "version": {
-                          "type": "number",
-                          "const": 1,
-                          "description": "Secret provenance format version."
-                        },
-                        "complete": {
-                          "type": "boolean",
-                          "description": "Whether the provenance trace is complete."
-                        },
-                        "entries": {
-                          "maxItems": 10000,
-                          "type": "array",
-                          "items": {
-                            "type": "object",
-                            "properties": {
-                              "encryptedValue": {
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 8388608,
-                                "description": "Encrypted secret value carried across the trusted execution boundary."
-                              },
-                              "name": {
-                                "description": "Optional source secret name.",
-                                "type": "string",
-                                "minLength": 1,
-                                "maxLength": 1024
-                              }
-                            },
-                            "required": ["encryptedValue"],
-                            "additionalProperties": false
-                          },
-                          "description": "Encrypted secret provenance entries."
-                        },
-                        "scope": {
-                          "description": "Authorization scope bound to the encrypted provenance.",
-                          "type": "object",
-                          "properties": {
-                            "userId": {
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024,
-                              "description": "User scope for the encrypted provenance."
-                            },
-                            "workspaceId": {
-                              "description": "Optional workspace scope for the encrypted provenance.",
-                              "type": "string",
-                              "minLength": 1,
-                              "maxLength": 1024
-                            }
-                          },
-                          "required": ["userId"],
-                          "additionalProperties": false
-                        }
-                      },
-                      "required": ["version", "complete", "entries"],
-                      "additionalProperties": false,
-                      "description": "Encrypted provenance for this selection."
-                    }
-                  },
-                  "required": ["key", "provenance"],
-                  "additionalProperties": false
-                },
-                "description": "Selections and their encrypted provenance."
-              }
-            },
-            "required": ["version", "complete", "selections"],
-            "additionalProperties": false
           }
         },
         "required": ["workspaceId", "data"],
@@ -5455,7 +5119,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -5571,10 +5235,14 @@
           },
           "createdAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the view was created."
           },
           "updatedAt": {
             "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z))$",
             "description": "ISO 8601 timestamp when the view was last modified."
           }
         },
@@ -5692,7 +5360,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6019,9 +5687,14 @@
           "id": {
             "type": "string",
             "description": "Identifier of the deleted view."
+          },
+          "deleted": {
+            "type": "boolean",
+            "const": true,
+            "description": "Confirms that the view was deleted."
           }
         },
-        "required": ["id"],
+        "required": ["id", "deleted"],
         "additionalProperties": false,
         "title": "Delete table view data",
         "description": "Saved-view deletion acknowledgement."
@@ -6157,7 +5830,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],
@@ -6185,7 +5858,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 50,
-                  "pattern": "^[a-z_][a-z0-9_]*$",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                   "description": "Column name used as the public row-data key."
                 },
                 "type": {
@@ -6640,7 +6313,7 @@
                   "type": "string",
                   "minLength": 1,
                   "maxLength": 50,
-                  "pattern": "^[a-z_][a-z0-9_]*$",
+                  "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                   "description": "Column name used as the public row-data key."
                 },
                 "type": {
@@ -7068,7 +6741,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
@@ -7291,7 +6964,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
@@ -7496,7 +7169,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
@@ -7622,7 +7295,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 128,
-                    "pattern": "^[a-z_][a-z0-9_]*$",
+                    "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
                     "description": "Name of the table to create."
                   },
                   "folderPath": {
@@ -8162,7 +7835,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],

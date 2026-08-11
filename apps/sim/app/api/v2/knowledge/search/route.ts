@@ -8,6 +8,13 @@ import { v2Error } from '@/app/api/v2/lib/response'
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
+/**
+ * Mirrors the internal Knowledge-search cap in `app/api/knowledge/search/route.ts`
+ * so the public surface is never more permissive than the internal one. Kept as a
+ * literal because the internal route declares the same literal inline.
+ */
+export const V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES = 2 * 1024 * 1024
+
 /** POST /api/v2/knowledge/search — Vector / tag search across knowledge bases. */
 export const POST = defineV2JsonRoute({
   contract: v2SearchKnowledgeContract,
@@ -16,6 +23,7 @@ export const POST = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
   parseOptions: {
+    maxBodyBytes: V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES,
     invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
   mapInput: ({ body }) => ({

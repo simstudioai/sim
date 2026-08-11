@@ -26,11 +26,15 @@ import {
   ERROR_RESPONSES,
   type ErrorResponseId,
   RATE_LIMIT_HEADERS,
+  RESOURCE_ERRORS,
   STANDARD_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
+  VALIDATED_ERRORS,
+  WORKSPACE_API_KEY_DENIED,
+  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
   WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
@@ -209,7 +213,7 @@ const routes = [
       operationId: 'abortFileUpload',
       summary: 'Abort File Upload',
       description: 'Abort an active upload session and release provider-side multipart state.',
-      errors: [...STANDARD_ERRORS, 'NotFound', 'Conflict'],
+      errors: [...VALIDATED_ERRORS, 'NotFound', 'Conflict'],
       success: { description: 'The aborted upload session.' },
     }),
     {
@@ -454,8 +458,7 @@ const routes = [
     auditOperation({
       operationId: 'listAuditLogs',
       summary: 'List Audit Logs',
-      description:
-        'List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access.',
+      description: `List an organization audit trail with filters and opaque cursor pagination. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...STANDARD_ERRORS, 'BadRequest', 'Forbidden'],
       success: { description: 'A page of audit-log entries.' },
     }),
@@ -480,9 +483,8 @@ const routes = [
     auditOperation({
       operationId: 'getAuditLog',
       summary: 'Get Audit Log',
-      description:
-        'Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access.',
-      errors: [...STANDARD_ERRORS, 'Forbidden', 'NotFound'],
+      description: `Return one organization audit-log entry. Requires an Enterprise subscription and organization admin or owner access. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...VALIDATED_ERRORS, 'Forbidden', 'NotFound'],
       success: { description: 'The requested audit-log entry.' },
     }),
     {
@@ -575,8 +577,7 @@ const routes = [
     filesOperation({
       operationId: 'upsertFileShare',
       summary: 'Enable or Disable File Share',
-      description:
-        'Create or update a server-tokenized public share. Disabling retains its token and configuration for later re-enablement.',
+      description: `Create or partially update a server-tokenized public share. Only isActive is required, and an omitted authType keeps the stored auth mode. What happens to password and allowedEmails depends on the resulting mode, because enabling a share always rewrites the credentials the chosen mode does not use: 'public' clears the stored password and empties allowedEmails; 'password' keeps the stored password when password is omitted but empties allowedEmails; 'email' and 'sso' clear the stored password and keep the stored allowedEmails when the field is omitted. Only disabling with isActive false preserves the whole access configuration untouched — it also retains the token, so re-enabling restores the share as it was. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound'],
       success: { description: 'The updated file share.' },
     }),
@@ -686,8 +687,9 @@ const routes = [
     filesOperation({
       operationId: 'listFilesFolders',
       summary: 'List Folders',
-      description: 'List workspace file folders with optional parent-path filtering and sorting.',
-      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict'],
+      description:
+        'List workspace file folders with optional parent-path filtering and sorting. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'Workspace file folders.' },
     }),
     {

@@ -11,6 +11,7 @@ import {
   v2DataResponse,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -41,8 +42,12 @@ export const v2SkillSummarySchema = z
     readOnly: z
       .boolean()
       .describe('Whether this is a built-in skill that cannot be modified or deleted.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the skill was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the skill was last updated.'),
+    createdAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch.'
+    ),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch.'
+    ),
   })
   .meta({
     id: 'V2SkillSummary',

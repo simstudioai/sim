@@ -1,4 +1,5 @@
 import type { folder } from '@sim/db/schema'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export const ROOT_FOLDER_PATH = '/'
 export const MAX_FOLDER_PATH_SEGMENTS = 64
@@ -6,10 +7,32 @@ export const MAX_FOLDER_PATH_BYTES = 4096
 
 type FolderPathRow = Pick<typeof folder.$inferSelect, 'id' | 'name' | 'parentId'>
 
-export class FolderPathError extends Error {
+/**
+ * A malformed or non-canonical folder path supplied by a caller — an empty
+ * segment, invalid Unicode, an over-long path, or a mutation of the root.
+ * Classified `validation` so it surfaces as a 400 rather than a 500.
+ *
+ * Reserved for parsing caller input. A fault discovered while building the
+ * index from stored rows is {@link FolderHierarchyError}, not this.
+ */
+export class FolderPathError extends OrchestrationError {
   constructor(message: string) {
-    super(message)
+    super('validation', message)
     this.name = 'FolderPathError'
+  }
+}
+
+/**
+ * A stored folder tree that violates its own invariants — a duplicate id or
+ * path, a cycle, or a missing parent. Nothing the caller sends can cause or fix
+ * it, so it stays a 500: reporting corruption as a 400 would both misdirect the
+ * caller and drop a real incident out of 5xx alerting. `internal` also keeps the
+ * diagnostic message off the wire.
+ */
+export class FolderHierarchyError extends OrchestrationError {
+  constructor(message: string) {
+    super('internal', message)
+    this.name = 'FolderHierarchyError'
   }
 }
 
@@ -117,7 +140,7 @@ export function buildFolderPathIndex<Row extends FolderPathRow>(
 ): FolderPathIndex<Row> {
   const rowById = new Map<string, Row>()
   for (const row of rows) {
-    if (rowById.has(row.id)) throw new FolderPathError(`Duplicate folder id: ${row.id}`)
+    if (rowById.has(row.id)) throw new FolderHierarchyError(`Duplicate folder id: ${row.id}`)
     rowById.set(row.id, row)
   }
 
@@ -128,10 +151,11 @@ export function buildFolderPathIndex<Row extends FolderPathRow>(
   const resolvePath = (folderId: string): string => {
     const resolved = pathById.get(folderId)
     if (resolved) return resolved
-    if (visiting.has(folderId)) throw new FolderPathError('Folder hierarchy contains a cycle')
+    if (visiting.has(folderId)) throw new FolderHierarchyError('Folder hierarchy contains a cycle')
 
     const row = rowById.get(folderId)
-    if (!row) throw new FolderPathError(`Folder hierarchy references missing folder: ${folderId}`)
+    if (!row)
+      throw new FolderHierarchyError(`Folder hierarchy references missing folder: ${folderId}`)
 
     visiting.add(folderId)
     const parentPath = row.parentId ? resolvePath(row.parentId) : ROOT_FOLDER_PATH
@@ -144,7 +168,7 @@ export function buildFolderPathIndex<Row extends FolderPathRow>(
     parseFolderPath(path)
     const duplicateId = idByPath.get(path)
     if (duplicateId && duplicateId !== folderId) {
-      throw new FolderPathError(`Folder hierarchy contains duplicate path: ${path}`)
+      throw new FolderHierarchyError(`Folder hierarchy contains duplicate path: ${path}`)
     }
     pathById.set(folderId, path)
     idByPath.set(path, folderId)
@@ -176,7 +200,7 @@ export function isFolderPathEffectivelyLocked(
   let currentId: string | null = folderId
   while (currentId) {
     const row = index.rowById.get(currentId)
-    if (!row) throw new FolderPathError('Folder hierarchy references a missing ancestor')
+    if (!row) throw new FolderHierarchyError('Folder hierarchy references a missing ancestor')
     if (row.locked) return true
     currentId = row.parentId
   }

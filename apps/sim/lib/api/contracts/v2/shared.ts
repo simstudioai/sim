@@ -28,10 +28,17 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *
  * ## Search, filtering, and sorting
  *
- * One convention, applied by every v2 list. It is deliberately the narrow
+ * One convention, applied by every v2 list that sorts on a selectable column.
+ * It is deliberately the narrow
  * scalar-param form the app's own list endpoints already speak — not a third
  * dialect alongside the Logs filter set and the Tables predicate grammar.
  * A list that needs a real expression tree (Tables) keeps its own `POST /query`.
+ *
+ * Two lists predate the convention and are the documented exceptions:
+ * `GET /api/v2/logs` and `GET /api/v2/workflows/{id}/runs` have no `sortBy`
+ * (the sort column is fixed to execution start time) and spell the direction
+ * `order`, not `sortOrder`. They are not a pattern to copy, and renaming the
+ * param would break shipped callers.
  *
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
@@ -60,7 +67,10 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * ## Which lists are paged
  *
  * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
- * not restated here. Adding `limit`/`cursor` to a full-set list is additive,
+ * not restated here. A full-set list returns `nextCursor: null` on every
+ * response — its OpenAPI description says so explicitly, so a caller never
+ * writes a pagination loop that can only ever run once.
+ * Adding `limit`/`cursor` to a full-set list is additive,
  * but making a `limit` *default* would silently truncate callers that rely on
  * the full set today, so a default page size cannot be introduced without a
  * version bump.
@@ -76,6 +86,15 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * without a cursor. The rest delegate to their domain's own cursor codec, which
  * is opaque in exactly the same way.
  */
+
+/**
+ * Canonical v2 timestamp: a strict ISO-8601 UTC instant, exactly what
+ * `Date.prototype.toISOString()` emits. Use this for every timestamp on the v2
+ * wire rather than a bare `z.string()` — a bare string renders as an untyped
+ * `string` in the OpenAPI document, so generated clients hand callers a raw
+ * string instead of a parsed date.
+ */
+export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
 
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
@@ -101,7 +120,9 @@ export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
     nextCursor: z
       .string()
       .nullable()
-      .describe('Opaque cursor for the next page, or null when no more items remain.'),
+      .describe(
+        'Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response.'
+      ),
   })
 
 /**

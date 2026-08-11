@@ -56,5 +56,5 @@ export const DELETE = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, query }) => ({ ...params, workspaceId: query.workspaceId }),
-  present: ({ viewId }) => ({ data: { id: viewId } }),
+  present: ({ viewId }) => ({ data: { id: viewId, deleted: true as const } }),
 })

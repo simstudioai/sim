@@ -12,7 +12,6 @@ import {
   v2CursorListResponse,
   v2DataResponse,
   v2DeleteFolderQuerySchema,
-  v2ErrorResponseSchema,
   v2FolderPathInputSchema,
   v2FolderPathSchema,
   v2FolderSchema,
@@ -20,6 +19,7 @@ import {
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
   v2PartUrlsBodySchema,
@@ -170,7 +170,7 @@ export const v2FileUploadSchema = z
     name: z.string().describe('File name supplied when the session was created.'),
     contentType: z.string().describe('MIME type supplied when the session was created.'),
     size: z.number().int().nonnegative().describe('Expected file size in bytes.'),
-    expiresAt: z.string().datetime().describe('ISO 8601 time when the upload session expires.'),
+    expiresAt: v2TimestampSchema.describe('ISO 8601 time when the upload session expires.'),
     error: z.string().nullable().describe('Failure message, or null when no failure has occurred.'),
     file: v2FileSchema
       .nullable()
@@ -239,7 +239,9 @@ export const v2CreateFileBodySchema = z
       .string()
       .max(70_000_000, 'content is too large')
       .default('')
-      .describe('Initial file content. Omit or send an empty string for a zero-byte file.'),
+      .describe(
+        'Initial file content. Omit or send an empty string for a zero-byte file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413. Use an upload session for anything larger.'
+      ),
     encoding: z
       .enum(['utf-8', 'base64'])
       .default('utf-8')
@@ -409,7 +411,7 @@ export const v2CreateFileFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/files/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FileFolderDataSchema), status: 201 },
 })
 
 export const v2RelocateFileFolderContract = defineRouteContract({
@@ -489,7 +491,9 @@ export const v2UpdateFileContentBodySchema = z
     content: z
       .string()
       .max(70_000_000, 'content is too large')
-      .describe('Complete replacement content for the file.'),
+      .describe(
+        'Complete replacement content for the file. The 70,000,000-character bound is a JSON-envelope guard, not the file-size limit: the decoded bytes must be at most 50 MiB, so a longer base64 payload is admitted here and then rejected with 413.'
+      ),
     encoding: z
       .enum(['utf-8', 'base64'])
       .default('utf-8')
@@ -594,7 +598,6 @@ export const v2RenameFileContract = defineRouteContract({
     mode: 'json',
     schema: v2DataResponse(v2FileSchema),
   },
-  error: v2ErrorResponseSchema,
 })
 
 export const v2DeleteFileContract = defineRouteContract({
@@ -639,8 +642,18 @@ export const v2GetFileShareContract = defineRouteContract({
   },
 })
 
+/**
+ * PATCH, not PUT: only `isActive` is required, and omitting `authType`,
+ * `password`, or `allowedEmails` preserves whatever is already stored rather
+ * than resetting it. The resource is not round-trippable either — the share
+ * representation reports `hasPassword` and never the password itself, so a
+ * client cannot construct a full replacement body from a prior read.
+ *
+ * Disabling with `{ isActive: false }` keeps the token and the whole access
+ * configuration, so a later `{ isActive: true }` restores the share as it was.
+ */
 export const v2UpsertFileShareContract = defineRouteContract({
-  method: 'PUT',
+  method: 'PATCH',
   path: '/api/v2/files/[fileId]/share',
   params: v2FileParamsSchema,
   body: v2UpsertFileShareBodySchema,
