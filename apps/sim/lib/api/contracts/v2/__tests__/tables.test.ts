@@ -11,7 +11,7 @@ import {
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
+import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
 
 const WORKSPACE_ID = '6fc7631d-88cd-46f8-9f0a-d4764daef7f8'
 
@@ -85,10 +85,12 @@ function existingTableImport(overrides: Record<string, unknown> = {}) {
 describe('v2 table import contracts', () => {
   it('accepts the exact CSV byte limit and rejects one byte over it', () => {
     expect(
-      v2TableUploadImportSourceSchema.safeParse(uploadSource(CSV_MAX_FILE_SIZE_BYTES)).success
+      v2TableUploadImportSourceSchema.safeParse(uploadSource(CSV_DURABLE_MAX_FILE_SIZE_BYTES))
+        .success
     ).toBe(true)
     expect(
-      v2TableUploadImportSourceSchema.safeParse(uploadSource(CSV_MAX_FILE_SIZE_BYTES + 1)).success
+      v2TableUploadImportSourceSchema.safeParse(uploadSource(CSV_DURABLE_MAX_FILE_SIZE_BYTES + 1))
+        .success
     ).toBe(false)
   })
 

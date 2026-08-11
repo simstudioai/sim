@@ -22,7 +22,10 @@ import { runDetached } from '@/lib/core/utils/background'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { findActiveFolder } from '@/lib/folders/queries'
 import { getWorkspaceTableLimits } from '@/lib/table/billing'
-import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
+import {
+  CSV_DURABLE_MAX_FILE_SIZE_BYTES,
+  CSV_DURABLE_MAX_FILE_SIZE_MESSAGE,
+} from '@/lib/table/import'
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
@@ -85,8 +88,8 @@ async function createTableImportResourceCore(
 
   if (body.source.type === 'upload') {
     assertCsvFileName(body.source.name)
-    if (body.source.size > CSV_MAX_FILE_SIZE_BYTES) {
-      throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+    if (body.source.size > CSV_DURABLE_MAX_FILE_SIZE_BYTES) {
+      throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
     }
     const upload = await createUploadSession({
       id: importId,
@@ -523,8 +526,8 @@ async function requireWorkspaceSource(
   if (!resolved || resolved.id !== fileId || resolved.workspaceId !== workspaceId) {
     throw new OrchestrationError('not_found', 'Workspace file not found')
   }
-  if (resolved.size > CSV_MAX_FILE_SIZE_BYTES) {
-    throw new OrchestrationError('validation', CSV_MAX_FILE_SIZE_MESSAGE)
+  if (resolved.size > CSV_DURABLE_MAX_FILE_SIZE_BYTES) {
+    throw new OrchestrationError('validation', CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
   }
   return resolved
 }

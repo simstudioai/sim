@@ -62,7 +62,10 @@ import {
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
 import { TABLE_LIMITS } from '@/lib/table/constants'
-import { CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE } from '@/lib/table/import'
+import {
+  CSV_DURABLE_MAX_FILE_SIZE_BYTES,
+  CSV_DURABLE_MAX_FILE_SIZE_MESSAGE,
+} from '@/lib/table/import'
 import type { RowData } from '@/lib/table/types'
 
 /**
@@ -1405,7 +1408,7 @@ export const v2TableUploadImportSourceSchema = z
       .number()
       .int()
       .min(1)
-      .max(CSV_MAX_FILE_SIZE_BYTES, CSV_MAX_FILE_SIZE_MESSAGE)
+      .max(CSV_DURABLE_MAX_FILE_SIZE_BYTES, CSV_DURABLE_MAX_FILE_SIZE_MESSAGE)
       .describe('Exact CSV file size in bytes.'),
   })
   .strict()
