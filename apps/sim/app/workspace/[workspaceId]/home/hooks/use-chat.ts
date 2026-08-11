@@ -153,6 +153,17 @@ export interface SendMessageOptions {
  */
 type StartSendMessageResult = boolean | { kind: 'recoverable_cleanup_abort'; streamId: string }
 
+/**
+ * Outcome of asking the server whether it accepted the request a cleanup abort
+ * withdrew. `superseded` is deliberately distinct from `not_found`: the former
+ * means the answer is unknown because this dispatch is no longer current, and
+ * must not be treated as licence to re-send.
+ */
+type RecoveredSendProbe =
+  | { status: 'adopted'; chatId: string }
+  | { status: 'not_found' }
+  | { status: 'superseded' }
+
 export interface UseChatReturn {
   messages: ChatMessage[]
   isSending: boolean
@@ -4513,22 +4524,28 @@ export function useChat(
    * the caller re-sends.
    */
   const resolveRecoveredSendChatId = useCallback(
-    async (streamId: string, epoch: number): Promise<string | undefined> => {
+    async (streamId: string, epoch: number): Promise<RecoveredSendProbe> => {
       const deadline = Date.now() + RECOVERED_SEND_PROBE_TIMEOUT_MS
       while (true) {
         const resolve = resolveDetachedChatForStreamRef.current
-        if (!resolve) return undefined
-        // Stop as soon as this dispatch is superseded (chat switch, unmount).
-        // The caller adopts what this returns, which rewrites the URL, and
-        // doing that after the user moved on would hijack their navigation.
-        if (epoch !== queueDispatchEpochRef.current) return undefined
+        if (!resolve) return { status: 'not_found' }
+        /* "Superseded" is NOT the same answer as "the server has no such
+           stream", and the caller must not conflate them: adopting rewrites
+           the URL, and re-sending after an unmount would open a POST whose
+           abort controller the teardown has already dropped — a zombie request
+           nothing can cancel, duplicating the very send this recovery exists
+           to protect. Reported distinctly so the caller leaves the entry
+           queued for a later mount instead. */
+        if (epoch !== queueDispatchEpochRef.current) return { status: 'superseded' }
         const resolution = await resolve(streamId)
-        if (epoch !== queueDispatchEpochRef.current) return undefined
-        if (resolution.chatId) return resolution.chatId
+        if (epoch !== queueDispatchEpochRef.current) return { status: 'superseded' }
+        if (resolution.chatId) return { status: 'adopted', chatId: resolution.chatId }
         // A terminal status means the stream existed and finished without a
         // durable owner; polling cannot improve on that.
-        if (resolution.terminal) return undefined
-        if (Date.now() + RECOVERED_SEND_PROBE_INTERVAL_MS >= deadline) return undefined
+        if (resolution.terminal) return { status: 'not_found' }
+        if (Date.now() + RECOVERED_SEND_PROBE_INTERVAL_MS >= deadline) {
+          return { status: 'not_found' }
+        }
         await sleep(RECOVERED_SEND_PROBE_INTERVAL_MS)
       }
     },
@@ -4640,16 +4657,23 @@ export function useChat(
            the chat and the billed run. Probe the orphaned stream first and
            adopt its chat instead when it exists. */
         if (liveMsg.recoverStreamId) {
-          const adoptedChatId = await resolveRecoveredSendChatId(
-            liveMsg.recoverStreamId,
-            options.epoch
-          )
-          if (adoptedChatId) {
+          const probe = await resolveRecoveredSendChatId(liveMsg.recoverStreamId, options.epoch)
+          /* Unknown, not "safe to send" — leave the entry queued (it keeps its
+             `recoverStreamId`) so the next mount's drain probes again. */
+          if (probe.status === 'superseded') return
+          if (probe.status === 'adopted') {
             removeQueuedMessage()
-            adoptResolvedChatId(adoptedChatId, {
+            adoptResolvedChatId(probe.chatId, {
               replaceHomeHistory: true,
               invalidateList: true,
             })
+            /* Adoption alone does not surface the running turn. Hydration only
+               reconnects when `chatHistory.activeStreamId` is set, and that
+               query is cached for `MOTHERSHIP_CHAT_HISTORY_STALE_TIME` — on a
+               chat-bound recover the client usually holds a copy predating this
+               stream, so without an explicit detail invalidation the adopted
+               chat renders with the live response invisible. */
+            invalidateChatQueries({ includeDetail: true, targetChatId: probe.chatId })
             return
           }
         }
@@ -4677,7 +4701,13 @@ export function useChat(
         userRemovedDuringDispatchRef.current.delete(msg.id)
       }
     },
-    [startSendMessage, workspaceId, resolveRecoveredSendChatId, adoptResolvedChatId]
+    [
+      startSendMessage,
+      workspaceId,
+      resolveRecoveredSendChatId,
+      adoptResolvedChatId,
+      invalidateChatQueries,
+    ]
   )
 
   const runQueueDispatchLoop = useCallback(async () => {

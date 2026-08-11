@@ -47,18 +47,22 @@ interface NetworkState {
   postBehavior: 'hang' | 'accept'
   postCalls: number
   /**
-   * Chat the orphaned-stream probe resolves to, standing in for a request the
-   * server accepted before the client's cleanup abort tore the socket down.
-   * `null` means the server has no such stream (it never accepted the request).
+   * How the orphaned-stream probe answers:
+   * - `found` — the server accepted the withdrawn request and owns a chat
+   * - `gone` — 404, it has no such stream (never accepted)
+   * - `pending` — registered but no owner yet, so the probe keeps polling;
+   *   this is the only mode that leaves a probe in flight to interrupt
    */
-  orphanedStreamChatId: string | null
+  probeBehavior: 'found' | 'gone' | 'pending'
+  orphanedStreamChatId: string
   streamProbes: number
 }
 
 const state: NetworkState = {
   postBehavior: 'hang',
   postCalls: 0,
-  orphanedStreamChatId: null,
+  probeBehavior: 'gone',
+  orphanedStreamChatId: 'chat-server-already-made',
   streamProbes: 0,
 }
 
@@ -81,7 +85,7 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     state.streamProbes++
     // 404 is what the server returns for a stream it never registered — i.e.
     // the request really was withdrawn before it was accepted.
-    if (!state.orphanedStreamChatId) {
+    if (state.probeBehavior === 'gone') {
       return new Response(JSON.stringify({ error: 'stream gone' }), { status: 404 })
     }
     return new Response(
@@ -89,7 +93,8 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
         success: true,
         events: [],
         status: 'streaming',
-        chatId: state.orphanedStreamChatId,
+        // `pending` omits the owner, so the probe keeps polling.
+        ...(state.probeBehavior === 'found' ? { chatId: state.orphanedStreamChatId } : {}),
       }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     )
@@ -205,7 +210,7 @@ describe('useChat remount send recovery', () => {
     vi.stubGlobal('fetch', fetchStub)
     state.postBehavior = 'hang'
     state.postCalls = 0
-    state.orphanedStreamChatId = null
+    state.probeBehavior = 'gone'
     state.streamProbes = 0
     mockRequestJson.mockResolvedValue({ chats: [] })
     useMothershipQueueStore.setState({ queues: {}, editing: {} })
@@ -334,7 +339,7 @@ describe('useChat remount send recovery', () => {
   describe('recovered send probes the orphaned stream before re-sending', () => {
     it('adopts the chat the server already created instead of sending twice', async () => {
       // The server accepted the withdrawn request and registered its stream.
-      state.orphanedStreamChatId = 'chat-server-already-made'
+      state.probeBehavior = 'found'
 
       const { getResult, unmount } = renderUseChat()
       await act(async () => {
@@ -361,9 +366,85 @@ describe('useChat remount send recovery', () => {
       expect(allQueuedMessages()).toHaveLength(0)
     })
 
+    /**
+     * Adoption alone does not surface the running turn: hydration reconnects
+     * only when `chatHistory.activeStreamId` is set, and that query is cached
+     * for 30s. Without an explicit detail invalidation the adopted chat renders
+     * with the live response invisible.
+     */
+    it('invalidates the adopted chat detail so hydration can reconnect', async () => {
+      state.probeBehavior = 'found'
+
+      const { getResult, unmount } = renderUseChat()
+      await act(async () => {
+        void getResult().sendMessage('surface the running turn')
+      })
+      await waitFor(() => state.postCalls === 1)
+      unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+      const replacement = renderUseChat()
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+      await act(async () => {
+        void replacement.getResult().sendMessage(handoff?.message as string, undefined, undefined, {
+          recoverStreamId: handoff?.recoverStreamId as string,
+        })
+      })
+      await waitFor(() =>
+        invalidateSpy.mock.calls.some(([arg]) => {
+          const key = (arg as { queryKey?: unknown[] } | undefined)?.queryKey
+          return Array.isArray(key) && key.includes('chat-server-already-made')
+        })
+      )
+
+      expect(state.postCalls).toBe(1)
+    })
+
+    /**
+     * A probe cut short by unmount answers "unknown", not "safe to send".
+     * Falling through to `startSendMessage` there would open a POST whose
+     * abort controller the teardown already dropped — an uncancellable request
+     * that duplicates the send. The entry must stay queued instead.
+     */
+    it('does not send when the probe is cut short by unmount', async () => {
+      state.probeBehavior = 'gone'
+      const { getResult, unmount } = renderUseChat()
+      await act(async () => {
+        void getResult().sendMessage('do not zombie me')
+      })
+      await waitFor(() => state.postCalls === 1)
+      unmount()
+      await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+      const handoff = MothershipHandoffStorage.consume('ws-1')
+
+      /* `pending` keeps the probe polling instead of answering on the first
+         attempt, which is what leaves one in flight to interrupt. A `gone`
+         probe answers immediately and the re-send would already have happened
+         before the unmount — that version of this test cannot fail. */
+      state.probeBehavior = 'pending'
+      const replacement = renderUseChat()
+      await act(async () => {
+        void replacement.getResult().sendMessage(handoff?.message as string, undefined, undefined, {
+          recoverStreamId: handoff?.recoverStreamId as string,
+        })
+      })
+      await waitFor(() => state.streamProbes > 0)
+      const postsBeforeUnmount = state.postCalls
+      replacement.unmount()
+
+      // Well past the probe's poll budget: nothing may send after teardown.
+      await act(async () => {
+        await sleep(3000)
+      })
+      expect(state.postCalls).toBe(postsBeforeUnmount)
+    })
+
     it('re-sends when the server has no stream for it', async () => {
       // 404 from the probe: the request really was withdrawn before acceptance.
-      state.orphanedStreamChatId = null
+      state.probeBehavior = 'gone'
 
       const { getResult, unmount } = renderUseChat()
       await act(async () => {
