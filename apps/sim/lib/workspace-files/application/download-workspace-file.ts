@@ -77,11 +77,16 @@ export const downloadWorkspaceFile = defineAuthorizedWorkspaceFileUseCase({
 })
 
 /**
- * Resolves a generation-source record to its compiled artifact. Capped because a
- * source is text and orders of magnitude smaller than what it renders to, so the
- * record's declared size bounds nothing. An artifact that is still compiling is
- * retryable rather than a fault, so it surfaces as `conflict` — a 500 would give
- * the caller no reason to try again.
+ * Resolves a generation-source record to its compiled artifact.
+ *
+ * The record's declared size bounds nothing here — a source is text and orders
+ * of magnitude smaller than what it renders to — so the artifact is checked
+ * against its own ceiling. Note this rejects an oversized artifact rather than
+ * preventing it being read: the artifact store fetch is not itself streaming-
+ * bounded, so the bytes are resident before the check rejects them.
+ *
+ * An artifact that is still compiling is retryable rather than a fault, so it
+ * surfaces as `conflict` — a 500 would give the caller no reason to try again.
  */
 async function resolveRenderedArtifact(file: DownloadWorkspaceFileResult['file']) {
   try {

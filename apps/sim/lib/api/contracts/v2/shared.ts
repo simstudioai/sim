@@ -51,9 +51,11 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
  *   `resourceType`). No generic filter expression.
  *
- * Every one of these is pushed into SQL, except on two lists that still filter
- * and sort in memory after reading a full result set. Those are documented at
- * their own contracts; neither is a pattern to copy.
+ * Every one of these is pushed into SQL, except on `GET /skills` (which merges
+ * the static builtin registry into the DB rows, then re-filters and re-sorts the
+ * merged array) and `GET /files/folders` (which applies `parentPath`, `search`,
+ * and the sort in JS). Both read a full result set to produce a page; neither is
+ * a pattern to copy.
  *
  * ## Which lists are paged
  *

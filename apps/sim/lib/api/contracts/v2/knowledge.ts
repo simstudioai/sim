@@ -650,8 +650,8 @@ export const v2GetKnowledgeBaseContract = defineRouteContract({
 })
 
 /**
- * PATCH, not PUT: every field of the body is optional and a `superRefine`
- * requires at least one, so this is a partial update.
+ * PATCH, not PUT: every mutable field is optional and a `superRefine` requires
+ * at least one, so this is a partial update rather than a replacement.
  */
 export const v2UpdateKnowledgeBaseContract = defineRouteContract({
   method: 'PATCH',

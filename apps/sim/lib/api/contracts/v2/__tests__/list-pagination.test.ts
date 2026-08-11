@@ -146,7 +146,11 @@ async function sweepV2ListContracts(): Promise<V2ListContract[]> {
   return [...found.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
 
-/** The contract sweep dominates; the default 10s timeout is not enough for it. */
+/**
+ * Only the first test pays for the sweep; the rest await the memoized promise.
+ * It costs ~2s standalone but has exceeded the default 10s under full-suite
+ * thread contention, so it gets headroom the other two do not need.
+ */
 const SWEEP_TIMEOUT_MS = 60_000
 
 describe('v2 list pagination split', () => {
@@ -166,35 +170,27 @@ describe('v2 list pagination split', () => {
     SWEEP_TIMEOUT_MS
   )
 
-  it(
-    'gives every paged list both limit and cursor',
-    async () => {
-      const contracts = await loadV2ListContracts()
-      const byKey = new Map(contracts.map((c) => [c.key, c]))
+  it('gives every paged list both limit and cursor', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
 
-      for (const key of PAGED_LISTS) {
-        expect(byKey.get(key)?.paginationParams, `${key} is declared paged`).toEqual([
-          'limit',
-          'cursor',
-        ])
-      }
-    },
-    SWEEP_TIMEOUT_MS
-  )
+    for (const key of PAGED_LISTS) {
+      expect(byKey.get(key)?.paginationParams, `${key} is declared paged`).toEqual([
+        'limit',
+        'cursor',
+      ])
+    }
+  })
 
-  it(
-    'gives every full-set list neither limit nor cursor',
-    async () => {
-      const contracts = await loadV2ListContracts()
-      const byKey = new Map(contracts.map((c) => [c.key, c]))
+  it('gives every full-set list neither limit nor cursor', async () => {
+    const contracts = await loadV2ListContracts()
+    const byKey = new Map(contracts.map((c) => [c.key, c]))
 
-      for (const key of FULL_SET_LISTS) {
-        expect(
-          byKey.get(key)?.paginationParams,
-          `${key} returns the full set; adding a defaulted limit would truncate existing callers`
-        ).toEqual([])
-      }
-    },
-    SWEEP_TIMEOUT_MS
-  )
+    for (const key of FULL_SET_LISTS) {
+      expect(
+        byKey.get(key)?.paginationParams,
+        `${key} returns the full set; adding a defaulted limit would truncate existing callers`
+      ).toEqual([])
+    }
+  })
 })
