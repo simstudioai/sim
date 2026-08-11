@@ -9,7 +9,7 @@ import { getValidationErrorMessage } from '@/lib/api/server'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { getCredentialActorContext } from '@/lib/credentials/access'
+import { canUseCredential, getCredentialActorContext } from '@/lib/credentials/access'
 import { syncWorkspaceOAuthCredentialsForUser } from '@/lib/credentials/oauth'
 import {
   getCanonicalScopesForProvider,
@@ -155,7 +155,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
 
           if (!workflowId) {
             const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-            if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+            if (!canUseCredential(access)) {
               return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
             }
           }
@@ -187,7 +187,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
           }
         } else {
           const access = await getCredentialActorContext(platformCredential.id, requesterUserId)
-          if (!access.hasWorkspaceAccess || (!access.member && !access.isAdmin)) {
+          if (!canUseCredential(access)) {
             return NextResponse.json({ error: 'Forbidden' }, { status: 403 })
           }
         }
