@@ -1,3 +1,9 @@
+import { KNOWLEDGE_EMBEDDINGS_SETUP } from './capability-config.ts'
+import {
+  type CapabilitySetupContext,
+  type EnvCapabilitySetupTransition,
+  promptOptionalCapabilitySetup,
+} from './capability-setup.ts'
 import { browserKeyFlow } from './cli-auth.ts'
 import type { Detection } from './detect.ts'
 import {
@@ -147,6 +153,19 @@ export async function promptLlmKeys(
     )
   }
   return values
+}
+
+/** Configures knowledge embeddings while allowing the user to explicitly defer them. */
+export function promptKnowledgeEmbeddings(
+  currentValues: ReadonlyMap<string, string>,
+  context: CapabilitySetupContext
+): Promise<EnvCapabilitySetupTransition | null> {
+  return promptOptionalCapabilitySetup(
+    KNOWLEDGE_EMBEDDINGS_SETUP,
+    currentValues,
+    context,
+    'knowledge-base indexing and semantic search will remain unavailable'
+  )
 }
 
 const PROVIDER_CONSOLES: Record<string, string> = {

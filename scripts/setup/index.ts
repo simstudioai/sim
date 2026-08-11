@@ -18,6 +18,7 @@ const USAGE = `Usage:
   bun run sim setup <feature>                  configure one feature
   bun run sim doctor [--fix] [--json]          check your setup
   bun run sim start | stop | restart           bring your install up / down / cycle
+  bun run sim update                           pull/rebuild and apply Compose images
   bun run sim status                           what's installed and healthy
   bun run sim logs                             follow logs
   bun run sim down                             remove containers (data kept)

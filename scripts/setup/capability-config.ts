@@ -823,7 +823,7 @@ export const KNOWLEDGE_EMBEDDINGS_SETUP = defineCapabilitySetup(KNOWLEDGE_EMBEDD
       ],
     },
   },
-  optionOrder: ['azure-openai', 'openai', 'openrouter'],
+  optionOrder: ['openai', 'azure-openai', 'openrouter'],
 })
 
 export const CAPABILITY_SETUPS = [
