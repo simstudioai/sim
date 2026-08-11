@@ -1,3 +1,4 @@
+import Script from 'next/script'
 import { serializeJsonLd } from '@/lib/json-ld'
 import { DOCS_BASE_URL } from '@/lib/urls'
 
@@ -19,6 +20,7 @@ export function StructuredData({
   breadcrumb,
 }: StructuredDataProps) {
   const baseUrl = DOCS_BASE_URL
+  const structuredDataId = encodeURIComponent(url)
 
   const articleStructuredData = {
     '@context': 'https://schema.org',
@@ -101,14 +103,16 @@ export function StructuredData({
 
   return (
     <>
-      <script
+      <Script
+        id={`article-json-ld-${structuredDataId}`}
         type='application/ld+json'
         dangerouslySetInnerHTML={{
           __html: serializeJsonLd(articleStructuredData),
         }}
       />
       {breadcrumbStructuredData && (
-        <script
+        <Script
+          id={`breadcrumb-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(breadcrumbStructuredData),
@@ -116,7 +120,8 @@ export function StructuredData({
         />
       )}
       {(url === baseUrl || url === `${baseUrl}/`) && (
-        <script
+        <Script
+          id={`software-json-ld-${structuredDataId}`}
           type='application/ld+json'
           dangerouslySetInnerHTML={{
             __html: serializeJsonLd(softwareStructuredData),

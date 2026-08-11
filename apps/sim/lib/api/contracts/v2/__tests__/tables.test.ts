@@ -5,6 +5,8 @@ import {
   v2CreateTableBodySchema,
   v2CreateTableColumnBodySchema,
   v2CreateTableImportBodySchema,
+  v2CsvImportCreateColumnsSchema,
+  v2CsvImportMappingSchema,
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
@@ -124,22 +126,14 @@ describe('v2 table import contracts', () => {
       (_, index) => `header_${index}`
     )
 
-    expect(v2CreateTableImportBodySchema.safeParse(existingTableImport({ mapping })).success).toBe(
-      true
+    expect(v2CsvImportMappingSchema.safeParse(mapping).success).toBe(true)
+    expect(v2CsvImportCreateColumnsSchema.safeParse(createColumns).success).toBe(true)
+    expect(v2CsvImportMappingSchema.safeParse({ ...mapping, overflow: 'overflow' }).success).toBe(
+      false
     )
-    expect(
-      v2CreateTableImportBodySchema.safeParse(existingTableImport({ createColumns })).success
-    ).toBe(true)
-    expect(
-      v2CreateTableImportBodySchema.safeParse(
-        existingTableImport({ mapping: { ...mapping, overflow: 'overflow' } })
-      ).success
-    ).toBe(false)
-    expect(
-      v2CreateTableImportBodySchema.safeParse(
-        existingTableImport({ createColumns: [...createColumns, 'overflow'] })
-      ).success
-    ).toBe(false)
+    expect(v2CsvImportCreateColumnsSchema.safeParse([...createColumns, 'overflow']).success).toBe(
+      false
+    )
   })
 
   it('bounds CSV header and mapped column names', () => {

@@ -8,7 +8,6 @@ export interface PublicWorkspaceDetail {
   name: string
   color: string
   logoUrl: string | null
-  mode: 'personal' | 'organization' | 'grandfathered_shared'
   memberCount: number
   createdAt: Date
   updatedAt: Date
@@ -74,7 +73,6 @@ export async function getPublicWorkspaceDetail(
       name: workspace.name,
       color: workspace.color,
       logoUrl: workspace.logoUrl,
-      mode: workspace.workspaceMode,
       organizationId: workspace.organizationId,
       createdAt: workspace.createdAt,
       updatedAt: workspace.updatedAt,
@@ -90,7 +88,6 @@ export async function getPublicWorkspaceDetail(
     name: row.name,
     color: row.color,
     logoUrl: row.logoUrl,
-    mode: row.mode,
     memberCount: await countWorkspaceMembers(workspaceId, row.organizationId),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

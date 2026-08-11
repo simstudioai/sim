@@ -204,7 +204,7 @@ export function defineV2JsonRoute<
   I,
   R,
 >(options: V2JsonRouteOptions<C, O, I, R>): JsonNextRouteHandler {
-  const { successStatus } = requireJsonRouteDefinition(
+  const { successStatus, successStatuses } = requireJsonRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
@@ -258,8 +258,10 @@ export function defineV2JsonRoute<
         }
         const validatedBody = responseSchema.schema.parse(body)
         const responseStatus = options.statusForResult?.(result) ?? successStatus
-        if (!Number.isInteger(responseStatus) || responseStatus < 200 || responseStatus >= 300) {
-          throw new Error(`V2 JSON route produced invalid success status ${responseStatus}`)
+        if (!successStatuses.includes(responseStatus)) {
+          throw new Error(
+            `V2 JSON route produced undeclared success status ${responseStatus}; expected ${successStatuses.join(', ')}`
+          )
         }
         await options.onSuccess?.({ principal: auth.principal, input, result })
         return NextResponse.json(validatedBody, {

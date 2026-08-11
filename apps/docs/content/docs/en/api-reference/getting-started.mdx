@@ -172,7 +172,7 @@ The API uses standard HTTP status codes. v2 errors include a stable code and hum
 | `429` | Rate limit exceeded | Wait for the duration in the `Retry-After` header |
 
 <Callout type="info">
-  Use the [Get Usage Limits](/api-reference/usage/getUsageLimits) endpoint to check your current rate limit status and billing usage at any time.
+  Use [Get Billing Status](/api-reference/billing/getBillingStatus) to inspect current credit and storage usage.
 </Callout>
 
 ## Rate Limits
@@ -187,11 +187,11 @@ List endpoints (workflows, logs, audit logs) use **cursor-based pagination**:
 
 ```bash
 # First page
-curl "https://www.sim.ai/api/v1/logs?limit=20" \
+curl "https://www.sim.ai/api/v2/logs?limit=20" \
   -H "X-API-Key: YOUR_API_KEY"
 
 # Next page — use the nextCursor from the previous response
-curl "https://www.sim.ai/api/v1/logs?limit=20&cursor=abc123" \
+curl "https://www.sim.ai/api/v2/logs?limit=20&cursor=abc123" \
   -H "X-API-Key: YOUR_API_KEY"
 ```
 

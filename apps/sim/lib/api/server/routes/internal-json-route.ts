@@ -272,11 +272,16 @@ export function defineInternalJsonRoute<
   R,
   P extends Principal,
 >(options: InternalJsonRouteOptions<C, O, I, R, P>): JsonNextRouteHandler {
-  const { successStatus } = requireJsonRouteDefinition(
+  const { successStatus, successStatuses } = requireJsonRouteDefinition(
     options.contract,
     options.operation,
     options.useCase.operation
   )
+  if (successStatuses.length !== 1) {
+    throw new Error(
+      `${options.contract.method} ${options.contract.path} internal JSON route requires one success status`
+    )
+  }
 
   const wrapped = withRouteHandler<JsonRouteContext | undefined>(
     async (request, context) => {
