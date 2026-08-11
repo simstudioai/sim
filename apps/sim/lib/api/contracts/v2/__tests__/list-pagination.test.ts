@@ -115,7 +115,17 @@ interface V2ListContract {
   paginationParams: string[]
 }
 
-async function loadV2ListContracts(): Promise<V2ListContract[]> {
+/**
+ * Sweeping the contracts tree costs a few hundred dynamic imports, so it is done
+ * once for the whole file rather than repeated per test.
+ */
+let contractsPromise: Promise<V2ListContract[]> | null = null
+function loadV2ListContracts(): Promise<V2ListContract[]> {
+  contractsPromise ??= sweepV2ListContracts()
+  return contractsPromise
+}
+
+async function sweepV2ListContracts(): Promise<V2ListContract[]> {
   const found = new Map<string, V2ListContract>()
   for (const file of listContractFiles(CONTRACTS_DIR)) {
     const mod = (await import(file)) as Record<string, unknown>
@@ -136,40 +146,55 @@ async function loadV2ListContracts(): Promise<V2ListContract[]> {
   return [...found.values()].sort((a, b) => a.key.localeCompare(b.key))
 }
 
+/** The contract sweep dominates; the default 10s timeout is not enough for it. */
+const SWEEP_TIMEOUT_MS = 60_000
+
 describe('v2 list pagination split', () => {
-  it('classifies every v2 list as paged or full-set', async () => {
-    const contracts = await loadV2ListContracts()
-    const classified = new Set<string>([...PAGED_LISTS, ...FULL_SET_LISTS])
-    const unclassified = contracts.filter((c) => !classified.has(c.key)).map((c) => c.key)
+  it(
+    'classifies every v2 list as paged or full-set',
+    async () => {
+      const contracts = await loadV2ListContracts()
+      const classified = new Set<string>([...PAGED_LISTS, ...FULL_SET_LISTS])
+      const unclassified = contracts.filter((c) => !classified.has(c.key)).map((c) => c.key)
 
-    expect(
-      unclassified,
-      'A new v2 list must be added to PAGED_LISTS or FULL_SET_LISTS, and to the enumeration in v2/shared.ts.'
-    ).toEqual([])
-    expect(contracts.map((c) => c.key).sort()).toEqual([...classified].sort())
-  })
-
-  it('gives every paged list both limit and cursor', async () => {
-    const contracts = await loadV2ListContracts()
-    const byKey = new Map(contracts.map((c) => [c.key, c]))
-
-    for (const key of PAGED_LISTS) {
-      expect(byKey.get(key)?.paginationParams, `${key} is declared paged`).toEqual([
-        'limit',
-        'cursor',
-      ])
-    }
-  })
-
-  it('gives every full-set list neither limit nor cursor', async () => {
-    const contracts = await loadV2ListContracts()
-    const byKey = new Map(contracts.map((c) => [c.key, c]))
-
-    for (const key of FULL_SET_LISTS) {
       expect(
-        byKey.get(key)?.paginationParams,
-        `${key} returns the full set; adding a defaulted limit would truncate existing callers`
+        unclassified,
+        'A new v2 list must be classified in PAGED_LISTS or FULL_SET_LISTS.'
       ).toEqual([])
-    }
-  })
+      expect(contracts.map((c) => c.key).sort()).toEqual([...classified].sort())
+    },
+    SWEEP_TIMEOUT_MS
+  )
+
+  it(
+    'gives every paged list both limit and cursor',
+    async () => {
+      const contracts = await loadV2ListContracts()
+      const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+      for (const key of PAGED_LISTS) {
+        expect(byKey.get(key)?.paginationParams, `${key} is declared paged`).toEqual([
+          'limit',
+          'cursor',
+        ])
+      }
+    },
+    SWEEP_TIMEOUT_MS
+  )
+
+  it(
+    'gives every full-set list neither limit nor cursor',
+    async () => {
+      const contracts = await loadV2ListContracts()
+      const byKey = new Map(contracts.map((c) => [c.key, c]))
+
+      for (const key of FULL_SET_LISTS) {
+        expect(
+          byKey.get(key)?.paginationParams,
+          `${key} returns the full set; adding a defaulted limit would truncate existing callers`
+        ).toEqual([])
+      }
+    },
+    SWEEP_TIMEOUT_MS
+  )
 })
