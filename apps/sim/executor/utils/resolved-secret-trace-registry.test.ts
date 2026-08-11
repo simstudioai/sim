@@ -1030,19 +1030,19 @@ describe('ResolvedSecretTraceRegistry', () => {
 
   it('exports active numeric literals crossing a value boundary, but not boolean or null', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'NUMBER', plaintext: '1234', encryptedValue: 'number-ciphertext' },
+      { name: 'NUMBER', plaintext: '12345678', encryptedValue: 'number-ciphertext' },
       { name: 'BOOLEAN', plaintext: 'false', encryptedValue: 'boolean-ciphertext' },
       { name: 'NULL', plaintext: 'null', encryptedValue: 'null-ciphertext' },
-      { name: 'ABSENT', plaintext: '5678', encryptedValue: 'absent-ciphertext' },
+      { name: 'ABSENT', plaintext: '56781234', encryptedValue: 'absent-ciphertext' },
     ])
-    registry.recordResolved('NUMBER', '1234')
+    registry.recordResolved('NUMBER', '12345678')
     registry.recordResolved('BOOLEAN', 'false')
     registry.recordResolved('NULL', 'null')
-    registry.recordResolved('ABSENT', '5678')
+    registry.recordResolved('ABSENT', '56781234')
 
     expect(
       registry.exportProvenanceForValue(
-        { number: 1234, boolean: false, nullable: null },
+        { number: 12345678, boolean: false, nullable: null },
         { anonymous: true }
       )
     ).toEqual({
@@ -1182,23 +1182,23 @@ describe('ResolvedSecretTraceRegistry', () => {
 
   it('handles duplicate and empty values deterministically', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'Z_TOKEN', plaintext: 'same', encryptedValue: 'z-ciphertext' },
-      { name: 'A_TOKEN', plaintext: 'same', encryptedValue: 'a-ciphertext' },
+      { name: 'Z_TOKEN', plaintext: 'samevalue', encryptedValue: 'z-ciphertext' },
+      { name: 'A_TOKEN', plaintext: 'samevalue', encryptedValue: 'a-ciphertext' },
       { name: 'EMPTY', plaintext: '', encryptedValue: 'empty-ciphertext' },
-      { name: 'A', plaintext: 'A', encryptedValue: 'short-ciphertext' },
+      { name: 'A', plaintext: 'AAAAAAAA', encryptedValue: 'short-ciphertext' },
     ])
-    registry.recordResolved('Z_TOKEN', 'same')
-    registry.recordResolved('A_TOKEN', 'same')
+    registry.recordResolved('Z_TOKEN', 'samevalue')
+    registry.recordResolved('A_TOKEN', 'samevalue')
     registry.recordResolved('EMPTY', '')
 
     expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+      { plaintext: 'samevalue', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
     ])
 
-    registry.recordResolved('A', 'A')
+    registry.recordResolved('A', 'AAAAAAAA')
     expect(registry.getActiveMatches()).toEqual([
-      { plaintext: 'same', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
-      { plaintext: 'A', replacement: '{{A}}' },
+      { plaintext: 'samevalue', replacement: ANONYMOUS_SECRET_TRACE_REPLACEMENT },
+      { plaintext: 'AAAAAAAA', replacement: '{{A}}' },
     ])
   })
 

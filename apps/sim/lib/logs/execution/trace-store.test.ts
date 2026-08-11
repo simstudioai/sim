@@ -36,7 +36,7 @@ const CONTEXT = {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  decryptSecretMock.mockResolvedValue({ decrypted: '1234' })
+  decryptSecretMock.mockResolvedValue({ decrypted: '12345678' })
 })
 
 describe('execution data storage', () => {
@@ -94,10 +94,10 @@ describe('execution data storage', () => {
 describe('projectExecutionDataForDisplay', () => {
   it('retains run-global projection for legacy rows without exact value sidecars', async () => {
     const executionData = {
-      finalOutput: { result: 1234, derived: 1239 },
-      workflowInput: { nested: { token: 'prefix-1234-suffix' } },
-      completionFailure: 'Function failed with 1234',
-      errorDetails: { blockId: 'function-1', error: 'Invalid token 1234' },
+      finalOutput: { result: 12345678, derived: 12345683 },
+      workflowInput: { nested: { token: 'prefix-12345678-suffix' } },
+      completionFailure: 'Function failed with 12345678',
+      errorDetails: { blockId: 'function-1', error: 'Invalid token 12345678' },
       traceSpans: [
         {
           id: 'span-1',
@@ -106,11 +106,11 @@ describe('projectExecutionDataForDisplay', () => {
           duration: 1,
           startTime: '2026-07-31T00:00:00.000Z',
           endTime: '2026-07-31T00:00:00.001Z',
-          output: { result: 1234 },
+          output: { result: 12345678 },
         },
       ],
       executionState: {
-        blockStates: { 'function-1': { output: { result: 1234 } } },
+        blockStates: { 'function-1': { output: { result: 12345678 } } },
         resolvedSecretTraceProvenance: {
           version: 1 as const,
           complete: true,
@@ -124,7 +124,7 @@ describe('projectExecutionDataForDisplay', () => {
 
     expect(displayData.finalOutput).toEqual({
       result: '{{OPENAI_API_KEY}}',
-      derived: 1239,
+      derived: 12345683,
     })
     expect(displayData.workflowInput).toEqual({
       nested: { token: 'prefix-{{OPENAI_API_KEY}}-suffix' },
@@ -138,15 +138,15 @@ describe('projectExecutionDataForDisplay', () => {
       expect.objectContaining({ output: { result: '{{OPENAI_API_KEY}}' } }),
     ])
     expect(displayData).not.toHaveProperty('executionState')
-    expect(executionData.finalOutput).toEqual({ result: 1234, derived: 1239 })
+    expect(executionData.finalOutput).toEqual({ result: 12345678, derived: 12345683 })
     expect(executionData.executionState.resolvedSecretTraceProvenance.entries).toEqual([
       { name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' },
     ])
-    expect(JSON.stringify(displayData)).not.toContain('1234')
+    expect(JSON.stringify(displayData)).not.toContain('12345678')
   })
 
   it('projects only values carrying exact provenance when sibling fields share low-entropy bytes', async () => {
-    decryptSecretMock.mockResolvedValue({ decrypted: 'Test' })
+    decryptSecretMock.mockResolvedValue({ decrypted: 'TestValue' })
     const secretProvenance = {
       version: 1 as const,
       complete: true,
@@ -160,8 +160,8 @@ describe('projectExecutionDataForDisplay', () => {
       scope: { userId: 'user-1', workspaceId: 'workspace-1' },
     }
     const executionData = {
-      finalOutput: { result: 'Test' },
-      workflowInput: { token: 'Test' },
+      finalOutput: { result: 'TestValue' },
+      workflowInput: { token: 'TestValue' },
       executionState: {
         resolvedSecretTraceProvenance: secretProvenance,
         finalOutputResolvedSecretTraceProvenance: emptyProvenance,
@@ -171,7 +171,7 @@ describe('projectExecutionDataForDisplay', () => {
 
     const displayData = await projectExecutionDataForDisplay(executionData, CONTEXT)
 
-    expect(displayData.finalOutput).toEqual({ result: 'Test' })
+    expect(displayData.finalOutput).toEqual({ result: 'TestValue' })
     expect(displayData.workflowInput).toEqual({ token: '{{TOKEN}}' })
     expect(displayData).not.toHaveProperty('executionState')
   })

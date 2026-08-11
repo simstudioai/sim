@@ -347,14 +347,14 @@ describe('Memory', () => {
       expect(result.content).toBe('foreign-secret')
     })
 
-    it.each(['123'])(
+    it.each(['12345678'])(
       'projects short secret %s only in model text and arguments',
       async (secret) => {
         const registry = new ResolvedSecretTraceRegistry([
           { name: 'TOKEN', plaintext: secret, encryptedValue: 'ciphertext' },
         ])
         registry.recordResolved('TOKEN', secret)
-        const converted = secret === '123' ? 123 : true
+        const converted = secret === '12345678' ? 12345678 : true
         const message: Message = {
           role: 'assistant',
           content: `Result: ${secret}`,

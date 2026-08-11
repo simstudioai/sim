@@ -1855,7 +1855,7 @@ describe('executeTool Function', () => {
   })
 
   it('preserves empty thrown errors instead of replacing their runtime semantics', async () => {
-    const secret = '!'
+    const secret = '!!!!!!!!'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
     ])
@@ -1894,7 +1894,7 @@ describe('executeTool Function', () => {
   })
 
   it('does not rewrite coincidental low-entropy matches in thrown runtime errors', async () => {
-    const secret = 'x'
+    const secret = 'xxxxxxxx'
     const registry = new ResolvedSecretTraceRegistry([
       { name: 'API_KEY', plaintext: secret, encryptedValue: 'encrypted-value' },
     ])
@@ -3625,7 +3625,7 @@ describe('Copilot Env Variable Reference Resolution', () => {
   })
 
   it('keeps direct integration execution raw while projecting only its active workspace secret', async () => {
-    const activeSecret = 'x'
+    const activeSecret = 'xxxxxxxx'
     const unusedSecret = 'true'
     mockGetEffectiveDecryptedEnv.mockResolvedValueOnce({
       SERPER_API_KEY: activeSecret,
