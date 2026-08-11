@@ -19,6 +19,7 @@ export {
   DelegatedServiceAuthorizationError,
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   requireAllowedWorkspacePrincipal,

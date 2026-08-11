@@ -6,6 +6,7 @@ import type { V2ErrorPolicy } from '@/lib/api/server/routes'
 import {
   DelegatedWorkspaceAuthorizationError,
   InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
@@ -59,7 +60,7 @@ const policies: Array<{
 ]
 
 const resourceAuthorizationErrors = [
-  new InsufficientWorkspacePermissionsError(),
+  new NoWorkspaceAccessError(),
   new WorkspaceApiKeyAuthorizationError(),
   new DelegatedWorkspaceAuthorizationError(),
   new PrincipalKindAuthorizationError('workspace_api_key', 'resources.read'),
@@ -88,11 +89,21 @@ describe.each(policies)('$domain resource concealment', ({ policy, notFoundMessa
     })
   })
 
-  it('preserves unrelated forbidden business failures', async () => {
-    const response = policy.render(new OrchestrationError('forbidden', 'Business rule denied'))
+  it('preserves insufficient workspace role as forbidden', async () => {
+    const response = policy.render(new InsufficientWorkspacePermissionsError())
     expect(response?.status).toBe(403)
     await expect(response?.json()).resolves.toEqual({
-      error: { code: 'FORBIDDEN', message: 'Business rule denied' },
+      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
+    })
+  })
+
+  it('does not classify generic forbidden errors by message', async () => {
+    const response = policy.render(
+      new OrchestrationError('forbidden', 'Insufficient workspace permissions')
+    )
+    expect(response?.status).toBe(403)
+    await expect(response?.json()).resolves.toEqual({
+      error: { code: 'FORBIDDEN', message: 'Insufficient workspace permissions' },
     })
   })
 })

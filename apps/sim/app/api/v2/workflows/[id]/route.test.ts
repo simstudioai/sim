@@ -36,10 +36,7 @@ vi.mock('@/lib/core/rate-limiter', () => ({
 }))
 vi.mock('@/app/api/v2/lib/gate', () => ({ v2ApiGateError: mocks.gate }))
 
-import {
-  InsufficientWorkspacePermissionsError,
-  PersonalApiKeysDisabledError,
-} from '@/lib/core/application'
+import { NoWorkspaceAccessError, PersonalApiKeysDisabledError } from '@/lib/core/application'
 import { DELETE, GET, PATCH } from '@/app/api/v2/workflows/[id]/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -124,8 +121,8 @@ describe('/api/v2/workflows/[id]', () => {
     })
   })
 
-  it('conceals typed insufficient authorization as workflow absence', async () => {
-    mocks.readWorkflow.mockRejectedValue(new InsufficientWorkspacePermissionsError())
+  it('conceals absent workspace access as workflow absence', async () => {
+    mocks.readWorkflow.mockRejectedValue(new NoWorkspaceAccessError())
     const response = await GET(
       new NextRequest(`http://localhost/api/v2/workflows/${WORKFLOW_ID}`),
       routeContext

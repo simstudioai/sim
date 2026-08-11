@@ -5,7 +5,7 @@ import { NextRequest } from 'next/server'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DelegatedWorkspaceAuthorizationError,
-  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
   PersonalApiKeysDisabledError,
   PrincipalKindAuthorizationError,
   WorkspaceApiKeyAuthorizationError,
@@ -29,7 +29,7 @@ import {
 
 describe('v2 workflow error policies', () => {
   it.each([
-    new InsufficientWorkspacePermissionsError(),
+    new NoWorkspaceAccessError(),
     new WorkspaceApiKeyAuthorizationError(),
     new DelegatedWorkspaceAuthorizationError(),
     new PrincipalKindAuthorizationError('workspace_api_key', 'workflows.deploy'),
@@ -56,7 +56,7 @@ describe('v2 workflow error policies', () => {
 
   it('uses run-specific concealment text for canonical run operations', async () => {
     const response = v2WorkflowErrorPolicies.concealRunAuthorization.render(
-      new InsufficientWorkspacePermissionsError()
+      new NoWorkspaceAccessError()
     )
     expect(await response?.json()).toEqual({
       error: { code: 'NOT_FOUND', message: 'Run not found' },

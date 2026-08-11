@@ -52,7 +52,10 @@ vi.mock('@/lib/workflows/application/cancel-run', () => ({
   },
 }))
 
-import { InsufficientWorkspacePermissionsError } from '@/lib/core/application'
+import {
+  InsufficientWorkspacePermissionsError,
+  NoWorkspaceAccessError,
+} from '@/lib/core/application'
 import { POST as cancelPost } from '@/app/api/v2/workflows/[id]/runs/[runId]/cancel/route'
 import { GET } from '@/app/api/v2/workflows/[id]/runs/[runId]/route'
 
@@ -194,7 +197,7 @@ describe('v2 run detail and cancel adapters', () => {
   })
 
   it('conceals canonical run authorization failures as absence', async () => {
-    mocks.readRun.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
+    mocks.readRun.mockRejectedValueOnce(new NoWorkspaceAccessError())
 
     const response = await callStatus()
 
@@ -263,17 +266,17 @@ describe('v2 run detail and cancel adapters', () => {
     expect(mocks.cancel).not.toHaveBeenCalled()
   })
 
-  it('conceals cancellation authorization failures using canonical run policy', async () => {
+  it('returns forbidden when the current workspace role cannot cancel the run', async () => {
     mocks.cancel.mockRejectedValueOnce(new InsufficientWorkspacePermissionsError())
 
     const response = await cancelPost(createMockRequest('POST', undefined, {}), {
       params: Promise.resolve({ id: 'workflow-1', runId: 'run-1' }),
     })
 
-    expect(response.status).toBe(404)
+    expect(response.status).toBe(403)
     expect((await response.json()).error).toMatchObject({
-      code: 'NOT_FOUND',
-      message: 'Run not found',
+      code: 'FORBIDDEN',
+      message: 'Insufficient workspace permissions',
     })
     expect(mocks.capture).not.toHaveBeenCalled()
   })
