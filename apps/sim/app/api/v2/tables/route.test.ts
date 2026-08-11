@@ -163,7 +163,7 @@ describe('/api/v2/tables', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.table).toMatchObject({
+    expect((await response.json()).data).toMatchObject({
       id: 'table-1',
       ownerEmail: 'owner@example.com',
     })

@@ -10,9 +10,11 @@ import {
   deleteTableColumnBodySchema,
   deleteWorkflowGroupBodySchema,
   exportTableAsyncBodySchema,
+  insertTableRowBodyBaseSchema,
   predicateSchema,
   refineCancelTableRunsScope,
   refineColumnOptions,
+  rowAnchorMutexRefine,
   runColumnBodyBaseSchema,
   runColumnExcludeMutexRefine,
   runColumnScopeMutexRefine,
@@ -38,7 +40,6 @@ import { ianaTimezoneSchema } from '@/lib/api/contracts/user'
 import {
   v1BatchInsertTableRowsBodySchema,
   v1CreateTableBodySchema,
-  v1InsertTableRowBodySchema,
   v1ListTablesQuerySchema,
 } from '@/lib/api/contracts/v1/tables'
 import {
@@ -53,6 +54,7 @@ import {
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 import {
   v2OptionalUploadTokenHeadersSchema,
@@ -61,6 +63,7 @@ import {
   v2UploadTokenHeadersSchema,
   v2UploadTransferSchema,
 } from '@/lib/api/contracts/v2/uploads'
+import { PRIVATE_SECRET_PROVENANCE_FIELD } from '@/lib/execution/private-tool-metadata'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import {
   CSV_DURABLE_MAX_FILE_SIZE_BYTES,
@@ -96,6 +99,18 @@ export const V2_DEFAULT_ROW_LIMIT = 100
 export const V2_MAX_ROW_LIMIT = 1000
 /** Keeps upload-token metadata comfortably below common 8 KiB request-header limits after signing. */
 export const V2_TABLE_IMPORT_OPTIONS_MAX_BYTES = 2 * 1024
+
+/**
+ * Omit mask stripping `__privateSecretProvenance` from a first-party body reused
+ * as a v2 public body.
+ *
+ * The field is an in-process channel for trusted internal callers (Copilot,
+ * the executor) and no v2 route reads it. Left in place it would be published in
+ * the OpenAPI document as a request property whose own description says it is
+ * "for trusted internal callers" — advertising an internal affordance to every
+ * public consumer.
+ */
+const OMIT_PRIVATE_PROVENANCE = { [PRIVATE_SECRET_PROVENANCE_FIELD]: true } as const
 
 /**
  * Public table shape emitted by `toApiTable` (timestamps ISO-serialized).
@@ -152,8 +167,8 @@ export const v2ApiTableSchema = z
     locks: tableLocksSchema.describe('Read-only table governance locks.'),
     /** In-flight background job, or `null` when the table is idle. */
     job: v2TableJobStateSchema.nullable().describe('Current background job, or null when idle.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the table was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the table was last modified.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the table was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the table was last modified.'),
   })
   .meta({
     id: 'V2ApiTable',
@@ -185,8 +200,8 @@ export const v2ApiRowSchema = z
   .object({
     id: z.string().describe('Unique row identifier.'),
     data: v2RowDataSchema.describe('Row cells keyed by column name.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the row was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the row was last modified.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the row was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the row was last modified.'),
   })
   .meta({
     id: 'V2ApiTableRow',
@@ -194,16 +209,6 @@ export const v2ApiRowSchema = z
     description: 'A table row with user-defined cell values.',
   })
 export type V2ApiRow = z.output<typeof v2ApiRowSchema>
-
-/** A single table definition payload. */
-export const v2TableDataSchema = z
-  .object({ table: v2ApiTableSchema.describe('The requested table.') })
-  .meta({
-    id: 'V2TableData',
-    title: 'Table data',
-    description: 'A single table payload.',
-  })
-export type V2TableData = z.output<typeof v2TableDataSchema>
 
 export const v2DeleteTableDataSchema = z
   .object({
@@ -227,16 +232,6 @@ export const v2TableColumnsDataSchema = z
   })
 export type V2TableColumnsData = z.output<typeof v2TableColumnsDataSchema>
 
-/** A single row payload. */
-export const v2TableRowDataSchema = z
-  .object({ row: v2ApiRowSchema.describe('The requested table row.') })
-  .meta({
-    id: 'V2TableRowPayload',
-    title: 'Table row payload',
-    description: 'A single table row payload.',
-  })
-export type V2TableRowData = z.output<typeof v2TableRowDataSchema>
-
 /** Batch-insert payload. */
 export const v2BatchInsertRowsDataSchema = z
   .object({
@@ -250,7 +245,7 @@ export const v2BatchInsertRowsDataSchema = z
   })
 export type V2BatchInsertRowsData = z.output<typeof v2BatchInsertRowsDataSchema>
 
-export const v2CreateSingleTableRowResponseSchema = v2DataResponse(v2TableRowDataSchema).meta({
+export const v2CreateSingleTableRowResponseSchema = v2DataResponse(v2ApiRowSchema).meta({
   id: 'V2CreateSingleTableRowResponse',
   title: 'Create single table row response',
   description: 'Response returned after inserting one table row.',
@@ -300,16 +295,16 @@ export const v2DeleteRowsDataSchema = z
   })
 export type V2DeleteRowsData = z.output<typeof v2DeleteRowsDataSchema>
 
-/** Single-row delete payload — mirrors the bulk shape's required fields. */
+/** Single-row delete payload — mirrors every other v2 single-resource delete. */
 export const v2DeleteRowDataSchema = z
   .object({
-    deletedCount: z.number().describe('Number of deleted rows.'),
-    deletedRowIds: z.array(z.string()).describe('Identifier of the deleted row.'),
+    id: z.string().describe('Identifier of the deleted row.'),
+    deleted: z.literal(true).describe('Confirms that the row was deleted.'),
   })
   .meta({
     id: 'V2DeleteRowData',
     title: 'Delete row data',
-    description: 'Result of a single-row deletion.',
+    description: 'Row deletion acknowledgement.',
   })
 export type V2DeleteRowData = z.output<typeof v2DeleteRowDataSchema>
 
@@ -344,12 +339,22 @@ export const v2ListTablesQuerySchema = z
       .describe('Restrict results to tables in this folder.'),
     search: v2SearchSchema,
     ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+    /**
+     * The `.transform()` clamp erases every bound from `z.toJSONSchema`, which
+     * published a bare `type: number` while the description promised a 1–1000
+     * range. `.meta()` restores the JSON Schema keywords without touching the
+     * runtime pipeline: the published schema states the supported domain, and
+     * the server stays deliberately lenient about inputs outside it.
+     */
     limit: z.coerce
       .number()
       .optional()
       .default(100)
       .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000))
-      .describe('Maximum tables to return, clamped between 1 and 1000.'),
+      .describe(
+        'Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.'
+      )
+      .meta({ type: 'integer', minimum: 1, maximum: 1000 }),
     cursor: z.string().min(1).optional().describe('Opaque cursor from the previous page.'),
   })
   .strict()
@@ -432,7 +437,7 @@ export const v2CreateTableContract = defineRouteContract({
   body: v2CreateTableBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
     status: 201,
   },
 })
@@ -444,7 +449,7 @@ export const v2GetTableContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
   },
 })
 
@@ -493,18 +498,10 @@ export const v2UpdateTableContract = defineRouteContract({
   body: v2UpdateTableBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableDataSchema),
+    schema: v2DataResponse(v2ApiTableSchema),
   },
 })
 export type V2UpdateTableBody = z.input<typeof v2UpdateTableBodySchema>
-
-export const v2TableFolderDataSchema = z
-  .object({ folder: v2FolderSchema.describe('The requested table folder.') })
-  .meta({
-    id: 'V2TableFolderData',
-    title: 'Table folder data',
-    description: 'A single table-folder payload.',
-  })
 
 export const v2DeleteTableFolderDataSchema = z
   .object({
@@ -534,14 +531,14 @@ export const v2CreateTableFolderContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/tables/folders',
   body: v2CreateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema), status: 201 },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema), status: 201 },
 })
 
 export const v2RelocateTableFolderContract = defineRouteContract({
   method: 'PATCH',
   path: '/api/v2/tables/folders',
   body: v2RelocateFolderBodySchema,
-  response: { mode: 'json', schema: v2DataResponse(v2TableFolderDataSchema) },
+  response: { mode: 'json', schema: v2DataResponse(v2FolderSchema) },
 })
 
 export const v2DeleteTableFolderContract = defineRouteContract({
@@ -657,9 +654,17 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
     workspaceId: tableRowsQueryBaseSchema.shape.workspaceId.describe(
       'Workspace that owns the table.'
     ),
-    limit: tableRowsQueryBaseSchema.shape.limit.describe(
-      'Maximum rows to return in the current page.'
-    ),
+    /**
+     * `.prefault()` is documentation, not behavior: the base schema's own
+     * `.default()` sits outside a `z.preprocess` pipe, so `z.toJSONSchema`
+     * dropped it and the published parameter advertised no default at all.
+     * Re-declaring the same value on the outside restores `default: 100` in the
+     * spec and is a no-op at runtime — an omitted `limit` already resolved to
+     * `DEFAULT_QUERY_LIMIT` through the inner default.
+     */
+    limit: tableRowsQueryBaseSchema.shape.limit
+      .describe('Maximum rows to return in the current page.')
+      .prefault(TABLE_LIMITS.DEFAULT_QUERY_LIMIT),
     cursor: z
       .string()
       .min(1, 'cursor must be a non-empty token')
@@ -727,12 +732,15 @@ export const v2QueryRowsContract = defineRouteContract({
 /**
  * Single contract for `POST /rows` — the body is the single|batch union so the
  * route can dispatch in one `parseRequest`, and the response is the matching
- * union (`{ data: { row } }` for a single insert, `{ data: { rows,
+ * union (`{ data: <row> }` for a single insert, `{ data: { rows,
  * insertedCount } }` for a batch).
  */
-export const v2InsertTableRowBodySchema = v1InsertTableRowBodySchema.safeExtend({
-  data: v2RowDataSchema.describe('Row cells keyed by column name.'),
-})
+export const v2InsertTableRowBodySchema = insertTableRowBodyBaseSchema
+  .omit({ position: true, ...OMIT_PRIVATE_PROVENANCE })
+  .extend({
+    data: v2RowDataSchema.describe('Row cells keyed by column name.'),
+  })
+  .refine(...rowAnchorMutexRefine)
 
 export const v2BatchInsertTableRowsBodySchema = v1BatchInsertTableRowsBodySchema.extend({
   rows: z
@@ -762,10 +770,12 @@ export const v2CreateTableRowsContract = defineRouteContract({
 })
 
 /** Bulk update body — v2 accepts ONLY the predicate tree as the filter. */
-export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema.extend({
-  filter: predicateSchema,
-  data: v2RowDataSchema.describe('Row-data patch applied to every matching row.'),
-})
+export const v2UpdateRowsByPredicateBodySchema = updateRowsByFilterBodySchema
+  .omit(OMIT_PRIVATE_PROVENANCE)
+  .extend({
+    filter: predicateSchema,
+    data: v2RowDataSchema.describe('Row-data patch applied to every matching row.'),
+  })
 export type V2UpdateRowsByPredicateBody = z.input<typeof v2UpdateRowsByPredicateBodySchema>
 
 /**
@@ -825,13 +835,26 @@ export const v2DeleteTableRowsContract = defineRouteContract({
   },
 })
 
-export const v2UpdateTableRowBodySchema = updateTableRowBodySchema.extend({
-  data: v2RowDataSchema.describe('Partial row-data patch keyed by column name.'),
-})
+export const v2UpdateTableRowBodySchema = updateTableRowBodySchema
+  .omit(OMIT_PRIVATE_PROVENANCE)
+  .extend({
+    data: v2RowDataSchema.describe('Partial row-data patch keyed by column name.'),
+  })
 
-export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema.extend({
-  data: v2RowDataSchema.describe('Row cells keyed by column name.'),
-})
+/**
+ * Upsert body. `data` is a WHOLE-ROW value, not a patch — on the update branch
+ * the service replaces `user_table_rows.data` outright rather than merging it
+ * into the matched row, so any column omitted here is cleared. This differs from
+ * `PATCH /rows/[rowId]`, which merges. Send every column you want the row to
+ * keep, or use PATCH when you only mean to change a subset.
+ */
+export const v2UpsertTableRowBodySchema = upsertTableRowBodySchema
+  .omit(OMIT_PRIVATE_PROVENANCE)
+  .extend({
+    data: v2RowDataSchema.describe(
+      'Complete set of row cells keyed by column name. On the update branch this REPLACES the matched row: any column not present here is cleared, unlike the merging PATCH /rows/{rowId}.'
+    ),
+  })
 
 export const v2GetTableRowContract = defineRouteContract({
   method: 'GET',
@@ -840,7 +863,7 @@ export const v2GetTableRowContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableRowDataSchema),
+    schema: v2DataResponse(v2ApiRowSchema),
   },
 })
 
@@ -851,7 +874,7 @@ export const v2UpdateTableRowContract = defineRouteContract({
   body: v2UpdateTableRowBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableRowDataSchema),
+    schema: v2DataResponse(v2ApiRowSchema),
   },
 })
 
@@ -932,8 +955,8 @@ export const v2ApiViewSchema = z
     isDefault: z.boolean().describe('Whether this is the table default view.'),
     /** Current email of the user who saved the view; `null` for a removed author. */
     createdByEmail: z.email().nullable().describe('Current author email, or null when removed.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the view was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the view was last modified.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the view was created.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 timestamp when the view was last modified.'),
   })
   .meta({
     id: 'V2ApiTableView',
@@ -942,19 +965,12 @@ export const v2ApiViewSchema = z
   })
 export type V2ApiView = z.output<typeof v2ApiViewSchema>
 
-/** A single view payload. */
-export const v2TableViewDataSchema = z
-  .object({ view: v2ApiViewSchema.describe('The requested saved table view.') })
-  .meta({
-    id: 'V2TableViewData',
-    title: 'Table view data',
-    description: 'A single saved table-view payload.',
-  })
-export type V2TableViewData = z.output<typeof v2TableViewDataSchema>
-
 /** Delete confirmation — the id of the view that was removed. */
 export const v2DeleteTableViewDataSchema = z
-  .object({ id: z.string().describe('Identifier of the deleted view.') })
+  .object({
+    id: z.string().describe('Identifier of the deleted view.'),
+    deleted: z.literal(true).describe('Confirms that the view was deleted.'),
+  })
   .meta({
     id: 'V2DeleteTableViewData',
     title: 'Delete table view data',
@@ -985,7 +1001,7 @@ export const v2CreateTableViewContract = defineRouteContract({
   body: createTableViewBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
     status: 201,
   },
 })
@@ -997,7 +1013,7 @@ export const v2GetTableViewContract = defineRouteContract({
   query: v2TableWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
   },
 })
 
@@ -1008,7 +1024,7 @@ export const v2UpdateTableViewContract = defineRouteContract({
   body: updateTableViewBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2TableViewDataSchema),
+    schema: v2DataResponse(v2ApiViewSchema),
   },
 })
 
@@ -1554,13 +1570,9 @@ export const v2TableImportSchema = z
     tableId: z.string().nullable().describe('Resulting or target table identifier.'),
     rowsProcessed: z.number().int().nonnegative().describe('Rows processed so far.'),
     error: z.string().nullable().describe('Terminal failure reason, or null.'),
-    createdAt: z.string().datetime().describe('ISO 8601 creation timestamp.'),
-    updatedAt: z.string().datetime().describe('ISO 8601 last-update timestamp.'),
-    completedAt: z
-      .string()
-      .datetime()
-      .nullable()
-      .describe('ISO 8601 completion timestamp, or null.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),
+    completedAt: v2TimestampSchema.nullable().describe('ISO 8601 completion timestamp, or null.'),
   })
   .meta({
     id: 'V2TableImport',
@@ -1682,13 +1694,9 @@ export const v2TableExportSchema = z
     status: v2TableExportStatusSchema.describe('Current export lifecycle state.'),
     rowsProcessed: z.number().int().nonnegative().describe('Rows exported so far.'),
     error: z.string().nullable().describe('Terminal failure reason, or null.'),
-    createdAt: z.string().datetime().describe('ISO 8601 creation timestamp.'),
-    updatedAt: z.string().datetime().describe('ISO 8601 last-update timestamp.'),
-    completedAt: z
-      .string()
-      .datetime()
-      .nullable()
-      .describe('ISO 8601 completion timestamp, or null.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 creation timestamp.'),
+    updatedAt: v2TimestampSchema.describe('ISO 8601 last-update timestamp.'),
+    completedAt: v2TimestampSchema.nullable().describe('ISO 8601 completion timestamp, or null.'),
   })
   .meta({
     id: 'V2TableExport',
@@ -1725,7 +1733,7 @@ export const v2TableExportDownloadDataSchema = z
   .object({
     url: z.string().url().describe('Short-lived signed download URL.'),
     fileName: z.string().describe('Suggested export filename.'),
-    expiresAt: z.string().datetime().describe('ISO 8601 URL expiration timestamp.'),
+    expiresAt: v2TimestampSchema.describe('ISO 8601 URL expiration timestamp.'),
   })
   .meta({
     id: 'V2TableExportDownloadData',

@@ -119,6 +119,37 @@ function namedDataToStorage(data: RowData, table: TableDefinition): RowData {
   return rowDataNameToId(data, buildIdByName(table.schema))
 }
 
+/**
+ * {@link namedDataToStorage} over a batch. The name index is built once for the
+ * whole batch rather than per row — these paths run over up to
+ * `MAX_BATCH_INSERT_SIZE` rows.
+ */
+function namedRowsToStorage(rows: readonly RowData[], table: TableDefinition): RowData[] {
+  const idByName = buildIdByName(table.schema)
+  return rows.map((row) => rowDataNameToId(row, idByName))
+}
+
+/**
+ * Every row write must stamp a provenance sidecar, otherwise the next read
+ * reports the whole page incomplete. A caller that resolves no provenance of its
+ * own is an interactive (non-runtime) write, which certifies as exact-empty over
+ * the storage columns it actually persists — the same stamp the internal row
+ * routes resolve for an unauthenticated-envelope write.
+ */
+function defaultedRowSecretProvenance(
+  storageData: RowData,
+  provided: TableRowSecretProvenanceWrite | undefined
+): TableRowSecretProvenanceWrite {
+  return provided ?? createExactEmptyTableRowSecretProvenance(storageData)
+}
+
+function defaultedRowsSecretProvenance(
+  storageRows: RowData[],
+  provided: Array<TableRowSecretProvenanceWrite | undefined> | undefined
+): TableRowSecretProvenanceWrite[] {
+  return storageRows.map((row, index) => defaultedRowSecretProvenance(row, provided?.[index]))
+}
+
 function requireIntegerInRange(value: number, min: number, max: number, label: string): void {
   if (!Number.isSafeInteger(value) || value < min || value > max) {
     throw new TableRowsValidationError(`${label} must be between ${min} and ${max}`)
@@ -392,7 +423,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
           position: input.position,
           afterRowId: input.afterRowId,
           beforeRowId: input.beforeRowId,
-          secretProvenance: input.secretProvenance,
+          secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
         },
         context.table,
         requestId(input)
@@ -410,7 +441,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
     if (input.orderKeys && input.orderKeys.length !== input.rows.length) {
       throw new TableRowsValidationError('orderKeys must align one-to-one with rows')
     }
-    const rows = input.rows.map((row) => namedDataToStorage(row, context.table))
+    const rows = namedRowsToStorage(input.rows, context.table)
     await throwValidationResponse(
       await validateBatchRows({
         rows,
@@ -425,7 +456,7 @@ export const createTableRows = defineAuthorizedTableUseCase({
         rows,
         userId,
         orderKeys: input.orderKeys,
-        secretProvenance: input.secretProvenance,
+        secretProvenance: defaultedRowsSecretProvenance(rows, input.secretProvenance),
       },
       context.table,
       requestId(input)
@@ -460,13 +491,14 @@ export const replaceTableRows = defineAuthorizedTableUseCase({
       throw new TableRowsValidationError('Secret provenance must align one-to-one with rows')
     }
 
+    const rows = namedRowsToStorage(input.rows, context.table)
     const result = await replaceTableRowsPrimitive(
       {
         tableId: context.tableId,
         workspaceId: context.workspaceId,
-        rows: input.rows.map((row) => namedDataToStorage(row, context.table)),
+        rows,
         userId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: input.secretProvenance,
+        secretProvenance: defaultedRowsSecretProvenance(rows, input.secretProvenance),
       },
       context.table,
       requestId(input)
@@ -671,7 +703,7 @@ export const updateTableRow = defineAuthorizedTableUseCase({
         rowId: input.rowId,
         data,
         actorUserId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: input.secretProvenance,
+        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
       },
       context.table,
       requestId(input)
@@ -711,14 +743,15 @@ export const updateTableRows = defineAuthorizedTableUseCase({
       if (input.limit !== undefined) {
         requireIntegerInRange(input.limit, 1, TABLE_LIMITS.MAX_BULK_OPERATION_SIZE, 'Limit')
       }
+      const data = namedDataToStorage(input.data, context.table)
       const result = await updateRowsByFilter(
         context.table,
         {
           filter: tablePredicateNamesToFilter(input.filter, context.table),
-          data: namedDataToStorage(input.data, context.table),
+          data,
           limit: input.limit,
           actorUserId: actorUserId(principal, context.billedAccountUserId),
-          secretProvenance: input.secretProvenance,
+          secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
         },
         requestId(input)
       )
@@ -833,14 +866,15 @@ export const upsertTableRow = defineAuthorizedTableUseCase({
     const conflictTarget = input.conflictTarget
       ? (buildIdByName(context.table.schema).get(input.conflictTarget) ?? input.conflictTarget)
       : undefined
+    const data = namedDataToStorage(input.data, context.table)
     const result = await upsertRow(
       {
         tableId: context.tableId,
         workspaceId: context.workspaceId,
-        data: namedDataToStorage(input.data, context.table),
+        data,
         conflictTarget,
         userId: actorUserId(principal, context.billedAccountUserId),
-        secretProvenance: input.secretProvenance,
+        secretProvenance: defaultedRowSecretProvenance(data, input.secretProvenance),
       },
       context.table,
       requestId(input)

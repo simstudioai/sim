@@ -152,7 +152,7 @@ describe('/api/v2/knowledge route composition', () => {
     const response = await POST(request)
 
     expect(response.status).toBe(201)
-    expect((await response.clone().json()).data.knowledgeBase.ownerEmail).toBe('owner@example.com')
+    expect((await response.clone().json()).data.ownerEmail).toBe('owner@example.com')
     expect(mockCreate).toHaveBeenCalledWith({
       principal: { kind: 'personal_api_key', userId: 'user-1', keyId: 'key-1' },
       input: {

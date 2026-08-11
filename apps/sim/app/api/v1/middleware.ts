@@ -20,9 +20,13 @@ const logger = createLogger('V1Middleware')
 const rateLimiter = new RateLimiter()
 
 /**
- * Endpoint labels for public API auth/rate-limit telemetry. Version-neutral: the
- * v1 and v2 public surfaces share the same `authenticateV1Request` + `api-endpoint`
- * rate bucket, so the label is only a log/metric dimension, not a policy switch.
+ * Endpoint labels for v1 public API auth/rate-limit telemetry. The label is only
+ * a log/metric dimension, not a policy switch — every label resolves to the same
+ * `authenticateV1Request` + `api-endpoint` rate bucket.
+ *
+ * The v2 surface does not use these labels: v2 routes are built with
+ * `defineV2JsonRoute` and rate-limited through `v2RateLimits`. Add a member only
+ * when a route actually passes it to `checkRateLimit` / `authenticateRequest`.
  */
 export type ApiEndpoint =
   | 'logs'
@@ -31,8 +35,6 @@ export type ApiEndpoint =
   | 'workflow-detail'
   | 'workflow-deploy'
   | 'workflow-rollback'
-  | 'workflow-versions'
-  | 'workflow-version-detail'
   | 'workflow-export'
   | 'workflow-import'
   | 'audit-logs'
@@ -40,37 +42,12 @@ export type ApiEndpoint =
   | 'table-detail'
   | 'table-rows'
   | 'table-row-detail'
-  | 'table-rows-find'
   | 'table-columns'
-  | 'table-views'
-  | 'table-view-detail'
-  | 'table-groups'
-  | 'table-enrichment'
-  | 'table-import'
-  | 'table-export'
-  | 'table-jobs'
   | 'files'
   | 'file-detail'
-  | 'file-share'
-  | 'file-content'
-  | 'file-move'
-  | 'file-bulk-delete'
   | 'knowledge'
   | 'knowledge-detail'
   | 'knowledge-search'
-  | 'copilot-chat'
-  | 'billing-usage'
-  | 'mcp-servers'
-  | 'mcp-server-detail'
-  | 'skills'
-  | 'skill-detail'
-  | 'custom-tools'
-  | 'custom-tool-detail'
-  | 'credentials'
-  | 'secrets'
-  | 'secret-detail'
-  | 'workspaces'
-  | 'workspace-members'
 
 export interface RateLimitResult {
   allowed: boolean

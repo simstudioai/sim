@@ -1,7 +1,7 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
-import { buildFolderPath, FolderPathError } from '@/lib/folders/paths'
+import { buildFolderPath } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   bulkArchiveWorkspaceFileItems,
@@ -12,7 +12,6 @@ import {
   moveRenameWorkspaceFile,
   relocateWorkspaceFileFolderByPath,
   WorkspaceFileFolderConflictError,
-  WorkspaceFileMoveConflictError,
 } from '@/lib/uploads/contexts/workspace'
 import { VfsPathLimitError, validateVfsPathSegments } from '@/lib/vfs/limits'
 import { defineAuthorizedWorkspaceFileUseCase } from '@/lib/workspace-files/application/authorized-workspace-file-use-case'
@@ -84,16 +83,18 @@ function normalizeReferences(
   return [...unique.values()]
 }
 
+/**
+ * The per-item message for a failure the caller can act on, or a rethrow for a fault
+ * that should fail the whole command.
+ *
+ * Every caller-fixable failure here carries an orchestration class — the folder and
+ * move conflicts classify themselves as `conflict`, and `FolderPathError` as
+ * `validation` — so the classified branch covers them all. Anything unclassified, or
+ * classified `internal`, is a fault and propagates.
+ */
 function expectedOutcomeMessage(error: unknown): string {
   const classified = asOrchestrationError(error)
   if (classified && classified.code !== 'internal') return classified.message
-  if (
-    error instanceof WorkspaceFileFolderConflictError ||
-    error instanceof WorkspaceFileMoveConflictError ||
-    error instanceof FolderPathError
-  ) {
-    return error.message
-  }
   throw error
 }
 

@@ -2,6 +2,7 @@ import { db } from '@sim/db'
 import { pausedExecutions, workflowExecutionLogs } from '@sim/db/schema'
 import { and, asc, desc, eq, gt, gte, lt, lte, or, sql } from 'drizzle-orm'
 import { getJobQueue } from '@/lib/core/async-jobs'
+import { workflowExecutionOriginSql } from '@/lib/logs/execution-origin'
 import { WORKFLOW_EXECUTION_JOB_ID_PREFIX } from '@/lib/workflows/executor/execution-job-ids'
 
 export type WorkflowExecutionStatus =
@@ -94,19 +95,39 @@ export async function listWorkflowExecutions(input: ListWorkflowExecutionsInput)
   }
 }
 
+export interface WorkflowExecutionOwnership {
+  /** Whether the execution id really belongs to the asserted workflow. */
+  belongsToWorkflow: boolean
+  /**
+   * Workspace of the durable log row when — and only when — the execution was
+   * produced by a workflow group. `null` for a standalone run, a queue-only run
+   * that has no log row yet, and a paused-only run.
+   */
+  workflowGroupWorkspaceId: string | null
+}
+
 /**
- * Checks the durable and queued execution records without trusting the workflow
- * id supplied by an HTTP path. Mutating callers must use this before operating
- * on an execution id because execution ids are globally unique, not nested DB
- * keys under a workflow.
+ * Resolves the durable and queued execution records without trusting the
+ * workflow id supplied by an HTTP path. Mutating callers must use this before
+ * operating on an execution id because execution ids are globally unique, not
+ * nested DB keys under a workflow.
+ *
+ * The workflow-group origin rides along on the same log row the ownership check
+ * already reads. A group run owns a table cell sidecar, so cancelling only the
+ * workflow log would leave the cell stuck as running — and resolving that from a
+ * second SELECT of the identical row would double the read on every cancel.
  */
-export async function workflowExecutionBelongsToWorkflow(
+export async function resolveWorkflowExecutionOwnership(
   executionId: string,
   workflowId: string
-): Promise<boolean> {
+): Promise<WorkflowExecutionOwnership> {
   const [logRows, pausedRows] = await Promise.all([
     db
-      .select({ workflowId: workflowExecutionLogs.workflowId })
+      .select({
+        workflowId: workflowExecutionLogs.workflowId,
+        workspaceId: workflowExecutionLogs.workspaceId,
+        executionOrigin: workflowExecutionOriginSql(),
+      })
       .from(workflowExecutionLogs)
       .where(eq(workflowExecutionLogs.executionId, executionId))
       .limit(1),
@@ -117,14 +138,24 @@ export async function workflowExecutionBelongsToWorkflow(
       .limit(1),
   ])
 
-  const durableWorkflowIds = [logRows[0]?.workflowId, pausedRows[0]?.workflowId].filter(
+  const logRow = logRows[0]
+  const workflowGroupWorkspaceId =
+    logRow?.executionOrigin === 'workflow_group' && logRow.workspaceId ? logRow.workspaceId : null
+
+  const durableWorkflowIds = [logRow?.workflowId, pausedRows[0]?.workflowId].filter(
     (value): value is string => typeof value === 'string'
   )
   if (durableWorkflowIds.length > 0) {
-    return durableWorkflowIds.every((value) => value === workflowId)
+    return {
+      belongsToWorkflow: durableWorkflowIds.every((value) => value === workflowId),
+      workflowGroupWorkspaceId,
+    }
   }
 
   const queue = await getJobQueue()
   const job = await queue.getJob(`${WORKFLOW_EXECUTION_JOB_ID_PREFIX}${executionId}`)
-  return job?.metadata.workflowId === workflowId
+  return {
+    belongsToWorkflow: job?.metadata.workflowId === workflowId,
+    workflowGroupWorkspaceId: null,
+  }
 }

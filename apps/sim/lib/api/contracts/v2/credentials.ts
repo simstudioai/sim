@@ -2,7 +2,12 @@ import { z } from 'zod'
 import { workspaceCredentialRoleSchema } from '@/lib/api/contracts/credentials'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2SearchSchema, v2SortFields } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2SearchSchema,
+  v2SortFields,
+  v2TimestampSchema,
+} from '@/lib/api/contracts/v2/shared'
 
 /** Public credentials are authenticated connections, never raw environment secrets. */
 export const v2CredentialTypeSchema = z
@@ -26,14 +31,10 @@ export const v2CredentialSchema = z
       .boolean()
       .describe('Whether a service-account payload is stored. Its contents are never returned.'),
     role: workspaceCredentialRoleSchema.describe('Caller role for the credential.'),
-    createdAt: z
-      .string()
-      .datetime()
-      .describe('ISO 8601 timestamp when the credential was created.'),
-    updatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO 8601 timestamp when the credential was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the credential was created.'),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the credential was last updated.'
+    ),
   })
   .meta({
     id: 'V2Credential',

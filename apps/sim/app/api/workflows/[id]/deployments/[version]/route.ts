@@ -38,7 +38,17 @@ export const GET = defineInternalJsonRoute({
     reason: 'Authenticated workspace UI version reads retain their existing admission policy.',
   }),
   errorPolicy: createInternalWorkflowErrorPolicy('Failed to fetch deployment version'),
-  mapInput: ({ params }) => ({ workflowId: params.id, version: params.version }),
+  /**
+   * The deploy modal renders this graph in the preview editor for a member of the owning
+   * workspace, who already sees the same credential selections and workspace references on the
+   * draft graph. Redacting here would blank OAuth accounts and resource selectors in that viewer
+   * without closing any disclosure boundary, so this surface opts into the raw graph.
+   */
+  mapInput: ({ params }) => ({
+    workflowId: params.id,
+    version: params.version,
+    includeCredentialValues: true,
+  }),
   present: ({ version }) => ({ deployedState: version.state }),
 })
 

@@ -2,8 +2,11 @@ import {
   documentedSchema,
   ERROR_RESPONSES,
   type ErrorResponseId,
+  FOLDER_TREE_TOO_LARGE,
   RATE_LIMIT_HEADERS,
-  STANDARD_ERRORS,
+  RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
@@ -70,22 +73,21 @@ const GROUP_ID = 'grp_5d8b2f0a6c1e4739a8b3d5f7e9c1a204'
 const IMPORT_ID = 'imp_4f6a8c0e2b1d43759a7c9e1f3b5d7082'
 const EXPORT_ID = 'exp_3e5f7a9c1b2d4068a0c2e4f6b8d0f193'
 
-const TABLE_RESOURCE_ERRORS = [
-  ...WORKSPACE_ERRORS,
-  'NotFound',
-] as const satisfies readonly ErrorResponseId[]
+/**
+ * Only for operations that genuinely reach a `lib/table/mutation-locks` assert
+ * (`assertRowInsert` / `assertRowUpdate` / `assertRowDelete` /
+ * `assertSchemaMutable` / `assertColumnDestructive`) or the equivalent inline
+ * lock predicate in `deleteTable`, and that cannot also conflict.
+ *
+ * The four lock flags gate row writes and schema changes only. Reads, exports,
+ * saved-view edits, table metadata edits (`renameTable` /
+ * `updateTableDescription` / `moveTableToFolder` all assert nothing), and
+ * run dispatch/cancellation are never blocked, so those operations must NOT use
+ * this set — a documented `423` they cannot emit is worse than none.
+ */
 const TABLE_MUTATION_ERRORS = [
-  ...TABLE_RESOURCE_ERRORS,
+  ...RESOURCE_ERRORS,
   'Locked',
-] as const satisfies readonly ErrorResponseId[]
-const TABLE_CONFLICT_ERRORS = [
-  ...TABLE_MUTATION_ERRORS,
-  'Conflict',
-] as const satisfies readonly ErrorResponseId[]
-const TRANSFER_RESOURCE_ERRORS = [
-  ...STANDARD_ERRORS,
-  'NotFound',
-  'Conflict',
 ] as const satisfies readonly ErrorResponseId[]
 
 function tableOperation(
@@ -110,10 +112,9 @@ const routes = [
     tableOperation({
       operationId: 'listTables',
       summary: 'List Tables',
-      description:
-        'List all tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope.',
-      errors: WORKSPACE_ERRORS,
-      success: { description: 'The tables in the workspace.' },
+      description: `List tables in a workspace with optional folder filtering, search, sorting, and an opaque cursor envelope. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
+      success: { description: 'A page of tables in the workspace.' },
     }),
     {
       query: documentedSchema(
@@ -136,7 +137,7 @@ const routes = [
       operationId: 'createTable',
       summary: 'Create Table',
       description: 'Create a table with a typed column schema and optional folder placement.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'PayloadTooLarge'],
       success: { description: 'The created table.' },
     }),
     {
@@ -172,8 +173,8 @@ const routes = [
     tableOperation({
       operationId: 'getTable',
       summary: 'Get Table',
-      description: 'Retrieve a table with its metadata, column schema, locks, and current job.',
-      errors: TABLE_RESOURCE_ERRORS,
+      description: `Retrieve a table with its metadata, column schema, locks, and current job. ${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The requested table.' },
     }),
     {
@@ -232,9 +233,8 @@ const routes = [
     tableOperation({
       operationId: 'updateTable',
       summary: 'Update Table',
-      description:
-        'Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.',
-      errors: TABLE_CONFLICT_ERRORS,
+      description: `Rename a table, edit its description, or move it to a canonical folder. At least one mutable field is required; lock flags remain read-only.\n\nThis operation is NOT atomic. The name, description, and folder changes are written independently in that order, so a failure part-way through leaves the earlier writes committed — a 4xx does NOT mean nothing changed. When at least one field landed before the failure, the error body carries \`details.applied\`: the list of fields (\`name\`, \`description\`, \`folderPath\`) that were successfully written. Re-read the table, or retry with only the fields missing from \`details.applied\`.\n\n${FOLDER_TREE_TOO_LARGE}`,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated table.' },
     }),
     {
@@ -359,7 +359,7 @@ const routes = [
       summary: 'List Rows',
       description:
         'List a plain cursor page in default row order. Use the query endpoint for predicate filtering and sorting.',
-      errors: TABLE_RESOURCE_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of table rows.' },
     }),
     {
@@ -490,7 +490,7 @@ const routes = [
       operationId: 'getTableRow',
       summary: 'Get Row',
       description: 'Retrieve one row by identifier.',
-      errors: TABLE_RESOURCE_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested table row.' },
     }),
     {
@@ -571,7 +571,7 @@ const routes = [
         v2DeleteTableRowContract.response.schema,
         'V2DeleteTableRowResponse',
         'Delete table row response',
-        'Deleted row count and identifier.'
+        'Row deletion acknowledgement.'
       ),
     }
   ),
@@ -581,7 +581,7 @@ const routes = [
       operationId: 'upsertTableRow',
       summary: 'Upsert Row',
       description:
-        'Insert a row or update the existing row that conflicts on a selected unique column.',
+        'Insert a row or update the existing row that conflicts on a selected unique column.\n\nWARNING — the update branch REPLACES the row, it does not merge. `data` is treated as the complete new row value, so every column you omit is cleared on the matched row. Upserting 2 of 10 columns blanks the other 8. This differs from `PATCH /api/v2/tables/{tableId}/rows/{rowId}`, which merges the patch into the existing row data. Send the full row here, or use PATCH when you only mean to change a subset.',
       errors: TABLE_MUTATION_ERRORS,
       success: { description: 'The upserted row and operation performed.' },
     }),
@@ -620,7 +620,7 @@ const routes = [
       summary: 'Query Rows',
       description:
         'Query rows with a typed predicate, ordered sort specification, and opaque cursor pagination.',
-      errors: [...TABLE_RESOURCE_ERRORS, 'PayloadTooLarge'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'A page of matching table rows.' },
     }),
     {
@@ -658,8 +658,8 @@ const routes = [
       operationId: 'listTableViews',
       summary: 'List Views',
       description:
-        'List the bounded set of saved table views, with references to removed columns pruned on read.',
-      errors: TABLE_RESOURCE_ERRORS,
+        'List the bounded set of saved table views, with references to removed columns pruned on read. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'The saved table views.' },
     }),
     {
@@ -689,7 +689,7 @@ const routes = [
       operationId: 'createTableView',
       summary: 'Create View',
       description: 'Save a filter, sort, and column layout as a named presentation of a table.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The created table view.' },
     }),
     {
@@ -729,7 +729,7 @@ const routes = [
       operationId: 'getTableView',
       summary: 'Get View',
       description: 'Retrieve one saved table view by identifier.',
-      errors: TABLE_RESOURCE_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested table view.' },
     }),
     {
@@ -761,7 +761,7 @@ const routes = [
       summary: 'Update View',
       description:
         'Rename a view, replace or shallow-merge its configuration, or promote it to the table default.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The updated table view.' },
     }),
     {
@@ -792,7 +792,7 @@ const routes = [
       operationId: 'deleteTableView',
       summary: 'Delete View',
       description: 'Delete a saved presentation without changing any table rows.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'Table view deletion acknowledgement.' },
     }),
     {
@@ -821,8 +821,9 @@ const routes = [
     tableOperation({
       operationId: 'listTableWorkflowGroups',
       summary: 'List Workflow Groups',
-      description: 'List the workflow and enrichment groups that can be dispatched for a table.',
-      errors: TABLE_RESOURCE_ERRORS,
+      description:
+        'List the workflow and enrichment groups that can be dispatched for a table. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: RESOURCE_ERRORS,
       success: { description: 'The table workflow groups.' },
     }),
     {
@@ -893,8 +894,9 @@ const routes = [
     tableOperation({
       operationId: 'updateTableWorkflowGroup',
       summary: 'Update Workflow Group',
-      description: 'Restructure a workflow group, its producer, outputs, or execution behavior.',
-      errors: TABLE_MUTATION_ERRORS,
+      description:
+        'Restructure a workflow group, its producer, outputs, or execution behavior.\n\nOutput leaf types are resolved against the group\u2019s workflow outside the write lock. If the group is repointed at a different workflow concurrently, that snapshot is invalidated and the request returns `409` — retry the update.',
+      errors: RESOURCE_MUTATION_ERRORS,
       success: { description: 'The updated workflow group and resulting columns.' },
     }),
     {
@@ -957,7 +959,7 @@ const routes = [
       summary: 'Run Column Groups',
       description:
         'Asynchronously run workflow or enrichment groups across all rows or a selected row subset.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The accepted table-column dispatch.' },
     }),
     {
@@ -988,7 +990,7 @@ const routes = [
       operationId: 'runRowEnrichment',
       summary: 'Run Enrichment For One Row',
       description: 'Asynchronously run one workflow or enrichment group for one table row.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The accepted row enrichment dispatch.' },
     }),
     {
@@ -1020,7 +1022,7 @@ const routes = [
       summary: 'Find Rows',
       description:
         'Search every cell case-insensitively, optionally within a predicate-filtered and sorted view.',
-      errors: TABLE_RESOURCE_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The matching table cells.' },
     }),
     {
@@ -1058,7 +1060,7 @@ const routes = [
       summary: 'Create Table Import',
       description:
         'Create a durable CSV import. Upload sources receive signed transfer instructions; workspace-file sources begin processing directly.',
-      errors: [...WORKSPACE_ERRORS, 'Conflict', 'Locked', 'PayloadTooLarge'],
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'Conflict', 'Locked', 'PayloadTooLarge'],
       success: { description: 'The created table import and optional transfer instructions.' },
     }),
     {
@@ -1090,7 +1092,7 @@ const routes = [
       operationId: 'getTableImport',
       summary: 'Get Table Import',
       description: 'Read progress and terminal state for a durable table import.',
-      errors: [...STANDARD_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested table import.' },
     }),
     {
@@ -1121,8 +1123,8 @@ const routes = [
       operationId: 'cancelTableImport',
       summary: 'Cancel Table Import',
       description:
-        'Cancel an upload or processing import without rolling back committed row batches.',
-      errors: [...TRANSFER_RESOURCE_ERRORS, 'Gone'],
+        'Cancel an upload or processing import without rolling back committed row batches.\n\nCanceling an import that is not in a cancelable state returns `409` naming the current status, and that includes an expired import — `expired` is a terminal import status, not a `410`. An import id that never existed, or one whose retention window already purged the record, returns `404`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The canceled table import.' },
     }),
     {
@@ -1157,8 +1159,9 @@ const routes = [
     tableOperation({
       operationId: 'createTableImportPartUrls',
       summary: 'Create Table Import Part URLs',
-      description: 'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.',
-      errors: [...TRANSFER_RESOURCE_ERRORS, 'Gone'],
+      description:
+        'Issue short-lived signed PUT URLs for a bounded set of multipart part numbers.\n\nThe import must still be in the `uploading` state. An import that has moved on — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The signed multipart upload URLs.' },
     }),
     {
@@ -1201,8 +1204,8 @@ const routes = [
       operationId: 'completeTableImportUpload',
       summary: 'Complete Table Import Upload',
       description:
-        'Verify or assemble the uploaded CSV and begin processing with the same import id.',
-      errors: [...TRANSFER_RESOURCE_ERRORS, 'Gone', 'Locked'],
+        'Verify or assemble the uploaded CSV and begin processing with the same import id.\n\nCompleting an import that is no longer awaiting an upload — including one that has `expired` — returns `409` naming the current status; a purged or unknown import id returns `404`.',
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'Locked'],
       success: { description: 'The table import after upload completion.' },
     }),
     {
@@ -1239,7 +1242,7 @@ const routes = [
       summary: 'Create Table Export',
       description:
         'Create a durable CSV or JSON export that completes inline for small tables and queues larger work.',
-      errors: TABLE_CONFLICT_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The created table export.' },
     }),
     {
@@ -1270,7 +1273,7 @@ const routes = [
       operationId: 'getTableExport',
       summary: 'Get Table Export',
       description: 'Read progress and terminal state for a durable table export.',
-      errors: [...STANDARD_ERRORS, 'NotFound'],
+      errors: RESOURCE_ERRORS,
       success: { description: 'The requested table export.' },
     }),
     {
@@ -1301,7 +1304,7 @@ const routes = [
       operationId: 'cancelTableExport',
       summary: 'Cancel Table Export',
       description: 'Cancel an export that has not reached a terminal state.',
-      errors: TRANSFER_RESOURCE_ERRORS,
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'The canceled table export.' },
     }),
     {
@@ -1330,8 +1333,9 @@ const routes = [
     tableOperation({
       operationId: 'downloadTableExport',
       summary: 'Download Table Export',
-      description: 'Return a short-lived signed download URL for a completed table export.',
-      errors: [...TRANSFER_RESOURCE_ERRORS, 'Gone'],
+      description:
+        'Return a short-lived signed download URL for a completed table export.\n\nThe export must have reached the `completed` status. An export still processing, or one that failed or was canceled, returns `409` naming the current status. An export whose generated file is no longer available — the retention window elapsed, or the object was purged — returns `404` (`Export file is no longer available`), not `410`.',
+      errors: RESOURCE_CONFLICT_ERRORS,
       success: { description: 'Signed table-export download information.' },
     }),
     {
@@ -1362,7 +1366,7 @@ const routes = [
       summary: 'Cancel Column Runs',
       description:
         'Stop in-flight and pending workflow or enrichment cell runs across the table or one selected row.',
-      errors: TABLE_MUTATION_ERRORS,
+      errors: RESOURCE_ERRORS,
       success: { description: 'The number of canceled cell runs.' },
     }),
     {
@@ -1393,8 +1397,8 @@ const routes = [
       operationId: 'listTablesFolders',
       summary: 'List Folders',
       description:
-        'List table folders, optionally restricting the result to direct children of a canonical parent path.',
-      errors: WORKSPACE_ERRORS,
+        'List table folders, optionally restricting the result to direct children of a canonical parent path. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.',
+      errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: { description: 'The table folders.' },
     }),
     {
@@ -1418,7 +1422,7 @@ const routes = [
       operationId: 'createTablesFolder',
       summary: 'Create Folder',
       description: 'Create one table-folder leaf whose parent path already exists.',
-      errors: TABLE_CONFLICT_ERRORS,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The created table folder.' },
     }),
     {
@@ -1443,7 +1447,7 @@ const routes = [
       operationId: 'relocateTablesFolder',
       summary: 'Rename or Move Folder',
       description: 'Rename or move a table folder and update all descendant paths.',
-      errors: TABLE_CONFLICT_ERRORS,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The relocated table folder.' },
     }),
     {
@@ -1475,7 +1479,7 @@ const routes = [
       summary: 'Delete Folder',
       description:
         'Delete an empty table folder, or recursively delete its descendants and tables when explicitly requested.',
-      errors: TABLE_CONFLICT_ERRORS,
+      errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Table-folder deletion acknowledgement.' },
     }),
     {

@@ -8,7 +8,6 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import { isZodError, validationErrorResponse } from '@/lib/api/server/validation'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import { statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { addTableColumn, deleteColumn } from '@/lib/table'
@@ -18,6 +17,7 @@ import {
   accessError,
   checkAccess,
   normalizeColumn,
+  orchestrationOutcomeErrorResponse,
   rootErrorMessage,
   tableLockErrorResponse,
 } from '@/app/api/table/utils'
@@ -122,10 +122,7 @@ export const PATCH = withRouteHandler(async (request: NextRequest, context: Colu
       request,
     })
     if (!outcome.success || !outcome.table) {
-      return NextResponse.json(
-        { error: outcome.error ?? 'Failed to update column' },
-        { status: statusForOrchestrationError(outcome.errorCode) }
-      )
+      return orchestrationOutcomeErrorResponse(outcome, 'Failed to update column')
     }
 
     // Live-collab: tell open viewers the change landed so they refetch.

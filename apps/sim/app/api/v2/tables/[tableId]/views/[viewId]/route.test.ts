@@ -97,7 +97,7 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
     const response = await GET(req, context)
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.view.id).toBe('view-1')
+    expect((await response.json()).data.id).toBe('view-1')
     expect(mocks.read).toHaveBeenCalledWith({
       principal,
       input: { tableId: 'table-1', viewId: 'view-1', workspaceId: WORKSPACE_ID },
@@ -112,14 +112,14 @@ describe('/api/v2/tables/[tableId]/views/[viewId]', () => {
     )
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data.view.name).toBe('Active')
+    expect((await response.json()).data.name).toBe('Active')
   })
 
   it('deletes through the authorized view use case', async () => {
     const response = await DELETE(request('DELETE'), context)
 
     expect(response.status).toBe(200)
-    expect(await response.json()).toEqual({ data: { id: 'view-1' } })
+    expect(await response.json()).toEqual({ data: { id: 'view-1', deleted: true } })
     expect(mocks.remove).toHaveBeenCalledOnce()
   })
 })

@@ -55,6 +55,6 @@ export const POST = defineV2JsonRoute({
     folderPath: body.folderPath,
   }),
   present: async ({ table, folderPath }) => ({
-    data: { table: await toApiTable(table, folderPath) },
+    data: await toApiTable(table, folderPath),
   }),
 })

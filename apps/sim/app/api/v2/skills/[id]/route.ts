@@ -34,7 +34,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: skillResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, skillId: params.id }),
   useCase: getSkillUseCase,
-  present: ({ skill }) => ({ data: { skill: toV2Skill(skill) } }),
+  present: ({ skill }) => ({ data: toV2Skill(skill) }),
 })
 
 /** PATCH /api/v2/skills/[id] — Update a skill. */
@@ -64,7 +64,7 @@ export const PATCH = defineV2JsonRoute({
       { groups: { workspace: input.workspaceId } }
     )
   },
-  present: ({ skill }) => ({ data: { skill: toV2Skill(skill) } }),
+  present: ({ skill }) => ({ data: toV2Skill(skill) }),
 })
 
 /** DELETE /api/v2/skills/[id] — Delete a skill. */

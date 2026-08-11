@@ -46,8 +46,6 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2TableErrorPolicies.concealTableAuthorization,
   mapInput: ({ params, body }) => ({ tableId: params.tableId, ...body }),
   present: async ({ view }) => ({
-    data: {
-      view: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
-    },
+    data: toApiView(view, view.createdBy ? await getRequiredUserEmail(view.createdBy) : null),
   }),
 })

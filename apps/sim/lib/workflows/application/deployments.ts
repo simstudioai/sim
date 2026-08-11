@@ -150,7 +150,7 @@ export const undeployWorkflow = defineAuthorizedWorkflowUseCase({
       projectLegacyAudit: false,
       requestId: input.requestId,
     })
-    if (!result.success) throw new Error('Failed to undeploy workflow')
+    if (!result.success) throw new Error(result.error || 'Failed to undeploy workflow')
     return {
       ...result,
       workflowId: context.workflowId,

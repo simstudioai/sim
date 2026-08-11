@@ -33,7 +33,7 @@ export const GET = defineV2JsonRoute({
   errorPolicy: customToolResourceErrorPolicy,
   mapInput: ({ params, query }) => ({ workspaceId: query.workspaceId, toolId: params.id }),
   useCase: getWorkspaceCustomToolUseCase,
-  present: ({ tool }) => ({ data: { customTool: toV2CustomTool(tool) } }),
+  present: ({ tool }) => ({ data: toV2CustomTool(tool) }),
 })
 
 /** PATCH /api/v2/custom-tools/[id] — Update a custom tool. */
@@ -49,7 +49,7 @@ export const PATCH = defineV2JsonRoute({
     source: 'api' as const,
   }),
   useCase: updateWorkspaceCustomToolUseCase,
-  present: ({ tool }) => ({ data: { customTool: toV2CustomTool(tool) } }),
+  present: ({ tool }) => ({ data: toV2CustomTool(tool) }),
 })
 
 /** DELETE /api/v2/custom-tools/[id] — Delete a custom tool. */

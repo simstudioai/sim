@@ -1,7 +1,11 @@
 import { z } from 'zod'
 import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
-import { v2CursorListResponse, v2DataResponse } from '@/lib/api/contracts/v2/shared'
+import {
+  v2CursorListResponse,
+  v2DataResponse,
+  v2TimestampSchema,
+} from '@/lib/api/contracts/v2/shared'
 
 export const v2WorkspaceParamsSchema = z
   .object({ workspaceId: workspaceIdSchema.describe('Workspace to retrieve.') })
@@ -19,11 +23,10 @@ export const v2WorkspaceSchema = z
       .int()
       .nonnegative()
       .describe('Number of effective members, including inherited organization administrators.'),
-    createdAt: z.string().datetime().describe('ISO 8601 timestamp when the workspace was created.'),
-    updatedAt: z
-      .string()
-      .datetime()
-      .describe('ISO 8601 timestamp when the workspace was last updated.'),
+    createdAt: v2TimestampSchema.describe('ISO 8601 timestamp when the workspace was created.'),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the workspace was last updated.'
+    ),
   })
   .strict()
   .meta({
@@ -41,8 +44,10 @@ export const v2WorkspaceMemberSchema = z
     role: z.enum(['admin', 'write', 'read']).describe('Effective role in the workspace.'),
     isExternal: z
       .boolean()
-      .describe('Whether access is inherited from outside the explicit workspace member list.'),
-    joinedAt: z.string().datetime().describe('ISO 8601 timestamp when access was granted.'),
+      .describe(
+        "Whether the member belongs to a different organization than the workspace. True for an explicitly granted member whose own organization differs from the workspace's; false for the workspace owner and for a member sharing the workspace organization. Inherited organization-administrator access is always reported as false, so this is not a signal that access came from outside the explicit member list."
+      ),
+    joinedAt: v2TimestampSchema.describe('ISO 8601 timestamp when access was granted.'),
   })
   .meta({
     id: 'V2WorkspaceMember',

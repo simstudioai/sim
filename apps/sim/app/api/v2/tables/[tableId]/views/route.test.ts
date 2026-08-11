@@ -122,7 +122,7 @@ describe('/api/v2/tables/[tableId]/views', () => {
     const response = await POST(req, context)
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.view.createdByEmail).toBe('user@example.com')
+    expect((await response.json()).data.createdByEmail).toBe('user@example.com')
     expect(mocks.create).toHaveBeenCalledWith({
       principal,
       input: { tableId: 'table-1', workspaceId: WORKSPACE_ID, name: 'Active', config: {} },

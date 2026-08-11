@@ -720,6 +720,8 @@ export async function cancelWorkflowGroupRuns(
           tableId,
           rowId: mutation.rowId,
           data: {},
+          /** No cell values are written, so there is nothing to stamp. */
+          secretProvenance: undefined,
           workspaceId: table.workspaceId,
           executionsPatch: mutation.executionsPatch,
         },

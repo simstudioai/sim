@@ -53,5 +53,5 @@ export const POST = defineV2JsonRoute({
       }
     )
   },
-  present: ({ server }) => ({ data: { mcpServer: toV2McpServer(server) } }),
+  present: ({ server }) => ({ data: toV2McpServer(server) }),
 })

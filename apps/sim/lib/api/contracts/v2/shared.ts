@@ -11,6 +11,16 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - list:              `{ data: T[], nextCursor: string | null }`
  * - error:             `{ error: { code, message, details? } }`
  *
+ * Every documented v2 operation uses that family. The two exceptions are the
+ * local-storage upload data plane — `PUT /api/v2/uploads/{uploadId}` and
+ * `PUT /api/v2/uploads/{uploadId}/parts/{partNumber}` — which emit a bare
+ * `{ error: string }` body. They are authenticated by a short-lived upload
+ * token rather than an API key, are deliberately absent from the public
+ * OpenAPI specs (see `UNDOCUMENTED_V2_ROUTES` in
+ * `scripts/check-openapi-specs.ts`), and are only ever reached through a URL
+ * handed back by a documented operation, so no caller writes against them
+ * from docs.
+ *
  * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
  * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
  * accepts `limit` + `cursor` and can return a non-null `nextCursor`; a list
@@ -28,16 +38,25 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *
  * ## Search, filtering, and sorting
  *
- * One convention, applied by every v2 list. It is deliberately the narrow
+ * One convention, applied by every v2 list that sorts on a selectable column.
+ * It is deliberately the narrow
  * scalar-param form the app's own list endpoints already speak — not a third
  * dialect alongside the Logs filter set and the Tables predicate grammar.
  * A list that needs a real expression tree (Tables) keeps its own `POST /query`.
  *
+ * Two lists predate the convention and are the documented exceptions:
+ * `GET /api/v2/logs` and `GET /api/v2/workflows/{id}/runs` have no `sortBy`
+ * (the sort column is fixed to execution start time) and spell the direction
+ * `order`, not `sortOrder`. They are not a pattern to copy, and renaming the
+ * param would break shipped callers.
+ *
  * - **`search`** ({@link v2SearchSchema}) — a case-insensitive substring match
  *   against the resource's *single* natural name field, and nothing else:
  *   `name` for files/folders/workflows/tables/knowledge bases/MCP servers/
- *   skills, `title` for custom tools, `displayName` for credentials. It never
- *   matches ids, descriptions, or content. `%` and `_` in the term are matched
+ *   skills, `title` for custom tools, `filename` for knowledge documents
+ *   (`GET /knowledge/{id}/documents`), and `displayName` for both credentials
+ *   and secrets (`GET /secrets`, where the secret's name *is* the credential
+ *   `displayName`). It never matches ids, descriptions, or content. `%` and `_` in the term are matched
  *   literally, not as wildcards. Empty is rejected rather than silently
  *   ignored — omit the param instead.
  * - **`sortBy` + `sortOrder`** ({@link v2SortFields}) — `sortBy` is a
@@ -60,7 +79,10 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * ## Which lists are paged
  *
  * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
- * not restated here. Adding `limit`/`cursor` to a full-set list is additive,
+ * not restated here. A full-set list returns `nextCursor: null` on every
+ * response — its OpenAPI description says so explicitly, so a caller never
+ * writes a pagination loop that can only ever run once.
+ * Adding `limit`/`cursor` to a full-set list is additive,
  * but making a `limit` *default* would silently truncate callers that rely on
  * the full set today, so a default page size cannot be introduced without a
  * version bump.
@@ -76,6 +98,29 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * without a cursor. The rest delegate to their domain's own cursor codec, which
  * is opaque in exactly the same way.
  */
+
+/**
+ * Canonical v2 timestamp: a strict ISO-8601 UTC instant, exactly what
+ * `Date.prototype.toISOString()` emits.
+ *
+ * What this buys over a bare `z.string().meta({ format: 'date-time' })` is
+ * *runtime* validation, not documentation. Both render the same OpenAPI schema
+ * — `format: date-time` comes from the `meta`, so a generated client parses
+ * either one as a date — and roughly two dozen v2 fields use the bare form,
+ * including {@link v2FolderSchema} below and most of `contracts/v2/workflows.ts`.
+ * The real difference is that `.datetime()` also *asserts* the shape, and a v2
+ * response body is `.parse`d on the way out
+ * (`lib/api/server/routes/v2-json-route.ts`), so asserting a field a producer
+ * does not actually emit as ISO-8601 turns a successful read into a 500.
+ *
+ * Use this schema wherever every producer of the field provably emits
+ * `toISOString()` output — most commonly a `Date` column projected straight
+ * through. Keep the bare form for a value that is persisted as text,
+ * reconstructed from a third party, or otherwise may have drifted: the document
+ * is identical, and a lenient read beats a 500. Tightening an existing field
+ * means proving the producer first.
+ */
+export const v2TimestampSchema = z.string().datetime().meta({ format: 'date-time' })
 
 /** Canonical v2 error envelope. */
 export const v2ErrorResponseSchema = z.object({
@@ -101,7 +146,9 @@ export const v2CursorListResponse = <T extends z.ZodType>(itemSchema: T) =>
     nextCursor: z
       .string()
       .nullable()
-      .describe('Opaque cursor for the next page, or null when no more items remain.'),
+      .describe(
+        'Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response.'
+      ),
   })
 
 /**

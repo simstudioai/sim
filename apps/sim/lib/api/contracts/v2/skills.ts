@@ -11,6 +11,7 @@ import {
   v2DataResponse,
   v2SearchSchema,
   v2SortFields,
+  v2TimestampSchema,
 } from '@/lib/api/contracts/v2/shared'
 
 /**
@@ -41,8 +42,12 @@ export const v2SkillSummarySchema = z
     readOnly: z
       .boolean()
       .describe('Whether this is a built-in skill that cannot be modified or deleted.'),
-    createdAt: z.string().describe('ISO 8601 timestamp when the skill was created.'),
-    updatedAt: z.string().describe('ISO 8601 timestamp when the skill was last updated.'),
+    createdAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was created. Built-in skills report the Unix epoch.'
+    ),
+    updatedAt: v2TimestampSchema.describe(
+      'ISO 8601 timestamp when the skill was last updated. Built-in skills report the Unix epoch.'
+    ),
   })
   .meta({
     id: 'V2SkillSummary',
@@ -62,14 +67,6 @@ export const v2SkillSchema = v2SkillSummarySchema
     description: 'A workspace or built-in skill including its instruction body.',
   })
 export type V2Skill = z.output<typeof v2SkillSchema>
-
-/** `{ skill }` payload for single-skill reads and mutations. */
-export const v2SkillDataSchema = z.object({ skill: v2SkillSchema.describe('The skill.') }).meta({
-  id: 'V2SkillData',
-  title: 'Skill data',
-  description: 'A single skill payload including its instruction body.',
-})
-export type V2SkillData = z.output<typeof v2SkillDataSchema>
 
 export const v2SkillDeleteDataSchema = z
   .object({
@@ -166,7 +163,7 @@ export const v2CreateSkillContract = defineRouteContract({
   body: v2CreateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
     status: 201,
   },
 })
@@ -178,7 +175,7 @@ export const v2GetSkillContract = defineRouteContract({
   query: v2SkillWorkspaceQuerySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 
@@ -189,7 +186,7 @@ export const v2UpdateSkillContract = defineRouteContract({
   body: v2UpdateSkillBodySchema,
   response: {
     mode: 'json',
-    schema: v2DataResponse(v2SkillDataSchema),
+    schema: v2DataResponse(v2SkillSchema),
   },
 })
 

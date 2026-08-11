@@ -144,7 +144,7 @@ describe('/api/v2/custom-tools', () => {
     )
 
     expect(response.status).toBe(201)
-    expect((await response.json()).data.customTool.id).toBe('tool-1')
+    expect((await response.json()).data.id).toBe('tool-1')
     expect(mocks.create).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {

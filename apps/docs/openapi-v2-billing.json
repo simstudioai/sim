@@ -36,7 +36,7 @@
       "get": {
         "operationId": "getBillingStatus",
         "summary": "Get Billing Status",
-        "description": "Return the current plan, billing standing, credit allowance, and storage quota. Billing history lives at `GET /api/v2/billing/logs`.",
+        "description": "Return the current plan, billing standing, credit allowance, and storage quota. `credits` and `storage` report the payer's pooled allowances and are null unless the caller can manage that payer's billing; they are always null for a workspace API key. Billing history lives at `GET /api/v2/billing/logs`. Without a Stripe subscription — notably on the free plan — there is no real billing period: `period` is the open interval 1970-01-01 to 9999-12-31 and `credits.used` is lifetime consumption, not consumption since a period start.",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -46,7 +46,8 @@
             "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
             "schema": {
               "description": "Workspace whose payer should be resolved. Workspace API keys are pinned to their own workspace.",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -81,6 +82,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -97,7 +101,7 @@
       "get": {
         "operationId": "listBillingLogs",
         "summary": "List Billing Logs",
-        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination.",
+        "description": "List the credit-denominated billing ledger with source filtering and opaque cursor pagination. `period` defaults to `30d`, so an unqualified request covers only the last 30 days: paginating to `nextCursor: null` exhausts that window, not the whole ledger. Pass `period=all` for full history, or `period=custom` with `startDate` and `endDate` for a specific range.",
         "tags": ["Billing"],
         "parameters": [
           {
@@ -128,7 +132,8 @@
             "description": "Restrict results to one workspace whose payer the caller can inspect.",
             "schema": {
               "description": "Restrict results to one workspace whose payer the caller can inspect.",
-              "type": "string"
+              "type": "string",
+              "minLength": 1
             }
           },
           {
@@ -221,6 +226,9 @@
           "403": {
             "$ref": "#/components/responses/Forbidden"
           },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
           "429": {
             "$ref": "#/components/responses/RateLimited"
           },
@@ -240,7 +248,7 @@
         "type": "apiKey",
         "in": "header",
         "name": "X-API-Key",
-        "description": "Your Sim API key (personal or workspace). Generate one from the Sim dashboard under Settings > API Keys."
+        "description": "Your Sim API key, personal or workspace-scoped. Generate one from the Sim dashboard under Settings > API Keys. A workspace API key is not accepted everywhere: operations that act on behalf of a specific human — administrative reads, secret access, and irreversible or governance-affecting writes — always reject it, whatever role the key carries. Each such operation says so in its own description, and the rejection surfaces as `403` unless the operation conceals unauthorized resources, in which case it is reported as `404`. Use a personal API key for those."
       }
     },
     "headers": {
@@ -356,7 +364,7 @@
         }
       },
       "RunIdConflict": {
-        "description": "The run identifier is already associated with a different request.",
+        "description": "The run cannot be started. Two causes share this status, distinguished by `error.details.code`: `RUN_ID_CONFLICT` when the supplied `X-Run-Id` is already associated with a different request, and `CALL_CHAIN_DEPTH_EXCEEDED` when the incoming `X-Sim-Via` chain has already reached the maximum workflow-to-workflow call depth.",
         "headers": {
           "X-Run-Id": {
             "$ref": "#/components/headers/X-Run-Id"
@@ -381,7 +389,7 @@
         }
       },
       "PayloadTooLarge": {
-        "description": "The request body exceeds the allowed size.",
+        "description": "The request, or a resource collection it must materialize, exceeds the allowed size. Besides an oversized request body, this covers a generated artifact that renders past the download ceiling and a workspace folder tree too large to load in full.",
         "content": {
           "application/json": {
             "schema": {
@@ -417,6 +425,16 @@
             "$ref": "#/components/headers/Retry-After"
           }
         },
+        "content": {
+          "application/json": {
+            "schema": {
+              "$ref": "#/components/schemas/V2Error"
+            }
+          }
+        }
+      },
+      "ClientClosedRequest": {
+        "description": "The client closed the connection before the response was produced.",
         "content": {
           "application/json": {
             "schema": {
@@ -502,18 +520,18 @@
             "properties": {
               "start": {
                 "type": "string",
-                "description": "ISO 8601 start of the current billing period.",
+                "description": "ISO 8601 start of the current billing period, or 1970-01-01T00:00:00.000Z when no Stripe subscription defines one.",
                 "format": "date-time"
               },
               "end": {
                 "type": "string",
-                "description": "ISO 8601 end of the current billing period.",
+                "description": "ISO 8601 end of the current billing period, or 9999-12-31T00:00:00.000Z when no Stripe subscription defines one.",
                 "format": "date-time"
               }
             },
             "required": ["start", "end"],
             "additionalProperties": false,
-            "description": "Current billing period."
+            "description": "Current billing period. Only a Stripe subscription defines a real period; without one — notably on the free plan — this is the open interval 1970-01-01 to 9999-12-31 and must not be read as a monthly window."
           },
           "plan": {
             "type": "string",
@@ -525,47 +543,61 @@
             "description": "Current billing standing."
           },
           "credits": {
-            "type": "object",
-            "properties": {
-              "used": {
-                "type": "number",
-                "description": "Credits consumed during the current billing period."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "used": {
+                    "type": "number",
+                    "description": "Credits consumed so far. The counter is reset by Stripe invoice webhooks, so on a paid plan it covers the current billing period; on the free plan nothing resets it and the value is lifetime consumption."
+                  },
+                  "limit": {
+                    "type": "number",
+                    "description": "Credit allowance for the reporting window — per billing period on a paid plan, lifetime on the free plan."
+                  },
+                  "remaining": {
+                    "type": "number",
+                    "description": "Allowance minus consumption, over the same window."
+                  }
+                },
+                "required": ["used", "limit", "remaining"],
+                "additionalProperties": false
               },
-              "limit": {
-                "type": "number",
-                "description": "Credit allowance for the current billing period."
-              },
-              "remaining": {
-                "type": "number",
-                "description": "Credits remaining in the current billing period."
+              {
+                "type": "null"
               }
-            },
-            "required": ["used", "limit", "remaining"],
-            "additionalProperties": false,
-            "description": "Credit usage and allowance for the current billing period."
+            ],
+            "description": "The payer's credit usage and allowance — periodic on a paid plan, lifetime on the free plan, where the counter never resets. Null when the caller cannot manage that payer's billing. Always null for a workspace API key."
           },
           "storage": {
-            "type": "object",
-            "properties": {
-              "usedBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage currently consumed, in bytes."
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "usedBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage currently consumed, in bytes."
+                  },
+                  "limitBytes": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Storage quota, in bytes."
+                  },
+                  "percentUsed": {
+                    "type": "number",
+                    "minimum": 0,
+                    "description": "Percentage of the storage quota consumed."
+                  }
+                },
+                "required": ["usedBytes", "limitBytes", "percentUsed"],
+                "additionalProperties": false
               },
-              "limitBytes": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Storage quota, in bytes."
-              },
-              "percentUsed": {
-                "type": "number",
-                "minimum": 0,
-                "description": "Percentage of the storage quota consumed."
+              {
+                "type": "null"
               }
-            },
-            "required": ["usedBytes", "limitBytes", "percentUsed"],
-            "additionalProperties": false,
-            "description": "Current storage consumption and quota."
+            ],
+            "description": "The payer's storage consumption and quota, or null when the caller cannot manage that payer's billing. Always null for a workspace API key."
           }
         },
         "required": ["workspaceId", "period", "plan", "status", "credits", "storage"],
@@ -717,7 +749,7 @@
                 "type": "null"
               }
             ],
-            "description": "Opaque cursor for the next page, or null when no more items remain."
+            "description": "Opaque cursor for the next page, or null when no more items remain. Always null on a full-set list, which returns its whole result set in one response."
           }
         },
         "required": ["data", "nextCursor"],

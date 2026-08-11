@@ -237,7 +237,10 @@ describe('vfs mv/cp', () => {
       return mocks.getWorkspaceFileByName('ws-1', segments.at(-1), { folderId: null })
     })
     mocks.findWorkspaceFileFolderIdByPath.mockResolvedValue(null)
-    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue('ensured-folder')
+    mocks.ensureWorkspaceFileFolderPath.mockResolvedValue({
+      folderId: 'ensured-folder',
+      createdFolderIds: [],
+    })
     mocks.ensureCopilotFileFolderPath.mockResolvedValue('ensured-folder')
     mocks.moveWorkspaceFileItems.mockResolvedValue({ movedItems: { files: 1, folders: 0 } })
     mocks.updateWorkspaceFileFolder.mockResolvedValue({ folder: { name: 'Reports 2025' } })
