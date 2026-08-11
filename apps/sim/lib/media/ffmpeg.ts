@@ -1,4 +1,5 @@
 import { execFile, execSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import fs from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -31,13 +32,23 @@ function ensureFfmpeg(): void {
   }
 }
 
-/** ffprobe ships alongside ffmpeg; fall back to PATH resolution. */
+/**
+ * Mirrors fluent-ffmpeg's resolution order (FFPROBE_PATH, then PATH, then
+ * ffmpeg's own directory) so replacing its ffprobe call does not narrow where
+ * the binary may live for self-hosters.
+ */
 function resolveFfprobePath(): string {
   ensureFfmpeg()
-  if (!ffmpegPath) return 'ffprobe'
-  const dir = path.dirname(ffmpegPath)
   const binary = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
-  return path.join(dir, binary)
+
+  const configured = process.env.FFPROBE_PATH?.trim()
+  if (configured && existsSync(configured)) return configured
+
+  if (ffmpegPath) {
+    const sibling = path.join(path.dirname(ffmpegPath), binary)
+    if (existsSync(sibling)) return sibling
+  }
+  return binary
 }
 
 /**
@@ -52,6 +63,10 @@ export const MAX_SCALE_DIMENSION = 4096
 export const DEFAULT_FFMPEG_TIMEOUT_MS = 5 * 60 * 1000
 const PROBE_TIMEOUT_MS = 15 * 1000
 const PROBE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024
+
+/** Names the actionable cause: the budget covers all clips, so fewer/shorter inputs is the fix. */
+const TIME_BUDGET_EXCEEDED =
+  'FFmpeg operation exceeded its time budget — try fewer, shorter, or lower-resolution inputs'
 
 export type FfmpegOperation =
   | 'overlay_audio'
@@ -110,7 +125,10 @@ export interface FfmpegResult {
 export interface FfmpegRunOptions {
   /** Aborts and SIGKILLs every process spawned for the operation. */
   signal?: AbortSignal
-  /** Wall-clock budget for the whole operation. Defaults to DEFAULT_FFMPEG_TIMEOUT_MS. */
+  /**
+   * Wall-clock budget for the whole operation. Defaults to, and is capped at,
+   * DEFAULT_FFMPEG_TIMEOUT_MS — a caller may shorten the ceiling, never raise it.
+   */
   timeoutMs?: number
 }
 
@@ -155,11 +173,16 @@ const EXT_TO_MIME: Record<string, string> = {
   flac: 'audio/flac',
   aac: 'audio/aac',
   opus: 'audio/opus',
+  weba: 'audio/webm',
   png: 'image/png',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   gif: 'image/gif',
+  webp: 'image/webp',
 }
+
+/** extract_audio can only name an audio container; the rest would silently produce nothing useful. */
+const AUDIO_EXTS = new Set(['mp3', 'm4a', 'wav', 'ogg', 'flac', 'aac', 'opus', 'weba'])
 
 /**
  * Temp-file names are built as `${prefix}.${ext}` and joined against the temp
@@ -186,11 +209,12 @@ function mimeFromExt(ext: string): string {
 }
 
 /** Only formats with a known muxer and a safe file name may name an output. */
-function resolveOutputExt(format: string): string {
-  const ext = format.trim().toLowerCase()
-  if (!isSafeExt(ext) || !EXT_TO_MIME[ext]) {
+function resolveOutputExt(format: string, allowed?: Set<string>): string {
+  const ext = String(format).trim().toLowerCase()
+  const supported = allowed ?? new Set(Object.keys(EXT_TO_MIME))
+  if (!isSafeExt(ext) || !EXT_TO_MIME[ext] || !supported.has(ext)) {
     throw new Error(
-      `Unsupported output format "${format}". Supported: ${Object.keys(EXT_TO_MIME).join(', ')}`
+      `Unsupported output format "${format}". Supported: ${[...supported].join(', ')}`
     )
   }
   return ext
@@ -207,8 +231,8 @@ function resolveScaleDimension(value: number, label: 'width' | 'height'): number
 }
 
 function clampProbedDimension(value: number | undefined, fallback: number): number {
-  if (!Number.isInteger(value)) return fallback
-  return Math.min(Math.max(value as number, MIN_SCALE_DIMENSION), MAX_SCALE_DIMENSION)
+  if (!Number.isInteger(value) || (value as number) < MIN_SCALE_DIMENSION) return fallback
+  return Math.min(value as number, MAX_SCALE_DIMENSION)
 }
 
 function resolveNonNegativeSeconds(value: number, label: string): number {
@@ -229,21 +253,34 @@ function resolveVolume(value: number, label: string): number {
  * Every caller-supplied bound is checked before a temp dir is created or a
  * binary is resolved, so a rejected request costs nothing and the error is the
  * validation failure rather than a missing-FFmpeg message.
+ *
+ * Only the options an operation actually consumes are validated. An LLM caller
+ * routinely emits surplus parameters, and failing the whole call over a value
+ * the operation ignores would be a regression, not a safeguard.
  */
 function assertOptionsWithinBounds(operation: FfmpegOperation, options: FfmpegOptions): void {
-  if (options.start !== undefined) resolveNonNegativeSeconds(options.start, 'start')
-  if (options.end !== undefined) resolveNonNegativeSeconds(options.end, 'end')
-  if (options.volume !== undefined) resolveVolume(options.volume, 'volume')
-  if (options.musicVolume !== undefined) resolveVolume(options.musicVolume, 'musicVolume')
-
+  if (operation === 'trim' || operation === 'thumbnail') {
+    if (options.start !== undefined) resolveNonNegativeSeconds(options.start, 'start')
+  }
+  if (operation === 'trim' && options.end !== undefined) {
+    const end = resolveNonNegativeSeconds(options.end, 'end')
+    const start = resolveNonNegativeSeconds(options.start ?? 0, 'start')
+    if (end < start) {
+      throw new Error(`end (${end}s) must be greater than or equal to start (${start}s)`)
+    }
+  }
+  if (operation === 'mix_audio') {
+    if (options.volume !== undefined) resolveVolume(options.volume, 'volume')
+    if (options.musicVolume !== undefined) resolveVolume(options.musicVolume, 'musicVolume')
+  }
   if (operation === 'convert') {
     if (!options.format) throw new Error('convert requires a target format')
     resolveOutputExt(options.format)
   }
   if (operation === 'extract_audio') {
-    resolveOutputExt(options.format || 'mp3')
+    resolveOutputExt(options.format || 'mp3', AUDIO_EXTS)
   }
-  if (operation === 'scale_pad' && options.width && options.height) {
+  if (operation === 'scale_pad' && options.width !== undefined && options.height !== undefined) {
     resolveScaleDimension(options.width, 'width')
     resolveScaleDimension(options.height, 'height')
   }
@@ -308,7 +345,7 @@ class OperationBudget {
       throw new Error('FFmpeg operation aborted')
     }
     if (this.remainingMs() <= 0) {
-      throw new Error('FFmpeg operation exceeded its time budget')
+      throw new Error(TIME_BUDGET_EXCEEDED)
     }
   }
 }
@@ -372,17 +409,31 @@ function runCommand(
       }
       settle(new Error(reason))
     }
+    /**
+     * fluent-ffmpeg's kill() is a silent no-op until the child exists, and
+     * `.save()` spawns asynchronously (it may shell out for capability checks
+     * first). A kill landing in that window would otherwise reject the promise
+     * while the encode goes on to spawn orphaned and unkillable — so re-issue
+     * it once the process is up. 'start' fires immediately after the spawn.
+     */
+    function onStart(): void {
+      if (settled) {
+        try {
+          command.kill('SIGKILL')
+        } catch {
+          // Nothing to signal; the promise has already settled.
+        }
+      }
+    }
     function onAbort(): void {
       kill('FFmpeg operation aborted')
     }
 
-    const timer = setTimeout(
-      () => kill('FFmpeg operation exceeded its time budget'),
-      budget.remainingMs()
-    )
+    const timer = setTimeout(() => kill(TIME_BUDGET_EXCEEDED), budget.remainingMs())
     budget.signal?.addEventListener('abort', onAbort, { once: true })
 
     command
+      .on('start', onStart)
       .on('end', () => settle())
       .on('error', (err) => settle(new Error(`FFmpeg error: ${err.message}`)))
       .save(outputPath)
@@ -411,6 +462,25 @@ interface FfprobeOutput {
 }
 
 /**
+ * Distinguishes the three ways a probe fails. Node's `execFile` error message
+ * is `Command failed: <full argv>` plus stderr, which both leaks the server's
+ * binary and temp paths to the caller and — once stderr is quiet — renders a
+ * timeout, a corrupt file, and a missing file byte-identical.
+ */
+function describeProbeFailure(err: Error & { killed?: boolean; code?: unknown }, stderr: string) {
+  if (err.code === 'ABORT_ERR') return 'aborted'
+  if (err.killed) return 'timed out'
+  const detail = stderr.trim().split('\n').pop()
+  if (!detail) return 'unreadable media'
+  // ffprobe prefixes its diagnostic with the input path; keep the diagnostic,
+  // drop the server's directory layout.
+  return detail.replace(
+    /(^|\s)(\/\S+)/g,
+    (_match, lead: string, abs: string) => `${lead}${path.basename(abs)}`
+  )
+}
+
+/**
  * Spawned directly rather than through `fluent-ffmpeg.ffprobe`, which gives no
  * handle on the child and so cannot be killed: a crafted input that wedges
  * ffprobe would otherwise hang forever holding a request.
@@ -421,16 +491,16 @@ function probeFile(filePath: string, budget: OperationBudget): Promise<MediaProb
   return new Promise((resolve, reject) => {
     execFile(
       resolveFfprobePath(),
-      ['-v', 'quiet', '-print_format', 'json', '-show_format', '-show_streams', '-i', filePath],
+      ['-v', 'error', '-print_format', 'json', '-show_format', '-show_streams', '-i', filePath],
       {
         timeout,
         killSignal: 'SIGKILL',
         maxBuffer: PROBE_MAX_OUTPUT_BYTES,
         signal: budget.signal,
       },
-      (err, stdout) => {
+      (err, stdout, stderr) => {
         if (err) {
-          reject(new Error(`FFprobe error: ${err.message}`))
+          reject(new Error(`FFprobe error: ${describeProbeFailure(err, stderr)}`))
           return
         }
         let metadata: FfprobeOutput
@@ -483,7 +553,11 @@ export async function runFfmpegOperation(
   budget.assertLive()
 
   if (operation === 'probe') {
-    return { probe: await probeMedia(inputs[0], runOptions) }
+    return {
+      probe: await withTempDir(budget, async ({ dir }) =>
+        probeFile(await writeInput(dir, inputs[0], 0), budget)
+      ),
+    }
   }
 
   return withTempDir(budget, async (ctx) => {

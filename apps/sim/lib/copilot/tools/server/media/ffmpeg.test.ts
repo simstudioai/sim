@@ -59,6 +59,7 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () 
 }))
 
 import { ffmpegServerTool } from '@/lib/copilot/tools/server/media/ffmpeg'
+import { MAX_FFMPEG_INPUTS } from '@/lib/media/ffmpeg'
 
 const EXACT_EMPTY = { status: 'exact' as const, entries: [] }
 const TRACKED = {
@@ -315,14 +316,14 @@ describe('ffmpeg server tool secret provenance', () => {
       {
         operation: 'concat',
         inputs: {
-          files: Array.from({ length: 11 }, () => ({ path: 'files/input.mp4' })),
+          files: Array.from({ length: MAX_FFMPEG_INPUTS + 1 }, () => ({ path: 'files/input.mp4' })),
         },
       },
       context
     )
 
     expect(result.success).toBe(false)
-    expect(result.message).toContain('At most 10 input files')
+    expect(result.message).toContain(`At most ${MAX_FFMPEG_INPUTS} input files`)
     expect(resolveWorkspaceFileReferenceMock).not.toHaveBeenCalled()
     expect(runFfmpegOperationMock).not.toHaveBeenCalled()
   })
