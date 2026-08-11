@@ -169,6 +169,16 @@ interface ListActiveFolderRowsOptions {
   maxRows?: number
 }
 
+/**
+ * Materializes the workspace's active folder tree for one resource type.
+ *
+ * `maxRows` is opt-in: omitting it reads every active folder row. Callers that
+ * pass it get a throw of `FolderCollectionLimitExceededError` rather than a
+ * truncated index, because a partial path index resolves real folder paths to
+ * `undefined` and re-roots resources at the workspace root. The bound is not a
+ * default because folder creation does not enforce the same ceiling on every
+ * path, so a workspace can hold more rows than the cap and must still be read.
+ */
 export async function loadActiveFolderPathIndex(
   workspaceId: string,
   resourceType: FolderResourceType,

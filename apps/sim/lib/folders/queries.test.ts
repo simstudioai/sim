@@ -202,6 +202,26 @@ describe('folder queries', () => {
       expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     })
 
+    /**
+     * The bound stays opt-in. Folder creation does not refuse at
+     * `MAX_FOLDERS_PER_WORKSPACE` on every path — `POST /api/folders` passes no
+     * `maxFolderRows` — so a workspace already over the cap must still be
+     * readable. Defaulting the bound would turn every path-index consumer into
+     * a hard failure for a state the product allows to exist.
+     */
+    it('leaves the read unbounded when no maxRows is given', async () => {
+      queueTableRows(schemaMock.folder, [
+        ROW,
+        { ...ROW, id: 'f-2', name: 'Archive' },
+        { ...ROW, id: 'f-3', name: 'Drafts' },
+      ])
+
+      const index = await loadActiveFolderPathIndex('ws-1', 'workflow')
+
+      expect(dbChainMockFns.limit).not.toHaveBeenCalled()
+      expect(index.rowById.size).toBe(3)
+    })
+
     it('fails before returning an oversized folder list', async () => {
       queueTableRows(schemaMock.folder, [ROW, { ...ROW, id: 'f-2' }, { ...ROW, id: 'f-3' }])
 
