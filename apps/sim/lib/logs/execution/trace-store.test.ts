@@ -312,6 +312,12 @@ describe('projectExecutionDataForDisplay provenance handling', () => {
     }
   }
 
+  /** First span of a projected display payload. */
+  function firstSpan(displayData: Record<string, unknown>): Record<string, unknown> {
+    const [span] = displayData.traceSpans as Record<string, unknown>[]
+    return span
+  }
+
   it.each([
     ['a contract row', () => truncatedRow({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE })],
     ['a legacy row', () => ({ [RESOLVED_SECRET_PROVENANCE_KEY]: PROVENANCE, finalOutput: {} })],
@@ -330,13 +336,13 @@ describe('projectExecutionDataForDisplay provenance handling', () => {
     )
 
     expect(displayData.finalOutput).toEqual({ result: 'unknown-secret' })
-    expect((displayData.traceSpans as any[])[0]).toHaveProperty('input')
+    expect(firstSpan(displayData)).toHaveProperty('input')
   })
 
   it('keeps write-time-projected spans on a truncated row with no provenance', async () => {
     const displayData = await projectExecutionDataForDisplay(truncatedRow(), CONTEXT)
 
-    expect((displayData.traceSpans as any[])[0]).toMatchObject({
+    expect(firstSpan(displayData)).toMatchObject({
       input: { code: 'const activeEmails = rows.length' },
       output: { error: 'nested large values' },
     })
@@ -351,7 +357,7 @@ describe('projectExecutionDataForDisplay provenance handling', () => {
   ])('fails closed when %s', async (_case, overrides) => {
     const displayData = await projectExecutionDataForDisplay(truncatedRow(overrides), CONTEXT)
 
-    const [span] = displayData.traceSpans as Record<string, unknown>[]
+    const span = firstSpan(displayData)
     expect(span).not.toHaveProperty('input')
     expect(span).not.toHaveProperty('output')
   })

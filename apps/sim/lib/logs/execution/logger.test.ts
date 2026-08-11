@@ -5,6 +5,7 @@ import {
   queueTableRows,
   resetDbChainMock,
 } from '@sim/testing'
+import { isPlainRecord } from '@sim/utils/object'
 import { afterAll, beforeEach, describe, expect, test, vi } from 'vitest'
 import { recordUsage } from '@/lib/billing/core/usage-log'
 import { ExecutionLogger } from '@/lib/logs/execution/logger'
@@ -328,13 +329,17 @@ describe('ExecutionLogger', () => {
       dbChainMockFns.returning.mockResolvedValueOnce([
         { id: 'log-1', executionData: {}, startedAt, createdAt: startedAt },
       ])
-      vi.spyOn(logger as any, 'applyPiiRedaction').mockImplementation(
-        async (_workspaceId: unknown, payload: any) =>
+      const internals = logger as unknown as {
+        applyPiiRedaction: (workspaceId: string, payload: Record<string, unknown>) => unknown
+        recordExecutionUsage: () => Promise<number>
+      }
+      vi.spyOn(internals, 'applyPiiRedaction').mockImplementation(
+        async (_workspaceId: string, payload: Record<string, unknown>) =>
           Object.hasOwn(params, 'redactedState')
             ? { ...payload, executionState: params.redactedState }
             : payload
       )
-      vi.spyOn(logger as any, 'recordExecutionUsage').mockResolvedValue(0)
+      vi.spyOn(internals, 'recordExecutionUsage').mockResolvedValue(0)
 
       await logger.completeWorkflowExecution({
         executionId: 'execution-1',
@@ -356,8 +361,8 @@ describe('ExecutionLogger', () => {
       })
 
       return dbChainMockFns.set.mock.calls
-        .map(([values]: [any]) => values?.executionData)
-        .find((data: any) => data && typeof data === 'object')
+        .map(([values]: [{ executionData?: unknown }]) => values?.executionData)
+        .find((data): data is Record<string, unknown> => isPlainRecord(data))
     }
 
     /**
@@ -745,7 +750,12 @@ describe('ExecutionLogger', () => {
     }
 
     function compactWithProvenance(traceSpans: unknown[], finalOutput: unknown) {
-      const loggerInstance = new ExecutionLogger() as any
+      const loggerInstance = new ExecutionLogger() as unknown as {
+        compactExecutionDataForStorage: (
+          data: Record<string, unknown>,
+          executionId: string
+        ) => Record<string, unknown>
+      }
       return loggerInstance.compactExecutionDataForStorage(
         {
           secretProjectionVersion: SECRET_PROJECTION_VERSION,
