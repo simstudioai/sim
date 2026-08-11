@@ -91,7 +91,7 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
-  createWorkspaceFileFolderOperation: {
+  ensureWorkspaceFileFolderPathOperation: {
     execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
   },
 }))
@@ -196,7 +196,11 @@ describe('POST /api/tools/file/manage content provenance', () => {
       billedAccountUserId: 'user-1',
     }))
     mockAssertToolFileAccess.mockResolvedValue(undefined)
-    mockEnsureWorkspaceFileFolderPath.mockResolvedValue({ folder: { id: 'folder-1' } })
+    mockEnsureWorkspaceFileFolderPath.mockImplementation(
+      async ({ input }: { input: { pathSegments: string[] } }) => ({
+        folderId: input.pathSegments.length === 0 ? null : 'folder-1',
+      })
+    )
     mockDownloadServableFileFromStorage.mockImplementation(async (file: { name: string }) => ({
       buffer: Buffer.from(`content:${file.name}`),
     }))
@@ -349,7 +353,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
         {
           operation: 'write',
           workspaceId: 'workspace-1',
-          fileName: 'Reports/secret-value.txt',
+          fileName: 'Reports & Plans/2026/secret-value.txt',
           content: 'ordinary text',
           __privateSecretProvenance: {
             version: 1,
@@ -375,7 +379,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
-        input: { workspaceId: 'workspace-1', path: 'Reports' },
+        input: { workspaceId: 'workspace-1', pathSegments: ['Reports & Plans', '2026'] },
       })
     )
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
@@ -596,7 +600,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
 
   it('extracts a secret-bearing archive with unknown output provenance', async () => {
     const zip = new JSZip()
-    zip.file('child.txt', 'secret-value')
+    zip.file('Reports/child.txt', 'secret-value')
     mockDownloadFileFromStorage.mockResolvedValue(
       Buffer.from(await zip.generateAsync({ type: 'uint8array' }))
     )
@@ -620,6 +624,11 @@ describe('POST /api/tools/file/manage content provenance', () => {
 
     expect(response.status).toBe(200)
     expect(mockDownloadFileFromStorage).toHaveBeenCalledTimes(1)
+    expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: { workspaceId: 'workspace-1', pathSegments: ['Reports'] },
+      })
+    )
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
       'workspace-1',
       'user-1',
@@ -628,7 +637,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
       'text/plain',
       {
         exactName: true,
-        folderId: null,
+        folderId: 'folder-1',
         folderPath: undefined,
         secretProvenance: { status: 'unknown' },
       }

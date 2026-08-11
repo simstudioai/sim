@@ -19,6 +19,7 @@ vi.mock('@/lib/workspace-files/application/update-workspace-file-content', () =>
   },
 }))
 
+import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PUT } from '@/app/api/workspaces/[id]/files/[fileId]/content/route'
 
@@ -131,5 +132,19 @@ describe('PUT /api/workspaces/[id]/files/[fileId]/content', () => {
     expect(response.status).toBe(413)
     expect(mocks.admit).toHaveBeenCalled()
     expect(mocks.updateContent).not.toHaveBeenCalled()
+  })
+
+  it('preserves the legacy 402 response when storage quota is exhausted', async () => {
+    mocks.updateContent.mockRejectedValueOnce(
+      new StorageLimitExceededError('Storage limit exceeded')
+    )
+
+    const response = await PUT(createRequest({ content: 'hello' }), routeContext)
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({
+      success: false,
+      error: 'Storage limit exceeded',
+    })
   })
 })

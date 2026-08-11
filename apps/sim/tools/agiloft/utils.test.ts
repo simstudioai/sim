@@ -81,9 +81,6 @@ describe('CRUD endpoints', () => {
 
   it('does not ask for the .json variant on operations whose JSON shape is undocumented', () => {
     expect(buildSearchRecordsUrl(BASE, { ...baseParams, query: "a='b'" })).not.toContain('.json')
-    expect(
-      buildLockRecordUrl(BASE, { ...baseParams, recordId: '18', lockAction: 'check' })
-    ).not.toContain('.json')
   })
 })
 
@@ -150,6 +147,12 @@ describe('buildSearchRecordsUrl', () => {
 })
 
 describe('buildLockRecordUrl', () => {
+  it('requests the JSON variant consumed by the lock route', () => {
+    expect(
+      buildLockRecordUrl(BASE, { ...baseParams, recordId: '18', lockAction: 'check' })
+    ).toContain('/EWLock/.json?')
+  })
+
   it('adds force only on unlock, where EWLock accepts it', () => {
     const unlock = buildLockRecordUrl(BASE, {
       ...baseParams,

@@ -4012,8 +4012,15 @@
                 "type": "object",
                 "properties": {
                   "contextId": {
-                    "type": "string",
-                    "description": "Resume context identifier for the earliest active pause point."
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Resume context identifier, or null while every pause point is mid-resume."
                   },
                   "pausedAt": {
                     "type": "string",

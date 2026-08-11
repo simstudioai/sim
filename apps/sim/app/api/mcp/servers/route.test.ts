@@ -1,11 +1,13 @@
 /**
  * @vitest-environment node
  */
-import { resetDbChainMock } from '@sim/testing'
+import { mcpServers } from '@sim/db/schema'
+import { queueTableRows, resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockPerformDeleteMcpServer } = vi.hoisted(() => ({
+const { mockCanWrite, mockPerformDeleteMcpServer } = vi.hoisted(() => ({
+  mockCanWrite: vi.fn(),
   mockPerformDeleteMcpServer: vi.fn(),
 }))
 
@@ -21,6 +23,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
           userName: string
           userEmail: string
           workspaceId: string
+          canWrite: boolean
           requestId: string
         }
       ) => Promise<Response>
@@ -31,6 +34,7 @@ vi.mock('@/lib/mcp/middleware', () => ({
         userName: 'Test User',
         userEmail: 'test@example.com',
         workspaceId: 'workspace-1',
+        canWrite: mockCanWrite(),
         requestId: 'request-1',
       }),
 }))
@@ -40,7 +44,13 @@ vi.mock('@/lib/mcp/orchestration', () => ({
   performDeleteMcpServer: mockPerformDeleteMcpServer,
 }))
 
-import { DELETE } from '@/app/api/mcp/servers/route'
+import { DELETE, GET } from '@/app/api/mcp/servers/route'
+
+function createListRequest() {
+  return new Request('http://localhost:3000/api/mcp/servers?workspaceId=workspace-1', {
+    method: 'GET',
+  }) as NextRequest
+}
 
 function createDeleteRequest(serverId = 'server-1') {
   return new Request(
@@ -85,5 +95,46 @@ describe('MCP servers DELETE route', () => {
 
     expect(response.status).toBe(500)
     expect(body).toEqual({ success: false, error: 'Failed to delete MCP server' })
+  })
+})
+
+describe('MCP servers GET route', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+    mockCanWrite.mockReturnValue(false)
+    queueTableRows(mcpServers, [
+      {
+        id: 'server-1',
+        workspaceId: 'workspace-1',
+        name: 'Private server',
+        headers: { Authorization: 'Bearer secret-token' },
+        oauthClientSecret: 'oauth-secret',
+      },
+    ])
+  })
+
+  afterAll(() => {
+    resetDbChainMock()
+  })
+
+  it('does not expose authentication header values to read-only users', async () => {
+    const response = await GET(createListRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.servers[0]).not.toHaveProperty('headers')
+    expect(body.data.servers[0]).not.toHaveProperty('oauthClientSecret')
+    expect(body.data.servers[0].hasOauthClientSecret).toBe(true)
+  })
+
+  it('retains configured headers for users who can manage the server', async () => {
+    mockCanWrite.mockReturnValue(true)
+
+    const response = await GET(createListRequest())
+    const body = await response.json()
+
+    expect(response.status).toBe(200)
+    expect(body.data.servers[0].headers).toEqual({ Authorization: 'Bearer secret-token' })
   })
 })

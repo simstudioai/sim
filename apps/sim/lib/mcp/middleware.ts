@@ -24,6 +24,7 @@ export interface McpAuthContext {
   userEmail?: string | null
   authType?: AuthTypeValue
   workspaceId: string
+  canWrite: boolean
   requestId: string
 }
 
@@ -196,6 +197,7 @@ async function validateMcpAuth(
         userEmail: auth.userEmail,
         authType: auth.authType,
         workspaceId,
+        canWrite: permissionSatisfies(userPermissions as PermissionType, 'write'),
         requestId,
       },
     }

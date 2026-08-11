@@ -16,6 +16,11 @@ import { defineRouteContract } from '@/lib/api/contracts'
 import type { ParsedRequest } from '@/lib/api/server/validation'
 import type { OperationUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { HttpError } from '@/lib/core/utils/http-error'
+
+class TestLockedError extends HttpError {
+  readonly statusCode = 423
+}
 
 vi.mock('@/lib/api/server/routes/v2-api-key-auth', () => v2ApiKeyAuthModuleMock)
 vi.mock('@/lib/core/rate-limiter', () => v2RateLimiterModuleMock)
@@ -354,6 +359,21 @@ describe('defineV2JsonRoute', () => {
     expect(response.status).toBe(409)
     expect(present).not.toHaveBeenCalled()
     expect(onSuccess).not.toHaveBeenCalled()
+    expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
+  })
+
+  it('preserves HttpError status through the v2 envelope', async () => {
+    const response = await createHandler({
+      execute: async () => {
+        throw new TestLockedError('Resource is locked')
+      },
+    })(request())
+
+    expect(response.status).toBe(423)
+    await expect(response.json()).resolves.toEqual({
+      error: { code: 'LOCKED', message: 'Resource is locked' },
+    })
+    expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('X-RateLimit-Remaining')).toBe('99')
   })
 

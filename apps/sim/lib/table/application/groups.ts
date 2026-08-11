@@ -548,9 +548,18 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
     const previousGroup = (context.table.schema.workflowGroups ?? []).find(
       (group) => group.id === input.groupId
     )
+    const previousOutputKeys = new Set(
+      previousGroup?.outputs.map((output) => `${output.blockId}::${output.path}`) ?? []
+    )
+    const workflowChanged =
+      input.workflowId !== undefined && input.workflowId !== previousGroup?.workflowId
+    const outputCoordinatesToValidate =
+      input.outputs?.filter(
+        (output) => workflowChanged || !previousOutputKeys.has(`${output.blockId}::${output.path}`)
+      ) ?? []
     const workflowMetadataRequired =
       input.workflowId !== undefined ||
-      input.outputs !== undefined ||
+      outputCoordinatesToValidate.length > 0 ||
       (input.mappingUpdates?.length ?? 0) > 0
     const targetWorkflowId = input.workflowId ?? previousGroup?.workflowId
     let resolvedWorkflow: ResolveWorkflowOutputsResult | undefined
@@ -562,8 +571,8 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
         targetWorkflowId,
         context.workspaceId
       )
-      if (input.outputs && input.outputs.length > 0) {
-        validateRequestedOutputs(input.outputs, resolvedWorkflow, targetWorkflowId)
+      if (outputCoordinatesToValidate.length > 0) {
+        validateRequestedOutputs(outputCoordinatesToValidate, resolvedWorkflow, targetWorkflowId)
       }
     }
     const actorUserId = attributedUserId(principal, context.billedAccountUserId)

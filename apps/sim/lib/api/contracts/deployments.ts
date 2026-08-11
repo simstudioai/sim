@@ -28,7 +28,7 @@ export const deploymentVersionParamsSchema = z.object({
 
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.number().int().positive(), z.literal('active')]),
+  version: z.union([z.coerce.number().int().positive(), z.literal('active')]),
 })
 
 export const deploymentVersionRouteParamsSchema = z.object({

@@ -12,6 +12,8 @@ function v2ExecutionResponse(output: unknown = {}) {
       status: 'completed',
       output,
       error: null,
+      startedAt: '2026-08-11T12:00:00.000Z',
+      endedAt: '2026-08-11T12:00:00.010Z',
       durationMs: 10,
     },
   }
@@ -164,8 +166,33 @@ describe('SimStudioClient', () => {
       )
 
       expect(result).toHaveProperty('success', true)
+      expect(result).toHaveProperty('executionId', 'execution-123')
       expect(result).toHaveProperty('output')
+      expect(result).toHaveProperty('metadata.executionId', 'execution-123')
+      expect(result).toHaveProperty('metadata.startTime', '2026-08-11T12:00:00.000Z')
+      expect(result).toHaveProperty('metadata.endTime', '2026-08-11T12:00:00.010Z')
       expect(result).not.toHaveProperty('jobId')
+    })
+
+    it('throws when a sync workflow run completes with failed status', async () => {
+      const failed = v2ExecutionResponse({ partial: true })
+      failed.data.status = 'failed'
+      failed.data.error = {
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      }
+      vi.mocked(mockFetch).mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue(failed),
+        headers: { get: vi.fn().mockReturnValue(null) },
+      } as any)
+
+      await expect(client.executeWorkflow('workflow-id', {})).rejects.toMatchObject({
+        name: 'SimStudioError',
+        code: 'BLOCK_EXECUTION_FAILED',
+        message: 'Invalid credentials',
+      })
     })
 
     it('should not set X-Execution-Mode header when async is undefined', async () => {

@@ -32,19 +32,17 @@ const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
 
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
-export class WorkspaceFileFolderConflictError extends Error {
-  readonly code = 'FOLDER_CONFLICT' as const
-
+export class WorkspaceFileFolderConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A folder named "${name}" already exists in this location`)
+    super('conflict', `A folder named "${name}" already exists in this location`)
+    this.name = 'WorkspaceFileFolderConflictError'
   }
 }
 
-export class WorkspaceFileMoveConflictError extends Error {
-  readonly code = 'FILE_MOVE_CONFLICT' as const
-
+export class WorkspaceFileMoveConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A file named "${name}" already exists in the destination folder`)
+    super('conflict', `A file named "${name}" already exists in the destination folder`)
+    this.name = 'WorkspaceFileMoveConflictError'
   }
 }
 

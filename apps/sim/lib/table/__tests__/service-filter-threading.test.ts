@@ -181,16 +181,22 @@ describe('bulk update/delete limited-subset ordering', () => {
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(5)
   })
 
-  it('orders and caps an updateRowsByFilter without an explicit limit', async () => {
+  it('updates every filter match without an implicit limit', async () => {
     await updateRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, data: { name: 'x' } }, 'req-1')
-    expect(dbChainMockFns.orderBy).toHaveBeenCalled()
-    expect(dbChainMockFns.limit).toHaveBeenCalledWith(TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1)
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 
   it('orders the match query when deleteRowsByFilter has a limit', async () => {
     await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 0 } }, limit: 3 }, 'req-1')
     expect(dbChainMockFns.orderBy).toHaveBeenCalled()
     expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+  })
+
+  it('deletes every filter match without an implicit limit', async () => {
+    await deleteRowsByFilter(TABLE, { filter: { score: { $gt: 0 } } }, 'req-1')
+    expect(dbChainMockFns.orderBy).not.toHaveBeenCalled()
+    expect(dbChainMockFns.limit).not.toHaveBeenCalled()
   })
 })
 

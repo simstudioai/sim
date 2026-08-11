@@ -1823,24 +1823,17 @@ export async function updateRowsByFilter(
   // A limit selects a SUBSET, so impose the default `(order_key, id)` order —
   // without it Postgres returns planner-arbitrary rows and "update the first N"
   // is nondeterministic. Sort is irrelevant (and skipped) when every match is updated.
-  // Tenant-bounded: the jsonb filter is unestimatable and otherwise sends the planner to a
-  // whole-shared-relation seq scan (14.4s measured on a 1M-row table).
   const matchingRows = await withSeqscanOff(async (trx) => {
     const base = trx
       .select({ id: userTableRows.id, data: userTableRows.data })
       .from(userTableRows)
       .where(and(baseConditions, filterClause))
-    return base
-      .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
-      .limit(data.limit ?? TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1)
+    return data.limit === undefined
+      ? base
+      : base
+          .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
+          .limit(data.limit)
   })
-
-  if (matchingRows.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-    throw new OrchestrationError(
-      'validation',
-      `Cannot update more than ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE} rows per operation`
-    )
-  }
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }
@@ -2262,23 +2255,17 @@ export async function deleteRowsByFilter(
 
   // A limit deletes a SUBSET, so order deterministically by `(order_key, id)` —
   // see updateRowsByFilter. Unbounded deletes affect every match, so order is moot.
-  // Tenant-bounded for the same reason as updateRowsByFilter — see withSeqscanOff.
   const matchingRows = await withSeqscanOff(async (trx) => {
     const base = trx
       .select({ id: userTableRows.id, position: userTableRows.position })
       .from(userTableRows)
       .where(and(baseConditions, filterClause))
-    return base
-      .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
-      .limit(data.limit ?? TABLE_LIMITS.MAX_BULK_OPERATION_SIZE + 1)
+    return data.limit === undefined
+      ? base
+      : base
+          .orderBy(buildRowOrderBySql(undefined, tableName, table.schema.columns))
+          .limit(data.limit)
   })
-
-  if (matchingRows.length > TABLE_LIMITS.MAX_BULK_OPERATION_SIZE) {
-    throw new OrchestrationError(
-      'validation',
-      `Cannot delete more than ${TABLE_LIMITS.MAX_BULK_OPERATION_SIZE} rows per operation`
-    )
-  }
 
   if (matchingRows.length === 0) {
     return { affectedCount: 0, affectedRowIds: [] }

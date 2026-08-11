@@ -325,4 +325,55 @@ describe('getWorkflowExecutionStatus queue projection', () => {
       blockedOnBlockId: 'approval-block',
     })
   })
+
+  it('returns null pause coordinates while every pause point is mid-resume', async () => {
+    queueTableRows(schemaMock.workflowExecutionLogs, [
+      {
+        executionId: 'execution-1',
+        workflowId: 'workflow-1',
+        workspaceId: 'workspace-1',
+        status: 'paused',
+        level: 'info',
+        trigger: 'api',
+        startedAt: new Date('2026-08-05T12:00:00.000Z'),
+        endedAt: null,
+        totalDurationMs: null,
+        executionData: null,
+        costTotal: null,
+      },
+    ])
+    queueTableRows(schemaMock.resumeQueue, [])
+    queueTableRows(schemaMock.pausedExecutions, [
+      {
+        id: 'paused-execution-1',
+        status: 'partially_resumed',
+        pausePoints: {
+          'context-1': {
+            contextId: 'context-1',
+            blockId: 'approval-block',
+            response: null,
+            registeredAt: '2026-08-05T12:00:01.000Z',
+            resumeStatus: 'resuming',
+            snapshotReady: true,
+            pauseKind: 'human',
+          },
+        },
+        metadata: {},
+        resumedCount: 0,
+        pausedAt: new Date('2026-08-05T12:00:01.000Z'),
+        nextResumeAt: null,
+      },
+    ])
+
+    const status = await getWorkflowExecutionStatus(input)
+
+    expect(status?.status).toBe('paused')
+    expect(status?.paused).toMatchObject({
+      contextId: null,
+      resumeAt: null,
+      pauseKind: null,
+      blockedOnBlockId: null,
+      pausePointCount: 1,
+    })
+  })
 })

@@ -41,6 +41,7 @@ vi.mock('@/lib/table/application/rows', () => ({
 }))
 
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import { DELETE, GET, PATCH } from '@/app/api/v2/tables/[tableId]/rows/[rowId]/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -134,6 +135,18 @@ describe('/api/v2/tables/[tableId]/rows/[rowId]', () => {
       },
       request: req,
     })
+  })
+
+  it('returns not found when the row disappears before update', async () => {
+    mocks.updateRow.mockRejectedValueOnce(new TableRowNotFoundError())
+
+    const response = await PATCH(
+      request('PATCH', { workspaceId: WORKSPACE_ID, data: { name: 'Ada' } }),
+      CONTEXT
+    )
+
+    expect(response.status).toBe(404)
+    expect((await response.json()).error.code).toBe('NOT_FOUND')
   })
 
   it('returns the compatible authoritative single-delete envelope', async () => {

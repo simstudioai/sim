@@ -11,7 +11,7 @@ const { mockEnsureFolder, mockUpload, mockDelete } = vi.hoisted(() => ({
   mockDelete: vi.fn(),
 }))
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
-  createWorkspaceFileFolderOperation: {
+  ensureWorkspaceFileFolderPathOperation: {
     execute: mockEnsureFolder,
   },
 }))
@@ -85,7 +85,7 @@ function craftCentralDirectory(records: number, extraPerRecord: number): Buffer 
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mockEnsureFolder.mockResolvedValue({ folder: { id: 'folder_1' } })
+  mockEnsureFolder.mockResolvedValue({ folderId: 'folder_1' })
   mockDelete.mockResolvedValue(undefined)
   mockUpload.mockImplementation(
     async ({ input }: { input: { content: Buffer; name: string } }) => ({
@@ -103,7 +103,7 @@ beforeEach(() => {
 
 describe('decompressArchiveBufferToWorkspaceFiles', () => {
   it('extracts entries as workspace files under the root folder', async () => {
-    const buffer = await buildZip({ 'report.txt': 'hi', 'data/sheet.csv': 'a,b' })
+    const buffer = await buildZip({ 'report.txt': 'hi', 'data & sheets/sheet.csv': 'a,b' })
 
     const result = await decompressArchiveBufferToWorkspaceFiles(buffer, {
       workspaceId: 'ws',
@@ -118,10 +118,12 @@ describe('decompressArchiveBufferToWorkspaceFiles', () => {
     expect(leafNames).toEqual(['report.txt', 'sheet.csv'])
     // Entries are rooted under the archive's folder; nested paths are preserved.
     expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { workspaceId: 'ws', path: 'bundle' } })
+      expect.objectContaining({ input: { workspaceId: 'ws', pathSegments: ['bundle'] } })
     )
     expect(mockEnsureFolder).toHaveBeenCalledWith(
-      expect.objectContaining({ input: { workspaceId: 'ws', path: 'bundle/data' } })
+      expect.objectContaining({
+        input: { workspaceId: 'ws', pathSegments: ['bundle', 'data & sheets'] },
+      })
     )
   })
 

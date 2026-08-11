@@ -162,7 +162,7 @@ export function buildAttachmentInfoUrl(base: string, params: AgiloftAttachmentIn
  */
 export function buildLockRecordUrl(base: string, params: AgiloftLockRecordParams): string {
   const id = encodeURIComponent(params.recordId.trim())
-  let url = `${base}/ewws/EWLock?${buildEwBaseQuery(params)}&id=${id}`
+  let url = `${base}/ewws/EWLock/.json?${buildEwBaseQuery(params)}&id=${id}`
   if (params.lockAction === 'unlock' && params.force) {
     url += '&force=true'
   }

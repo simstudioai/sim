@@ -27,7 +27,7 @@ export const dynamic = 'force-dynamic'
  * GET - List all registered MCP servers for the workspace
  */
 export const GET = withRouteHandler(
-  withMcpAuth('read')(async (request: NextRequest, { userId, workspaceId, requestId }) => {
+  withMcpAuth('read')(async (request: NextRequest, { workspaceId, canWrite, requestId }) => {
     try {
       logger.info(`[${requestId}] Listing MCP servers for workspace ${workspaceId}`)
 
@@ -36,8 +36,9 @@ export const GET = withRouteHandler(
         .from(mcpServers)
         .where(and(eq(mcpServers.workspaceId, workspaceId), isNull(mcpServers.deletedAt)))
 
-      const servers = rows.map(({ oauthClientSecret: _secret, ...rest }) => ({
+      const servers = rows.map(({ oauthClientSecret: _secret, headers, ...rest }) => ({
         ...rest,
+        ...(canWrite ? { headers } : {}),
         hasOauthClientSecret: !!_secret,
       }))
 

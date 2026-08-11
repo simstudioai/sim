@@ -7,7 +7,7 @@ import type { WorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/works
 import { getFileExtension, getMimeTypeFromExtension } from '@/lib/uploads/utils/file-utils'
 import { createWorkspaceFileFromBuffer } from '@/lib/workspace-files/application/create-workspace-file'
 import { deleteWorkspaceFileOperation } from '@/lib/workspace-files/application/delete-workspace-file'
-import { createWorkspaceFileFolderOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { ensureWorkspaceFileFolderPathOperation } from '@/lib/workspace-files/application/workspace-file-folders'
 import type { UserFile } from '@/executor/types'
 
 /**
@@ -365,11 +365,11 @@ export async function decompressArchiveBufferToWorkspaceFiles(
         if (folderSegments.length === 0) {
           folderId = null
         } else {
-          const result = await createWorkspaceFileFolderOperation.execute({
+          const result = await ensureWorkspaceFileFolderPathOperation.execute({
             principal,
-            input: { workspaceId, path: folderSegments.join('/') },
+            input: { workspaceId, pathSegments: folderSegments },
           })
-          folderId = result.folder.id
+          folderId = result.folderId
         }
         folderIdCache.set(folderKey, folderId)
       }

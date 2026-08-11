@@ -64,6 +64,7 @@ vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
   },
 }))
 
+import { WorkspaceFileFolderConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { DELETE, GET, PATCH, POST } from '@/app/api/v2/files/folders/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -124,6 +125,15 @@ describe('/api/v2/files/folders', () => {
   })
 
   it('lists folders through the shared operation and v2 presenter', async () => {
+    mocks.listFolders.mockResolvedValueOnce({
+      folders: [
+        {
+          ...folder,
+          name: 'Quarterly Reports & Plans',
+          path: 'Archive/Quarterly Reports & Plans',
+        },
+      ],
+    })
     const response = await GET(
       request('GET', `/api/v2/files/folders?workspaceId=${WORKSPACE_ID}`),
       context
@@ -132,9 +142,9 @@ describe('/api/v2/files/folders', () => {
     expect(response.status).toBe(200)
     expect((await response.json()).data).toEqual([
       {
-        name: 'Reports',
-        path: '/Reports',
-        parentPath: '/',
+        name: 'Quarterly Reports & Plans',
+        path: '/Archive/Quarterly%20Reports%20%26%20Plans',
+        parentPath: '/Archive',
         createdAt: '2026-01-01T00:00:00.000Z',
         updatedAt: '2026-01-01T00:00:00.000Z',
       },
@@ -173,6 +183,18 @@ describe('/api/v2/files/folders', () => {
     })
   })
 
+  it('returns conflict when a folder already exists at the requested path', async () => {
+    mocks.createFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await POST(
+      request('POST', '/api/v2/files/folders', { workspaceId: WORKSPACE_ID, path: '/Reports' }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    expect((await response.json()).error.code).toBe('CONFLICT')
+  })
+
   it('relocates a folder through the shared operation', async () => {
     const response = await PATCH(
       request('PATCH', '/api/v2/files/folders', {
@@ -193,6 +215,22 @@ describe('/api/v2/files/folders', () => {
       },
       request: expect.anything(),
     })
+  })
+
+  it('returns conflict when a folder relocation collides', async () => {
+    mocks.updateFolder.mockRejectedValueOnce(new WorkspaceFileFolderConflictError('Reports'))
+
+    const response = await PATCH(
+      request('PATCH', '/api/v2/files/folders', {
+        workspaceId: WORKSPACE_ID,
+        path: '/Reports',
+        destinationPath: '/Archive/Reports',
+      }),
+      context
+    )
+
+    expect(response.status).toBe(409)
+    expect((await response.json()).error.code).toBe('CONFLICT')
   })
 
   it('deletes a folder and returns the v2 deletion result', async () => {

@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import { resolvePrincipalAttribution } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { parseFolderPath } from '@/lib/folders/paths'
 import { notifyWorkspaceFilesChanged } from '@/lib/realtime/notify'
 import {
   assertWorkspaceFileItemsBelongToWorkspace,
@@ -9,6 +10,7 @@ import {
   createWorkspaceFileFolder,
   createWorkspaceFileFolderAtPath,
   deleteWorkspaceFileFolderByPath,
+  ensureWorkspaceFileFolderPath,
   listWorkspaceFileFolders,
   loadWorkspaceFileOperationContext,
   relocateWorkspaceFileFolderByPath,
@@ -44,6 +46,15 @@ export interface CreateWorkspaceFileFolderInput {
 
 export interface CreateWorkspaceFileFolderResult {
   folder: WorkspaceFileFolderRecord
+}
+
+export interface EnsureWorkspaceFileFolderPathInput {
+  workspaceId: string
+  pathSegments: string[]
+}
+
+export interface EnsureWorkspaceFileFolderPathResult {
+  folderId: string | null
 }
 
 export interface UpdateWorkspaceFileFolderInput {
@@ -98,7 +109,7 @@ async function executeListWorkspaceFileFolders(args: {
     scope: args.input.scope,
   })
   if (args.input.parentPath !== undefined) {
-    const parentPath = args.input.parentPath === '/' ? '' : args.input.parentPath.replace(/^\//, '')
+    const parentPath = parseFolderPath(args.input.parentPath).join('/')
     folders = folders.filter((folder) => {
       const parent = folder.path.includes('/')
         ? folder.path.slice(0, folder.path.lastIndexOf('/'))
@@ -146,6 +157,22 @@ async function executeCreateWorkspaceFileFolder(args: {
         }
   const folder = 'path' in result ? { ...result.folder, path: result.path } : result.folder
   return { folder }
+}
+
+async function executeEnsureWorkspaceFileFolderPath(args: {
+  principal: Parameters<typeof resolvePrincipalAttribution>[0]
+  input: EnsureWorkspaceFileFolderPathInput
+  context: FolderOperationContext
+}): Promise<EnsureWorkspaceFileFolderPathResult> {
+  const attribution = resolvePrincipalAttribution(args.principal, {
+    workspaceBillingOwnerUserId: args.context.billedAccountUserId,
+  })
+  const folderId = await ensureWorkspaceFileFolderPath({
+    workspaceId: args.context.workspaceId,
+    userId: attribution.attributedUserId,
+    pathSegments: args.input.pathSegments,
+  })
+  return { folderId }
 }
 
 async function executeUpdateWorkspaceFileFolder(args: {
@@ -238,6 +265,13 @@ export const createWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileU
   async afterSuccess({ context }) {
     await notifyWorkspaceFilesChanged(context.workspaceId)
   },
+})
+
+export const ensureWorkspaceFileFolderPathOperation = defineAuthorizedWorkspaceFileUseCase({
+  operation: fileOperations.create,
+  resolveContext: (args: { input: EnsureWorkspaceFileFolderPathInput }) =>
+    resolveFolderContext(args),
+  execute: executeEnsureWorkspaceFileFolderPath,
 })
 
 export const updateWorkspaceFileFolderOperation = defineAuthorizedWorkspaceFileUseCase({

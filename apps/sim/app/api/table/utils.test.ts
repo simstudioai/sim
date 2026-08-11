@@ -4,6 +4,7 @@
 import { describe, expect, it } from 'vitest'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { TableRowLimitError } from '@/lib/table/billing'
+import { TableRowNotFoundError } from '@/lib/table/rows/errors'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { rootErrorMessage, rowWriteErrorResponse, tableFilterError } from '@/app/api/table/utils'
 
@@ -49,9 +50,7 @@ describe('rowWriteErrorResponse', () => {
   })
 
   it('answers the code the failure carries, not one derived from its wording', () => {
-    expect(
-      rowWriteErrorResponse(new OrchestrationError('not_found', 'Row not found'))?.status
-    ).toBe(404)
+    expect(rowWriteErrorResponse(new TableRowNotFoundError())?.status).toBe(404)
     // The phrase that used to force a 400 no longer decides anything.
     expect(
       rowWriteErrorResponse(new OrchestrationError('conflict', 'Row 3: must be unique'))?.status
