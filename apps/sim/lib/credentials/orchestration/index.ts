@@ -8,7 +8,10 @@ import type { NextRequest } from 'next/server'
 import { decryptSecret } from '@/lib/core/security/encryption'
 import { getCredentialActorContext } from '@/lib/credentials/access'
 import { AtlassianValidationError } from '@/lib/credentials/atlassian-service-account'
-import { isClientCredentialAccountProviderId } from '@/lib/credentials/client-credential-accounts/descriptors'
+import {
+  getClientCredentialAccountDescriptor,
+  isClientCredentialAccountProviderId,
+} from '@/lib/credentials/client-credential-accounts/descriptors'
 import { type CredentialDeleteReason, deleteCredential } from '@/lib/credentials/deletion'
 import { slackCustomBotDisplayName } from '@/lib/credentials/display-name'
 import {
@@ -214,8 +217,13 @@ export async function performUpdateCredential(
       // when the caller did not supply one.
       const isClientCredentialProvider = isClientCredentialAccountProviderId(providerId)
       const needsStoredDataCenter = params.dataCenter === undefined && isClientCredentialProvider
-      const needsStoredAuthMethod = params.authMethod === undefined && isClientCredentialProvider
-      const needsStoredUsername = params.username === undefined && isClientCredentialProvider
+      // Only a multi-grant provider stores these, so single-grant ones must not
+      // pay for a row read + decrypt that can only ever return undefined.
+      const isMultiGrantProvider = Boolean(
+        getClientCredentialAccountDescriptor(providerId)?.defaultAuthMethod
+      )
+      const needsStoredAuthMethod = params.authMethod === undefined && isMultiGrantProvider
+      const needsStoredUsername = params.username === undefined && isMultiGrantProvider
 
       // Rotating to a key that belongs to a different principal makes an
       // identity-derived label (a Google `client_email`, a Slack team name)

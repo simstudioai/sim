@@ -401,7 +401,7 @@ export const CLIENT_CREDENTIAL_ACCOUNT_DESCRIPTORS: Record<
         hintPattern: SALESFORCE_MY_DOMAIN_HOST_REGEX,
         hintNormalize: normalizeSalesforceMyDomainHost,
         hintMessage:
-          'Expected a My Domain host like yourorg.my.salesforce.com, yourorg--sbx.sandbox.my.salesforce.com, or yourorg-dev-ed.develop.my.salesforce.com.',
+          'Expected a My Domain host like yourorg.my.salesforce.com, yourorg--sbx.sandbox.my.salesforce.com, or yourorg-dev-ed.develop.my.salesforce.com — not the my.salesforce-setup.com or lightning.force.com host.',
       },
     ],
     defaultAuthMethod: SALESFORCE_DEFAULT_AUTH_METHOD,

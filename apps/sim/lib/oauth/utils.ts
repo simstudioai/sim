@@ -619,6 +619,25 @@ export function providerIdsForService(providerId: string): string[] {
   return [providerId, ...service.additionalProviderIds]
 }
 
+/**
+ * Folds an alternate authorization server's provider id back onto the service
+ * it belongs to (`salesforce-sandbox` → `salesforce`), leaving every other id
+ * untouched. The inverse of {@link providerIdsForService}.
+ *
+ * Deliberately narrower than {@link credentialProviderMatchesService}: a
+ * service-account id is shared by a whole family (one `google-service-account`
+ * matches Gmail, Drive, Sheets…), so folding it onto the first matching
+ * service would arbitrarily single out one product as connected.
+ */
+export function canonicalizeServiceProviderId(
+  credentialProviderId: string,
+  service: ServiceProviderIdentity | undefined
+): string {
+  return service?.additionalProviderIds?.includes(credentialProviderId)
+    ? service.providerId
+    : credentialProviderId
+}
+
 export function getCanonicalScopesForProvider(providerId: string): string[] {
   const service = getServiceConfigByProviderId(providerId)
   return service?.scopes ? [...service.scopes] : []

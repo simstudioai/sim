@@ -23,12 +23,14 @@ export function getInstanceUrl(idToken?: string, instanceUrl?: string): string {
           .join('')
       )
       const decoded = JSON.parse(jsonPayload)
-      if (decoded.profile) {
-        const match = decoded.profile.match(/^(https:\/\/[^/]+)/)
-        if (match) return match[1]
-      } else if (decoded.sub) {
-        const match = decoded.sub.match(/^(https:\/\/[^/]+)/)
-        if (match && !isSalesforceLoginOrigin(match[1])) return match[1]
+      // Both claims are rooted at the *authorization server* when no org host
+      // could be resolved, and `/services/data/...` against a login host always
+      // fails — so each is guarded, and `profile` falling through must still let
+      // `sub` be tried rather than short-circuiting the whole lookup.
+      for (const claim of [decoded.profile, decoded.sub]) {
+        if (typeof claim !== 'string') continue
+        const origin = claim.match(/^(https:\/\/[^/]+)/)?.[1]
+        if (origin && !isSalesforceLoginOrigin(origin)) return origin
       }
     } catch (error) {
       logger.error('Failed to decode Salesforce idToken', { error })

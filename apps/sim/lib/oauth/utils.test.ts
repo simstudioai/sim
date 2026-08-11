@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest'
+import { OAUTH_PROVIDERS } from './oauth'
 import type { OAuthProvider, OAuthServiceMetadata } from './types'
 import {
+  canonicalizeServiceProviderId,
+  credentialProviderMatchesService,
   getAllOAuthServices,
   getCanonicalScopesForProvider,
   getMissingRequiredScopes,
@@ -746,5 +749,48 @@ describe('providerIdsForService', () => {
   it('returns a single-id list for providers with no alternate server', () => {
     expect(providerIdsForService('hubspot')).toEqual(['hubspot'])
     expect(providerIdsForService('not-a-real-provider')).toEqual(['not-a-real-provider'])
+  })
+})
+
+describe('credentialProviderMatchesService', () => {
+  const salesforce = OAUTH_PROVIDERS.salesforce.services.salesforce
+
+  it('matches the primary OAuth id, an alternate server, and the service account', () => {
+    expect(credentialProviderMatchesService('salesforce', salesforce)).toBe(true)
+    // The alternate-server clause: without it a sandbox credential is invisible
+    // to every surface that resolves a credential to its service.
+    expect(credentialProviderMatchesService('salesforce-sandbox', salesforce)).toBe(true)
+    expect(credentialProviderMatchesService('salesforce-service-account', salesforce)).toBe(true)
+  })
+
+  it('does not match an unrelated provider', () => {
+    expect(credentialProviderMatchesService('hubspot', salesforce)).toBe(false)
+  })
+})
+
+describe('canonicalizeServiceProviderId', () => {
+  const salesforce = OAUTH_PROVIDERS.salesforce.services.salesforce
+  const gmail = OAUTH_PROVIDERS.google.services.gmail
+
+  it('folds an alternate authorization server onto its service', () => {
+    expect(canonicalizeServiceProviderId('salesforce-sandbox', salesforce)).toBe('salesforce')
+  })
+
+  it('leaves the primary id untouched', () => {
+    expect(canonicalizeServiceProviderId('salesforce', salesforce)).toBe('salesforce')
+  })
+
+  it('never folds a family-wide service-account id onto one product', () => {
+    // `google-service-account` authenticates every Google service, so folding it
+    // onto whichever one matched first would mark exactly one as connected.
+    expect(canonicalizeServiceProviderId('google-service-account', gmail)).toBe(
+      'google-service-account'
+    )
+  })
+
+  it('leaves an id untouched when no service resolved', () => {
+    expect(canonicalizeServiceProviderId('salesforce-sandbox', undefined)).toBe(
+      'salesforce-sandbox'
+    )
   })
 })

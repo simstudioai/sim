@@ -66,7 +66,7 @@ export function isSalesforceOAuthProviderId(providerId: string | null | undefine
  */
 const SALESFORCE_INSTANCE_SCOPE_PREFIX = '__sf_instance__:'
 
-const SALESFORCE_INSTANCE_URL_REGEX = new RegExp(`${SALESFORCE_INSTANCE_SCOPE_PREFIX}([^\\s]+)`)
+const SALESFORCE_INSTANCE_URL_REGEX = new RegExp(`^${SALESFORCE_INSTANCE_SCOPE_PREFIX}([^\\s]+)`)
 
 /** Value to store in `scope` so {@link extractSalesforceInstanceUrl} can read it back. */
 export function withSalesforceInstanceScope(

@@ -431,8 +431,10 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
 
     const { claims } = readPostedAssertion()
     const secondsAhead = claims.exp - Math.floor(Date.now() / 1000)
-    expect(secondsAhead).toBeGreaterThan(0)
-    expect(secondsAhead).toBeLessThanOrEqual(300)
+    // Salesforce rejects an exp more than 5 minutes out; 180s is the value the
+    // minter uses, so the band is tight enough to catch drift in either direction.
+    expect(secondsAhead).toBeGreaterThan(150)
+    expect(secondsAhead).toBeLessThanOrEqual(180)
   })
 
   it('accepts a PKCS#1 key, which is what OpenSSL 1.x emits', async () => {
@@ -457,7 +459,12 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
 
     await expect(
       mintSalesforceServiceAccountToken({ ...JWT_FIELDS, privateKey: encrypted })
-    ).rejects.toMatchObject({ code: 'invalid_credentials' })
+    ).rejects.toMatchObject({
+      code: 'invalid_credentials',
+      // The actionable remediation is the whole point of the branch; asserting
+      // only the code lets the guard be deleted with the test still green.
+      logDetail: { reason: expect.stringContaining('passphrase-protected') },
+    })
     expect(mockFetch).not.toHaveBeenCalled()
   })
 
@@ -500,12 +507,14 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
     })
   })
 
-  it('maps an unapproved run-as user to a pre-authorization hint', async () => {
+  it.each([
+    ['straight apostrophe', "user hasn't approved this consumer"],
+    // Salesforce's real error text uses a typographic apostrophe. Covering only
+    // the straight form let that branch be deleted without failing CI.
+    ['typographic apostrophe', 'user hasn\u2019t approved this consumer'],
+  ])('maps an unapproved run-as user (%s) to a pre-authorization hint', async (_l, description) => {
     mockFetch.mockResolvedValueOnce(
-      jsonResponse(400, {
-        error: 'invalid_grant',
-        error_description: "user hasn't approved this consumer",
-      })
+      jsonResponse(400, { error: 'invalid_grant', error_description: description })
     )
 
     await expect(mintSalesforceServiceAccountToken(JWT_FIELDS)).rejects.toMatchObject({

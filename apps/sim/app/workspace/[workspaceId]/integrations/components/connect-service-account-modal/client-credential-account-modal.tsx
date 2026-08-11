@@ -8,6 +8,7 @@ import {
   ChipModalField,
   ChipModalFooter,
   ChipModalHeader,
+  ChipTextarea,
   SecretInput,
 } from '@sim/emcn'
 import { createLogger } from '@sim/logger'
@@ -138,8 +139,10 @@ export function ClientCredentialAccountModal({
   const visibleFields = mustRestateAuthMethod
     ? visible.filter((field) => !field.requiredForAuthMethods)
     : visible
-  const requiredFields = mustRestateAuthMethod && authMethodField ? [authMethodField] : required
-  const requiredFieldIds = new Set(requiredFields.map((field) => field.id))
+  // Markers always reflect the descriptor's real requirements, so `clientId`
+  // and the host don't lose their asterisk while the method is unset. Submit is
+  // gated separately below — picking a method is what unblocks it.
+  const requiredFieldIds = new Set(required.map((field) => field.id))
   /**
    * On a create the form already behaves as the descriptor's default grant, so
    * the picker shows it rather than an empty placeholder implying no choice.
@@ -147,7 +150,8 @@ export function ClientCredentialAccountModal({
   const displayedAuthMethod = mustRestateAuthMethod
     ? undefined
     : (values.authMethod ?? descriptor.defaultAuthMethod)
-  const missingRequired = requiredFields.some((field) => !values[field.id]?.trim())
+  const missingRequired =
+    mustRestateAuthMethod || required.some((field) => !values[field.id]?.trim())
 
   const isPending = createCredential.isPending || updateCredential.isPending
   const isDisabled = missingRequired || isPending
@@ -197,7 +201,7 @@ export function ClientCredentialAccountModal({
       if (connectedCredentialId) onCreated?.(connectedCredentialId)
       onOpenChange(false)
     } catch (err: unknown) {
-      setError(messageForClientCredentialError(err, descriptor, requiredFields))
+      setError(messageForClientCredentialError(err, descriptor, required))
       logger.error(`Failed to add ${descriptor.serviceLabel} service account credential`, err)
     }
   }
@@ -247,16 +251,31 @@ export function ClientCredentialAccountModal({
             return (
               <ChipModalField
                 key={field.id}
-                type='textarea'
+                type='custom'
                 title={field.label}
-                value={value}
-                onChange={(next) => setField(field.id, next)}
-                placeholder={field.placeholder}
                 required={required}
-                minHeight={120}
-                mono
                 hint={hint}
-              />
+              >
+                {(aria) => (
+                  <ChipTextarea
+                    {...aria}
+                    value={value}
+                    onChange={(event) => setField(field.id, event.target.value)}
+                    placeholder={field.placeholder}
+                    className='min-h-[120px] font-mono'
+                    // Browser spell-check and autofill ship textarea contents to
+                    // third-party services — an exfiltration route for a pasted
+                    // private key. `ChipModalField type='textarea'` exposes none
+                    // of these, which is why this branch drops to `custom`.
+                    spellCheck={false}
+                    autoComplete='off'
+                    autoCorrect='off'
+                    autoCapitalize='off'
+                    data-lpignore='true'
+                    data-form-type='other'
+                  />
+                )}
+              </ChipModalField>
             )
           }
 

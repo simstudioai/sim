@@ -185,8 +185,11 @@ async function fetchSalesforceInstanceUrl(
     if (!response.ok) return undefined
     const data = await response.json()
     if (typeof data.profile !== 'string') return undefined
-    const origin = new URL(data.profile).origin
-    return isSalesforceLoginOrigin(origin) ? undefined : origin
+    const url = new URL(data.profile)
+    // The origin becomes a tool base URL that carries the bearer token, so the
+    // scheme is pinned rather than inherited from whatever userinfo returned.
+    if (url.protocol !== 'https:' || isSalesforceLoginOrigin(url.origin)) return undefined
+    return url.origin
   } catch (error) {
     logger.error('Failed to fetch Salesforce instance URL', { error, providerId })
     return undefined

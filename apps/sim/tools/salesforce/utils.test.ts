@@ -41,6 +41,28 @@ describe('getInstanceUrl', () => {
     )
   })
 
+  it.each([
+    ['production login host', 'https://login.salesforce.com'],
+    ['sandbox login host', 'https://test.salesforce.com'],
+  ])('rejects the %s in the profile claim', (_label, loginOrigin) => {
+    expect(() =>
+      getInstanceUrl(idTokenWith({ profile: `${loginOrigin}/00530000009M943` }))
+    ).toThrow('Salesforce instance URL is required')
+  })
+
+  it('falls through to sub when profile is rooted at a login host', () => {
+    // `profile` is normally org-rooted and `sub` login-rooted, but the reverse
+    // occurs; an `else if` here would abandon the lookup on the first claim.
+    expect(
+      getInstanceUrl(
+        idTokenWith({
+          profile: 'https://test.salesforce.com/005',
+          sub: `${SANDBOX_ORG}/id/00D/005`,
+        })
+      )
+    ).toBe(SANDBOX_ORG)
+  })
+
   it('throws when neither an instance URL nor a decodable token is available', () => {
     expect(() => getInstanceUrl()).toThrow('Salesforce instance URL is required')
     expect(() => getInstanceUrl('not-a-jwt')).toThrow('Salesforce instance URL is required')

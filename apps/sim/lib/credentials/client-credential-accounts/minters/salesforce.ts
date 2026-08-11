@@ -227,6 +227,16 @@ function loadSalesforcePrivateKey(privateKeyPem: string): KeyObject {
         reason: `Salesforce requires an RSA key for RS256, received ${key.asymmetricKeyType ?? 'an unrecognized key type'}`,
       })
     }
+    // Signing is synchronous OpenSSL work on the libuv threadpool, and cost
+    // grows sharply with modulus size. Salesforce's own recipe is 2048-bit;
+    // anything past 4096 is a way to burn threadpool slots, not a real key.
+    const modulusLength = key.asymmetricKeyDetails?.modulusLength ?? 0
+    if (modulusLength > 4096) {
+      throw new TokenServiceAccountValidationError('invalid_credentials', 400, {
+        step: 'jwt_key_load',
+        reason: `RSA key is ${modulusLength}-bit; 4096 is the maximum accepted`,
+      })
+    }
     return key
   } catch (error) {
     if (error instanceof TokenServiceAccountValidationError) throw error
