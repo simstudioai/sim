@@ -5,7 +5,7 @@ paths:
 
 # Component Patterns
 
-Component authoring rules — structure order (refs → external hooks → store hooks → custom hooks → state → useMemo → useCallback → useEffect → return), required props interface, and extraction thresholds (50+ lines / 2+ files vs keep inline < 10 lines) — live in CLAUDE.md > Components.
+Component authoring rules — structure order (refs → external hooks → store hooks → custom hooks → state → useMemo → useCallback → useEffect → return), required props interface, and extraction thresholds (50+ lines / 2+ files vs keep inline < 10 lines) — live in AGENTS.md > Components.
 
 `.tsx`-specific deltas not covered there:
 
