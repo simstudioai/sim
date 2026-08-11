@@ -42,7 +42,7 @@ import {
   type StreamingExecution,
 } from '@/executor/types'
 import { hasExecutionResult } from '@/executor/utils/errors'
-import { buildAPIUrl, buildAuthHeaders } from '@/executor/utils/http'
+import { buildAPIUrl, buildExecutorDelegationHeaders } from '@/executor/utils/http'
 import { getIterationContext } from '@/executor/utils/iteration-context'
 import { parseJSON } from '@/executor/utils/json'
 import { lazyCleanupInputMapping } from '@/executor/utils/lazy-cleanup'
@@ -281,12 +281,21 @@ export class WorkflowBlockHandler implements BlockHandler {
     /** Settled in `finally` once the child is fully done — see `trackChildRun`. */
     let settleChildRun: (() => void) | undefined
     try {
+      if (!loadUserId) {
+        throw new Error('Workflow child loading requires a human execution subject')
+      }
+      const workflowReadHeaders = await buildExecutorDelegationHeaders({
+        subjectUserId: loadUserId,
+        workflowId: isCustomBlock ? workflowId : ctx.workflowId,
+        ...(!isCustomBlock && ctx.executionId ? { executionId: ctx.executionId } : {}),
+      })
+
       // A custom block runs the source's latest deployment; if the source has been
       // undeployed there's nothing to run. `BoundarySafeError` marks the message as
       // safe to cross the invocation boundary verbatim (it names no source
       // internals), so the catch forwards it instead of the generic failure.
       if (isCustomBlock) {
-        const deployed = await this.checkChildDeployment(workflowId, loadUserId)
+        const deployed = await this.checkChildDeployment(workflowId, workflowReadHeaders)
         if (!deployed) {
           throw new BoundarySafeError({
             errorType: 'not_deployed',
@@ -296,7 +305,7 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       if (useDeployed && !isCustomBlock) {
-        const hasActiveDeployment = await this.checkChildDeployment(workflowId, loadUserId)
+        const hasActiveDeployment = await this.checkChildDeployment(workflowId, workflowReadHeaders)
         if (!hasActiveDeployment) {
           throw new Error(
             `Child workflow is not deployed. Please deploy the workflow before invoking it.`
@@ -305,8 +314,8 @@ export class WorkflowBlockHandler implements BlockHandler {
       }
 
       const childWorkflow = useDeployed
-        ? await this.loadChildWorkflowDeployed(workflowId, loadUserId)
-        : await this.loadChildWorkflow(workflowId, ctx.userId)
+        ? await this.loadChildWorkflowDeployed(workflowId, workflowReadHeaders)
+        : await this.loadChildWorkflow(workflowId, workflowReadHeaders)
 
       if (!childWorkflow) {
         throw new Error(`Child workflow ${workflowId} not found`)
@@ -952,8 +961,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflow(workflowId: string, userId?: string) {
-    const headers = await buildAuthHeaders(userId)
+  private async loadChildWorkflow(workflowId: string, headers: Record<string, string>) {
     const url = buildAPIUrl(`/api/workflows/${workflowId}`)
 
     const response = await fetch(url.toString(), { headers })
@@ -1014,9 +1022,11 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async checkChildDeployment(workflowId: string, userId?: string): Promise<boolean> {
+  private async checkChildDeployment(
+    workflowId: string,
+    headers: Record<string, string>
+  ): Promise<boolean> {
     try {
-      const headers = await buildAuthHeaders(userId)
       const url = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
       const response = await fetch(url.toString(), {
@@ -1037,8 +1047,7 @@ export class WorkflowBlockHandler implements BlockHandler {
     }
   }
 
-  private async loadChildWorkflowDeployed(workflowId: string, userId?: string) {
-    const headers = await buildAuthHeaders(userId)
+  private async loadChildWorkflowDeployed(workflowId: string, headers: Record<string, string>) {
     const deployedUrl = buildAPIUrl(`/api/workflows/${workflowId}/deployed`)
 
     const deployedRes = await fetch(deployedUrl.toString(), {

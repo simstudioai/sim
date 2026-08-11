@@ -2,10 +2,13 @@ import { db } from '@sim/db'
 import { customTools } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateShortId } from '@sim/utils/id'
-import { and, desc, eq, isNull, or } from 'drizzle-orm'
+import { and, type Column, desc, eq, isNull, or } from 'drizzle-orm'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 
 const logger = createLogger('CustomToolsOperations')
+
+export type CustomToolSortBy = 'title' | 'createdAt' | 'updatedAt'
 
 /**
  * Internal function to create/update custom tools
@@ -128,6 +131,109 @@ export async function listCustomTools(params: { userId: string; workspaceId?: st
         .orderBy(desc(customTools.createdAt))
 }
 
+/**
+ * Workspace-scoped reads and deletes.
+ *
+ * The functions above tolerate legacy personal tools (`workspace_id IS NULL`,
+ * owned by one user) alongside workspace ones. The public API is workspace-
+ * scoped in every direction, so it uses these instead — a caller holding a
+ * workspace key must never reach another user's personal tool.
+ */
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so tools sharing a timestamp still come
+ * back in a stable order.
+ */
+const CUSTOM_TOOL_SORTS = {
+  title: [customTools.title, customTools.id],
+  createdAt: [customTools.createdAt, customTools.id],
+  updatedAt: [customTools.updatedAt, customTools.id],
+} satisfies Record<CustomToolSortBy, readonly Column[]>
+
+export async function listWorkspaceCustomTools(params: {
+  workspaceId: string
+  /** Case-insensitive substring match on the tool title. */
+  search?: string
+  sortBy?: CustomToolSortBy
+  sortOrder?: ListSortOrder
+}) {
+  const { sortBy = 'createdAt', sortOrder = 'desc' } = params
+  return db
+    .select()
+    .from(customTools)
+    .where(
+      and(
+        eq(customTools.workspaceId, params.workspaceId),
+        searchFilter(customTools.title, params.search)
+      )
+    )
+    .orderBy(...listOrderBy(CUSTOM_TOOL_SORTS[sortBy], sortOrder))
+}
+
+export async function getWorkspaceCustomTool(params: { workspaceId: string; toolId: string }) {
+  const [row] = await db
+    .select()
+    .from(customTools)
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .limit(1)
+  return row ?? null
+}
+
+/** Titles are unique per workspace (`custom_tools_workspace_title_unique`). */
+export async function getWorkspaceCustomToolByTitle(params: {
+  workspaceId: string
+  title: string
+}) {
+  const [row] = await db
+    .select()
+    .from(customTools)
+    .where(
+      and(eq(customTools.workspaceId, params.workspaceId), eq(customTools.title, params.title))
+    )
+    .limit(1)
+  return row ?? null
+}
+
+/**
+ * Updates a workspace tool in place, returning the updated row or null when the
+ * id no longer resolves in that workspace.
+ *
+ * Deliberately not `upsertCustomTools`: that treats an unresolvable id as a
+ * create and inserts under a *new* id, so a tool deleted concurrently with an
+ * edit would be silently re-created as an orphan under a different id while the
+ * caller's follow-up read of the original id 404s.
+ */
+export async function updateWorkspaceCustomTool(params: {
+  workspaceId: string
+  toolId: string
+  title: string
+  schema: unknown
+  code: string
+}) {
+  const [row] = await db
+    .update(customTools)
+    .set({
+      title: params.title,
+      schema: params.schema,
+      code: params.code,
+      updatedAt: new Date(),
+    })
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .returning()
+  return row ?? null
+}
+
+export async function deleteWorkspaceCustomTool(params: {
+  workspaceId: string
+  toolId: string
+}): Promise<boolean> {
+  const deleted = await db
+    .delete(customTools)
+    .where(and(eq(customTools.id, params.toolId), eq(customTools.workspaceId, params.workspaceId)))
+    .returning({ id: customTools.id })
+  return deleted.length > 0
+}
+
 export async function getCustomToolById(params: {
   toolId: string
   userId: string
@@ -182,6 +288,36 @@ export async function getCustomToolByIdOrTitle(params: {
     .where(and(isNull(customTools.workspaceId), eq(customTools.userId, userId), ...conditions))
     .limit(1)
   return legacyTool[0] || null
+}
+
+export async function updateCustomTool(params: {
+  toolId: string
+  userId: string
+  workspaceId: string
+  title: string
+  schema: unknown
+  code: string
+}) {
+  const workspaceTool = await updateWorkspaceCustomTool(params)
+  if (workspaceTool) return workspaceTool
+
+  const [legacyTool] = await db
+    .update(customTools)
+    .set({
+      title: params.title,
+      schema: params.schema,
+      code: params.code,
+      updatedAt: new Date(),
+    })
+    .where(
+      and(
+        eq(customTools.id, params.toolId),
+        isNull(customTools.workspaceId),
+        eq(customTools.userId, params.userId)
+      )
+    )
+    .returning()
+  return legacyTool ?? null
 }
 
 export async function deleteCustomTool(params: {

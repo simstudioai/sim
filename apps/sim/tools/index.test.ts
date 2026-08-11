@@ -47,7 +47,9 @@ const {
   mockGetCustomToolById,
   mockListCustomTools,
   mockMarkWorkspaceFileSecretProvenanceUnknown,
+  mockRunWorkflowTool,
   mockGetCustomToolByIdOrTitle,
+  mockGenerateInternalDelegationToken,
   mockGenerateInternalToken,
   mockResolveWorkspaceFileReference,
 } = vi.hoisted(() => ({
@@ -61,7 +63,9 @@ const {
   mockGetCustomToolById: vi.fn(),
   mockListCustomTools: vi.fn(),
   mockMarkWorkspaceFileSecretProvenanceUnknown: vi.fn(),
+  mockRunWorkflowTool: vi.fn(),
   mockGetCustomToolByIdOrTitle: vi.fn(),
+  mockGenerateInternalDelegationToken: vi.fn(),
   mockGenerateInternalToken: vi.fn(),
   mockResolveWorkspaceFileReference: vi.fn(),
 }))
@@ -76,6 +80,8 @@ vi.mock('@/lib/api-key/byok', () => ({
 }))
 
 vi.mock('@/lib/auth/internal', () => ({
+  generateInternalDelegationToken: (...args: unknown[]) =>
+    mockGenerateInternalDelegationToken(...args),
   generateInternalToken: (...args: unknown[]) => mockGenerateInternalToken(...args),
 }))
 
@@ -118,6 +124,10 @@ vi.mock('@/lib/uploads/contexts/workspace/workspace-file-manager', () => ({
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-secret-provenance', () => ({
   markWorkspaceFileSecretProvenanceUnknown: (...args: unknown[]) =>
     mockMarkWorkspaceFileSecretProvenanceUnknown(...args),
+}))
+
+vi.mock('@/executor/handlers/workflow/workflow-tool-runner', () => ({
+  runWorkflowTool: (...args: unknown[]) => mockRunWorkflowTool(...args),
 }))
 
 // Mock the tools registry to avoid loading the full 4500+ line registry file.
@@ -208,6 +218,25 @@ const mockRegistryTools: Record<string, any> = {
     outputs: {
       result: { type: 'json', description: 'Execution result' },
     },
+  },
+  test_executor_delegation: {
+    id: 'test_executor_delegation',
+    name: 'Executor Delegation Test',
+    description: 'Exercises scoped internal executor authentication',
+    version: '1.0.0',
+    params: {},
+    request: {
+      url: '/api/knowledge/test',
+      method: 'POST',
+      internalAuth: 'executor_delegation',
+      headers: () => ({ 'Content-Type': 'application/json' }),
+      body: () => ({}),
+    },
+    transformResponse: async (response: Response) => ({
+      success: response.ok,
+      output: await response.json(),
+    }),
+    outputs: {},
   },
   gmail_read: {
     id: 'gmail_read',
@@ -423,6 +452,8 @@ vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQu
 
 beforeEach(() => {
   vi.spyOn(getQueryClientModule, 'getQueryClient').mockImplementation(createMockQueryClient)
+  mockGenerateInternalDelegationToken.mockResolvedValue('executor-token')
+  mockRunWorkflowTool.mockResolvedValue({ success: true, output: {} })
   // Suites below call vi.resetAllMocks(), which wipes the shared env/urls mock
   // implementations — restore their defaults and re-pin the base URL each test.
   resetEnvMock()
@@ -705,6 +736,58 @@ describe('executeTool Function', () => {
     )
     const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
     expect(new Headers(request?.headers).get('authorization')).toBe('Bearer mothership-token')
+  })
+
+  it('uses server-authored executor identity for protected internal tools', async () => {
+    global.fetch = Object.assign(
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ success: true }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' },
+        })
+      ),
+      { preconnect: vi.fn() }
+    ) as typeof fetch
+
+    const executionContext = createToolExecutionContext({
+      userId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      executionId: 'trusted-execution',
+    })
+    await executeTool(
+      'test_executor_delegation',
+      {
+        _context: {
+          userId: 'model-user',
+          workflowId: 'model-workflow',
+        },
+      },
+      { executionContext }
+    )
+
+    expect(mockGenerateInternalDelegationToken).toHaveBeenCalledWith({
+      subjectUserId: 'trusted-user',
+      workflowId: 'trusted-workflow',
+      executionId: 'trusted-execution',
+    })
+    const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
+    expect(new Headers(request?.headers).get('authorization')).toBe('Bearer executor-token')
+  })
+
+  it('rejects protected internal tools without trusted executor scope before transport', async () => {
+    const result = await executeTool('test_executor_delegation', {
+      _context: {
+        userId: 'model-user',
+        workflowId: 'model-workflow',
+      },
+    })
+
+    expect(result).toMatchObject({
+      success: false,
+      error: 'Executor delegation requires a trusted workflow execution context',
+    })
+    expect(mockGenerateInternalDelegationToken).not.toHaveBeenCalled()
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('imports File Get Content provenance without exposing private transport metadata', async () => {
@@ -1352,7 +1435,7 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(true)
   })
 
-  it('attaches exact workflow input provenance through the central internal transport', async () => {
+  it('passes trusted workflow scope and isolated provenance to the in-process runner', async () => {
     const registry = new ResolvedSecretTraceRegistry(
       [
         {
@@ -1366,33 +1449,7 @@ describe('executeTool Function', () => {
     expect(
       registry.recordResolvedAtInputPath('INPUT_SECRET', 'secret-value', ['inputMapping'])
     ).toBe(true)
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: { ok: true },
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [],
-              scope: { userId: 'child-owner', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
     await executeTool(
       'workflow_executor_child-workflow',
@@ -1403,28 +1460,25 @@ describe('executeTool Function', () => {
       }
     )
 
-    const request = vi.mocked(global.fetch).mock.calls[0]?.[1]
-    const headers = new Headers(request?.headers)
-    const body = JSON.parse(String(request?.body))
-    expect(headers.get('x-sim-private-secret-provenance')).toBe(
-      'private-secret-provenance-bundle-v1'
+    expect(mockRunWorkflowTool).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowId: 'child-workflow',
+        inputMapping: { token: 'secret-value' },
+        _context: expect.objectContaining({
+          userId: 'parent-actor',
+          workspaceId: 'workspace-456',
+          workflowId: 'test-workflow',
+        }),
+      }),
+      expect.objectContaining({
+        resolvedSecretTraceRegistry: expect.any(ResolvedSecretTraceRegistry),
+      })
     )
-    expect(body.input).toEqual({ token: 'secret-value' })
-    expect(body.__privateSecretProvenance).toEqual({
-      version: 1,
-      complete: true,
-      selections: [
-        {
-          key: 'input',
-          provenance: {
-            version: 1,
-            complete: true,
-            entries: [{ name: 'INPUT_SECRET', encryptedValue: 'encrypted-input-secret' }],
-            scope: { userId: 'parent-owner', workspaceId: 'workspace-456' },
-          },
-        },
-      ],
-    })
+    const runnerOptions = mockRunWorkflowTool.mock.calls[0]?.[1] as {
+      resolvedSecretTraceRegistry?: ResolvedSecretTraceRegistry
+    }
+    expect(runnerOptions.resolvedSecretTraceRegistry).not.toBe(registry)
+    expect(global.fetch).not.toHaveBeenCalled()
   })
 
   it('filters cross-scope workflow provenance to literals present in the unchanged result', async () => {
@@ -1439,36 +1493,27 @@ describe('executeTool Function', () => {
       answer: 'The child returned crossed-secret verbatim',
       publicValue: 'unchanged',
     }
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: childOutput,
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [
-                { name: 'CROSSED', encryptedValue: 'crossed-encrypted' },
-                { name: 'UNRELATED', encryptedValue: 'unrelated-encrypted' },
-              ],
-              scope: { userId: 'parent-user', workspaceId: 'child-workspace' },
-            },
-          }),
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        await options.resolvedSecretTraceRegistry.importCrossingProvenance(
           {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
+            version: 1,
+            complete: true,
+            entries: [
+              { name: 'CROSSED', encryptedValue: 'crossed-encrypted' },
+              { name: 'UNRELATED', encryptedValue: 'unrelated-encrypted' },
+            ],
+            scope: { userId: 'parent-user', workspaceId: 'child-workspace' },
+          },
+          childOutput,
+          { trusted: true, origin: 'workflow-tool-test' }
         )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+        return { success: true, output: childOutput }
+      }
+    )
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1481,12 +1526,7 @@ describe('executeTool Function', () => {
 
     expect(result).toEqual({
       success: true,
-      duration: 17,
-      childWorkflowId: 'child-workflow',
-      childWorkflowName: 'Child Workflow',
       output: childOutput,
-      result: childOutput,
-      error: undefined,
       timing: {
         startTime: expect.any(String),
         endTime: expect.any(String),
@@ -1508,19 +1548,10 @@ describe('executeTool Function', () => {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            output: { value: 'unverifiable legacy output' },
-          }),
-          { status: 200, headers: { 'content-type': 'application/json' } }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'unverifiable legacy output' },
+    })
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1535,30 +1566,10 @@ describe('executeTool Function', () => {
     expect(JSON.stringify(result)).toContain('unverifiable legacy output')
     expect(registry.isComplete()).toBe(true)
 
-    vi.mocked(global.fetch).mockResolvedValueOnce(
-      new Response(
-        JSON.stringify({
-          success: true,
-          workflowId: 'child-workflow',
-          workflowName: 'Child Workflow',
-          output: { value: 'later call succeeded' },
-          metadata: { duration: 1 },
-          __resolvedSecretTraceProvenance: {
-            version: 1,
-            complete: true,
-            entries: [],
-            scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-          },
-        }),
-        {
-          status: 200,
-          headers: {
-            'content-type': 'application/json',
-            'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-          },
-        }
-      )
-    )
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: 'later call succeeded' },
+    })
     const laterResult = await executeTool(
       'workflow_executor_child-workflow',
       { workflowId: 'child-workflow', inputMapping: {} },
@@ -1580,31 +1591,15 @@ describe('executeTool Function', () => {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            output: { value: 'untrusted partial output' },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: false,
-              entries: [],
-              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        options.resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete')
+        return { success: true, output: { value: 'untrusted partial output' } }
+      }
+    )
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1621,41 +1616,16 @@ describe('executeTool Function', () => {
     expect(registry.isComplete()).toBe(false)
   })
 
-  it('does not charge private provenance against the functional response limit', async () => {
+  it('returns large in-process workflow output without applying the HTTP response cap', async () => {
     const registry = new ResolvedSecretTraceRegistry([], {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
     const functionalValue = 'f'.repeat(9 * 1024 * 1024)
-    const encryptedValue = 'e'.repeat(2 * 1024 * 1024)
-    encryptionMockFns.mockDecryptSecret.mockResolvedValueOnce({ decrypted: 'secret-value' })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: true,
-            workflowId: 'child-workflow',
-            workflowName: 'Child Workflow',
-            output: { value: functionalValue },
-            metadata: { duration: 17 },
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: true,
-              entries: [{ name: 'TOKEN', encryptedValue }],
-              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 200,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockResolvedValueOnce({
+      success: true,
+      output: { value: functionalValue },
+    })
 
     const result = await executeTool(
       'workflow_executor_child-workflow',
@@ -1881,30 +1851,15 @@ describe('executeTool Function', () => {
       userId: 'parent-user',
       workspaceId: 'workspace-456',
     })
-    global.fetch = Object.assign(
-      vi.fn().mockResolvedValue(
-        new Response(
-          JSON.stringify({
-            success: false,
-            error: 'untrusted thrown detail',
-            __resolvedSecretTraceProvenance: {
-              version: 1,
-              complete: false,
-              entries: [],
-              scope: { userId: 'parent-user', workspaceId: 'workspace-456' },
-            },
-          }),
-          {
-            status: 500,
-            headers: {
-              'content-type': 'application/json',
-              'x-sim-private-tool-metadata': 'resolved-secret-provenance-v1',
-            },
-          }
-        )
-      ),
-      { preconnect: vi.fn() }
-    ) as typeof fetch
+    mockRunWorkflowTool.mockImplementationOnce(
+      async (
+        _params: unknown,
+        options: { resolvedSecretTraceRegistry: ResolvedSecretTraceRegistry }
+      ) => {
+        options.resolvedSecretTraceRegistry.markIncomplete('source-provenance-incomplete')
+        throw new Error('untrusted thrown detail')
+      }
+    )
     mockToolsLogger.error.mockImplementation(() => {
       throw new Error('untrusted thrown detail')
     })

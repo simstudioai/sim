@@ -34,11 +34,14 @@ import {
 
 const logger = createLogger('StorageService')
 
+/** Sidecar attached to local objects promoted through the upload-session transport. */
+export const LOCAL_UPLOAD_METADATA_SUFFIX = '.upload-metadata.json'
+
 /**
  * Create a Blob config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createBlobConfig(config: StorageConfig): BlobConfig {
+export function createBlobConfig(config: StorageConfig): BlobConfig {
   if (!config.containerName) {
     throw new Error('Blob configuration missing required property: containerName')
   }
@@ -61,7 +64,7 @@ function createBlobConfig(config: StorageConfig): BlobConfig {
  * Create an S3 config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createS3Config(config: StorageConfig): S3Config {
+export function createS3Config(config: StorageConfig): S3Config {
   if (!config.bucket || !config.region) {
     throw new Error('S3 configuration missing required properties: bucket and region')
   }
@@ -76,7 +79,7 @@ function createS3Config(config: StorageConfig): S3Config {
  * Create a GCS config from StorageConfig
  * @throws Error if required properties are missing
  */
-function createGcsConfig(config: StorageConfig): GcsConfig {
+export function createGcsConfig(config: StorageConfig): GcsConfig {
   if (!config.bucket) {
     throw new Error('GCS configuration missing required property: bucket')
   }
@@ -593,7 +596,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
     }
   }
 
-  const { unlink } = await import('fs/promises')
+  const { rm, unlink } = await import('fs/promises')
   const { join } = await import('path')
   const { UPLOAD_DIR_SERVER } = await import('./setup.server')
 
@@ -601,6 +604,7 @@ export async function deleteFile(options: DeleteFileOptions): Promise<void> {
   const filePath = join(UPLOAD_DIR_SERVER, safeKey)
 
   await unlink(filePath)
+  await rm(`${filePath}${LOCAL_UPLOAD_METADATA_SUFFIX}`, { force: true })
 }
 
 /** AWS SDK v3 silently caps HTTP connections at 50/endpoint — stay well under. */
@@ -671,7 +675,17 @@ export async function headObject(
     return headGcsObject(key, createGcsConfig(config))
   }
 
-  return null
+  const { stat } = await import('fs/promises')
+  const { join } = await import('path')
+  const { UPLOAD_DIR_SERVER } = await import('./setup.server')
+  try {
+    const file = await stat(join(UPLOAD_DIR_SERVER, sanitizeFileKey(key)))
+    return { size: file.size }
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code
+    if (code === 'ENOENT') return null
+    throw error
+  }
 }
 
 /** Verifies that a create-only direct upload committed the object minted by one presigned URL. */
@@ -909,36 +923,6 @@ async function generateBlobPresignedUrl(
       ),
     },
   }
-}
-
-/**
- * Generate multiple presigned URLs at once (batch operation)
- */
-export async function generateBatchPresignedUploadUrls(
-  files: Array<{
-    fileName: string
-    contentType: string
-    fileSize: number
-  }>,
-  context: StorageContext,
-  userId?: string,
-  expirationSeconds?: number
-): Promise<PresignedUrlResponse[]> {
-  const results: PresignedUrlResponse[] = []
-
-  for (const file of files) {
-    const result = await generatePresignedUploadUrl({
-      fileName: file.fileName,
-      contentType: file.contentType,
-      fileSize: file.fileSize,
-      context,
-      userId,
-      expirationSeconds,
-    })
-    results.push(result)
-  }
-
-  return results
 }
 
 /**

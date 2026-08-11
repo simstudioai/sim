@@ -1,11 +1,12 @@
-import { db, dbReplica } from '@sim/db'
-import { knowledgeBase } from '@sim/db/schema'
+import { db } from '@sim/db'
 import { createLogger } from '@sim/logger'
 import {
   authorizeWorkflowByWorkspacePermission,
   getActiveWorkflowRecord,
 } from '@sim/platform-authz/workflow'
-import { and, eq, isNull } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
+import { createCopilotChatKnowledgePrincipal } from '@/lib/copilot/application/execute-knowledge-use-case'
+import { createCopilotChatFilePrincipal } from '@/lib/copilot/auth/file-delegation'
 import { getBlockVisibilityForCopilot } from '@/lib/copilot/block-visibility'
 import {
   MAX_TABLE_SELECTION_CONTENT_LENGTH,
@@ -26,6 +27,7 @@ import {
 import { EnvCapabilityConfigurationError } from '@/lib/core/config/env-capabilities'
 import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { isIntegrationDeploymentAvailableForVisibility } from '@/lib/integrations/availability.server'
+import { readKnowledgeBase } from '@/lib/knowledge/application/knowledge-bases'
 import { toOverview } from '@/lib/logs/log-views'
 import type { TraceSpan } from '@/lib/logs/types'
 import { mcpService } from '@/lib/mcp/service'
@@ -37,10 +39,9 @@ import { getRowsByIds } from '@/lib/table/rows/service'
 import { getTableById } from '@/lib/table/service'
 import type { ColumnDefinition } from '@/lib/table/types'
 import { getWorkspaceFileFolderPath } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
-import { getWorkspaceFile } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getSkillById } from '@/lib/workflows/skills/operations'
 import { listFolders } from '@/lib/workflows/utils'
-import { checkKnowledgeBaseAccess } from '@/app/api/knowledge/utils'
+import { readWorkspaceFileMetadata } from '@/lib/workspace-files/application/read-workspace-file-metadata'
 import { getUserPermissionConfig } from '@/ee/access-control/utils/permission-check'
 import { escapeRegExp } from '@/executor/constants'
 import type { BrowserTextSelection, ChatContext, TerminalTextSelection } from '@/stores/panel'
@@ -171,7 +172,8 @@ export async function processContextsServer(
           ctx.knowledgeId,
           userId,
           ctx.label ? `@${ctx.label}` : '@',
-          currentWorkspaceId
+          currentWorkspaceId,
+          chatId
         )
       }
       if (ctx.kind === 'blocks' && ctx.blockIds?.length > 0) {
@@ -233,7 +235,7 @@ export async function processContextsServer(
         }
       }
       if (ctx.kind === 'file' && ctx.fileId && currentWorkspaceId) {
-        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId)
+        const result = await resolveFileResource(ctx.fileId, currentWorkspaceId, userId, chatId)
         if (!result) return null
         return {
           type: 'file',
@@ -249,7 +251,9 @@ export async function processContextsServer(
           ctx.text ?? '',
           ctx.label,
           ctx.startLine,
-          ctx.endLine
+          ctx.endLine,
+          userId,
+          chatId
         )
       }
       if (
@@ -559,33 +563,23 @@ async function processKnowledgeFromDb(
   knowledgeBaseId: string,
   userId: string | undefined,
   tag: string,
-  currentWorkspaceId?: string
+  currentWorkspaceId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
   try {
-    if (userId) {
-      const accessCheck = await checkKnowledgeBaseAccess(knowledgeBaseId, userId)
-      if (!accessCheck.hasAccess) {
-        return null
-      }
-      if (currentWorkspaceId && accessCheck.knowledgeBase?.workspaceId !== currentWorkspaceId) {
-        return null
-      }
-    }
-
-    const conditions = [eq(knowledgeBase.id, knowledgeBaseId), isNull(knowledgeBase.deletedAt)]
-    if (currentWorkspaceId) {
-      conditions.push(eq(knowledgeBase.workspaceId, currentWorkspaceId))
-    }
-    const kbRows = await dbReplica
-      .select({
-        id: knowledgeBase.id,
-        name: knowledgeBase.name,
-      })
-      .from(knowledgeBase)
-      .where(and(...conditions))
-      .limit(1)
-    const kb = kbRows?.[0]
-    if (!kb) return null
+    if (!userId || !currentWorkspaceId) return null
+    const principal = createCopilotChatKnowledgePrincipal({
+      userId,
+      workspaceId: currentWorkspaceId,
+      chatId,
+    })
+    const { knowledgeBase: kb } = await readKnowledgeBase.execute({
+      principal,
+      input: {
+        knowledgeBaseId,
+        assertedWorkspaceId: currentWorkspaceId,
+      },
+    })
 
     return {
       type: 'knowledge',
@@ -836,7 +830,8 @@ export async function resolveActiveResourceContext(
           resourceId,
           userId,
           '@active_resource',
-          workspaceId
+          workspaceId,
+          chatId
         )
         if (!ctx) return null
         return {
@@ -850,7 +845,7 @@ export async function resolveActiveResourceContext(
         return await resolveTableResource(resourceId, workspaceId)
       }
       case 'file': {
-        return await resolveFileResource(resourceId, workspaceId)
+        return await resolveFileResource(resourceId, workspaceId, userId, chatId)
       }
       case 'folder': {
         return await resolveFolderResource(resourceId, workspaceId)
@@ -883,10 +878,19 @@ async function resolveTableResource(
 
 async function resolveFileResource(
   fileId: string,
-  workspaceId: string
+  workspaceId: string,
+  userId: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
-  if (!record) return null
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
   return {
     type: 'active_resource',
     tag: '@active_resource',
@@ -922,10 +926,20 @@ async function resolveFileSelectionResource(
   text: string,
   label: string,
   startLine?: number,
-  endLine?: number
+  endLine?: number,
+  userId?: string,
+  chatId?: string
 ): Promise<AgentContext | null> {
-  const record = await getWorkspaceFile(workspaceId, fileId)
-  if (!record) return null
+  if (!userId) throw new Error('File selection context requires a user ID')
+  const principal = createCopilotChatFilePrincipal({
+    userId,
+    workspaceId,
+    chatId,
+  })
+  const { file: record } = await readWorkspaceFileMetadata.execute({
+    principal,
+    input: { fileId, assertedWorkspaceId: workspaceId },
+  })
   const path = canonicalWorkspaceFilePath({ folderPath: record.folderPath, name: record.name })
   const snippet = truncateSelectionText(text)
   const lineRange =

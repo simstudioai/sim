@@ -13,7 +13,7 @@ import type { ToolResponse } from '@/tools/types'
 const logger = createLogger('CustomBlockToolRunner')
 
 /** Server-set execution context propagated to every agent tool call. */
-interface CustomBlockExecutorContext {
+export interface CustomBlockExecutorContext {
   workspaceId?: string
   userId?: string
   workflowId?: string

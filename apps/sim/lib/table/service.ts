@@ -13,7 +13,22 @@ import { tableJobs, userTableDefinitions, userTableRows } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, count, eq, isNull, sql } from 'drizzle-orm'
+import { and, type Column, count, eq, isNotNull, isNull, type SQL, sql } from 'drizzle-orm'
+import type { V2TableSortBy } from '@/lib/api/contracts/v2/tables'
+import type { ListSortOrder } from '@/lib/api/list-query'
+import {
+  type CursorKey,
+  encodeKeyset,
+  INVALID_CURSOR_MESSAGE,
+  type KeysetKey,
+  keysetAfter,
+  keysetColumns,
+  listOrderBy,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRestoreName } from '@/lib/core/utils/restore-name'
 import type { DbOrTx } from '@/lib/db/types'
 import { resolveRestoredFolderId } from '@/lib/folders/queries'
@@ -33,8 +48,6 @@ import {
 import { setTableTxTimeouts } from '@/lib/table/tx'
 import {
   type CreateTableData,
-  TABLE_LOCK_FLAGS,
-  TABLE_LOCK_KINDS,
   type TableDefinition,
   type TableLocks,
   type TableMetadata,
@@ -46,10 +59,15 @@ import { stripGroupDeps } from '@/lib/table/workflow-columns'
 
 const logger = createLogger('TableService')
 
-export class TableConflictError extends Error {
-  readonly code = 'TABLE_EXISTS' as const
+/**
+ * A table name already taken in the workspace. Kept as its own class because
+ * several routes branch on it specifically, and typed as a `conflict` so the
+ * generic classifiers reach the same 409 without reading the message.
+ */
+export class TableConflictError extends OrchestrationError {
   constructor(name: string) {
-    super(`A table named "${name}" already exists in this workspace`)
+    super('conflict', `A table named "${name}" already exists in this workspace`)
+    this.name = 'TableConflictError'
   }
 }
 
@@ -99,7 +117,7 @@ function readLocks(row: {
 export async function withLockedTable<T>(
   tableId: string,
   mutate: (table: TableDefinition, trx: DbTransaction) => Promise<T>,
-  opts?: { includeArchived?: boolean }
+  opts?: { includeArchived?: boolean; expectedWorkspaceId?: string }
 ): Promise<T> {
   return db.transaction(async (trx) => {
     await setTableTxTimeouts(trx)
@@ -107,8 +125,8 @@ export async function withLockedTable<T>(
       sql`SELECT pg_advisory_xact_lock(hashtextextended(${`user_table_schema:${tableId}`}, 0))`
     )
     const table = await getTableById(tableId, { tx: trx, includeArchived: opts?.includeArchived })
-    if (!table) {
-      throw new Error('Table not found')
+    if (!table || (opts?.expectedWorkspaceId && table.workspaceId !== opts.expectedWorkspaceId)) {
+      throw new OrchestrationError('not_found', 'Table not found')
     }
     return mutate(table, trx)
   })
@@ -207,52 +225,147 @@ export async function getTableById(
 }
 
 /**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `createdAt` so tables sharing a name still
+ * come back in a stable order.
+ */
+const TABLE_SORTS = {
+  name: [userTableDefinitions.name, userTableDefinitions.createdAt],
+  createdAt: [userTableDefinitions.createdAt],
+  updatedAt: [userTableDefinitions.updatedAt, userTableDefinitions.createdAt],
+} satisfies Record<V2TableSortBy, readonly Column[]>
+
+/**
+ * The keysets behind {@link queryTables}' sortable fields. `satisfies` makes
+ * this total over the contract enum, so a new sortable field fails to compile
+ * until it has a keyset here rather than silently falling through to an
+ * unordered scan.
+ *
+ * Every key column is `NOT NULL`, and `id` closes each keyset so a page
+ * boundary inside a run of equal names or timestamps is still stable.
+ */
+const tableId = textKey<TableDefinition>(userTableDefinitions.id, (row) => row.id)
+
+/** `TableDefinition` widens its timestamps to `Date | string`; the keyset needs a `Date`. */
+const asDate = (value: Date | string): Date => (value instanceof Date ? value : new Date(value))
+
+const TABLE_KEYSETS = {
+  name: [textKey<TableDefinition>(userTableDefinitions.name, (row) => row.name), tableId],
+  createdAt: [
+    timestampKey<TableDefinition>(userTableDefinitions.createdAt, (row) => asDate(row.createdAt)),
+    tableId,
+  ],
+  updatedAt: [
+    timestampKey<TableDefinition>(userTableDefinitions.updatedAt, (row) => asDate(row.updatedAt)),
+    tableId,
+  ],
+} satisfies Record<V2TableSortBy, readonly KeysetKey<TableDefinition>[]>
+
+/** The column projection every table listing reads, shared so one row type serves both. */
+const TABLE_ROW_SELECT = {
+  id: userTableDefinitions.id,
+  name: userTableDefinitions.name,
+  description: userTableDefinitions.description,
+  schema: userTableDefinitions.schema,
+  metadata: userTableDefinitions.metadata,
+  maxRows: userTableDefinitions.maxRows,
+  workspaceId: userTableDefinitions.workspaceId,
+  folderId: userTableDefinitions.folderId,
+  createdBy: userTableDefinitions.createdBy,
+  archivedAt: userTableDefinitions.archivedAt,
+  createdAt: userTableDefinitions.createdAt,
+  updatedAt: userTableDefinitions.updatedAt,
+  rowCount: userTableDefinitions.rowCount,
+  ...LOCK_SELECT,
+} as const
+
+type TableRowSelection = Awaited<
+  ReturnType<ReturnType<typeof db.select<typeof TABLE_ROW_SELECT>>['from']>
+>[number]
+
+interface ListTablesOptions {
+  scope?: TableScope
+  /** Restrict to one table folder. */
+  /** `undefined` lists every folder, `null` lists only workspace-root tables. */
+  folderId?: string | null
+  /** Case-insensitive substring match on the table name. */
+  search?: string
+  sortBy?: V2TableSortBy
+  sortOrder?: ListSortOrder
+}
+
+/**
  * Lists all tables in a workspace.
+ *
+ * Filter and sort are applied in the query — a name search must not become
+ * "read every table in the workspace, then discard most of them".
  *
  * @param workspaceId - Workspace ID to list tables for
  * @returns Array of table definitions
  */
 export async function listTables(
   workspaceId: string,
-  options?: { scope?: TableScope }
+  options?: ListTablesOptions
 ): Promise<TableDefinition[]> {
-  const { scope = 'active' } = options ?? {}
+  const {
+    scope = 'active',
+    folderId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'asc',
+  } = options ?? {}
   const tables = await db
-    .select({
-      id: userTableDefinitions.id,
-      name: userTableDefinitions.name,
-      description: userTableDefinitions.description,
-      schema: userTableDefinitions.schema,
-      metadata: userTableDefinitions.metadata,
-      maxRows: userTableDefinitions.maxRows,
-      workspaceId: userTableDefinitions.workspaceId,
-      folderId: userTableDefinitions.folderId,
-      createdBy: userTableDefinitions.createdBy,
-      archivedAt: userTableDefinitions.archivedAt,
-      createdAt: userTableDefinitions.createdAt,
-      updatedAt: userTableDefinitions.updatedAt,
-      rowCount: userTableDefinitions.rowCount,
-      ...LOCK_SELECT,
-    })
+    .select(TABLE_ROW_SELECT)
     .from(userTableDefinitions)
     .where(
-      scope === 'all'
-        ? eq(userTableDefinitions.workspaceId, workspaceId)
-        : scope === 'archived'
-          ? and(
-              eq(userTableDefinitions.workspaceId, workspaceId),
-              sql`${userTableDefinitions.archivedAt} IS NOT NULL`
-            )
-          : and(
-              eq(userTableDefinitions.workspaceId, workspaceId),
-              isNull(userTableDefinitions.archivedAt)
-            )
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        scope === 'all'
+          ? undefined
+          : scope === 'archived'
+            ? isNotNull(userTableDefinitions.archivedAt)
+            : isNull(userTableDefinitions.archivedAt),
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(userTableDefinitions.folderId)
+            : eq(userTableDefinitions.folderId, folderId),
+        searchFilter(userTableDefinitions.name, search)
+      )
     )
-    .orderBy(userTableDefinitions.createdAt)
+    .orderBy(...listOrderBy(TABLE_SORTS[sortBy], sortOrder))
 
-  const jobsByTable = await latestJobsForTables(tables.map((t) => t.id))
+  return hydrateTableRows(tables)
+}
 
-  return tables.map((t) => {
+/** Loads at most two active exact-name matches so callers can fail on corrupt ambiguity. */
+export async function findActiveTablesByExactName(
+  workspaceId: string,
+  name: string
+): Promise<TableDefinition[]> {
+  const rows = await db
+    .select(TABLE_ROW_SELECT)
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        eq(userTableDefinitions.name, name),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .limit(2)
+  return hydrateTableRows(rows)
+}
+
+/**
+ * Attaches each table's latest job fields and its order-corrected schema. The
+ * `rowCount` subtracts rows a pending delete has already claimed, so a table
+ * mid-delete reports what a caller can still read rather than the raw column.
+ */
+async function hydrateTableRows(rows: TableRowSelection[]): Promise<TableDefinition[]> {
+  const jobsByTable = await latestJobsForTables(rows.map((t) => t.id))
+
+  return rows.map((t) => {
     const metadata = (t.metadata as TableMetadata) ?? null
     const { pendingDeleteRemaining, ...jobFields } = jobsByTable.get(t.id) ?? EMPTY_JOB_FIELDS
     return {
@@ -275,6 +388,81 @@ export async function listTables(
   })
 }
 
+export interface QueryTablesOptions {
+  scope?: TableScope
+  /** Restrict to one table folder. */
+  /** `undefined` lists every folder, `null` lists only workspace-root tables. */
+  folderId?: string | null
+  /** Case-insensitive substring match on the table name. */
+  search?: string
+  sortBy: V2TableSortBy
+  sortOrder: ListSortOrder
+  limit: number
+  /** Keyset values from a cursor, in the sort's key order. */
+  after?: CursorKey[]
+}
+
+export interface QueryTablesResult {
+  tables: TableDefinition[]
+  /** Keyset values to resume from, or `null` when this page is the last one. */
+  nextKeys: CursorKey[] | null
+}
+
+/**
+ * One filtered, sorted, bounded page of a workspace's tables.
+ *
+ * Distinct from {@link listTables}, which materializes the whole scope for
+ * callers that genuinely need it. Here the filter, the ordering, and the slice
+ * are all in the query, so a `search` never costs a full-workspace read — which
+ * matters now that tables can be created through the public API in bulk.
+ */
+export async function queryTables(
+  workspaceId: string,
+  options: QueryTablesOptions
+): Promise<QueryTablesResult> {
+  const { scope = 'active', folderId, search, sortBy, sortOrder, limit, after } = options
+  const keys = TABLE_KEYSETS[sortBy]
+
+  // A cursor whose values don't bind is a caller error, not an empty filter —
+  // coercing it away would silently serve page 1 under a resumed cursor.
+  let resumeAfter: SQL | undefined
+  if (after) {
+    const condition = keysetAfter(keys, after, sortOrder)
+    if (!condition) throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+    resumeAfter = condition
+  }
+
+  const rows = await db
+    .select(TABLE_ROW_SELECT)
+    .from(userTableDefinitions)
+    .where(
+      and(
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        scope === 'all'
+          ? undefined
+          : scope === 'archived'
+            ? isNotNull(userTableDefinitions.archivedAt)
+            : isNull(userTableDefinitions.archivedAt),
+        folderId === undefined
+          ? undefined
+          : folderId === null
+            ? isNull(userTableDefinitions.folderId)
+            : eq(userTableDefinitions.folderId, folderId),
+        searchFilter(userTableDefinitions.name, search),
+        resumeAfter
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    // One extra row is the has-more probe; it never reaches the caller.
+    .limit(limit + 1)
+
+  const hasMore = rows.length > limit
+  const tables = await hydrateTableRows(rows.slice(0, limit))
+  const last = tables.at(-1)
+
+  return { tables, nextKeys: hasMore && last ? encodeKeyset(keys, last) : null }
+}
+
 /**
  * Creates a new table.
  *
@@ -290,13 +478,19 @@ export async function createTable(
   // Validate table name
   const nameValidation = validateTableName(data.name)
   if (!nameValidation.valid) {
-    throw new Error(`Invalid table name: ${nameValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid table name: ${nameValidation.errors.join(', ')}`
+    )
   }
 
   // Validate schema
   const schemaValidation = validateTableSchema(data.schema)
   if (!schemaValidation.valid) {
-    throw new Error(`Invalid schema: ${schemaValidation.errors.join(', ')}`)
+    throw new OrchestrationError(
+      'validation',
+      `Invalid schema: ${schemaValidation.errors.join(', ')}`
+    )
   }
 
   const tableId = `tbl_${generateId().replace(/-/g, '')}`
@@ -360,7 +554,12 @@ export async function createTable(
         )
 
       if (Number(existingCount) >= maxTables) {
-        throw new Error(`Workspace has reached maximum table limit (${maxTables})`)
+        // A quota ceiling, not bad input — both create routes have always
+        // answered 403 for it.
+        throw new OrchestrationError(
+          'forbidden',
+          `Workspace has reached maximum table limit (${maxTables})`
+        )
       }
 
       const duplicateName = await trx
@@ -388,6 +587,7 @@ export async function createTable(
           workspaceId: data.workspaceId,
           type: initialJob.type,
           status: 'running',
+          payload: data.jobPayload ?? null,
           startedAt: initialJob.startedAt,
           updatedAt: initialJob.startedAt,
         })
@@ -496,23 +696,26 @@ export async function addTableColumnsWithTx(
 
   for (const column of columns) {
     if (!NAME_PATTERN.test(column.name)) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column name "${column.name}". Must start with a letter or underscore and contain only alphanumeric characters and underscores.`
       )
     }
     if (column.name.length > TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Column name exceeds maximum length (${TABLE_LIMITS.MAX_COLUMN_NAME_LENGTH} characters)`
       )
     }
     if (!COLUMN_TYPES.includes(column.type as (typeof COLUMN_TYPES)[number])) {
-      throw new Error(
+      throw new OrchestrationError(
+        'validation',
         `Invalid column type "${column.type}". Must be one of: ${COLUMN_TYPES.join(', ')}`
       )
     }
     const lower = column.name.toLowerCase()
     if (usedNames.has(lower)) {
-      throw new Error(`Column "${column.name}" already exists`)
+      throw new OrchestrationError('validation', `Column "${column.name}" already exists`)
     }
     usedNames.add(lower)
     // Honor a caller-assigned id (the CSV append path pre-assigns so coercion
@@ -528,7 +731,8 @@ export async function addTableColumnsWithTx(
   }
 
   if (table.schema.columns.length + additions.length > TABLE_LIMITS.MAX_COLUMNS_PER_TABLE) {
-    throw new Error(
+    throw new OrchestrationError(
+      'validation',
       `Adding ${additions.length} column(s) would exceed maximum column limit (${TABLE_LIMITS.MAX_COLUMNS_PER_TABLE})`
     )
   }
@@ -544,7 +748,12 @@ export async function addTableColumnsWithTx(
   await trx
     .update(userTableDefinitions)
     .set({ schema: updatedSchema, updatedAt: now })
-    .where(eq(userTableDefinitions.id, table.id))
+    .where(
+      and(
+        eq(userTableDefinitions.id, table.id),
+        eq(userTableDefinitions.workspaceId, table.workspaceId)
+      )
+    )
 
   logger.info(
     `[${requestId}] Added ${additions.length} column(s) to table ${table.id}: ${additions.map((c) => c.name).join(', ')}`
@@ -595,11 +804,11 @@ export async function renameTable(
   tableId: string,
   newName: string,
   requestId: string,
-  actingUserId?: string
+  options?: { expectedWorkspaceId?: string; skipNotify?: boolean }
 ): Promise<{ id: string; name: string }> {
   const nameValidation = validateTableName(newName)
   if (!nameValidation.valid) {
-    throw new Error(nameValidation.errors.join(', '))
+    throw new OrchestrationError('validation', nameValidation.errors.join(', '))
   }
 
   const now = new Date()
@@ -607,36 +816,29 @@ export async function renameTable(
     const result = await db
       .update(userTableDefinitions)
       .set({ name: newName, updatedAt: now })
-      .where(eq(userTableDefinitions.id, tableId))
-      .returning({
-        id: userTableDefinitions.id,
-        createdBy: userTableDefinitions.createdBy,
-        workspaceId: userTableDefinitions.workspaceId,
-      })
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          options?.expectedWorkspaceId
+            ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+            : undefined,
+          isNull(userTableDefinitions.archivedAt)
+        )
+      )
+      // `workspaceId` is selected for the live-list notify below, not for an audit —
+      // the audit moved up to `performRenameTable`.
+      .returning({ id: userTableDefinitions.id, workspaceId: userTableDefinitions.workspaceId })
 
     if (result.length === 0) {
-      throw new Error(`Table ${tableId} not found`)
+      throw new OrchestrationError('not_found', `Table ${tableId} not found`)
     }
 
-    const { createdBy, workspaceId } = result[0]
-    const renameActorId = actingUserId ?? createdBy
-    if (renameActorId) {
-      recordAudit({
-        workspaceId: workspaceId ?? null,
-        actorId: renameActorId,
-        action: AuditAction.TABLE_UPDATED,
-        resourceType: AuditResourceType.TABLE,
-        resourceId: tableId,
-        resourceName: newName,
-        description: `Renamed table to "${newName}"`,
-        metadata: { op: 'rename' },
-      })
-    }
+    const { workspaceId } = result[0]
 
     logger.info(`[${requestId}] Renamed table ${tableId} to "${newName}"`)
 
     // Live tables list: a rename changes the list result, so everyone viewing refetches.
-    if (workspaceId) await notifyWorkspaceTablesChanged(workspaceId)
+    if (workspaceId && !options?.skipNotify) await notifyWorkspaceTablesChanged(workspaceId)
 
     return { id: tableId, name: newName }
   } catch (error: unknown) {
@@ -645,6 +847,34 @@ export async function renameTable(
     }
     throw error
   }
+}
+
+/** Updates a table description without changing its schema or placement. */
+export async function updateTableDescription(
+  tableId: string,
+  workspaceId: string,
+  description: string | null,
+  requestId: string
+): Promise<{ name: string }> {
+  const result = await db
+    .update(userTableDefinitions)
+    .set({ description, updatedAt: new Date() })
+    .where(
+      and(
+        eq(userTableDefinitions.id, tableId),
+        eq(userTableDefinitions.workspaceId, workspaceId),
+        isNull(userTableDefinitions.archivedAt)
+      )
+    )
+    .returning({ name: userTableDefinitions.name })
+
+  if (result.length === 0) {
+    throw new OrchestrationError('not_found', `Table ${tableId} not found`)
+  }
+
+  logger.info(`[${requestId}] Updated description for table ${tableId}`)
+  await notifyWorkspaceTablesChanged(workspaceId)
+  return result[0]
 }
 
 /**
@@ -662,9 +892,8 @@ export async function moveTableToFolder(
   tableId: string,
   workspaceId: string,
   folderId: string | null,
-  requestId: string,
-  actingUserId?: string
-): Promise<void> {
+  requestId: string
+): Promise<{ name: string }> {
   const updates: Partial<typeof userTableDefinitions.$inferInsert> = {
     folderId,
     updatedAt: new Date(),
@@ -692,30 +921,16 @@ export async function moveTableToFolder(
     })
 
   if (result.length === 0) {
-    throw new Error(`Table ${tableId} not found`)
+    throw new OrchestrationError('not_found', `Table ${tableId} not found`)
   }
 
-  const { name, createdBy } = result[0]
-  const actorId = actingUserId ?? createdBy
-  if (actorId) {
-    recordAudit({
-      workspaceId,
-      actorId,
-      action: AuditAction.TABLE_UPDATED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: name,
-      description: folderId
-        ? `Moved table "${name}" into a folder`
-        : `Moved table "${name}" to the workspace root`,
-      metadata: { op: 'move', folderId },
-    })
-  }
+  const { name } = result[0]
 
   logger.info(`[${requestId}] Moved table ${tableId} to folder ${folderId ?? 'root'}`)
-
   // Live tables list: a move changes each table's folder placement in the list result.
   await notifyWorkspaceTablesChanged(workspaceId)
+
+  return { name }
 }
 
 /**
@@ -732,11 +947,8 @@ export async function moveTableToFolder(
 export async function updateTableLocks(
   tableId: string,
   partial: Partial<TableLocks>,
-  actingUserId: string,
-  requestId: string,
-  /** Forwarded to the audit record for IP / user-agent capture. */
-  request?: { headers: { get(name: string): string | null } }
-): Promise<TableDefinition> {
+  requestId: string
+): Promise<{ table: TableDefinition; previousLocks: TableLocks }> {
   let previousLocks: TableLocks = UNLOCKED_TABLE_LOCKS
   const updated = await withLockedTable(tableId, async (table, trx) => {
     previousLocks = table.locks
@@ -749,36 +961,12 @@ export async function updateTableLocks(
     return { ...table, locks: nextLocks, updatedAt: now }
   })
 
-  // Name the transitions in the description so the audit list is readable
-  // without expanding metadata — "who locked my production table" is the
-  // question this feature exists to answer.
-  const flipped = TABLE_LOCK_KINDS.filter(
-    (kind) => previousLocks[TABLE_LOCK_FLAGS[kind]] !== updated.locks[TABLE_LOCK_FLAGS[kind]]
-  )
-  const description = flipped.length
-    ? `Table locks changed: ${flipped
-        .map((kind) => `${kind} ${updated.locks[TABLE_LOCK_FLAGS[kind]] ? 'locked' : 'unlocked'}`)
-        .join(', ')}`
-    : 'Updated table locks (no change)'
-
-  recordAudit({
-    workspaceId: updated.workspaceId,
-    actorId: actingUserId,
-    action: AuditAction.TABLE_UPDATED,
-    resourceType: AuditResourceType.TABLE,
-    resourceId: tableId,
-    resourceName: updated.name,
-    description,
-    metadata: { op: 'update_locks', before: previousLocks, after: updated.locks },
-    ...(request ? { request } : {}),
-  })
-
   await appendTableEvent({ kind: 'definition', tableId, reason: 'locks' }).catch((error) => {
     logger.warn(`[${requestId}] Failed to emit lock-change event for table ${tableId}`, { error })
   })
 
   logger.info(`[${requestId}] Updated locks for table ${tableId}`)
-  return updated
+  return { table: updated, previousLocks }
 }
 
 /**
@@ -859,9 +1047,8 @@ export async function updateTableMetadata(
 export async function deleteTable(
   tableId: string,
   requestId: string,
-  actingUserId?: string,
-  options?: { archivedAt?: Date; skipNotify?: boolean }
-): Promise<void> {
+  options?: { archivedAt?: Date; skipNotify?: boolean; expectedWorkspaceId?: string }
+): Promise<{ archived: { name: string; workspaceId: string | null } | null }> {
   const now = options?.archivedAt ?? new Date()
   // Archiving destroys access to every row, so it is gated on the delete lock.
   // The guard is inline in the WHERE (atomic — no separate read, no TOCTOU);
@@ -872,6 +1059,9 @@ export async function deleteTable(
     .where(
       and(
         eq(userTableDefinitions.id, tableId),
+        options?.expectedWorkspaceId
+          ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+          : undefined,
         isNull(userTableDefinitions.archivedAt),
         eq(userTableDefinitions.deleteLocked, false)
       )
@@ -891,7 +1081,14 @@ export async function deleteTable(
         workspaceId: userTableDefinitions.workspaceId,
       })
       .from(userTableDefinitions)
-      .where(eq(userTableDefinitions.id, tableId))
+      .where(
+        and(
+          eq(userTableDefinitions.id, tableId),
+          options?.expectedWorkspaceId
+            ? eq(userTableDefinitions.workspaceId, options.expectedWorkspaceId)
+            : undefined
+        )
+      )
       .limit(1)
     if (existing && !existing.archivedAt && existing.deleteLocked) {
       logger.warn('Table mutation blocked by lock', {
@@ -903,27 +1100,16 @@ export async function deleteTable(
     }
     // Otherwise the table is missing or already archived — a silent no-op, as before.
   }
-  // Audit only genuine user deletes — rollback callers omit `actingUserId`. The
-  // caller emits the `table_deleted` PostHog event, so it is not duplicated here.
-  if (deleted && actingUserId) {
-    recordAudit({
-      workspaceId: deleted.workspaceId ?? null,
-      actorId: actingUserId,
-      action: AuditAction.TABLE_DELETED,
-      resourceType: AuditResourceType.TABLE,
-      resourceId: tableId,
-      resourceName: deleted.name,
-      description: `Archived table "${deleted.name}"`,
-    })
-  }
-
   logger.info(`[${requestId}] Archived table ${tableId}`)
-
   // Live tables list: only on a genuine archive (a no-op/already-archived delete changes nothing).
   // Skipped under a folder cascade — deleteFolder fires one folder-level notify for the whole subtree,
   // so we don't spam one relay call per archived table.
   if (deleted?.workspaceId && !options?.skipNotify)
     await notifyWorkspaceTablesChanged(deleted.workspaceId)
+
+  // Null when the table was missing or already archived — a silent no-op. The
+  // caller audits only a genuine archive, so a repeat delete logs nothing.
+  return { archived: deleted ? { name: deleted.name, workspaceId: deleted.workspaceId } : null }
 }
 
 /**
@@ -942,18 +1128,18 @@ export async function restoreTable(
 ): Promise<void> {
   const table = await getTableById(tableId, { includeArchived: true })
   if (!table) {
-    throw new Error('Table not found')
+    throw new OrchestrationError('not_found', 'Table not found')
   }
 
   if (!table.archivedAt) {
-    throw new Error('Table is not archived')
+    throw new OrchestrationError('validation', 'Table is not archived')
   }
 
   if (table.workspaceId) {
     const { getWorkspaceWithOwner } = await import('@/lib/workspaces/permissions/utils')
     const ws = await getWorkspaceWithOwner(table.workspaceId)
     if (!ws || ws.archivedAt) {
-      throw new Error('Cannot restore table into an archived workspace')
+      throw new OrchestrationError('validation', 'Cannot restore table into an archived workspace')
     }
   }
 

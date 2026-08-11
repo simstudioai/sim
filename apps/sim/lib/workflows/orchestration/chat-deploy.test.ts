@@ -16,7 +16,7 @@ vi.mock('@/lib/workflows/orchestration/deploy', () => ({
   performFullDeploy: mockPerformFullDeploy,
 }))
 
-vi.mock('@/app/api/workflows/utils', () => ({
+vi.mock('@/lib/workflows/deployment-status', () => ({
   checkNeedsRedeployment: mockCheckNeedsRedeployment,
 }))
 

@@ -228,7 +228,21 @@ export function DeployModal({
     workflowWorkspaceId ? 'YOUR_WORKSPACE_API_KEY' : 'YOUR_PERSONAL_API_KEY'
 
   const getInputFormatExample = (includeStreaming = false) => {
-    return getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
+    const inputFormatExample = getInputFormatExampleUtil(includeStreaming, selectedStreamingOutputs)
+    if (!inputFormatExample) return ''
+
+    const match = inputFormatExample.match(/-d\s*'([\s\S]*)'/)
+    if (!match) {
+      throw new Error(`Invalid workflow input example: ${inputFormatExample}`)
+    }
+
+    const legacyBody = JSON.parse(match[1]) as Record<string, unknown>
+    const { stream, selectedOutputs, ...input } = legacyBody
+    return ` -d '${JSON.stringify({
+      input,
+      ...(stream === true ? { stream: true } : {}),
+      ...(Array.isArray(selectedOutputs) ? { selectedOutputs } : {}),
+    })}'`
   }
 
   const deploymentInfo: WorkflowDeploymentInfoUI | null = (() => {
@@ -236,7 +250,7 @@ export function DeployModal({
       return null
     }
 
-    const endpoint = `${getBaseUrl()}/api/workflows/${workflowId}/execute`
+    const endpoint = `${getBaseUrl()}/api/v2/workflows/${workflowId}/execute`
     const inputFormatExample = getInputFormatExample(selectedStreamingOutputs.length > 0)
     const placeholderKey = getApiHeaderPlaceholder()
 

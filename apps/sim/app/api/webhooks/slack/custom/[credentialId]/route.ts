@@ -3,10 +3,10 @@ import { type NextRequest, NextResponse } from 'next/server'
 import { admissionRejectedResponse, tryAdmit } from '@/lib/core/admission/gate'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { getSlackBotCredential } from '@/lib/oauth/credential-service'
 import { findWebhooksByRoutingKey, parseWebhookBody } from '@/lib/webhooks/processor'
 import { handleSlackChallenge, verifySlackRequestSignature } from '@/lib/webhooks/providers/slack'
 import { dispatchSlackWebhooks } from '@/lib/webhooks/slack-dispatch'
-import { getSlackBotCredential } from '@/app/api/auth/oauth/utils'
 
 const logger = createLogger('SlackCustomBotWebhookAPI')
 

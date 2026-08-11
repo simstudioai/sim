@@ -151,6 +151,7 @@ export const deleteDocumentTagDefinitionsContract = defineRouteContract({
   method: 'DELETE',
   path: '/api/knowledge/[id]/documents/[documentId]/tag-definitions',
   params: knowledgeDocumentParamsSchema,
+  query: deleteDocumentTagDefinitionsQuerySchema,
   response: {
     mode: 'json',
     schema: z.object({ success: z.literal(true) }).passthrough(),

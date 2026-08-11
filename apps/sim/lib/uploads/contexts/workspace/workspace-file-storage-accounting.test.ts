@@ -11,12 +11,17 @@ const {
   mockGetWorkspaceWithOwner,
   mockHasCloudStorage,
   mockHeadObject,
+  mockAcquireFolderMutationLock,
+  mockAssertWorkspaceFileFolderTarget,
   mockIncrementStorageUsageForBillingContextInTx,
+  mockLoadActiveFolderPathIndex,
   mockInitializeWorkspaceFileSecretProvenanceInTx,
   mockMaybeNotifyStorageLimitForBillingContext,
   mockMergeEditIntoLiveFileDoc,
   mockNotifyWorkspaceFilesChanged,
   mockResolveStorageBillingContext,
+  mockResolveFolderPathFromIndex,
+  mockResolveWorkspaceFileFolderTarget,
   mockReplaceWorkspaceFileSecretProvenanceInTx,
   mockUploadFile,
 } = vi.hoisted(() => ({
@@ -25,12 +30,17 @@ const {
   mockGetWorkspaceWithOwner: vi.fn(),
   mockHasCloudStorage: vi.fn(),
   mockHeadObject: vi.fn(),
+  mockAcquireFolderMutationLock: vi.fn(),
+  mockAssertWorkspaceFileFolderTarget: vi.fn(),
   mockIncrementStorageUsageForBillingContextInTx: vi.fn(),
+  mockLoadActiveFolderPathIndex: vi.fn(),
   mockInitializeWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockMaybeNotifyStorageLimitForBillingContext: vi.fn(),
   mockMergeEditIntoLiveFileDoc: vi.fn(),
   mockNotifyWorkspaceFilesChanged: vi.fn(),
   mockResolveStorageBillingContext: vi.fn(),
+  mockResolveFolderPathFromIndex: vi.fn(),
+  mockResolveWorkspaceFileFolderTarget: vi.fn(),
   mockReplaceWorkspaceFileSecretProvenanceInTx: vi.fn(),
   mockUploadFile: vi.fn(),
 }))
@@ -67,13 +77,23 @@ vi.mock('@/lib/uploads/core/storage-service', () => ({
 }))
 
 vi.mock('@/lib/uploads/contexts/workspace/workspace-file-folder-manager', () => ({
-  assertWorkspaceFileFolderTarget: vi.fn(async () => null),
+  assertWorkspaceFileFolderTarget: mockAssertWorkspaceFileFolderTarget,
   buildWorkspaceFileFolderPathMap: vi.fn(() => new Map()),
   fileNameExistsInWorkspaceFolder: vi.fn(async () => false),
   findWorkspaceFileFolderIdByPath: vi.fn(),
   getWorkspaceFileFolderPath: vi.fn(),
   listWorkspaceFileFolders: vi.fn(async () => []),
   normalizeWorkspaceFileItemName: vi.fn((name: string) => name),
+  resolveWorkspaceFileFolderTarget: mockResolveWorkspaceFileFolderTarget,
+}))
+
+vi.mock('@/lib/folders/locks', () => ({
+  acquireFolderMutationLock: mockAcquireFolderMutationLock,
+}))
+
+vi.mock('@/lib/folders/queries', () => ({
+  loadActiveFolderPathIndex: mockLoadActiveFolderPathIndex,
+  resolveFolderPathFromIndex: mockResolveFolderPathFromIndex,
 }))
 
 vi.mock('@/lib/workspaces/permissions/utils', () => ({
@@ -121,6 +141,8 @@ describe('workspace file metadata and storage accounting', () => {
     vi.clearAllMocks()
     resetDbChainMock()
     mockResolveStorageBillingContext.mockResolvedValue(STORAGE_CONTEXT)
+    mockResolveWorkspaceFileFolderTarget.mockResolvedValue(null)
+    mockAssertWorkspaceFileFolderTarget.mockResolvedValue(null)
     mockHasCloudStorage.mockReturnValue(false)
     mockHeadObject.mockResolvedValue({ size: FILE_ROW.size })
     mockUploadFile.mockResolvedValue({ key: FILE_ROW.key })
@@ -133,6 +155,86 @@ describe('workspace file metadata and storage accounting', () => {
     mockMergeEditIntoLiveFileDoc.mockResolvedValue(undefined)
     mockNotifyWorkspaceFilesChanged.mockResolvedValue(undefined)
     mockReplaceWorkspaceFileSecretProvenanceInTx.mockResolvedValue(undefined)
+  })
+
+  it('returns the canonical inserted record with the pre-resolved folder path', async () => {
+    const folderId = 'folder-1'
+    const folderPath = 'Docs/Notes'
+    const inserted = { ...FILE_ROW, folderId }
+    mockResolveWorkspaceFileFolderTarget.mockResolvedValueOnce({ id: folderId, path: folderPath })
+    dbChainMockFns.returning.mockResolvedValueOnce([inserted])
+
+    const uploaded = await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType,
+      { folderId }
+    )
+
+    const serveUrl = `/api/files/serve/s3/${encodeURIComponent(FILE_ROW.key)}?context=workspace`
+    expect(uploaded).toEqual(
+      expect.objectContaining({
+        id: FILE_ROW.id,
+        workspaceId: FILE_ROW.workspaceId,
+        name: FILE_ROW.originalName,
+        key: FILE_ROW.key,
+        path: serveUrl,
+        url: serveUrl,
+        size: FILE_ROW.size,
+        type: FILE_ROW.contentType,
+        uploadedBy: FILE_ROW.userId,
+        folderId,
+        folderPath,
+        deletedAt: null,
+        uploadedAt: FILE_ROW.uploadedAt,
+        updatedAt: FILE_ROW.updatedAt,
+        contentUpdatedAt: FILE_ROW.contentUpdatedAt,
+        context: 'workspace',
+      })
+    )
+    expect(mockResolveWorkspaceFileFolderTarget).toHaveBeenCalledOnce()
+  })
+
+  it('re-resolves a canonical folder path under the tree lock before inserting metadata', async () => {
+    const initialIndex = { version: 'initial' }
+    const lockedIndex = { version: 'locked' }
+    const inserted = { ...FILE_ROW, folderId: 'folder-final' }
+    mockLoadActiveFolderPathIndex
+      .mockResolvedValueOnce(initialIndex)
+      .mockResolvedValueOnce(lockedIndex)
+    mockResolveFolderPathFromIndex
+      .mockReturnValueOnce('folder-initial')
+      .mockReturnValueOnce('folder-final')
+    dbChainMockFns.returning.mockResolvedValueOnce([inserted])
+
+    await uploadWorkspaceFile(
+      FILE_ROW.workspaceId,
+      FILE_ROW.userId,
+      Buffer.from('hello'),
+      FILE_ROW.originalName,
+      FILE_ROW.contentType,
+      { folderPath: '/Reports', exactName: true }
+    )
+
+    expect(mockAcquireFolderMutationLock).toHaveBeenCalledWith(
+      expect.any(Object),
+      FILE_ROW.workspaceId,
+      'file'
+    )
+    expect(mockLoadActiveFolderPathIndex).toHaveBeenNthCalledWith(
+      2,
+      FILE_ROW.workspaceId,
+      'file',
+      expect.any(Object)
+    )
+    expect(dbChainMockFns.values).toHaveBeenCalledWith(
+      expect.objectContaining({ folderId: 'folder-final' })
+    )
+    expect(mockAcquireFolderMutationLock.mock.invocationCallOrder[0]).toBeLessThan(
+      dbChainMockFns.values.mock.invocationCallOrder[0]
+    )
   })
 
   it('cleans up a newly uploaded object when atomic metadata finalization rolls back', async () => {
@@ -326,7 +428,7 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockDeleteFile).not.toHaveBeenCalled()
   })
 
-  it('does not delete a direct-upload object when atomic finalization rolls back', async () => {
+  it('does not delete an upload-session object when atomic finalization rolls back', async () => {
     mockHasCloudStorage.mockReturnValue(true)
     dbChainMockFns.limit.mockResolvedValueOnce([])
     dbChainMockFns.returning.mockResolvedValueOnce([FILE_ROW])
@@ -348,6 +450,28 @@ describe('workspace file metadata and storage accounting', () => {
     expect(mockHeadObject.mock.invocationCallOrder[0]).toBeLessThan(
       dbChainMockFns.transaction.mock.invocationCallOrder[0]
     )
+  })
+
+  it('rejects archived upload metadata without charging storage again', async () => {
+    const archivedFile = {
+      ...FILE_ROW,
+      deletedAt: new Date('2026-07-02T00:00:00.000Z'),
+    }
+    mockHasCloudStorage.mockReturnValue(true)
+    dbChainMockFns.limit.mockResolvedValueOnce([archivedFile])
+
+    await expect(
+      registerUploadedWorkspaceFile({
+        workspaceId: FILE_ROW.workspaceId,
+        userId: FILE_ROW.userId,
+        key: FILE_ROW.key,
+        originalName: FILE_ROW.originalName,
+        contentType: FILE_ROW.contentType,
+      })
+    ).rejects.toMatchObject({ code: 'conflict' })
+    expect(dbChainMockFns.returning).not.toHaveBeenCalled()
+    expect(mockIncrementStorageUsageForBillingContextInTx).not.toHaveBeenCalled()
+    expect(mockMaybeNotifyStorageLimitForBillingContext).not.toHaveBeenCalled()
   })
 
   it('archives metadata without changing stored-byte counters', async () => {

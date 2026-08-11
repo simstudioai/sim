@@ -12,11 +12,21 @@ import { sleep } from '@sim/utils/helpers'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { useWorkspaceFileContent } from '@/hooks/queries/workspace-files'
+import { createWorkspaceFileContract } from '@/lib/api/contracts/workspace-files'
+import {
+  useCreateWorkspaceFile,
+  useWorkspaceFileContent,
+  workspaceFilesKeys,
+} from '@/hooks/queries/workspace-files'
+
+const { mockRequestJson } = vi.hoisted(() => ({ mockRequestJson: vi.fn() }))
+
+vi.mock('@/lib/api/client/request', () => ({ requestJson: mockRequestJson }))
 
 let fetchCount = 0
 
 beforeEach(() => {
+  vi.clearAllMocks()
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   fetchCount = 0
   vi.stubGlobal(
@@ -63,6 +73,42 @@ function renderContentHook(options?: {
   }
 }
 
+function renderCreateHook(): {
+  getMutation: () => ReturnType<typeof useCreateWorkspaceFile>
+  queryClient: QueryClient
+  unmount: () => void
+} {
+  const queryClient = new QueryClient({ defaultOptions: { mutations: { retry: false } } })
+  const container = document.createElement('div')
+  const root: Root = createRoot(container)
+  let mutation: ReturnType<typeof useCreateWorkspaceFile> | undefined
+
+  function Probe() {
+    mutation = useCreateWorkspaceFile()
+    return null
+  }
+
+  act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>
+        <Probe />
+      </QueryClientProvider>
+    )
+  })
+
+  return {
+    getMutation: () => {
+      if (!mutation) throw new Error('Create mutation did not render')
+      return mutation
+    },
+    queryClient,
+    unmount: () => {
+      act(() => root.unmount())
+      queryClient.clear()
+    },
+  }
+}
+
 describe('useWorkspaceFileContent refetchInterval passthrough', () => {
   it('fetches once and does not poll by default', async () => {
     const { unmount } = renderContentHook()
@@ -99,6 +145,37 @@ describe('useWorkspaceFileContent refetchInterval passthrough', () => {
       await sleep(150)
     })
     expect(fetchCount).toBe(settled)
+    unmount()
+  })
+})
+
+describe('useCreateWorkspaceFile', () => {
+  it('uses the create contract and reconciles workspace file caches', async () => {
+    const response = { success: true, file: { id: 'wf-created' } }
+    mockRequestJson.mockResolvedValue(response)
+    const { getMutation, queryClient, unmount } = renderCreateHook()
+    const invalidateQueries = vi.spyOn(queryClient, 'invalidateQueries')
+    let result: unknown
+
+    await act(async () => {
+      result = await getMutation().mutateAsync({
+        workspaceId: 'ws-1',
+        name: 'notes.md',
+        contentType: 'text/markdown',
+      })
+    })
+
+    expect(result).toBe(response)
+    expect(mockRequestJson).toHaveBeenCalledWith(createWorkspaceFileContract, {
+      params: { id: 'ws-1' },
+      body: { name: 'notes.md', contentType: 'text/markdown' },
+    })
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: workspaceFilesKeys.workspaceLists('ws-1'),
+    })
+    expect(invalidateQueries).toHaveBeenCalledWith({
+      queryKey: workspaceFilesKeys.storageInfo(),
+    })
     unmount()
   })
 })

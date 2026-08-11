@@ -36,6 +36,7 @@ vi.mock('@/lib/credentials/service-account-secret', () => ({
   ServiceAccountSecretError: class ServiceAccountSecretError extends Error {},
 }))
 vi.mock('@/lib/credentials/client-credential-accounts/descriptors', () => ({
+  CLIENT_CREDENTIAL_ACCOUNT_REQUIRED_FIELDS: {},
   isClientCredentialAccountProviderId: mockIsClientCredentialAccountProviderId,
   getClientCredentialAccountDescriptor: mockGetClientCredentialAccountDescriptor,
 }))
@@ -281,6 +282,22 @@ describe('performUpdateCredential — service-account secret rotation', () => {
       'zoho-desk-service-account',
       expect.objectContaining({ dataCenter: 'eu' })
     )
+  })
+
+  it('fails the reconnect when the stored secret cannot be decrypted', async () => {
+    mockCredential()
+    queueTableRows(schemaMock.credential, [{ key: 'stored-cipher' }])
+    mockDecryptSecret.mockRejectedValue(new Error('decrypt failed'))
+
+    const result = await performUpdateCredential({
+      credentialId: 'cred-1',
+      userId: 'user-1',
+      serviceAccountJson: NEW_GOOGLE_KEY,
+    })
+
+    expect(result).toMatchObject({ success: false, errorCode: 'internal' })
+    expect(mockVerifyAndBuildServiceAccountSecret).not.toHaveBeenCalled()
+    expect(dbChainMockFns.update).not.toHaveBeenCalled()
   })
 
   it('carries the stored auth method and username forward on a key rotation', async () => {

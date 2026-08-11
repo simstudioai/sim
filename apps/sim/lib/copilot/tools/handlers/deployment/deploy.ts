@@ -1,37 +1,39 @@
-import { db } from '@sim/db'
-import { chat, workflowMcpServer, workflowMcpTool } from '@sim/db/schema'
-import { toError } from '@sim/utils/errors'
-import { and, eq, isNull } from 'drizzle-orm'
+import { executeCopilotMcpServerUseCase } from '@/lib/copilot/application/execute-mcp-server-use-case'
+import {
+  executeCopilotWorkflowUseCase,
+  messageForCopilotWorkflowError,
+} from '@/lib/copilot/application/execute-workflow-use-case'
 import type { ExecutionContext, ToolCallResult } from '@/lib/copilot/request/types'
+import { generateRequestId } from '@/lib/core/utils/request'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import {
-  performCreateWorkflowMcpTool,
-  performDeleteWorkflowMcpTool,
-  performUpdateWorkflowMcpTool,
-} from '@/lib/mcp/orchestration'
-import { getDeployedWorkflowInputFormat } from '@/lib/mcp/workflow-mcp-sync'
+  deployWorkflowMcpTool,
+  undeployWorkflowMcpTool,
+} from '@/lib/mcp/application/workflow-deployments'
 import {
-  applyDescriptionOverrides,
-  generateToolInputSchema,
-  sanitizeToolName,
-} from '@/lib/mcp/workflow-tool-schema'
-import {
-  performChatDeploy,
-  performChatUndeploy,
-  performFullDeploy,
-  performFullUndeploy,
-} from '@/lib/workflows/orchestration'
-import { checkChatAccess, checkWorkflowAccessForChatCreation } from '@/app/api/chat/utils'
-import {
-  ChatDeployAuthNotAllowedError,
-  validateChatDeployAuth,
-} from '@/ee/access-control/utils/permission-check'
-import { ensureWorkflowAccess } from '../access'
+  deployWorkflowChat,
+  undeployWorkflowChat,
+} from '@/lib/workflows/application/chat-deployments'
+import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import type { DeployApiParams, DeployChatParams, DeployMcpParams } from '../param-types'
 import { getCopilotDeploymentIdempotencyKey, getHistoricalDeploymentAttemptError } from './context'
 
 function buildWorkflowApiEndpoint(baseUrl: string, workflowId: string): string {
-  return `${baseUrl}/api/workflows/${workflowId}/execute`
+  return `${baseUrl}/api/v2/workflows/${workflowId}/execute`
+}
+
+function buildWorkflowRunStatusEndpoint(
+  baseUrl: string,
+  apiEndpoint: string,
+  runId: string
+): string {
+  if (
+    !apiEndpoint.startsWith(`${baseUrl}/api/v2/workflows/`) ||
+    !apiEndpoint.endsWith('/execute')
+  ) {
+    throw new Error(`Invalid workflow execution endpoint: ${apiEndpoint}`)
+  }
+  return `${apiEndpoint.slice(0, -'/execute'.length)}/runs/${runId}`
 }
 
 function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
@@ -58,9 +60,8 @@ function buildWorkflowApiConfig(baseUrl: string, apiEndpoint: string) {
         method: 'POST',
         transport: 'json',
         stream: false,
-        headers: { 'X-Execution-Mode': 'async' },
-        body: { input: { key: 'value' } },
-        jobStatusEndpointTemplate: `${baseUrl}/api/jobs/{jobId}`,
+        body: { async: true, input: { key: 'value' } },
+        runStatusEndpointTemplate: buildWorkflowRunStatusEndpoint(baseUrl, apiEndpoint, '{runId}'),
       },
     },
   }
@@ -79,16 +80,15 @@ function buildWorkflowApiExamples(baseUrl: string, apiEndpoint: string) {
     async: `curl -X POST "${apiEndpoint}" \\
   -H "Content-Type: application/json" \\
   -H "X-API-Key: YOUR_API_KEY" \\
-  -H "X-Execution-Mode: async" \\
-  -d '{"input":{"key":"value"}}'`,
-    poll: `curl "${baseUrl}/api/jobs/JOB_ID" \\
+  -d '{"async":true,"input":{"key":"value"}}'`,
+    poll: `curl "${buildWorkflowRunStatusEndpoint(baseUrl, apiEndpoint, 'RUN_ID')}" \\
   -H "X-API-Key: YOUR_API_KEY"`,
   }
 }
 
 /** Returns an error until this call's admitted version is the active production version. */
 function getUnconfirmedDeploymentError(
-  result: Awaited<ReturnType<typeof performFullDeploy>>,
+  result: Awaited<ReturnType<typeof deployWorkflow.execute>>,
   action: string
 ): string | null {
   const attempt = result.latestDeploymentAttempt
@@ -150,14 +150,12 @@ export async function executeDeployApi(
       return { success: false, error: 'workflowId is required' }
     }
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
-
     if (action === 'undeploy') {
-      const result = await performFullUndeploy({ workflowId, userId: context.userId })
+      const result = await executeCopilotWorkflowUseCase(context, undeployWorkflow, {
+        workflowId,
+        assertedWorkspaceId: context.workspaceId,
+        requestId: generateRequestId(),
+      })
       if (!result.success) {
         return { success: false, error: result.error || 'Failed to undeploy workflow' }
       }
@@ -207,11 +205,12 @@ export async function executeDeployApi(
       }
     }
 
-    const result = await performFullDeploy({
+    const result = await executeCopilotWorkflowUseCase(context, deployWorkflow, {
       workflowId,
-      userId: context.userId,
-      versionDescription,
-      versionName,
+      assertedWorkspaceId: context.workspaceId,
+      description: versionDescription,
+      name: versionName,
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
     })
     if (!result.success) {
@@ -265,7 +264,10 @@ export async function executeDeployApi(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to update API deployment'),
+    }
   }
 }
 
@@ -281,33 +283,14 @@ export async function executeDeployChat(
 
     const action = params.action === 'undeploy' ? 'undeploy' : 'deploy'
     if (action === 'undeploy') {
+      const { deployment } = await executeCopilotWorkflowUseCase(context, undeployWorkflowChat, {
+        workflowId,
+        assertedWorkspaceId: context.workspaceId,
+      })
       const baseUrl = getBaseUrl()
       const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
       const apiConfig = buildWorkflowApiConfig(baseUrl, apiEndpoint)
       const apiExamples = buildWorkflowApiExamples(baseUrl, apiEndpoint)
-      const existing = await db
-        .select()
-        .from(chat)
-        .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-        .limit(1)
-      if (!existing.length) {
-        return { success: false, error: 'No active chat deployment found for this workflow' }
-      }
-      const { hasAccess, workspaceId: chatWorkspaceId } = await checkChatAccess(
-        existing[0].id,
-        context.userId
-      )
-      if (!hasAccess) {
-        return { success: false, error: 'Unauthorized chat access' }
-      }
-      const undeployResult = await performChatUndeploy({
-        chatId: existing[0].id,
-        userId: context.userId,
-        workspaceId: chatWorkspaceId,
-      })
-      if (!undeployResult.success) {
-        return { success: false, error: undeployResult.error || 'Failed to undeploy chat' }
-      }
       return {
         success: true,
         output: {
@@ -326,25 +309,25 @@ export async function executeDeployChat(
             },
             chat: {
               isDeployed: false,
-              identifier: existing[0].identifier,
-              title: existing[0].title,
+              identifier: deployment.identifier,
+              title: deployment.title,
             },
           },
           deploymentConfig: {
             api: apiConfig,
             chat: {
-              identifier: existing[0].identifier,
-              title: existing[0].title,
-              description: existing[0].description || '',
-              authType: existing[0].authType,
-              allowedEmails: (existing[0].allowedEmails as string[]) || [],
+              identifier: deployment.identifier,
+              title: deployment.title,
+              description: deployment.description || '',
+              authType: deployment.authType,
+              allowedEmails: (deployment.allowedEmails as string[]) || [],
               outputConfigs:
-                (existing[0].outputConfigs as Array<{ blockId: string; path: string }>) || [],
-              includeThinking: existing[0].includeThinking ?? false,
-              includeToolCalls: existing[0].includeToolCalls ?? false,
+                (deployment.outputConfigs as Array<{ blockId: string; path: string }>) || [],
+              includeThinking: deployment.includeThinking ?? false,
+              includeToolCalls: deployment.includeToolCalls ?? false,
               welcomeMessage:
-                (existing[0].customizations as { welcomeMessage?: string } | null)
-                  ?.welcomeMessage || 'Hi there! How can I help you today?',
+                (deployment.customizations as { welcomeMessage?: string } | null)?.welcomeMessage ||
+                'Hi there! How can I help you today?',
             },
           },
           examples: {
@@ -354,26 +337,6 @@ export async function executeDeployChat(
           },
         },
       }
-    }
-
-    const { hasAccess, workflow: workflowRecord } = await checkWorkflowAccessForChatCreation(
-      workflowId,
-      context.userId
-    )
-    if (!hasAccess || !workflowRecord) {
-      return { success: false, error: 'Workflow not found or access denied' }
-    }
-
-    const [existingDeployment] = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.workflowId, workflowId), isNull(chat.archivedAt)))
-      .limit(1)
-
-    const identifier = String(params.identifier || existingDeployment?.identifier || '').trim()
-    const title = String(params.title || existingDeployment?.title || '').trim()
-    if (!identifier || !title) {
-      return { success: false, error: 'Chat identifier and title are required' }
     }
 
     const versionDescription = params.versionDescription?.trim()
@@ -394,101 +357,28 @@ export async function executeDeployChat(
       }
     }
 
-    const identifierPattern = /^[a-z0-9-]+$/
-    if (!identifierPattern.test(identifier)) {
-      return {
-        success: false,
-        error: 'Identifier can only contain lowercase letters, numbers, and hyphens',
-      }
-    }
-
-    const existingIdentifier = await db
-      .select()
-      .from(chat)
-      .where(and(eq(chat.identifier, identifier), isNull(chat.archivedAt)))
-      .limit(1)
-    if (existingIdentifier.length > 0 && existingIdentifier[0].id !== existingDeployment?.id) {
-      return { success: false, error: 'Identifier already in use' }
-    }
-
-    const existingCustomizations =
-      (existingDeployment?.customizations as
-        | { primaryColor?: string; welcomeMessage?: string; imageUrl?: string }
-        | undefined) || {}
-    const resolvedDescription = String(params.description || existingDeployment?.description || '')
-    const resolvedAuthType = (params.authType || existingDeployment?.authType || 'public') as
-      | 'public'
-      | 'password'
-      | 'email'
-      | 'sso'
-    const resolvedAllowedEmails =
-      params.allowedEmails || (existingDeployment?.allowedEmails as string[]) || []
-    const resolvedOutputConfigs = (params.outputConfigs ||
-      existingDeployment?.outputConfigs ||
-      []) as Array<{
-      blockId: string
-      path: string
-    }>
-    const resolvedIncludeThinking =
-      typeof params.includeThinking === 'boolean'
-        ? params.includeThinking
-        : (existingDeployment?.includeThinking ?? false)
-    const resolvedIncludeToolCalls =
-      typeof params.includeToolCalls === 'boolean'
-        ? params.includeToolCalls
-        : (existingDeployment?.includeToolCalls ?? false)
-    const welcomeMessage =
-      typeof params.welcomeMessage === 'string'
-        ? params.welcomeMessage
-        : params.customizations?.welcomeMessage || existingCustomizations.welcomeMessage
-    const imageUrl =
-      params.customizations?.imageUrl ||
-      params.customizations?.iconUrl ||
-      existingCustomizations.imageUrl
-
-    // Enforce the permission group's chat auth-mode allow-list, but only when the
-    // mode actually changes (or on a first deploy) so an existing grandfathered
-    // mode can be re-saved.
-    if (workflowRecord.workspaceId && resolvedAuthType !== existingDeployment?.authType) {
-      try {
-        await validateChatDeployAuth(context.userId, workflowRecord.workspaceId, resolvedAuthType)
-      } catch (error) {
-        if (error instanceof ChatDeployAuthNotAllowedError) {
-          return { success: false, error: error.message }
-        }
-        throw error
-      }
-    }
-
-    const result = await performChatDeploy({
+    const result = await executeCopilotWorkflowUseCase(context, deployWorkflowChat, {
       workflowId,
-      userId: context.userId,
-      identifier,
-      title,
-      description: resolvedDescription,
+      assertedWorkspaceId: context.workspaceId,
+      identifier: params.identifier,
+      title: params.title,
+      description: params.description,
       versionDescription,
       versionName,
       customizations: {
-        primaryColor:
-          params.customizations?.primaryColor ||
-          existingCustomizations.primaryColor ||
-          'var(--brand-hover)',
-        welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
-        ...(imageUrl ? { imageUrl } : {}),
+        primaryColor: params.customizations?.primaryColor,
+        welcomeMessage: params.welcomeMessage ?? params.customizations?.welcomeMessage,
+        imageUrl: params.customizations?.imageUrl ?? params.customizations?.iconUrl,
       },
-      authType: resolvedAuthType,
+      authType: params.authType,
       password: params.password,
-      allowedEmails: resolvedAllowedEmails,
-      outputConfigs: resolvedOutputConfigs,
-      includeThinking: resolvedIncludeThinking,
-      includeToolCalls: resolvedIncludeToolCalls,
-      workspaceId: workflowRecord.workspaceId,
+      allowedEmails: params.allowedEmails,
+      outputConfigs: params.outputConfigs,
+      includeThinking: params.includeThinking,
+      includeToolCalls: params.includeToolCalls,
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_chat'),
     })
-
-    if (!result.success) {
-      return { success: false, error: result.error || 'Failed to deploy chat' }
-    }
 
     const baseUrl = getBaseUrl()
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
@@ -502,7 +392,7 @@ export async function executeDeployChat(
         action: 'deploy',
         isDeployed: true,
         isChatDeployed: true,
-        identifier,
+        identifier: result.identifier,
         chatUrl: result.chatUrl,
         apiEndpoint,
         baseUrl,
@@ -518,31 +408,26 @@ export async function executeDeployChat(
           },
           chat: {
             isDeployed: true,
-            identifier,
+            identifier: result.identifier,
             chatUrl: result.chatUrl,
-            title,
-            description: resolvedDescription,
-            authType: resolvedAuthType,
+            title: result.title,
+            description: result.description,
+            authType: result.authType,
           },
         },
         deploymentConfig: {
           api: apiConfig,
           chat: {
-            identifier,
+            identifier: result.identifier,
             chatUrl: result.chatUrl,
-            title,
-            description: resolvedDescription,
-            authType: resolvedAuthType,
-            allowedEmails: resolvedAllowedEmails,
-            outputConfigs: resolvedOutputConfigs,
-            includeThinking: resolvedIncludeThinking,
-            includeToolCalls: resolvedIncludeToolCalls,
-            welcomeMessage: welcomeMessage || 'Hi there! How can I help you today?',
-            primaryColor:
-              params.customizations?.primaryColor ||
-              existingCustomizations.primaryColor ||
-              'var(--brand-hover)',
-            ...(imageUrl ? { imageUrl } : {}),
+            title: result.title,
+            description: result.description,
+            authType: result.authType,
+            allowedEmails: result.allowedEmails,
+            outputConfigs: result.outputConfigs,
+            includeThinking: result.includeThinking,
+            includeToolCalls: result.includeToolCalls,
+            ...result.customizations,
           },
         },
         examples: {
@@ -556,7 +441,10 @@ export async function executeDeployChat(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to update chat deployment'),
+    }
   }
 }
 
@@ -570,16 +458,6 @@ export async function executeDeployMcp(
       return { success: false, error: 'workflowId is required' }
     }
 
-    const { workflow: workflowRecord } = await ensureWorkflowAccess(
-      workflowId,
-      context.userId,
-      'admin'
-    )
-    const workspaceId = workflowRecord.workspaceId
-    if (!workspaceId) {
-      return { success: false, error: 'workspaceId is required' }
-    }
-
     const serverId = params.serverId
     if (!serverId) {
       return {
@@ -587,58 +465,17 @@ export async function executeDeployMcp(
         error: 'serverId is required. Use list_workspace_mcp_servers to get available servers.',
       }
     }
-    const [serverRecord] = await db
-      .select({
-        id: workflowMcpServer.id,
-        name: workflowMcpServer.name,
-      })
-      .from(workflowMcpServer)
-      .where(
-        and(
-          eq(workflowMcpServer.id, serverId),
-          eq(workflowMcpServer.workspaceId, workspaceId),
-          isNull(workflowMcpServer.deletedAt)
-        )
-      )
-      .limit(1)
-    if (!serverRecord) {
-      return { success: false, error: 'MCP server not found in this workspace' }
-    }
-
-    // Handle undeploy action — remove workflow from MCP server
     if (params.action === 'undeploy') {
-      const [existingTool] = await db
-        .select({ id: workflowMcpTool.id })
-        .from(workflowMcpTool)
-        .where(
-          and(
-            eq(workflowMcpTool.serverId, serverId),
-            eq(workflowMcpTool.workflowId, workflowId),
-            isNull(workflowMcpTool.archivedAt)
-          )
-        )
-        .limit(1)
-
-      if (!existingTool) {
-        return { success: false, error: 'Workflow is not deployed to this MCP server' }
-      }
-
-      const deleteResult = await performDeleteWorkflowMcpTool({
+      const result = await executeCopilotMcpServerUseCase(context, undeployWorkflowMcpTool, {
         serverId,
-        toolId: existingTool.id,
-        workspaceId,
-        userId: context.userId,
+        workflowId,
       })
-      if (!deleteResult.success) {
-        return { success: false, error: deleteResult.error || 'Failed to undeploy MCP tool' }
-      }
-
       return {
         success: true,
         output: {
           workflowId,
           serverId,
-          serverName: serverRecord.name,
+          serverName: result.server.name,
           action: 'undeploy',
           removed: true,
           deploymentType: 'mcp',
@@ -646,135 +483,27 @@ export async function executeDeployMcp(
             mcp: {
               isDeployed: false,
               serverId,
-              serverName: serverRecord.name,
+              serverName: result.server.name,
             },
           },
         },
       }
     }
 
-    if (!workflowRecord.isDeployed) {
-      return {
-        success: false,
-        error: 'Workflow must be deployed before adding as an MCP tool. Use deploy_api first.',
-      }
-    }
-
-    const existingTool = await db
-      .select()
-      .from(workflowMcpTool)
-      .where(
-        and(
-          eq(workflowMcpTool.serverId, serverId),
-          eq(workflowMcpTool.workflowId, workflowId),
-          isNull(workflowMcpTool.archivedAt)
-        )
-      )
-      .limit(1)
-
-    const toolName = sanitizeToolName(
-      params.toolName || workflowRecord.name || `workflow_${workflowId}`
-    )
-    const toolDescription =
-      params.toolDescription?.trim() || `Execute ${workflowRecord.name} workflow`
-    /**
-     * Parameter names/types come from the workflow's deployed input trigger; this tool only sets
-     * per-parameter descriptions, sent as sparse overrides. The materialized schema is echoed in the
-     * response for the model's reference.
-     */
-    const inputFormat = await getDeployedWorkflowInputFormat(workflowId)
-    const parameterDescriptionOverrides = Object.fromEntries(
-      (params.parameterDescriptions ?? [])
-        .filter((entry) => entry && typeof entry.name === 'string' && entry.name.trim() !== '')
-        .map((entry) => [entry.name.trim(), (entry.description ?? '').trim()])
-        .filter(([, description]) => description !== '')
-    )
-    const parameterSchema = applyDescriptionOverrides(
-      generateToolInputSchema(inputFormat),
-      parameterDescriptionOverrides
-    )
+    const result = await executeCopilotMcpServerUseCase(context, deployWorkflowMcpTool, {
+      serverId,
+      workflowId,
+      toolName: params.toolName,
+      toolDescription: params.toolDescription,
+      parameterDescriptions: params.parameterDescriptions,
+    })
     const baseUrl = getBaseUrl()
     const mcpServerUrl = `${baseUrl}/api/mcp/serve/${serverId}`
     const apiEndpoint = buildWorkflowApiEndpoint(baseUrl, workflowId)
-    const clientExamples = buildMcpClientExamples(serverRecord.name, mcpServerUrl)
-
-    if (existingTool.length > 0) {
-      const toolId = existingTool[0].id
-      const updateResult = await performUpdateWorkflowMcpTool({
-        serverId,
-        toolId,
-        workspaceId,
-        userId: context.userId,
-        toolName,
-        toolDescription,
-        parameterDescriptionOverrides,
-      })
-      if (!updateResult.success || !updateResult.tool) {
-        return { success: false, error: updateResult.error || 'Failed to update MCP tool' }
-      }
-
-      return {
-        success: true,
-        output: {
-          toolId,
-          toolName,
-          toolDescription,
-          updated: true,
-          mcpServerUrl,
-          baseUrl,
-          serverId,
-          serverName: serverRecord.name,
-          deploymentType: 'mcp',
-          apiEndpoint,
-          deploymentStatus: {
-            api: {
-              isDeployed: true,
-              endpoint: apiEndpoint,
-            },
-            mcp: {
-              isDeployed: true,
-              serverId,
-              serverName: serverRecord.name,
-              toolId,
-              toolName,
-              updated: true,
-            },
-          },
-          deploymentConfig: {
-            mcp: {
-              serverId,
-              serverName: serverRecord.name,
-              serverUrl: mcpServerUrl,
-              toolId,
-              toolName,
-              toolDescription,
-              parameterSchema,
-              authentication: {
-                type: 'api_key',
-                header: 'X-API-Key: YOUR_API_KEY',
-              },
-            },
-          },
-          examples: {
-            mcp: clientExamples,
-          },
-        },
-      }
-    }
-
-    const createResult = await performCreateWorkflowMcpTool({
-      serverId,
-      workspaceId,
-      userId: context.userId,
-      workflowId,
-      toolName,
-      toolDescription,
-      parameterDescriptionOverrides,
-    })
-    if (!createResult.success || !createResult.tool) {
-      return { success: false, error: createResult.error || 'Failed to deploy MCP tool' }
-    }
-    const toolId = createResult.tool.id
+    const clientExamples = buildMcpClientExamples(result.server.name, mcpServerUrl)
+    const toolId = result.tool.id
+    const toolName = result.tool.toolName
+    const toolDescription = result.tool.toolDescription
 
     return {
       success: true,
@@ -782,11 +511,11 @@ export async function executeDeployMcp(
         toolId,
         toolName,
         toolDescription,
-        updated: false,
+        updated: result.updated,
         mcpServerUrl,
         baseUrl,
         serverId,
-        serverName: serverRecord.name,
+        serverName: result.server.name,
         deploymentType: 'mcp',
         apiEndpoint,
         deploymentStatus: {
@@ -797,21 +526,21 @@ export async function executeDeployMcp(
           mcp: {
             isDeployed: true,
             serverId,
-            serverName: serverRecord.name,
+            serverName: result.server.name,
             toolId,
             toolName,
-            updated: false,
+            updated: result.updated,
           },
         },
         deploymentConfig: {
           mcp: {
             serverId,
-            serverName: serverRecord.name,
+            serverName: result.server.name,
             serverUrl: mcpServerUrl,
             toolId,
             toolName,
             toolDescription,
-            parameterSchema,
+            parameterSchema: result.parameterSchema,
             authentication: {
               type: 'api_key',
               header: 'X-API-Key: YOUR_API_KEY',
@@ -824,7 +553,10 @@ export async function executeDeployMcp(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to update MCP deployment'),
+    }
   }
 }
 
@@ -853,13 +585,12 @@ export async function executeRedeploy(
           'versionName is required. Provide a short human-readable label for this deployment version.',
       }
     }
-    await ensureWorkflowAccess(workflowId, context.userId, 'admin')
-
-    const result = await performFullDeploy({
+    const result = await executeCopilotWorkflowUseCase(context, deployWorkflow, {
       workflowId,
-      userId: context.userId,
-      versionDescription,
-      versionName,
+      assertedWorkspaceId: context.workspaceId,
+      description: versionDescription,
+      name: versionName,
+      requestId: generateRequestId(),
       idempotencyKey: getCopilotDeploymentIdempotencyKey(context, 'deploy_api'),
     })
     if (!result.success) {
@@ -912,6 +643,9 @@ export async function executeRedeploy(
       },
     }
   } catch (error) {
-    return { success: false, error: toError(error).message }
+    return {
+      success: false,
+      error: messageForCopilotWorkflowError(error, 'Failed to redeploy workflow'),
+    }
   }
 }

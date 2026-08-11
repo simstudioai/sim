@@ -1,11 +1,22 @@
 import { db } from '@sim/db'
-import { folder as folderTable, workspaceFiles } from '@sim/db/schema'
+import { folder as folderTable, workspaceFiles, workspace as workspaceTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresErrorCode } from '@sim/utils/errors'
+import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import { and, asc, eq, inArray, isNull, min, type SQL, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNull, min, sql } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import type { DbOrTx } from '@/lib/db/types'
+import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
+import {
+  buildFolderPathIndex,
+  folderNameFromPath,
+  parentFolderPath,
+  parseFolderPath,
+  requireNonRootFolderPath,
+} from '@/lib/folders/paths'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
+import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
 const logger = createLogger('WorkspaceFileFolders')
@@ -18,13 +29,6 @@ const logger = createLogger('WorkspaceFileFolders')
  */
 const FILE_FOLDER_RESOURCE_TYPE = 'file' as const
 const isFileFolder = eq(folderTable.resourceType, FILE_FOLDER_RESOURCE_TYPE)
-
-/**
- * Bounds the workspace-file-folder advisory-lock wait so a stuck holder fails
- * fast (SQLSTATE 55P03) rather than hanging, even if the deployment lacks a
- * server-side `lock_timeout`. Transaction-scoped via `set_config(..., true)`.
- */
-const WORKSPACE_FILE_FOLDER_LOCK_TIMEOUT_MS = 5_000
 
 export type WorkspaceFileFolderScope = 'active' | 'archived' | 'all'
 
@@ -69,6 +73,36 @@ export interface WorkspaceFileFolderRecord {
   updatedAt: Date
 }
 
+export interface WorkspaceFileOperationContext {
+  workspaceId: string
+  workspaceOrganizationId: string | null
+  allowPersonalApiKeys: boolean
+  billedAccountUserId: string
+}
+
+/**
+ * Loads the active workspace authorization context for folder and bulk-file operations.
+ * The workspace row is the canonical scope; callers must not authorize from a caller-supplied
+ * folder or file workspace id.
+ */
+export async function loadWorkspaceFileOperationContext(
+  workspaceId: string
+): Promise<WorkspaceFileOperationContext | null> {
+  const workspace = await getWorkspaceWithOwner(workspaceId)
+  if (!workspace) return null
+  const [settings] = await db
+    .select({ allowPersonalApiKeys: workspaceTable.allowPersonalApiKeys })
+    .from(workspaceTable)
+    .where(eq(workspaceTable.id, workspaceId))
+    .limit(1)
+  return {
+    workspaceId: workspace.id,
+    workspaceOrganizationId: workspace.organizationId,
+    allowPersonalApiKeys: settings?.allowPersonalApiKeys ?? false,
+    billedAccountUserId: workspace.billedAccountUserId,
+  }
+}
+
 interface RawWorkspaceFileFolder {
   id: string
   workspaceId: string
@@ -81,13 +115,72 @@ interface RawWorkspaceFileFolder {
   updatedAt: Date
 }
 
-interface WorkspaceFileFolderLockTx {
-  execute(query: SQL): Promise<unknown>
-}
-
 export interface WorkspaceFileArchiveResult {
   folders: number
   files: number
+}
+
+export interface WorkspaceFileBulkArchiveResult extends WorkspaceFileArchiveResult {
+  folderIds: string[]
+  fileIds: string[]
+}
+
+function assertBulkAffectedItemsWithinLimit(count: number): void {
+  if (count > MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS) {
+    throw new OrchestrationError(
+      'validation',
+      `File operation affects more than ${MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS} items`
+    )
+  }
+}
+
+/**
+ * Verifies every requested active file/folder belongs to this workspace before a bulk mutation.
+ * This prevents the bulk archive primitive's workspace predicate from silently turning an
+ * out-of-scope id into a successful zero-row operation.
+ */
+export async function assertWorkspaceFileItemsBelongToWorkspace(params: {
+  workspaceId: string
+  fileIds?: string[]
+  folderIds?: string[]
+}): Promise<void> {
+  const fileIds = Array.from(new Set(params.fileIds ?? []))
+  const folderIds = Array.from(new Set(params.folderIds ?? []))
+  const [files, folders] = await Promise.all([
+    fileIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(
+            and(
+              inArray(workspaceFiles.id, fileIds),
+              eq(workspaceFiles.workspaceId, params.workspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          ),
+    folderIds.length === 0
+      ? Promise.resolve([])
+      : db
+          .select({ id: folderTable.id })
+          .from(folderTable)
+          .where(
+            and(
+              inArray(folderTable.id, folderIds),
+              eq(folderTable.workspaceId, params.workspaceId),
+              isFileFolder,
+              isNull(folderTable.deletedAt)
+            )
+          ),
+  ])
+  const foundFiles = new Set(files.map((file) => file.id))
+  const foundFolders = new Set(folders.map((folder) => folder.id))
+  const missingFiles = fileIds.filter((id) => !foundFiles.has(id))
+  const missingFolders = folderIds.filter((id) => !foundFolders.has(id))
+  if (missingFiles.length > 0 || missingFolders.length > 0) {
+    throw new WorkspaceFileItemsNotFoundError(missingFiles, missingFolders)
+  }
 }
 
 export interface WorkspaceFileFolderRestoreResult {
@@ -120,16 +213,8 @@ function fileFolderCondition(folderId?: string | null) {
   return normalized ? eq(workspaceFiles.folderId, normalized) : isNull(workspaceFiles.folderId)
 }
 
-async function acquireWorkspaceFileFolderMutationLock(
-  tx: WorkspaceFileFolderLockTx,
-  workspaceId: string
-) {
-  await tx.execute(
-    sql`SELECT set_config('lock_timeout', ${`${WORKSPACE_FILE_FOLDER_LOCK_TIMEOUT_MS}ms`}, true)`
-  )
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`workspace_file_folders:${workspaceId}`}, 0))`
-  )
+async function acquireWorkspaceFileFolderMutationLock(tx: DbOrTx, workspaceId: string) {
+  await acquireFolderMutationLock(tx, workspaceId, FILE_FOLDER_RESOURCE_TYPE)
 }
 
 export function buildWorkspaceFileFolderPathMap(
@@ -337,19 +422,43 @@ export async function getWorkspaceFileFolder(
   return mapFolder(folder, paths)
 }
 
-export async function assertWorkspaceFileFolderTarget(
+export async function resolveWorkspaceFileFolderTarget(
   workspaceId: string,
   folderId?: string | null
-): Promise<string | null> {
+): Promise<WorkspaceFileFolderRecord | null> {
   const normalized = normalizeParentId(folderId)
   if (!normalized) return null
 
   const folder = await getWorkspaceFileFolder(workspaceId, normalized)
   if (!folder) {
-    throw new Error('Target folder not found')
+    throw new OrchestrationError('not_found', 'Target folder not found')
   }
 
-  return normalized
+  return folder
+}
+
+export async function assertWorkspaceFileFolderTarget(
+  workspaceId: string,
+  folderId?: string | null,
+  executor: DbOrTx = db
+): Promise<string | null> {
+  const normalized = normalizeParentId(folderId)
+  if (!normalized) return null
+
+  const [folder] = await executor
+    .select({ id: folderTable.id })
+    .from(folderTable)
+    .where(
+      and(
+        eq(folderTable.id, normalized),
+        eq(folderTable.workspaceId, workspaceId),
+        isFileFolder,
+        isNull(folderTable.deletedAt)
+      )
+    )
+    .limit(1)
+  if (!folder) throw new OrchestrationError('not_found', 'Target folder not found')
+  return folder.id
 }
 
 export async function createWorkspaceFileFolder(params: {
@@ -380,7 +489,7 @@ export async function createWorkspaceFileFolder(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
@@ -416,6 +525,7 @@ export async function createWorkspaceFileFolder(params: {
 
     const id = generateId()
     try {
+      const now = new Date()
       const [inserted] = await tx
         .insert(folderTable)
         .values({
@@ -428,6 +538,8 @@ export async function createWorkspaceFileFolder(params: {
           sortOrder:
             params.sortOrder ??
             (sortOrderResult?.minSortOrder != null ? sortOrderResult.minSortOrder - 1 : 0),
+          createdAt: now,
+          updatedAt: now,
         })
         .returning()
       return inserted
@@ -558,7 +670,7 @@ export async function updateWorkspaceFileFolder(params: {
       )
       .limit(1)
 
-    if (!existing) throw new Error('Folder not found')
+    if (!existing) throw new OrchestrationError('not_found', 'Folder not found')
 
     const updates: Partial<typeof folderTable.$inferInsert> = { updatedAt: new Date() }
     const finalName =
@@ -568,7 +680,8 @@ export async function updateWorkspaceFileFolder(params: {
     const finalParentId =
       params.parentId !== undefined ? normalizeParentId(params.parentId) : existing.parentId
 
-    if (finalParentId === params.folderId) throw new Error('Folder cannot be its own parent')
+    if (finalParentId === params.folderId)
+      throw new OrchestrationError('validation', 'Folder cannot be its own parent')
 
     if (finalParentId) {
       const [target] = await tx
@@ -585,7 +698,7 @@ export async function updateWorkspaceFileFolder(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
@@ -603,7 +716,10 @@ export async function updateWorkspaceFileFolder(params: {
 
       const descendants = collectDescendantFolderIds(activeFolders, params.folderId)
       if (finalParentId && descendants.includes(finalParentId)) {
-        throw new Error('Cannot move a folder into one of its descendants')
+        throw new OrchestrationError(
+          'validation',
+          'Cannot move a folder into one of its descendants'
+        )
       }
     }
 
@@ -653,7 +769,7 @@ export async function updateWorkspaceFileFolder(params: {
         )
         .returning()
 
-      if (!updatedFolder) throw new Error('Folder not found')
+      if (!updatedFolder) throw new OrchestrationError('not_found', 'Folder not found')
       return updatedFolder
     } catch (error) {
       if (getPostgresErrorCode(error) === '23505') {
@@ -694,13 +810,37 @@ export async function moveWorkspaceFileItems(params: {
   fileIds?: string[]
   folderIds?: string[]
   targetFolderId?: string | null
-}): Promise<{ movedFiles: number; movedFolders: number }> {
+  targetFolderPath?: string
+}): Promise<{
+  movedFiles: number
+  movedFolders: number
+  movedFileIds: string[]
+  movedFolderIds: string[]
+}> {
   const fileIds = Array.from(new Set(params.fileIds ?? []))
   const folderIds = Array.from(new Set(params.folderIds ?? []))
-  const targetFolderId = normalizeParentId(params.targetFolderId)
+  if (params.targetFolderId !== undefined && params.targetFolderPath !== undefined) {
+    throw new OrchestrationError('validation', 'Specify a target folder id or path, not both')
+  }
 
   return db.transaction(async (tx) => {
     await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+
+    let targetFolderId = normalizeParentId(params.targetFolderId)
+    if (params.targetFolderPath !== undefined) {
+      try {
+        parseFolderPath(params.targetFolderPath)
+      } catch (error) {
+        throw new OrchestrationError('validation', getErrorMessage(error))
+      }
+      const index = await loadActiveFileFolderPathIndex(tx, params.workspaceId)
+      const resolved =
+        params.targetFolderPath === '/' ? null : index.idByPath.get(params.targetFolderPath)
+      if (resolved === undefined) {
+        throw new OrchestrationError('not_found', 'Target folder not found')
+      }
+      targetFolderId = resolved
+    }
 
     if (targetFolderId) {
       const [target] = await tx
@@ -717,12 +857,12 @@ export async function moveWorkspaceFileItems(params: {
         .limit(1)
 
       if (!target) {
-        throw new Error('Target folder not found')
+        throw new OrchestrationError('not_found', 'Target folder not found')
       }
     }
 
     if (folderIds.includes(targetFolderId ?? '')) {
-      throw new Error('Cannot move a folder into itself')
+      throw new OrchestrationError('validation', 'Cannot move a folder into itself')
     }
 
     if (folderIds.length > 0) {
@@ -736,12 +876,40 @@ export async function moveWorkspaceFileItems(params: {
             isNull(folderTable.deletedAt)
           )
         )
+        .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+
+      assertBulkAffectedItemsWithinLimit(activeFolders.length)
+
+      const affectedFolderIds = new Set<string>()
 
       for (const folderId of folderIds) {
         const descendants = collectDescendantFolderIds(activeFolders, folderId)
+        affectedFolderIds.add(folderId)
+        for (const descendantId of descendants) affectedFolderIds.add(descendantId)
         if (targetFolderId && descendants.includes(targetFolderId)) {
-          throw new Error('Cannot move a folder into one of its descendants')
+          throw new OrchestrationError(
+            'validation',
+            'Cannot move a folder into one of its descendants'
+          )
         }
+      }
+
+      assertBulkAffectedItemsWithinLimit(affectedFolderIds.size + fileIds.length)
+      if (affectedFolderIds.size > 0) {
+        const descendantFiles = await tx
+          .select({ id: workspaceFiles.id })
+          .from(workspaceFiles)
+          .where(
+            and(
+              inArray(workspaceFiles.folderId, [...affectedFolderIds]),
+              eq(workspaceFiles.workspaceId, params.workspaceId),
+              eq(workspaceFiles.context, 'workspace'),
+              isNull(workspaceFiles.deletedAt)
+            )
+          )
+          .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+        const affectedFileIds = new Set([...fileIds, ...descendantFiles.map((file) => file.id)])
+        assertBulkAffectedItemsWithinLimit(affectedFolderIds.size + affectedFileIds.size)
       }
     }
 
@@ -865,7 +1033,12 @@ export async function moveWorkspaceFileItems(params: {
             .returning({ id: folderTable.id })
         : []
 
-    return { movedFiles: movedFiles.length, movedFolders: movedFolders.length }
+    return {
+      movedFiles: movedFiles.length,
+      movedFolders: movedFolders.length,
+      movedFileIds: movedFiles.map((file) => file.id),
+      movedFolderIds: movedFolders.map((folder) => folder.id),
+    }
   })
 }
 
@@ -891,7 +1064,7 @@ export async function archiveWorkspaceFileFolderRecursive(
       )
       .limit(1)
 
-    if (!folder) throw new Error('Folder not found')
+    if (!folder) throw new OrchestrationError('not_found', 'Folder not found')
 
     const activeFolders = await tx
       .select({ id: folderTable.id, parentId: folderTable.parentId })
@@ -899,7 +1072,24 @@ export async function archiveWorkspaceFileFolderRecursive(
       .where(
         and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
       )
+      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    assertBulkAffectedItemsWithinLimit(activeFolders.length)
     const folderIds = [folderId, ...collectDescendantFolderIds(activeFolders, folderId)]
+    assertBulkAffectedItemsWithinLimit(folderIds.length)
+
+    const affectedFiles = await tx
+      .select({ id: workspaceFiles.id })
+      .from(workspaceFiles)
+      .where(
+        and(
+          inArray(workspaceFiles.folderId, folderIds),
+          eq(workspaceFiles.workspaceId, workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+    assertBulkAffectedItemsWithinLimit(folderIds.length + affectedFiles.length)
 
     const archivedFiles = await tx
       .update(workspaceFiles)
@@ -944,7 +1134,7 @@ export async function restoreWorkspaceFileFolder(
 ): Promise<WorkspaceFileFolderRestoreResult> {
   const ws = await getWorkspaceWithOwner(workspaceId)
   if (!ws || ws.archivedAt) {
-    throw new Error('Cannot restore folder into an archived workspace')
+    throw new OrchestrationError('validation', 'Cannot restore folder into an archived workspace')
   }
 
   const { restored, restoredItems } = await db.transaction(async (tx) => {
@@ -959,8 +1149,8 @@ export async function restoreWorkspaceFileFolder(
       .limit(1)
       .then((rows) => rows[0] ?? null)
 
-    if (!raw) throw new Error('Folder not found')
-    if (!raw.deletedAt) throw new Error('Folder is not archived')
+    if (!raw) throw new OrchestrationError('not_found', 'Folder not found')
+    if (!raw.deletedAt) throw new OrchestrationError('validation', 'Folder is not archived')
 
     const folderDeletedAt = raw.deletedAt
 
@@ -1025,6 +1215,7 @@ export async function restoreWorkspaceFileFolder(
         )
         .returning({ id: workspaceFiles.id })
       stats.files += restoredFiles.length
+      assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
 
       const archivedChildren = await tx
         .select({ id: folderTable.id })
@@ -1037,6 +1228,8 @@ export async function restoreWorkspaceFileFolder(
             eq(folderTable.deletedAt, folderDeletedAt)
           )
         )
+        .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+      assertBulkAffectedItemsWithinLimit(stats.files + stats.folders + archivedChildren.length)
 
       for (const child of archivedChildren) {
         const [restoredChild] = await tx
@@ -1054,6 +1247,7 @@ export async function restoreWorkspaceFileFolder(
 
         if (!restoredChild) continue
         stats.folders += 1
+        assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
         await restoreFolderSubtree(child.id)
       }
     }
@@ -1072,6 +1266,7 @@ export async function restoreWorkspaceFileFolder(
       .returning()
 
     stats.folders += 1
+    assertBulkAffectedItemsWithinLimit(stats.files + stats.folders)
     await restoreFolderSubtree(folderId)
 
     return { restored: row, restoredItems: stats }
@@ -1096,7 +1291,7 @@ export async function bulkArchiveWorkspaceFileItems(params: {
   workspaceId: string
   fileIds?: string[]
   folderIds?: string[]
-}): Promise<WorkspaceFileArchiveResult> {
+}): Promise<WorkspaceFileBulkArchiveResult> {
   const now = new Date()
   const explicitFileIds = Array.from(new Set(params.fileIds ?? []))
   const explicitFolderIds = Array.from(new Set(params.folderIds ?? []))
@@ -1116,11 +1311,32 @@ export async function bulkArchiveWorkspaceFileItems(params: {
                 isNull(folderTable.deletedAt)
               )
             )
+            .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
         : []
+    assertBulkAffectedItemsWithinLimit(activeFolders.length)
     const descendantFolderIds = explicitFolderIds.flatMap((folderId) =>
       collectDescendantFolderIds(activeFolders, folderId)
     )
     const allFolderIds = Array.from(new Set([...explicitFolderIds, ...descendantFolderIds]))
+    assertBulkAffectedItemsWithinLimit(allFolderIds.length + explicitFileIds.length)
+
+    const descendantFiles =
+      allFolderIds.length > 0
+        ? await tx
+            .select({ id: workspaceFiles.id })
+            .from(workspaceFiles)
+            .where(
+              and(
+                inArray(workspaceFiles.folderId, allFolderIds),
+                eq(workspaceFiles.workspaceId, params.workspaceId),
+                eq(workspaceFiles.context, 'workspace'),
+                isNull(workspaceFiles.deletedAt)
+              )
+            )
+            .limit(MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS + 1)
+        : []
+    const affectedFileIds = new Set([...explicitFileIds, ...descendantFiles.map((file) => file.id)])
+    assertBulkAffectedItemsWithinLimit(allFolderIds.length + affectedFileIds.size)
 
     const archivedExplicitFiles =
       explicitFileIds.length > 0
@@ -1170,10 +1386,221 @@ export async function bulkArchiveWorkspaceFileItems(params: {
             .returning({ id: folderTable.id })
         : []
 
+    const archivedFileIds = Array.from(
+      new Set([...archivedExplicitFiles, ...archivedDescendantFiles].map((file) => file.id))
+    )
+    const archivedFolderIds = archivedFolders.map((folder) => folder.id)
     return {
-      folders: archivedFolders.length,
-      files: new Set([...archivedExplicitFiles, ...archivedDescendantFiles].map((file) => file.id))
-        .size,
+      folders: archivedFolderIds.length,
+      files: archivedFileIds.length,
+      folderIds: archivedFolderIds,
+      fileIds: archivedFileIds,
     }
+  })
+}
+
+async function loadActiveFileFolderPathIndex(tx: DbOrTx, workspaceId: string) {
+  const rows = await tx
+    .select()
+    .from(folderTable)
+    .where(
+      and(eq(folderTable.workspaceId, workspaceId), isFileFolder, isNull(folderTable.deletedAt))
+    )
+  return buildFolderPathIndex(rows)
+}
+
+export interface WorkspaceFileFolderPathMutation {
+  folder: typeof folderTable.$inferSelect
+  path: string
+}
+
+/** Creates one file-folder leaf with path resolution inside the file tree's mutation lock. */
+export async function createWorkspaceFileFolderAtPath(params: {
+  workspaceId: string
+  userId: string
+  path: string
+}): Promise<WorkspaceFileFolderPathMutation> {
+  requireNonRootFolderPath(params.path)
+  const pathName = folderNameFromPath(params.path)
+  let name: string
+  try {
+    name = normalizeWorkspaceFileItemName(pathName, 'Folder')
+  } catch (error) {
+    throw new OrchestrationError('validation', getErrorMessage(error))
+  }
+  if (name !== pathName) {
+    throw new OrchestrationError('validation', 'Folder path leaf cannot have outer spaces')
+  }
+
+  const folder = await db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+    const index = await loadActiveFileFolderPathIndex(tx, params.workspaceId)
+    if (index.idByPath.has(params.path)) throw new WorkspaceFileFolderConflictError(name)
+
+    const parentPath = parentFolderPath(params.path)
+    const parentId = parentPath === '/' ? null : index.idByPath.get(parentPath)
+    if (parentPath !== '/' && !parentId) {
+      throw new OrchestrationError('not_found', 'Parent folder not found')
+    }
+
+    const [sortOrderResult] = await tx
+      .select({ minSortOrder: min(folderTable.sortOrder) })
+      .from(folderTable)
+      .where(
+        and(
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          folderParentCondition(parentId),
+          isNull(folderTable.deletedAt)
+        )
+      )
+
+    const now = new Date()
+    const [created] = await tx
+      .insert(folderTable)
+      .values({
+        id: generateId(),
+        resourceType: FILE_FOLDER_RESOURCE_TYPE,
+        name,
+        userId: params.userId,
+        workspaceId: params.workspaceId,
+        parentId,
+        sortOrder: sortOrderResult?.minSortOrder != null ? sortOrderResult.minSortOrder - 1 : 0,
+        createdAt: now,
+        updatedAt: now,
+      })
+      .returning()
+    return created
+  })
+
+  return { folder, path: params.path }
+}
+
+/** Relocates one file folder while source and destination paths share the same tree lock. */
+export async function relocateWorkspaceFileFolderByPath(params: {
+  workspaceId: string
+  path: string
+  destinationPath: string
+}): Promise<WorkspaceFileFolderPathMutation> {
+  requireNonRootFolderPath(params.path)
+  requireNonRootFolderPath(params.destinationPath)
+  const pathName = folderNameFromPath(params.destinationPath)
+  let name: string
+  try {
+    name = normalizeWorkspaceFileItemName(pathName, 'Folder')
+  } catch (error) {
+    throw new OrchestrationError('validation', getErrorMessage(error))
+  }
+  if (name !== pathName) {
+    throw new OrchestrationError('validation', 'Folder path leaf cannot have outer spaces')
+  }
+
+  const folder = await db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+    const index = await loadActiveFileFolderPathIndex(tx, params.workspaceId)
+    const folderId = index.idByPath.get(params.path)
+    if (!folderId) throw new OrchestrationError('not_found', 'Folder not found')
+    if (index.idByPath.has(params.destinationPath)) {
+      throw new WorkspaceFileFolderConflictError(name)
+    }
+
+    const destinationParentPath = parentFolderPath(params.destinationPath)
+    if (
+      destinationParentPath === params.path ||
+      destinationParentPath.startsWith(`${params.path}/`)
+    ) {
+      throw new OrchestrationError('validation', 'Cannot move a folder into one of its descendants')
+    }
+    const parentId =
+      destinationParentPath === '/' ? null : index.idByPath.get(destinationParentPath)
+    if (destinationParentPath !== '/' && !parentId) {
+      throw new OrchestrationError('not_found', 'Parent folder not found')
+    }
+
+    const [updated] = await tx
+      .update(folderTable)
+      .set({ name, parentId, updatedAt: new Date() })
+      .where(
+        and(
+          eq(folderTable.id, folderId),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .returning()
+    if (!updated) throw new OrchestrationError('not_found', 'Folder not found')
+    return updated
+  })
+
+  return { folder, path: params.destinationPath }
+}
+
+/** Deletes a file-folder subtree, or only an empty folder when `recursive` is false. */
+export async function deleteWorkspaceFileFolderByPath(params: {
+  workspaceId: string
+  path: string
+  recursive: boolean
+}): Promise<WorkspaceFileArchiveResult> {
+  requireNonRootFolderPath(params.path)
+  const now = new Date()
+
+  return db.transaction(async (tx) => {
+    await acquireWorkspaceFileFolderMutationLock(tx, params.workspaceId)
+    const index = await loadActiveFileFolderPathIndex(tx, params.workspaceId)
+    const folderId = index.idByPath.get(params.path)
+    if (!folderId) throw new OrchestrationError('not_found', 'Folder not found')
+
+    const folderIds = [
+      folderId,
+      ...[...index.pathById.entries()]
+        .filter(([, path]) => path.startsWith(`${params.path}/`))
+        .map(([id]) => id),
+    ]
+
+    if (!params.recursive) {
+      const [file] = await tx
+        .select({ id: workspaceFiles.id })
+        .from(workspaceFiles)
+        .where(
+          and(
+            eq(workspaceFiles.folderId, folderId),
+            eq(workspaceFiles.workspaceId, params.workspaceId),
+            eq(workspaceFiles.context, 'workspace'),
+            isNull(workspaceFiles.deletedAt)
+          )
+        )
+        .limit(1)
+      if (folderIds.length > 1 || file) {
+        throw new OrchestrationError('conflict', 'Folder is not empty')
+      }
+    }
+
+    const archivedFiles = await tx
+      .update(workspaceFiles)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(workspaceFiles.folderId, folderIds),
+          eq(workspaceFiles.workspaceId, params.workspaceId),
+          eq(workspaceFiles.context, 'workspace'),
+          isNull(workspaceFiles.deletedAt)
+        )
+      )
+      .returning({ id: workspaceFiles.id })
+    const archivedFolders = await tx
+      .update(folderTable)
+      .set({ deletedAt: now, updatedAt: now })
+      .where(
+        and(
+          inArray(folderTable.id, folderIds),
+          eq(folderTable.workspaceId, params.workspaceId),
+          isFileFolder,
+          isNull(folderTable.deletedAt)
+        )
+      )
+      .returning({ id: folderTable.id })
+
+    return { folders: archivedFolders.length, files: archivedFiles.length }
   })
 }

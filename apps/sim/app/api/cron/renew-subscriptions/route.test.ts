@@ -21,7 +21,7 @@ vi.mock('@/lib/auth/internal', () => ({
   verifyCronAuth: mockVerifyCronAuth,
 }))
 
-vi.mock('@/app/api/auth/oauth/utils', () => authOAuthUtilsMock)
+vi.mock('@/lib/oauth/credential-service', () => authOAuthUtilsMock)
 
 import { GET } from './route'
 

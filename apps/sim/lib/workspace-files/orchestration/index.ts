@@ -1,8 +1,22 @@
 export {
+  MAX_WORKSPACE_FILE_CONTENT_BYTES,
+  MAX_WORKSPACE_FILE_INLINE_BODY_BYTES,
+  type PerformUpdateWorkspaceFileContentParams,
+  type PerformUpdateWorkspaceFileContentResult,
+  performUpdateWorkspaceFileContent,
+} from './content'
+export {
+  type PerformCreateWorkspaceFileParams,
+  type PerformCreateWorkspaceFileResult,
+  performCreateWorkspaceFile,
+} from './create'
+export {
   type PerformCreateWorkspaceFileFolderParams,
   type PerformCreateWorkspaceFileFolderResult,
+  type PerformDeleteFileFolderByPathResult,
   type PerformDeleteWorkspaceFileItemsParams,
   type PerformDeleteWorkspaceFileItemsResult,
+  type PerformFileFolderPathMutationResult,
   type PerformMoveRenameWorkspaceFileParams,
   type PerformMoveRenameWorkspaceFileResult,
   type PerformMoveWorkspaceFileItemsParams,
@@ -16,13 +30,22 @@ export {
   type PerformUpdateWorkspaceFileFolderParams,
   type PerformUpdateWorkspaceFileFolderResult,
   performCreateWorkspaceFileFolder,
+  performCreateWorkspaceFileFolderAtPath,
+  performDeleteWorkspaceFileFolderByPath,
   performDeleteWorkspaceFileItems,
   performMoveRenameWorkspaceFile,
   performMoveWorkspaceFileItems,
+  performRelocateWorkspaceFileFolderByPath,
   performRenameWorkspaceFile,
   performRestoreWorkspaceFile,
   performRestoreWorkspaceFileFolder,
   performUpdateWorkspaceFileFolder,
-  type WorkspaceFilesOrchestrationErrorCode,
-  workspaceFilesOrchestrationStatus,
 } from './file-folder-lifecycle'
+export {
+  type PerformGetWorkspaceFileShareParams,
+  type PerformGetWorkspaceFileShareResult,
+  type PerformUpsertWorkspaceFileShareParams,
+  type PerformUpsertWorkspaceFileShareResult,
+  performGetWorkspaceFileShare,
+  performUpsertWorkspaceFileShare,
+} from './share'

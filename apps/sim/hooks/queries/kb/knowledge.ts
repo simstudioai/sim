@@ -39,6 +39,7 @@ import {
   saveDocumentTagDefinitionsContract,
   type TagDefinitionData,
   type TagUsageData,
+  type UpdateKnowledgeDocumentResponseData,
   updateKnowledgeBaseContract,
   updateKnowledgeChunkContract,
   updateKnowledgeDocumentContract,
@@ -490,7 +491,7 @@ async function updateDocument({
   knowledgeBaseId,
   documentId,
   updates,
-}: UpdateDocumentParams): Promise<DocumentData> {
+}: UpdateDocumentParams): Promise<UpdateKnowledgeDocumentResponseData> {
   const result = await requestJson(updateKnowledgeDocumentContract, {
     params: { id: knowledgeBaseId, documentId },
     body: updates,
@@ -1000,6 +1001,7 @@ async function deleteDocumentTagDefinitions({
 }: DeleteDocumentTagDefinitionsParams): Promise<void> {
   await requestJson(deleteDocumentTagDefinitionsContract, {
     params: { id: knowledgeBaseId, documentId },
+    query: {},
   })
 }
 

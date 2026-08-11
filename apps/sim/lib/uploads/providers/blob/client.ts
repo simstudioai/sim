@@ -275,6 +275,53 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
+/** Generates a create-only SAS-backed single-object PUT for a caller-selected final key. */
+export async function getBlobPresignedUploadUrl(params: {
+  key: string
+  contentType: string
+  metadata: Record<string, string>
+  customConfig: BlobConfig
+  expiresIn: number
+}): Promise<{ url: string; headers: Record<string, string> }> {
+  const { BlobSASPermissions, generateBlobSASQueryParameters, StorageSharedKeyCredential } =
+    await import('@azure/storage-blob')
+  const client = await getBlockBlobClientFor(params.key, params.customConfig)
+  const credentials = params.customConfig.connectionString
+    ? parseConnectionString(params.customConfig.connectionString)
+    : {
+        accountName: params.customConfig.accountName,
+        accountKey: params.customConfig.accountKey,
+      }
+  if (!credentials.accountName || !credentials.accountKey) {
+    throw new Error('Azure Blob SAS generation requires accountName and accountKey')
+  }
+  const startsOn = new Date()
+  const expiresOn = new Date(startsOn.getTime() + params.expiresIn * 1000)
+  const sasToken = generateBlobSASQueryParameters(
+    {
+      containerName: params.customConfig.containerName,
+      blobName: params.key,
+      permissions: BlobSASPermissions.parse('w'),
+      startsOn,
+      expiresOn,
+    },
+    new StorageSharedKeyCredential(credentials.accountName, credentials.accountKey)
+  ).toString()
+  const metadata = sanitizeStorageMetadata(params.metadata, 8000)
+  return {
+    url: `${client.url}?${sasToken}`,
+    headers: {
+      'Content-Type': params.contentType,
+      'If-None-Match': '*',
+      'x-ms-blob-type': 'BlockBlob',
+      'x-ms-blob-content-type': params.contentType,
+      ...Object.fromEntries(
+        Object.entries(metadata).map(([key, value]) => [`x-ms-meta-${key}`, value])
+      ),
+    },
+  }
+}
+
 /**
  * Download a file from Azure Blob Storage
  * @param key Blob name
@@ -441,9 +488,15 @@ export async function headBlobObject(
 
   try {
     const properties = await blockBlobClient.getProperties()
+    if (properties.copyStatus && properties.copyStatus !== 'success') {
+      throw new Error(`Blob copy for ${key} is ${properties.copyStatus}`)
+    }
+    const uploadId = readUploadId(properties.metadata)
     return {
       size: properties.contentLength ?? 0,
       contentType: properties.contentType,
+      ...(uploadId ? { uploadId } : {}),
+      ...(properties.etag ? { version: properties.etag } : {}),
       ...(properties.metadata ? { metadata: properties.metadata } : {}),
     }
   } catch (err) {
@@ -452,6 +505,17 @@ export async function headBlobObject(
     }
     throw err
   }
+}
+
+/** Deletes an upload blob only if it is still the version the caller inspected. */
+export async function deleteBlobObjectVersion(params: {
+  key: string
+  etag: string
+  customConfig: BlobConfig
+}): Promise<void> {
+  if (!params.etag) throw new Error('Blob upload object is missing its ETag')
+  const client = await getBlockBlobClientFor(params.key, params.customConfig)
+  await client.deleteIfExists({ conditions: { ifMatch: params.etag } })
 }
 
 /**
@@ -611,6 +675,23 @@ export async function getMultipartPartUrls(
   })
 }
 
+/** Lists uncommitted blocks and maps canonical block ids back to part numbers. */
+export async function listMultipartParts(
+  key: string,
+  customConfig?: BlobConfig
+): Promise<Array<{ partNumber: number; size: number }>> {
+  const blockBlobClient = await getBlockBlobClientFor(key, customConfig)
+  const response = await blockBlobClient.getBlockList('uncommitted')
+  return (response.uncommittedBlocks ?? []).map((block) => {
+    const decoded = Buffer.from(block.name, 'base64').toString('utf8')
+    const match = decoded.match(/^block-(\d{6})$/)
+    if (!match || deriveBlobBlockId(Number(match[1])) !== block.name) {
+      throw new Error(`Azure returned an invalid block id for ${key}`)
+    }
+    return { partNumber: Number(match[1]), size: block.size }
+  })
+}
+
 async function getBlockBlobClientFor(key: string, customConfig?: BlobConfig) {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
   let blobServiceClient: BlobServiceClientType
@@ -699,6 +780,8 @@ export async function completeMultipartUpload(
   uploadId: string,
   parts: AzureMultipartPart[],
   customConfig?: BlobConfig,
+  contentType?: string,
+  metadata?: Record<string, string>,
   completionPolicy: MultipartCompletionPolicy = 'create-only'
 ): Promise<{ location: string; path: string; key: string }> {
   const { BlobServiceClient, StorageSharedKeyCredential } = await import('@azure/storage-blob')
@@ -735,11 +818,13 @@ export async function completeMultipartUpload(
 
   try {
     await blockBlobClient.commitBlockList(sortedBlockIds, {
+      ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
       ...(completionPolicy === 'replace' ? {} : { conditions: { ifNoneMatch: '*' } }),
       metadata: {
         [MULTIPART_UPLOAD_ID_METADATA_KEY]: uploadId,
         [MULTIPART_STATUS_METADATA_KEY]: 'completed',
         uploadCompletedAt: new Date().toISOString(),
+        ...sanitizeStorageMetadata(metadata ?? {}, 8000),
       },
     })
   } catch (error) {
@@ -748,9 +833,9 @@ export async function completeMultipartUpload(
     const canReuseExisting =
       completionPolicy === 'reuse-existing' && isBlobCreateConflict(error) && properties !== null
     if (!isSameUpload && !canReuseExisting) {
-      const metadata = properties?.metadata ?? {}
-      const legacyUploadId = metadata.uploadId ?? metadata.uploadid
-      const legacyStatus = metadata.multipartUpload ?? metadata.multipartupload
+      const existingMetadata = properties?.metadata ?? {}
+      const legacyUploadId = existingMetadata.uploadId ?? existingMetadata.uploadid
+      const legacyStatus = existingMetadata.multipartUpload ?? existingMetadata.multipartupload
       if (
         completionPolicy !== 'create-only' ||
         !isBlobCreateConflict(error) ||
@@ -762,10 +847,12 @@ export async function completeMultipartUpload(
       }
       await blockBlobClient.commitBlockList(sortedBlockIds, {
         conditions: { ifMatch: properties.etag },
+        ...(contentType ? { blobHTTPHeaders: { blobContentType: contentType } } : {}),
         metadata: {
           [MULTIPART_UPLOAD_ID_METADATA_KEY]: uploadId,
           [MULTIPART_STATUS_METADATA_KEY]: 'completed',
           uploadCompletedAt: new Date().toISOString(),
+          ...sanitizeStorageMetadata(metadata ?? {}, 8000),
         },
       })
     }
@@ -836,4 +923,12 @@ export async function abortMultipartUpload(
       logger.warn('Error cleaning up multipart upload:', error)
     }
   }
+}
+
+function readUploadId(metadata?: Record<string, string>): string | undefined {
+  if (!metadata) return undefined
+  return (
+    metadata[MULTIPART_UPLOAD_ID_METADATA_KEY] ??
+    Object.entries(metadata).find(([key]) => key.toLowerCase() === 'uploadid')?.[1]
+  )
 }

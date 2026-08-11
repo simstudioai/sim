@@ -67,16 +67,16 @@ export function formatCreditCost(
 
 /**
  * Renders an already-apportioned integer `creditCost` (see {@link apportionCredits})
- * alongside its raw `dollarCost`, so a row can legitimately apportion to 0
- * credits — once a sibling absorbs the shared rounding remainder — without
- * reading as a flat, misleading "0 credits" for an event that had a real,
- * positive charge. Mirrors {@link formatCreditCost}'s zero/sub-credit
- * wording, but never recomputes credits from `dollarCost` (that would
- * double-convert a value the caller already apportioned).
+ * alongside whether the row carried any real charge, so a row can legitimately
+ * apportion to 0 credits — once a sibling absorbs the shared rounding
+ * remainder — without reading as a flat, misleading "0 credits" for an event
+ * that had a real, positive charge. Mirrors {@link formatCreditCost}'s
+ * zero/sub-credit wording; `hasCost` is a boolean rather than the raw dollar
+ * cost because dollar amounts never go on the wire.
  */
-export function formatApportionedCreditCost(creditCost: number, dollarCost: number): string {
+export function formatApportionedCreditCost(creditCost: number, hasCost: boolean): string {
   if (creditCost > 0) return formatCreditsLabel(creditCost)
-  return dollarCost > 0 ? '<1 credit' : '0 credits'
+  return hasCost ? '<1 credit' : '0 credits'
 }
 
 /**

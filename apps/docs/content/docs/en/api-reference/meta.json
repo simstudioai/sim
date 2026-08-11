@@ -10,12 +10,18 @@
     "typescript",
     "---Endpoints---",
     "(generated)/workflows",
-    "(generated)/human-in-the-loop",
+    "(generated)/workflow-runs",
     "(generated)/logs",
-    "(generated)/usage",
-    "(generated)/audit-logs",
     "(generated)/tables",
     "(generated)/files",
-    "(generated)/knowledge-bases"
+    "(generated)/knowledge-bases",
+    "(generated)/workspaces",
+    "(generated)/mcp-servers",
+    "(generated)/skills",
+    "(generated)/custom-tools",
+    "(generated)/credentials",
+    "(generated)/secrets",
+    "(generated)/billing",
+    "(generated)/audit-logs"
   ]
 }

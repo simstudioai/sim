@@ -2,7 +2,8 @@ import { db } from '@sim/db'
 import { skill, skillMember } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId, generateShortId } from '@sim/utils/id'
-import { and, desc, eq, ne } from 'drizzle-orm'
+import { and, type Column, desc, eq, ne } from 'drizzle-orm'
+import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { getEditableSkillIds } from '@/lib/skills/access'
 import {
@@ -32,6 +33,33 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
   }
 }
 
+type SkillRow = typeof skill.$inferSelect
+export type SkillSortBy = 'name' | 'createdAt' | 'updatedAt'
+
+/**
+ * Orderings for the public list's sortable fields, made total over the contract
+ * enum by `satisfies`. Each ends in `id` so skills sharing a timestamp still
+ * come back in a stable order.
+ */
+const SKILL_SORTS = {
+  name: [skill.name, skill.id],
+  createdAt: [skill.createdAt, skill.id],
+  updatedAt: [skill.updatedAt, skill.id],
+} satisfies Record<SkillSortBy, readonly Column[]>
+
+/** The sort key {@link SKILL_SORTS} orders on, for one row. */
+function skillSortKey(row: SkillRow, sortBy: SkillSortBy): [string | number, string] {
+  if (sortBy === 'name') return [row.name, row.id]
+  return [(sortBy === 'createdAt' ? row.createdAt : row.updatedAt).getTime(), row.id]
+}
+
+function compareSkills(a: SkillRow, b: SkillRow, sortBy: SkillSortBy): number {
+  const [aKey, aId] = skillSortKey(a, sortBy)
+  const [bKey, bId] = skillSortKey(b, sortBy)
+  if (aKey !== bKey) return aKey < bKey ? -1 : 1
+  return aId < bId ? -1 : aId > bId ? 1 : 0
+}
+
 /**
  * List skills for a workspace, ordered by createdAt desc. Built-in template
  * skills are prepended (they live in code, not the DB) so they appear wherever
@@ -40,23 +68,53 @@ function builtinSkillRow(workspaceId: string, builtin: BuiltinSkill): typeof ski
  * Pass `includeBuiltins: false` to return only user-created skills. The
  * mothership uses this for the workspace skill inventory it sees, which lists
  * only user-created skills and never the code-only templates.
+ *
+ * `search` and `sort` serve the public list. The DB half of both runs in the
+ * query; the built-ins are a small code constant with no row to order, so they
+ * are filtered and merged in memory — the one place a v2 list cannot push its
+ * sort all the way down. Passing `sort` also re-orders the built-ins into the
+ * requested order instead of pinning them first, so the public list is sorted
+ * as documented; callers that omit it keep the historical builtins-first order.
+ *
+ * The merged ordering compares names with JS string order rather than the
+ * database collation. Only the handful of ASCII built-in names are placed by
+ * it, so the two agree in practice.
  */
-export async function listSkills(params: { workspaceId: string; includeBuiltins?: boolean }) {
+export async function listSkills(params: {
+  workspaceId: string
+  includeBuiltins?: boolean
+  /** Case-insensitive substring match on the skill name. */
+  search?: string
+  sort?: { sortBy: SkillSortBy; sortOrder: ListSortOrder }
+}): Promise<SkillRow[]> {
+  const sortBy = params.sort?.sortBy ?? 'createdAt'
+  const sortOrder = params.sort?.sortOrder ?? 'desc'
+
   const dbRows = await db
     .select()
     .from(skill)
-    .where(eq(skill.workspaceId, params.workspaceId))
-    .orderBy(desc(skill.createdAt))
+    .where(and(eq(skill.workspaceId, params.workspaceId), searchFilter(skill.name, params.search)))
+    .orderBy(...listOrderBy(SKILL_SORTS[sortBy], sortOrder))
 
   if (params.includeBuiltins === false) {
     return dbRows
   }
 
+  /**
+   * Restricting `dbNames` to the searched rows is safe: a DB skill only shadows
+   * a built-in by sharing its name, and a name that matches the search on the
+   * built-in matches it on the DB row too.
+   */
   const dbNames = new Set(dbRows.map((r) => r.name.toLowerCase()))
-  const builtins = BUILTIN_SKILLS.filter((b) => !dbNames.has(b.name.toLowerCase())).map((b) =>
-    builtinSkillRow(params.workspaceId, b)
-  )
-  return [...builtins, ...dbRows]
+  const term = params.search?.toLowerCase()
+  const builtins = BUILTIN_SKILLS.filter(
+    (b) => !dbNames.has(b.name.toLowerCase()) && (!term || b.name.toLowerCase().includes(term))
+  ).map((b) => builtinSkillRow(params.workspaceId, b))
+
+  if (!params.sort) return [...builtins, ...dbRows]
+
+  const direction = sortOrder === 'asc' ? 1 : -1
+  return [...builtins, ...dbRows].sort((a, b) => direction * compareSkills(a, b, sortBy))
 }
 
 /** A skill row tagged with whether the caller can edit it (always false on builtins). */

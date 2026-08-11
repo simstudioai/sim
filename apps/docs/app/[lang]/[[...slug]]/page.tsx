@@ -11,6 +11,7 @@ import { PageFooter } from '@/components/docs-layout/page-footer'
 import { PageNavigationArrows } from '@/components/docs-layout/page-navigation-arrows'
 import { LLMCopyButton } from '@/components/page-actions'
 import { StructuredData } from '@/components/structured-data'
+import { APIExampleSelector } from '@/components/ui/api-example-selector'
 import { CodeBlock } from '@/components/ui/code-block'
 import { Heading } from '@/components/ui/heading'
 import { ResponseSection } from '@/components/ui/response-section'
@@ -70,12 +71,16 @@ function stripLocalePrefix(url: string, lang: string): string {
 
 const APIPage = createAPIPage(openapi, {
   playground: { enabled: false },
+  client: {
+    operation: { APIExampleSelector },
+  },
   content: {
-    renderOperationLayout: async (slots) => {
+    renderOperationLayout: (slots) => {
       return (
         <div className='flex @4xl:flex-row flex-col @4xl:items-start gap-x-6 gap-y-4'>
           <div className='min-w-0 flex-1'>
             {slots.header}
+            {slots.description}
             {slots.apiPlayground}
             {slots.authSchemes && <div className='api-section-divider'>{slots.authSchemes}</div>}
             {slots.parameters}

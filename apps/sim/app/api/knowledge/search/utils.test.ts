@@ -58,7 +58,7 @@ import {
   handleVectorOnlySearch,
   RRF_K,
   type SearchResult,
-} from '@/app/api/knowledge/search/utils'
+} from '@/lib/knowledge/search/queries'
 
 /** Minimal SearchResult builder — only the fields fusion and ordering read. */
 function makeResult(id: string, distance = 0.1): SearchResult {
@@ -829,7 +829,7 @@ describe('Knowledge Search Utils', () => {
 
   describe('getDocumentMetadataByIds', () => {
     it('should handle empty input gracefully', async () => {
-      const { getDocumentMetadataByIds } = await import('./utils')
+      const { getDocumentMetadataByIds } = await import('@/lib/knowledge/search/queries')
 
       const result = await getDocumentMetadataByIds([])
 

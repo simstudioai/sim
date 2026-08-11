@@ -1,6 +1,7 @@
 import { z } from 'zod'
 import { booleanQueryFlagSchema } from '@/lib/api/contracts/primitives'
 import { type ContractJsonResponse, defineRouteContract } from '@/lib/api/contracts/types'
+import { BILLING_USAGE_LOG_SOURCES } from '@/lib/billing/usage-sources'
 import { isSameOrigin } from '@/lib/core/utils/validation'
 
 export const userProfileSchema = z.object({
@@ -266,18 +267,8 @@ export type UnsubscribeActionResponse = ContractJsonResponse<typeof unsubscribeP
 export type UnsubscribeBody = z.input<typeof unsubscribeBodySchema>
 export type UnsubscribeType = NonNullable<UnsubscribeBody['type']>
 
-export const usageLogSourceSchema = z.enum([
-  'workflow',
-  'wand',
-  'copilot',
-  'workspace-chat',
-  'mcp_copilot',
-  'mothership_block',
-  'knowledge-base',
-  'voice-input',
-  'enrichment',
-  'voice-output',
-])
+/** Billing-facing sources collapse both internal chat ledgers into `sim-chat`. */
+export const usageLogSourceSchema = z.enum(BILLING_USAGE_LOG_SOURCES)
 
 export const usageLogPeriodSchema = z.enum(['1d', '7d', '30d', 'all', 'custom'])
 
@@ -340,12 +331,16 @@ export const usageLogEntrySchema = z.object({
    * Credit-denominated cost of this event (Sim's usage unit; 1,000 credits =
    * $5), apportioned across the page so row credits always sum exactly to
    * the page's rounded total — this can legitimately be 0 for a row with a
-   * real but sub-credit `dollarCost` once a sibling row absorbs the shared
-   * rounding remainder.
+   * real but sub-credit charge once a sibling row absorbs the shared
+   * rounding remainder (see `hasCost`).
    */
   creditCost: z.number(),
-  /** Raw dollar cost, so a 0 `creditCost` can be distinguished from a genuinely free event. */
-  dollarCost: z.number(),
+  /**
+   * Whether the event carried any real charge — distinguishes a row whose
+   * `creditCost` apportioned to 0 from a genuinely free event, without putting
+   * raw dollar costs on the wire.
+   */
+  hasCost: z.boolean(),
 })
 
 export const usageLogsApiResponseSchema = z.object({

@@ -39,11 +39,33 @@ vi.mock('@/lib/billing/core/usage', () => ({
   ensureUserStatsExists: mockEnsureUserStatsExists,
 }))
 
+import { MAX_KNOWLEDGE_BASES_PER_WORKSPACE } from '@/lib/knowledge/constants'
 import {
   getKnowledgeBases,
+  getWorkspaceKnowledgeBases,
   KnowledgeBasePermissionError,
   updateKnowledgeBase,
 } from '@/lib/knowledge/service'
+
+describe('getWorkspaceKnowledgeBases — bounded reads', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    resetDbChainMock()
+  })
+
+  it('fails before projecting connector data for an oversized workspace list', async () => {
+    dbChainMockFns.limit.mockResolvedValueOnce(
+      Array.from({ length: MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1 }, (_, index) => ({
+        id: `kb-${index}`,
+      }))
+    )
+
+    await expect(getWorkspaceKnowledgeBases('ws-1')).rejects.toThrow(
+      `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
+    )
+    expect(dbChainMockFns.limit).toHaveBeenCalledWith(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+  })
+})
 
 /**
  * The listing query authorizes on current workspace membership, never on stale creator
@@ -135,7 +157,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
     await expect(
       updateKnowledgeBase('kb-1', { workspaceId: null }, 'req-1', { actorUserId: 'attacker' })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'Only the knowledge base owner can remove it from a workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).not.toHaveBeenCalled()
@@ -159,7 +181,7 @@ describe('updateKnowledgeBase — workspace transfer authorization', () => {
         actorUserId: 'attacker',
       })
     ).rejects.toMatchObject({
-      code: 'KNOWLEDGE_BASE_FORBIDDEN',
+      code: 'forbidden',
       message: 'User does not have permission on the target workspace',
     })
     expect(permissionsMockFns.mockGetUserEntityPermissions).toHaveBeenCalledWith(

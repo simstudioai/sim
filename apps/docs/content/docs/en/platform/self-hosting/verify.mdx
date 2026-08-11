@@ -18,7 +18,7 @@ Run this after a first install, after an upgrade, and after a restore. Each step
 | 4 | Open the same workflow in a second browser window and edit | Cross-replica collaboration | With >1 replica this needs [Redis](/platform/self-hosting/redis) |
 | 5 | Paste a model API key in settings and run a two-block workflow | Execution engine, credential encryption, outbound network | App logs; check `ENCRYPTION_KEY` is set and outbound egress is allowed |
 | 6 | Upload a small file in Files | File storage end to end | With object storage configured: presigned URL + bucket CORS. On local disk: the upload proxies through the app |
-| 7 | Upload a file larger than 50 MB | Multipart upload path (object storage only) | Confirm `ETag` is in the bucket's CORS exposed headers |
+| 7 | Upload a file larger than 50 MB | Multipart upload path (object storage only) | Check app logs for provider part-listing or completion errors |
 | 8 | Create a knowledge base and upload a PDF | Document parsing, embeddings, pgvector | Needs a hosted embedding provider — see below |
 | 9 | Invite a teammate from workspace settings | Email delivery | App logs for the mailer; see [Email](/platform/self-hosting/email) |
 | 10 | Connect an integration account | OAuth configuration | Redirect URI mismatch → see [Integrations & OAuth](/platform/self-hosting/integrations-oauth) |
@@ -72,7 +72,7 @@ All six should be present on Compose: `simstudio`, `realtime`, `db`, `redis`, `c
 
 **Step 5 fails — execution errors.** Check outbound connectivity to the model provider, then the app logs. If the error is about decrypting a credential, `ENCRYPTION_KEY` differs from the one that encrypted it.
 
-**Step 6 or 7 fails.** With object storage configured, a CORS error in the browser console means the bucket policy does not allow your Sim origin; step 7 failing while step 6 passes specifically means `ETag` is missing from the exposed headers. On local-disk storage there is no CORS involved — uploads proxy through the app, so look at the app logs and the proxy body-size limit instead.
+**Step 6 or 7 fails.** With object storage configured, a CORS error in the browser console means the bucket policy does not allow your Sim origin or the signed upload headers. If step 7 fails only during completion, check the app logs and verify the server identity can list multipart parts (for S3, `s3:ListMultipartUploadParts`). On local-disk storage there is no CORS involved — uploads proxy through the app, so look at the app logs and the proxy body-size limit instead.
 
 **Step 8 fails — knowledge base upload errors.** Knowledge bases need a hosted embedding provider — OpenAI, Azure OpenAI, or Gemini. There is no local embedding backend. If a key is set, check pgvector is installed on the database.
 

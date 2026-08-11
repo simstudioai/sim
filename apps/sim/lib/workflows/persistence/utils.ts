@@ -648,13 +648,15 @@ export async function updateDeploymentVersionMetadata(params: {
   version: number
   name?: string | null
   description?: string | null
+  tx?: DbOrTx
 }): Promise<{ name: string | null; description: string | null } | null> {
+  const executor = params.tx ?? db
   const updateData: { name?: string | null; description?: string | null } = {}
   if (params.name !== undefined) updateData.name = params.name
   if (params.description !== undefined) updateData.description = params.description
 
   if (Object.keys(updateData).length === 0) {
-    const [row] = await db
+    const [row] = await executor
       .select({
         name: workflowDeploymentVersion.name,
         description: workflowDeploymentVersion.description,
@@ -670,7 +672,7 @@ export async function updateDeploymentVersionMetadata(params: {
     return row ?? null
   }
 
-  const [updated] = await db
+  const [updated] = await executor
     .update(workflowDeploymentVersion)
     .set(updateData)
     .where(
@@ -942,7 +944,7 @@ export async function findPreviousDeploymentVersion(
  */
 export async function getWorkflowDeploymentVersion(
   workflowId: string,
-  version: number
+  version: number | 'active'
 ): Promise<{
   id: string
   version: number
@@ -952,6 +954,10 @@ export async function getWorkflowDeploymentVersion(
   createdAt: Date
   state: unknown
 } | null> {
+  const versionPredicate =
+    version === 'active'
+      ? eq(workflowDeploymentVersion.isActive, true)
+      : eq(workflowDeploymentVersion.version, version)
   const [row] = await db
     .select({
       id: workflowDeploymentVersion.id,
@@ -963,18 +969,27 @@ export async function getWorkflowDeploymentVersion(
       state: workflowDeploymentVersion.state,
     })
     .from(workflowDeploymentVersion)
-    .where(
-      and(
-        eq(workflowDeploymentVersion.workflowId, workflowId),
-        eq(workflowDeploymentVersion.version, version)
-      )
-    )
+    .where(and(eq(workflowDeploymentVersion.workflowId, workflowId), versionPredicate))
     .limit(1)
 
   return row ?? null
 }
 
-export async function listWorkflowVersions(workflowId: string): Promise<{
+export interface ListWorkflowVersionsOptions {
+  /** Caps the rows read. Omitted reads every version. */
+  limit?: number
+  /**
+   * Keyset bound for the `version DESC` ordering: returns only versions
+   * strictly below this number, i.e. the page *after* it. Paired with `limit`
+   * this keeps a paginated caller off a full-table read.
+   */
+  afterVersion?: number
+}
+
+export async function listWorkflowVersions(
+  workflowId: string,
+  options: ListWorkflowVersionsOptions = {}
+): Promise<{
   versions: Array<{
     id: string
     version: number
@@ -989,22 +1004,29 @@ export async function listWorkflowVersions(workflowId: string): Promise<{
 }> {
   const { user } = await import('@sim/db')
 
+  const versionConditions = [eq(workflowDeploymentVersion.workflowId, workflowId)]
+  if (options.afterVersion !== undefined) {
+    versionConditions.push(lt(workflowDeploymentVersion.version, options.afterVersion))
+  }
+
+  const versionQuery = db
+    .select({
+      id: workflowDeploymentVersion.id,
+      version: workflowDeploymentVersion.version,
+      name: workflowDeploymentVersion.name,
+      description: workflowDeploymentVersion.description,
+      isActive: workflowDeploymentVersion.isActive,
+      createdAt: workflowDeploymentVersion.createdAt,
+      createdBy: workflowDeploymentVersion.createdBy,
+      deployedByName: user.name,
+    })
+    .from(workflowDeploymentVersion)
+    .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
+    .where(and(...versionConditions))
+    .orderBy(desc(workflowDeploymentVersion.version))
+
   const [rows, [currentOperation]] = await Promise.all([
-    db
-      .select({
-        id: workflowDeploymentVersion.id,
-        version: workflowDeploymentVersion.version,
-        name: workflowDeploymentVersion.name,
-        description: workflowDeploymentVersion.description,
-        isActive: workflowDeploymentVersion.isActive,
-        createdAt: workflowDeploymentVersion.createdAt,
-        createdBy: workflowDeploymentVersion.createdBy,
-        deployedByName: user.name,
-      })
-      .from(workflowDeploymentVersion)
-      .leftJoin(user, eq(workflowDeploymentVersion.createdBy, user.id))
-      .where(eq(workflowDeploymentVersion.workflowId, workflowId))
-      .orderBy(desc(workflowDeploymentVersion.version)),
+    options.limit !== undefined ? versionQuery.limit(options.limit) : versionQuery,
     /**
      * Only the workflow's current (latest-generation) operation carries a
      * status marker: a failed or in-flight attempt is live information until

@@ -355,14 +355,29 @@ export interface TableUpdateJobPayload {
   maxRows?: number
 }
 
+export type TableExportFormat = 'csv' | 'json'
+
 /**
  * Persisted scope of an export job (`table_jobs.payload`). `resultKey` is merged in by the worker
  * on completion — the storage key of the generated file, served to the client via a presigned URL
  * and deleted by the janitor when the terminal job is pruned.
  */
 export interface TableExportJobPayload {
-  format: 'csv' | 'json'
+  format: TableExportFormat
   resultKey?: string
+}
+
+/** Durable import descriptor stored on the existing `table_jobs` row. */
+export interface TableImportJobPayload {
+  kind: 'table_import'
+  userId: string
+  source: unknown
+  target: unknown
+  options: {
+    mapping?: unknown
+    createColumns?: string[]
+    timezone?: string
+  }
 }
 
 /**
@@ -653,6 +668,8 @@ export interface CreateTableData {
   jobType?: TableJobType
   /** Async job id stamped on the table when `jobStatus` is set. */
   jobId?: string
+  /** Type-specific payload stored on the initial async job. */
+  jobPayload?: unknown
 }
 
 export interface InsertRowData {
@@ -888,12 +905,16 @@ export interface DeleteColumnData {
 /** Payload for `addWorkflowGroup` — atomic insert of a group + its outputs. */
 export interface AddWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   group: WorkflowGroup
   outputColumns: ColumnDefinition[]
   /** When `false`, the post-add row-scheduling pass is skipped. Defaults to
    *  `true` (UI behavior). Mothership passes `false` so groups can be staged
    *  without firing every dep-satisfied row. */
   autoRun?: boolean
+  /** Persist auto-run state without dispatching through the primitive. */
+  suppressAutoRunDispatch?: boolean
   /** The member adding the group — billed/gated for the auto-run enrichment pass. */
   actorUserId?: string | null
 }
@@ -901,6 +922,8 @@ export interface AddWorkflowGroupData {
 /** Payload for `updateWorkflowGroup` — diffs outputs and writes columns. */
 export interface UpdateWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
   workflowId?: string
   name?: string
@@ -916,6 +939,11 @@ export interface UpdateWorkflowGroupData {
    * source.
    */
   mappingUpdates?: Array<{ columnName: string; blockId: string; path: string }>
+  /** Workflow-authorized column types for mapping updates. */
+  resolvedMappingTypes?: {
+    workflowId: string
+    columns: Array<{ columnName: string; type: ColumnDefinition['type'] }>
+  }
   /** Replace the group's input mappings. Omit to leave them unchanged. */
   inputMappings?: WorkflowGroupInputMapping[]
   /** Change which workflow state the group runs against. Omit to leave unchanged. */
@@ -924,11 +952,15 @@ export interface UpdateWorkflowGroupData {
   type?: WorkflowGroupType
   /** Toggle the group's auto-run flag. Omit to leave it unchanged. */
   autoRun?: boolean
+  /** Skip primitive dispatch when an authorized caller will start the run itself. */
+  suppressAutoRunDispatch?: boolean
   /** The member updating the group — billed/gated for any triggered re-run. */
   actorUserId?: string | null
 }
 
 export interface DeleteWorkflowGroupData {
   tableId: string
+  /** Canonical workspace derived from the table by an authorized caller. */
+  workspaceId?: string
   groupId: string
 }

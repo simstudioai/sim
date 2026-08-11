@@ -32,6 +32,14 @@ import { captureServerEvent } from '@/lib/posthog/server'
 
 const logger = createLogger('CredentialOrchestration')
 
+export {
+  isProviderOutageCode,
+  type PerformCreateCredentialParams,
+  type PerformCreateCredentialResult,
+  performCreateCredential,
+  statusForCredentialOrchestrationError,
+} from './credential-create'
+
 /**
  * Google's stored blob is the raw GCP JSON key, whose own `type` discriminator
  * is `service_account`.
@@ -52,25 +60,24 @@ const IDENTITY_DERIVED_DISPLAY_NAME_PROVIDERS: ReadonlySet<string> = new Set([
 ])
 
 /**
- * Read and decrypt a service-account credential's stored secret blob. Returns
- * null on any failure - a blob that cannot be read must never block a
- * reconnect; each caller degrades to the behaviour it had without the blob.
+ * Read and decrypt a service-account credential's stored secret blob. A
+ * credential without a stored key returns `null`; unreadable or malformed
+ * stored data throws so reconnect cannot silently discard existing metadata.
  */
 async function readStoredSecretBlob(credentialId: string): Promise<Record<string, unknown> | null> {
-  try {
-    const rows = await db
-      .select({ key: credential.encryptedServiceAccountKey })
-      .from(credential)
-      .where(eq(credential.id, credentialId))
-      .limit(1)
-    const key = rows[0]?.key
-    if (!key) return null
-    const { decrypted } = await decryptSecret(key)
-    const blob: unknown = JSON.parse(decrypted)
-    return blob !== null && typeof blob === 'object' ? (blob as Record<string, unknown>) : null
-  } catch {
-    return null
+  const rows = await db
+    .select({ key: credential.encryptedServiceAccountKey })
+    .from(credential)
+    .where(eq(credential.id, credentialId))
+    .limit(1)
+  const key = rows[0]?.key
+  if (!key) return null
+  const { decrypted } = await decryptSecret(key)
+  const blob: unknown = JSON.parse(decrypted)
+  if (blob === null || typeof blob !== 'object' || Array.isArray(blob)) {
+    throw new Error('Stored credential secret must be a JSON object')
   }
+  return blob as Record<string, unknown>
 }
 
 /**

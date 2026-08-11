@@ -1,70 +1,27 @@
-import { createLogger } from '@sim/logger'
-import { type NextRequest, NextResponse } from 'next/server'
 import { bulkArchiveWorkspaceFileItemsContract } from '@/lib/api/contracts/workspace-file-folders'
-import { parseRequest } from '@/lib/api/server'
-import { getSession } from '@/lib/auth'
-import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { captureServerEvent } from '@/lib/posthog/server'
-import { performDeleteWorkspaceFileItems } from '@/lib/workspace-files/orchestration'
-import { getUserEntityPermissions } from '@/lib/workspaces/permissions/utils'
+import {
+  defineInternalJsonRoute,
+  internalRateLimits,
+  internalSessionAuth,
+} from '@/lib/api/server/routes'
+import { internalFileAnalytics, internalFileErrorPolicies } from '@/lib/workspace-files/api'
+import { archiveWorkspaceFileItemsOperation } from '@/lib/workspace-files/application/archive-workspace-file-items'
+import { fileOperations } from '@/lib/workspace-files/application/operations'
 
-const logger = createLogger('WorkspaceFileBulkArchiveAPI')
-
-export const POST = withRouteHandler(
-  async (request: NextRequest, context: { params: Promise<{ id: string }> }) => {
-    const session = await getSession()
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    const parsed = await parseRequest(bulkArchiveWorkspaceFileItemsContract, request, context)
-    if (!parsed.success) return parsed.response
-    const { id: workspaceId } = parsed.data.params
-    const { fileIds, folderIds } = parsed.data.body
-
-    const permission = await getUserEntityPermissions(session.user.id, 'workspace', workspaceId)
-    if (permission !== 'admin' && permission !== 'write') {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 })
-    }
-
-    try {
-      const result = await performDeleteWorkspaceFileItems({
-        workspaceId,
-        userId: session.user.id,
-        fileIds,
-        folderIds,
-      })
-      if (!result.success) {
-        return NextResponse.json(
-          { success: false, error: result.error },
-          {
-            status:
-              result.errorCode === 'validation'
-                ? 400
-                : result.errorCode === 'not_found'
-                  ? 404
-                  : 500,
-          }
-        )
-      }
-      if (!result.deletedItems) {
-        return NextResponse.json(
-          { success: false, error: 'Failed to delete workspace file items' },
-          { status: 500 }
-        )
-      }
-
-      captureServerEvent(
-        session.user.id,
-        'file_bulk_deleted',
-        { workspace_id: workspaceId, file_count: fileIds.length, folder_count: folderIds.length },
-        { groups: { workspace: workspaceId } }
-      )
-
-      return NextResponse.json({ success: true, deletedItems: result.deletedItems })
-    } catch (error) {
-      logger.error('Failed to bulk archive workspace file items:', error)
-      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 })
-    }
-  }
-)
+export const POST = defineInternalJsonRoute({
+  contract: bulkArchiveWorkspaceFileItemsContract,
+  auth: internalSessionAuth,
+  operation: fileOperations.delete,
+  rateLimit: internalRateLimits.none({
+    reason: 'Preserve existing internal bulk archive behavior',
+  }),
+  errorPolicy: internalFileErrorPolicies.default,
+  mapInput: ({ params, body }) => ({
+    workspaceId: params.id,
+    fileIds: body.fileIds,
+    folderIds: body.folderIds,
+  }),
+  useCase: archiveWorkspaceFileItemsOperation,
+  onSuccess: internalFileAnalytics.bulkDeleted,
+  present: ({ deletedItems }) => ({ success: true, deletedItems }),
+})

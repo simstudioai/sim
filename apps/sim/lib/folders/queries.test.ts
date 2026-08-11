@@ -9,9 +9,12 @@ import {
   schemaMock,
 } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import {
   findActiveFolder,
+  listActiveFolderRows,
   listFoldersForWorkspace,
+  loadActiveFolderPathIndex,
   resolveRestoredFolderId,
   toFolderApi,
   wouldCreateFolderCycle,
@@ -181,6 +184,36 @@ describe('folder queries', () => {
         )
       ).toBe(true)
       expect(hasMockCondition(where, (n) => n.type === 'isNull')).toBe(false)
+    })
+  })
+
+  describe('bounded folder reads', () => {
+    it('fails before building an oversized path index', async () => {
+      queueTableRows(schemaMock.folder, [ROW, { ...ROW, id: 'f-2' }, { ...ROW, id: 'f-3' }])
+
+      const rejection = expect(
+        loadActiveFolderPathIndex('ws-1', 'knowledge_base', undefined, { maxRows: 2 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionLimitExceededError)
+      await rejection.toMatchObject({
+        code: 'payload_too_large',
+        message: 'Folder path index exceeds the 2 row limit',
+      })
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
+    })
+
+    it('fails before returning an oversized folder list', async () => {
+      queueTableRows(schemaMock.folder, [ROW, { ...ROW, id: 'f-2' }, { ...ROW, id: 'f-3' }])
+
+      const rejection = expect(
+        listActiveFolderRows('ws-1', 'knowledge_base', { maxRows: 2 })
+      ).rejects
+      await rejection.toBeInstanceOf(FolderCollectionLimitExceededError)
+      await rejection.toMatchObject({
+        code: 'payload_too_large',
+        message: 'Folder list exceeds the 2 row limit',
+      })
+      expect(dbChainMockFns.limit).toHaveBeenCalledWith(3)
     })
   })
 

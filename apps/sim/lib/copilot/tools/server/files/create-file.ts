@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
-import { ensureWorkspaceAccess } from '@/lib/copilot/tools/handlers/access'
+import { executeCopilotFileUseCase } from '@/lib/copilot/application/execute-file-use-case'
+import { messageForCopilotFileError } from '@/lib/copilot/auth/file-delegation'
 import {
   assertServerToolNotAborted,
   type BaseServerTool,
   type ServerToolContext,
 } from '@/lib/copilot/tools/server/base-tool'
-import { writeWorkspaceFileByPath } from '@/lib/copilot/vfs/resource-writer'
-import { inferContentType } from './workspace-file'
+import { inferContentType } from '@/lib/copilot/tools/server/files/workspace-file'
+import {
+  createWorkspaceFileByPath,
+  updateWorkspaceFileContentByPath,
+} from '@/lib/workspace-files/application/write-workspace-file-by-path'
 
 const logger = createLogger('CreateFileServerTool')
 const CREATE_FILE_TOOL_ID = 'create_file'
@@ -39,8 +43,6 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     if (!workspaceId) {
       return { success: false, message: 'Workspace ID is required' }
     }
-    const workspaceAccess = await ensureWorkspaceAccess(workspaceId, context.userId, 'write')
-
     const nested = params.args
     const fileName = params.fileName || (nested?.fileName as string) || ''
     const explicitType = params.contentType || (nested?.contentType as string) || undefined
@@ -51,41 +53,49 @@ export const createFileServerTool: BaseServerTool<CreateFileArgs, CreateFileResu
     const outputPath =
       outputFile?.path ?? (fileName.startsWith('files/') ? fileName : `files/${fileName}`)
     const contentType = outputFile?.mimeType ?? inferContentType(outputPath, explicitType)
-    const emptyBuffer = Buffer.from('', 'utf-8')
-
     assertServerToolNotAborted(context)
-    const result = await writeWorkspaceFileByPath({
-      workspaceId,
-      userId: context.userId,
-      workspaceAccess,
-      target: {
-        path: outputPath,
-        mode: outputFile?.mode ?? 'create',
-        mimeType: outputFile?.mimeType,
-      },
-      buffer: emptyBuffer,
-      inferredMimeType: contentType,
-      // This writes only an empty shell; the real content arrives via a later edit_content write (which
-      // does merge). Merging this empty write would briefly blank an already-open editor on overwrite.
-      syncLiveDoc: false,
-    })
+    const mode = outputFile?.mode ?? 'create'
+    try {
+      const result =
+        mode === 'overwrite'
+          ? await executeCopilotFileUseCase(context, updateWorkspaceFileContentByPath, {
+              workspaceId,
+              path: outputPath,
+              mode,
+              content: '',
+              encoding: 'utf-8',
+              contentType,
+              syncLiveDoc: false,
+            })
+          : await executeCopilotFileUseCase(context, createWorkspaceFileByPath, {
+              workspaceId,
+              path: outputPath,
+              mode,
+              content: '',
+              encoding: 'utf-8',
+              contentType,
+              exactName: true,
+            })
 
-    logger.info('File created via create_file', {
-      fileId: result.id,
-      name: result.vfsPath,
-      contentType,
-      userId: context.userId,
-    })
-
-    return {
-      success: true,
-      message: `File "${result.vfsPath}" created successfully`,
-      data: {
-        id: result.id,
-        name: result.name,
+      logger.info('File created via create_file', {
+        fileId: result.id,
+        name: result.vfsPath,
         contentType,
-        vfsPath: result.vfsPath,
-      },
+        userId: context.userId,
+      })
+
+      return {
+        success: true,
+        message: `File "${result.vfsPath}" created successfully`,
+        data: {
+          id: result.id,
+          name: result.name,
+          contentType,
+          vfsPath: result.vfsPath,
+        },
+      }
+    } catch (error) {
+      return { success: false, message: messageForCopilotFileError(error, 'Failed to create file') }
     }
   },
 }

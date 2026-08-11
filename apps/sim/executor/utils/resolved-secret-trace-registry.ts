@@ -61,6 +61,7 @@ export type ResolvedSecretIncompletenessReason =
   | 'knowledge-row-content-mismatch'
   | 'memory-crossing-capacity-exceeded'
   | 'workspace-scope-missing'
+  | 'table-result-provenance-unavailable'
   | 'mounted-file-provenance-unavailable'
   | 'table-snapshot-unsafe-for-mount'
   | 'restored-provenance-untrusted'

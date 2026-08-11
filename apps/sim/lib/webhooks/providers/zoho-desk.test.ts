@@ -3,7 +3,7 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
-vi.mock('@/app/api/auth/oauth/utils', () => ({
+vi.mock('@/lib/oauth/credential-service', () => ({
   refreshAccessTokenIfNeeded: vi.fn(),
 }))
 
@@ -12,13 +12,13 @@ vi.mock('@/lib/webhooks/provider-subscription-utils', () => ({
   getNotificationUrl: vi.fn(() => 'https://example.com/api/webhooks/trigger/path'),
 }))
 
+import { refreshAccessTokenIfNeeded } from '@/lib/oauth/credential-service'
 import {
   matchesPendingWebhookVerificationProbe,
   requiresPendingWebhookVerification,
 } from '@/lib/webhooks/pending-verification'
 import { getCredentialOwner } from '@/lib/webhooks/provider-subscription-utils'
 import { mapZohoWebhookError, zohoDeskHandler } from '@/lib/webhooks/providers/zoho-desk'
-import { refreshAccessTokenIfNeeded } from '@/app/api/auth/oauth/utils'
 
 function errorStatus(err: unknown): number | undefined {
   return (err as { status?: number })?.status

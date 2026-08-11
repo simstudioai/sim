@@ -1,3 +1,4 @@
+import { buildFolderPath } from '@/lib/folders/paths'
 import { folderAncestorChain } from '@/lib/folders/tree'
 import type { WorkflowFolder } from '@/stores/folders/types'
 
@@ -43,6 +44,31 @@ export function getFolderPath(
 ): string | null {
   const segments = folderAncestorChain(folderId, (id) => folders[id]).map((folder) => folder.name)
   return segments.length > 0 ? segments.join(separator) : null
+}
+
+/** Returns the canonical public API path for a folder and rejects corrupt trees. */
+export function getCanonicalFolderPath(
+  folderId: string | null | undefined,
+  folders: Record<string, WorkflowFolder> | Map<string, WorkflowFolder>
+): string {
+  if (!folderId) return '/'
+
+  const segments: string[] = []
+  const visited = new Set<string>()
+  let currentFolderId: string | null | undefined = folderId
+
+  while (currentFolderId) {
+    if (visited.has(currentFolderId)) throw new Error('Folder tree contains a cycle')
+    visited.add(currentFolderId)
+
+    const folder: WorkflowFolder | undefined =
+      folders instanceof Map ? folders.get(currentFolderId) : folders[currentFolderId]
+    if (!folder) throw new Error(`Folder ${currentFolderId} was not found`)
+    segments.unshift(folder.name)
+    currentFolderId = folder.parentId
+  }
+
+  return buildFolderPath(segments)
 }
 
 /**
