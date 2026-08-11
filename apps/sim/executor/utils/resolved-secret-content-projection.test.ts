@@ -411,11 +411,22 @@ describe('projectResolvedSecretModelJsonContent', () => {
 
   it('enforces the byte limit after secret aliases are projected', () => {
     const registry = new ResolvedSecretTraceRegistry([
-      { name: 'X', plaintext: 'xxxxxxxx', encryptedValue: 'ciphertext' },
+      { name: 'X_LONGER_NAME', plaintext: 'xxxxxxxx', encryptedValue: 'ciphertext' },
     ])
-    registry.recordResolved('X', 'x')
+    expect(registry.recordResolved('X_LONGER_NAME', 'xxxxxxxx')).toBe(true)
 
-    expect(projectResolvedSecretModelJsonContent({ a: 'x' }, registry, 9)).toEqual({ safe: false })
+    /**
+     * `{"a":"xxxxxxxx"}` is 16 bytes and fits; projecting it to
+     * `{"a":"{{X_LONGER_NAME}}"}` takes it to 25. The limit has to be applied to the projected
+     * bytes, so the first call must fail and the second must not.
+     */
+    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 16)).toEqual({
+      safe: false,
+    })
+    expect(projectResolvedSecretModelJsonContent({ a: 'xxxxxxxx' }, registry, 25)).toEqual({
+      safe: true,
+      value: { a: '{{X_LONGER_NAME}}' },
+    })
   })
 })
 

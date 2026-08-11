@@ -465,11 +465,11 @@ describe('Memory', () => {
 
     it('does not project unrelated active secrets into legacy memory', async () => {
       const registry = new ResolvedSecretTraceRegistry([
-        { name: 'TOKEN', plaintext: 'x', encryptedValue: 'ciphertext' },
+        { name: 'TOKEN', plaintext: 'unrelated-secret', encryptedValue: 'ciphertext' },
       ])
-      registry.recordResolved('TOKEN', 'x')
+      expect(registry.recordResolved('TOKEN', 'unrelated-secret')).toBe(true)
       vi.spyOn(memoryService as any, 'fetchMemory').mockResolvedValueOnce({
-        messages: [{ role: 'assistant', content: 'Box' }],
+        messages: [{ role: 'assistant', content: 'Box unrelated-secret' }],
         provenance: { status: 'exact', entries: [] },
       })
 
@@ -478,7 +478,7 @@ describe('Memory', () => {
         inputs
       )
 
-      expect(messages).toEqual([{ role: 'assistant', content: 'Box' }])
+      expect(messages).toEqual([{ role: 'assistant', content: 'Box unrelated-secret' }])
     })
 
     it('does not activate provenance from a message dropped by the selected window', async () => {
