@@ -1,5 +1,12 @@
 'use client'
-import { ChevronDown, cn, Home, Library } from '@sim/emcn'
+import {
+  ChevronDown,
+  chipActiveSurfaceClass,
+  chipHoverSurfaceClass,
+  cn,
+  Home,
+  Library,
+} from '@sim/emcn'
 import { Database, File, HelpCircle, Search, Settings, Table, Workflow } from '@sim/emcn/icons'
 import type { PreviewWorkflow } from '@/app/(landing)/components/landing-preview/components/landing-preview-workflow/workflow-data'
 
@@ -52,7 +59,7 @@ function NavItem({
       onClick={onClick}
       className={cn(
         'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors',
-        isActive ? 'bg-[var(--c-active)]' : 'hover-hover:bg-[var(--c-hover)]'
+        isActive ? chipActiveSurfaceClass : chipHoverSurfaceClass
       )}
     >
       <Icon className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -77,15 +84,7 @@ export function LandingPreviewSidebar({
   const isHomeActive = activeView === 'home'
 
   return (
-    <div
-      className='flex h-full w-[248px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'
-      style={
-        {
-          '--c-active': 'var(--surface-active)',
-          '--c-hover': 'var(--surface-hover)',
-        } as React.CSSProperties
-      }
-    >
+    <div className='flex h-full w-[248px] flex-shrink-0 flex-col bg-[var(--surface-1)] pt-3'>
       {/* Workspace Header */}
       <div className='flex-shrink-0 px-2.5'>
         <div className='pointer-events-none flex h-[32px] w-full items-center gap-2 rounded-[8px] border border-[var(--border-1)] bg-[var(--surface-2)] pr-2 pl-[5px]'>
@@ -113,7 +112,7 @@ export function LandingPreviewSidebar({
           onClick={onSelectHome}
           className={cn(
             'mx-0.5 flex h-[28px] items-center gap-2 rounded-[8px] px-2 transition-colors',
-            isHomeActive ? 'bg-[var(--c-active)]' : 'hover-hover:bg-[var(--c-hover)]'
+            isHomeActive ? chipActiveSurfaceClass : chipHoverSurfaceClass
           )}
         >
           <Home className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />
@@ -157,9 +156,7 @@ export function LandingPreviewSidebar({
                   onClick={() => onSelectWorkflow(workflow.id)}
                   className={cn(
                     'mx-0.5 flex h-[28px] w-full items-center gap-2 rounded-[8px] px-2 transition-colors',
-                    isActive
-                      ? 'bg-[var(--surface-active)]'
-                      : 'hover-hover:bg-[var(--surface-hover)]'
+                    isActive ? chipActiveSurfaceClass : chipHoverSurfaceClass
                   )}
                 >
                   <Workflow className='size-[14px] flex-shrink-0 text-[var(--text-icon)]' />

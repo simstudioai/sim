@@ -5,9 +5,6 @@ import { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Button,
   ChevronDown,
-  chipContentGap,
-  chipContentLabelClass,
-  cn,
   disclosureChevronClass,
   handleKeyboardActivation,
   Popover,
@@ -117,7 +114,7 @@ const BlockRow = memo(function BlockRow({
       data-entry-id={entry.id}
       role='button'
       tabIndex={0}
-      className={clsx(ROW_STYLES.base, isSelected ? ROW_STYLES.selected : ROW_STYLES.hover)}
+      className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
       onClick={(e) => {
         e.stopPropagation()
         onSelect(entry)
@@ -126,13 +123,13 @@ const BlockRow = memo(function BlockRow({
         handleKeyboardActivation(event, () => onSelect(entry), { stopPropagation: true })
       }
     >
-      <div className={cn('flex min-w-0 flex-1 items-center', chipContentGap)}>
+      <div className={ROW_STYLES.content}>
         <EntryBlockTile blockType={entry.blockType} />
-        <span className={cn(chipContentLabelClass, hasError && 'text-[var(--text-error)]')}>
+        <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
           {entry.blockName}
         </span>
       </div>
-      <span className={clsx('flex-shrink-0 text-sm', !isRunning && 'text-[var(--text-muted)]')}>
+      <span className={clsx(ROW_STYLES.status, !isRunning && ROW_STYLES.statusIdle)}>
         <StatusDisplay
           isRunning={isRunning}
           isCanceled={isCanceled}
@@ -181,24 +178,22 @@ const IterationNodeRow = memo(function IterationNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(ROW_STYLES.base, ROW_STYLES.hover)}
+        className={ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           onToggle()
         }}
         onKeyDown={(event) => handleKeyboardActivation(event, onToggle, { stopPropagation: true })}
       >
-        <div className={cn('flex min-w-0 flex-1 items-center', chipContentGap)}>
-          <span className={cn(chipContentLabelClass, hasError && 'text-[var(--text-error)]')}>
+        <div className={ROW_STYLES.content}>
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {iterationLabel}
           </span>
           {hasChildren && (
             <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx('flex-shrink-0 text-sm', !hasRunningChild && 'text-[var(--text-muted)]')}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningChild && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningChild}
             isCanceled={hasCanceledChild}
@@ -266,7 +261,7 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(ROW_STYLES.base, ROW_STYLES.hover)}
+        className={ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           onToggleNode(nodeId)
@@ -275,21 +270,14 @@ const SubflowNodeRow = memo(function SubflowNodeRow({
           handleKeyboardActivation(event, () => onToggleNode(nodeId), { stopPropagation: true })
         }
       >
-        <div className={cn('flex min-w-0 flex-1 items-center', chipContentGap)}>
+        <div className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
-          <span className={cn(chipContentLabelClass, hasError && 'text-[var(--text-error)]')}>
-            {displayName}
-          </span>
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>{displayName}</span>
           {hasChildren && (
             <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 text-sm',
-            !hasRunningDescendant && 'text-[var(--text-muted)]'
-          )}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}
@@ -362,7 +350,7 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
       <div
         role='button'
         tabIndex={0}
-        className={clsx(ROW_STYLES.base, isSelected ? ROW_STYLES.selected : ROW_STYLES.hover)}
+        className={isSelected ? ROW_STYLES.rowSelected : ROW_STYLES.row}
         onClick={(e) => {
           e.stopPropagation()
           if (!isSelected) onSelectEntry(entry)
@@ -379,21 +367,16 @@ const WorkflowNodeRow = memo(function WorkflowNodeRow({
           )
         }
       >
-        <div className={cn('flex min-w-0 flex-1 items-center', chipContentGap)}>
+        <div className={ROW_STYLES.content}>
           <EntryBlockTile blockType={entry.blockType} />
-          <span className={cn(chipContentLabelClass, hasError && 'text-[var(--text-error)]')}>
+          <span className={hasError ? ROW_STYLES.labelError : ROW_STYLES.label}>
             {entry.blockName}
           </span>
           {hasChildren && (
             <ChevronDown className={clsx(disclosureChevronClass, !isExpanded && '-rotate-90')} />
           )}
         </div>
-        <span
-          className={clsx(
-            'flex-shrink-0 text-sm',
-            !hasRunningDescendant && 'text-[var(--text-muted)]'
-          )}
-        >
+        <span className={clsx(ROW_STYLES.status, !hasRunningDescendant && ROW_STYLES.statusIdle)}>
           <StatusDisplay
             isRunning={hasRunningDescendant}
             isCanceled={hasCanceledDescendant}

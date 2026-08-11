@@ -17,6 +17,7 @@ import {
 import { cva, type VariantProps } from 'class-variance-authority'
 import { Check, ChevronDown, Loader, Search } from '../../icons'
 import { cn } from '../../lib/cn'
+import { chipActiveSurfaceClass, chipHoverSurfaceClass } from '../chip/chip-chrome'
 import { Input } from '../input/input'
 import { Popover, PopoverAnchor, PopoverContent, PopoverScrollArea } from '../popover/popover'
 
@@ -149,6 +150,14 @@ export interface ComboboxProps
   /** Empty state message when no options match the search */
   emptyMessage?: string
 }
+
+/**
+ * Option cursor, not a hover affordance: it matches the keyboard highlight, so it
+ * keeps `--surface-active` rather than the dimmer `chipHoverSurfaceClass` rows
+ * use. Kept alongside `isHighlighted` because `onMouseEnter` does not re-fire
+ * when the list scrolls under a stationary pointer.
+ */
+const OPTION_CURSOR_CLASS = 'hover-hover:bg-[var(--surface-active)]'
 
 /**
  * Minimal combobox component matching the input and textarea styling.
@@ -841,13 +850,8 @@ const Combobox = memo(
                                 className={cn(
                                   'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                                   size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                                  /* No hover class: `onMouseEnter` moves the highlight to this
-                                     row, so `isHighlighted` already paints it. A hover class on
-                                     top would be a second, differently-timed answer to the same
-                                     question — and once it resolves to a surface other than
-                                     `--surface-active`, a moused row and a keyboard-arrowed row
-                                     stop matching. */
-                                  (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                                  OPTION_CURSOR_CLASS,
+                                  (isHighlighted || isSelected) && chipActiveSurfaceClass,
                                   option.disabled && 'cursor-not-allowed opacity-50'
                                 )}
                               >
@@ -886,12 +890,10 @@ const Combobox = memo(
                           className={cn(
                             'relative flex cursor-pointer select-none items-center rounded-sm px-1.5 font-sans',
                             size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                            /* This row clears the highlight rather than taking it, so unlike the
-                               option rows it does carry its own hover — as the dimmer surface,
-                               and only while it is not already the selected "all" state. */
+                            // Clears the highlight rather than taking it, so unlike option rows it hovers.
                             !multiSelectValues?.length
-                              ? 'bg-[var(--surface-active)]'
-                              : 'hover-hover:bg-[var(--surface-hover)]'
+                              ? chipActiveSurfaceClass
+                              : chipHoverSurfaceClass
                           )}
                         >
                           <span className='flex-1 truncate text-[var(--text-primary)]'>
@@ -924,9 +926,8 @@ const Combobox = memo(
                             className={cn(
                               'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-1.5 font-sans',
                               size === 'sm' ? 'py-[5px] text-caption' : 'py-1.5 text-sm',
-                              /* See above: `onMouseEnter` owns the highlight, so the row needs
-                                 no hover class of its own. */
-                              (isHighlighted || isSelected) && 'bg-[var(--surface-active)]',
+                              OPTION_CURSOR_CLASS,
+                              (isHighlighted || isSelected) && chipActiveSurfaceClass,
                               option.disabled && 'cursor-not-allowed opacity-50'
                             )}
                           >

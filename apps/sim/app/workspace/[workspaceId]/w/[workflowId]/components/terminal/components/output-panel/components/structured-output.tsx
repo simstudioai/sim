@@ -11,7 +11,14 @@ import {
   useRef,
   useState,
 } from 'react'
-import { Badge, ChevronDown, chipContentGap, cn, disclosureChevronClass } from '@sim/emcn'
+import {
+  Badge,
+  ChevronDown,
+  chipGeometryClass,
+  chipHoverSurfaceClass,
+  cn,
+  disclosureChevronClass,
+} from '@sim/emcn'
 import { useVirtualizer } from '@tanstack/react-virtual'
 import { isUserFileDisplayMetadata } from '@/lib/core/utils/user-file'
 import {
@@ -25,7 +32,6 @@ import {
 } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/terminal/types'
 
 type ValueType = 'null' | 'undefined' | 'array' | 'string' | 'number' | 'boolean' | 'object'
-type BadgeVariant = 'gray-secondary' | 'red'
 
 interface NodeEntry {
   key: string
@@ -56,34 +62,25 @@ const CONFIG = {
 } as const
 
 /**
- * The tag a value's type is announced with.
- *
- * One neutral form for every type, because the hue was never carrying the
- * information: the tag already spells the type out, and the value beside it
- * shows it again through quotes, digits or brackets. A colour per type was a
- * third encoding of a fact stated twice — and it was the expensive one, since
- * four saturated tags on every row left the one colour that means something in
- * this pane, the red of a failed value, competing with decoration instead of
- * being the only thing that stands out. Red stays; nothing else is coloured.
- *
- * Built from `--surface-4` / `--text-secondary` rather than the bespoke
- * `--badge-*` palette, so the tag ages with the platform's surface tokens.
+ * One neutral tag for every value type. Per-type hues re-encoded a fact the tag
+ * text and the value already state, and left red — the only signal that matters
+ * — competing with decoration. Red stays; nothing else is coloured.
  */
-const VALUE_TYPE_BADGE_VARIANT: BadgeVariant = 'gray-secondary'
+const VALUE_TYPE_BADGE_VARIANT = 'gray-secondary' as const
 
 /**
- * Styling constants for the output tree.
+ * Styling constants for the output tree — the same chip as a log row.
  *
- * A value row is the same chip as a log row on the left, and reuses the same
- * shared constants — the two panes sit side by side, so a key here reading in a
- * different grey from a block name there is immediately visible.
- *
- * `row` cannot take `chipGeometryClass` wholesale: a wrapped value grows past
- * one line, so it needs `min-h-[30px]` where a chip is fixed at `h-[30px]`. The
- * rest of the pill — radius, padding, gap, text size — is the chip's.
+ * `row` overrides the pill's fixed `h-[30px]` with `h-auto min-h-[30px]`: a
+ * wrapped value grows past one line.
  */
 const STYLES = {
-  row: `group flex min-h-[30px] cursor-pointer items-center ${chipContentGap} -mx-2 rounded-lg px-2 text-sm transition-colors hover-hover:bg-[var(--surface-hover)]`,
+  row: cn(
+    'group flex cursor-pointer transition-colors',
+    chipGeometryClass,
+    '-mx-2 h-auto min-h-[30px]',
+    chipHoverSurfaceClass
+  ),
   chevron: disclosureChevronClass,
   keyName: 'text-sm text-[var(--text-body)]',
   badge: BADGE_STYLE,

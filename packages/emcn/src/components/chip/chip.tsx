@@ -11,10 +11,12 @@ import { cva, type VariantProps } from 'class-variance-authority'
 import Link, { type LinkProps } from 'next/link'
 import { cn } from '../../lib/cn'
 import {
+  chipActiveSurfaceClass,
   chipContentIconClass,
   chipContentLabelClass,
   chipFilledFillTokens,
   chipGeometryClass,
+  chipHoverSurfaceClass,
   chipPrimaryFillTokens,
 } from './chip-chrome'
 
@@ -48,15 +50,8 @@ import {
  * `chipVariants({...})` consumers identical to `cn(chipVariants({...}))` ones; folding the non-active hover back
  * into the variant string would emit two conflicting hover classes that only `cn`'s tailwind-merge resolves,
  * silently diverging raw consumers (e.g. an active row that darkens with `Chip` but not with raw `chipVariants`).
- *
- * Two states, two surfaces, and the token names say which is which: hovering is `--surface-hover`, being
- * selected is the one step stronger `--surface-active`. **An active chip takes no hover class at all.**
- *
- * Both halves of that matter. Hover used to land on `--surface-active` as well, so a row the pointer merely
- * passed over was painted exactly like the selected one and a list briefly appeared to have two selections.
- * And an active chip used to brighten to `--surface-6`, which read as the selection *changing* under the
- * cursor — but hover answers "what would I act on", and on the row already selected the answer is nothing
- * new. Selection is a persistent fact about the list; a pointer passing over it is not an event.
+ * The two surfaces themselves, and why an active chip takes no hover class at all, are documented on
+ * {@link chipHoverSurfaceClass}.
  */
 const chipVariants = cva(
   `group cursor-pointer ${chipGeometryClass} transition-colors disabled:cursor-not-allowed disabled:opacity-60`,
@@ -70,33 +65,14 @@ const chipVariants = cva(
           'bg-[var(--text-error)] text-white hover-hover:text-white hover-hover:brightness-106',
         'border-shadow':
           'bg-[var(--surface-2)] shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-3)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)] dark:hover-hover:bg-[var(--surface-4)]',
-        border:
-          'shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] hover-hover:bg-[var(--surface-hover)] dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]',
+        border: `shadow-[0_0_0_1px_rgba(28,40,64,0.08),0_1px_3px_0_rgba(28,40,64,0.1)] ${chipHoverSurfaceClass} dark:shadow-[0_0_0_1px_var(--border-1),0_1px_3px_0_rgba(0,0,0,0.3)]`,
       },
       active: { true: '', false: '' },
       fullWidth: { true: 'flex', false: 'inline-flex' },
     },
     compoundVariants: [
-      {
-        variant: 'default',
-        active: false,
-        className: 'hover-hover:bg-[var(--surface-hover)]',
-      },
-      {
-        variant: 'default',
-        active: true,
-        className: 'bg-[var(--surface-active)]',
-      },
-      {
-        variant: 'filled',
-        active: false,
-        className: 'hover-hover:bg-[var(--surface-hover)]',
-      },
-      {
-        variant: 'filled',
-        active: true,
-        className: 'bg-[var(--surface-active)]',
-      },
+      { variant: ['default', 'filled'], active: false, className: chipHoverSurfaceClass },
+      { variant: ['default', 'filled'], active: true, className: chipActiveSurfaceClass },
     ],
     defaultVariants: { variant: 'default', active: false, fullWidth: false },
   }

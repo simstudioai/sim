@@ -5,6 +5,8 @@ import {
   Badge,
   Chip,
   ChipConfirmModal,
+  chipContentIconClass,
+  cn,
   Loader,
   Modal,
   ModalBody,
@@ -874,6 +876,9 @@ function GeneralFooter({
     </div>
   )
   const deployActionLoading = isSubmitting || isDeploymentSettling
+  const deployLoader = deployActionLoading ? (
+    <Loader className={cn(chipContentIconClass, 'text-current')} animate />
+  ) : null
 
   if (!isDeployed) {
     return (
@@ -884,7 +889,7 @@ function GeneralFooter({
             variant='primary'
             onClick={onDeploy}
             disabled={isDeployBlocked}
-            leftAdornment={deployActionLoading ? <Loader className='size-[14px]' animate /> : null}
+            leftAdornment={deployLoader}
           >
             Deploy
           </Chip>
@@ -905,7 +910,7 @@ function GeneralFooter({
             variant='primary'
             onClick={onRedeploy}
             disabled={isDeployBlocked}
-            leftAdornment={deployActionLoading ? <Loader className='size-[14px]' animate /> : null}
+            leftAdornment={deployLoader}
           >
             Update
           </Chip>

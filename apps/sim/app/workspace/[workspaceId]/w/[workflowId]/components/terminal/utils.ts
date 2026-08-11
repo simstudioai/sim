@@ -95,27 +95,20 @@ export function getBlockColor(blockType: string): string {
 }
 
 /**
- * Run-level rows the terminal synthesizes. They have no card on the canvas, so
- * they keep their own status fill instead of borrowing a canvas accent.
- */
-const SYNTHETIC_BLOCK_TYPES: ReadonlySet<string> = new Set(Object.keys(SPECIAL_BLOCK_COLORS))
-
-/**
  * The type a log row's tile takes its accent from, or `undefined` when the row
  * must fall back to the block's own provider colour.
  *
  * Same rule the block toolbar applies, so a block is accented identically
- * wherever it is listed: core blocks and subflows always take the canvas role
- * accent; an integration takes one only when it has a role, and otherwise keeps
- * the provider colour it wears on the card.
+ * wherever it is listed: a core block always takes the canvas role accent (an
+ * unmapped one lands on `neutral`, exactly as it does in the toolbar), and
+ * anything else — integrations, triggers, subflows — takes one only if it has a
+ * role. That second clause is what leaves the terminal's synthesized
+ * `error`/`validation`/`cancelled` rows on their own status fill: they carry no
+ * config and no role, so they fall through to the provider-colour branch.
  */
 export function getEntryAccentType(blockType: string): string | undefined {
-  if (SYNTHETIC_BLOCK_TYPES.has(blockType)) return undefined
-  const blockConfig = getBlock(blockType)
-  if (blockConfig && blockConfig.category !== 'blocks') {
-    return hasWorkflowTypeRole(blockType) ? blockType : undefined
-  }
-  return blockType
+  const isCoreBlock = getBlock(blockType)?.category === 'blocks'
+  return isCoreBlock || hasWorkflowTypeRole(blockType) ? blockType : undefined
 }
 
 /**
