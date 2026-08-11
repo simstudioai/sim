@@ -3,6 +3,7 @@
  */
 
 import {
+  atlassianDiscoveryKey,
   createAtlassianDiscoveryCache,
   fetchAtlassianDiscoveryJson,
 } from '@/lib/atlassian/discovery'
@@ -11,7 +12,8 @@ import type { AssetObject, RawAssetObject } from '@/tools/jsm/types'
 
 /**
  * Atlassian provisions a single Assets workspace per site, so the answer is a
- * property of the `cloudId` and safe to share across callers.
+ * property of the `cloudId` — but whether a token may read it is not, so entries
+ * are keyed by credential like every other discovery answer.
  */
 const assetsWorkspaceCache = createAtlassianDiscoveryCache()
 
@@ -124,7 +126,7 @@ export function getAssetsApiBaseUrl(cloudId: string, workspaceId: string): strin
  * @throws If discovery fails or no workspace is provisioned
  */
 export function getAssetsWorkspaceId(cloudId: string, accessToken: string): Promise<string> {
-  return assetsWorkspaceCache.resolve(cloudId, async () => {
+  return assetsWorkspaceCache.resolve(atlassianDiscoveryKey(cloudId, accessToken), async () => {
     const data = await fetchAtlassianDiscoveryJson<{ values?: Array<{ workspaceId?: string }> }>(
       `https://api.atlassian.com/ex/jira/${cloudId}/rest/servicedeskapi/assets/workspace`,
       getJsmHeaders(accessToken),
@@ -139,6 +141,6 @@ export function getAssetsWorkspaceId(cloudId: string, accessToken: string): Prom
       )
     }
 
-    return { value: workspaceId, retain: true }
+    return workspaceId
   })
 }

@@ -1,3 +1,4 @@
+import { sha256Hex } from '@sim/security/hash'
 import { parseRetryAfter } from '@sim/utils/retry'
 import { LRUCache } from 'lru-cache'
 import {
@@ -9,7 +10,7 @@ import {
 
 const ACCESSIBLE_RESOURCES_URL = 'https://api.atlassian.com/oauth/token/accessible-resources'
 
-const DISCOVERY_REQUEST_TIMEOUT_MS = 10_000
+const DISCOVERY_REQUEST_TIMEOUT_MS = 5_000
 
 /**
  * A site's `cloudId` is a property of the site rather than of the caller — the
@@ -41,25 +42,20 @@ export function createAtlassianDiscoveryCache() {
      *
      * The promise — not the resolved value — is stored, so callers arriving while
      * a lookup is in flight join it instead of starting their own, and a rejection
-     * is evicted rather than pinned for the TTL. `retain: false` drops the entry
-     * once it settles, so a token-specific result is not served to later callers.
+     * is evicted rather than pinned for the TTL.
+     *
+     * `key` must identify the credential as well as the resource — a joined caller
+     * receives the first caller's outcome, so a domain-only key would let one
+     * token's authorization failure or single-site fallback answer another's.
      */
-    resolve(
-      key: string,
-      resolver: () => Promise<{ value: string; retain: boolean }>
-    ): Promise<string> {
+    resolve(key: string, resolver: () => Promise<string>): Promise<string> {
       const cached = cache.get(key)
       if (cached) return cached
 
-      const promise = resolver()
-        .then(({ value, retain }) => {
-          if (!retain) cache.delete(key)
-          return value
-        })
-        .catch((error) => {
-          cache.delete(key)
-          throw error
-        })
+      const promise = resolver().catch((error) => {
+        cache.delete(key)
+        throw error
+      })
 
       cache.set(key, promise)
       return promise
@@ -91,6 +87,11 @@ export const ATLASSIAN_DISCOVERY_RETRY_OPTIONS: RetryOptions = {
   maxDelayMs: 8000,
   retryCondition: (error) => {
     if (isRetryableError(error)) return true
+    // The request's own `AbortSignal.timeout` rejects with a `TimeoutError` that
+    // carries no status and no message the shared predicate matches, so without
+    // this a slow site would fail on the first attempt. Only `TimeoutError` — an
+    // `AbortError` would mean a caller cancelled and does not want a replay.
+    if (error instanceof Error && error.name === 'TimeoutError') return true
     const status = (error as { status?: unknown } | null)?.status
     return typeof status === 'number' && status >= 500
   },
@@ -181,34 +182,47 @@ function fetchAccessibleResources(
   )
 }
 
-async function discoverCloudId(
-  siteUrl: string,
-  { domain, accessToken, product, retryOptions }: ResolveAtlassianCloudIdOptions
-): Promise<{ value: string; retain: boolean }> {
-  const resources = await fetchAccessibleResources(accessToken, product, retryOptions)
+/**
+ * Cache key for a discovery answer, scoped to the credential that produced it.
+ *
+ * What `accessible-resources` reports depends on the token, so an answer is only
+ * reusable by the same token. The digest keeps the raw token out of the key.
+ */
+export function atlassianDiscoveryKey(resource: string, accessToken: string): string {
+  return `${resource}:${sha256Hex(accessToken).slice(0, 16)}`
+}
 
+/**
+ * Picks the `cloudId` for `domain` out of an `accessible-resources` payload.
+ *
+ * Separate from the fetch so a caller that already holds the payload can match
+ * against it instead of issuing the request a second time.
+ */
+export function selectAtlassianCloudId(
+  resources: unknown,
+  domain: string,
+  product: string
+): string {
   if (!Array.isArray(resources) || resources.length === 0) {
     throw new Error(`No ${product} resources found`)
   }
 
-  const match = resources.find((r) => normalizeAtlassianSiteUrl(r.url) === siteUrl)
-  if (match) {
-    return { value: match.id, retain: true }
-  }
+  const siteUrl = normalizeAtlassianSiteUrl(domain)
+  const match = (resources as AccessibleResource[]).find(
+    (r) => normalizeAtlassianSiteUrl(r.url) === siteUrl
+  )
+  if (match) return match.id
 
-  // A single-site fallback is a property of this token, not of the domain.
-  if (resources.length === 1) {
-    return { value: resources[0].id, retain: false }
-  }
+  if (resources.length === 1) return (resources as AccessibleResource[])[0].id
 
   throw new Error(
     `Could not match ${product} domain "${domain}" to any accessible resource. ` +
-      `Available sites: ${resources.map((r) => r.url).join(', ')}`
+      `Available sites: ${(resources as AccessibleResource[]).map((r) => r.url).join(', ')}`
   )
 }
 
 /**
- * Resolves the Atlassian `cloudId` for a site domain, memoized across callers.
+ * Resolves the Atlassian `cloudId` for a site domain, memoized per credential.
  *
  * Jira, Confluence, and JSM all read the same `accessible-resources` endpoint, so
  * a run touching several Atlassian blocks shares one round trip and one retry
@@ -217,8 +231,16 @@ async function discoverCloudId(
 export async function resolveAtlassianCloudId(
   options: ResolveAtlassianCloudIdOptions
 ): Promise<string> {
-  const siteUrl = normalizeAtlassianSiteUrl(options.domain)
-  return cloudIdCache.resolve(siteUrl, () => discoverCloudId(siteUrl, options))
+  const { domain, accessToken, product, retryOptions } = options
+  const key = atlassianDiscoveryKey(normalizeAtlassianSiteUrl(domain), accessToken)
+
+  return cloudIdCache.resolve(key, async () =>
+    selectAtlassianCloudId(
+      await fetchAccessibleResources(accessToken, product, retryOptions),
+      domain,
+      product
+    )
+  )
 }
 
 /** Drops every memoized `cloudId`. Exists for tests. */

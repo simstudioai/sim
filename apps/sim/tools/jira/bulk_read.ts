@@ -1,6 +1,7 @@
+import { selectAtlassianCloudId } from '@/lib/atlassian/discovery'
 import type { JiraRetrieveBulkParams, JiraRetrieveResponseBulk } from '@/tools/jira/types'
 import { TIMESTAMP_OUTPUT } from '@/tools/jira/types'
-import { extractAdfText, getJiraCloudId } from '@/tools/jira/utils'
+import { extractAdfText } from '@/tools/jira/utils'
 import type { ToolConfig } from '@/tools/types'
 
 export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrieveResponseBulk> = {
@@ -51,7 +52,7 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
     }),
   },
 
-  transformResponse: async (_response: Response, params?: JiraRetrieveBulkParams) => {
+  transformResponse: async (response: Response, params?: JiraRetrieveBulkParams) => {
     const MAX_TOTAL = 1000
     const PAGE_SIZE = 100
 
@@ -68,8 +69,11 @@ export const jiraBulkRetrieveTool: ToolConfig<JiraRetrieveBulkParams, JiraRetrie
       return project?.key || refTrimmed
     }
 
+    // The dispatcher's configured request IS the discovery call, and it only
+    // reaches here on a 2xx — so match against that payload rather than issuing
+    // the same request again through the cached resolver.
     const cloudId =
-      params?.cloudId ?? (await getJiraCloudId(params?.domain ?? '', params!.accessToken))
+      params?.cloudId ?? selectAtlassianCloudId(await response.json(), params?.domain ?? '', 'Jira')
     const projectKey = await resolveProjectKey(cloudId, params!.accessToken, params!.projectId)
     if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(projectKey)) {
       throw new Error(

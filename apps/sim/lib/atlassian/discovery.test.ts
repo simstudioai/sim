@@ -142,14 +142,45 @@ describe('resolveAtlassianCloudId', () => {
     ).rejects.toThrow(/Failed to fetch Confluence accessible resources: 500/)
   })
 
-  it('does not retain a single-site fallback, since it is token-specific', async () => {
-    fetchMock.mockImplementation(async () =>
-      sites([{ id: 'other-cloud', url: 'https://other.atlassian.net' }])
+  it('does not serve one credential answer to another', async () => {
+    fetchMock
+      .mockResolvedValueOnce(sites([{ id: 'token-a-cloud', url: SITE }]))
+      .mockResolvedValueOnce(sites([{ id: 'token-b-cloud', url: SITE }]))
+
+    await expect(resolveAtlassianCloudId(options({ accessToken: 'a' }))).resolves.toBe(
+      'token-a-cloud'
     )
+    await expect(resolveAtlassianCloudId(options({ accessToken: 'b' }))).resolves.toBe(
+      'token-b-cloud'
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
 
-    await expect(resolveAtlassianCloudId(options())).resolves.toBe('other-cloud')
-    await resolveAtlassianCloudId(options())
+  it('does not let a concurrent caller inherit another credential lookup', async () => {
+    // Token A sees only a different site, so it falls back; token B matches exactly.
+    // Joining A's in-flight promise would hand B the wrong site.
+    fetchMock
+      .mockResolvedValueOnce(sites([{ id: 'a-only-cloud', url: 'https://other.atlassian.net' }]))
+      .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
 
+    const [a, b] = await Promise.all([
+      resolveAtlassianCloudId(options({ accessToken: 'a' })),
+      resolveAtlassianCloudId(options({ accessToken: 'b' })),
+    ])
+
+    expect(a).toBe('a-only-cloud')
+    expect(b).toBe(CLOUD_ID)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('retries a request that timed out', async () => {
+    fetchMock
+      .mockRejectedValueOnce(
+        Object.assign(new Error('The operation timed out.'), { name: 'TimeoutError' })
+      )
+      .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
+
+    await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).resolves.toBe(CLOUD_ID)
     expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 
