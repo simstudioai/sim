@@ -2,8 +2,18 @@
  * Shared utilities for Jira Service Management tools
  */
 
+import {
+  createAtlassianDiscoveryCache,
+  fetchAtlassianDiscoveryJson,
+} from '@/lib/atlassian/discovery'
 import { getJiraCloudId } from '@/tools/jira/utils'
 import type { AssetObject, RawAssetObject } from '@/tools/jsm/types'
+
+/**
+ * Atlassian provisions a single Assets workspace per site, so the answer is a
+ * property of the `cloudId` and safe to share across callers.
+ */
+const assetsWorkspaceCache = createAtlassianDiscoveryCache()
 
 /**
  * Resolve the Jira `cloudId` and Assets `workspaceId` needed for an Assets API
@@ -113,27 +123,22 @@ export function getAssetsApiBaseUrl(cloudId: string, workspaceId: string): strin
  * @returns The Assets workspace ID for the site
  * @throws If discovery fails or no workspace is provisioned
  */
-export async function getAssetsWorkspaceId(cloudId: string, accessToken: string): Promise<string> {
-  const response = await fetch(
-    `https://api.atlassian.com/ex/jira/${cloudId}/rest/servicedeskapi/assets/workspace`,
-    { method: 'GET', headers: getJsmHeaders(accessToken) }
-  )
-
-  if (!response.ok) {
-    const errorText = await response.text()
-    throw new Error(
-      `Failed to resolve Assets workspace: ${response.status} - ${errorText || response.statusText}`
+export function getAssetsWorkspaceId(cloudId: string, accessToken: string): Promise<string> {
+  return assetsWorkspaceCache.resolve(cloudId, async () => {
+    const data = await fetchAtlassianDiscoveryJson<{ values?: Array<{ workspaceId?: string }> }>(
+      `https://api.atlassian.com/ex/jira/${cloudId}/rest/servicedeskapi/assets/workspace`,
+      getJsmHeaders(accessToken),
+      'Failed to resolve Assets workspace'
     )
-  }
 
-  const data = await response.json()
-  const workspaceId: string | undefined = data?.values?.[0]?.workspaceId
+    const workspaceId = data?.values?.[0]?.workspaceId
 
-  if (!workspaceId) {
-    throw new Error(
-      'No Assets workspace found for this site. Assets (Insight) may not be enabled on the Jira instance.'
-    )
-  }
+    if (!workspaceId) {
+      throw new Error(
+        'No Assets workspace found for this site. Assets (Insight) may not be enabled on the Jira instance.'
+      )
+    }
 
-  return workspaceId
+    return { value: workspaceId, retain: true }
+  })
 }

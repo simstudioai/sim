@@ -1,0 +1,181 @@
+/**
+ * @vitest-environment node
+ */
+import { createMockResponse } from '@sim/testing'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  clearAtlassianCloudIdCache,
+  normalizeAtlassianSiteUrl,
+  resolveAtlassianCloudId,
+} from '@/lib/atlassian/discovery'
+
+const SITE = 'https://acme.atlassian.net'
+const CLOUD_ID = 'cloud-abc'
+
+/** Options for the site under test; override only the field a case is exercising. */
+function options(over: Record<string, unknown> = {}) {
+  return { domain: 'acme.atlassian.net', accessToken: 't', product: 'Jira', ...over } as Parameters<
+    typeof resolveAtlassianCloudId
+  >[0]
+}
+
+/** Tiny delays so retry cases do not spend real seconds sleeping. */
+const FAST = { initialDelayMs: 1, maxDelayMs: 1 }
+
+function sites(entries: Array<{ id: string; url: string }>) {
+  return createMockResponse({ json: entries })
+}
+
+function failure(status: number, body: unknown = { key: 'unexpectedError' }) {
+  return createMockResponse({ status, json: body })
+}
+
+let fetchMock: ReturnType<typeof vi.fn>
+
+beforeEach(() => {
+  clearAtlassianCloudIdCache()
+  fetchMock = vi.fn()
+  vi.stubGlobal('fetch', fetchMock)
+})
+
+afterEach(() => {
+  vi.unstubAllGlobals()
+  vi.restoreAllMocks()
+})
+
+describe('normalizeAtlassianSiteUrl', () => {
+  it.each([
+    ['acme.atlassian.net', SITE],
+    ['https://acme.atlassian.net', SITE],
+    ['http://ACME.atlassian.net/', SITE],
+    ['  acme.atlassian.net//  ', SITE],
+  ])('normalizes %s', (input, expected) => {
+    expect(normalizeAtlassianSiteUrl(input)).toBe(expected)
+  })
+})
+
+describe('resolveAtlassianCloudId', () => {
+  it('resolves an exact domain match', async () => {
+    fetchMock.mockResolvedValue(sites([{ id: CLOUD_ID, url: SITE }]))
+
+    await expect(resolveAtlassianCloudId(options())).resolves.toBe(CLOUD_ID)
+  })
+
+  it('serves a repeat lookup from cache without a second request', async () => {
+    fetchMock.mockResolvedValue(sites([{ id: CLOUD_ID, url: SITE }]))
+
+    await resolveAtlassianCloudId(options())
+    await resolveAtlassianCloudId(options())
+
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('collapses concurrent lookups into one request', async () => {
+    fetchMock.mockResolvedValue(sites([{ id: CLOUD_ID, url: SITE }]))
+
+    const resolved = await Promise.all([
+      resolveAtlassianCloudId(options()),
+      resolveAtlassianCloudId(options()),
+      resolveAtlassianCloudId(options()),
+    ])
+
+    expect(resolved).toEqual([CLOUD_ID, CLOUD_ID, CLOUD_ID])
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it.each([500, 503, 507])(
+    'retries a %i and succeeds, instead of failing the call',
+    async (status) => {
+      fetchMock
+        .mockResolvedValueOnce(failure(status))
+        .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
+
+      await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).resolves.toBe(CLOUD_ID)
+    }
+  )
+
+  it('keeps the transient-5xx condition when a caller tunes the retry budget', async () => {
+    fetchMock
+      .mockResolvedValueOnce(failure(500))
+      .mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
+
+    // Shaped like VALIDATE_RETRY_OPTIONS: counts only, no retryCondition.
+    await expect(
+      resolveAtlassianCloudId(options({ retryOptions: { maxRetries: 3, ...FAST } }))
+    ).resolves.toBe(CLOUD_ID)
+  })
+
+  it('gives up on a persistent fault within a bounded attempt budget', async () => {
+    fetchMock.mockImplementation(async () => failure(500))
+
+    // Delays only. `maxRetries` still comes from the discovery budget, so this
+    // fails if the shared default of 5 ever leaks back in.
+    await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow(
+      /Failed to fetch Jira accessible resources: 500/
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(4)
+  })
+
+  it('does not retry a client error', async () => {
+    fetchMock.mockResolvedValue(failure(403, { message: 'nope' }))
+
+    await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow(
+      /Failed to fetch Jira accessible resources: 403/
+    )
+    expect(fetchMock).toHaveBeenCalledTimes(1)
+  })
+
+  it('does not pin a failure in the cache', async () => {
+    fetchMock.mockResolvedValueOnce(failure(403, { message: 'nope' }))
+    await expect(resolveAtlassianCloudId(options({ retryOptions: FAST }))).rejects.toThrow()
+
+    fetchMock.mockResolvedValueOnce(sites([{ id: CLOUD_ID, url: SITE }]))
+    await expect(resolveAtlassianCloudId(options())).resolves.toBe(CLOUD_ID)
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('surfaces a non-OK status rather than reporting no resources', async () => {
+    fetchMock.mockImplementation(async () => failure(500))
+
+    await expect(
+      resolveAtlassianCloudId(options({ product: 'Confluence', retryOptions: FAST }))
+    ).rejects.toThrow(/Failed to fetch Confluence accessible resources: 500/)
+  })
+
+  it('does not retain a single-site fallback, since it is token-specific', async () => {
+    fetchMock.mockImplementation(async () =>
+      sites([{ id: 'other-cloud', url: 'https://other.atlassian.net' }])
+    )
+
+    await expect(resolveAtlassianCloudId(options())).resolves.toBe('other-cloud')
+    await resolveAtlassianCloudId(options())
+
+    expect(fetchMock).toHaveBeenCalledTimes(2)
+  })
+
+  it('rejects rather than throwing synchronously on a missing domain', async () => {
+    const call = resolveAtlassianCloudId(options({ domain: undefined }))
+
+    await expect(call).rejects.toThrow()
+    expect(fetchMock).not.toHaveBeenCalled()
+  })
+
+  it('reports the available sites when several are accessible and none match', async () => {
+    fetchMock.mockResolvedValue(
+      sites([
+        { id: 'a', url: 'https://one.atlassian.net' },
+        { id: 'b', url: 'https://two.atlassian.net' },
+      ])
+    )
+
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow(
+      /Available sites: https:\/\/one.atlassian.net, https:\/\/two.atlassian.net/
+    )
+  })
+
+  it('rejects when the token can see no sites', async () => {
+    fetchMock.mockResolvedValue(sites([]))
+
+    await expect(resolveAtlassianCloudId(options())).rejects.toThrow('No Jira resources found')
+  })
+})
