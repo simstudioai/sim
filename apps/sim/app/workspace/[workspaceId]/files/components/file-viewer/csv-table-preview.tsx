@@ -2,6 +2,7 @@
 
 import { memo } from 'react'
 import type { WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
+import { useHorizontalWheelScroll } from '@/app/workspace/[workspaceId]/files/components/file-viewer/use-horizontal-wheel-scroll'
 import { useWorkspaceCsvPreview } from '@/hooks/queries/workspace-file-table'
 import { useCsvTruncationImport } from './csv-import'
 import { DataTable } from './data-table'
@@ -19,6 +20,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   file: WorkspaceFileRecord
   workspaceId: string
 }) {
+  const scrollRef = useHorizontalWheelScroll()
   const version = Number(new Date(file.updatedAt)) || file.size
   const {
     data,
@@ -42,7 +44,7 @@ export const CsvTablePreview = memo(function CsvTablePreview({
   }
 
   return (
-    <div className='flex flex-1 flex-col overflow-auto p-6'>
+    <div ref={scrollRef} className='flex flex-1 flex-col overflow-auto p-6'>
       <DataTable headers={data.headers} rows={data.rows} />
     </div>
   )
