@@ -4,10 +4,8 @@ import type { NextRequest } from 'next/server'
 import { NextResponse } from 'next/server'
 import { fileServeParamsSchema, fileServeQuerySchema } from '@/lib/api/contracts/storage-transfer'
 import { checkSessionOrInternalAuth } from '@/lib/auth/hybrid'
-import {
-  DocCompileUserError,
-  resolveServableDocBytes,
-} from '@/lib/copilot/tools/server/files/doc-compile'
+import { resolveServableDocBytes } from '@/lib/copilot/tools/server/files/doc-compile'
+import { DocCompileUserError } from '@/lib/copilot/tools/server/files/doc-compile-error'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import { CopilotFiles, isUsingCloudStorage } from '@/lib/uploads'
 import type { StorageContext } from '@/lib/uploads/config'

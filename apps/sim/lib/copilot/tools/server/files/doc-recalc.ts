@@ -2,7 +2,8 @@ import type { Principal } from '@sim/auth/principal'
 import { createLogger } from '@sim/logger'
 import { CodeLanguage } from '@/lib/execution/languages'
 import { executeInSandbox } from '@/lib/execution/remote-sandbox'
-import { compileDoc, DocCompileUserError } from './doc-compile'
+import { compileDoc } from './doc-compile'
+import { DocCompileUserError } from './doc-compile-error'
 
 const logger = createLogger('CopilotDocRecalc')
 

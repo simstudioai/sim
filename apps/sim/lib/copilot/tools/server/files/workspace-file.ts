@@ -33,10 +33,10 @@ import type { SandboxTaskId } from '@/sandbox-tasks/registry'
 import {
   compileDoc,
   DOCXJS_SOURCE_MIME,
-  DocCompileUserError,
   getE2BDocFormat,
   PPTXGENJS_SOURCE_MIME,
 } from './doc-compile'
+import { DocCompileUserError } from './doc-compile-error'
 import { buildEmbeddedImageRefWarning } from './embedded-image-refs'
 import { ensureCopilotFileFolderPath } from './file-folder-application'
 import { storeFileIntent } from './file-intent-store'

@@ -864,7 +864,7 @@
           }
         }
       },
-      "put": {
+      "patch": {
         "operationId": "updateTableRows",
         "summary": "Update Rows by Filter",
         "description": "Apply the same partial data patch to every row matching a non-empty predicate.",

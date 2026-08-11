@@ -11,9 +11,14 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * - list:              `{ data: T[], nextCursor: string | null }`
  * - error:             `{ error: { code, message, details? } }`
  *
- * Every list uses the opaque-cursor envelope (Stripe/Slack-style): `limit` +
- * `cursor` in, `{ data, nextCursor }` out. Cursors are opaque so the underlying
- * scheme (keyset / offset / full-set) can change without a contract change.
+ * Every list returns the opaque-cursor envelope (Stripe/Slack-style)
+ * `{ data, nextCursor }`, but not every list is *paged*. A paged list also
+ * accepts `limit` + `cursor` and can return a non-null `nextCursor`; a list
+ * whose result set is small and bounded by construction accepts neither and
+ * returns the whole set as one page with `nextCursor` always `null`. Sharing
+ * the envelope regardless is what lets a full-set list gain real pages later
+ * without a contract change: the cursor is opaque, so the scheme behind it
+ * (keyset / offset / full-set) is not part of the interface.
  * Total counts are not returned on lists — they're available on the parent
  * resource where relevant (e.g. `rowCount` on a table, `docCount` on a KB).
  *
@@ -46,17 +51,28 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *   on the surface (`scope`, `folderPath`, `deployedOnly`, `type`, `providerId`,
  *   `resourceType`). No generic filter expression.
  *
- * Every one of these is pushed into SQL. No v2 list fetches a full result set
- * to filter or sort it in memory.
+ * Every one of these is pushed into SQL, except on two lists that still filter
+ * and sort in memory after reading a full result set. Those are documented at
+ * their own contracts; neither is a pattern to copy.
+ *
+ * ## Which lists are paged
+ *
+ * The authoritative split is pinned in `v2/__tests__/list-pagination.test.ts`,
+ * not restated here. Adding `limit`/`cursor` to a full-set list is additive,
+ * but making a `limit` *default* would silently truncate callers that rely on
+ * the full set today, so a default page size cannot be introduced without a
+ * version bump.
  *
  * ## Sort and the opaque cursor
  *
- * On the lists that paginate ({@link v2CursorListResponse} with a non-null
- * `nextCursor` — files and workflows), the cursor is a keyset over the *active*
- * sort, so its keys change when the sort does. The sort is therefore encoded
- * into the cursor and re-checked on the way back in: replaying a cursor under a
- * different `sortBy`/`sortOrder` is a 400, not a silently duplicated or skipped
- * page. Change the sort by restarting pagination without a cursor.
+ * Lists using the shared keyset codec (`encodeSortedCursor` /
+ * `decodeSortedCursor` in `app/api/v2/lib/response.ts`) carry a cursor that is
+ * a keyset over the *active* sort, so its keys change when the sort does. The
+ * sort is therefore encoded into the cursor and re-checked on the way back in:
+ * replaying a cursor under a different `sortBy`/`sortOrder` is a 400, not a
+ * silently duplicated or skipped page. Change the sort by restarting pagination
+ * without a cursor. The rest delegate to their domain's own cursor codec, which
+ * is opaque in exactly the same way.
  */
 
 /** Canonical v2 error envelope. */

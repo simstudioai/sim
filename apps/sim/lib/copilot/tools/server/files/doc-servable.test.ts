@@ -49,12 +49,8 @@ vi.mock('@/app/api/files/utils', () => ({
         : 'application/octet-stream',
 }))
 
-import {
-  compileDoc,
-  DocCompileUserError,
-  resolveServableDoc,
-  resolveServableDocBytes,
-} from './doc-compile'
+import { compileDoc, resolveServableDoc, resolveServableDocBytes } from './doc-compile'
+import { DocCompileUserError } from './doc-compile-error'
 
 const WORKSPACE_ID = '550e8400-e29b-41d4-a716-446655440000'
 const FILE_PRINCIPAL = { kind: 'session', userId: 'user-1' } as const

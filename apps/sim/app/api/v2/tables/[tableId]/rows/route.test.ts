@@ -42,7 +42,7 @@ vi.mock('@/lib/table/application/rows', () => ({
   deleteTableRows: { operation: { id: 'tables.rows.delete_many' }, execute: mocks.deleteRows },
 }))
 
-import { DELETE, GET, POST, PUT } from '@/app/api/v2/tables/[tableId]/rows/route'
+import { DELETE, GET, PATCH, POST } from '@/app/api/v2/tables/[tableId]/rows/route'
 
 const WORKSPACE_ID = 'workspace-1'
 const PRINCIPAL = {
@@ -76,7 +76,7 @@ const ROW = {
 }
 const CONTEXT = { params: Promise.resolve({ tableId: 'table-1' }) }
 
-function request(method: 'GET' | 'POST' | 'PUT' | 'DELETE', body?: unknown, query = '') {
+function request(method: 'GET' | 'POST' | 'PATCH' | 'DELETE', body?: unknown, query = '') {
   return new NextRequest(`http://localhost/api/v2/tables/table-1/rows${query}`, {
     method,
     headers: {
@@ -159,12 +159,12 @@ describe('/api/v2/tables/[tableId]/rows', () => {
 
   it('preserves authoritative bulk update counts including a zero-match result', async () => {
     mocks.updateRows.mockResolvedValue({ table: TABLE, affectedCount: 0, affectedRowIds: [] })
-    const req = request('PUT', {
+    const req = request('PATCH', {
       workspaceId: WORKSPACE_ID,
       filter: { all: [{ field: 'name', op: 'eq', value: 'missing' }] },
       data: { name: 'Grace' },
     })
-    const response = await PUT(req, CONTEXT)
+    const response = await PATCH(req, CONTEXT)
 
     expect(response.status).toBe(200)
     expect(await response.json()).toEqual({ data: { updatedCount: 0, updatedRowIds: [] } })

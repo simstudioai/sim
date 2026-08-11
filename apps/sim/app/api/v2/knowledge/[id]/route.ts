@@ -35,8 +35,8 @@ export const GET = defineV2JsonRoute({
   }),
 })
 
-/** PUT /api/v2/knowledge/[id] — Update a knowledge base. */
-export const PUT = defineV2JsonRoute({
+/** PATCH /api/v2/knowledge/[id] — Partially update a knowledge base. */
+export const PATCH = defineV2JsonRoute({
   contract: v2UpdateKnowledgeBaseContract,
   auth: v2ApiKeyAuth,
   operation: knowledgeOperations.update,
