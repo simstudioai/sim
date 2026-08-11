@@ -2,9 +2,9 @@
 
 import type { ComponentType } from 'react'
 import { memo } from 'react'
-import { ChipTag, cn } from '@sim/emcn'
+import { cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
-import { getMappedWorkflowTypeAccent } from '@sim/workflow-renderer'
+import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -95,18 +95,10 @@ export const MemoizedCommandItem = memo(
     labelPrefix,
     meta,
   }: CommandItemProps) {
-    const workflowAccent = workflowType ? getMappedWorkflowTypeAccent(workflowType) : null
-
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        {workflowAccent ? (
-          <ChipTag
-            variant={workflowAccent.variant}
-            tone={workflowAccent.tone}
-            className='size-[16px] flex-shrink-0 justify-center p-0'
-          >
-            <Icon className='size-[10px] transition-transform duration-100 group-hover:scale-110' />
-          </ChipTag>
+        {workflowType ? (
+          <WorkflowTypeIcon type={workflowType} Icon={Icon} />
         ) : (
           <div
             className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
@@ -230,7 +222,7 @@ export const MemoizedFileItem = memo(
         <div className='relative flex size-[16px] flex-shrink-0 items-center justify-center'>
           <File className='size-[14px] text-[var(--text-icon)]' />
         </div>
-        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 font-base text-[var(--text-body)]'>
+        <span className='flex min-w-0 max-w-[75%] flex-shrink-0 text-[var(--text-body)]'>
           <span className='truncate'>{name}</span>
         </span>
         {meta ? (

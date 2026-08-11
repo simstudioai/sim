@@ -47,7 +47,6 @@ import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
 import { filterHiddenOutputKeys } from '@/lib/logs/execution/trace-spans/trace-spans'
 import type { TraceSpan } from '@/lib/logs/types'
 import { sendMothershipMessage } from '@/lib/mothership/events'
-import { getMothershipHandoffHref } from '@/app/workspace/[workspaceId]/home/search-params'
 import {
   ExecutionSnapshot,
   FileCards,
@@ -447,7 +446,7 @@ export function LogDetailsContent({ log, onActiveTabChange }: LogDetailsContentP
       : 'This workflow run failed. Investigate the error in this run and help me fix it.'
     if (sendMothershipMessage(message, [context])) return
     if (MothershipHandoffStorage.store({ message, contexts: [context] }, workspaceId)) {
-      router.push(getMothershipHandoffHref(workspaceId))
+      router.push(`/workspace/${workspaceId}/home`)
     }
   }, [log.executionId, log.workflow?.name, workspaceId, router])
 

@@ -53,8 +53,37 @@ export interface SearchData {
 }
 
 /**
- * Context handed to the connection block selector when it opens to complete an
- * edge drag-release: the dragged source handle and the release point.
+ * Every result group the search modal can render, in render order. Used to
+ * restrict the palette to a subset of sections when opened for a specific
+ * intent (e.g. a drag-release that should only offer canvas-insertable items).
+ */
+export const SEARCH_SECTIONS = [
+  'actions',
+  'connectedAccounts',
+  'integrations',
+  'blocks',
+  'tools',
+  'triggers',
+  // Resource groups follow the sidebar's top-down order.
+  'chats',
+  'tables',
+  'files',
+  'knowledgeBases',
+  'workflows',
+  'toolOperations',
+  'workspaces',
+  'docs',
+  'pages',
+] as const
+
+/** A single search-modal result group. */
+export type SearchSection = (typeof SEARCH_SECTIONS)[number]
+
+/**
+ * Context handed to the palette when it is opened to complete an edge
+ * drag-release: the dragged source handle and the release point. A selection
+ * stamps it onto its event so the canvas places the block at the drop point and
+ * wires it from that handle.
  */
 export interface PendingConnect {
   source: { nodeId: string; handleId: string }

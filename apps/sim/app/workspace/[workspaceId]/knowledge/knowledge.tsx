@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { ChipDropdownOption } from '@sim/emcn'
 import { Button, ChipConfirmModal, ChipDropdown, Plus, Tooltip, toast } from '@sim/emcn'
-import { Database, FolderPlus } from '@sim/emcn/icons'
+import { Database, FolderPlus, Pencil, Trash } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
 import { useParams, useRouter } from 'next/navigation'
@@ -26,10 +26,14 @@ import {
   Resource,
   timeCell,
 } from '@/app/workspace/[workspaceId]/components'
-import type { MoveOptionNode } from '@/app/workspace/[workspaceId]/components/folders'
+import type {
+  MoveOptionNode,
+  SortableResource,
+} from '@/app/workspace/[workspaceId]/components/folders'
 import {
   buildDescendantIndex,
   buildMoveOptions,
+  FOLDERED_RESOURCE_HEADERS,
   FolderContextMenu,
   folderBreadcrumbItems,
   folderRow,
@@ -37,6 +41,7 @@ import {
   nextUntitledFolderName,
   parseFolderedRowId,
   parseMoveOptionValue,
+  sortResources,
   useFolderNavigation,
   useFolderRowDragDrop,
 } from '@/app/workspace/[workspaceId]/components/folders'
@@ -53,7 +58,7 @@ import {
   knowledgeSortParams,
   knowledgeUrlKeys,
 } from '@/app/workspace/[workspaceId]/knowledge/search-params'
-import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/sort'
+import { filterKnowledgeBases } from '@/app/workspace/[workspaceId]/knowledge/utils/filter'
 import { useRegisterGlobalCommands } from '@/app/workspace/[workspaceId]/providers/global-commands-provider'
 import { useUserPermissionsContext } from '@/app/workspace/[workspaceId]/providers/workspace-permissions-provider'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
@@ -75,6 +80,11 @@ const logger = createLogger('Knowledge')
 interface KnowledgeBaseWithDocCount extends KnowledgeBaseData {
   docCount?: number
 }
+
+/** A list row, resolved to the entity it refers to. */
+type KnowledgeResourceItem =
+  | { kind: 'base'; base: KnowledgeBaseWithDocCount }
+  | { kind: 'folder'; folder: WorkflowFolder }
 
 const COLUMNS: ResourceColumn[] = [
   { id: 'name', header: 'Name' },
@@ -102,8 +112,8 @@ const CONTENT_FILTER_OPTIONS: ChipDropdownOption[] = [
 
 const FILTER_SECTION_LABEL_CLASS = 'text-[var(--text-muted)] text-small'
 
-const ROOT_BREADCRUMB_LABEL = 'Knowledge Base'
 const FOLDER_RESOURCE_TYPE = 'knowledge_base' as const
+const ROOT_BREADCRUMB_LABEL = FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootLabel
 
 function connectorCell(connectorTypes?: string[]): ResourceCell {
   if (!connectorTypes || connectorTypes.length === 0) {
@@ -194,11 +204,17 @@ export function Knowledge() {
   const { mutateAsync: updateKnowledgeBaseMutation } = useUpdateKnowledgeBase(workspaceId)
   const { mutateAsync: deleteKnowledgeBaseMutation } = useDeleteKnowledgeBase(workspaceId)
 
-  const { currentFolderId, setCurrentFolderId, breadcrumbs, folders, folderById, foldersResolved } =
-    useFolderNavigation({
-      resourceType: FOLDER_RESOURCE_TYPE,
-      workspaceId,
-    })
+  const {
+    currentFolderId,
+    setCurrentFolderId,
+    ancestors: breadcrumbs,
+    folders,
+    folderById,
+    foldersResolved,
+  } = useFolderNavigation({
+    resourceType: FOLDER_RESOURCE_TYPE,
+    workspaceId,
+  })
 
   const createFolder = useCreateFolder()
   const updateFolder = useUpdateFolder()
@@ -225,6 +241,8 @@ export function Knowledge() {
   const debouncedSearchQuery = useDebounce(urlSearchQuery, SEARCH_DEBOUNCE_MS)
 
   const {
+    sort: sortColumn,
+    dir: sortDirection,
     activeSort,
     onSort: onSortColumn,
     onClear: onClearSort,
@@ -399,28 +417,10 @@ export function Knowledge() {
   const visibleFolders = useMemo(() => {
     const siblings = folders.filter((folder) => (folder.parentId ?? null) === currentFolderId)
     const needle = debouncedSearchQuery.trim().toLowerCase()
-    const searched = needle
+    return needle
       ? siblings.filter((folder) => folder.name.toLowerCase().includes(needle))
       : siblings
-
-    const col = activeSort?.column ?? 'name'
-    const dir = activeSort?.direction ?? 'asc'
-    return [...searched].sort((a, b) => {
-      const aPinned = pinnedFolderIds.has(a.id)
-      const bPinned = pinnedFolderIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      if (col === 'created') {
-        cmp = a.createdAt.getTime() - b.createdAt.getTime()
-      } else if (col === 'updated') {
-        cmp = a.updatedAt.getTime() - b.updatedAt.getTime()
-      } else {
-        cmp = a.name.localeCompare(b.name)
-      }
-      return dir === 'asc' ? cmp : -cmp
-    })
-  }, [folders, currentFolderId, debouncedSearchQuery, activeSort, pinnedFolderIds])
+  }, [folders, currentFolderId, debouncedSearchQuery])
 
   const processedKBs = useMemo(() => {
     /**
@@ -461,45 +461,7 @@ export function Knowledge() {
       result = result.filter((kb) => ownerFilter.includes(kb.userId))
     }
 
-    const col = activeSort?.column ?? 'updated'
-    const dir = activeSort?.direction ?? 'desc'
-    return [...result].sort((a, b) => {
-      // Pinned bases float to the top of every sort/direction — pinning is a
-      // user-declared priority, not another sort key to be inverted by `desc`.
-      const aPinned = pinnedBaseIds.has(a.id)
-      const bPinned = pinnedBaseIds.has(b.id)
-      if (aPinned !== bPinned) return aPinned ? -1 : 1
-
-      let cmp = 0
-      switch (col) {
-        case 'name':
-          cmp = a.name.localeCompare(b.name)
-          break
-        case 'documents':
-          cmp =
-            ((a as KnowledgeBaseWithDocCount).docCount || 0) -
-            ((b as KnowledgeBaseWithDocCount).docCount || 0)
-          break
-        case 'tokens':
-          cmp = (a.tokenCount || 0) - (b.tokenCount || 0)
-          break
-        case 'created':
-          cmp = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-          break
-        case 'updated':
-          cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime()
-          break
-        case 'connectors':
-          cmp = (a.connectorTypes?.length ?? 0) - (b.connectorTypes?.length ?? 0)
-          break
-        case 'owner':
-          cmp = (membersById.get(a.userId)?.name ?? '').localeCompare(
-            membersById.get(b.userId)?.name ?? ''
-          )
-          break
-      }
-      return dir === 'asc' ? cmp : -cmp
-    })
+    return result
   }, [
     knowledgeBases,
     currentFolderId,
@@ -509,52 +471,112 @@ export function Knowledge() {
     connectorFilter,
     contentFilter,
     ownerFilter,
-    activeSort,
+  ])
+
+  /**
+   * Folders and bases sort as ONE list — a folder never outranks a base it ties with, so a
+   * pinned base reaches the top of the list rather than the top of the base section.
+   *
+   * Decorate-sort: each row's key + pinned flag is computed ONCE (O(N)) so the comparator
+   * never re-runs Date parsing or member lookups per comparison. Folders carry no document,
+   * token, or connector count, so those keys are `null` and land the folders last in both
+   * directions — matching the em-dash they show in those cells.
+   */
+  const sortedEntries = useMemo(() => {
+    const entries: SortableResource<KnowledgeResourceItem>[] = []
+
+    for (const folder of visibleFolders) {
+      entries.push({
+        item: { kind: 'folder', folder },
+        pinned: pinnedFolderIds.has(folder.id),
+        name: folder.name,
+        key:
+          sortColumn === 'documents' || sortColumn === 'tokens' || sortColumn === 'connectors'
+            ? null
+            : sortColumn === 'created'
+              ? new Date(folder.createdAt).getTime()
+              : sortColumn === 'updated'
+                ? new Date(folder.updatedAt).getTime()
+                : sortColumn === 'owner'
+                  ? (membersById.get(folder.userId)?.name ?? null)
+                  : folder.name,
+      })
+    }
+
+    for (const kb of processedKBs) {
+      entries.push({
+        item: { kind: 'base', base: kb as KnowledgeBaseWithDocCount },
+        pinned: pinnedBaseIds.has(kb.id),
+        name: kb.name,
+        key:
+          sortColumn === 'documents'
+            ? ((kb as KnowledgeBaseWithDocCount).docCount ?? 0)
+            : sortColumn === 'tokens'
+              ? (kb.tokenCount ?? 0)
+              : sortColumn === 'connectors'
+                ? (kb.connectorTypes?.length ?? 0)
+                : sortColumn === 'created'
+                  ? new Date(kb.createdAt).getTime()
+                  : sortColumn === 'updated'
+                    ? new Date(kb.updatedAt).getTime()
+                    : sortColumn === 'owner'
+                      ? (membersById.get(kb.userId)?.name ?? null)
+                      : kb.name,
+      })
+    }
+
+    return sortResources(entries, sortDirection)
+  }, [
+    visibleFolders,
+    processedKBs,
+    sortColumn,
+    sortDirection,
     membersById,
+    pinnedFolderIds,
     pinnedBaseIds,
   ])
 
-  const baseRows: ResourceRow[] = useMemo(() => {
-    const folderRows = visibleFolders.map((folder) =>
-      folderRow(folder, {
-        pinned: pinnedFolderIds.has(folder.id),
-        cells: {
-          documents: { label: EMPTY_CELL_PLACEHOLDER },
-          tokens: { label: EMPTY_CELL_PLACEHOLDER },
-          connectors: { label: EMPTY_CELL_PLACEHOLDER },
-          created: timeCell(folder.createdAt),
-          owner: ownerCell(folder.userId, membersById),
-          updated: timeCell(folder.updatedAt),
-        },
-      })
-    )
+  const baseRows: ResourceRow[] = useMemo(
+    () =>
+      sortedEntries.map(({ item, pinned }): ResourceRow => {
+        if (item.kind === 'folder') {
+          return folderRow(item.folder, {
+            pinned,
+            cells: {
+              documents: { label: EMPTY_CELL_PLACEHOLDER },
+              tokens: { label: EMPTY_CELL_PLACEHOLDER },
+              connectors: { label: EMPTY_CELL_PLACEHOLDER },
+              created: timeCell(item.folder.createdAt),
+              owner: ownerCell(item.folder.userId, membersById),
+              updated: timeCell(item.folder.updatedAt),
+            },
+          })
+        }
 
-    const knowledgeBaseRows = processedKBs.map((kb) => {
-      const kbWithCount = kb as KnowledgeBaseWithDocCount
-      return {
-        id: kb.id,
-        cells: {
-          name: {
-            icon: KNOWLEDGE_BASE_ICON,
-            label: kb.name,
-            pinned: pinnedBaseIds.has(kb.id),
+        const { base } = item
+        return {
+          id: base.id,
+          cells: {
+            name: {
+              icon: KNOWLEDGE_BASE_ICON,
+              label: base.name,
+              pinned,
+            },
+            documents: {
+              label: String(base.docCount || 0),
+            },
+            tokens: {
+              label: base.tokenCount ? base.tokenCount.toLocaleString() : '0',
+            },
+            connectors: connectorCell(base.connectorTypes),
+            created: timeCell(base.createdAt),
+            owner: ownerCell(base.userId, membersById),
+            updated: timeCell(base.updatedAt),
           },
-          documents: {
-            label: String(kbWithCount.docCount || 0),
-          },
-          tokens: {
-            label: kb.tokenCount ? kb.tokenCount.toLocaleString() : '0',
-          },
-          connectors: connectorCell(kb.connectorTypes),
-          created: timeCell(kb.createdAt),
-          owner: ownerCell(kb.userId, membersById),
-          updated: timeCell(kb.updatedAt),
-        },
-      }
-    })
-
-    return [...folderRows, ...knowledgeBaseRows]
-  }, [visibleFolders, processedKBs, membersById, pinnedFolderIds, pinnedBaseIds])
+        }
+      }),
+    [sortedEntries, membersById]
+  )
 
   /**
    * Rename is layered over the built rows rather than folded into the builder above, so a
@@ -897,7 +919,7 @@ export function Knowledge() {
     () =>
       folderBreadcrumbItems({
         rootLabel: ROOT_BREADCRUMB_LABEL,
-        rootIcon: Database,
+        rootIcon: FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon,
         breadcrumbs,
         onNavigate: setCurrentFolderId,
         currentFolderEditing:
@@ -916,6 +938,7 @@ export function Knowledge() {
             ? [
                 {
                   label: 'Rename',
+                  icon: Pencil,
                   onClick: () => {
                     const folder = breadcrumbs[breadcrumbs.length - 1]
                     breadcrumbRenameRef.current.startRename(folder.id, folder.name)
@@ -923,6 +946,7 @@ export function Knowledge() {
                 },
                 {
                   label: 'Delete',
+                  icon: Trash,
                   onClick: () => setFolderPendingDelete(breadcrumbs[breadcrumbs.length - 1]),
                 },
               ]
@@ -957,8 +981,8 @@ export function Knowledge() {
         { id: 'tokens', label: 'Tokens' },
         { id: 'connectors', label: 'Connectors' },
         { id: 'created', label: 'Created' },
-        { id: 'updated', label: 'Last Updated' },
         { id: 'owner', label: 'Owner' },
+        { id: 'updated', label: 'Last Updated' },
       ],
       active: activeSort,
       onSort: onSortColumn,
@@ -1010,7 +1034,6 @@ export function Knowledge() {
             onChange={(value) => setConnectorFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         <div className='flex flex-col gap-2'>
@@ -1032,7 +1055,6 @@ export function Knowledge() {
             onChange={(value) => setContentFilter(value === 'all' ? [] : [value])}
             align='start'
             fullWidth
-            flush
           />
         </div>
         {memberOptions.length > 0 && (
@@ -1059,7 +1081,6 @@ export function Knowledge() {
               searchPlaceholder='Search members...'
               align='start'
               fullWidth
-              flush
             />
           </div>
         )}
@@ -1098,7 +1119,7 @@ export function Knowledge() {
     <>
       <Resource onContextMenu={handleContentContextMenu}>
         <Resource.Header
-          icon={Database}
+          icon={FOLDERED_RESOURCE_HEADERS[FOLDER_RESOURCE_TYPE].rootIcon}
           title={ROOT_BREADCRUMB_LABEL}
           breadcrumbs={listBreadcrumbs}
           actions={headerActions}

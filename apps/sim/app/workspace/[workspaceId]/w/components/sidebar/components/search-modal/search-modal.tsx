@@ -8,15 +8,15 @@ import {
   useRef,
   useState,
 } from 'react'
-import { cn, Library } from '@sim/emcn'
+import { cn, Library, useNativeSurfaceOcclusionReady } from '@sim/emcn'
 import {
-  Calendar,
   Columns3,
   Database,
   Download,
   Duplicate,
   File,
   FolderPlus,
+  Hammer,
   HelpCircle,
   Home,
   Integration,
@@ -26,6 +26,7 @@ import {
   Plus,
   RefreshCw,
   Rocket,
+  SelectAll,
   Send,
   Settings,
   Table,
@@ -35,10 +36,10 @@ import {
 } from '@sim/emcn/icons'
 import { createLogger } from '@sim/logger'
 import { Command } from 'cmdk'
-import { Scan } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
+import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
@@ -138,6 +139,9 @@ function SearchModalContent({
   const currentWorkflowId = params.workflowId as string | undefined
   const inputRef = useRef<HTMLInputElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const atomicBrowserOcclusion = supportsAtomicBrowserPanelOcclusion()
+  const nativeSurfaceReady = useNativeSurfaceOcclusionReady(true, 'modal')
+  const visuallyOpen = nativeSurfaceReady
   const { navigateToSettings } = useSettingsNavigation()
   const { config: permissionConfig } = usePermissionConfig()
   const invokeCommand = useInvokeGlobalCommand()
@@ -167,6 +171,13 @@ function SearchModalContent({
           hidden: permissionConfig.hideIntegrationsTab,
         },
         {
+          id: 'skills',
+          name: 'Skills',
+          icon: Hammer,
+          href: `/workspace/${workspaceId}/skills`,
+          hidden: permissionConfig.hideIntegrationsTab,
+        },
+        {
           id: 'tables',
           name: 'Tables',
           icon: Table,
@@ -182,16 +193,10 @@ function SearchModalContent({
         },
         {
           id: 'knowledge-base',
-          name: 'Knowledge base',
+          name: 'Knowledge bases',
           icon: Database,
           href: `/workspace/${workspaceId}/knowledge`,
           hidden: permissionConfig.hideKnowledgeBaseTab,
-        },
-        {
-          id: 'scheduled-tasks',
-          name: 'Scheduled tasks',
-          icon: Calendar,
-          href: `/workspace/${workspaceId}/scheduled-tasks`,
         },
         {
           id: 'logs',
@@ -264,7 +269,7 @@ function SearchModalContent({
         id: 'fit-to-view',
         name: 'Fit workflow to view',
         keywords: 'zoom center recenter canvas reset',
-        icon: Scan,
+        icon: SelectAll,
         shortcut: '⇧⌘F',
         context: 'workflow',
         run: invoke('fit-to-view'),
@@ -558,16 +563,6 @@ function SearchModalContent({
             }
       )
     }
-    if (canEdit && pageContext === 'scheduledTasks') {
-      list.push({
-        id: 'scheduled-tasks-new',
-        name: 'New scheduled task',
-        keywords: 'create add schedule cron recurring',
-        icon: Plus,
-        context: 'scheduledTasks',
-        run: invoke('scheduled-tasks-new'),
-      })
-    }
     return list
   }, [
     workspaceId,
@@ -586,6 +581,16 @@ function SearchModalContent({
   const [askMode, setAskMode] = useState(false)
   const searchRef = useRef(search)
   searchRef.current = search
+
+  /**
+   * Focus once the dialog is actually visible: under atomic browser-panel
+   * occlusion `autoFocus` is suppressed, and `.focus()` is a no-op while the
+   * surface still carries `invisible`.
+   */
+  useEffect(() => {
+    if (!visuallyOpen) return
+    inputRef.current?.focus()
+  }, [visuallyOpen])
 
   const handleSearchChange = useCallback((value: string) => {
     searchRef.current = value
@@ -1152,15 +1157,24 @@ function SearchModalContent({
   return createPortal(
     <>
       <div
-        className='fixed inset-0 z-[var(--z-modal)] opacity-100 transition-opacity duration-100'
+        className={cn(
+          'fixed inset-0 z-[var(--z-modal)] transition-opacity duration-100',
+          visuallyOpen ? 'opacity-100' : 'opacity-0'
+        )}
         onClick={handleOverlayClick}
+        aria-hidden={!visuallyOpen}
+        data-native-surface-occlusion='modal'
       />
 
       <div
         role='dialog'
-        aria-modal='true'
+        aria-modal={visuallyOpen}
+        aria-hidden={!visuallyOpen}
         aria-label='Search'
-        className='-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] opacity-100 shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]'
+        className={cn(
+          '-translate-x-1/2 fixed top-[15%] z-[var(--z-modal)] w-[500px] rounded-xl border border-[var(--border-muted)] bg-[var(--surface-4)] p-[3px] shadow-[var(--shadow-overlay)] dark:bg-[var(--surface-5)]',
+          visuallyOpen ? 'visible opacity-100' : 'invisible opacity-0'
+        )}
         style={{
           left:
             pageContext === 'workflow'
@@ -1218,7 +1232,7 @@ function SearchModalContent({
                 ref={inputRef}
                 surface='palette'
                 cycleResultsOnTab={!isChatEnabled}
-                autoFocus
+                autoFocus={!atomicBrowserOcclusion}
                 aria-label={askMode ? 'Ask Sim' : 'Search anything'}
                 value={search}
                 onValueChange={handleSearchChange}

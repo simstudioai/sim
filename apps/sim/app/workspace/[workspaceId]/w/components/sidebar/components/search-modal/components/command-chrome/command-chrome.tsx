@@ -7,8 +7,8 @@ import {
   type ReactNode,
 } from 'react'
 import { cn } from '@sim/emcn'
+import { Search } from '@sim/emcn/icons'
 import { Command } from 'cmdk'
-import { Search } from 'lucide-react'
 
 type CommandInputProps = ComponentPropsWithoutRef<typeof Command.Input>
 type CommandListProps = ComponentPropsWithoutRef<typeof Command.List>
