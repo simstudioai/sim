@@ -30,7 +30,7 @@ import { uploadWorkspaceFile } from '@/lib/uploads/contexts/workspace'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { decodeCursor, encodeCursor } from '@/app/api/v2/lib/response'
+import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -72,25 +72,16 @@ export const GET = defineV2JsonRoute({
   operation: knowledgeOperations.listDocuments,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
-  mapInput: ({ params, query }) => {
-    const decodedCursor = query.cursor ? decodeCursor<{ offset: number }>(query.cursor) : null
-    if (
-      query.cursor &&
-      (!decodedCursor || !Number.isInteger(decodedCursor.offset) || decodedCursor.offset < 0)
-    ) {
-      throw new OrchestrationError('validation', 'Invalid cursor')
-    }
-    return {
-      knowledgeBaseId: params.id,
-      assertedWorkspaceId: query.workspaceId,
-      enabledFilter: query.enabledFilter,
-      search: query.search,
-      limit: query.limit,
-      offset: decodedCursor?.offset ?? 0,
-      sortBy: query.sortBy,
-      sortOrder: query.sortOrder,
-    }
-  },
+  mapInput: ({ params, query }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: query.workspaceId,
+    enabledFilter: query.enabledFilter,
+    search: query.search,
+    limit: query.limit,
+    offset: decodeOffsetCursor(query.cursor),
+    sortBy: query.sortBy,
+    sortOrder: query.sortOrder,
+  }),
   useCase: listKnowledgeDocuments,
   present: ({ documents, pagination }) => ({
     data: documents.map(toV2DocumentSummary),
