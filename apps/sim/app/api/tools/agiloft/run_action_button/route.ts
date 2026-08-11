@@ -1,18 +1,19 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
 import { type NextRequest, NextResponse } from 'next/server'
-import { agiloftSavedSearchContract } from '@/lib/api/contracts/tools/agiloft'
+import { agiloftRunActionButtonContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
 import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import type { AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
-import { buildSavedSearchUrl } from '@/tools/agiloft/utils'
+import { parseEwRest } from '@/tools/agiloft/ewrest'
+import type { AgiloftRunActionButtonResponse } from '@/tools/agiloft/types'
+import { buildRunActionButtonUrl } from '@/tools/agiloft/utils'
 import { executeAgiloftRequest } from '@/tools/agiloft/utils.server'
 
 export const dynamic = 'force-dynamic'
 
-const logger = createLogger('AgiloftSavedSearchAPI')
+const logger = createLogger('AgiloftRunActionButtonAPI')
 
 export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
@@ -21,7 +22,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     const authResult = await checkInternalAuth(request, { requireWorkflowId: false })
 
     if (!authResult.success || !authResult.userId) {
-      logger.warn(`[${requestId}] Unauthorized Agiloft saved_search attempt: ${authResult.error}`)
+      logger.warn(
+        `[${requestId}] Unauthorized Agiloft run_action_button attempt: ${authResult.error}`
+      )
       return NextResponse.json(
         { success: false, error: authResult.error || 'Authentication required' },
         { status: 401 }
@@ -29,7 +32,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     }
 
     const parsed = await parseRequest(
-      agiloftSavedSearchContract,
+      agiloftRunActionButtonContract,
       request,
       {},
       {
@@ -49,47 +52,41 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     if (!parsed.success) return parsed.response
     const params = parsed.data.body
 
-    const result = await executeAgiloftRequest<AgiloftSavedSearchResponse>(
+    const result = await executeAgiloftRequest<AgiloftRunActionButtonResponse>(
       params,
       (base) => ({
-        url: buildSavedSearchUrl(base, params),
-        method: 'GET',
+        url: buildRunActionButtonUrl(base, params),
+        /** EWActionButton is documented as POST-only. */
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       }),
       async (response) => {
+        const body = await response.text()
+        const recordId = params.recordId.trim()
+
         if (!response.ok) {
-          const errorText = await response.text()
           return {
             success: false,
-            output: { searches: [] },
-            error: `Agiloft error: ${response.status} - ${errorText}`,
+            output: { recordId, callbackId: null },
+            error: `Agiloft error: ${response.status} - ${body}`,
           }
         }
 
-        const data = (await response.json()) as Record<string, unknown>
-        const result = (data.result ?? data) as Record<string, unknown>
-
-        const searches: Array<{
-          name: string
-          label: string
-          id: string | number
-          description: string | null
-        }> = []
-
-        if (Array.isArray(result)) {
-          for (const item of result as Record<string, unknown>[]) {
-            searches.push({
-              name: (item.name as string) ?? '',
-              label: (item.label as string) ?? (item.name as string) ?? '',
-              id: (item.id as string | number) ?? (item.ID as string | number) ?? '',
-              description: (item.description as string | null) ?? null,
-            })
+        /** Documented response: EWREST_id='82'; EWREST_EWCALLBACK_ID='10100_1'; */
+        const values = parseEwRest(body)
+        if (values.size === 0) {
+          return {
+            success: false,
+            output: { recordId, callbackId: null },
+            error: `Agiloft did not acknowledge the action button: ${body.trim() || '(empty response)'}`,
           }
         }
 
         return {
-          success: data.success !== false,
+          success: true,
           output: {
-            searches,
+            recordId: values.get('id') ?? recordId,
+            callbackId: values.get('EWCALLBACK_ID') ?? null,
           },
         }
       }
@@ -97,7 +94,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
 
     return NextResponse.json(result)
   } catch (error) {
-    logger.error(`[${requestId}] Error listing Agiloft saved searches:`, error)
+    logger.error(`[${requestId}] Error running Agiloft action button:`, error)
 
     return NextResponse.json({ success: false, error: toError(error).message }, { status: 500 })
   }

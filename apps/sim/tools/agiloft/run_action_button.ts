@@ -1,13 +1,17 @@
-import type { AgiloftSavedSearchParams, AgiloftSavedSearchResponse } from '@/tools/agiloft/types'
+import type {
+  AgiloftRunActionButtonParams,
+  AgiloftRunActionButtonResponse,
+} from '@/tools/agiloft/types'
 import type { ToolConfig } from '@/tools/types'
 
-export const agiloftSavedSearchTool: ToolConfig<
-  AgiloftSavedSearchParams,
-  AgiloftSavedSearchResponse
+export const agiloftRunActionButtonTool: ToolConfig<
+  AgiloftRunActionButtonParams,
+  AgiloftRunActionButtonResponse
 > = {
-  id: 'agiloft_saved_search',
-  name: 'Agiloft Saved Search',
-  description: 'List saved searches defined for an Agiloft table.',
+  id: 'agiloft_run_action_button',
+  name: 'Agiloft Run Action Button',
+  description:
+    'Run an action button on an Agiloft record, such as an approval or send-for-signature step.',
   version: '1.0.0',
 
   params: {
@@ -39,12 +43,24 @@ export const agiloftSavedSearchTool: ToolConfig<
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'Table name to list saved searches for (e.g., "contracts")',
+      description: 'Table name (e.g., "contracts", "case")',
+    },
+    recordId: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'ID of the record to run the action button on',
+    },
+    actionButtonField: {
+      type: 'string',
+      required: true,
+      visibility: 'user-or-llm',
+      description: 'Logical name of the field holding the action button (e.g., "ab_field")',
     },
   },
 
   request: {
-    url: () => '/api/tools/agiloft/saved_search',
+    url: () => '/api/tools/agiloft/run_action_button',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
     body: (params) => ({
@@ -53,6 +69,8 @@ export const agiloftSavedSearchTool: ToolConfig<
       login: params.login,
       password: params.password,
       table: params.table,
+      recordId: params.recordId,
+      actionButtonField: params.actionButtonField,
     }),
   },
 
@@ -66,22 +84,14 @@ export const agiloftSavedSearchTool: ToolConfig<
   },
 
   outputs: {
-    searches: {
-      type: 'array',
-      description: 'List of saved searches for the table',
-      items: {
-        type: 'object',
-        properties: {
-          name: { type: 'string', description: 'Saved search name' },
-          label: { type: 'string', description: 'Saved search display label' },
-          id: { type: 'number', description: 'Saved search database identifier' },
-          description: {
-            type: 'string',
-            description: 'Saved search description',
-            optional: true,
-          },
-        },
-      },
+    recordId: {
+      type: 'string',
+      description: 'ID of the record the action button was run on',
+    },
+    callbackId: {
+      type: 'string',
+      description:
+        'Callback identifier for the asynchronous run, which Agiloft returns as EWCALLBACK_ID',
     },
   },
 }

@@ -55,7 +55,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       params,
       (base) => ({
         url: buildRemoveAttachmentUrl(base, params),
-        method: 'DELETE',
+        /** EWRemoveAttachment is a GET/POST operation; it does not accept DELETE. */
+        method: 'GET',
       }),
       async (response) => {
         const text = await response.text()

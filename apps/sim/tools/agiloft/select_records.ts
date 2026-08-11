@@ -46,7 +46,7 @@ export const agiloftSelectRecordsTool: ToolConfig<
       required: true,
       visibility: 'user-or-llm',
       description:
-        'SQL WHERE clause using database column names (e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'")',
+        'SQL WHERE clause using database column names (e.g., "summary like \'%new%\'" or "assigned_person=\'John Doe\'"). EWSelect has no page size and returns every matching ID, so append a database limit such as "limit 0,200" to bound the result.',
     },
   },
 

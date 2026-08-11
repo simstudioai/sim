@@ -26,12 +26,22 @@ export interface AgiloftUpdateRecordParams extends AgiloftBaseParams {
   data: string
 }
 
+/** Strategies EWDelete accepts for records that depend on the one being deleted. */
+export type AgiloftDeleteRule =
+  | 'ERROR_IF_DEPENDANTS'
+  | 'APPLY_DELETE_WHERE_POSSIBLE'
+  | 'DELETE_WHERE_POSSIBLE_OTHERWISE_UNLINK'
+  | 'APPLY_UNLINK'
+  | 'UNLINK_WHERE_POSSIBLE_OTHERWISE_DELETE'
+
 export interface AgiloftDeleteRecordParams extends AgiloftBaseParams {
   recordId: string
+  deleteRule?: AgiloftDeleteRule
 }
 
 export interface AgiloftSearchRecordsParams extends AgiloftBaseParams {
-  query: string
+  query?: string
+  search?: string
   fields?: string
   page?: string
   limit?: string
@@ -41,8 +51,6 @@ export interface AgiloftSelectRecordsParams extends AgiloftBaseParams {
   where: string
 }
 
-export type AgiloftSavedSearchParams = AgiloftBaseParams
-
 export interface AgiloftAttachmentInfoParams extends AgiloftBaseParams {
   recordId: string
   fieldName: string
@@ -51,6 +59,7 @@ export interface AgiloftAttachmentInfoParams extends AgiloftBaseParams {
 export interface AgiloftLockRecordParams extends AgiloftBaseParams {
   recordId: string
   lockAction: 'lock' | 'unlock' | 'check'
+  force?: boolean
 }
 
 export interface AgiloftRecordResponse extends ToolResponse {
@@ -80,17 +89,6 @@ export interface AgiloftSelectResponse extends ToolResponse {
   output: {
     recordIds: string[]
     totalCount: number
-  }
-}
-
-export interface AgiloftSavedSearchResponse extends ToolResponse {
-  output: {
-    searches: Array<{
-      name: string
-      label: string
-      id: string | number
-      description: string | null
-    }>
   }
 }
 
@@ -169,5 +167,17 @@ export interface AgiloftGetChoiceLineIdParams extends AgiloftBaseParams {
 export interface AgiloftGetChoiceLineIdResponse extends ToolResponse {
   output: {
     choiceLineId: number | null
+  }
+}
+
+export interface AgiloftRunActionButtonParams extends AgiloftBaseParams {
+  recordId: string
+  actionButtonField: string
+}
+
+export interface AgiloftRunActionButtonResponse extends ToolResponse {
+  output: {
+    recordId: string
+    callbackId: string | null
   }
 }

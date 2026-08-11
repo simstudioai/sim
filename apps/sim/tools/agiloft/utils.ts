@@ -7,7 +7,7 @@ import type {
   AgiloftReadRecordParams,
   AgiloftRemoveAttachmentParams,
   AgiloftRetrieveAttachmentParams,
-  AgiloftSavedSearchParams,
+  AgiloftRunActionButtonParams,
   AgiloftSearchRecordsParams,
   AgiloftSelectRecordsParams,
 } from '@/tools/agiloft/types'
@@ -22,52 +22,66 @@ function encodeTable(params: AgiloftBaseParams) {
   }
 }
 
-export function buildCreateRecordUrl(base: string, params: AgiloftBaseParams): string {
-  const { kb, table } = encodeTable(params)
-  return `${base}/ewws/REST/${kb}/${table}?$lang=en`
-}
-
-export function buildReadRecordUrl(base: string, params: AgiloftReadRecordParams): string {
-  const { kb, table } = encodeTable(params)
-  const id = encodeURIComponent(params.recordId.trim())
-  let url = `${base}/ewws/REST/${kb}/${table}/${id}?$lang=en`
-
-  if (params.fields) {
-    const fieldList = params.fields
-      .split(',')
-      .map((f) => f.trim())
-      .filter(Boolean)
-    for (const field of fieldList) {
-      url += `&$fields=${encodeURIComponent(field)}`
-    }
-  }
-
-  return url
-}
-
-export function buildUpdateRecordUrl(
-  base: string,
-  params: AgiloftBaseParams & { recordId: string }
-): string {
-  const { kb, table } = encodeTable(params)
-  const id = encodeURIComponent(params.recordId.trim())
-  return `${base}/ewws/REST/${kb}/${table}/${id}?$lang=en`
-}
-
-export function buildDeleteRecordUrl(base: string, params: AgiloftDeleteRecordParams): string {
-  const { kb, table } = encodeTable(params)
-  const id = encodeURIComponent(params.recordId.trim())
-  return `${base}/ewws/REST/${kb}/${table}/${id}?$lang=en`
-}
-
 function buildEwBaseQuery(params: AgiloftBaseParams): string {
   const { kb, table } = encodeTable(params)
   return `$KB=${kb}&$table=${table}&$lang=en`
 }
 
+/**
+ * Serializes a record's field values as the `&field=value` pairs EWCreate and
+ * EWUpdate expect. Agiloft reads record data straight off the query string;
+ * there is no JSON body form of these operations.
+ */
+function encodeRecordData(data: Record<string, unknown>): string {
+  let encoded = ''
+  for (const [field, value] of Object.entries(data)) {
+    if (value === undefined || value === null) continue
+    encoded += `&${encodeURIComponent(field)}=${encodeURIComponent(String(value))}`
+  }
+  return encoded
+}
+
+export function buildCreateRecordUrl(
+  base: string,
+  params: AgiloftBaseParams,
+  data: Record<string, unknown>
+): string {
+  return `${base}/ewws/EWCreate?${buildEwBaseQuery(params)}${encodeRecordData(data)}`
+}
+
+export function buildReadRecordUrl(base: string, params: AgiloftReadRecordParams): string {
+  const id = encodeURIComponent(params.recordId.trim())
+  return `${base}/ewws/EWRead?${buildEwBaseQuery(params)}&id=${id}`
+}
+
+export function buildUpdateRecordUrl(
+  base: string,
+  params: AgiloftBaseParams & { recordId: string },
+  data: Record<string, unknown>
+): string {
+  const id = encodeURIComponent(params.recordId.trim())
+  return `${base}/ewws/EWUpdate?${buildEwBaseQuery(params)}&id=${id}${encodeRecordData(data)}`
+}
+
+/**
+ * EWDelete requires a delete rule naming the strategy for dependent records;
+ * omitting it is a malformed request.
+ */
+export function buildDeleteRecordUrl(base: string, params: AgiloftDeleteRecordParams): string {
+  const id = encodeURIComponent(params.recordId.trim())
+  const deleteRule = encodeURIComponent(params.deleteRule ?? 'ERROR_IF_DEPENDANTS')
+  return `${base}/ewws/EWDelete?${buildEwBaseQuery(params)}&id=${id}&deleteRule=${deleteRule}`
+}
+
 export function buildSearchRecordsUrl(base: string, params: AgiloftSearchRecordsParams): string {
-  const query = encodeURIComponent(params.query)
-  let url = `${base}/ewws/EWSearch/.json?${buildEwBaseQuery(params)}&query=${query}`
+  let url = `${base}/ewws/EWSearch?${buildEwBaseQuery(params)}`
+
+  if (params.search) {
+    url += `&search=${encodeURIComponent(params.search.trim())}`
+  }
+  if (params.query) {
+    url += `&query=${encodeURIComponent(params.query)}`
+  }
 
   if (params.fields) {
     const fieldList = params.fields
@@ -91,11 +105,7 @@ export function buildSearchRecordsUrl(base: string, params: AgiloftSearchRecords
 
 export function buildSelectRecordsUrl(base: string, params: AgiloftSelectRecordsParams): string {
   const where = encodeURIComponent(params.where)
-  return `${base}/ewws/EWSelect/.json?${buildEwBaseQuery(params)}&where=${where}`
-}
-
-export function buildSavedSearchUrl(base: string, params: AgiloftSavedSearchParams): string {
-  return `${base}/ewws/EWSavedSearch/.json?${buildEwBaseQuery(params)}`
+  return `${base}/ewws/EWSelect?${buildEwBaseQuery(params)}&where=${where}`
 }
 
 export function buildRetrieveAttachmentUrl(
@@ -124,9 +134,17 @@ export function buildAttachmentInfoUrl(base: string, params: AgiloftAttachmentIn
   return `${base}/ewws/EWAttachInfo/.json?${buildEwBaseQuery(params)}&id=${id}&field=${fieldName}`
 }
 
+/**
+ * `force` is only meaningful on the DELETE (unlock) variant, where it lets an
+ * admin release a lock held by another user.
+ */
 export function buildLockRecordUrl(base: string, params: AgiloftLockRecordParams): string {
   const id = encodeURIComponent(params.recordId.trim())
-  return `${base}/ewws/EWLock/.json?${buildEwBaseQuery(params)}&id=${id}`
+  let url = `${base}/ewws/EWLock?${buildEwBaseQuery(params)}&id=${id}`
+  if (params.lockAction === 'unlock' && params.force) {
+    url += '&force=true'
+  }
+  return url
 }
 
 export function buildAttachFileUrl(
@@ -147,7 +165,7 @@ export function buildGetChoiceLineIdUrl(
 ): string {
   const field = encodeURIComponent(params.fieldName.trim())
   const value = encodeURIComponent(params.value.trim())
-  return `${base}/ewws/EWGetChoiceLineId/.json?${buildEwBaseQuery(params)}&field=${field}&value=${value}`
+  return `${base}/ewws/EWGetChoiceLineId?${buildEwBaseQuery(params)}&field=${field}&value=${value}`
 }
 
 export function getLockHttpMethod(lockAction: string): HttpMethod {
@@ -159,4 +177,17 @@ export function getLockHttpMethod(lockAction: string): HttpMethod {
     default:
       return 'GET'
   }
+}
+
+/**
+ * EWActionButton runs asynchronously and therefore lives under the `/ewws/async`
+ * prefix rather than `/ewws` directly.
+ */
+export function buildRunActionButtonUrl(
+  base: string,
+  params: AgiloftRunActionButtonParams
+): string {
+  const id = encodeURIComponent(params.recordId.trim())
+  const name = encodeURIComponent(params.actionButtonField.trim())
+  return `${base}/ewws/async/EWActionButton?${buildEwBaseQuery(params)}&name=${name}&id=${id}`
 }
