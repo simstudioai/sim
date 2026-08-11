@@ -24,6 +24,7 @@ import {
   validateUrlWithDNS,
 } from '@/lib/core/security/input-validation.server'
 import { PlatformEvents } from '@/lib/core/telemetry'
+import { isTransportTimeoutError, withCallerOwnedDeadline } from '@/lib/core/utils/fetch-deadline'
 import { HttpError } from '@/lib/core/utils/http-error'
 import { generateRequestId } from '@/lib/core/utils/request'
 import {
@@ -2441,13 +2442,22 @@ async function executeToolRequest(
             }
           }
 
+          const attemptStartedAt = Date.now()
           try {
-            const internalResponse = await fetch(fullUrl, {
-              method: requestParams.method,
-              headers: headers,
-              body: requestParams.body,
-              signal: controller.signal,
-            })
+            /*
+             * `controller` above is armed with `timeout`, so the plan deadline is
+             * already enforced in-process; the transport timer is disarmed so its
+             * 300s default cannot undercut it.
+             */
+            const internalResponse = await fetch(
+              fullUrl,
+              withCallerOwnedDeadline({
+                method: requestParams.method,
+                headers: headers,
+                body: requestParams.body,
+                signal: controller.signal,
+              })
+            )
             if (
               nullBodyStatuses.has(internalResponse.status) ||
               shouldRetryWithoutReadingBody(
@@ -2492,6 +2502,22 @@ async function executeToolRequest(
                 throw signal.reason ?? error
               }
               throw new Error(`Request timed out after ${timeout}ms`)
+            }
+            /*
+             * A transport give-up names neither the hop nor the elapsed time, so
+             * it reads as a failure of the work the route was doing rather than
+             * of the call to it. Say which it was before rethrowing.
+             *
+             * Keep the original message in the text: `isRetryableFailure` above
+             * classifies by substring, so dropping it would silently reclassify
+             * a retryable `timed out` as non-retryable.
+             */
+            if (isTransportTimeoutError(error)) {
+              throw new Error(
+                `Transport failure calling ${toolId} after ${Date.now() - attemptStartedAt}ms ` +
+                  `(deadline ${timeout}ms): ${error.message}`,
+                { cause: error }
+              )
             }
             throw error
           } finally {
