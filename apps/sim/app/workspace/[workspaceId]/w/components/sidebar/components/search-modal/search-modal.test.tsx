@@ -4,7 +4,7 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import {
   MOTHERSHIP_SEND_MESSAGE_EVENT,
   type MothershipSendMessageDetail,
@@ -163,10 +163,7 @@ describe('SearchModal', () => {
 
     expect(onOpenChange).toHaveBeenCalledWith(false)
     expect(mockPush).toHaveBeenCalledWith('/workspace/workspace-1/home')
-    expect(MothershipHandoffStorage.consume('workspace-1')).toEqual({
-      message: 'plan our Slack launch week',
-      contexts: [],
-    })
+    expect(LandingPromptStorage.consume()).toBe('plan our Slack launch week')
   })
 
   it('returns to search results when Tab is pressed again in ask mode', async () => {
@@ -298,7 +295,7 @@ describe('SearchModal', () => {
 
       expect(receivedMessages).toEqual(['summarize this workspace'])
       expect(mockPush).not.toHaveBeenCalled()
-      expect(MothershipHandoffStorage.consume('workspace-1')).toBeNull()
+      expect(LandingPromptStorage.consume()).toBeNull()
     } finally {
       window.removeEventListener(MOTHERSHIP_SEND_MESSAGE_EVENT, handleMessage)
     }
@@ -694,7 +691,7 @@ describe('SearchModal', () => {
 
   it('keeps the palette open when the query handoff cannot be persisted', async () => {
     const onOpenChange = vi.fn()
-    const storeSpy = vi.spyOn(MothershipHandoffStorage, 'store').mockReturnValue(false)
+    const storeSpy = vi.spyOn(LandingPromptStorage, 'store').mockReturnValue(false)
 
     try {
       await act(async () => {

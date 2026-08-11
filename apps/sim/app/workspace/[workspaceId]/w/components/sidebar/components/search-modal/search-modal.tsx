@@ -41,7 +41,7 @@ import { usePostHog } from 'posthog-js/react'
 import { createPortal } from 'react-dom'
 import { supportsAtomicBrowserPanelOcclusion } from '@/lib/browser-agent/transport'
 import { isChatEnabled } from '@/lib/core/config/env-flags'
-import { MothershipHandoffStorage } from '@/lib/core/utils/browser-storage'
+import { LandingPromptStorage } from '@/lib/core/utils/browser-storage'
 import { sendMothershipMessage } from '@/lib/mothership/events'
 import { captureEvent } from '@/lib/posthog/client'
 import { toSearchToken } from '@/lib/search/tokens'
@@ -844,12 +844,11 @@ function SearchModalContent({
     const sentToMountedHome = window.location.pathname === homeHref && sendMothershipMessage(query)
 
     if (!sentToMountedHome) {
-      /* One-shot auto-send handoff: Home's mount consumer sends it on arrival,
-         so both routes deliver the raw query identically. use-chat's queued
-         send dispatch now survives the mount-settling effect cycle that used
-         to silently abort programmatic sends (the old reason this was a
-         prefill). */
-      if (!MothershipHandoffStorage.store({ message: query }, workspaceId)) {
+      /* Prefill, not auto-send: sends started during Home's mount-settling
+         window are still silently aborted by use-chat's cleanup effect, so a
+         MothershipHandoffStorage handoff would vanish (verified live). Stored
+         raw — user prose is never mentionified into @ chips. */
+      if (!LandingPromptStorage.store(query)) {
         logger.warn('Failed to persist command palette query for a new chat', {
           workspaceId,
         })
