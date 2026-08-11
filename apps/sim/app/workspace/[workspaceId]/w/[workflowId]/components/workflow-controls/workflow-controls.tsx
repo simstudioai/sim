@@ -151,6 +151,7 @@ export const WorkflowControls = memo(function WorkflowControls() {
           options={CANVAS_MODE_OPTIONS}
           value={mode}
           onChange={setMode}
+          size='compact'
           aria-label='Canvas interaction mode'
         />
 
