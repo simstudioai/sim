@@ -74,7 +74,6 @@ export const DEFAULT_FFMPEG_TIMEOUT_MS = 5 * 60 * 1000
 const PROBE_TIMEOUT_MS = 15 * 1000
 const PROBE_MAX_OUTPUT_BYTES = 8 * 1024 * 1024
 
-/** Names the actionable cause: the budget covers all clips, so fewer/shorter inputs is the fix. */
 const TIME_BUDGET_EXCEEDED =
   'FFmpeg operation exceeded its time budget — try fewer, shorter, or lower-resolution inputs'
 
@@ -283,12 +282,6 @@ function resolveVolume(value: number, label: string): number {
   return value
 }
 
-/**
- * Each operation validates the options it consumes, at the point of use, so a
- * rule has exactly one home. An LLM caller routinely emits surplus parameters,
- * so an operation must ignore — never reject over — a value it never reads.
- */
-
 const ASPECT_TARGETS: Record<string, { w: number; h: number }> = {
   '16:9': { w: 1920, h: 1080 },
   '9:16': { w: 1080, h: 1920 },
@@ -343,7 +336,6 @@ function createOperationLimit(runOptions: FfmpegRunOptions): TimeoutAbortControl
   return createTimeoutAbortController(timeoutMs, runOptions.signal)
 }
 
-/** Distinguishes "we ran out of time" from "the caller cancelled" for the message. */
 function abortError(limit: TimeoutAbortController): Error {
   return new Error(limit.isTimedOut() ? TIME_BUDGET_EXCEEDED : 'FFmpeg operation aborted')
 }
