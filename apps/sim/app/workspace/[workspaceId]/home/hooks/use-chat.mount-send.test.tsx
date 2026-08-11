@@ -190,6 +190,65 @@ function renderStrictModeHandoffConsumer(): { unmount: () => void } {
   return { unmount: () => act(() => root.unmount()) }
 }
 
+/**
+ * Mounts a surface shaped like `home.tsx`: it drives `useChat` AND registers
+ * the `mothership-send-message` listener that claims the event with
+ * `preventDefault`. Unmounting this exercises the ordering question — whether
+ * the departing surface's own still-attached listener can claim the recovery
+ * event its own teardown emitted, which would suppress the storage fallback
+ * and strand the message.
+ */
+function renderHomeLikeSurface(): {
+  getResult: () => ReturnType<typeof useChat>
+  claimedByOwnListener: () => number
+  unmount: () => void
+} {
+  ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+  queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } })
+  const container = document.createElement('div')
+  const root = createRoot(container)
+  mountedRoots.push(root)
+  let result: ReturnType<typeof useChat> | undefined
+  let claims = 0
+
+  function HomeLike() {
+    const chat = useChat('ws-1', undefined)
+    result = chat
+    const { sendMessage } = chat
+    // Mirrors home.tsx:339 — declared AFTER useChat, so on unmount React runs
+    // useChat's cleanup (which aborts) before this removeEventListener.
+    useEffect(() => {
+      const handler = (e: Event) => {
+        const detail = (e as CustomEvent<{ message?: string; recoverStreamId?: string }>).detail
+        if (!detail?.message) return
+        claims++
+        e.preventDefault()
+        sendMessage(detail.message, undefined, undefined, {
+          ...(detail.recoverStreamId ? { recoverStreamId: detail.recoverStreamId } : {}),
+        })
+      }
+      window.addEventListener('mothership-send-message', handler)
+      return () => window.removeEventListener('mothership-send-message', handler)
+    }, [sendMessage])
+    return null
+  }
+
+  act(() => {
+    root.render(
+      <QueryClientProvider client={queryClient}>{(<HomeLike />) as ReactNode}</QueryClientProvider>
+    )
+  })
+
+  return {
+    getResult: () => {
+      if (result === undefined) throw new Error('Hook result is not ready')
+      return result
+    },
+    claimedByOwnListener: () => claims,
+    unmount: () => act(() => root.unmount()),
+  }
+}
+
 /** Every queued message across all chat keys, flattened. */
 function allQueuedMessages() {
   return Object.values(useMothershipQueueStore.getState().queues).flat()
@@ -309,6 +368,26 @@ describe('useChat remount send recovery', () => {
 
     expect(allQueuedMessages()).toHaveLength(0)
     expect(MothershipHandoffStorage.consume('ws-1')).toBeNull()
+  })
+
+  /**
+   * A departing surface's own listener must not claim the recovery event its
+   * teardown emitted: claiming returns `true`, which suppresses the storage
+   * fallback, and the enqueue would land under the disposed pending key — the
+   * message would be stranded exactly where this fix is supposed to save it.
+   */
+  it('does not let a departing surface claim its own recovery event', async () => {
+    const surface = renderHomeLikeSurface()
+    await act(async () => {
+      void surface.getResult().sendMessage('must survive my own teardown')
+    })
+    await waitFor(() => state.postCalls === 1)
+
+    surface.unmount()
+    await waitFor(() => window.localStorage.getItem('sim_mothership_handoff') !== null)
+
+    expect(surface.claimedByOwnListener()).toBe(0)
+    expect(MothershipHandoffStorage.consume('ws-1')?.message).toBe('must survive my own teardown')
   })
 
   /**
