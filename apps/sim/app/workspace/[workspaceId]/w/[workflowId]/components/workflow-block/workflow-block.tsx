@@ -1,20 +1,10 @@
 import { type ComponentType, Fragment, memo, useCallback, useEffect, useMemo, useRef } from 'react'
 import {
-  BLOCK_DIMENSIONS,
-  CanvasSentenceView,
-  SubBlockRowView,
-  WorkflowBlockView,
-} from '@sim/workflow-renderer'
-import { wouldCreateCycle } from '@sim/workflow-types/workflow'
-import { isEqual } from 'es-toolkit'
-import {
   ArrowLeftRight,
   ArrowUpDown,
-  Braces,
   Clock,
   Globe,
-  Hash,
-  KeyRound,
+  Key,
   ListFilter,
   MessageSquareText,
   Paperclip,
@@ -22,8 +12,18 @@ import {
   SlidersHorizontal,
   Sparkles,
   ToggleLeft,
+  TypeJson,
+  TypeNumber,
   Wrench,
-} from 'lucide-react'
+} from '@sim/emcn/icons'
+import {
+  BLOCK_DIMENSIONS,
+  CanvasSentenceView,
+  SubBlockRowView,
+  WorkflowBlockView,
+} from '@sim/workflow-renderer'
+import { wouldCreateCycle } from '@sim/workflow-types/workflow'
+import { isEqual } from 'es-toolkit'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
 import { type NodeProps, useStore as useReactFlowStore, useUpdateNodeInternals } from 'reactflow'
@@ -129,22 +129,22 @@ const SUBBLOCK_META_ICONS_BY_ID: Record<string, MetaIcon> = {
   filterCriteria: ListFilter,
   sortBuilder: ArrowUpDown,
   sort: ArrowUpDown,
-  limit: Hash,
+  limit: TypeNumber,
   offset: SkipForward,
-  rowId: KeyRound,
+  rowId: Key,
   url: Globe,
   method: ArrowLeftRight,
-  body: Braces,
-  data: Braces,
+  body: TypeJson,
+  data: TypeJson,
 }
 
 /** Leading icons for compact meta rows, keyed by subblock type. */
 const SUBBLOCK_META_ICONS_BY_TYPE: Record<string, MetaIcon> = {
-  code: Braces,
+  code: TypeJson,
   'messages-input': MessageSquareText,
   'tool-input': Wrench,
   'skill-input': Sparkles,
-  'oauth-input': KeyRound,
+  'oauth-input': Key,
   switch: ToggleLeft,
   'file-upload': Paperclip,
   'time-input': Clock,
