@@ -3833,7 +3833,12 @@ export function useChat(
           }
         }
       } catch (err) {
-        if (err instanceof Error && err.name === 'AbortError') {
+        /* fetch rejects with the RAW abort reason (here a plain string) when
+           its signal was aborted with abort(reason) — an `err.name` check alone
+           misses those, so abort detection also consults the signal itself. */
+        const sendWasAborted =
+          (err instanceof Error && err.name === 'AbortError') || sendAbortSignal?.aborted === true
+        if (sendWasAborted) {
           if (sendAbortSignal?.reason === 'unmount:client_cleanup' && !sendReachedServer) {
             /* The mount-settling effect cycle (Suspense hide/reveal) ran the
                unmount cleanup while this send was still pre-dispatch. Nothing

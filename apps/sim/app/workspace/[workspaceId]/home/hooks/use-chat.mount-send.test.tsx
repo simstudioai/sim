@@ -51,12 +51,6 @@ function emptySseResponse(): Response {
   return new Response(stream, { status: 200, headers: { 'Content-Type': 'text/event-stream' } })
 }
 
-function abortError(): Error {
-  const error = new Error('Aborted')
-  error.name = 'AbortError'
-  return error
-}
-
 async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<Response> {
   const url = String(input instanceof Request ? input.url : input)
 
@@ -66,11 +60,13 @@ async function fetchStub(input: RequestInfo | URL, init?: RequestInit): Promise<
     return new Promise<Response>((_, reject) => {
       const signal = init?.signal
       if (!signal) return
+      // Real fetch rejects with the RAW abort reason (a string here), not an
+      // AbortError — the regression this suite guards depends on that shape.
       if (signal.aborted) {
-        reject(abortError())
+        reject(signal.reason)
         return
       }
-      signal.addEventListener('abort', () => reject(abortError()), { once: true })
+      signal.addEventListener('abort', () => reject(signal.reason), { once: true })
     })
   }
 
