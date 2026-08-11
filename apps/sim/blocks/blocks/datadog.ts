@@ -16,6 +16,48 @@ export const DatadogBlock: BlockConfig<DatadogResponse> = {
   bgColor: '#632CA6',
   iconColor: '#632CA6',
   icon: DatadogIcon,
+  canvasPresentation: {
+    defaultTitle: 'Datadog',
+    sentences: {
+      byOperation: {
+        datadog_submit_metrics: ['Submit custom metric points'],
+        datadog_query_timeseries: [
+          { text: 'Query metric timeseries', field: 'query', core: true },
+          { text: ', since', field: 'from' },
+        ],
+        datadog_create_event: [
+          { text: 'Post', field: 'title', after: 'to the event stream', core: true },
+          { text: ', tagged', field: 'tags' },
+        ],
+        datadog_create_monitor: [
+          { text: 'Create monitor', field: 'name', core: true },
+          { text: ', alerting on', field: 'monitorQuery' },
+        ],
+        datadog_get_monitor: [{ text: 'Read monitor', field: 'monitorId', core: true }],
+        datadog_list_monitors: [
+          'List monitors',
+          { text: ', named like', field: 'listMonitorName' },
+          { text: ', tagged', field: 'listMonitorTags' },
+        ],
+        datadog_mute_monitor: [
+          { text: 'Mute monitor', field: 'muteMonitorId', core: true },
+          { text: ', for scope', field: 'scope' },
+          { text: ', until', field: 'end' },
+        ],
+        datadog_query_logs: [
+          { text: 'Search logs matching', field: 'logQuery', core: true },
+          { text: ', since', field: 'logFrom' },
+        ],
+        datadog_send_logs: ['Send log entries for indexing'],
+        datadog_create_downtime: [
+          { text: 'Schedule downtime for', field: 'downtimeScope', core: true },
+          { text: ', until', field: 'downtimeEnd' },
+        ],
+        datadog_list_downtimes: ['List scheduled downtimes'],
+        datadog_cancel_downtime: [{ text: 'Cancel downtime', field: 'downtimeId', core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

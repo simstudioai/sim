@@ -237,6 +237,8 @@ export interface TraceSpan {
   status?: 'success' | 'error'
   /** Whether this block's error was handled by an error handler path */
   errorHandled?: boolean
+  /** Total handler tries, present only when the block retried at least once. */
+  tries?: number
   tokens?: TokenInfo
   relativeStartMs?: number
   blockId?: string

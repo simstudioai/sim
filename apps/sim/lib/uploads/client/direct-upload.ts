@@ -396,10 +396,15 @@ const uploadViaMultipart = async (
         errorBody
       )
     }
+    /* Prefer the server's own message, as the presigned path does. Initiate is where the storage
+       quota is enforced, and "Payload Too Large" tells the user nothing about which limit they hit
+       or by how much — the toast is the only place that answer surfaces. */
     throw new DirectUploadError(
-      `Failed to initiate multipart upload: ${initiateResponse.statusText}`,
+      typeof errorBody?.error === 'string' && errorBody.error
+        ? errorBody.error
+        : `Failed to initiate multipart upload: ${initiateResponse.statusText}`,
       'MULTIPART_ERROR',
-      undefined,
+      errorBody ?? undefined,
       initiateResponse.status
     )
   }

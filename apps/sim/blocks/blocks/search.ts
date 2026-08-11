@@ -9,6 +9,12 @@ export const SearchBlock: BlockConfig = {
   longDescription: 'Search the web using the Search tool. Each search costs $0.01 per query.',
   bgColor: '#3B82F6',
   icon: SearchIcon,
+  canvasPresentation: {
+    defaultTitle: 'Search',
+    sentences: {
+      default: [{ text: 'Search the web for', field: 'query', core: true }],
+    },
+  },
   category: 'blocks',
   integrationType: IntegrationType.Search,
   docsLink: 'https://docs.sim.ai/integrations/search',

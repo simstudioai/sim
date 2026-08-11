@@ -275,6 +275,17 @@ describe('filterAndSort — name ranked above secondary text', () => {
     expect(filterAndSort(items, toName, 'gpt-4o', toExtra)).toHaveLength(1)
   })
 
+  it('ranks a visible operation-name match above a service metadata match', () => {
+    const items: Item[] = [
+      { name: 'List Calls', searchValue: 'AgentPhone List Calls' },
+      { name: 'Agent Status', searchValue: 'Example Agent Status' },
+    ]
+
+    const sorted = filterAndSort(items, toName, 'agent', toExtra)
+
+    expect(sorted.map((item) => item.name)).toEqual(['Agent Status', 'List Calls'])
+  })
+
   it('is byte-identical to single-field ranking when no secondary accessor is given', () => {
     const items = ['Slack message', 'Send message to Slack']
     expect(filterAndSort(items, (s) => s, 'slack')).toEqual(

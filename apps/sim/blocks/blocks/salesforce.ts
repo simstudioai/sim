@@ -17,6 +17,152 @@ export const SalesforceBlock: BlockConfig<SalesforceResponse> = {
   integrationType: IntegrationType.Sales,
   bgColor: '#FFFFFF',
   icon: SalesforceIcon,
+  canvasPresentation: {
+    defaultTitle: 'Salesforce',
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'selectedTriggerId', core: true },
+        { text: 'for', field: 'objectType' },
+      ],
+      byTrigger: {
+        salesforce_webhook: ['Run on any record event', { text: 'for', field: 'objectType' }],
+      },
+    },
+    sentences: {
+      byOperation: {
+        get_accounts: [
+          'List accounts',
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_account: [
+          { text: 'Create account', field: 'name', core: true },
+          { text: ', of type', field: 'type' },
+          { text: ', in industry', field: 'industry' },
+        ],
+        update_account: [
+          { text: 'Update account', field: 'accountId', core: true },
+          { text: ', setting name to', field: 'name' },
+          { text: ', industry', field: 'industry' },
+        ],
+        delete_account: [{ text: 'Delete account', field: 'accountId', core: true }],
+        get_contacts: [
+          { text: 'Fetch contact', field: 'contactId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_contact: [
+          { text: 'Create contact', field: 'lastName', core: true },
+          { text: ', at account', field: 'accountId' },
+          { text: ', with email', field: 'email' },
+        ],
+        update_contact: [
+          { text: 'Update contact', field: 'contactId', core: true },
+          { text: ', setting email to', field: 'email' },
+          { text: ', job title', field: 'title' },
+        ],
+        delete_contact: [{ text: 'Delete contact', field: 'contactId', core: true }],
+        get_leads: [
+          { text: 'Fetch lead', field: 'leadId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_lead: [
+          { text: 'Create lead', field: 'lastName', core: true },
+          { text: ', at company', field: 'company' },
+          { text: ', sourced from', field: 'leadSource' },
+        ],
+        update_lead: [
+          { text: 'Update lead', field: 'leadId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', company', field: 'company' },
+        ],
+        delete_lead: [{ text: 'Delete lead', field: 'leadId', core: true }],
+        get_opportunities: [
+          { text: 'Fetch opportunity', field: 'opportunityId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_opportunity: [
+          { text: 'Create opportunity', field: 'name', core: true },
+          { text: ', at stage', field: 'stageName' },
+          { text: ', worth', field: 'amount' },
+        ],
+        update_opportunity: [
+          { text: 'Update opportunity', field: 'opportunityId', core: true },
+          { text: ', setting stage to', field: 'stageName' },
+          { text: ', amount', field: 'amount' },
+        ],
+        delete_opportunity: [{ text: 'Delete opportunity', field: 'opportunityId', core: true }],
+        get_cases: [
+          { text: 'Fetch case', field: 'caseId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_case: [
+          { text: 'Create case', field: 'subject', core: true },
+          { text: ', at priority', field: 'priority' },
+          { text: ', from', field: 'origin' },
+        ],
+        update_case: [
+          { text: 'Update case', field: 'caseId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', priority', field: 'priority' },
+        ],
+        delete_case: [{ text: 'Delete case', field: 'caseId', core: true }],
+        get_tasks: [
+          { text: 'Fetch task', field: 'taskId', core: true },
+          { text: ', sorted by', field: 'orderBy' },
+          { text: ', up to', field: 'limit', after: 'records' },
+        ],
+        create_task: [
+          { text: 'Create task', field: 'subject', core: true },
+          { text: ', due', field: 'activityDate' },
+          { text: ', at priority', field: 'priority' },
+        ],
+        update_task: [
+          { text: 'Update task', field: 'taskId', core: true },
+          { text: ', setting status to', field: 'status' },
+          { text: ', due', field: 'activityDate' },
+        ],
+        delete_task: [{ text: 'Delete task', field: 'taskId', core: true }],
+        list_reports: ['List recently viewed reports', { text: ', matching', field: 'searchTerm' }],
+        get_report: [{ text: 'Read the definition of report', field: 'reportId', core: true }],
+        run_report: [
+          { text: 'Run report', field: 'reportId', core: true },
+          { text: ', filtered by', field: 'filters' },
+        ],
+        list_report_types: ['List available report types'],
+        list_dashboards: ['List recently used dashboards'],
+        get_dashboard: [{ text: 'Read dashboard', field: 'dashboardId', core: true }],
+        refresh_dashboard: [{ text: 'Refresh dashboard', field: 'dashboardId', core: true }],
+        query: [{ text: 'Run SOQL query', field: 'query', core: true }],
+        query_more: [
+          { text: 'Fetch more query results from', field: 'nextRecordsUrl', core: true },
+        ],
+        describe_object: [{ text: 'Read the field metadata of', field: 'objectName', core: true }],
+        list_objects: ['List all available objects'],
+        create_custom_field: [
+          { text: 'Add custom field', field: 'fieldName', core: true },
+          { text: 'to object', field: 'objectName' },
+          { text: ', of type', field: 'fieldType' },
+        ],
+        update_custom_field: [
+          { text: 'Update custom field', field: 'fieldId', core: true },
+          { text: ', setting label to', field: 'label' },
+          { text: ', help text', field: 'inlineHelpText' },
+        ],
+        delete_custom_field: [{ text: 'Delete custom field', field: 'fieldId', core: true }],
+        create_custom_object: [
+          { text: 'Create custom object', field: 'objectName', core: true },
+          { text: ', labeled', field: 'label' },
+          { text: ', shared as', field: 'sharingModel' },
+        ],
+        tooling_query: [{ text: 'Run Tooling API query', field: 'query', core: true }],
+      },
+    },
+  },
   triggers: {
     enabled: true,
     available: [

@@ -6,6 +6,16 @@ import { createVersionedToolSelector, SERVICE_ACCOUNT_SUBBLOCKS } from '@/blocks
 import type { GoogleSheetsResponse, GoogleSheetsV2Response } from '@/tools/google_sheets/types'
 import { getTrigger } from '@/triggers'
 
+/**
+ * Canonical basic/advanced pair for the spreadsheet, shared by the card
+ * summaries below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the manual id filled.
+ */
+const SPREADSHEET_FIELD = ['spreadsheetId', 'manualSpreadsheetId'] as const
+
+/** Canonical basic/advanced pair for the sheet tab, on the v2 block only. */
+const SHEET_FIELD = ['sheetName', 'manualSheetName'] as const
+
 // Legacy block - hidden from toolbar
 export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   type: 'google_sheets',
@@ -21,6 +31,29 @@ export const GoogleSheetsBlock: BlockConfig<GoogleSheetsResponse> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Sheets',
+    sentences: {
+      byOperation: {
+        read: [
+          { text: 'Read', field: 'range', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+        ],
+        write: [
+          { text: 'Write data to', field: 'range', after: 'in', core: true },
+          { field: SPREADSHEET_FIELD, core: true },
+        ],
+        update: [
+          { text: 'Update', field: 'range', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        append: [
+          { text: 'Append rows to', field: 'range', after: 'in', core: true },
+          { field: SPREADSHEET_FIELD, core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {
@@ -309,6 +342,66 @@ export const GoogleSheetsV2Block: BlockConfig<GoogleSheetsV2Response> = {
   integrationType: IntegrationType.Documents,
   bgColor: '#FFFFFF',
   icon: GoogleSheetsIcon,
+  canvasPresentation: {
+    defaultTitle: 'Google Sheets',
+    triggerSentences: {
+      default: [
+        'Run on a new row',
+        { text: 'in', field: SHEET_FIELD, core: true },
+        { text: 'of', field: SPREADSHEET_FIELD, core: true },
+      ],
+    },
+    sentences: {
+      byOperation: {
+        read: [
+          { text: 'Read', field: 'cellRange', core: true },
+          { text: 'from', field: SHEET_FIELD },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        write: [
+          { text: 'Write data to', field: 'cellRange', core: true },
+          { text: 'on', field: SHEET_FIELD },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        update: [
+          { text: 'Update', field: 'cellRange', core: true },
+          { text: 'on', field: SHEET_FIELD },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        append: [
+          { text: 'Append rows to', field: SHEET_FIELD, core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        clear: [
+          { text: 'Clear', field: 'cellRange', core: true },
+          { text: 'on', field: SHEET_FIELD },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        get_info: [{ text: 'Read metadata for', field: SPREADSHEET_FIELD, core: true }],
+        create: [
+          { text: 'Create spreadsheet', field: 'title', core: true },
+          { text: 'with tabs', field: 'sheetTitles' },
+        ],
+        batch_get: [{ text: 'Read multiple ranges from', field: SPREADSHEET_FIELD, core: true }],
+        batch_update: [{ text: 'Update multiple ranges in', field: SPREADSHEET_FIELD, core: true }],
+        batch_clear: [{ text: 'Clear multiple ranges in', field: SPREADSHEET_FIELD, core: true }],
+        copy_sheet: [
+          { text: 'Copy sheet', field: 'sheetId', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+          { text: 'to', field: 'destinationSpreadsheetId', core: true },
+        ],
+        delete_rows: [
+          { text: 'Delete rows from sheet', field: 'deleteSheetId', core: true },
+          { text: 'in', field: SPREADSHEET_FIELD, core: true },
+        ],
+        delete_sheet: [
+          { text: 'Delete sheet', field: 'deleteSheetId', core: true },
+          { text: 'from', field: SPREADSHEET_FIELD, core: true },
+        ],
+        delete_spreadsheet: [{ text: 'Permanently delete', field: SPREADSHEET_FIELD, core: true }],
+      },
+    },
+  },
   subBlocks: [
     // Operation selector
     {

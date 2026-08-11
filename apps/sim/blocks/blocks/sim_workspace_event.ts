@@ -23,6 +23,23 @@ export const SimWorkspaceEventBlock: BlockConfig = {
   - Alert conditions (latency spike, cost threshold, consecutive failures, ...) fire at most once per cooldown window; plain events fire on every occurrence.
   - Compose any blocks downstream (Slack, email, webhooks, custom logic) to act on the event payload.
   `,
+  canvasPresentation: {
+    defaultTitle: 'Sim Workspace Events',
+    /*
+     * The event is what the card is about; the workflow filter narrows it and
+     * stays optional, because an empty selection watches every workflow rather
+     * than none. The per-condition thresholds are already gated on the event,
+     * so naming them would only crowd the line.
+     */
+    triggerSentences: {
+      default: [
+        'Run on',
+        { field: 'eventType', core: true },
+        { text: 'from', field: 'workflowIds' },
+      ],
+    },
+  },
+
   subBlocks: [...getTrigger(SIM_WORKSPACE_EVENT_TRIGGER_ID).subBlocks],
 
   tools: {

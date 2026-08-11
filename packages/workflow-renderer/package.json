@@ -16,6 +16,10 @@
     ".": {
       "types": "./src/index.ts",
       "default": "./src/index.ts"
+    },
+    "./note-colors": {
+      "types": "./src/note/note-colors.ts",
+      "default": "./src/note/note-colors.ts"
     }
   },
   "scripts": {
@@ -23,25 +27,33 @@
     "lint": "biome check --write --unsafe .",
     "lint:check": "biome check .",
     "format": "biome format --write .",
-    "format:check": "biome format ."
+    "format:check": "biome format .",
+    "test": "vitest run"
   },
   "peerDependencies": {
     "@sim/emcn": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*",
     "react": "^19",
     "reactflow": "^11.11.4",
     "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "streamdown": ">=2.5.0"
   },
   "devDependencies": {
     "@sim/emcn": "workspace:*",
     "@sim/tsconfig": "workspace:*",
     "@sim/utils": "workspace:*",
+    "@sim/workflow-types": "workspace:*",
+    "@testing-library/jest-dom": "^6.6.3",
     "@types/react": "^19",
+    "jsdom": "^26.0.0",
     "react": "19.2.4",
     "reactflow": "^11.11.4",
     "remark-breaks": "^4.0.0",
+    "remark-gfm": "^4.0.1",
     "streamdown": "2.5.0",
-    "typescript": "^7.0.2"
+    "typescript": "^7.0.2",
+    "vitest": "^4.1.0"
   }
 }

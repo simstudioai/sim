@@ -1,8 +1,10 @@
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
 import type { Edge, Node } from 'reactflow'
 import { TriggerUtils } from '@/lib/workflows/triggers/triggers'
 import { clampPositionToContainer } from '@/app/workspace/[workspaceId]/w/[workflowId]/utils/node-position-utils'
 import type { BlockState } from '@/stores/workflows/workflow/types'
+
+export const SUBFLOW_DROP_TARGET_CLASS = 'subflow-node-drop-target'
 
 /**
  * Collects all descendant block IDs for container blocks (loop/parallel) in the given set.
@@ -108,17 +110,30 @@ export function isPositionalTriggerBlock(
 }
 
 /**
+ * Returns whether a container should be emphasized as a new drop target.
+ * Moving within the block's existing container is a position change, not a
+ * re-parent operation, so it must not activate the container highlight.
+ */
+export function shouldHighlightContainerDropTarget(
+  currentParentId: string | null | undefined,
+  targetContainerId: string
+): boolean {
+  return currentParentId !== targetContainerId
+}
+
+/**
  * Clears drag highlight classes and resets cursor state.
  * Used when drag operations end or are cancelled.
  */
 export function clearDragHighlights(): void {
-  document.querySelectorAll('.loop-node-drag-over, .parallel-node-drag-over').forEach((el) => {
-    el.classList.remove('loop-node-drag-over', 'parallel-node-drag-over')
+  document.querySelectorAll(`.${SUBFLOW_DROP_TARGET_CLASS}`).forEach((el) => {
+    el.classList.remove(SUBFLOW_DROP_TARGET_CLASS)
   })
   document.body.style.cursor = ''
 }
 
 interface BlockData {
+  type?: string
   height?: number
   data?: {
     parentId?: string
@@ -154,11 +169,15 @@ export function getClampedPositionForNode(
     height: parentNode.data?.height || CONTAINER_DIMENSIONS.DEFAULT_HEIGHT,
   }
   const blockDimensions = {
-    width: BLOCK_DIMENSIONS.FIXED_WIDTH,
-    height: Math.max(
-      currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
-      BLOCK_DIMENSIONS.MIN_HEIGHT
-    ),
+    width:
+      currentBlock?.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : BLOCK_DIMENSIONS.FIXED_WIDTH,
+    height:
+      currentBlock?.type === 'note'
+        ? currentBlock.height || getNoteBlockHeight(true)
+        : Math.max(
+            currentBlock?.height || BLOCK_DIMENSIONS.MIN_HEIGHT,
+            BLOCK_DIMENSIONS.MIN_HEIGHT
+          ),
   }
 
   return clampPositionToContainer(nodePosition, containerDimensions, blockDimensions)

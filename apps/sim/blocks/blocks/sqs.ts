@@ -15,6 +15,17 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
   bgColor: 'linear-gradient(45deg, #2E27AD 0%, #527FFF 100%)',
   iconColor: '#527FFF',
   icon: SQSIcon,
+  canvasPresentation: {
+    defaultTitle: 'Amazon SQS',
+    sentences: {
+      byOperation: {
+        send: [
+          { text: 'Send', field: 'data', core: true },
+          { text: 'to queue', field: 'queueUrl', core: true },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',
@@ -73,6 +84,7 @@ export const SQSBlock: BlockConfig<SqsResponse> = {
     {
       id: 'data',
       title: 'Data (JSON)',
+      canvasNoun: 'a message body',
       type: 'code',
       placeholder: '{\n  "name": "John Doe",\n  "email": "john@example.com",\n  "active": true\n}',
       condition: { field: 'operation', value: 'send' },

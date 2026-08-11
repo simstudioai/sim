@@ -90,6 +90,12 @@ export interface CommandItemProps {
   icon: ComponentType<{ className?: string }>
   bgColor: string
   showColoredIcon?: boolean
+  /**
+   * Core workflow block type. Renders as the shared accent chip only when the
+   * type has a mapped accent; unmapped types — every integration block — fall
+   * back to their catalog `bgColor` tile.
+   */
+  workflowType?: string
   /** Primary text of the row. */
   label: string
 }

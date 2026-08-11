@@ -128,6 +128,55 @@ export const MintlifyBlock: BlockConfig = {
   bgColor: '#000000',
   icon: MintlifyIcon,
   authMode: AuthMode.ApiKey,
+  canvasPresentation: {
+    defaultTitle: 'Mintlify',
+    sentences: {
+      byOperation: {
+        trigger_update: [{ text: 'Deploy project', field: 'projectId', core: true }],
+        get_update_status: [{ text: 'Check deployment', field: 'statusId', core: true }],
+        trigger_preview: [{ text: 'Deploy branch', field: 'branch', core: true }, 'as a preview'],
+        trigger_automation: [{ text: 'Run automation', field: 'automationId', core: true }],
+        create_agent_job: [{ text: 'Ask the docs agent to', field: 'prompt', core: true }],
+        get_agent_job: [{ text: 'Check agent job', field: 'jobId', core: true }],
+        send_agent_message: [
+          { text: 'Send', field: 'prompt', core: true },
+          { text: 'to agent job', field: 'jobId', core: true },
+        ],
+        detect_ai_prose: [
+          { text: 'Check page', field: 'deslopPath', core: true },
+          'for AI-sounding prose',
+        ],
+        search: [
+          { text: 'Search the docs at', field: 'domain', core: true },
+          { text: 'for', field: 'query', core: true },
+          { text: ', tagged', field: 'tag' },
+        ],
+        get_page_content: [
+          { text: 'Read page', field: 'pagePath', core: true },
+          { text: 'from', field: 'domain', core: true },
+        ],
+        create_assistant_message: [
+          { text: 'Ask the docs assistant', field: 'message', core: true },
+        ],
+        get_feedback: ['List documentation feedback', { text: ', since', field: 'dateFrom' }],
+        get_feedback_by_page: [
+          'List documentation feedback by page',
+          { text: ', since', field: 'dateFrom' },
+        ],
+        get_assistant_conversations: [
+          'List assistant conversations',
+          { text: ', since', field: 'dateFrom' },
+        ],
+        get_assistant_caller_stats: [
+          'Report assistant usage by caller',
+          { text: ', since', field: 'dateFrom' },
+        ],
+        get_searches: ['List search queries', { text: ', since', field: 'dateFrom' }],
+        get_views: ['Report page views', { text: ', since', field: 'dateFrom' }],
+        get_visitors: ['Report unique visitors', { text: ', since', field: 'dateFrom' }],
+      },
+    },
+  },
 
   subBlocks: [
     {

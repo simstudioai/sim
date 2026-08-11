@@ -15,6 +15,52 @@ export const MicrosoftAdBlock: BlockConfig<MicrosoftAdResponse> = {
   integrationType: IntegrationType.Security,
   bgColor: '#0078D4',
   icon: AzureIcon,
+  canvasPresentation: {
+    defaultTitle: 'Azure AD',
+    sentences: {
+      byOperation: {
+        list_users: [
+          'List users',
+          { text: ', matching', field: 'search' },
+          { text: ', where', field: 'filter' },
+        ],
+        get_user: [{ text: 'Fetch user', field: 'userId', core: true }],
+        create_user: [
+          { text: 'Create user', field: 'displayName', core: true },
+          { text: ', signing in as', field: 'userPrincipalName' },
+        ],
+        update_user: [
+          { text: 'Update user', field: 'userId', core: true },
+          { text: ', renaming them to', field: 'displayName' },
+        ],
+        delete_user: [{ text: 'Delete user', field: 'userId', core: true }],
+        list_groups: [
+          'List groups',
+          { text: ', matching', field: 'search' },
+          { text: ', where', field: 'filter' },
+        ],
+        get_group: [{ text: 'Fetch group', field: 'groupId', core: true }],
+        create_group: [
+          { text: 'Create group', field: 'groupDisplayName', core: true },
+          { text: ', as a', field: 'groupTypes' },
+        ],
+        update_group: [
+          { text: 'Update group', field: 'groupId', core: true },
+          { text: ', renaming it to', field: 'groupDisplayName' },
+        ],
+        delete_group: [{ text: 'Delete group', field: 'groupId', core: true }],
+        list_group_members: [{ text: 'List members of group', field: 'groupId', core: true }],
+        add_group_member: [
+          { text: 'Add member', field: 'memberId', core: true },
+          { text: 'to group', field: 'groupId', core: true },
+        ],
+        remove_group_member: [
+          { text: 'Remove member', field: 'memberId', core: true },
+          { text: 'from group', field: 'groupId', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.OAuth,
   subBlocks: [
     {

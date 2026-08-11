@@ -49,6 +49,19 @@ function parseStringArray(value: unknown): string[] | undefined {
 }
 
 /**
+ * Canonical basic/advanced pair for the board target, shared by the card
+ * sentences below. Listing both members is what keeps the sentence working for
+ * an advanced-mode user, who has only the manual field filled.
+ */
+const BOARD_FIELD = ['boardSelector', 'manualBoardId'] as const
+
+/**
+ * Where activity is read from: a board or a single card. Both are optional and
+ * mutually exclusive in practice, so the first one filled is the real source.
+ */
+const ACTIVITY_SOURCE_FIELD = ['boardSelector', 'manualBoardId', 'cardId'] as const
+
+/**
  * Trello uses a custom token flow and non-UUID credential IDs, so the block keeps
  * the normal OAuth block UX while relying on the custom Trello auth routes.
  */
@@ -64,6 +77,96 @@ export const TrelloBlock: BlockConfig<TrelloResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#0052CC',
   icon: TrelloIcon,
+  canvasPresentation: {
+    defaultTitle: 'Trello',
+    sentences: {
+      byOperation: {
+        trello_list_lists: [
+          { text: 'Fetch the lists on board', field: BOARD_FIELD, core: true },
+          { text: ', filtered to', field: 'listFilter' },
+        ],
+        trello_list_cards: [
+          'List cards',
+          { text: 'from board', field: BOARD_FIELD },
+          { text: 'in list', field: 'listId' },
+          { text: ', filtered to', field: 'cardFilter' },
+        ],
+        trello_search: [
+          { text: 'Search for', field: 'searchQuery', core: true },
+          { text: ', within boards', field: 'searchBoardIds' },
+          { text: ', up to', field: 'searchCardsLimit', after: 'cards' },
+        ],
+        trello_create_card: [
+          { text: 'Create card', field: 'name', core: true },
+          { text: 'in list', field: 'listId' },
+          { text: ', due', field: 'due' },
+        ],
+        trello_get_card: [{ text: 'Fetch card', field: 'cardId', core: true }],
+        trello_update_card: [
+          { text: 'Update card', field: 'cardId', core: true },
+          { text: ', renaming to', field: 'name' },
+          { text: ', moving to list', field: 'idList' },
+        ],
+        trello_delete_card: [{ text: 'Delete card', field: 'cardId', core: true }],
+        trello_get_actions: [
+          'Fetch activity',
+          { text: 'from', field: ACTIVITY_SOURCE_FIELD },
+          { text: ', filtered to', field: 'filter' },
+          { text: ', up to', field: 'limit', after: 'actions' },
+        ],
+        trello_add_comment: [
+          { text: 'Comment', field: 'text', core: true },
+          { text: 'on card', field: 'cardId', core: true },
+        ],
+        trello_add_checklist: [
+          { text: 'Add checklist', field: 'checklistName', core: true },
+          { text: 'to card', field: 'cardId', core: true },
+        ],
+        trello_add_checklist_item: [
+          { text: 'Add item', field: 'itemName', core: true },
+          { text: 'to checklist', field: 'checklistId', core: true },
+        ],
+        trello_update_checklist_item: [
+          { text: 'Update checklist item', field: 'checkItemId', core: true },
+          { text: ', marking it', field: 'checkItemState' },
+          { text: ', renaming to', field: 'checkItemName' },
+        ],
+        trello_add_label: [
+          { text: 'Add label', field: 'labelId', core: true },
+          { text: 'to card', field: 'cardId', core: true },
+        ],
+        trello_remove_label: [
+          { text: 'Remove label', field: 'labelId', core: true },
+          { text: 'from card', field: 'cardId', core: true },
+        ],
+        trello_add_member: [
+          { text: 'Assign member', field: 'memberId', core: true },
+          { text: 'to card', field: 'cardId', core: true },
+        ],
+        trello_remove_member: [
+          { text: 'Unassign member', field: 'memberId', core: true },
+          { text: 'from card', field: 'cardId', core: true },
+        ],
+        trello_list_members: [
+          { text: 'List the members of board', field: BOARD_FIELD, core: true },
+        ],
+        trello_create_board: [
+          { text: 'Create board', field: 'boardName', core: true },
+          { text: 'in workspace', field: 'idOrganization' },
+        ],
+        trello_get_board: [{ text: 'Fetch board', field: BOARD_FIELD, core: true }],
+        trello_create_list: [
+          { text: 'Create list', field: 'listName', core: true },
+          { text: 'on board', field: BOARD_FIELD },
+        ],
+        trello_update_list: [
+          { text: 'Update list', field: 'listId', core: true },
+          { text: ', renaming to', field: 'listName' },
+          { text: ', moving to board', field: 'moveListToBoardId' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

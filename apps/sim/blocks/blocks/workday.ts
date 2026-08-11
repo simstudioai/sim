@@ -13,6 +13,47 @@ export const WorkdayBlock: BlockConfig = {
   integrationType: IntegrationType.HR,
   bgColor: '#F5F0EB',
   icon: WorkdayIcon,
+  canvasPresentation: {
+    defaultTitle: 'Workday',
+    sentences: {
+      byOperation: {
+        get_worker: [{ text: 'Read profile of worker', field: 'workerId', core: true }],
+        list_workers: ['List workers', { text: ', up to', field: 'limit', after: 'per page' }],
+        create_prehire: [
+          { text: 'Create a pre-hire for', field: 'legalName', core: true },
+          { text: ', with email', field: 'email' },
+        ],
+        hire_employee: [
+          { text: 'Hire pre-hire', field: 'preHireId', core: true },
+          { text: 'into position', field: 'positionId' },
+          { text: ', starting', field: 'hireDate' },
+        ],
+        update_worker: [
+          { text: 'Update personal information of worker', field: 'workerId', core: true },
+          { text: ', setting', field: 'fields' },
+        ],
+        assign_onboarding: [
+          {
+            text: 'Assign onboarding plan',
+            field: 'onboardingPlanId',
+            core: true,
+          },
+          { text: 'to worker', field: 'workerId', core: true },
+        ],
+        get_organizations: ['List organizations', { text: 'of type', field: 'orgType' }],
+        change_job: [
+          { text: 'Change job of worker', field: 'workerId', core: true },
+          { text: 'to position', field: 'positionId' },
+          { text: ', effective', field: 'effectiveDate' },
+        ],
+        get_compensation: [{ text: 'Read compensation of worker', field: 'workerId', core: true }],
+        terminate_worker: [
+          { text: 'Terminate worker', field: 'workerId', core: true },
+          { text: ', effective', field: 'terminationDate' },
+        ],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

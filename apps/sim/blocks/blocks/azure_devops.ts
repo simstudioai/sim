@@ -23,6 +23,73 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
   integrationType: IntegrationType.DevOps,
   bgColor: '#0078D4',
   icon: AzureIcon,
+  canvasPresentation: {
+    defaultTitle: 'Azure DevOps',
+    sentences: {
+      byOperation: {
+        azure_devops_list_pipelines: [{ text: 'List pipelines in', field: 'project', core: true }],
+        azure_devops_get_pipeline: [
+          { text: 'Read pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'project' },
+        ],
+        azure_devops_list_pipeline_runs: [
+          { text: 'List runs of pipeline', field: 'pipelineId', core: true },
+          { text: 'in', field: 'project' },
+        ],
+        azure_devops_get_pipeline_run: [
+          { text: 'Read run', field: 'runId', core: true },
+          { text: 'of pipeline', field: 'pipelineId' },
+        ],
+        azure_devops_list_builds: [
+          { text: 'List builds in', field: 'project', core: true },
+          { text: ', with result', field: 'resultFilter' },
+          { text: ', up to', field: 'top', after: 'results' },
+        ],
+        azure_devops_list_build_logs: [
+          { text: 'List logs for build', field: 'buildId', core: true },
+          { text: 'in', field: 'project' },
+        ],
+        azure_devops_get_build_log: [
+          { text: 'Read log', field: 'logId', core: true },
+          { text: 'from build', field: 'buildId' },
+        ],
+        azure_devops_get_build_timeline: [
+          { text: 'Read execution timeline of build', field: 'buildId', core: true },
+        ],
+        azure_devops_get_work_items_between_builds: [
+          { text: 'List work items from build', field: 'fromBuildId', core: true },
+          { text: 'to build', field: 'toBuildId' },
+        ],
+        azure_devops_query_work_items: [
+          { text: 'Find work items matching', field: 'wiqlQuery', core: true },
+        ],
+        azure_devops_get_work_item: [
+          { text: 'Read work item', field: 'workItemId', core: true },
+          { text: 'in', field: 'project' },
+        ],
+        azure_devops_get_work_items_batch: [
+          { text: 'Read details for work items', field: 'workItemIds', core: true },
+        ],
+        azure_devops_create_work_item: [
+          { text: 'Create', field: 'workItemType', core: true },
+          { text: 'titled', field: 'title', core: true },
+          { text: ', assigned to', field: 'assignedTo' },
+        ],
+        azure_devops_update_work_item: [
+          { text: 'Update work item', field: 'workItemId', core: true },
+          { text: ', setting state to', field: 'state' },
+          { text: ', assigning it to', field: 'assignedTo' },
+        ],
+        azure_devops_add_comment: [
+          { text: 'Comment', field: 'commentText', core: true },
+          { text: 'on work item', field: 'workItemId', core: true },
+        ],
+        azure_devops_get_comments: [
+          { text: 'List comments on work item', field: 'workItemId', core: true },
+        ],
+      },
+    },
+  },
   authMode: AuthMode.ApiKey,
   triggerAllowed: true,
 
@@ -152,6 +219,7 @@ export const AzureDevOpsBlock: BlockConfig<AzureDevOpsResponse> = {
     {
       id: 'fromBuildId',
       title: 'From Build ID',
+      canvasNoun: 'a build ID',
       type: 'short-input',
       required: true,
       condition: { field: 'operation', value: 'azure_devops_get_work_items_between_builds' },

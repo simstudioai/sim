@@ -4,6 +4,7 @@ import type { ComponentType } from 'react'
 import { memo } from 'react'
 import { cn } from '@sim/emcn'
 import { File, Workflow } from '@sim/emcn/icons'
+import { WorkflowTypeIcon } from '@sim/workflow-renderer'
 import { Command } from 'cmdk'
 import type { CommandItemProps } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
 import { COMMAND_ITEM_CLASSNAME } from '@/app/workspace/[workspaceId]/w/components/sidebar/components/search-modal/utils'
@@ -16,23 +17,28 @@ export const MemoizedCommandItem = memo(
     icon: Icon,
     bgColor,
     showColoredIcon,
+    workflowType,
     label,
   }: CommandItemProps) {
     return (
       <Command.Item value={value} onSelect={onSelect} className={COMMAND_ITEM_CLASSNAME}>
-        <div
-          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-          style={{ background: showColoredIcon ? bgColor : 'transparent' }}
-        >
-          <Icon
-            className={cn(
-              'transition-transform duration-100 group-hover:scale-110',
-              showColoredIcon
-                ? `size-[10px] ${getTileIconColorClass(bgColor)}`
-                : 'size-[16px] text-[var(--text-icon)]'
-            )}
-          />
-        </div>
+        {workflowType ? (
+          <WorkflowTypeIcon type={workflowType} Icon={Icon} />
+        ) : (
+          <div
+            className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
+            style={{ background: showColoredIcon ? bgColor : 'transparent' }}
+          >
+            <Icon
+              className={cn(
+                'transition-transform duration-100 group-hover:scale-110',
+                showColoredIcon
+                  ? `size-[10px] ${getTileIconColorClass(bgColor)}`
+                  : 'size-[16px] text-[var(--text-icon)]'
+              )}
+            />
+          </div>
+        )}
         <span className='truncate text-[var(--text-body)]'>{label}</span>
       </Command.Item>
     )
@@ -42,6 +48,7 @@ export const MemoizedCommandItem = memo(
     prev.icon === next.icon &&
     prev.bgColor === next.bgColor &&
     prev.showColoredIcon === next.showColoredIcon &&
+    prev.workflowType === next.workflowType &&
     prev.label === next.label
 )
 

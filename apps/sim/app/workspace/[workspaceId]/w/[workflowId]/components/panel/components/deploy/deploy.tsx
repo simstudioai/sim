@@ -1,7 +1,7 @@
 'use client'
 
 import { useState } from 'react'
-import { Button, Tooltip } from '@sim/emcn'
+import { Chip, Tooltip } from '@sim/emcn'
 import { DeployModal } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/deploy/components/deploy-modal/deploy-modal'
 import {
   useChangeDetection,
@@ -16,16 +16,10 @@ import { useWorkflowRegistry } from '@/stores/workflows/registry/store'
 interface DeployProps {
   activeWorkflowId: string | null
   userPermissions: WorkspaceUserPermissions
-  className?: string
   disabled?: boolean
 }
 
-export function Deploy({
-  activeWorkflowId,
-  userPermissions,
-  className,
-  disabled = false,
-}: DeployProps) {
+export function Deploy({ activeWorkflowId, userPermissions, disabled = false }: DeployProps) {
   const [isModalOpen, setIsModalOpen] = useState(false)
   const hydrationPhase = useWorkflowRegistry((state) => state.hydration.phase)
   const isRegistryLoading = hydrationPhase === 'idle' || hydrationPhase === 'state-loading'
@@ -123,17 +117,14 @@ export function Deploy({
     <>
       <Tooltip.Root>
         <Tooltip.Trigger asChild>
-          <span>
-            <Button
-              className='h-[30px] gap-1.5 px-2.5'
-              variant={
-                isRegistryLoading ? 'active' : changeDetected || !isDeployed ? 'tertiary' : 'active'
-              }
+          <span className='inline-flex'>
+            <Chip
+              variant='border'
               onClick={onDeployClick}
               disabled={isRegistryLoading || isDisabled}
             >
               {getButtonLabel()}
-            </Button>
+            </Chip>
           </span>
         </Tooltip.Trigger>
         <Tooltip.Content>{getTooltipText()}</Tooltip.Content>

@@ -1,4 +1,5 @@
 import { createLogger, type Logger } from '@sim/logger'
+import { sleep } from '@sim/utils/helpers'
 import { isTimeoutAbortReason } from '@/lib/core/execution-limits/types'
 import { redactApiKeys } from '@/lib/core/security/redaction'
 import { normalizeStringArray } from '@/lib/core/utils/arrays'
@@ -24,6 +25,7 @@ import {
 } from '@/executor/constants'
 import type { DAGNode } from '@/executor/dag/builder'
 import { ChildWorkflowError } from '@/executor/errors/child-workflow-error'
+import { isRetryableBlockError, resolveBlockRetryPolicy } from '@/executor/execution/block-retry'
 import type {
   BlockStateWriter,
   ContextExtensions,
@@ -225,9 +227,16 @@ export class BlockExecutor {
 
     let streamingPartialOutput: Record<string, any> | undefined
     try {
-      const output = handler.executeWithNode
-        ? await handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
-        : await handler.execute(blockCtx, block, resolvedInputs)
+      /**
+       * Only the handler call is retried. A streaming handler returns before any
+       * token is drained, so a replay cannot duplicate output the client has
+       * already seen.
+       */
+      const output = await this.runHandlerWithRetry(blockCtx, block, blockLog, () =>
+        handler.executeWithNode
+          ? handler.executeWithNode(blockCtx, block, resolvedInputs, nodeMetadata)
+          : handler.execute(blockCtx, block, resolvedInputs)
+      )
 
       const isStreamingExecution =
         output && typeof output === 'object' && 'stream' in output && 'execution' in output
@@ -464,6 +473,52 @@ export class BlockExecutor {
 
   private findHandler(block: SerializedBlock): BlockHandler | undefined {
     return this.blockHandlers.find((h) => h.canHandle(block))
+  }
+
+  /**
+   * Runs the block handler, replaying it on failure while tries remain.
+   *
+   * Rethrows the final try's error so the caller's catch — and with it the error
+   * port — behaves exactly as it does for a block that never retried. Retrying
+   * only ever delays the existing outcome; it never changes it.
+   */
+  private async runHandlerWithRetry<T>(
+    ctx: ExecutionContext,
+    block: SerializedBlock,
+    blockLog: BlockLog | undefined,
+    invoke: () => Promise<T>
+  ): Promise<T> {
+    const policy = resolveBlockRetryPolicy(block)
+    if (!policy) return invoke()
+
+    let tries = 0
+    try {
+      for (;;) {
+        tries++
+        try {
+          return await invoke()
+        } catch (error) {
+          const isFinalTry = tries >= policy.maxTries
+          if (isFinalTry || ctx.abortSignal?.aborted || !isRetryableBlockError(error)) throw error
+
+          this.execLogger.warn('Block failed; retrying', {
+            blockId: block.id,
+            blockType: block.metadata?.id,
+            tries,
+            maxTries: policy.maxTries,
+            waitBetweenTriesMs: policy.waitBetweenTriesMs,
+            error: normalizeError(error),
+          })
+
+          if (policy.waitBetweenTriesMs > 0) await sleep(policy.waitBetweenTriesMs)
+
+          /** `sleep` is not abort-aware, so a run stopped mid-wait must not start another try. */
+          if (ctx.abortSignal?.aborted) throw error
+        }
+      }
+    } finally {
+      if (blockLog && tries > 1) blockLog.tries = tries
+    }
   }
 
   private async handleBlockError(

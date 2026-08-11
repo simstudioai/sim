@@ -58,13 +58,15 @@ export const ActionsGroup = memo(function ActionsGroup({
 export const BlocksGroup = memo(function BlocksGroup({
   items,
   onSelect,
+  heading = 'Blocks',
 }: {
   items: SearchBlockItem[]
   onSelect: (block: SearchBlockItem) => void
+  heading?: string | null
 }) {
   if (items.length === 0) return null
   return (
-    <Command.Group heading='Blocks' className={GROUP_HEADING_CLASSNAME}>
+    <Command.Group heading={heading ?? undefined} className={GROUP_HEADING_CLASSNAME}>
       {items.map((block) => (
         <MemoizedCommandItem
           key={block.id}
@@ -73,6 +75,7 @@ export const BlocksGroup = memo(function BlocksGroup({
           icon={block.icon}
           bgColor={block.bgColor}
           showColoredIcon
+          workflowType={block.type}
           label={block.name}
         />
       ))}

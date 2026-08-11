@@ -1,6 +1,7 @@
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
-import { getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
+import type { BlockRetryConfig } from '@sim/workflow-types/workflow'
+import { filterAcyclicEdges, getWorkflowBlockNameConflict } from '@sim/workflow-types/workflow'
 import type { Edge } from 'reactflow'
 import { create } from 'zustand'
 import { devtools } from 'zustand/middleware'
@@ -27,7 +28,6 @@ import type {
 } from '@/stores/workflows/workflow/types'
 import {
   clampParallelBatchSize,
-  filterAcyclicEdges,
   findAllDescendantNodes,
   generateLoopBlocks,
   generateParallelBlocks,
@@ -147,6 +147,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
           enabled: boolean
           horizontalHandles?: boolean
           advancedMode?: boolean
+          errorEnabled?: boolean
+          retry?: BlockRetryConfig
           triggerMode?: boolean
           height?: number
           data?: Record<string, any>
@@ -172,6 +174,8 @@ export const useWorkflowStore = create<WorkflowStore>()(
             enabled: block.enabled ?? true,
             horizontalHandles: block.horizontalHandles ?? true,
             advancedMode: block.advancedMode ?? false,
+            errorEnabled: block.errorEnabled ?? false,
+            retry: block.retry,
             triggerMode: block.triggerMode ?? false,
             height: block.height ?? 0,
             data: block.data,
@@ -784,6 +788,44 @@ export const useWorkflowStore = create<WorkflowStore>()(
           success: true,
           changedSubblocks,
         }
+      },
+
+      setBlockErrorEnabled: (id: string, errorEnabled: boolean) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) return state
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                errorEnabled,
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
+        get().updateLastSaved()
+      },
+
+      setBlockRetry: (id: string, retry: BlockRetryConfig) => {
+        set((state) => {
+          const block = state.blocks[id]
+          if (!block) return state
+          return {
+            blocks: {
+              ...state.blocks,
+              [id]: {
+                ...block,
+                retry,
+              },
+            },
+            edges: [...state.edges],
+            loops: { ...state.loops },
+          }
+        })
+        get().updateLastSaved()
       },
 
       setBlockAdvancedMode: (id: string, advancedMode: boolean) => {

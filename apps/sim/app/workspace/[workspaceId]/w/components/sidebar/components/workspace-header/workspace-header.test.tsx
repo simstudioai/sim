@@ -80,7 +80,7 @@ const NO_PINS: ReadonlySet<string> = new Set()
 let container: HTMLDivElement
 let root: Root
 
-function render() {
+function render(overrides: Partial<Parameters<typeof WorkspaceHeader>[0]> = {}) {
   ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
   container = document.createElement('div')
   document.body.appendChild(container)
@@ -105,6 +105,7 @@ function render() {
         onUploadLogo={() => {}}
         onLeaveWorkspace={async () => {}}
         isLeavingWorkspace={false}
+        {...overrides}
       />
     )
   })
@@ -154,6 +155,21 @@ afterEach(() => {
 })
 
 describe('WorkspaceHeader workspace switcher highlight', () => {
+  it('shows the route workspace identity while the switcher list is unavailable', () => {
+    render({
+      activeWorkspace: { name: 'Brightwave' },
+      workspaceId: 'ws-brightwave',
+      workspaces: [],
+      isWorkspaceMenuOpen: false,
+    })
+
+    const switcher = container.querySelector('button[aria-label="Switch workspace"]')
+    expect(switcher).toBeDisabled()
+    expect(switcher).toHaveTextContent('Brightwave')
+    expect(switcher).toHaveTextContent('B')
+    expect(switcher?.querySelector('.animate-pulse')).toBeNull()
+  })
+
   it('leaves Enter unarmed until a cursor is on screen', () => {
     render()
 

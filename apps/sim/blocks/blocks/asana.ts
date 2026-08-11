@@ -4,6 +4,13 @@ import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import type { AsanaResponse } from '@/tools/asana/types'
 
+const WORKSPACE_FIELD = ['workspaceSelector', 'workspace'] as const
+const GET_TASKS_WORKSPACE_FIELD = ['getTasksWorkspaceSelector', 'getTasks_workspace'] as const
+const CREATE_PROJECT_WORKSPACE_FIELD = [
+  'createProjectWorkspaceSelector',
+  'createProject_workspace',
+] as const
+
 export const AsanaBlock: BlockConfig<AsanaResponse> = {
   type: 'asana',
   name: 'Asana',
@@ -15,6 +22,59 @@ export const AsanaBlock: BlockConfig<AsanaResponse> = {
   integrationType: IntegrationType.Productivity,
   bgColor: '#FFFFFF',
   icon: AsanaIcon,
+  canvasPresentation: {
+    defaultTitle: 'Asana',
+    sentences: {
+      byOperation: {
+        get_task: [
+          { text: 'Read task', field: 'taskGid', core: true },
+          { text: 'in project', field: 'getTasks_project' },
+          { text: ', from workspace', field: GET_TASKS_WORKSPACE_FIELD },
+        ],
+        create_task: [
+          { text: 'Create task', field: 'name', core: true },
+          { text: 'in workspace', field: WORKSPACE_FIELD },
+          { text: ', assigned to', field: 'assignee' },
+        ],
+        update_task: [
+          { text: 'Update task', field: 'taskGid', core: true },
+          { text: ', renaming it', field: 'name' },
+          { text: ', reassigning to', field: 'assignee' },
+        ],
+        get_projects: [{ text: 'List projects in workspace', field: WORKSPACE_FIELD, core: true }],
+        search_tasks: [
+          { text: 'Search tasks in workspace', field: WORKSPACE_FIELD, core: true },
+          { text: ', matching', field: 'searchText' },
+          { text: ', assigned to', field: 'assignee' },
+        ],
+        add_comment: [
+          { text: 'Add comment', field: 'commentText', core: true },
+          { text: 'to task', field: 'taskGid', core: true },
+        ],
+        create_subtask: [
+          { text: 'Create subtask', field: 'name', core: true },
+          { text: 'under task', field: 'subtaskParentGid', core: true },
+          { text: ', assigned to', field: 'assignee' },
+        ],
+        delete_task: [{ text: 'Delete task', field: 'taskGid', core: true }],
+        add_followers: [
+          { text: 'Add', field: 'followers', core: true },
+          { text: 'as followers of task', field: 'taskGid', core: true },
+        ],
+        create_project: [
+          { text: 'Create project', field: 'name', core: true },
+          { text: 'in workspace', field: CREATE_PROJECT_WORKSPACE_FIELD },
+        ],
+        get_project: [{ text: 'Read project', field: 'projectGid', core: true }],
+        list_workspaces: ['List all workspaces'],
+        create_section: [
+          { text: 'Create section', field: 'name', core: true },
+          { text: 'in project', field: 'projectGid', core: true },
+        ],
+        list_sections: [{ text: 'List sections in project', field: 'projectGid', core: true }],
+      },
+    },
+  },
   subBlocks: [
     {
       id: 'operation',

@@ -3,6 +3,10 @@ import { AuthMode, type BlockConfig, IntegrationType } from '@/blocks/types'
 import { createVersionedToolSelector, normalizeFileInput } from '@/blocks/utils'
 import type { SttBlockResponse } from '@/tools/stt/types'
 
+const AUDIO_FIELD = ['audioFile', 'audioFileReference', 'audioUrl'] as const
+/* v2 drops the URL input, keeping only the upload/reference pair. */
+const AUDIO_V2_FIELD = ['audioFile', 'audioFileReference'] as const
+
 export const SttBlock: BlockConfig<SttBlockResponse> = {
   type: 'stt',
   name: 'Speech-to-Text',
@@ -17,6 +21,15 @@ export const SttBlock: BlockConfig<SttBlockResponse> = {
   integrationType: IntegrationType.AI,
   bgColor: '#181C1E',
   icon: STTIcon,
+  canvasPresentation: {
+    defaultTitle: 'Speech-to-Text',
+    sentences: {
+      default: [
+        { text: 'Transcribe', field: AUDIO_FIELD, core: true },
+        { text: 'with', field: 'provider' },
+      ],
+    },
+  },
 
   subBlocks: [
     // Provider selection
@@ -366,6 +379,15 @@ export const SttV2Block: BlockConfig<SttBlockResponse> = {
   type: 'stt_v2',
   name: 'Speech-to-Text',
   hideFromToolbar: false,
+  canvasPresentation: {
+    defaultTitle: 'Speech-to-Text',
+    sentences: {
+      default: [
+        { text: 'Transcribe', field: AUDIO_V2_FIELD, core: true },
+        { text: 'with', field: 'provider' },
+      ],
+    },
+  },
   subBlocks: sttV2SubBlocks,
   tools: {
     access: [
