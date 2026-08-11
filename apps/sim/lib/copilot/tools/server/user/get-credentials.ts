@@ -110,7 +110,11 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         credentialProviderMatchesService(providerId, candidate)
       )
       if (!credentialVisibility.isCredentialVisible({ providerId, type: 'oauth' })) continue
-      connectedProviderIds.add(providerId)
+      // The canonical id, not the credential's own: `notConnectedServices` below
+      // compares against `service.providerId`, so recording an alternate
+      // authorization server's id (`salesforce-sandbox`) verbatim would list the
+      // service as both connected and not connected.
+      connectedProviderIds.add(service?.providerId ?? providerId)
 
       const [baseProvider, featureType = 'default'] = providerId.split('-')
       let displayName = ''
@@ -163,7 +167,7 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         const service = allOAuthServices.find((candidate) =>
           credentialProviderMatchesService(cred.providerId, candidate)
         )
-        connectedProviderIds.add(cred.providerId)
+        connectedProviderIds.add(service?.providerId ?? cred.providerId)
         const [, featureType = 'default'] = cred.providerId.split('-')
         connectedCredentials.push({
           id: cred.id,

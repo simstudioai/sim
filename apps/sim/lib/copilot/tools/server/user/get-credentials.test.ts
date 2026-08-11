@@ -264,6 +264,50 @@ describe('getCredentialsServerTool', () => {
     ).not.toContain('claude-platform')
   })
 
+  it('does not list a service as not-connected when only an alternate provider is connected', async () => {
+    // A credential stored under an alternate authorization server
+    // (`salesforce-sandbox`) still connects the canonical service. Recording the
+    // raw id would list Salesforce as connected AND not connected at once.
+    getAllOAuthServicesMock.mockReturnValue([
+      {
+        serviceId: 'salesforce',
+        providerId: 'salesforce',
+        additionalProviderIds: ['salesforce-sandbox'],
+        serviceAccountProviderId: 'salesforce-service-account',
+        name: 'Salesforce',
+        description: 'Salesforce CRM',
+        baseProvider: 'salesforce',
+        authType: 'oauth',
+      },
+    ])
+    // beforeEach already queued the default Google row; replace the queue so
+    // the sandbox account is the only credential this case sees.
+    resetDbChainMock()
+    wireDb(
+      [
+        {
+          id: 'acct-sf-sandbox',
+          providerId: 'salesforce-sandbox',
+          accountId: 'sf-1',
+          idToken: null,
+          updatedAt: new Date('2026-04-17T02:26:05.546Z'),
+        },
+      ],
+      [{ email: 'brent@cellular.so' }]
+    )
+
+    const result = await getCredentialsServerTool.execute({}, { userId: 'user-1' })
+
+    expect(
+      result.oauth.connected.credentials.map((c: { provider: string }) => c.provider)
+    ).toContain('salesforce-sandbox')
+    expect(
+      result.oauth.notConnected.services.map(
+        (service: { providerId: string }) => service.providerId
+      )
+    ).not.toContain('salesforce')
+  })
+
   it('hides shared service-account credentials disallowed for the viewer', async () => {
     getUserPermissionConfigMock.mockResolvedValue({ allowedIntegrations: ['slack'] })
     getAccessibleOAuthCredentialsMock.mockResolvedValue([

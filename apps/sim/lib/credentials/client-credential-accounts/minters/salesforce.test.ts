@@ -362,7 +362,11 @@ describe('mintSalesforceServiceAccountToken (JWT bearer)', () => {
   }
 
   /** Pulls the posted assertion apart and verifies its RS256 signature. */
-  function readPostedAssertion(): { header: any; claims: any; verified: boolean } {
+  function readPostedAssertion(): {
+    header: { alg: string; typ: string }
+    claims: { aud: string; iss: string; sub: string; exp: number }
+    verified: boolean
+  } {
     const [url, init] = mockFetch.mock.calls[0]
     expect(url).toBe(TOKEN_URL)
     const body = new URLSearchParams(init.body as string)
