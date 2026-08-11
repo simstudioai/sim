@@ -18,16 +18,9 @@ let ffmpegInitialized = false
 let ffmpegPath: string | null = null
 let ffprobePath: string | null = null
 
-/** Lazy system FFmpeg binary resolution, mirroring lib/audio/extractor.ts. */
-function ensureFfmpeg(): void {
-  if (ffmpegInitialized) {
-    if (!ffmpegPath) {
-      throw new Error(
-        'FFmpeg not found. Install: brew install ffmpeg (macOS) / apk add ffmpeg (Alpine) / apt-get install ffmpeg (Ubuntu)'
-      )
-    }
-    return
-  }
+/** Lazy system FFmpeg binary resolution, mirroring lib/audio/extractor.ts. Never throws. */
+function initFfmpegPath(): void {
+  if (ffmpegInitialized) return
   ffmpegInitialized = true
 
   try {
@@ -40,24 +33,38 @@ function ensureFfmpeg(): void {
 }
 
 /**
+ * Transcoding requires ffmpeg itself. Probing does not — kept separate from
+ * {@link initFfmpegPath} so a host with only ffprobe can still probe.
+ */
+function ensureFfmpeg(): void {
+  initFfmpegPath()
+  if (!ffmpegPath) {
+    throw new Error(
+      'FFmpeg not found. Install: brew install ffmpeg (macOS) / apk add ffmpeg (Alpine) / apt-get install ffmpeg (Ubuntu)'
+    )
+  }
+}
+
+/**
  * Mirrors fluent-ffmpeg's resolution order (FFPROBE_PATH, then PATH, then
  * ffmpeg's own directory) so replacing its ffprobe call does not narrow where
  * the binary may live for self-hosters.
  */
 function resolveFfprobePath(): string {
-  ensureFfmpeg()
   if (ffprobePath) return ffprobePath
 
   const binary = process.platform === 'win32' ? 'ffprobe.exe' : 'ffprobe'
   const configured = process.env.FFPROBE_PATH?.trim()
-  const sibling = ffmpegPath ? path.join(path.dirname(ffmpegPath), binary) : undefined
+  if (configured && existsSync(configured)) {
+    ffprobePath = configured
+    return ffprobePath
+  }
 
-  ffprobePath =
-    configured && existsSync(configured)
-      ? configured
-      : sibling && existsSync(sibling)
-        ? sibling
-        : binary
+  // Deliberately initFfmpegPath, not ensureFfmpeg: a missing ffmpeg must not
+  // stop a probe, since ffprobe may still be on PATH.
+  initFfmpegPath()
+  const sibling = ffmpegPath ? path.join(path.dirname(ffmpegPath), binary) : undefined
+  ffprobePath = sibling && existsSync(sibling) ? sibling : binary
   return ffprobePath
 }
 
