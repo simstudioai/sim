@@ -26,9 +26,15 @@ export const deploymentVersionParamsSchema = z.object({
   version: z.coerce.number().int().positive(),
 })
 
+/**
+ * Route params arrive as strings, so the numeric branch must coerce — a bare
+ * `z.number()` here makes every numeric version unreachable and leaves
+ * `active` as the only satisfiable value. Coercion of `'active'` yields NaN,
+ * fails `.int()`, and falls through to the literal branch, so ordering is safe.
+ */
 export const deploymentVersionOrActiveParamsSchema = z.object({
   id: z.string().min(1, 'Invalid workflow ID'),
-  version: z.union([z.number().int().positive(), z.literal('active')]),
+  version: z.union([z.coerce.number().int().positive(), z.literal('active')]),
 })
 
 export const deploymentVersionRouteParamsSchema = z.object({
