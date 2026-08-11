@@ -6,16 +6,17 @@
  * GitHub feed, so each environment independently controls which shell build
  * its clients are offered. The environment IS the channel:
  *
- * - dev.sim.ai      → `alpha`  (per-push prerelease builds from `dev`)
- * - staging.sim.ai  → `beta`   (per-push prerelease builds from `staging`)
+ * - dev.sim.ai      → `dev`      (per-push prerelease builds from `dev`)
+ * - staging.sim.ai  → `staging`  (per-push prerelease builds from `staging`)
  * - sim.ai + self-hosted/unknown → `latest` (stable vX.Y.Z releases only)
  *
  * Artifacts stay on GitHub Releases (dumb storage); the feed route picks the
  * right release for its channel and serves that release's electron-updater
  * manifest with download URLs rewritten to absolute GitHub asset URLs.
  *
- * Channels are strictly isolated: alpha serves only `-alpha.` prereleases,
- * beta only `-beta.` prereleases, and `latest` only stable releases. Builds
+ * Streams are strictly isolated: dev serves `-dev.` prereleases, staging
+ * `-staging.`, and `latest` only stable releases. The legacy `-alpha.` and
+ * `-beta.` tags remain readable so already-published builds keep updating. Builds
  * carry per-channel app identity (Sim Dev / Sim Staging / Sim), so serving a
  * stable prod-identity artifact to a dev shell would offer an update
  * Squirrel.Mac cannot apply (bundle-id mismatch) — each channel only ever
@@ -25,24 +26,24 @@ import { compareVersions } from '@/lib/desktop/min-version'
 
 export const DESKTOP_RELEASE_REPO = 'simstudioai/sim'
 
-export type DesktopUpdateChannel = 'alpha' | 'beta' | 'latest'
+export type DesktopUpdateChannel = 'dev' | 'staging' | 'latest'
 
 /** Maps a deployment hostname to its desktop update channel. */
 export function channelForHostname(hostname: string): DesktopUpdateChannel {
   const host = hostname.toLowerCase()
   if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) {
-    return 'alpha'
+    return 'dev'
   }
   if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'beta'
+    return 'staging'
   }
   return 'latest'
 }
 
 /** The channel a specific version belongs to, from its prerelease tag. */
 export function channelOfVersion(version: string): DesktopUpdateChannel {
-  if (version.includes('-alpha.')) return 'alpha'
-  if (version.includes('-beta.')) return 'beta'
+  if (version.includes('-dev.') || version.includes('-alpha.')) return 'dev'
+  if (version.includes('-staging.') || version.includes('-beta.')) return 'staging'
   return 'latest'
 }
 
