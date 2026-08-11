@@ -10,7 +10,11 @@ import { getAllowedIntegrationsFromEnv } from '@/lib/core/config/env-flags'
 import { getAccessibleOAuthCredentials } from '@/lib/credentials/environment'
 import { getPersonalAndWorkspaceEnv } from '@/lib/environment/utils'
 import { createIntegrationCredentialVisibility } from '@/lib/integrations/credential-visibility.server'
-import { getAllOAuthServices } from '@/lib/oauth'
+import {
+  canonicalizeServiceProviderId,
+  credentialProviderMatchesService,
+  getAllOAuthServices,
+} from '@/lib/oauth'
 import { intersectIntegrationAllowlists } from '@/lib/permission-groups/integration-allowlist'
 import { checkWorkspaceAccess, type WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 import { overlayVisibility } from '@/blocks/visibility/context'
@@ -106,9 +110,14 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
 
     for (const acc of accounts) {
       const providerId = acc.providerId
-      const service = allOAuthServices.find((candidate) => candidate.providerId === providerId)
+      const service = allOAuthServices.find((candidate) =>
+        credentialProviderMatchesService(providerId, candidate)
+      )
       if (!credentialVisibility.isCredentialVisible({ providerId, type: 'oauth' })) continue
-      connectedProviderIds.add(providerId)
+      // `notConnectedServices` below compares against `service.providerId`, so an
+      // alternate authorization server's id (`salesforce-sandbox`) has to fold
+      // onto it or the service is listed as connected AND not connected.
+      connectedProviderIds.add(canonicalizeServiceProviderId(providerId, service))
 
       const [baseProvider, featureType = 'default'] = providerId.split('-')
       let displayName = ''
@@ -158,12 +167,10 @@ export const getCredentialsServerTool: BaseServerTool<GetCredentialsParams, any>
         ) {
           continue
         }
-        const service = allOAuthServices.find(
-          (candidate) =>
-            candidate.providerId === cred.providerId ||
-            candidate.serviceAccountProviderId === cred.providerId
+        const service = allOAuthServices.find((candidate) =>
+          credentialProviderMatchesService(cred.providerId, candidate)
         )
-        connectedProviderIds.add(cred.providerId)
+        connectedProviderIds.add(canonicalizeServiceProviderId(cred.providerId, service))
         const [, featureType = 'default'] = cred.providerId.split('-')
         connectedCredentials.push({
           id: cred.id,

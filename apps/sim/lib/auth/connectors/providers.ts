@@ -13,6 +13,7 @@ import {
 } from '@/lib/core/utils/stream-limits'
 import { getBaseUrl } from '@/lib/core/utils/urls'
 import { getMicrosoftUserInfoFromIdToken } from '@/lib/oauth/microsoft'
+import { SALESFORCE_LOGIN_HOSTS } from '@/lib/oauth/salesforce'
 import { getCanonicalScopesForProvider } from '@/lib/oauth/utils'
 import { deriveZohoDeskBaseFromApiDomain } from '@/tools/zoho_desk/host-allowlist'
 
@@ -71,6 +72,61 @@ interface AttioWorkspaceMemberResponse {
     last_name?: string | null
     email_address?: string | null
     avatar_url?: string | null
+  }
+}
+
+/**
+ * Builds a Salesforce connector bound to one login host — `genericOAuth` takes
+ * static endpoints, so each authorization server needs its own registration.
+ * See {@link SALESFORCE_LOGIN_HOSTS} for why there are two.
+ */
+function salesforceConnector(providerId: string, loginHost: string): GenericOAuthConfig {
+  const userInfoUrl = `https://${loginHost}/services/oauth2/userinfo`
+  return {
+    providerId,
+    clientId: env.SALESFORCE_CLIENT_ID as string,
+    clientSecret: env.SALESFORCE_CLIENT_SECRET as string,
+    authorizationUrl: `https://${loginHost}/services/oauth2/authorize`,
+    tokenUrl: `https://${loginHost}/services/oauth2/token`,
+    userInfoUrl,
+    scopes: getCanonicalScopesForProvider('salesforce'),
+    pkce: true,
+    prompt: 'consent',
+    accessType: 'offline',
+    redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/${providerId}`,
+    getUserInfo: async (tokens) => {
+      try {
+        const response = await fetch(userInfoUrl, {
+          headers: {
+            Authorization: `Bearer ${tokens.accessToken}`,
+          },
+        })
+
+        if (!response.ok) {
+          await response.text().catch(() => {})
+          logger.error('Failed to fetch Salesforce user info', {
+            status: response.status,
+            providerId,
+          })
+          throw new Error('Failed to fetch user info')
+        }
+
+        const data = await response.json()
+
+        return {
+          id: `${(data.user_id || data.sub).toString()}-${generateId()}`,
+          name: data.name || 'Salesforce User',
+          email: data.email || syntheticConnectorEmail(providerId, data.user_id ?? data.sub),
+          emailVerified: data.email_verified === true,
+          image: data.picture || undefined,
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        }
+      } catch (error) {
+        logger.error('Error creating Salesforce user profile:', { error, providerId })
+        return null
+      }
+    },
   }
 }
 
@@ -935,51 +991,9 @@ export function buildConnectorProviders(): GenericOAuthConfig[] {
       },
     },
 
-    {
-      providerId: 'salesforce',
-      clientId: env.SALESFORCE_CLIENT_ID as string,
-      clientSecret: env.SALESFORCE_CLIENT_SECRET as string,
-      authorizationUrl: 'https://login.salesforce.com/services/oauth2/authorize',
-      tokenUrl: 'https://login.salesforce.com/services/oauth2/token',
-      userInfoUrl: 'https://login.salesforce.com/services/oauth2/userinfo',
-      scopes: getCanonicalScopesForProvider('salesforce'),
-      pkce: true,
-      prompt: 'consent',
-      accessType: 'offline',
-      redirectURI: `${getBaseUrl()}/api/auth/oauth2/callback/salesforce`,
-      getUserInfo: async (tokens) => {
-        try {
-          const response = await fetch('https://login.salesforce.com/services/oauth2/userinfo', {
-            headers: {
-              Authorization: `Bearer ${tokens.accessToken}`,
-            },
-          })
-
-          if (!response.ok) {
-            await response.text().catch(() => {})
-            logger.error('Failed to fetch Salesforce user info', {
-              status: response.status,
-            })
-            throw new Error('Failed to fetch user info')
-          }
-
-          const data = await response.json()
-
-          return {
-            id: `${(data.user_id || data.sub).toString()}-${generateId()}`,
-            name: data.name || 'Salesforce User',
-            email: data.email || syntheticConnectorEmail('salesforce', data.user_id ?? data.sub),
-            emailVerified: data.email_verified === true,
-            image: data.picture || undefined,
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }
-        } catch (error) {
-          logger.error('Error creating Salesforce user profile:', { error })
-          return null
-        }
-      },
-    },
+    ...Object.entries(SALESFORCE_LOGIN_HOSTS).map(([providerId, loginHost]) =>
+      salesforceConnector(providerId, loginHost)
+    ),
 
     {
       providerId: 'zoho-desk',

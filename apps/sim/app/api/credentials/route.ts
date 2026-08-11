@@ -30,7 +30,7 @@ import {
 } from '@/lib/credentials/service-account-secret'
 import { isTokenServiceAccountProviderId } from '@/lib/credentials/token-service-accounts/descriptors'
 import { TokenServiceAccountValidationError } from '@/lib/credentials/token-service-accounts/errors'
-import { getServiceConfigByProviderId } from '@/lib/oauth'
+import { getServiceConfigByProviderId, providerIdsForService } from '@/lib/oauth'
 import { SLACK_CUSTOM_BOT_PROVIDER_ID } from '@/lib/oauth/types'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { checkWorkspaceAccess } from '@/lib/workspaces/permissions/utils'
@@ -237,7 +237,7 @@ export const GET = withRouteHandler(async (request: NextRequest) => {
       whereClauses.push(eq(credential.type, type))
     }
     if (providerId) {
-      whereClauses.push(eq(credential.providerId, providerId))
+      whereClauses.push(inArray(credential.providerId, providerIdsForService(providerId)))
     }
 
     const isWorkspaceAdmin = workspaceAccess.canAdmin
@@ -331,6 +331,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       clientSecret,
       orgId,
       dataCenter,
+      authMethod,
+      privateKey,
+      username,
     } = parsed.data.body
 
     const workspaceAccess = await checkWorkspaceAccess(workspaceId, session.user.id)
@@ -392,6 +395,9 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
           clientSecret,
           orgId,
           dataCenter,
+          authMethod,
+          privateKey,
+          username,
         })
         resolvedProviderId = secret.providerId
         resolvedAccountId = null

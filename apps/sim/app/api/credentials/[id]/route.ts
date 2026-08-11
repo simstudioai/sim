@@ -90,6 +90,9 @@ export const PUT = withRouteHandler(
         clientSecret: body.clientSecret,
         orgId: body.orgId,
         dataCenter: body.dataCenter,
+        authMethod: body.authMethod,
+        privateKey: body.privateKey,
+        username: body.username,
         request,
       })
       if (!result.success) {
