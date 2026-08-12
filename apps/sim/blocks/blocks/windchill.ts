@@ -1,5 +1,5 @@
 import { getErrorMessage } from '@sim/utils/errors'
-import { DocumentIcon } from '@/components/icons'
+import { WindchillIcon } from '@/components/icons'
 import type { BlockConfig, BlockMeta } from '@/blocks/types'
 import { AuthMode, IntegrationType } from '@/blocks/types'
 import { normalizeFileInput } from '@/blocks/utils'
@@ -97,8 +97,8 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
   category: 'tools',
   integrationType: IntegrationType.Documents,
   authMode: AuthMode.ApiKey,
-  bgColor: '#4B5563',
-  icon: DocumentIcon,
+  bgColor: '#FFFFFF',
+  icon: WindchillIcon,
   canvasPresentation: {
     defaultTitle: 'Windchill',
     operationSubBlockId: 'operation',
@@ -808,7 +808,7 @@ export const WindchillBlockMeta = {
   url: 'https://www.ptc.com/en/products/windchill',
   templates: [
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill document approval intake',
       prompt:
         'Build a workflow that creates a Windchill document from an approved intake form, uploads its primary content, and sends the resulting document identifier to the requester.',
@@ -817,7 +817,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'documents', 'automation'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill lifecycle readiness review',
       prompt:
         'Create a workflow that reads a Windchill document and its valid lifecycle transitions, checks required metadata, and produces a readiness report before release.',
@@ -826,7 +826,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'quality', 'review'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill structure change summary',
       prompt:
         'Build a workflow that retrieves a Windchill document structure and generates a concise summary of child-document names, versions, states, and missing metadata.',
@@ -835,7 +835,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'documents', 'analysis'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill controlled document release',
       prompt:
         'Create a workflow that checks in a Windchill document, validates an allowed lifecycle transition, and moves it to the approved release state.',
@@ -844,7 +844,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'release', 'governance'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill attachment package',
       prompt:
         'Build a workflow that uploads a set of inspection files as Windchill document attachments and returns the accepted file names for an audit record.',
@@ -853,7 +853,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'files', 'quality'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill revision preparation',
       prompt:
         'Create a workflow that checks out a Windchill document, updates selected attributes, checks it in with notes, and revises it for the next change cycle.',
@@ -862,7 +862,7 @@ export const WindchillBlockMeta = {
       tags: ['plm', 'versioning', 'automation'],
     },
     {
-      icon: DocumentIcon,
+      icon: WindchillIcon,
       title: 'Windchill document inventory',
       prompt:
         'Build a scheduled workflow that pages through Windchill documents, records their numbers, versions, states, and folder locations in a table, and flags stale checked-out documents.',

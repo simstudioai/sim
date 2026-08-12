@@ -21946,8 +21946,8 @@
       "name": "Windchill",
       "description": "Manage WT.Document objects and content in PTC Windchill",
       "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update WT.Document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
-      "bgColor": "#4B5563",
-      "iconName": "DocumentIcon",
+      "bgColor": "#FFFFFF",
+      "iconName": "WindchillIcon",
       "docsUrl": "https://docs.sim.ai/integrations/windchill",
       "operations": [
         {
