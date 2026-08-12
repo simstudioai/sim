@@ -4,10 +4,10 @@ import { and, type Column, count, eq, isNotNull, isNull } from 'drizzle-orm'
 import type { FolderApi, FolderResourceType } from '@/lib/api/contracts/folders'
 import { type ListSortOrder, listOrderBy, searchFilter } from '@/lib/api/list-query'
 import type { DbOrTx } from '@/lib/db/types'
-import { folderResourceConfig } from '@/lib/folders/config'
 import { MAX_FOLDERS_PER_WORKSPACE } from '@/lib/folders/constants'
 import { FolderCollectionFullError, FolderCollectionLimitExceededError } from '@/lib/folders/errors'
 import { buildFolderPathIndex, type FolderPathIndex, ROOT_FOLDER_PATH } from '@/lib/folders/paths'
+import { folderResourceLabel } from '@/lib/folders/resource-traits'
 import type { FolderQueryScope } from '@/hooks/queries/utils/folder-keys'
 
 export type FolderSortBy = 'position' | 'name' | 'createdAt' | 'updatedAt'
@@ -253,7 +253,7 @@ export async function assertFolderCollectionHasRoom(
     )
 
   if (Number(row?.total ?? 0) + additionalRows > maxRows) {
-    throw new FolderCollectionFullError(folderResourceConfig(resourceType).label, maxRows)
+    throw new FolderCollectionFullError(folderResourceLabel(resourceType), maxRows)
   }
 }
 

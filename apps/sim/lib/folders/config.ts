@@ -11,6 +11,7 @@ import {
 import { eq, type SQL } from 'drizzle-orm'
 import type { PgColumn, PgTable } from 'drizzle-orm/pg-core'
 import type { FolderResourceType } from '@/lib/api/contracts/folders'
+import { FOLDER_RESOURCE_LABELS } from '@/lib/folders/resource-traits'
 
 /**
  * Counts of cascaded resources returned by a folder delete/restore, keyed per resource
@@ -379,7 +380,7 @@ async function guardLockedTables({
 export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> = {
   workflow: {
     resourceType: 'workflow',
-    label: 'workflow',
+    label: FOLDER_RESOURCE_LABELS.workflow,
     countKey: 'workflows',
     table: workflow,
     idColumn: workflow.id,
@@ -454,7 +455,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
    */
   file: {
     resourceType: 'file',
-    label: 'file',
+    label: FOLDER_RESOURCE_LABELS.file,
     countKey: 'files',
     table: workspaceFiles,
     idColumn: workspaceFiles.id,
@@ -472,7 +473,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   },
   knowledge_base: {
     resourceType: 'knowledge_base',
-    label: 'knowledge base',
+    label: FOLDER_RESOURCE_LABELS.knowledge_base,
     countKey: 'knowledgeBases',
     table: knowledgeBase,
     idColumn: knowledgeBase.id,
@@ -489,7 +490,7 @@ export const FOLDER_RESOURCES: Record<FolderResourceType, FolderResourceConfig> 
   },
   table: {
     resourceType: 'table',
-    label: 'table',
+    label: FOLDER_RESOURCE_LABELS.table,
     countKey: 'tables',
     table: userTableDefinitions,
     idColumn: userTableDefinitions.id,
