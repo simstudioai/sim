@@ -635,7 +635,7 @@ export const updateTableGroupUseCase = defineAuthorizedTableUseCase({
       changed:
         JSON.stringify(context.table.schema) !== JSON.stringify(table.schema) ||
         JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
-      startAutoRun: previousGroup?.autoRun !== true && input.autoRun === true,
+      startAutoRun: previousGroup?.autoRun === false && input.autoRun === true,
       actorUserId,
     }
   },
@@ -824,7 +824,7 @@ export const updateWorkflowTableGroup = defineAuthorizedTableUseCase({
       changed:
         JSON.stringify(context.table.schema) !== JSON.stringify(table.schema) ||
         JSON.stringify(context.table.metadata) !== JSON.stringify(table.metadata),
-      startAutoRun: previousGroup.autoRun !== true && input.autoRun === true,
+      startAutoRun: previousGroup.autoRun === false && input.autoRun === true,
       actorUserId,
     }
   },
