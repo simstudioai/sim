@@ -14,6 +14,11 @@ import {
   v2TableUploadImportSourceSchema,
   v2UpdateTableColumnBodySchema,
 } from '@/lib/api/contracts/v2/tables'
+import {
+  issueCodes,
+  type SchemaLike,
+  strictnessTargets,
+} from '@/lib/api/contracts/v2/__tests__/schema-introspection'
 import { getValidationErrorMessage } from '@/lib/api/server/validation'
 import { TABLE_LIMITS } from '@/lib/table/constants'
 import { CSV_DURABLE_MAX_FILE_SIZE_BYTES } from '@/lib/table/import'
@@ -72,11 +77,6 @@ describe('v2 table column contracts', () => {
   })
 })
 
-interface SchemaLike {
-  safeParse: (value: unknown) => z.ZodSafeParseResult<unknown>
-  def?: { type?: unknown; options?: unknown }
-}
-
 interface BodyBearingContract {
   method: string
   path: string
@@ -93,34 +93,6 @@ function isBodyBearingContract(value: unknown): value is BodyBearingContract {
     body !== null &&
     typeof (body as { safeParse?: unknown }).safeParse === 'function'
   )
-}
-
-/**
- * Zod reports a union's member failures nested under the union issue, so a
- * union-bodied contract needs the whole tree walked before "did any member
- * reject the unknown key" can be answered.
- */
-function issueCodes(issues: readonly z.core.$ZodIssue[]): string[] {
-  return issues.flatMap((issue) => [
-    issue.code,
-    ...('errors' in issue && Array.isArray(issue.errors)
-      ? issue.errors.flatMap((nested: readonly z.core.$ZodIssue[]) => issueCodes(nested))
-      : []),
-  ])
-}
-
-/**
- * Flattens a union body into the schemas that actually enforce strictness.
- *
- * Asserting against the union itself is not enough: one strict member satisfies
- * "some issue in the tree is `unrecognized_keys`", so a sibling member that
- * stopped being strict would still sweep green. Each member is swept on its own
- * so exactly the regressed member fails.
- */
-function strictnessTargets(schema: SchemaLike): SchemaLike[] {
-  const options = schema.def?.type === 'union' ? schema.def.options : undefined
-  if (!Array.isArray(options)) return [schema]
-  return options.flatMap((option) => strictnessTargets(option as SchemaLike))
 }
 
 describe('v2 table request bodies', () => {

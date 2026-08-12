@@ -13,22 +13,14 @@ import {
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { toV2DocumentTags, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
+import {
+  toV2DocumentSummary,
+  toV2DocumentTags,
+  toV2TaggedDocument,
+} from '@/app/api/v2/knowledge/utils'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
-
-function toProcessingStatus(status: string): 'pending' | 'processing' | 'completed' | 'failed' {
-  switch (status) {
-    case 'pending':
-    case 'processing':
-    case 'completed':
-    case 'failed':
-      return status
-    default:
-      throw new Error(`Unexpected knowledge document processing status: ${status}`)
-  }
-}
 
 /** GET /api/v2/knowledge/[id]/documents/[documentId] — Get document details. */
 export const GET = defineV2JsonRoute({
@@ -45,24 +37,14 @@ export const GET = defineV2JsonRoute({
   useCase: readKnowledgeDocument,
   present: ({ document, tagDefinitions }) => ({
     data: {
-      id: document.id,
-      knowledgeBaseId: document.knowledgeBaseId,
-      filename: document.filename,
-      fileSize: document.fileSize,
-      mimeType: document.mimeType,
-      processingStatus: toProcessingStatus(document.processingStatus),
+      ...toV2DocumentSummary(document),
+      tags: toV2DocumentTags(document, tagDefinitions),
       processingError: document.processingError,
       processingStartedAt: serializeDate(document.processingStartedAt),
       processingCompletedAt: serializeDate(document.processingCompletedAt),
-      chunkCount: document.chunkCount,
-      tokenCount: document.tokenCount,
-      characterCount: document.characterCount,
-      enabled: document.enabled,
       connectorId: document.connectorId,
       connectorType: document.connectorType,
       sourceUrl: document.sourceUrl,
-      createdAt: serializeDate(document.uploadedAt),
-      tags: toV2DocumentTags(document, tagDefinitions),
     },
   }),
 })

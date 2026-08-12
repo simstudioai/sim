@@ -1,8 +1,13 @@
-import type { V2KnowledgeBase, V2KnowledgeTaggedDocument } from '@/lib/api/contracts/v2/knowledge'
+import type {
+  V2KnowledgeBase,
+  V2KnowledgeDocumentSummary,
+  V2KnowledgeTaggedDocument,
+} from '@/lib/api/contracts/v2/knowledge'
 import { ALL_TAG_SLOTS, type AllTagSlot } from '@/lib/knowledge/constants'
 import type { DocumentTagDefinition } from '@/lib/knowledge/tags/types'
 import type { KnowledgeBaseWithCounts } from '@/lib/knowledge/types'
 import { getUserEmailsByIds, requireResolvedUserEmail } from '@/lib/users/queries'
+import { serializeDate } from '@/app/api/v1/knowledge/utils'
 
 /**
  * Projects a document's tag slots onto a map keyed by tag display name, the same
@@ -34,19 +39,64 @@ export function toV2DocumentTags(
   return tags
 }
 
-interface V2TaggedDocumentSource extends Partial<Record<AllTagSlot, unknown>> {
+const PROCESSING_STATUSES = ['pending', 'processing', 'completed', 'failed'] as const
+
+type V2DocumentProcessingStatus = (typeof PROCESSING_STATUSES)[number]
+
+/**
+ * Narrows a stored processing status onto the published enum. An absent value
+ * reads as `pending`, matching the column default; an unrecognised one is a
+ * producer bug rather than a caller-reachable failure, so it throws.
+ */
+export function toProcessingStatus(status: string | null | undefined): V2DocumentProcessingStatus {
+  if (status === null || status === undefined) return 'pending'
+  const known = PROCESSING_STATUSES.find((candidate) => candidate === status)
+  if (!known) throw new Error(`Unexpected knowledge document processing status: ${status}`)
+  return known
+}
+
+/**
+ * The document columns every v2 document projection reads. `uploadedAt` is
+ * accepted as nullable because the column is nullable in storage.
+ */
+export interface V2DocumentSummarySource {
   id: string
   knowledgeBaseId: string
   filename: string
   fileSize: number
   mimeType: string
-  processingStatus: 'pending' | 'processing' | 'completed' | 'failed'
+  processingStatus?: string | null
   chunkCount: number
   tokenCount: number
   characterCount: number
   enabled: boolean
-  uploadedAt: Date
+  uploadedAt: Date | string | null | undefined
 }
+
+/**
+ * The single v2 document summary projection. Every v2 document response — list
+ * item, upload acknowledgement, detail — is this shape plus its own extras, so
+ * the shared field set is serialized in exactly one place.
+ */
+export function toV2DocumentSummary(document: V2DocumentSummarySource): V2KnowledgeDocumentSummary {
+  return {
+    id: document.id,
+    knowledgeBaseId: document.knowledgeBaseId,
+    filename: document.filename,
+    fileSize: document.fileSize,
+    mimeType: document.mimeType,
+    processingStatus: toProcessingStatus(document.processingStatus),
+    chunkCount: document.chunkCount,
+    tokenCount: document.tokenCount,
+    characterCount: document.characterCount,
+    enabled: document.enabled,
+    createdAt: serializeDate(document.uploadedAt),
+  }
+}
+
+interface V2TaggedDocumentSource
+  extends V2DocumentSummarySource,
+    Partial<Record<AllTagSlot, unknown>> {}
 
 /** Serializes a document summary with its tag values keyed by display name. */
 export function toV2TaggedDocument(
@@ -54,17 +104,7 @@ export function toV2TaggedDocument(
   tagDefinitions: readonly DocumentTagDefinition[]
 ): V2KnowledgeTaggedDocument {
   return {
-    id: document.id,
-    knowledgeBaseId: document.knowledgeBaseId,
-    filename: document.filename,
-    fileSize: document.fileSize,
-    mimeType: document.mimeType,
-    processingStatus: document.processingStatus,
-    chunkCount: document.chunkCount,
-    tokenCount: document.tokenCount,
-    characterCount: document.characterCount,
-    enabled: document.enabled,
-    createdAt: document.uploadedAt.toISOString(),
+    ...toV2DocumentSummary(document),
     tags: toV2DocumentTags(document, tagDefinitions),
   }
 }

@@ -1,6 +1,5 @@
 import {
   parseV2KnowledgeTagFiltersParam,
-  type V2KnowledgeDocumentSummary,
   v2BulkUpdateKnowledgeDocumentsContract,
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
@@ -31,8 +30,7 @@ import { KnowledgeDocumentUnsupportedMediaTypeError } from '@/lib/knowledge/appl
 import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
-import { serializeDate } from '@/app/api/v1/knowledge/utils'
-import { toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
+import { toV2DocumentSummary, toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
 import {
   decodeOffsetCursor,
   encodeOffsetCursor,
@@ -43,34 +41,6 @@ export const dynamic = 'force-dynamic'
 export const revalidate = 0
 
 const MAX_FILE_SIZE = MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE
-
-function toV2DocumentSummary(document: {
-  id: string
-  knowledgeBaseId: string
-  filename: string
-  fileSize: number
-  mimeType: string
-  processingStatus?: 'pending' | 'processing' | 'completed' | 'failed'
-  chunkCount: number
-  tokenCount: number
-  characterCount: number
-  enabled: boolean
-  uploadedAt: Date
-}): V2KnowledgeDocumentSummary {
-  return {
-    id: document.id,
-    knowledgeBaseId: document.knowledgeBaseId,
-    filename: document.filename,
-    fileSize: document.fileSize,
-    mimeType: document.mimeType,
-    processingStatus: document.processingStatus ?? 'pending',
-    chunkCount: document.chunkCount,
-    tokenCount: document.tokenCount,
-    characterCount: document.characterCount,
-    enabled: document.enabled,
-    createdAt: serializeDate(document.uploadedAt),
-  }
-}
 
 /** GET /api/v2/knowledge/[id]/documents — List documents in a knowledge base. */
 export const GET = defineV2JsonRoute({
