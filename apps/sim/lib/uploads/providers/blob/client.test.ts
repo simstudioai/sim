@@ -165,8 +165,8 @@ describe('Azure Blob Storage Client', () => {
         'DefaultEndpointsProtocol=https;AccountName=testaccount;AccountKey=testkey;EndpointSuffix=core.windows.net',
     }
 
-    it('signs a PUT with the required blob and metadata headers', async () => {
-      mockBlobSASPermissionsParse.mockReturnValueOnce('w')
+    it('signs a create-only PUT with the required blob and metadata headers', async () => {
+      mockBlobSASPermissionsParse.mockReturnValueOnce('c')
 
       const result = await getBlobPresignedUploadUrl({
         key: 'workspace/workspace-1/file.bin',
@@ -176,7 +176,7 @@ describe('Azure Blob Storage Client', () => {
         expiresIn: 600,
       })
 
-      expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('w')
+      expect(mockBlobSASPermissionsParse).toHaveBeenCalledWith('c')
       expect(result).toEqual({
         url: expect.stringContaining('?sv=2021-06-08'),
         headers: {
