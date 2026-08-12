@@ -46,6 +46,7 @@ vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
   },
 }))
 
+import { WorkspaceFileMoveConflictError } from '@/lib/uploads/contexts/workspace/workspace-file-folder-manager'
 import { POST } from '@/app/api/v2/files/move/route'
 
 const WS = 'workspace-1'
@@ -129,8 +130,7 @@ describe('POST /api/v2/files/move', () => {
   })
 
   it('maps a conflict error to 409', async () => {
-    const { OrchestrationError } = await import('@/lib/core/orchestration/types')
-    mockExecute.mockRejectedValue(new OrchestrationError('conflict', 'Name collision'))
+    mockExecute.mockRejectedValue(new WorkspaceFileMoveConflictError('report.csv'))
     const res = await callMove({ workspaceId: WS, fileIds: ['wf_1'] })
     expect(res.status).toBe(409)
     expect((await res.json()).error.code).toBe('CONFLICT')

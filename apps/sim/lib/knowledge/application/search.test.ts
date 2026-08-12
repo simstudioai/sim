@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   getKnowledgeBase: vi.fn(),
   resolveBilling: vi.fn(),
   checkUsage: vi.fn(),
+  checkActorUsage: vi.fn(),
   generateEmbedding: vi.fn(),
   executeSearch: vi.fn(),
   getDocumentMetadata: vi.fn(),
@@ -32,6 +33,10 @@ vi.mock('@/lib/billing/core/billing-attribution', () => ({
   resolveBillingAttribution: mocks.resolveBilling,
   resolveSystemBillingAttribution: mocks.resolveBilling,
   checkAttributedUsageLimits: mocks.checkUsage,
+}))
+
+vi.mock('@/lib/billing/calculations/usage-monitor', () => ({
+  checkActorUsageLimits: mocks.checkActorUsage,
 }))
 
 vi.mock('@/lib/knowledge/application/contexts', () => ({
@@ -77,6 +82,7 @@ const workspace = {
 
 const knowledgeBase = {
   id: 'knowledge-1',
+  userId: 'user-1',
   name: 'Docs',
   workspaceId: 'workspace-1',
   embeddingModel: 'text-embedding-3-small',
@@ -93,6 +99,7 @@ describe('knowledge search application use case', () => {
       workspaceId: 'workspace-1',
     })
     mocks.checkUsage.mockResolvedValue({ isExceeded: false })
+    mocks.checkActorUsage.mockResolvedValue({ isExceeded: false })
     mocks.generateEmbedding.mockResolvedValue({ embedding: [0.1], isBYOK: false })
     mocks.executeSearch.mockResolvedValue([
       {
@@ -181,6 +188,51 @@ describe('knowledge search application use case', () => {
 
     expect(mocks.resolvePermission).not.toHaveBeenCalled()
     expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.executeSearch).not.toHaveBeenCalled()
+  })
+
+  it('lets the owner search a legacy personal knowledge base with account billing', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      ...knowledgeBase,
+      workspaceId: null,
+    })
+    mocks.generateEmbedding.mockResolvedValueOnce({ embedding: [0.1], isBYOK: true })
+
+    const result = await searchKnowledge.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: {
+        knowledgeBaseIds: ['knowledge-1'],
+        query: 'answer',
+        topK: 5,
+      },
+    })
+
+    expect(result.workspaceId).toBeUndefined()
+    expect(mocks.resolveWorkspace).not.toHaveBeenCalled()
+    expect(mocks.resolvePermission).not.toHaveBeenCalled()
+    expect(mocks.resolveBilling).not.toHaveBeenCalled()
+    expect(mocks.checkActorUsage).toHaveBeenCalledWith('user-1')
+    expect(mocks.executeSearch).toHaveBeenCalled()
+  })
+
+  it('conceals a legacy personal knowledge base from a non-owner', async () => {
+    mocks.getKnowledgeBase.mockResolvedValueOnce({
+      ...knowledgeBase,
+      workspaceId: null,
+    })
+
+    await expect(
+      searchKnowledge.execute({
+        principal: { kind: 'session', userId: 'other-user', sessionId: 'session-2' },
+        input: {
+          knowledgeBaseIds: ['knowledge-1'],
+          query: 'answer',
+          topK: 5,
+        },
+      })
+    ).rejects.toMatchObject({ code: 'not_found' })
+
+    expect(mocks.checkActorUsage).not.toHaveBeenCalled()
     expect(mocks.executeSearch).not.toHaveBeenCalled()
   })
 

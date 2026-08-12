@@ -3,6 +3,7 @@ import type { V2ApiTable } from '@/lib/api/contracts/v2/tables'
 import type { OrchestrationErrorCode } from '@/lib/core/orchestration/types'
 import type { MultipartError } from '@/lib/core/utils/multipart'
 import type { RowData, TableDefinition, TablePredicate, TableSchema } from '@/lib/table'
+import { getMaxRowsPerTable } from '@/lib/table/billing'
 import { getColumnId } from '@/lib/table/column-keys'
 import { TableLockedError } from '@/lib/table/mutation-locks'
 import { predicateToFilter } from '@/lib/table/query-builder/converters'
@@ -42,6 +43,17 @@ function toIso(value: Date | string): string {
   return value instanceof Date ? value.toISOString() : new Date(value).toISOString()
 }
 
+function requireMaxRows(
+  maxRowsByWorkspaceId: ReadonlyMap<string, number>,
+  workspaceId: string
+): number {
+  const maxRows = maxRowsByWorkspaceId.get(workspaceId)
+  if (maxRows === undefined) {
+    throw new Error(`Table plan limit is missing for workspace ${workspaceId}`)
+  }
+  return maxRows
+}
+
 /**
  * Resolves a public v2 bulk-op predicate to the storage-id-keyed legacy `Filter`
  * the row runners consume. The public wire is column-NAME-keyed: shape-check
@@ -65,7 +77,8 @@ export function v2BulkPredicateToFilter(predicate: TablePredicate, schema: Table
 function serializeApiTable(
   table: TableDefinition,
   folderPath: string,
-  ownerEmail: string
+  ownerEmail: string,
+  maxRows: number
 ): V2ApiTable {
   return {
     id: table.id,
@@ -76,7 +89,7 @@ function serializeApiTable(
       columns: (table.schema as TableSchema).columns.map(normalizeColumn),
     },
     rowCount: table.rowCount,
-    maxRows: table.maxRows,
+    maxRows,
     folderPath,
     locks: table.locks,
     // `jobStatus` is the presence signal — the service leaves the whole group
@@ -98,11 +111,15 @@ function serializeApiTable(
 
 /** Resolves and serializes one table with public owner attribution. */
 export async function toApiTable(table: TableDefinition, folderPath: string): Promise<V2ApiTable> {
-  const emailByUserId = await getUserEmailsByIds([table.createdBy])
+  const [emailByUserId, maxRows] = await Promise.all([
+    getUserEmailsByIds([table.createdBy]),
+    getMaxRowsPerTable(table.workspaceId),
+  ])
   return serializeApiTable(
     table,
     folderPath,
-    requireResolvedUserEmail(emailByUserId, table.createdBy)
+    requireResolvedUserEmail(emailByUserId, table.createdBy),
+    maxRows
   )
 }
 
@@ -110,9 +127,23 @@ export async function toApiTable(table: TableDefinition, folderPath: string): Pr
 export async function toApiTables(
   entries: readonly { table: TableDefinition; folderPath: string }[]
 ): Promise<V2ApiTable[]> {
-  const emailByUserId = await getUserEmailsByIds(entries.map(({ table }) => table.createdBy))
+  const workspaceIds = [...new Set(entries.map(({ table }) => table.workspaceId))]
+  const [emailByUserId, limits] = await Promise.all([
+    getUserEmailsByIds(entries.map(({ table }) => table.createdBy)),
+    Promise.all(
+      workspaceIds.map(
+        async (workspaceId) => [workspaceId, await getMaxRowsPerTable(workspaceId)] as const
+      )
+    ),
+  ])
+  const maxRowsByWorkspaceId = new Map(limits)
   return entries.map(({ table, folderPath }) =>
-    serializeApiTable(table, folderPath, requireResolvedUserEmail(emailByUserId, table.createdBy))
+    serializeApiTable(
+      table,
+      folderPath,
+      requireResolvedUserEmail(emailByUserId, table.createdBy),
+      requireMaxRows(maxRowsByWorkspaceId, table.workspaceId)
+    )
   )
 }
 

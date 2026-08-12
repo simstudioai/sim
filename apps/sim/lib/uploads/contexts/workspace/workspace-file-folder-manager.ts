@@ -9,7 +9,9 @@ import type { DbOrTx } from '@/lib/db/types'
 import { acquireFolderMutationLock } from '@/lib/folders/locks'
 import { deduplicateFolderName } from '@/lib/folders/naming'
 import {
+  buildFolderPath,
   buildFolderPathIndex,
+  FolderPathError,
   folderNameFromPath,
   parentFolderPath,
   parseFolderPath,
@@ -584,10 +586,22 @@ export async function ensureWorkspaceFileFolderPath(params: {
 }): Promise<EnsureWorkspaceFileFolderPathOutcome> {
   if (params.pathSegments.length === 0) return { folderId: null, createdFolderIds: [] }
 
+  const pathSegments = params.pathSegments.map((segment) =>
+    normalizeWorkspaceFileItemName(segment, 'Folder')
+  )
+  try {
+    buildFolderPath(pathSegments)
+  } catch (error) {
+    if (error instanceof FolderPathError) {
+      throw new OrchestrationError('validation', error.message)
+    }
+    throw error
+  }
+
   // Fast path: the whole chain already exists (the common case for repeated
   // writes into known folders) — per-segment indexed lookups instead of
   // loading the workspace's entire folder table.
-  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, params.pathSegments)
+  const existing = await findWorkspaceFileFolderIdByPath(params.workspaceId, pathSegments)
   if (existing) return { folderId: existing, createdFolderIds: [] }
 
   // Load all active folders once and build a lookup keyed by "name|parentId"
@@ -612,8 +626,7 @@ export async function ensureWorkspaceFileFolderPath(params: {
   let parentId: string | null = null
   const createdFolderIds: string[] = []
 
-  for (const rawSegment of params.pathSegments) {
-    const name = normalizeWorkspaceFileItemName(rawSegment, 'Folder')
+  for (const name of pathSegments) {
     const lookupKey = `${name}|${parentId ?? ''}`
 
     const cached = folderByNameParent.get(lookupKey)

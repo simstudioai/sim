@@ -358,6 +358,8 @@ export function defineInternalJsonRoute<
       }
     },
     {
+      typedErrorResponse: ({ error, status }) =>
+        NextResponse.json({ error: error.message }, { status }),
       unhandledErrorResponse: () =>
         createJsonErrorResponse(
           options.errorPolicy.unhandled?.() ??

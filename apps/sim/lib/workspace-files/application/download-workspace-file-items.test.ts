@@ -188,13 +188,12 @@ describe('downloadWorkspaceFileItems', () => {
     expect(mockRecordAudit).not.toHaveBeenCalled()
   })
 
-  it('rejects unknown selected IDs rather than exposing another workspace selection', async () => {
-    mockListFiles.mockResolvedValue([])
-    await expect(
-      downloadWorkspaceFileItems.execute({
-        principal,
-        input: { workspaceId: 'ws-1', fileIds: ['other-workspace-file'], folderIds: [] },
-      })
-    ).rejects.toEqual(expect.objectContaining({ code: 'not_found' }))
+  it('ignores stale selected IDs when another selected file still resolves', async () => {
+    const result = await downloadWorkspaceFileItems.execute({
+      principal,
+      input: { workspaceId: 'ws-1', fileIds: ['f1', 'stale-file'], folderIds: [] },
+    })
+
+    expect(result.filesToZip.map((item) => item.id)).toEqual(['f1'])
   })
 })

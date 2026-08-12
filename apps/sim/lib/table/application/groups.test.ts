@@ -316,6 +316,31 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.audit).not.toHaveBeenCalled()
   })
 
+  it('preserves an existing output coordinate that is no longer pickable', async () => {
+    mocks.loadWorkflowOutputs.mockResolvedValueOnce({
+      ...resolvedWorkflow,
+      outputs: resolvedWorkflow.outputs.filter((output) => output.blockId !== 'block-1'),
+    })
+
+    await updateTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        name: 'Renamed group',
+        outputs: group.outputs,
+      },
+    })
+
+    expect(mocks.resolveWorkflowContext).not.toHaveBeenCalled()
+    expect(mocks.loadWorkflowOutputs).not.toHaveBeenCalled()
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({ outputs: group.outputs, name: 'Renamed group' }),
+      'request-1'
+    )
+  })
+
   it('rejects an invalid output before constructing or mutating the group', async () => {
     await expect(
       createWorkflowTableGroup.execute({

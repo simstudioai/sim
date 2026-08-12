@@ -6,13 +6,26 @@ import type {
 
 export const KNOWLEDGE_DELEGATION_AUDIENCE = 'sim:knowledge'
 
-export interface KnowledgeAuthorizationContext extends WorkspaceAuthorizationContext {
+interface KnowledgeResourceIdentifiers {
   knowledgeBaseId?: string
   documentId?: string
   chunkId?: string
   tagDefinitionId?: string
   connectorId?: string
 }
+
+export interface KnowledgeAuthorizationContext
+  extends WorkspaceAuthorizationContext,
+    KnowledgeResourceIdentifiers {}
+
+export interface LegacyPersonalKnowledgeAuthorizationContext extends KnowledgeResourceIdentifiers {
+  workspaceId: undefined
+  legacyPersonalOwnerUserId: string
+}
+
+export type KnowledgeResourceAuthorizationContext =
+  | KnowledgeAuthorizationContext
+  | LegacyPersonalKnowledgeAuthorizationContext
 
 export type KnowledgeAuthorizationOptions = Omit<
   WorkspaceAuthorizationOptions<KnowledgeAuthorizationContext>,

@@ -274,9 +274,18 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
     )
   }
 
+  if (!result.credential) {
+    throw new Error('Credential creation succeeded without a credential')
+  }
+
+  const responseBody = createWorkspaceCredentialContract.response.schema.parse({
+    credential: {
+      ...result.credential,
+      createdAt: result.credential.createdAt.toISOString(),
+      updatedAt: result.credential.updatedAt.toISOString(),
+    },
+  })
+
   // An existing credential matched the source: an idempotent replay, not a create.
-  return NextResponse.json(
-    { credential: result.credential },
-    { status: result.created ? 201 : 200 }
-  )
+  return NextResponse.json(responseBody, { status: result.created ? 201 : 200 })
 })

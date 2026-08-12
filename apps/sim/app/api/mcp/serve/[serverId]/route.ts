@@ -938,7 +938,7 @@ async function handleToolsCall(
       )
     }
 
-    const isError = serviceResult.status !== 'completed'
+    const isError = serviceResult.status === 'failed' || serviceResult.status === 'cancelled'
     const toolOutput = isError
       ? {
           success: false,

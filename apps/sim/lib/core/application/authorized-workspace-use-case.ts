@@ -75,16 +75,17 @@ function isAuthorizationOptionsResolver<
   return typeof options === 'function'
 }
 
-function recordProjectedAuditEntries<O extends WorkspaceOperation>(
+export function recordProjectedUseCaseAuditEntries<O extends WorkspaceOperation>(
   operation: O,
-  context: WorkspaceAuthorizationContext,
-  attribution: PrincipalAuditAttribution,
+  workspaceId: string | null | undefined,
+  principal: PrincipalForOperation<O>,
   request: OrchestrationRequestContext | undefined,
   entries: readonly WorkspaceUseCaseAuditEntry[]
 ): void {
+  const attribution: PrincipalAuditAttribution = resolvePrincipalAuditAttribution(principal)
   for (const entry of entries) {
     recordAudit({
-      workspaceId: context.workspaceId,
+      workspaceId,
       actorId: attribution.actorId,
       actorName: attribution.actorName,
       action: entry.action,
@@ -135,11 +136,10 @@ export function defineAuthorizedWorkspaceUseCase<
       if (projectedAudit !== undefined) {
         const auditEntries = Array.isArray(projectedAudit) ? projectedAudit : [projectedAudit]
         if (auditEntries.length > 0) {
-          const auditAttribution = resolvePrincipalAuditAttribution(principal)
-          recordProjectedAuditEntries(
+          recordProjectedUseCaseAuditEntries(
             definition.operation,
-            context,
-            auditAttribution,
+            context.workspaceId,
+            principal,
             request,
             auditEntries
           )

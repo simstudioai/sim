@@ -1,12 +1,16 @@
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { checkActorUsageLimits } from '@/lib/billing/calculations/usage-monitor'
 import {
   type BillingAttributionSnapshot,
   checkAttributedUsageLimits,
   toBillingContext,
 } from '@/lib/billing/core/billing-attribution'
 import { recordUsage } from '@/lib/billing/core/usage-log'
-import { checkAndBillPayerOverageThreshold } from '@/lib/billing/threshold-billing'
+import {
+  checkAndBillOverageThreshold,
+  checkAndBillPayerOverageThreshold,
+} from '@/lib/billing/threshold-billing'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { PlatformEvents } from '@/lib/core/telemetry'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -18,7 +22,7 @@ import {
   resolveKnowledgeBillingAttribution,
 } from '@/lib/knowledge/application/billing'
 import {
-  type KnowledgeWorkspaceContext,
+  type KnowledgeResourceContext,
   resolveKnowledgeWorkspaceContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -82,13 +86,13 @@ export interface SearchKnowledgeInput {
   resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   prepareModelInputProvenance?(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): Promise<ResolvedSecretTraceRegistry | undefined>
   /** Trusted execution provenance sink; never sourced from an HTTP or model payload. */
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
 
-interface KnowledgeSearchContext extends KnowledgeWorkspaceContext {
+type KnowledgeSearchContext = KnowledgeResourceContext & {
   knowledgeBases: KnowledgeBaseWithCounts[]
 }
 
@@ -126,7 +130,7 @@ export interface SearchKnowledgeResult {
   topK: number
   totalResults: number
   cost?: KnowledgeSearchCost
-  workspaceId: string
+  workspaceId?: string
   userId: string
   resultSecretRegistry?: ResolvedSecretTraceRegistry
 }
@@ -154,28 +158,42 @@ async function resolveKnowledgeSearchContext(
     )
   }
   const knowledgeBases = await Promise.all(input.knowledgeBaseIds.map(getKnowledgeBaseById))
-  const missingIds = input.knowledgeBaseIds.filter(
-    (_, index) => !knowledgeBases[index]?.workspaceId
-  )
+  const missingIds = input.knowledgeBaseIds.filter((_, index) => !knowledgeBases[index])
   if (missingIds.length > 0) {
     throw new OrchestrationError(
       'not_found',
       `Knowledge bases not found or access denied: ${missingIds.join(', ')}`
     )
   }
-  const canonicalWorkspaceIds = new Set(knowledgeBases.map((kb) => kb?.workspaceId))
+  const canonicalWorkspaceIds = new Set(knowledgeBases.map((kb) => kb?.workspaceId ?? null))
   if (canonicalWorkspaceIds.size !== 1) {
     throw new OrchestrationError(
       'validation',
       'Selected knowledge bases must belong to the same workspace'
     )
   }
-  const canonicalWorkspaceId = knowledgeBases[0]?.workspaceId
-  if (!canonicalWorkspaceId || (input.workspaceId && input.workspaceId !== canonicalWorkspaceId)) {
+  const canonicalWorkspaceId = knowledgeBases[0]?.workspaceId ?? null
+  if (input.workspaceId && input.workspaceId !== canonicalWorkspaceId) {
     throw new OrchestrationError(
       'not_found',
       `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
     )
+  }
+  if (!canonicalWorkspaceId) {
+    const ownerUserIds = new Set(knowledgeBases.map((knowledgeBase) => knowledgeBase?.userId))
+    if (ownerUserIds.size !== 1) {
+      throw new OrchestrationError(
+        'not_found',
+        `Knowledge bases not found or access denied: ${input.knowledgeBaseIds.join(', ')}`
+      )
+    }
+    const legacyPersonalOwnerUserId = knowledgeBases[0]?.userId
+    if (!legacyPersonalOwnerUserId) throw new Error('Legacy Knowledge base owner is missing')
+    return {
+      workspaceId: undefined,
+      legacyPersonalOwnerUserId,
+      knowledgeBases: knowledgeBases as KnowledgeBaseWithCounts[],
+    }
   }
   const workspaceContext = await resolveKnowledgeWorkspaceContext({
     workspaceId: canonicalWorkspaceId,
@@ -292,13 +310,16 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       principal.kind === 'delegated' &&
       principal.serviceId === 'executor'
     )
-    const billingAttribution = hasQuery
-      ? input.resolveBillingAttribution
-        ? await input.resolveBillingAttribution(context.workspaceId)
-        : await resolveKnowledgeBillingAttribution(principal, context)
-      : undefined
-    if (shouldMeter && billingAttribution) {
-      const usage = await checkAttributedUsageLimits(billingAttribution)
+    const billingAttribution =
+      hasQuery && context.workspaceId
+        ? input.resolveBillingAttribution
+          ? await input.resolveBillingAttribution(context.workspaceId)
+          : await resolveKnowledgeBillingAttribution(principal, context)
+        : undefined
+    if (shouldMeter && hasQuery) {
+      const usage = billingAttribution
+        ? await checkAttributedUsageLimits(billingAttribution)
+        : await checkActorUsageLimits(userId)
       if (usage.isExceeded) {
         throw new KnowledgeUsageLimitExceededError(
           usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
@@ -450,12 +471,12 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             }
       }
     }
-    if (shouldMeter && billingAttribution && baseCost && baseCost.total > 0) {
+    if (shouldMeter && baseCost && baseCost.total > 0) {
       try {
         await recordUsage({
           userId,
-          workspaceId: context.workspaceId,
-          ...toBillingContext(billingAttribution),
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
+          ...(billingAttribution ? toBillingContext(billingAttribution) : {}),
           entries: [
             {
               category: 'model',
@@ -466,7 +487,11 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
             },
           ],
         })
-        await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        if (billingAttribution) {
+          await checkAndBillPayerOverageThreshold(billingAttribution.billingEntity)
+        } else {
+          await checkAndBillOverageThreshold(userId)
+        }
       } catch (error) {
         logger.error('Failed to record Knowledge search usage', { error })
       }
@@ -565,7 +590,7 @@ export const searchKnowledge = defineAuthorizedKnowledgeUseCase({
       topK: input.topK,
       totalResults: results.length,
       cost,
-      workspaceId: context.workspaceId,
+      ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
       userId,
       resultSecretRegistry: registry,
     }

@@ -3,6 +3,7 @@
  */
 import { createMockRequest, hybridAuthMockFns } from '@sim/testing'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { MAX_FOLDER_PATH_SEGMENTS } from '@/lib/folders/paths'
 
 const {
   mockAssertActiveWorkspaceAccess,
@@ -15,6 +16,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenance,
   mockLoadActiveWorkspaceContext,
   mockLoadActiveWorkspaceFileContext,
+  mockMoveWorkspaceFileItems,
   mockResolveEffectiveWorkspacePermission,
   mockGetFileMetadataByKey,
   mockGetWorkspaceFile,
@@ -32,6 +34,7 @@ const {
   mockGetBoundWorkspaceFileSecretProvenance: vi.fn(),
   mockLoadActiveWorkspaceContext: vi.fn(),
   mockLoadActiveWorkspaceFileContext: vi.fn(),
+  mockMoveWorkspaceFileItems: vi.fn(),
   mockResolveEffectiveWorkspacePermission: vi.fn(),
   mockGetFileMetadataByKey: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
@@ -101,8 +104,14 @@ vi.mock('@/lib/uploads/contexts/workspace', () => ({
 }))
 
 vi.mock('@/lib/workspace-files/application/workspace-file-folders', () => ({
-  createWorkspaceFileFolderOperation: {
+  ensureWorkspaceFileFolderPathOperation: {
     execute: (...args: unknown[]) => mockEnsureWorkspaceFileFolderPath(...args),
+  },
+}))
+
+vi.mock('@/lib/workspace-files/application/move-workspace-file-items', () => ({
+  moveWorkspaceFileItemsOperation: {
+    execute: (...args: unknown[]) => mockMoveWorkspaceFileItems(...args),
   },
 }))
 
@@ -206,12 +215,18 @@ describe('POST /api/tools/file/manage content provenance', () => {
       billedAccountUserId: 'user-1',
     }))
     mockAssertToolFileAccess.mockResolvedValue(undefined)
-    mockEnsureWorkspaceFileFolderPath.mockResolvedValue({ folder: { id: 'folder-1' } })
+    mockEnsureWorkspaceFileFolderPath.mockImplementation(
+      async ({ input }: { input: { pathSegments: string[] } }) => ({
+        folderId: input.pathSegments.length === 0 ? null : 'folder-1',
+        createdFolderIds: [],
+      })
+    )
     mockDownloadServableFileFromStorage.mockImplementation(async (file: { name: string }) => ({
       buffer: Buffer.from(`content:${file.name}`),
     }))
     mockFetchWorkspaceFileBuffer.mockResolvedValue(Buffer.from('before'))
     mockUpdateWorkspaceFileContent.mockResolvedValue({ file: workspaceFile('file-1') })
+    mockMoveWorkspaceFileItems.mockResolvedValue({ moved: 1 })
     mockUploadWorkspaceFile.mockResolvedValue({
       id: 'new-file',
       name: 'new.txt',
@@ -359,7 +374,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
         {
           operation: 'write',
           workspaceId: 'workspace-1',
-          fileName: 'Reports/secret-value.txt',
+          fileName: 'Reports & Plans/2026/secret-value.txt',
           content: 'ordinary text',
           __privateSecretProvenance: {
             version: 1,
@@ -385,7 +400,7 @@ describe('POST /api/tools/file/manage content provenance', () => {
     expect(mockEnsureWorkspaceFileFolderPath).toHaveBeenCalledWith(
       expect.objectContaining({
         principal: expect.objectContaining({ kind: 'delegated', subjectUserId: 'user-1' }),
-        input: { workspaceId: 'workspace-1', path: 'Reports' },
+        input: { workspaceId: 'workspace-1', pathSegments: ['Reports & Plans', '2026'] },
       })
     )
     expect(mockUploadWorkspaceFile).toHaveBeenCalledWith(
@@ -426,6 +441,52 @@ describe('POST /api/tools/file/manage content provenance', () => {
         secretProvenance: { status: 'exact', entries: [] },
       }
     )
+  })
+
+  it.each([
+    ['Reports & Plans/2026', '/Reports%20%26%20Plans/2026'],
+    ['', '/'],
+  ])('moves files to the canonical folder path for %j', async (targetFolder, expectedPath) => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'move',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        targetFolder,
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockMoveWorkspaceFileItems).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: {
+          workspaceId: 'workspace-1',
+          fileIds: ['file-1'],
+          targetFolderPath: expectedPath,
+        },
+      })
+    )
+  })
+
+  it('returns 400 before moving when the target folder path exceeds canonical limits', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        operation: 'move',
+        workspaceId: 'workspace-1',
+        fileId: 'file-1',
+        targetFolder: Array.from(
+          { length: MAX_FOLDER_PATH_SEGMENTS + 1 },
+          (_, index) => `folder-${index}`
+        ).join('/'),
+      })
+    )
+
+    expect(response.status).toBe(400)
+    await expect(response.json()).resolves.toMatchObject({
+      success: false,
+      error: `Folder paths cannot exceed ${MAX_FOLDER_PATH_SEGMENTS} segments`,
+    })
+    expect(mockMoveWorkspaceFileItems).not.toHaveBeenCalled()
   })
 
   it('persists an authenticated file write with unavailable lineage as unknown', async () => {

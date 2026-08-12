@@ -3,7 +3,10 @@ import { db } from '@sim/db'
 import { document as documentTable } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { and, eq, isNull } from 'drizzle-orm'
-import { checkAttributedUsageLimits } from '@/lib/billing/core/billing-attribution'
+import {
+  type BillingAttributionSnapshot,
+  checkAttributedUsageLimits,
+} from '@/lib/billing/core/billing-attribution'
 import { authorizeWorkspaceOperation } from '@/lib/core/application'
 import { asOrchestrationError, OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
@@ -19,12 +22,14 @@ import {
   KnowledgeUsageLimitExceededError,
   resolveKnowledgeAttributedUserId,
   resolveKnowledgeBillingAttribution,
+  resolveKnowledgeUsageAdmission,
 } from '@/lib/knowledge/application/billing'
 import {
-  type ActiveKnowledgeBaseContext,
   type ActiveKnowledgeDocumentContext,
+  type ActiveKnowledgeResourceBaseContext,
   resolveActiveKnowledgeBaseContext,
   resolveActiveKnowledgeDocumentContext,
+  resolveActiveKnowledgeResourceContext,
   resolveCanonicalActiveKnowledgeDocumentContext,
 } from '@/lib/knowledge/application/contexts'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
@@ -109,12 +114,10 @@ export interface CreateKnowledgeDocumentsInput extends UploadKnowledgeDocumentAd
   bulk: boolean
   processingOptions?: ProcessingOptions
   source?: 'ui' | 'api' | 'agent'
-  resolveBillingAttribution?(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   resolveSecretProvenances(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
@@ -147,7 +150,7 @@ interface BulkDeleteKnowledgeDocumentsExecutionResult
   extends BulkDeleteKnowledgeDocumentsResult,
     KnowledgeBatchExecutionResult {}
 
-interface BulkDeleteKnowledgeDocumentsContext extends ActiveKnowledgeBaseContext {
+type BulkDeleteKnowledgeDocumentsContext = ActiveKnowledgeResourceBaseContext & {
   documentIds: string[]
 }
 
@@ -157,9 +160,7 @@ export interface UpdateKnowledgeDocumentInput extends ReadKnowledgeDocumentInput
   updates?: Parameters<typeof updateDocument>[1]
   markFailedDueToTimeout?: boolean
   retryProcessing?: boolean
-  resolveBillingAttribution?(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution?(workspaceId: string): Promise<BillingAttributionSnapshot>
   source?: string
 }
 
@@ -178,19 +179,17 @@ export interface UpsertKnowledgeDocumentInput extends UploadKnowledgeDocumentAdm
   mimeType: string
   documentTagsData?: string
   processingOptions?: ProcessingOptions
-  resolveBillingAttribution(
-    workspaceId: string
-  ): Promise<Awaited<ReturnType<typeof resolveKnowledgeBillingAttribution>>>
+  resolveBillingAttribution(workspaceId: string): Promise<BillingAttributionSnapshot>
   resolveSecretProvenances(input: {
     userId: string
-    workspaceId: string
+    workspaceId?: string
   }): KnowledgeDocumentWriteSecretProvenance[] | undefined
 }
 
 export const listKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.listDocuments,
   resolveContext: ({ input }: { input: ListKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     const limit = input.limit ?? 50
     const offset = input.offset ?? 0
@@ -324,7 +323,7 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
   resolveContext: ({ input }: { input: CreateKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ principal, input, context, request }) {
     if (input.documents.length === 0) {
       throw new OrchestrationError('validation', 'No documents specified')
@@ -335,16 +334,16 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
         `At most ${MAX_KNOWLEDGE_DOCUMENTS_PER_CREATE} documents may be created at once`
       )
     }
-    const billingAttribution = input.resolveBillingAttribution
-      ? await input.resolveBillingAttribution(context.workspaceId)
-      : await resolveKnowledgeBillingAttribution(principal, context)
-    const usage = await checkAttributedUsageLimits(billingAttribution)
+    const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+      principal,
+      context,
+      input.resolveBillingAttribution
+    )
     if (usage.isExceeded) {
       throw new KnowledgeUsageLimitExceededError(
         usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
       )
     }
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
     const secretProvenances = input.resolveSecretProvenances({
       userId,
       workspaceId: context.workspaceId,
@@ -352,7 +351,7 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
     const knowledgeBase = {
       id: context.knowledgeBaseId,
       name: context.knowledgeBase.name,
-      workspaceId: context.workspaceId,
+      workspaceId: context.workspaceId ?? null,
     }
     if (input.bulk) {
       const outcome = await performUploadKnowledgeDocuments({
@@ -459,16 +458,18 @@ export const createKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
 export const upsertKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.uploadDocument,
   resolveContext: ({ input }: { input: UpsertKnowledgeDocumentInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ principal, input, context }) {
-    const billingAttribution = await input.resolveBillingAttribution(context.workspaceId)
-    const usage = await checkAttributedUsageLimits(billingAttribution)
+    const { billingAttribution, usage, userId } = await resolveKnowledgeUsageAdmission(
+      principal,
+      context,
+      input.resolveBillingAttribution
+    )
     if (usage.isExceeded) {
       throw new KnowledgeUsageLimitExceededError(
         usage.message || 'Usage limit exceeded. Please upgrade your plan to continue.'
       )
     }
-    const userId = resolveKnowledgeAttributedUserId(principal, context)
     const secretProvenances = input.resolveSecretProvenances({
       userId,
       workspaceId: context.workspaceId,
@@ -629,7 +630,7 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
       BULK_DELETE_KNOWLEDGE_DOCUMENTS_COST_POLICY.maxItems
     )
     return {
-      ...(await resolveActiveKnowledgeBaseContext(input)),
+      ...(await resolveActiveKnowledgeResourceContext(input)),
       documentIds,
     }
   },
@@ -650,12 +651,14 @@ export const bulkDeleteKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
           documentId,
           assertedWorkspaceId: context.workspaceId,
         })
-        await authorizeWorkspaceOperation(
-          principal,
-          knowledgeOperations.bulkDeleteDocuments,
-          canonical,
-          { delegation: knowledgeDelegationPolicy }
-        )
+        if (canonical.workspaceId) {
+          await authorizeWorkspaceOperation(
+            principal,
+            knowledgeOperations.bulkDeleteDocuments,
+            canonical,
+            { delegation: knowledgeDelegationPolicy }
+          )
+        }
         if (input.cancellationSignal?.aborted) break
         await deleteKnowledgeDocumentInKnowledgeBase(
           canonical.knowledgeBaseId,
@@ -718,9 +721,13 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
         : await performRetryKnowledgeDocumentProcessing({
             knowledgeBaseId: context.knowledgeBaseId,
             document: context.document,
-            billingAttribution: input.resolveBillingAttribution
-              ? await input.resolveBillingAttribution(context.workspaceId)
-              : await resolveKnowledgeBillingAttribution(principal, context),
+            billingAttribution: (
+              await resolveKnowledgeUsageAdmission(
+                principal,
+                context,
+                input.resolveBillingAttribution
+              )
+            ).billingAttribution,
           })
       if (!outcome.success) {
         if (outcome.errorCode === 'internal') {
@@ -771,7 +778,7 @@ export const updateKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
 export const bulkUpdateKnowledgeDocuments = defineAuthorizedKnowledgeUseCase({
   operation: knowledgeOperations.bulkDocuments,
   resolveContext: ({ input }: { input: BulkKnowledgeDocumentsInput }) =>
-    resolveActiveKnowledgeBaseContext(input),
+    resolveActiveKnowledgeResourceContext(input),
   async execute({ input, context }) {
     const result = input.selectAll
       ? await bulkDocumentOperationByFilter(

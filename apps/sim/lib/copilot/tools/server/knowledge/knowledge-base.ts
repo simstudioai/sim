@@ -953,6 +953,9 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             assertedWorkspaceId: workspaceId,
             source: 'agent',
           })
+          if (!outcome.workspaceId) {
+            throw new Error('Knowledge connector deletion is missing its workspace scope')
+          }
           captureKnowledgeConnectorRemoved(
             context.userId,
             outcome.workspaceId,

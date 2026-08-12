@@ -38,7 +38,7 @@ interface KnowledgeChunkInput extends KnowledgeDocumentChunkInput {
 
 interface ResolveChunkProvenanceInput {
   userId: string
-  workspaceId: string
+  workspaceId?: string
 }
 
 export interface ListKnowledgeChunksInput extends KnowledgeDocumentChunkInput, ChunkFilters {}
@@ -149,7 +149,7 @@ export const createKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const registry = provenance
       ? await createDurableSecretProvenanceRegistry(provenance, {
           userId,
-          workspaceId: context.workspaceId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
         })
       : undefined
     const chunk = await runWithKnowledgeModelInputProvenance(registry, () =>
@@ -209,7 +209,7 @@ export const updateKnowledgeChunk = defineAuthorizedKnowledgeUseCase({
     const registry = provenance
       ? await createDurableSecretProvenanceRegistry(provenance, {
           userId,
-          workspaceId: context.workspaceId,
+          ...(context.workspaceId ? { workspaceId: context.workspaceId } : {}),
         })
       : undefined
     const chunk = await runWithKnowledgeModelInputProvenance(registry, () =>

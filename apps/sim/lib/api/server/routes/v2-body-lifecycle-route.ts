@@ -21,7 +21,7 @@ import {
 } from '@/lib/api/server/validation'
 import type { ApplicationOperation, OperationUseCase } from '@/lib/core/application'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
-import { v2Error, v2ValidationError } from '@/app/api/v2/lib/response'
+import { v2Error, v2HttpError, v2ValidationError } from '@/app/api/v2/lib/response'
 
 interface V2BodyLifecycleAdmission<
   O extends ApplicationOperation,
@@ -168,6 +168,7 @@ export function defineV2BodyLifecycleRoute<
       }
     },
     {
+      typedErrorResponse: ({ error }) => v2HttpError(error),
       unhandledErrorResponse: ({ error }) =>
         error instanceof V2RouteInfrastructureError
           ? v2Error('SERVICE_UNAVAILABLE', 'Service temporarily unavailable')

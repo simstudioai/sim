@@ -6,6 +6,7 @@ import {
   internalOrchestrationErrorPolicy,
   internalPlainOrchestrationErrorPolicy,
 } from '@/lib/api/server/routes'
+import { StorageLimitExceededError } from '@/lib/billing/storage'
 import { asOrchestrationError, statusForOrchestrationError } from '@/lib/core/orchestration/types'
 import {
   CompiledCheckTooLargeError,
@@ -28,6 +29,11 @@ const compiledCheck = extendInternalErrorPolicy(internalPlainOrchestrationErrorP
     return internalErrorResponse(413, { error: error.message })
   }
   return null
+})
+
+const content = extendInternalErrorPolicy(internalOrchestrationErrorPolicy, (error) => {
+  if (!(error instanceof StorageLimitExceededError)) return null
+  return internalErrorResponse(402, { success: false, error: error.message })
 })
 
 const downloadUrl: InternalErrorPolicy = {
@@ -79,6 +85,7 @@ const inline: InternalErrorPolicy = {
 export const internalFileErrorPolicies = {
   default: internalOrchestrationErrorPolicy,
   plain: internalPlainOrchestrationErrorPolicy,
+  content,
   style,
   compiledCheck,
   downloadUrl,

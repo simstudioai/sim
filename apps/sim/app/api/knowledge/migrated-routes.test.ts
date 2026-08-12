@@ -114,12 +114,15 @@ vi.mock('@/lib/core/telemetry', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({ captureServerEvent: mocks.capture }))
 
+import { OrchestrationError } from '@/lib/core/orchestration/types'
+import { KnowledgeUsageLimitExceededError } from '@/lib/knowledge/application/billing'
 import {
   GET as listConnectorDocuments,
   PATCH as updateConnectorDocuments,
 } from '@/app/api/knowledge/[id]/connectors/[connectorId]/documents/route'
 import { PUT as updateDocument } from '@/app/api/knowledge/[id]/documents/[documentId]/route'
 import {
+  PATCH as bulkDocuments,
   POST as createDocuments,
   GET as listDocuments,
 } from '@/app/api/knowledge/[id]/documents/route'
@@ -358,6 +361,46 @@ describe('migrated internal Knowledge routes', () => {
     expect(mocks.createDocuments.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.platformUpload.mock.invocationCallOrder[0]
     )
+  })
+
+  it('preserves payment-required for document usage admission', async () => {
+    mocks.createDocuments.mockRejectedValueOnce(
+      new KnowledgeUsageLimitExceededError('Usage limit exceeded')
+    )
+
+    const response = await createDocuments(
+      createMockRequest('POST', {
+        bulk: false,
+        filename: document.filename,
+        fileUrl: document.fileUrl,
+        fileSize: document.fileSize,
+        mimeType: document.mimeType,
+      }),
+      { params: Promise.resolve({ id: 'knowledge-1' }) }
+    )
+
+    expect(response.status).toBe(402)
+    await expect(response.json()).resolves.toEqual({ error: 'Usage limit exceeded' })
+    expect(mocks.capture).not.toHaveBeenCalled()
+  })
+
+  it('returns not found when a bulk document selection has no active matches', async () => {
+    mocks.bulkDocuments.mockRejectedValueOnce(
+      new OrchestrationError('not_found', 'No valid documents found to update')
+    )
+
+    const response = await bulkDocuments(
+      createMockRequest('PATCH', {
+        operation: 'disable',
+        documentIds: ['document-1'],
+      }),
+      { params: Promise.resolve({ id: 'knowledge-1' }) }
+    )
+
+    expect(response.status).toBe(404)
+    await expect(response.json()).resolves.toEqual({
+      error: 'No valid documents found to update',
+    })
   })
 
   it('rejects oversized document-create arrays at the contract boundary', async () => {

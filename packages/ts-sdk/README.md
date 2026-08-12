@@ -80,6 +80,8 @@ const result = await client.executeWorkflow('workflow-id', { message: 'Hello' },
 
 **Returns:** `Promise<WorkflowExecutionResult | AsyncExecutionResult>`
 
+Synchronous executions that finish with `status: 'failed'` reject with `SimStudioError`.
+
 ##### getWorkflowStatus(workflowId)
 
 Get the status of a workflow (deployment status, etc.).
@@ -232,12 +234,16 @@ client.setBaseUrl('https://my-custom-domain.com');
 ```typescript
 interface WorkflowExecutionResult {
   success: boolean;
+  executionId?: string;
   output?: any;
   error?: string;
   logs?: any[];
   metadata?: {
     duration?: number;
+    executionId?: string;
     runId?: string;
+    startTime?: string;
+    endTime?: string;
     [key: string]: any;
   };
   traceSpans?: any[];

@@ -86,7 +86,7 @@ export const POST = defineInternalJsonRoute({
   rateLimit: internalRateLimits.none({
     reason: 'Preserve existing internal document-create behavior',
   }),
-  errorPolicy: internalKnowledgeErrorPolicies.documents,
+  errorPolicy: internalKnowledgeErrorPolicies.uploads,
   mapInput: ({ params, body }, { principal, request }) => {
     const documents = body.bulk ? body.documents : [body]
     return {
