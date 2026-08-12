@@ -263,6 +263,8 @@ export const workspaceHostContextSchema = z.object({
     permission: workspacePermissionSchema,
     isHostOrganizationMember: z.boolean(),
     isHostOrganizationAdmin: z.boolean(),
+    /** Optional for rolling compatibility with app versions that predate organization-role projection. */
+    organizationRole: z.string().nullable().optional(),
   }),
 })
 

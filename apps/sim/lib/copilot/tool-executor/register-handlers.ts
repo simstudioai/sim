@@ -17,6 +17,7 @@ import {
   GetBlockUpstreamReferences,
   GetDeployedWorkflowState,
   GetDeploymentLog,
+  GetEnterpriseContext,
   GetWorkflowData,
   GetWorkflowRunOptions,
   Glob as GlobTool,
@@ -51,6 +52,7 @@ import {
   UpdateDeploymentVersion,
   UpdateWorkspaceMcpServer,
 } from '@/lib/copilot/generated/tool-catalog-v1'
+import { executeGetEnterpriseContext } from '@/lib/copilot/tools/handlers/enterprise-context'
 import { createServerToolHandler } from '@/lib/copilot/tools/registry/server-tool-adapter'
 import { getRegisteredServerToolNames } from '@/lib/copilot/tools/server/router'
 import { executeGetAccountBilling } from '../tools/handlers/account'
@@ -137,6 +139,7 @@ function buildHandlerMap(): Record<string, ToolHandler> {
   return {
     [ListUserWorkspaces.id]: h((_p, c) => executeListUserWorkspaces(c)),
     [GetAccountBilling.id]: h((_p, c) => executeGetAccountBilling(c)),
+    [GetEnterpriseContext.id]: h((_p, c) => executeGetEnterpriseContext(c)),
     [GetWorkflowData.id]: h(executeGetWorkflowData),
     [GetWorkflowRunOptions.id]: h(executeGetWorkflowRunOptions),
     [GetBlockOutputs.id]: h(executeGetBlockOutputs),

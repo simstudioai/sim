@@ -61,6 +61,7 @@ export interface ToolCatalogEntry {
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
+    | 'get_enterprise_context'
     | 'get_page_contents'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
@@ -183,6 +184,7 @@ export interface ToolCatalogEntry {
     | 'get_block_upstream_references'
     | 'get_deployed_workflow_state'
     | 'get_deployment_log'
+    | 'get_enterprise_context'
     | 'get_page_contents'
     | 'get_workflow_data'
     | 'get_workflow_run_options'
@@ -3008,6 +3010,14 @@ export const GetDeploymentLog: ToolCatalogEntry = {
       },
     },
   },
+}
+
+export const GetEnterpriseContext: ToolCatalogEntry = {
+  id: 'get_enterprise_context',
+  name: 'get_enterprise_context',
+  route: 'sim',
+  mode: 'async',
+  parameters: { type: 'object', properties: {} },
 }
 
 export const GetPageContents: ToolCatalogEntry = {
@@ -6583,6 +6593,7 @@ export const TOOL_CATALOG: Record<string, ToolCatalogEntry> = {
   [GetBlockUpstreamReferences.id]: GetBlockUpstreamReferences,
   [GetDeployedWorkflowState.id]: GetDeployedWorkflowState,
   [GetDeploymentLog.id]: GetDeploymentLog,
+  [GetEnterpriseContext.id]: GetEnterpriseContext,
   [GetPageContents.id]: GetPageContents,
   [GetWorkflowData.id]: GetWorkflowData,
   [GetWorkflowRunOptions.id]: GetWorkflowRunOptions,

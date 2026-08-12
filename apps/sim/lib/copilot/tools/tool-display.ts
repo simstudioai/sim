@@ -479,6 +479,7 @@ const TOOL_TITLES: Record<string, string> = {
   get_block_upstream_references: 'Getting block references',
   get_deployed_workflow_state: 'Getting deployed workflow',
   get_deployment_log: 'Getting deployment logs',
+  get_enterprise_context: 'Checking enterprise access',
   get_platform_actions: 'Getting platform actions',
   get_scheduled_task_logs: 'Reading scheduled task logs',
   get_workflow_data: 'Getting workflow data',

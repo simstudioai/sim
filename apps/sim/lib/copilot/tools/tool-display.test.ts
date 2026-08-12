@@ -76,6 +76,7 @@ describe('getToolDisplayTitle natural-language coverage', () => {
     expect(getToolDisplayTitle('list_workspace_mcp_servers')).toBe('Listing MCP servers')
     expect(getToolDisplayTitle('oauth_get_auth_link')).toBe('Getting authorization link')
     expect(getToolDisplayTitle('diff_workflows')).toBe('Comparing workflows')
+    expect(getToolDisplayTitle('get_enterprise_context')).toBe('Checking enterprise access')
   })
 
   it('includes the query in search_docs titles', () => {
