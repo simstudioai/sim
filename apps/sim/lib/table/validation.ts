@@ -275,16 +275,40 @@ function coerceValueToColumnType(value: JsonValue, column: ColumnDefinition): Co
 }
 
 /**
+ * What a write does with a value its column's type cannot coerce.
+ *
+ * - `reject` — leave the value in place so the following
+ *   {@link validateRowAgainstSchema} reports it and the write fails. This is
+ *   the default, and the only policy any caller-supplied value may use: a
+ *   client that sends `"abc"` for a `number` column has made a mistake, and
+ *   answering 200 while storing `null` destroys the cell it was trying to
+ *   write. It also matches the read side, which already refuses the same
+ *   mismatch in a filter predicate rather than matching nothing.
+ * - `null` — blank the cell instead. Reserved for values a *machine* produced
+ *   for a cell the caller did not type: a workflow/enrichment block whose
+ *   output does not fit its bound column, and a CSV import where one bad cell
+ *   in a 100k-row file must not fail the file. Nothing there has a caller to
+ *   return a 400 to.
+ *
+ * A `required` column is never blanked under either policy — a null would fail
+ * the required check immediately after.
+ */
+export type UncoercibleValuePolicy = 'reject' | 'null'
+
+/**
  * Coerces each present value in `data` toward its column's declared type **in
  * place**. Values that already match are untouched; unambiguous conversions
- * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are set to
- * `null` when the column is optional, or left in place when required (so a
- * subsequent {@link validateRowAgainstSchema} reports them).
+ * (e.g. `"1999"` → `1999`) are applied; values that cannot be coerced are
+ * handled per {@link UncoercibleValuePolicy}.
  *
  * Operates per-present-column, so it is safe on a partial patch (columns absent
  * from `data` are skipped — it never invents a missing-required-field error).
  */
-export function coerceRowValues(data: RowData, schema: TableSchema): void {
+export function coerceRowValues(
+  data: RowData,
+  schema: TableSchema,
+  policy: UncoercibleValuePolicy = 'reject'
+): void {
   for (const column of schema.columns) {
     const key = getColumnId(column)
     const value = data[key]
@@ -293,7 +317,7 @@ export function coerceRowValues(data: RowData, schema: TableSchema): void {
     const coerced = coerceValueToColumnType(value, column)
     if (coerced.ok) {
       data[key] = coerced.value
-    } else if (!column.required) {
+    } else if (policy === 'null' && !column.required) {
       data[key] = null
     }
   }
@@ -304,14 +328,17 @@ export function coerceRowValues(data: RowData, schema: TableSchema): void {
  * then validates the result.
  *
  * This is the write-path entry point — callers that persist a complete row use
- * it instead of {@link validateRowAgainstSchema} so a single off-type field (a
- * tool returning `"unknown"` for a numeric column, say) nulls that one cell
- * rather than failing the entire row write. Callers persisting only a partial
- * patch should use {@link coerceRowValues} on the patch and validate the merged
- * row separately.
+ * it instead of {@link validateRowAgainstSchema} so the coercion and the check
+ * that follows it can never disagree about what a cell holds. Callers persisting
+ * only a partial patch should use {@link coerceRowValues} on the patch and
+ * validate the merged row separately.
  */
-export function coerceRowToSchema(data: RowData, schema: TableSchema): ValidationResult {
-  coerceRowValues(data, schema)
+export function coerceRowToSchema(
+  data: RowData,
+  schema: TableSchema,
+  policy: UncoercibleValuePolicy = 'reject'
+): ValidationResult {
+  coerceRowValues(data, schema, policy)
   return validateRowAgainstSchema(data, schema)
 }
 

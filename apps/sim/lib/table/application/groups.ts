@@ -176,7 +176,10 @@ export const listTableGroupsUseCase = defineAuthorizedTableUseCase({
       assertedWorkspaceId: input.workspaceId,
     }),
   async execute({ context }) {
-    return { groups: (context.table.schema as TableSchema).workflowGroups ?? [] }
+    return {
+      table: context.table,
+      groups: (context.table.schema as TableSchema).workflowGroups ?? [],
+    }
   },
 })
 

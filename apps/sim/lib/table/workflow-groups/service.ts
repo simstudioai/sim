@@ -143,6 +143,13 @@ export async function addWorkflowGroup(
         )
       }
 
+      if (groups.length >= TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE) {
+        throw new OrchestrationError(
+          'validation',
+          `Table has reached the maximum of ${TABLE_LIMITS.MAX_WORKFLOW_GROUPS_PER_TABLE} workflow groups`
+        )
+      }
+
       const existingNames = new Set(schema.columns.map((c) => c.name.toLowerCase()))
       for (const col of data.outputColumns) {
         if (!NAME_PATTERN.test(col.name)) {

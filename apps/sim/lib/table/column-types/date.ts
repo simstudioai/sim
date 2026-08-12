@@ -5,7 +5,6 @@ import {
   normalizeDateCellValue,
   storedDateToEditable,
 } from '@/lib/table/dates'
-import type { JsonValue } from '@/lib/table/types'
 
 export const dateColumnType: ColumnTypeDefinition = {
   id: 'date',
@@ -27,24 +26,24 @@ export const dateColumnType: ColumnTypeDefinition = {
       const normalized = normalizeDateCellValue(value)
       return normalized === null ? { ok: false } : { ok: true, value: normalized }
     }
-    // Date instances and epoch numbers may still be out of the representable
-    // range (>±8.64e15ms) — guard `toISOString()`, which throws RangeError on
-    // an Invalid Date, so an over-range value degrades to `{ ok: false }`
-    // rather than crashing the write.
-    const date = value instanceof Date ? value : typeof value === 'number' ? new Date(value) : null
-    if (date && !Number.isNaN(date.getTime())) return { ok: true, value: date.toISOString() }
+    // A bare number is refused, in every direction. It is the one input whose
+    // meaning cannot be recovered from the value itself: `1600000000` is
+    // September 2020 read as Unix seconds and 19 January 1970 read as
+    // milliseconds, both readings are in range, and nothing on the wire says
+    // which was meant. Milliseconds used to win, so a seconds-based epoch —
+    // the far more common shape — stored a timestamp 50 years early under a
+    // 200. An ISO-8601 string carries its own unit; that is what a date cell
+    // takes. This also removes the reason the bulk retype gate had to be
+    // stricter than the write path, so it no longer overrides.
+    //
+    // A Date instance may still be out of the representable range (>±8.64e15ms),
+    // so `toISOString()` is guarded — it throws RangeError on an Invalid Date —
+    // and an over-range value degrades to `{ ok: false }` rather than crashing
+    // the write.
+    if (value instanceof Date && !Number.isNaN(value.getTime())) {
+      return { ok: true, value: value.toISOString() }
+    }
     return { ok: false }
-  },
-
-  isCompatibleWith(value) {
-    // Stricter than `coerce` on purpose. Writing a number into a date cell is a
-    // deliberate act — the caller means epoch milliseconds. Reinterpreting a
-    // whole NUMBER column as epochs is not: a column of 1, 5, 42 would become
-    // three timestamps in January 1970, irreversibly, and a Unix-seconds column
-    // would land in 1970 rather than the year it means. Refuse the bulk
-    // conversion; single writes still accept epochs.
-    if (typeof value === 'number') return false
-    return dateColumnType.coerce(value as JsonValue, { name: '', type: 'date' }).ok
   },
 
   validateCell(value, column) {

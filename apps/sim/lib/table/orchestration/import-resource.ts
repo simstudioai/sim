@@ -29,7 +29,7 @@ import {
 import { runTableImport, type TableImportPayload } from '@/lib/table/import-runner'
 import { markTableJobRunningInWorkspace } from '@/lib/table/jobs/service'
 import { assertRowDelete, assertRowInsert } from '@/lib/table/mutation-locks'
-import { createTable, getTableById } from '@/lib/table/service'
+import { assertWorkspaceTableCapacity, createTable, getTableById } from '@/lib/table/service'
 import type { TableImportJobPayload } from '@/lib/table/types'
 import { getWorkspaceFile, type WorkspaceFileRecord } from '@/lib/uploads/contexts/workspace'
 import {
@@ -527,6 +527,17 @@ function parseImportJobPayload(payload: unknown): ParsedTableImportPayload | nul
   }
 }
 
+/**
+ * Everything about a target that can be refused before the CSV moves.
+ *
+ * Runs at session creation AND again when the upload completes. The table
+ * ceiling in particular has to be checked in both places and for different
+ * reasons: at completion because the authoritative gate lives in `createTable`'s
+ * transaction and the quota can be reached while a large file uploads, and at
+ * creation because otherwise the only answer a full workspace ever gets is a 403
+ * after it has already transferred up to 5 GiB to a presigned URL — leaving an
+ * orphaned object behind for a table that was never creatable.
+ */
 async function validateTarget(
   workspaceId: string,
   target: V2TableImportTarget,
@@ -536,6 +547,8 @@ async function validateTarget(
     if (resolvedFolderId && !(await findActiveFolder(resolvedFolderId, workspaceId, 'table'))) {
       throw new OrchestrationError('not_found', 'Folder not found in this workspace')
     }
+    const { maxTables } = await getWorkspaceTableLimits(workspaceId)
+    await assertWorkspaceTableCapacity(workspaceId, maxTables)
     return
   }
   await requireExistingTarget(workspaceId, target)

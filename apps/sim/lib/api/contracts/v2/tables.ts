@@ -1196,7 +1196,7 @@ export const v2WorkflowGroupSchema = z
           blockId: z.string().describe('Workflow block producing this output.'),
           path: z.string().describe('Path to the value in the workflow block output.'),
           outputId: z.string().optional().describe('Registry enrichment output identifier.'),
-          columnName: z.string().describe('Table column receiving the output.'),
+          columnName: z.string().describe('Name of the table column receiving the output.'),
         })
       )
       .describe('Workflow outputs mapped to table columns.'),
@@ -1204,7 +1204,7 @@ export const v2WorkflowGroupSchema = z
       .array(
         z.object({
           inputName: z.string().describe('Workflow input name.'),
-          columnName: z.string().describe('Source table column name.'),
+          columnName: z.string().describe('Name of the source table column.'),
         })
       )
       .optional()
@@ -1295,6 +1295,21 @@ export const v2AddWorkflowGroupBodySchema = z
           .min(1)
           .optional()
           .describe('Optional client-provided workflow-group identifier.'),
+        /**
+         * The first-party shape defaults this to `''`, which published a
+         * `default: ""` the surface does not honor: a `manual` group — the
+         * type you get by omitting `type` — that omits `workflowId` is refused
+         * by `refineGroupSource`, so the spec promised a fallback that always
+         * 400s. Optional with no default and a description that names the
+         * condition is what is actually true.
+         */
+        workflowId: z
+          .string()
+          .min(1, 'workflowId cannot be empty')
+          .optional()
+          .describe(
+            'Backing workflow identifier. Required when `type` is `manual` (which is also the default when `type` is omitted); omit it for an `enrichment` group.'
+          ),
       })
       .describe('Workflow or enrichment producer definition.'),
     outputColumns: z

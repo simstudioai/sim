@@ -475,7 +475,7 @@ describe('replaceTableRows application use case', () => {
         tableId: TABLE.id,
         assertedWorkspaceId: TABLE.workspaceId,
         requestId: 'request-1',
-        rows: [{ name: 'Ada', unknown: 'dropped' }],
+        rows: [{ name: 'Ada' }],
       },
     })
 
@@ -497,6 +497,16 @@ describe('replaceTableRows application use case', () => {
     )
     expect(result).toMatchObject({ deletedCount: 2, insertedCount: 1 })
     expect(mockSignalRowsChanged).toHaveBeenCalledWith(TABLE.id)
+  })
+
+  it('refuses a replacement row naming a column the table does not have', async () => {
+    await expect(
+      replaceTableRows.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rows: [{ name: 'Ada', unknown: 'x' }] },
+      })
+    ).rejects.toThrow(/Row 1: Unknown column: unknown/)
+    expect(mockReplaceRowsPrimitive).not.toHaveBeenCalled()
   })
 
   it('rejects more than 10,000 rows before opening the atomic primitive', async () => {
@@ -951,5 +961,96 @@ describe('table row write secret provenance defaulting', () => {
       TABLE,
       expect.any(String)
     )
+  })
+})
+
+/**
+ * The name→id remap drops keys naming no column, and nothing upstream had
+ * checked that there were none to drop. An insert of `{"nosuchcol":"x"}`
+ * therefore answered 201 having created an empty row, and a patch of
+ * `{"zzz":"x"}` answered `updatedCount: 0` — the same answer a predicate that
+ * matched nothing gives, so a caller could not tell a typo from an empty match.
+ */
+describe('unknown column names are refused, not dropped', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockResolvePermission.mockResolvedValue('write')
+    mockResolveContext.mockResolvedValue({
+      tableId: TABLE.id,
+      table: TABLE,
+      workspaceId: TABLE.workspaceId,
+      workspaceOrganizationId: 'organization-1',
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+    mockValidateRowData.mockResolvedValue({ valid: true })
+    mockValidateBatchRows.mockResolvedValue({ valid: true })
+    mockInsertRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockBatchInsertRows.mockResolvedValue([{ id: 'row-1', data: {} }])
+    mockUpdateRow.mockResolvedValue({ id: 'row-1', data: {} })
+    mockUpdateRowsByFilter.mockResolvedValue({ affectedCount: 0 })
+    mockUpsertRow.mockResolvedValue({ operation: 'insert', row: { id: 'row-1', data: {} } })
+  })
+
+  it('refuses a single insert naming a column the table does not have', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { nosuchcol: 'x' } },
+      })
+    ).rejects.toThrow(/Unknown column: nosuchcol/)
+    expect(mockInsertRow).not.toHaveBeenCalled()
+  })
+
+  it('names every unknown column at once', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { zzz: 'x', qqq: 'y' } },
+      })
+    ).rejects.toThrow(/Unknown columns: zzz, qqq/)
+  })
+
+  it('refuses a batch insert and says which row was wrong', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'batch', tableId: TABLE.id, rows: [{ name: 'Ada' }, { zzz: 'x' }] },
+      })
+    ).rejects.toThrow(/Row 2: Unknown column: zzz/)
+    expect(mockBatchInsertRows).not.toHaveBeenCalled()
+  })
+
+  it('refuses a predicate update rather than reporting an empty match', async () => {
+    await expect(
+      updateTableRows.execute({
+        principal: PRINCIPAL,
+        input: {
+          tableId: TABLE.id,
+          filter: { all: [{ field: 'name', op: 'eq', value: 'Ada' }] },
+          data: { zzz: 'x' },
+        },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRowsByFilter).not.toHaveBeenCalled()
+  })
+
+  it('refuses a single-row update naming an unknown column', async () => {
+    await expect(
+      updateTableRow.execute({
+        principal: PRINCIPAL,
+        input: { tableId: TABLE.id, rowId: 'row-1', data: { zzz: 'x' } },
+      })
+    ).rejects.toThrow(/Unknown column: zzz/)
+    expect(mockUpdateRow).not.toHaveBeenCalled()
+  })
+
+  it('still accepts a write naming only known columns', async () => {
+    await expect(
+      createTableRows.execute({
+        principal: PRINCIPAL,
+        input: { kind: 'single', tableId: TABLE.id, data: { name: 'Ada' } },
+      })
+    ).resolves.toBeDefined()
   })
 })

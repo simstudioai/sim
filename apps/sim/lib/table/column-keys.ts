@@ -139,7 +139,13 @@ export function buildNameById(schema: TableSchema): Map<string, string> {
 /**
  * Remaps a wire row keyed by column **name** to the stored **id** keying. Used
  * at the name-translating boundaries on the way in. Keys not matching a known
- * column are dropped (validation has already run against the schema).
+ * column are dropped.
+ *
+ * Dropping is only safe once someone has established that there are none to
+ * drop — a key that survives to here unrecognised is a cell the caller asked to
+ * write and the table never stored. Callers on a surface that can answer the
+ * client check {@link unknownColumnNames} first; see
+ * `namedDataToStorage` in `application/rows.ts`.
  */
 export function rowDataNameToId(data: RowData, idByName: Map<string, string>): RowData {
   const out: RowData = {}
@@ -148,6 +154,18 @@ export function rowDataNameToId(data: RowData, idByName: Map<string, string>): R
     if (id !== undefined) out[id] = value
   }
   return out
+}
+
+/**
+ * Wire row keys naming no column in `idByName`, in the order they were sent.
+ *
+ * The v2 row surface is keyed by column **name**, so a stored column **id** is
+ * as unknown here as a typo — it names no key the caller could have read off a
+ * row, and letting it through would reinstate the silent drop for exactly the
+ * callers most likely to believe they had written something.
+ */
+export function unknownColumnNames(data: RowData, idByName: ReadonlyMap<string, string>): string[] {
+  return Object.keys(data).filter((name) => !idByName.has(name))
 }
 
 /**

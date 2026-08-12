@@ -470,6 +470,24 @@ export const TABLE_QUERY_MAX_BODY_BYTES = 1024 * 1024
 const MAX_SORT_KEYS = 16
 
 /**
+ * The published predicate grammar.
+ *
+ * Everything here was previously true only in the SQL builder's own comments: a
+ * caller reading the spec saw an untyped operand and an operator enum with no
+ * semantics, so the natural guess — SQL's own `%` wildcard — matched zero rows
+ * under a 200 and nothing said why. Stated on the operator and on the tree so it
+ * reaches the OpenAPI description of every endpoint that takes a predicate.
+ */
+const PREDICATE_OPERATOR_GRAMMAR = [
+  'Comparison: `eq`, `ne`, `gt`, `gte`, `lt`, `lte`.',
+  'Membership: `in`, `nin` (array operand).',
+  'Emptiness: `isEmpty`, `isNotEmpty`, `isNull`, `isNotNull` (no operand).',
+  'Substring, always case-insensitive, operand matched literally: `contains`, `ncontains`, `startsWith`, `endsWith`.',
+  'Pattern: `like`/`nlike` (case-sensitive), `ilike`/`nilike` (case-insensitive). **`*` is the only wildcard** and stands for any run of characters; `%`, `_`, and backslash match themselves. Use `like: "Hi*"`, not `like: "Hi%"`.',
+  'A `select` column compares by option id and restricts its operators: single-select accepts `eq`, `ne`, `in`, `nin`; multi-select accepts `contains`, `ncontains`. Option names are accepted as operands and resolved to ids.',
+].join(' ')
+
+/**
  * v2 filter wire format: the typed `{ all | any: [...] }` predicate tree (same
  * shape the engine consumes). Structure is validated here; schema-awareness
  * (unknown column, json-op rejection) is enforced server-side by
@@ -486,9 +504,20 @@ const MAX_SORT_KEYS = 16
  * would just fall through to the leaf branch, which is the more dangerous reading.
  */
 const predicateLeafObjectSchema = z.strictObject({
-  field: z.string().min(1, 'field is required').max(128),
-  op: z.enum(FILTER_OPS),
-  value: z.unknown().optional(),
+  field: z
+    .string()
+    .min(1, 'field is required')
+    .max(128)
+    .describe(
+      'Column name to compare, or one of the system fields `id`, `createdAt`, `updatedAt`.'
+    ),
+  op: z.enum(FILTER_OPS).describe(PREDICATE_OPERATOR_GRAMMAR),
+  value: z
+    .unknown()
+    .optional()
+    .describe(
+      'Operand. A scalar for the comparison operators, an array for `in`/`nin`, a pattern for the matching operators, and omitted for `isEmpty`/`isNotEmpty`/`isNull`/`isNotNull`.'
+    ),
 })
 
 // double-cast-allowed: `z.unknown()` keeps the runtime permissive (a leaf value
@@ -533,7 +562,7 @@ const predicateBoundarySchema = z.unknown().superRefine((value, ctx) => {
 const documentedPredicateSchema = predicateBoundarySchema
   .pipe(predicateTreeSchema)
   .describe(
-    'Recursive predicate tree with exactly one non-empty `all` or `any` group at each group node.'
+    `Recursive predicate tree with exactly one non-empty \`all\` or \`any\` group at each group node. ${PREDICATE_OPERATOR_GRAMMAR}`
   )
 
 // double-cast-allowed: the pipe's inferred input is `unknown`, and letting TS widen the recursive lazy union through it makes typecheck OOM
@@ -549,7 +578,7 @@ export const predicateInputSchema = predicateBoundarySchema
   .pipe(predicateNodeSchema)
   .transform(normalizeTablePredicate)
   .describe(
-    'Recursive predicate condition or group, normalized to a grouped predicate after validation.'
+    `Recursive predicate condition or group, normalized to a grouped predicate after validation. ${PREDICATE_OPERATOR_GRAMMAR}`
   ) as z.ZodType<TablePredicate, PredicateNode>
 
 /**

@@ -10,6 +10,7 @@ const {
   mockGetUserSettings,
   mockGetWorkspaceFile,
   mockGetWorkspaceTableLimits,
+  mockAssertWorkspaceTableCapacity,
   mockRunDetached,
 } = vi.hoisted(() => ({
   mockCreateTable: vi.fn(),
@@ -18,6 +19,7 @@ const {
   mockGetUserSettings: vi.fn(),
   mockGetWorkspaceFile: vi.fn(),
   mockGetWorkspaceTableLimits: vi.fn(),
+  mockAssertWorkspaceTableCapacity: vi.fn(),
   mockRunDetached: vi.fn(),
 }))
 
@@ -35,6 +37,7 @@ vi.mock('@/lib/core/utils/background', () => ({ runDetached: mockRunDetached }))
 vi.mock('@/lib/table/billing', () => ({ getWorkspaceTableLimits: mockGetWorkspaceTableLimits }))
 vi.mock('@/lib/table/import-runner', () => ({ runTableImport: vi.fn() }))
 vi.mock('@/lib/table/service', () => ({
+  assertWorkspaceTableCapacity: mockAssertWorkspaceTableCapacity,
   createTable: mockCreateTable,
   getTableById: vi.fn(),
 }))
@@ -135,6 +138,7 @@ describe('createAuthorizedTableImportResource workspace file size', () => {
 describe('createAuthorizedTableImportResource upload size', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 100, maxRowsPerTable: 10_000 })
     mockCreateUploadSession.mockResolvedValue({
       id: 'import-1',
       userId: 'user-1',
@@ -249,5 +253,74 @@ describe('findTableImportResource on a job that is not a v2 import resource', ()
       source: SOURCE,
       target: TARGET,
     })
+  })
+})
+
+/**
+ * The table ceiling was enforced only by `createTable`, which for an
+ * upload-backed import does not run until the CSV has already been transferred.
+ * A workspace at its limit got a 201 and a presigned PUT for up to 5 GiB, and
+ * learned it was refused only at `complete` — by which point the bytes were paid
+ * for and an orphaned object was sitting in storage.
+ */
+describe('createAuthorizedTableImportResource table quota', () => {
+  const limitReached = Object.assign(new Error('Workspace has reached maximum table limit (5)'), {
+    code: 'WORKSPACE_RESOURCE_LIMIT_REACHED',
+  })
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mockGetWorkspaceTableLimits.mockResolvedValue({ maxTables: 5, maxRowsPerTable: 10_000 })
+    mockGetUserSettings.mockResolvedValue({ timezone: 'UTC' })
+    mockCreateUploadSession.mockResolvedValue({
+      id: 'import-1',
+      userId: 'user-1',
+      status: 'uploading',
+      uploadToken: 'signed-token',
+      transfer: { method: 'put', url: 'https://storage.example/upload', headers: {} },
+      createdAt: new Date('2026-08-04T12:00:00.000Z'),
+      updatedAt: new Date('2026-08-04T12:00:00.000Z'),
+      completedAt: null,
+    })
+  })
+
+  it('refuses an upload-backed import for a new table before handing out a transfer', async () => {
+    mockAssertWorkspaceTableCapacity.mockRejectedValue(limitReached)
+
+    await expect(
+      createImport({
+        workspaceId: WORKSPACE_ID,
+        source: { type: 'upload', name: 'data.csv', contentType: 'text/csv', size: 1024 },
+        target: TARGET,
+      })
+    ).rejects.toThrow(/maximum table limit/)
+
+    expect(mockAssertWorkspaceTableCapacity).toHaveBeenCalledWith(WORKSPACE_ID, 5)
+    expect(mockCreateUploadSession).not.toHaveBeenCalled()
+  })
+
+  it('creates the session when the workspace still has room', async () => {
+    mockAssertWorkspaceTableCapacity.mockResolvedValue(undefined)
+
+    await createImport({
+      workspaceId: WORKSPACE_ID,
+      source: { type: 'upload', name: 'data.csv', contentType: 'text/csv', size: 1024 },
+      target: TARGET,
+    })
+
+    expect(mockCreateUploadSession).toHaveBeenCalledOnce()
+  })
+
+  it('does not check the table ceiling when importing into an existing table', async () => {
+    mockAssertWorkspaceTableCapacity.mockResolvedValue(undefined)
+    mockGetWorkspaceFile.mockResolvedValue(workspaceFile(1024))
+
+    await createImport({
+      workspaceId: WORKSPACE_ID,
+      source: { type: 'upload', name: 'data.csv', contentType: 'text/csv', size: 1024 },
+      target: { type: 'existing', tableId: 'table-1', mode: 'append' },
+    }).catch(() => undefined)
+
+    expect(mockAssertWorkspaceTableCapacity).not.toHaveBeenCalled()
   })
 })

@@ -104,6 +104,7 @@ import {
   coerceRowToSchema,
   coerceRowValues,
   getUniqueColumns,
+  type UncoercibleValuePolicy,
   validateRowSize,
 } from '@/lib/table/validation'
 import { cancelWorkflowGroupRuns, runWorkflowColumn } from '@/lib/table/workflow-columns'
@@ -1552,6 +1553,16 @@ export interface UpdateRowOptions {
 }
 
 /**
+ * A computed write has no caller to answer with a 400 — the block already ran,
+ * and failing the write would strand the whole cell run over one output that
+ * does not fit its bound column. It blanks that cell instead. Every other write
+ * carries a value someone asked to store, so an uncoercible one is refused.
+ */
+function uncoercibleValuePolicy(options: { computedWrite?: boolean }): UncoercibleValuePolicy {
+  return options.computedWrite ? 'null' : 'reject'
+}
+
+/**
  * A row stores every cell in one jsonb `data` column, so a row update writes the changed cells as
  * an in-DB JSONB merge (`data = data || {changed}::jsonb`) rather than replacing the whole object.
  * Postgres evaluates the concat against the current committed row under its write lock, so
@@ -1609,7 +1620,11 @@ export async function updateRow(
   }
 
   // Validate against schema
-  const schemaValidation = coerceRowToSchema(mergedData, table.schema)
+  const schemaValidation = coerceRowToSchema(
+    mergedData,
+    table.schema,
+    uncoercibleValuePolicy(options)
+  )
   if (!schemaValidation.valid) {
     throw new OrchestrationError(
       'validation',
@@ -2230,7 +2245,11 @@ export async function batchUpdateRows(
       )
     }
 
-    const schemaValidation = coerceRowToSchema(merged, table.schema)
+    const schemaValidation = coerceRowToSchema(
+      merged,
+      table.schema,
+      uncoercibleValuePolicy(options)
+    )
     if (!schemaValidation.valid) {
       throw new OrchestrationError(
         'validation',
