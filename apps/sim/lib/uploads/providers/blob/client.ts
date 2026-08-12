@@ -275,7 +275,16 @@ export async function getPresignedUrlWithConfig(
   return `${blockBlobClient.url}?${sasToken}`
 }
 
-/** Generates a create-only SAS-backed single-object PUT for a caller-selected final key. */
+/**
+ * Generates a create-only SAS-backed single-object PUT for a caller-selected final key.
+ *
+ * The permission must stay `c` (create), not `w`: `w` is "create or write
+ * content" and authorizes overwriting an existing blob, so a still-valid
+ * signature could replace a completed upload. `If-None-Match` is returned for
+ * parity with the S3 and GCS signers, but Azure does not cover request headers
+ * in a service-SAS string-to-sign, so it is advisory and cannot carry this on
+ * its own.
+ */
 export async function getBlobPresignedUploadUrl(params: {
   key: string
   contentType: string
@@ -301,7 +310,7 @@ export async function getBlobPresignedUploadUrl(params: {
     {
       containerName: params.customConfig.containerName,
       blobName: params.key,
-      permissions: BlobSASPermissions.parse('w'),
+      permissions: BlobSASPermissions.parse('c'),
       startsOn,
       expiresOn,
     },

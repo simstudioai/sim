@@ -234,8 +234,9 @@ AZURE_STORAGE_WORKSPACE_LOGOS_CONTAINER_NAME=workspace-logos
 
 Direct browser uploads require a Blob service CORS rule on the storage account. Allow your exact
 Sim origin, `GET` and `PUT`, the `Content-Type` header, and the `x-ms-*` prefix used by signed blob
-and metadata headers. Small-file uploads also send `If-None-Match` so a signed URL cannot overwrite
-an existing final object. Multipart uploads also read `ETag` from the browser response:
+and metadata headers. Small-file uploads also send `If-None-Match`; the signature itself is
+create-only, so a signed URL cannot overwrite an existing final object. Multipart uploads also read
+`ETag` from the browser response:
 
 ```bash
 az storage cors add \
