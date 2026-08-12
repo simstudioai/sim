@@ -1550,6 +1550,29 @@ describe('executeTool Function', () => {
     )
   })
 
+  it('copies the env map so a child run cannot corrupt the parent context', async () => {
+    mockRunWorkflowTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
+    const executionContext = createToolExecutionContext({
+      environmentVariables: { MY_API_KEY: 'parent-secret' },
+    })
+
+    await executeTool(
+      'workflow_executor_child-workflow',
+      { workflowId: 'child-workflow' },
+      { executionContext }
+    )
+
+    const forwarded = (mockRunWorkflowTool.mock.calls[0]?.[1] as Record<string, unknown>)
+      .environmentVariables as Record<string, string>
+    expect(forwarded).toEqual({ MY_API_KEY: 'parent-secret' })
+    expect(forwarded).not.toBe(executionContext.environmentVariables)
+
+    forwarded.MY_API_KEY = 'mutated-by-child'
+    forwarded.INJECTED = 'added-by-child'
+
+    expect(executionContext.environmentVariables).toEqual({ MY_API_KEY: 'parent-secret' })
+  })
+
   it('leaves the custom-block runner without the consumer redaction policy', async () => {
     mockRunCustomBlockTool.mockResolvedValueOnce({ success: true, output: { ok: true } })
 
