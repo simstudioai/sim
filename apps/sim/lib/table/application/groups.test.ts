@@ -400,6 +400,38 @@ describe('workflow and enrichment Table application commands', () => {
     expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
   })
 
+  it('starts auto-run when the generic update enables an explicitly disabled group', async () => {
+    mocks.resolveContext.mockResolvedValueOnce({
+      tableId: table.id,
+      table: tableWithGroup({ ...group, autoRun: false }),
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+
+    await updateTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        autoRun: true,
+      },
+    })
+
+    expect(mocks.runDetached).toHaveBeenCalledWith('table-group-update-auto-run')
+    expect(mocks.runWorkflowColumn).toHaveBeenCalledWith({
+      tableId: table.id,
+      workspaceId: table.workspaceId,
+      groupIds: [group.id],
+      mode: 'new',
+      isManualRun: false,
+      requestId: 'request-1',
+      triggeredByUserId: 'user-1',
+    })
+  })
+
   it('rejects an invalid output before constructing or mutating the group', async () => {
     await expect(
       createWorkflowTableGroup.execute({
@@ -555,6 +587,38 @@ describe('workflow and enrichment Table application commands', () => {
     )
     expect(mocks.runDetached).not.toHaveBeenCalled()
     expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
+  })
+
+  it('starts auto-run when the workflow update enables an explicitly disabled group', async () => {
+    mocks.resolveContext.mockResolvedValueOnce({
+      tableId: table.id,
+      table: tableWithGroup({ ...group, autoRun: false }),
+      workspaceId: table.workspaceId,
+      workspaceOrganizationId: null,
+      allowPersonalApiKeys: true,
+      billedAccountUserId: 'billing-owner-1',
+    })
+
+    await updateWorkflowTableGroup.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        autoRun: true,
+      },
+    })
+
+    expect(mocks.runDetached).toHaveBeenCalledWith('table-workflow-group-update-auto-run')
+    expect(mocks.runWorkflowColumn).toHaveBeenCalledWith({
+      tableId: table.id,
+      workspaceId: table.workspaceId,
+      groupIds: [group.id],
+      mode: 'new',
+      isManualRun: false,
+      requestId: 'request-1',
+      triggeredByUserId: 'user-1',
+    })
   })
 
   it('passes authorized output type and ordering to the add-output mutation', async () => {
