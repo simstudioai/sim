@@ -141,6 +141,7 @@ import { listFolders, listWorkflows } from '@/lib/workflows/utils'
 import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-workspace-files'
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 import {
   assertActiveWorkspaceAccess,
   getUsersWithPermissions,
@@ -1960,7 +1961,10 @@ export class WorkspaceVFS {
         listAllWorkspaceFiles.execute({ principal, input: { workspaceId, scope: 'active' } }),
       ])
       for (const folder of folders) {
-        this.files.set(`files/${encodeVfsPathSegments(folder.path.split('/'))}/.folder`, '')
+        this.files.set(
+          `files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}/.folder`,
+          ''
+        )
       }
 
       for (const file of files) {
@@ -2399,8 +2403,7 @@ export class WorkspaceVFS {
       }
 
       for (const folder of archivedFileFolders) {
-        const safePath = folder.path
-          .split('/')
+        const safePath = parseWorkspaceFileFolderDisplayPath(folder.path)
           .map((segment) => sanitizeName(segment))
           .join('/')
         this.files.set(

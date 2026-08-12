@@ -46,6 +46,10 @@ import { listAllWorkspaceFiles } from '@/lib/workspace-files/application/list-wo
 import { readWorkspaceFileContent } from '@/lib/workspace-files/application/read-workspace-file-content'
 import { downloadWorkspaceFileRecord } from '@/lib/workspace-files/application/read-workspace-file-record'
 import { listWorkspaceFileFoldersOperation } from '@/lib/workspace-files/application/workspace-file-folders'
+import {
+  buildWorkspaceFileFolderDisplayPath,
+  parseWorkspaceFileFolderDisplayPath,
+} from '@/lib/workspace-files/folder-display-path'
 import { extractCodeSecretNames } from '@/executor/utils/code-secret-references'
 import { ResolvedSecretTraceRegistry } from '@/executor/utils/resolved-secret-trace-registry'
 import { executeTool as executeAppTool } from '@/tools'
@@ -388,7 +392,7 @@ export async function resolveInputFiles(
             : undefined
       if (!dirPath) continue
       const folderSegments = decodeVfsPathSegments(dirPath.replace(/^\/?files\/?/, ''))
-      const folderDisplayPath = folderSegments.join('/')
+      const folderDisplayPath = buildWorkspaceFileFolderDisplayPath(folderSegments)
       const folder = folders.find((candidate) => candidate.path === folderDisplayPath)
       if (!folder) {
         const unmountable = unmountableNamespaceReason(dirPath)
@@ -403,7 +407,7 @@ export async function resolveInputFiles(
         dirRef !== null &&
         (dirRef as CanonicalDirectoryInput).sandboxPath
           ? (dirRef as CanonicalDirectoryInput).sandboxPath!
-          : `/home/user/files/${encodeVfsPathSegments(folder.path.split('/'))}`
+          : `/home/user/files/${encodeVfsPathSegments(parseWorkspaceFileFolderDisplayPath(folder.path))}`
       const descendants = allFiles.filter((file) => {
         if (!file.folderPath) return false
         return file.folderPath === folder.path || file.folderPath.startsWith(`${folder.path}/`)

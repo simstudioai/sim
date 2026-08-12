@@ -6,6 +6,7 @@ import {
   encodeVfsPathSegments as encodeNeutralVfsPathSegments,
   encodeVfsSegment as encodeNeutralVfsSegment,
 } from '@/lib/vfs/path'
+import { parseWorkspaceFileFolderDisplayPath } from '@/lib/workspace-files/folder-display-path'
 
 export function encodeVfsSegment(segment: string): string {
   return encodeNeutralVfsSegment(segment)
@@ -41,7 +42,9 @@ export function canonicalWorkspaceFilePath(parts: {
   prefix?: 'files' | 'recently-deleted/files'
 }): string {
   const prefix = parts.prefix ?? 'files'
-  const folderSegments = parts.folderPath ? parts.folderPath.split('/').filter(Boolean) : []
+  const folderSegments = parts.folderPath
+    ? parseWorkspaceFileFolderDisplayPath(parts.folderPath)
+    : []
   const encoded = encodeVfsPathSegments([...folderSegments, parts.name])
   return `${prefix}/${encoded}`
 }

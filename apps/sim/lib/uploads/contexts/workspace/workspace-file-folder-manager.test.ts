@@ -27,6 +27,16 @@ describe('workspace file folder paths', () => {
     expect(paths.get('archive')).toBe('Archive')
   })
 
+  it('escapes slashes within folder names without changing hierarchy delimiters', () => {
+    const paths = buildWorkspaceFileFolderPathMap([
+      { id: 'legal', name: 'Finance/Legal', parentId: null },
+      { id: 'quarterly', name: 'Quarterly', parentId: 'legal' },
+    ])
+
+    expect(paths.get('legal')).toBe('Finance\\/Legal')
+    expect(paths.get('quarterly')).toBe('Finance\\/Legal/Quarterly')
+  })
+
   it('rejects names that would create ambiguous paths', () => {
     expect(normalizeWorkspaceFileItemName('Reports', 'Folder')).toBe('Reports')
     expect(() => normalizeWorkspaceFileItemName('A/B', 'Folder')).toThrow(

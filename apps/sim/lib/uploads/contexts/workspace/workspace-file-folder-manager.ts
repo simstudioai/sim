@@ -18,6 +18,7 @@ import {
   requireNonRootFolderPath,
 } from '@/lib/folders/paths'
 import { collectDescendantFolderIds } from '@/lib/folders/subtree'
+import { encodeWorkspaceFileFolderDisplaySegment } from '@/lib/workspace-files/folder-display-path'
 import { MAX_WORKSPACE_FILE_BULK_AFFECTED_ITEMS } from '@/lib/workspace-files/limits'
 import { getWorkspaceWithOwner } from '@/lib/workspaces/permissions/utils'
 
@@ -245,7 +246,8 @@ export function buildWorkspaceFileFolderPathMap(
     const nextSeen = new Set(seen)
     nextSeen.add(folderId)
     const parentPath = folder.parentId ? resolve(folder.parentId, nextSeen) : ''
-    const path = parentPath ? `${parentPath}/${folder.name}` : folder.name
+    const encodedName = encodeWorkspaceFileFolderDisplaySegment(folder.name)
+    const path = parentPath ? `${parentPath}/${encodedName}` : encodedName
     paths.set(folderId, path)
     return path
   }
@@ -338,7 +340,7 @@ async function buildWorkspaceFileFolderPath(
       : null
   }
 
-  return segments.join('/')
+  return segments.map(encodeWorkspaceFileFolderDisplaySegment).join('/')
 }
 
 async function mapFolderWithPath(
