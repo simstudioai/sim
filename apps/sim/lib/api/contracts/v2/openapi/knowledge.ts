@@ -305,7 +305,7 @@ const routes = [
       operationId: 'bulkUpdateKnowledgeDocuments',
       summary: 'Bulk Enable or Disable Documents',
       description: `Enable or disable many documents in one request, either by identifier (up to 100) or, with \`selectAll\`, every document in the knowledge base optionally narrowed by \`enabledFilter\`. Disabling keeps a document indexed but excludes it from search. Bulk delete is deliberately not offered: the bulk path records no audit entries, so deletions go through \`DELETE /api/v2/knowledge/{id}/documents/{documentId}\`, which audits each one. An identifier request echoes the documents it changed in \`documentIds\`; a \`selectAll\` request omits that field because the selection is unbounded, and reports \`updatedCount\` alone. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The number and identifiers of the documents that changed.' },
     }),
     {
@@ -469,7 +469,7 @@ const routes = [
       operationId: 'createKnowledgeDocumentUploadPartUrls',
       summary: 'Create Document Upload Part URLs',
       description: 'Issue short-lived signed PUT URLs for up to 100 multipart part numbers.',
-      errors: RESOURCE_CONFLICT_ERRORS,
+      errors: [...RESOURCE_CONFLICT_ERRORS, 'PayloadTooLarge'],
       success: { description: 'Signed URLs for the requested upload parts.' },
     }),
     {
@@ -579,7 +579,7 @@ const routes = [
       operationId: 'updateKnowledgeDocument',
       summary: 'Update Document',
       description: `Rename a document, enable or disable it for search, set any of its 17 tag slots, or requeue it for processing. A tag slot takes its declared type — a string for \`tag1\`..\`tag7\`, a number for \`number1\`..\`number5\`, a \`YYYY-MM-DD\` string for \`date1\`..\`date2\`, a boolean for \`boolean1\`..\`boolean3\` — and a value that is not valid for the slot is a \`400\` rather than a silently cleared tag. Resolve a display name to its slot with \`GET /api/v2/knowledge/{id}/tags\`. Absent fields are unchanged. Only caller-owned fields are accepted: derived indexing state (\`chunkCount\`, \`tokenCount\`, \`characterCount\`, \`processingStatus\`, \`processingError\`) is written by the processing pipeline and cannot be asserted here. \`retryProcessing: true\` re-queues a failed or stuck document and must be sent on its own — it runs instead of, not alongside, the field updates — and it answers with a queue acknowledgement rather than the document. Otherwise the updated document is returned; it omits the connector provenance the detail read carries, so re-read with GET when that is needed. ${WORKSPACE_API_KEY_DENIED}`,
-      errors: RESOURCE_ERRORS,
+      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge'],
       success: { description: 'The updated document, or the requeue acknowledgement.' },
     }),
     {

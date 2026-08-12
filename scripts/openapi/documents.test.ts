@@ -6,6 +6,11 @@ import { filesAuditOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/o
 import { knowledgeOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/knowledge'
 import { logsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/logs'
 import { resourcesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/resources'
+import {
+  FOLDER_TREE_TOO_LARGE,
+  WORKSPACE_API_KEY_DENIED,
+  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
+} from '../../apps/sim/lib/api/contracts/v2/openapi/shared'
 import { tablesOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/tables'
 import { workflowsOpenApiDocument } from '../../apps/sim/lib/api/contracts/v2/openapi/workflows'
 import { generateOpenApiDocument, serializeOpenApiDocument } from './generator'
@@ -322,5 +327,81 @@ describe('generated OpenAPI documents', () => {
     for (const document of DOCUMENTS) {
       expect(serializeOpenApiDocument(document)).toBe(serializeOpenApiDocument(document))
     }
+  })
+})
+
+/**
+ * Documented error sets for the knowledge and files/audit families.
+ *
+ * Scoped to those two documents deliberately: they are the families this pass
+ * audited, and the same sweep over tables and resources still reports gaps that
+ * belong to their owners.
+ */
+describe('knowledge and files documented error sets', () => {
+  const SCOPED_DOCUMENTS = [knowledgeOpenApiDocument, filesAuditOpenApiDocument] as const
+
+  /**
+   * A v2 JSON route whose contract declares a body reads that body through
+   * `parseJsonBody` under `DEFAULT_MAX_JSON_BODY_BYTES` *before* schema
+   * validation, with the builders supplying `V2_PARSE_DEFAULTS`. So an
+   * oversized body is a real 413 on every one of them, and an operation that
+   * does not publish it is documenting a response its callers can hit. The
+   * converse does not hold — several bodyless folder reads publish 413 because
+   * materializing an oversized folder tree raises one — so this is one
+   * directional.
+   */
+  it.each(
+    SCOPED_DOCUMENTS.flatMap((document) =>
+      document.routes
+        .filter((route) => route.contract.body !== undefined)
+        .map((route) => [route.operation.operationId, route.operation.errors] as const)
+    )
+  )('%s publishes the 413 its body read can raise', (_operationId, errors) => {
+    expect(errors).toContain('PayloadTooLarge')
+  })
+
+  /**
+   * The file list resolves its `folderPath` filter through the capped folder
+   * path index, so an oversized workspace tree is a 413 here exactly as it is on
+   * the knowledge, workflow, and table lists.
+   */
+  it('publishes the folder-tree 413 the file list can raise', () => {
+    const listFiles = filesAuditOpenApiDocument.routes.find(
+      (route) => route.operation.operationId === 'listFiles'
+    )?.operation
+
+    expect(listFiles?.errors).toContain('PayloadTooLarge')
+    expect(listFiles?.description).toContain(FOLDER_TREE_TOO_LARGE)
+  })
+
+  /**
+   * `listAuditLogs` has no not-found path to publish. It throws only
+   * `validation` (a bad cursor, a workspaceId outside the organization),
+   * `resolveEnterpriseAuditAccess` returns 403 shapes only, and an empty
+   * selection is an empty page. `getAuditLog` does 404 and keeps it.
+   */
+  it('does not publish a 404 the audit-log list cannot emit', () => {
+    const spec = generateOpenApiDocument(filesAuditOpenApiDocument)
+    expect(
+      Object.keys(getOperation(spec, '/api/v2/audit-logs', 'get').responses as JsonObject)
+    ).not.toContain('404')
+    expect(
+      Object.keys(getOperation(spec, '/api/v2/audit-logs/{id}', 'get').responses as JsonObject)
+    ).toContain('404')
+  })
+
+  /**
+   * `files.share.update` denies the workspace key through its principal-kind
+   * list, which raises `PrincipalKindAuthorizationError` — not one of the
+   * cross-tenant errors the concealment policy rewrites — so the caller sees
+   * 403. The description claimed 404.
+   */
+  it('describes the file-share workspace-key refusal as the 403 it renders', () => {
+    const description = filesAuditOpenApiDocument.routes.find(
+      (route) => route.operation.operationId === 'upsertFileShare'
+    )?.operation.description
+
+    expect(description).toContain(WORKSPACE_API_KEY_DENIED)
+    expect(description).not.toContain(WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND)
   })
 })

@@ -203,7 +203,15 @@ describe('POST /api/v2/knowledge/search', () => {
     expect(mockSearch).not.toHaveBeenCalled()
   })
 
-  it('drops a caller-supplied reranker key instead of forwarding it', async () => {
+  /**
+   * The search body is strict, so an undeclared key is refused rather than
+   * stripped. That matters most for a bring-your-own reranker key: dropping it
+   * silently left the caller believing the secret it sent was in use. It
+   * matters for an ordinary mis-spelling too — `rerankerenabled` used to parse
+   * to 200 with reranking off, and `topk` with `topK` back at its default, both
+   * of which change what the search is billed.
+   */
+  it('refuses a caller-supplied reranker key instead of silently dropping it', async () => {
     const response = await POST(
       buildRequest(
         JSON.stringify({
@@ -218,9 +226,8 @@ describe('POST /api/v2/knowledge/search', () => {
       )
     )
 
-    expect(response.status).toBe(200)
-    const [{ input }] = mockSearch.mock.calls[0]
-    expect(input).not.toHaveProperty('rerankerApiKey')
+    expect(response.status).toBe(400)
+    expect(mockSearch).not.toHaveBeenCalled()
   })
 
   it('forwards an opted-in hybrid search mode to the application use case', async () => {
