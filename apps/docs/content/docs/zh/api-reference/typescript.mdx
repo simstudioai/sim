@@ -971,7 +971,7 @@ function StreamingWorkflow() {
         'X-API-Key': process.env.SIM_API_KEY! // Server-side environment variable only
       },
       body: JSON.stringify({
-        message: 'Generate a story',
+        input: { message: 'Generate a story' },
         stream: true,
         selectedOutputs: ['agent1.content']
       })
