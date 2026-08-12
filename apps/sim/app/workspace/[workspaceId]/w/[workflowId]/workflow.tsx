@@ -4478,21 +4478,30 @@ const WorkflowContent = React.memo(
         // pointer events, so the edge has to be above it to stay clickable) and
         // still below that container's own children.
         //
+        // A highlighted edge takes the top of that band instead, so no ordinary
+        // edge can cross over the one the user has picked out. Depth only ever
+        // ordered lines against each other, and an unselected edge one level
+        // deeper was painting straight through the highlight.
+        //
         // Edges are NEVER elevated above cards — not even when an endpoint is
         // selected. A line always passes behind cards, knobs, and the action
         // bar swell; elevating highlighted edges drew them across their own
-        // endpoint's chrome.
+        // endpoint's chrome. The highlighted tier stays inside the band for
+        // exactly that reason.
         const containerNode = parentLoopId ? nodeMap.get(parentLoopId) : null
-        const baseZIndex = getEdgeZIndex(containerNode ? (containerNode.zIndex ?? 0) : undefined)
         const isConnectedToSelection =
           selectedNodeIdSet.has(edge.source) || selectedNodeIdSet.has(edge.target)
+        const isSelected = selectedEdges.has(edgeContextId)
+        const baseZIndex = getEdgeZIndex(containerNode ? (containerNode.zIndex ?? 0) : undefined, {
+          isHighlighted: isSelected || isConnectedToSelection,
+        })
 
         return {
           ...edge,
           zIndex: baseZIndex,
           data: {
             ...edge.data,
-            isSelected: selectedEdges.has(edgeContextId),
+            isSelected,
             isConnectedToSelection,
             isInsideLoop: Boolean(parentLoopId),
             parentLoopId,

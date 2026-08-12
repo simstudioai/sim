@@ -21,6 +21,23 @@
  * once already and took the preview's edges behind its containers with it.
  */
 export const EDGE_Z_BASE = 10
+/**
+ * Deepest nesting tier an ordinary edge reaches, leaving the top of the band to
+ * the two edges that have to be seen whole.
+ */
+const EDGE_Z_DEPTH_MAX = 18
+/**
+ * A highlighted edge — selected, or connected to the selected card. Above every
+ * ordinary edge whatever it is nested in, because the highlight is what the
+ * user is looking at and a line crossing it from a deeper container was cutting
+ * it in half.
+ *
+ * Still inside the edge band, deliberately. Highlighted edges used to be
+ * elevated over the cards as well, which drew them across the chrome of their
+ * own endpoints; a line belongs behind cards, knobs and the action-bar swell
+ * whether or not it is highlighted.
+ */
+export const EDGE_Z_HIGHLIGHTED = 19
 export const EDGE_Z_MAX = 20
 export const BLOCK_Z_BASE = 21
 export const CONTAINER_CHILD_Z_BASE = 1000
@@ -41,10 +58,19 @@ export function getBlockZIndex(
  * it belongs to, so an edge always clears the container body it crosses while
  * staying under that container's own children.
  *
+ * A highlighted edge leaves that ordering and takes {@link EDGE_Z_HIGHLIGHTED}
+ * instead. Depth is only a tiebreak between lines nobody is looking at; once one
+ * is highlighted, being drawn whole matters more than which container it came
+ * from — an unselected edge one level deeper used to paint straight over it.
+ *
  * `containerZIndex` is the parent container's own z (its nesting depth), or
  * undefined for an edge at the top level.
  */
-export function getEdgeZIndex(containerZIndex: number | undefined): number {
+export function getEdgeZIndex(
+  containerZIndex: number | undefined,
+  state: { isHighlighted?: boolean } = {}
+): number {
+  if (state.isHighlighted) return EDGE_Z_HIGHLIGHTED
   const depth = containerZIndex === undefined ? 0 : containerZIndex + 1
-  return Math.min(EDGE_Z_BASE + depth, EDGE_Z_MAX)
+  return Math.min(EDGE_Z_BASE + depth, EDGE_Z_DEPTH_MAX)
 }
