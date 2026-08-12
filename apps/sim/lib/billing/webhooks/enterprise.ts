@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType, recordAudit } from '@sim/audit'
 import { db } from '@sim/db'
-import { member, organization, outboxEvent, subscription, user } from '@sim/db/schema'
+import { member, organization, outboxEvent, subscription, user, workspace } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
 import { generateId } from '@sim/utils/id'
 import { and, asc, count, eq, inArray, sql } from 'drizzle-orm'
@@ -13,6 +13,7 @@ import {
   enterpriseOperationMatchesStripeSubscription,
   parseEnterpriseProvisionPayload,
 } from '@/lib/billing/enterprise-outbox'
+import { acquireUserBillingIdentityLock } from '@/lib/billing/organizations/billing-identity-lock'
 import {
   acquireOrganizationMutationLock,
   reapplyPaidOrgJoinBillingForExistingMemberTx,
@@ -26,12 +27,66 @@ import {
 } from '@/lib/billing/webhooks/enterprise-reconciliation-lease'
 import { stripeWebhookIdempotency } from '@/lib/billing/webhooks/idempotency'
 import { patchOutboxEventPayload } from '@/lib/core/outbox/service'
+import { acquireInvitationMutationLocks } from '@/lib/invitations/locks'
 import { sendEmail } from '@/lib/messaging/email/mailer'
 import { getFromEmailAddress } from '@/lib/messaging/email/utils'
 import { captureServerEvent } from '@/lib/posthog/server'
+import { invalidateWorkspaceTableLimitsCache } from '@/lib/table/billing'
+import {
+  attachOwnedWorkspacesToOrganizationTx,
+  ownedAttachableWorkspacesWhere,
+} from '@/lib/workspaces/organization-workspaces'
 import { parseEnterpriseSubscriptionMetadata } from '../types'
 
 const logger = createLogger('BillingEnterprise')
+
+interface EnterpriseWorkspaceSweepPlan {
+  operationId: string
+  ownerUserId: string
+  workspaceIds: string[]
+}
+
+function sameOrderedIds(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((id, index) => id === right[index])
+}
+
+async function planEnterpriseOwnerWorkspaceSweep(
+  metadata: Stripe.Metadata,
+  organizationId: string
+): Promise<EnterpriseWorkspaceSweepPlan | null> {
+  const operationId = metadata.enterpriseOperationId
+  if (!operationId) return null
+
+  const [operationRow] = await db
+    .select({ eventType: outboxEvent.eventType, payload: outboxEvent.payload })
+    .from(outboxEvent)
+    .where(eq(outboxEvent.id, operationId))
+    .limit(1)
+  const payload = operationRow ? parseEnterpriseProvisionPayload(operationRow.payload) : null
+  if (
+    operationRow?.eventType !== ENTERPRISE_PROVISION_EVENT_TYPE ||
+    !payload ||
+    payload.applicationResult ||
+    payload.request.organizationId !== organizationId
+  ) {
+    return null
+  }
+
+  const workspaceIds = (
+    await db
+      .select({ id: workspace.id })
+      .from(workspace)
+      .where(
+        ownedAttachableWorkspacesWhere({
+          userId: payload.request.ownerUserId,
+          includeArchived: true,
+        })
+      )
+      .orderBy(workspace.id)
+  ).map((row) => row.id)
+
+  return { operationId, ownerUserId: payload.request.ownerUserId, workspaceIds }
+}
 
 export async function handleManualEnterpriseSubscription(event: Stripe.Event) {
   return stripeWebhookIdempotency.executeWithIdempotency(
@@ -115,6 +170,7 @@ async function reconcileManualEnterpriseSubscription(
   }
 
   const { seats, monthlyPrice } = enterpriseMetadata
+  const workspaceSweepPlan = await planEnterpriseOwnerWorkspaceSweep(metadata, referenceId)
 
   // Get the first subscription item which contains the period information
   const referenceItem = stripeSubscription.items?.data?.[0]
@@ -148,6 +204,12 @@ async function reconcileManualEnterpriseSubscription(
   }
 
   const coreResult = await db.transaction(async (tx) => {
+    if (workspaceSweepPlan && workspaceSweepPlan.workspaceIds.length > 0) {
+      await acquireInvitationMutationLocks(tx, {
+        invitationIds: [],
+        workspaceIds: workspaceSweepPlan.workspaceIds,
+      })
+    }
     await acquireOrganizationMutationLock(tx, referenceId)
     await tx.execute(
       sql`select pg_advisory_xact_lock(hashtextextended(${`stripe-subscription:${stripeSubscription.id}`}, 0))`
@@ -273,7 +335,7 @@ async function reconcileManualEnterpriseSubscription(
 
     if (existing && existing.referenceId !== referenceId) {
       throw new Error(
-        `Stripe subscription ${stripeSubscription.id} is already bound to organization ${existing.referenceId}`
+        `Stripe subscription ${stripeSubscription.id} is already bound to reference ${existing.referenceId}, not organization ${referenceId}`
       )
     }
 
@@ -315,6 +377,46 @@ async function reconcileManualEnterpriseSubscription(
       })
       .where(eq(organization.id, referenceId))
 
+    let attachedWorkspaceIds: string[] = []
+    if (operationNewlyApplied && correlatedOperation) {
+      if (
+        !workspaceSweepPlan ||
+        workspaceSweepPlan.operationId !== operationId ||
+        workspaceSweepPlan.ownerUserId !== correlatedOperation.request.ownerUserId
+      ) {
+        throw new Error('Unable to establish the Enterprise owner workspace sweep')
+      }
+
+      await acquireUserBillingIdentityLock(tx, workspaceSweepPlan.ownerUserId)
+      const currentWorkspaceIds = (
+        await tx
+          .select({ id: workspace.id })
+          .from(workspace)
+          .where(
+            ownedAttachableWorkspacesWhere({
+              userId: workspaceSweepPlan.ownerUserId,
+              includeArchived: true,
+            })
+          )
+          .orderBy(workspace.id)
+      ).map((row) => row.id)
+      if (!sameOrderedIds(workspaceSweepPlan.workspaceIds, currentWorkspaceIds)) {
+        throw new Error(
+          'Enterprise owner personal workspaces changed during reconciliation; retry the webhook'
+        )
+      }
+
+      const attached = await attachOwnedWorkspacesToOrganizationTx(tx, {
+        ownerUserId: workspaceSweepPlan.ownerUserId,
+        organizationId: referenceId,
+        workspaceIds: currentWorkspaceIds,
+        externalMemberPolicy: 'external-all',
+        ownerMatch: 'owner',
+        includeArchived: true,
+      })
+      attachedWorkspaceIds = attached.attachedWorkspaceIds
+    }
+
     // The organization lock is held across the census and all member billing
     // transitions. Add/remove/accept paths take the same lock, so a departing
     // member cannot be re-paused after their removal restores personal Pro.
@@ -346,6 +448,7 @@ async function reconcileManualEnterpriseSubscription(
       operationNewlyApplied,
       hasCorrelatedOperation: Boolean(correlatedOperation),
       subscriptionNewlyInserted: !existing,
+      attachedWorkspaceIds,
       ...creditLimits,
     }
   })
@@ -357,10 +460,14 @@ async function reconcileManualEnterpriseSubscription(
     operationNewlyApplied,
     hasCorrelatedOperation,
     subscriptionNewlyInserted,
+    attachedWorkspaceIds,
     configuredUsageLimitCredits,
     prepaidCredits,
     effectiveUsageLimitCredits,
   } = coreResult
+  for (const workspaceId of attachedWorkspaceIds) {
+    invalidateWorkspaceTableLimitsCache(workspaceId)
+  }
   const shouldAnnounce = hasCorrelatedOperation ? operationNewlyApplied : subscriptionNewlyInserted
 
   logger.info('[subscription.created] Upserted enterprise subscription', {
@@ -372,6 +479,7 @@ async function reconcileManualEnterpriseSubscription(
     effectiveUsageLimitCredits,
     prepaidCredits,
     seats,
+    attachedWorkspaceCount: attachedWorkspaceIds.length,
     note: 'Seats from metadata, Stripe quantity set to 1',
   })
 

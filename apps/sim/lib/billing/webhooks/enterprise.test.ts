@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
   subscriptionsRetrieve: vi.fn(),
   patchOutboxEventPayload: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: vi.fn(),
+  acquireUserBillingIdentityLock: vi.fn(),
+  acquireInvitationMutationLocks: vi.fn(),
+  attachOwnedWorkspacesToOrganizationTx: vi.fn(),
+  invalidateWorkspaceTableLimitsCache: vi.fn(),
 }))
 
 vi.mock('@sim/audit', () => ({
@@ -33,6 +37,10 @@ vi.mock('@/components/emails', () => ({
 vi.mock('@/lib/billing/organizations/membership', () => ({
   acquireOrganizationMutationLock: vi.fn(),
   reapplyPaidOrgJoinBillingForExistingMemberTx: mocks.reapplyPaidOrgJoinBillingForExistingMemberTx,
+}))
+
+vi.mock('@/lib/billing/organizations/billing-identity-lock', () => ({
+  acquireUserBillingIdentityLock: mocks.acquireUserBillingIdentityLock,
 }))
 
 vi.mock('@/lib/billing/stripe-client', () => ({
@@ -64,6 +72,10 @@ vi.mock('@/lib/core/outbox/service', () => ({
   patchOutboxEventPayload: mocks.patchOutboxEventPayload,
 }))
 
+vi.mock('@/lib/invitations/locks', () => ({
+  acquireInvitationMutationLocks: mocks.acquireInvitationMutationLocks,
+}))
+
 vi.mock('@/lib/messaging/email/mailer', () => ({
   sendEmail: vi.fn(),
 }))
@@ -74,6 +86,15 @@ vi.mock('@/lib/messaging/email/utils', () => ({
 
 vi.mock('@/lib/posthog/server', () => ({
   captureServerEvent: vi.fn(),
+}))
+
+vi.mock('@/lib/table/billing', () => ({
+  invalidateWorkspaceTableLimitsCache: mocks.invalidateWorkspaceTableLimitsCache,
+}))
+
+vi.mock('@/lib/workspaces/organization-workspaces', () => ({
+  attachOwnedWorkspacesToOrganizationTx: mocks.attachOwnedWorkspacesToOrganizationTx,
+  ownedAttachableWorkspacesWhere: vi.fn(),
 }))
 
 import { handleManualEnterpriseSubscription } from '@/lib/billing/webhooks/enterprise'
@@ -159,9 +180,18 @@ function eventFor(subscription: Stripe.Subscription): Stripe.Event {
 
 function queueSuccessfulExistingSubscriptionReconciliation(options: {
   operation?: ReturnType<typeof operationPayload>
+  workspaceIds?: string[]
 }) {
   queueTableRows(schemaMock.organization, [{ creditBalance: '0' }])
   if (options.operation) {
+    queueTableRows(schemaMock.outboxEvent, [
+      { eventType: ENTERPRISE_PROVISION_EVENT_TYPE, payload: options.operation },
+    ])
+    if (!('applicationResult' in options.operation)) {
+      const workspaceRows = (options.workspaceIds ?? []).map((id) => ({ id }))
+      queueTableRows(schemaMock.workspace, workspaceRows)
+      queueTableRows(schemaMock.workspace, workspaceRows)
+    }
     queueTableRows(schemaMock.outboxEvent, [
       { eventType: ENTERPRISE_PROVISION_EVENT_TYPE, payload: options.operation },
     ])
@@ -180,6 +210,12 @@ describe('Enterprise webhook issuance correlation', () => {
     resetDbChainMock()
     mocks.patchOutboxEventPayload.mockResolvedValue(true)
     mocks.reapplyPaidOrgJoinBillingForExistingMemberTx.mockResolvedValue(undefined)
+    mocks.attachOwnedWorkspacesToOrganizationTx.mockResolvedValue({
+      attachedWorkspaceIds: [],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
+    })
   })
 
   afterAll(() => {
@@ -189,6 +225,13 @@ describe('Enterprise webhook issuance correlation', () => {
   it('retries when the create webhook races ahead of paused-collection provisioning', async () => {
     const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
     mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    queueTableRows(schemaMock.outboxEvent, [
+      {
+        eventType: ENTERPRISE_PROVISION_EVENT_TYPE,
+        payload: operationPayload({ pausePaymentCollection: true }),
+      },
+    ])
+    queueTableRows(schemaMock.workspace, [])
     queueTableRows(schemaMock.organization, [{ creditBalance: '0' }])
     queueTableRows(schemaMock.outboxEvent, [
       {
@@ -205,6 +248,66 @@ describe('Enterprise webhook issuance correlation', () => {
     expect(dbChainMockFns.update).not.toHaveBeenCalled()
     expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
     expect(mocks.reapplyPaidOrgJoinBillingForExistingMemberTx).not.toHaveBeenCalled()
+  })
+
+  it('sweeps the Enterprise owner personal workspaces when issuance is applied', async () => {
+    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    queueSuccessfulExistingSubscriptionReconciliation({
+      operation: operationPayload(),
+      workspaceIds: ['workspace-1', 'workspace-archived'],
+    })
+    mocks.attachOwnedWorkspacesToOrganizationTx.mockResolvedValueOnce({
+      attachedWorkspaceIds: ['workspace-1', 'workspace-archived'],
+      addedMemberIds: [],
+      skippedMembers: [],
+      usageLimitUserIds: [],
+    })
+
+    await expect(
+      handleManualEnterpriseSubscription(eventFor(subscription))
+    ).resolves.toBeUndefined()
+
+    expect(mocks.acquireInvitationMutationLocks).toHaveBeenCalledWith(expect.anything(), {
+      invitationIds: [],
+      workspaceIds: ['workspace-1', 'workspace-archived'],
+    })
+    expect(mocks.acquireUserBillingIdentityLock).toHaveBeenCalledWith(expect.anything(), 'owner-1')
+    expect(mocks.attachOwnedWorkspacesToOrganizationTx).toHaveBeenCalledWith(expect.anything(), {
+      ownerUserId: 'owner-1',
+      organizationId: 'org-1',
+      workspaceIds: ['workspace-1', 'workspace-archived'],
+      externalMemberPolicy: 'external-all',
+      ownerMatch: 'owner',
+      includeArchived: true,
+    })
+    expect(mocks.invalidateWorkspaceTableLimitsCache).toHaveBeenCalledTimes(2)
+    expect(mocks.patchOutboxEventPayload).toHaveBeenCalled()
+  })
+
+  it('retries without applying when the Enterprise owner workspace set changes', async () => {
+    const subscription = stripeSubscription({ operationId: 'operation-1', paused: false })
+    mocks.subscriptionsRetrieve.mockResolvedValue(subscription)
+    queueTableRows(schemaMock.outboxEvent, [
+      { eventType: ENTERPRISE_PROVISION_EVENT_TYPE, payload: operationPayload() },
+    ])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }])
+    queueTableRows(schemaMock.organization, [{ creditBalance: '0' }])
+    queueTableRows(schemaMock.outboxEvent, [
+      { eventType: ENTERPRISE_PROVISION_EVENT_TYPE, payload: operationPayload() },
+    ])
+    queueTableRows(schemaMock.user, [{ stripeCustomerId: 'cus_1' }])
+    queueTableRows(schemaMock.member, [{ value: 1 }])
+    queueTableRows(schemaMock.subscription, [])
+    queueTableRows(schemaMock.subscription, [{ id: 'local-sub-1', referenceId: 'org-1' }])
+    queueTableRows(schemaMock.workspace, [{ id: 'workspace-1' }, { id: 'workspace-2' }])
+
+    await expect(handleManualEnterpriseSubscription(eventFor(subscription))).rejects.toThrow(
+      'personal workspaces changed during reconciliation'
+    )
+
+    expect(mocks.attachOwnedWorkspacesToOrganizationTx).not.toHaveBeenCalled()
+    expect(mocks.patchOutboxEventPayload).not.toHaveBeenCalled()
   })
 
   it('allows later Stripe metadata edits after the issuance was already applied', async () => {

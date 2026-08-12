@@ -1001,9 +1001,9 @@ export const auth = betterAuth({
       /**
        * Personal checkout guard. The Stripe plugin's `authorizeReference`
        * only runs for organization references (it skips references equal to
-       * the session user), so duplicate-coverage enforcement for personal
-       * checkouts lives here: a member of an org with an entitled paid
-       * subscription must not buy a personal plan on top of it.
+       * the session user), so personal checkout admission lives here. It
+       * prevents both a duplicate checkout while Stripe payment is pending
+       * and a personal plan for someone already covered by an organization.
        */
       if (isBillingEnabled && ctx.path === '/subscription/upgrade') {
         const session = await getSessionFromCtx(ctx)
