@@ -7,11 +7,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   getKnowledgeDocument: vi.fn(),
   processDocumentsWithQueue: vi.fn(),
+  reclaimStaleDocumentProcessingClaim: vi.fn(),
 }))
 
 vi.mock('@/lib/knowledge/documents/service', () => ({
   getKnowledgeDocument: mocks.getKnowledgeDocument,
   processDocumentsWithQueue: mocks.processDocumentsWithQueue,
+}))
+
+vi.mock('@/lib/knowledge/documents/processing-claim', () => ({
+  reclaimStaleDocumentProcessingClaim: mocks.reclaimStaleDocumentProcessingClaim,
 }))
 
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -71,6 +76,7 @@ describe('knowledge document processing outbox handler', () => {
     vi.clearAllMocks()
     mocks.getKnowledgeDocument.mockResolvedValue(DOCUMENT)
     mocks.processDocumentsWithQueue.mockResolvedValue(undefined)
+    mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValue(false)
   })
 
   it('dispatches the authoritative document with the stable outbox event id', async () => {
@@ -106,16 +112,56 @@ describe('knowledge document processing outbox handler', () => {
   )
 
   it('keeps the event retryable while an earlier processing attempt is active', async () => {
+    const processingStartedAt = new Date()
     mocks.getKnowledgeDocument.mockResolvedValueOnce({
       ...DOCUMENT,
       processingStatus: 'processing',
+      processingStartedAt,
     })
 
     await expect(handler()(PAYLOAD, createContext())).rejects.toThrow(
       'Knowledge document document-1 is already being processed'
     )
 
+    expect(mocks.reclaimStaleDocumentProcessingClaim).toHaveBeenCalledWith({
+      knowledgeBaseId: 'knowledge-base-1',
+      documentId: 'document-1',
+      processingStartedAt,
+    })
     expect(mocks.processDocumentsWithQueue).not.toHaveBeenCalled()
+  })
+
+  it('reclaims and redispatches an abandoned processing attempt', async () => {
+    const processingStartedAt = new Date('2026-08-11T11:00:00.000Z')
+    mocks.getKnowledgeDocument.mockResolvedValueOnce({
+      ...DOCUMENT,
+      processingStatus: 'processing',
+      processingStartedAt,
+    })
+    mocks.reclaimStaleDocumentProcessingClaim.mockResolvedValueOnce(true)
+
+    await handler()(PAYLOAD, createContext('outbox-event-retry'))
+
+    expect(mocks.reclaimStaleDocumentProcessingClaim).toHaveBeenCalledWith({
+      knowledgeBaseId: 'knowledge-base-1',
+      documentId: 'document-1',
+      processingStartedAt,
+    })
+    expect(mocks.processDocumentsWithQueue).toHaveBeenCalledWith(
+      [
+        {
+          documentId: 'document-1',
+          filename: 'guide.pdf',
+          fileUrl: '/api/files/serve/kb%2Fguide.pdf?context=knowledge-base',
+          fileSize: 128,
+          mimeType: 'application/pdf',
+        },
+      ],
+      'knowledge-base-1',
+      { recipe: 'default', lang: 'en' },
+      'outbox-event-retry',
+      BILLING_ATTRIBUTION
+    )
   })
 
   it('propagates dispatch failures so the outbox schedules a retry', async () => {

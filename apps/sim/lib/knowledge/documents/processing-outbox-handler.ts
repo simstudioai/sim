@@ -1,5 +1,6 @@
 import { assertBillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import type { OutboxHandler, OutboxHandlerRegistry } from '@/lib/core/outbox/service'
+import { reclaimStaleDocumentProcessingClaim } from '@/lib/knowledge/documents/processing-claim'
 import {
   KNOWLEDGE_DOCUMENT_PROCESSING_OUTBOX_EVENT,
   type KnowledgeDocumentProcessingOutboxPayload,
@@ -60,7 +61,14 @@ const processKnowledgeDocument: OutboxHandler<unknown> = async (rawPayload, cont
   const document = await getKnowledgeDocument(payload.knowledgeBaseId, payload.documentId)
   if (!document || document.processingStatus === 'completed') return
   if (document.processingStatus === 'processing') {
-    throw new Error(`Knowledge document ${document.id} is already being processed`)
+    const reclaimed = await reclaimStaleDocumentProcessingClaim({
+      knowledgeBaseId: payload.knowledgeBaseId,
+      documentId: document.id,
+      processingStartedAt: document.processingStartedAt,
+    })
+    if (!reclaimed) {
+      throw new Error(`Knowledge document ${document.id} is already being processed`)
+    }
   }
 
   context.signal.throwIfAborted()

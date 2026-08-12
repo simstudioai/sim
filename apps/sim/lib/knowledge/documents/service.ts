@@ -64,6 +64,7 @@ import {
   mergeDurableSecretProvenance,
 } from '@/lib/execution/durable-secret-provenance'
 import { processDocument } from '@/lib/knowledge/documents/document-processor'
+import { KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS } from '@/lib/knowledge/documents/processing-claim'
 import { enqueueKnowledgeDocumentProcessing } from '@/lib/knowledge/documents/processing-outbox-event'
 import {
   assertDocumentProcessingBillingContext,
@@ -2372,9 +2373,8 @@ export async function markDocumentAsFailedTimeout(
 ): Promise<{ success: boolean; processingDuration: number }> {
   const now = new Date()
   const processingDuration = now.getTime() - processingStartedAt.getTime()
-  const DEAD_PROCESS_THRESHOLD_MS = 600 * 1000 // 10 minutes
 
-  if (processingDuration <= DEAD_PROCESS_THRESHOLD_MS) {
+  if (processingDuration <= KNOWLEDGE_DOCUMENT_PROCESSING_STALE_THRESHOLD_MS) {
     throw new Error('Document has not been processing long enough to be considered dead')
   }
 
