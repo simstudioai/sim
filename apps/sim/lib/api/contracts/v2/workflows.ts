@@ -615,7 +615,7 @@ export const v2WorkflowVersionDetailSchema = z
       .describe('ISO 8601 timestamp when this version was created.')
       .meta({ format: 'date-time' }),
     state: deployedWorkflowStateSchema.describe(
-      'Deployed workflow graph snapshot pinned by this version.'
+      'Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null, and sensitive nested tool parameters are null.'
     ),
   })
   .meta({

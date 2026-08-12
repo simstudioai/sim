@@ -19,5 +19,8 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  */
 export function sanitizeExecutionSnapshotState(state: unknown): Record<string, unknown> | null {
   if (typeof state !== 'object' || state === null) return null
-  return sanitizeWorkflowForSharing(state as Partial<WorkflowState>, { preserveEnvVars: true })
+  return sanitizeWorkflowForSharing(state as Partial<WorkflowState>, {
+    preserveEnvVars: true,
+    redactOpaqueCredentialInputs: true,
+  })
 }

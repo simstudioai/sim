@@ -1206,7 +1206,7 @@
                 "type": "null"
               }
             ],
-            "description": "Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input` values and `password: true` sub-block values are null, while `{{VAR}}` environment-variable references are preserved. Null when no snapshot is retained."
+            "description": "Workflow graph snapshot captured for the run, with credential values redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters are null; and `{{VAR}}` references in non-opaque fields are preserved. Null when no snapshot is retained."
           },
           "traceSpans": {
             "type": "array",

@@ -29,6 +29,19 @@ vi.mock('@/lib/workflows/application/context', () => ({
 vi.mock('@/lib/workflows/persistence/utils', () => ({
   getWorkflowDeploymentVersion: mocks.readVersion,
 }))
+vi.mock('@/lib/workflows/search-replace/indexer', () => ({
+  getToolInputParamConfigs: ({ tool }: { tool: { params?: Record<string, unknown> } }) =>
+    Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
+      paramId,
+      authoritative: true,
+      value,
+      config: {
+        id: paramId,
+        type: 'short-input',
+        password: paramId === 'apiKey',
+      },
+    })),
+}))
 vi.mock('@/blocks/registry', () => ({
   getBlock: () => ({
     name: 'Slack',
@@ -36,6 +49,8 @@ vi.mock('@/blocks/registry', () => ({
       { id: 'credential', type: 'oauth-input' },
       { id: 'botToken', type: 'short-input', password: true },
       { id: 'envToken', type: 'short-input', password: true },
+      { id: 'tools', type: 'tool-input' },
+      { id: 'headers', type: 'table' },
       { id: 'channel', type: 'short-input' },
     ],
     outputs: {},
@@ -88,6 +103,21 @@ function versionState() {
           credential: { id: 'credential', type: 'oauth-input', value: 'oauth-credential-id' },
           botToken: { id: 'botToken', type: 'short-input', value: 'xoxb-plaintext-secret' },
           envToken: { id: 'envToken', type: 'short-input', value: '{{SLACK_BOT_TOKEN}}' },
+          tools: {
+            id: 'tools',
+            type: 'tool-input',
+            value: [
+              {
+                type: 'custom-tool',
+                params: { apiKey: 'sk-tool-plaintext-secret', query: 'safe input' },
+              },
+            ],
+          },
+          headers: {
+            id: 'headers',
+            type: 'table',
+            value: [{ Key: 'Authorization', Value: 'Bearer table-plaintext-secret' }],
+          },
           channel: { id: 'channel', type: 'short-input', value: '#general' },
         },
       },
@@ -149,6 +179,15 @@ describe('GET /api/v2/workflows/[id]/versions/[version]', () => {
     expect(subBlocks.credential.value).toBeNull()
     expect(subBlocks.botToken.value).toBeNull()
     expect(subBlocks.envToken.value).toBe('{{SLACK_BOT_TOKEN}}')
+    expect(subBlocks.tools.value).toEqual([
+      {
+        type: 'custom-tool',
+        params: { apiKey: null, query: 'safe input' },
+      },
+    ])
+    expect(subBlocks.headers.value).toBeNull()
     expect(subBlocks.channel.value).toBe('#general')
+    expect(JSON.stringify(subBlocks)).not.toContain('sk-tool-plaintext-secret')
+    expect(JSON.stringify(subBlocks)).not.toContain('table-plaintext-secret')
   })
 })

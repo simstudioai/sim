@@ -668,6 +668,16 @@ function isVisibleToolParameter(param: ToolParameterConfig, values: Record<strin
   )
 }
 
+export interface ResolvedToolInputParamConfig {
+  paramId: string
+  config: WorkflowSearchSubBlockConfig
+  value: unknown
+  /** False when the codec had no registered tool definition and inferred only a generic shape. */
+  authoritative: boolean
+  selectorContext?: SelectorContext
+  dependentValuePaths?: WorkflowSearchValuePath[]
+}
+
 /**
  * Resolve a stored tool's params to their subBlock configs (the same resolution
  * the search index + UI use). Exported so cross-workspace remapping (fork/promote)
@@ -687,13 +697,7 @@ export function getToolInputParamConfigs({
   parentCanonicalModes?: CanonicalModeOverrides
   credentialTypeById?: Record<string, string | undefined>
   blockConfigs?: WorkflowSearchIndexerOptions['blockConfigs']
-}): Array<{
-  paramId: string
-  config: WorkflowSearchSubBlockConfig
-  value: unknown
-  selectorContext?: SelectorContext
-  dependentValuePaths?: WorkflowSearchValuePath[]
-}> {
+}): ResolvedToolInputParamConfig[] {
   const toolId =
     tool.type !== 'custom-tool' && tool.type !== 'mcp'
       ? getToolIdForOperation(tool.type, tool.operation) || tool.toolId
@@ -715,6 +719,7 @@ export function getToolInputParamConfigs({
         const type = getFallbackToolParamType(value)
         return {
           paramId,
+          authoritative: false,
           config: {
             id: paramId,
             title: paramId,
@@ -759,6 +764,7 @@ export function getToolInputParamConfigs({
         const config = buildToolInputSearchConfig(param)
         return {
           paramId: param.id,
+          authoritative: true,
           config,
           value: parseToolParamValue(toolParamValues[param.id], config.type),
           selectorContext:
@@ -811,6 +817,7 @@ export function getToolInputParamConfigs({
 
   const subBlockParams = visibleSubBlocks.map((config) => ({
     paramId: config.id,
+    authoritative: true,
     config,
     value: parseToolParamValue(toolParamValues[config.id], config.type),
     dependentValuePaths: getDependentValuePaths(config.id),
@@ -830,6 +837,7 @@ export function getToolInputParamConfigs({
       const config = buildToolInputSearchConfig(param)
       return {
         paramId: param.id,
+        authoritative: true,
         config,
         value: parseToolParamValue(toolParamValues[param.id], config.type),
         selectorContext:
