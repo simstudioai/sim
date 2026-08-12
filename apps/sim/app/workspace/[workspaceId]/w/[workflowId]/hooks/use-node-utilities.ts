@@ -1,6 +1,6 @@
 import { useCallback } from 'react'
 import { createLogger } from '@sim/logger'
-import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS } from '@sim/workflow-renderer'
+import { BLOCK_DIMENSIONS, CONTAINER_DIMENSIONS, getNoteBlockHeight } from '@sim/workflow-renderer'
 import { useReactFlow } from 'reactflow'
 import { getBlockMetrics } from '@/lib/workflows/autolayout/utils'
 import {
@@ -59,11 +59,17 @@ export function useNodeUtilities(blocks: Record<string, any>) {
         }
       }
 
-      const metrics = getBlockMetrics(block)
-      return {
-        width: block.type === 'note' ? BLOCK_DIMENSIONS.NOTE_WIDTH : metrics.width,
-        height: block.type === 'note' && block.height ? block.height : metrics.height,
+      /* A note is not a card: it has no sub-block rows and no error row, so the
+         card estimate does not describe it. Its own height is what it was
+         measured at, or the height an empty one paints. */
+      if (block.type === 'note') {
+        return {
+          width: BLOCK_DIMENSIONS.NOTE_WIDTH,
+          height: block.height || getNoteBlockHeight(true),
+        }
       }
+
+      return getBlockMetrics(block)
     },
     [isContainerType]
   )
