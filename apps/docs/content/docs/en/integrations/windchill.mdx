@@ -16,7 +16,7 @@ import { BlockInfoCard } from "@/components/ui/block-info-card"
 This integration talks to Windchill REST Services (WRS) 2.7 over OData — the query protocol Windchill exposes its data through — using a Basic-authenticated service account. Point it at a complete versioned service root — `https://your-host/Windchill/servlet/odata/v6` — and your agents can:
 
 - **Find and read documents**: list documents with an OData filter, sort order, field selection, page size, and a latest-version-only switch; fetch a single document by its object identifier (OID); and walk a document's structure through its usage links to see child documents with their versions and states.
-- **Create and update**: create one document or a batch of them in a container and optional folder, and patch editable attributes on one or many documents. Name, Number, and Organization are deliberately rejected — Windchill requires its own `UpdateCommonProperties` action for those.
+- **Create and update**: create one document or a batch of them in a container and optional folder, and patch editable attributes on one or many documents. Name, Number, and Organization are rejected here and have their own operation, because Windchill changes those through a separate action and refuses it while a document is checked out.
 - **Run the version and lifecycle cycle**: check documents out and back in with notes, undo a checkout, revise to the next revision, read the lifecycle states a document is actually allowed to move to, and transition it to one of them.
 - **Move files**: download a document's primary content, or a specific attachment by its OID, into a Sim file — and upload files as primary content or attachments. Sim handles Windchill's CSRF token and its multi-step upload handshake for you.
 
@@ -347,7 +347,43 @@ Update one document's editable attributes
 | `username` | string | Yes | Windchill service-account username |
 | `password` | string | Yes | Windchill service-account password |
 | `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581 |
-| `attributes` | json | Yes | Editable attributes as a JSON object. Name, Number, and Organization require Windchill UpdateCommonProperties and are not supported here. |
+| `attributes` | json | Yes | Editable attributes as a JSON object. Name, Number, and Organization require the Update Common Properties operation and are not supported here. |
+
+#### Output
+
+| Parameter | Type | Description |
+| --------- | ---- | ----------- |
+| `operation` | string | Windchill operation that was executed |
+| `affectedIds` | array | Document identifiers affected by the operation |
+| `document` | object | Document returned by Windchill when the operation returns one |
+|   ↳ `id` | string | Windchill object identifier |
+|   ↳ `name` | string | Document name |
+|   ↳ `number` | string | Document number |
+|   ↳ `title` | string | Document title |
+|   ↳ `description` | string | Document description |
+|   ↳ `state` | string | Internal life cycle state value |
+|   ↳ `stateDisplay` | string | Displayed life cycle state value |
+|   ↳ `versionId` | string | Version identifier |
+|   ↳ `revision` | string | Revision identifier |
+|   ↳ `version` | string | Version and iteration |
+|   ↳ `latest` | boolean | Whether this is the latest version |
+|   ↳ `checkoutState` | string | Checkout state |
+|   ↳ `folderName` | string | Folder name |
+|   ↳ `folderLocation` | string | Folder path |
+
+### Windchill Update Common Properties
+
+Update a document's Name, Number, and other common properties
+
+#### Input
+
+| Parameter | Type | Required | Description |
+| --------- | ---- | -------- | ----------- |
+| `baseUrl` | string | Yes | Complete WRS 2.7 versioned service root using Basic authentication, for example https://host/Windchill/servlet/odata/v6 |
+| `username` | string | Yes | Windchill service-account username |
+| `password` | string | Yes | Windchill service-account password |
+| `documentOid` | string | Yes | WT.Document OID, for example OR:wt.doc.WTDocument:48796581. The document must not be checked out. |
+| `commonProperties` | json | Yes | Common properties as a JSON object, for example \{"Name":"New name","Number":"NEW-001"\}. Enumerated properties take a value/display pair. |
 
 #### Output
 

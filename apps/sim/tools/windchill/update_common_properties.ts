@@ -9,10 +9,10 @@ import {
   transformWindchillInternalResponse,
 } from '@/tools/windchill/utils'
 
-export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillResponse> = {
-  id: 'windchill_update_document',
-  name: 'Windchill Update Document',
-  description: "Update one document's editable attributes",
+export const windchillUpdateCommonPropertiesTool: ToolConfig<WindchillParams, WindchillResponse> = {
+  id: 'windchill_update_common_properties',
+  name: 'Windchill Update Common Properties',
+  description: "Update a document's Name, Number, and other common properties",
   version: '1.0.0',
   params: {
     baseUrl: {
@@ -38,24 +38,25 @@ export const windchillUpdateDocumentTool: ToolConfig<WindchillParams, WindchillR
       type: 'string',
       required: true,
       visibility: 'user-or-llm',
-      description: 'WT.Document OID, for example OR:wt.doc.WTDocument:48796581',
+      description:
+        'WT.Document OID, for example OR:wt.doc.WTDocument:48796581. The document must not be checked out.',
     },
-    attributes: {
+    commonProperties: {
       type: 'json',
       required: true,
       visibility: 'user-or-llm',
       description:
-        'Editable attributes as a JSON object. Name, Number, and Organization require the Update Common Properties operation and are not supported here.',
+        'Common properties as a JSON object, for example {"Name":"New name","Number":"NEW-001"}. Enumerated properties take a value/display pair.',
     },
   },
   request: {
     url: '/api/tools/windchill',
     method: 'POST',
     headers: () => ({ 'Content-Type': 'application/json' }),
-    body: (params) => buildWindchillInternalBody('windchill_update_document', params),
+    body: (params) => buildWindchillInternalBody('windchill_update_common_properties', params),
     internalAuth: 'executor_delegation',
   },
   transformResponse: (response) =>
-    transformWindchillInternalResponse('windchill_update_document', response),
+    transformWindchillInternalResponse('windchill_update_common_properties', response),
   outputs: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
 }

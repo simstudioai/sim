@@ -225,6 +225,17 @@ async function executeMutation(
       })
       return mutationOutput(body.operation, data, [body.documentOid])
     }
+    case 'windchill_update_common_properties': {
+      const data = await windchillMutationRequest({
+        params: body,
+        session,
+        url: `${windchillDocumentUrl(root, body.documentOid)}/PTC.DocMgmt.UpdateCommonProperties`,
+        method: 'POST',
+        body: { Updates: body.commonProperties },
+        signal,
+      })
+      return mutationOutput(body.operation, data, [body.documentOid])
+    }
     case 'windchill_update_documents': {
       const data = await windchillMutationRequest({
         params: body,

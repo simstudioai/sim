@@ -21987,6 +21987,10 @@
           "description": "Update one document's editable attributes"
         },
         {
+          "name": "Update Common Properties",
+          "description": "Update a document's Name, Number, and other common properties"
+        },
+        {
           "name": "Update Documents",
           "description": "Update several documents' editable attributes in one atomic request"
         },
@@ -22055,7 +22059,7 @@
           "description": "Upload one or more files as document attachments"
         }
       ],
-      "operationCount": 26,
+      "operationCount": 27,
       "triggers": [],
       "triggerCount": 0,
       "authType": "api-key",

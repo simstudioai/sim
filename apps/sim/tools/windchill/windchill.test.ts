@@ -135,6 +135,7 @@ describe('Windchill tools', () => {
       windchill_list_attachments: WINDCHILL_ATTACHMENTS_OUTPUTS,
       windchill_create_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
       windchill_update_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
+      windchill_update_common_properties: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
       windchill_check_out_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
       windchill_check_in_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
       windchill_undo_check_out_document: WINDCHILL_SINGLE_MUTATION_OUTPUTS,
@@ -653,8 +654,18 @@ describe('Windchill tools', () => {
     })
     expect(commonProperty.success).toBe(false)
     if (!commonProperty.success) {
-      expect(commonProperty.error.issues[0]?.message).toContain('UpdateCommonProperties')
+      expect(commonProperty.error.issues[0]?.message).toContain('Update Common Properties')
     }
+
+    const viaCommonProperties = windchillOperationBodySchema.safeParse({
+      operation: 'windchill_update_common_properties',
+      baseUrl: BASE_URL,
+      username: 'user',
+      password: 'not-a-real-password',
+      documentOid: 'OR:wt.doc.WTDocument:1',
+      commonProperties: { Name: 'Renamed document', Number: 'DOC-001' },
+    })
+    expect(viaCommonProperties.success).toBe(true)
   })
 
   it('represents an explicitly empty primary-content collection as null', () => {

@@ -223,6 +223,7 @@ export const WINDCHILL_OPERATIONS = [
   'windchill_create_document',
   'windchill_create_documents',
   'windchill_update_document',
+  'windchill_update_common_properties',
   'windchill_update_documents',
   'windchill_delete_document',
   'windchill_delete_documents',
@@ -334,6 +335,7 @@ export interface WindchillParams {
   containerOid?: string
   folderOid?: string
   attributes?: Record<string, WindchillAttributeValue>
+  commonProperties?: Record<string, WindchillAttributeValue>
   documents?: WindchillCreateDocumentInput[] | WindchillUpdateDocumentInput[]
   checkOutNote?: string
   checkInNote?: string

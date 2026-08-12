@@ -12,6 +12,7 @@ const SINGLE_DOCUMENT_OPERATIONS = [
   'windchill_get_primary_content',
   'windchill_list_attachments',
   'windchill_update_document',
+  'windchill_update_common_properties',
   'windchill_delete_document',
   'windchill_check_out_document',
   'windchill_check_in_document',
@@ -46,6 +47,7 @@ const DOWNLOAD_OPERATIONS = ['windchill_download_primary_content', 'windchill_do
 const SINGLE_MUTATION_OPERATIONS = [
   'windchill_create_document',
   'windchill_update_document',
+  'windchill_update_common_properties',
   'windchill_check_out_document',
   'windchill_check_in_document',
   'windchill_undo_check_out_document',
@@ -163,6 +165,9 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
           { text: 'Update document', field: 'documentOid', core: true },
           { text: 'with', field: 'attributes' },
         ],
+        windchill_update_common_properties: [
+          { text: 'Update common properties on', field: 'documentOid', core: true },
+        ],
         windchill_update_documents: [{ text: 'Update', field: 'documents', core: true }],
         windchill_delete_document: [{ text: 'Delete document', field: 'documentOid', core: true }],
         windchill_delete_documents: [{ text: 'Delete', field: 'documentOids', core: true }],
@@ -257,6 +262,11 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
           label: 'Update Document',
           id: 'windchill_update_document',
           description: "Update a document's editable attributes",
+        },
+        {
+          label: 'Update Common Properties',
+          id: 'windchill_update_common_properties',
+          description: "Update a document's Name, Number, and other common properties",
         },
         {
           label: 'Update Documents',
@@ -456,7 +466,18 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       },
       required: { field: 'operation', value: 'windchill_update_document' },
       description:
-        'Installed JSON attributes supported by PATCH. Name, Number, and Organization require Windchill UpdateCommonProperties and are rejected here.',
+        'Editable attributes as JSON. Name, Number, and Organization require the Update Common Properties operation and are rejected here.',
+    },
+    {
+      id: 'commonProperties',
+      title: 'Common Properties',
+      type: 'code',
+      language: 'json',
+      placeholder: '{"Name":"Updated name","Number":"DOC-001"}',
+      condition: { field: 'operation', value: 'windchill_update_common_properties' },
+      required: true,
+      description:
+        'Common properties as a JSON object. This is the only operation that can change Name, Number, and Organization, and Windchill rejects it while the document is checked out.',
     },
     {
       id: 'documents',
@@ -713,6 +734,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
       'windchill_create_document',
       'windchill_create_documents',
       'windchill_update_document',
+      'windchill_update_common_properties',
       'windchill_update_documents',
       'windchill_delete_document',
       'windchill_delete_documents',
@@ -738,6 +760,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
           operation,
           documents,
           attributes,
+          commonProperties,
           documentOids,
           securityLabelUpdates,
           primaryFile,
@@ -759,6 +782,11 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
           ...(attributes === undefined || attributes === ''
             ? {}
             : { attributes: parseJsonField(attributes, 'attributes', 'object') }),
+          ...(commonProperties === undefined || commonProperties === ''
+            ? {}
+            : {
+                commonProperties: parseJsonField(commonProperties, 'commonProperties', 'object'),
+              }),
           ...(documentOids === undefined || documentOids === ''
             ? {}
             : { documentOids: parseJsonField(documentOids, 'documentOids', 'array') }),
@@ -800,6 +828,7 @@ export const WindchillBlock: BlockConfig<WindchillResponse> = {
     containerOid: { type: 'string', description: 'Container OID' },
     folderOid: { type: 'string', description: 'Folder OID' },
     attributes: { type: 'json', description: 'Document attributes' },
+    commonProperties: { type: 'json', description: 'Common document properties' },
     documents: { type: 'array', description: 'Bulk document inputs' },
     checkOutNote: { type: 'string', description: 'Checkout note' },
     checkInNote: { type: 'string', description: 'Check-in note' },

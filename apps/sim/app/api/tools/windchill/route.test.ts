@@ -138,6 +138,12 @@ const MUTATION_CASES = [
     method: 'POST',
   },
   {
+    operation: 'windchill_update_common_properties',
+    input: { documentOid: DOCUMENT_OID, commonProperties: { Name: 'Renamed' } },
+    url: '/PTC.DocMgmt.UpdateCommonProperties',
+    method: 'POST',
+  },
+  {
     operation: 'windchill_delete_document',
     input: { documentOid: DOCUMENT_OID },
     url: '/DocMgmt/Documents(',
@@ -237,6 +243,14 @@ const MUTATION_PAYLOAD_CASES = [
     operation: 'windchill_revise_document',
     input: { documentOid: DOCUMENT_OID, versionId: 'B' },
     body: { VersionId: 'B' },
+  },
+  {
+    operation: 'windchill_update_common_properties',
+    input: {
+      documentOid: DOCUMENT_OID,
+      commonProperties: { Name: 'Renamed', Number: 'DOC-001' },
+    },
+    body: { Updates: { Name: 'Renamed', Number: 'DOC-001' } },
   },
   {
     operation: 'windchill_revise_documents',

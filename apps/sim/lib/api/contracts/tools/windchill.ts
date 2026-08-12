@@ -130,8 +130,13 @@ const patchAttributesSchema = attributesSchema
   })
   .refine(
     (attributes) => !Object.keys(attributes).some((key) => COMMON_DOCUMENT_PROPERTIES.has(key)),
-    'Name, Number, and Organization must be changed with Windchill UpdateCommonProperties and are not supported by this operation'
+    'Name, Number, and Organization must be changed with the Update Common Properties operation and are not supported here'
   )
+
+const commonPropertiesSchema = attributesSchema.refine(
+  (properties) => Object.keys(properties).length > 0,
+  { message: 'At least one common property is required' }
+)
 
 const credentialsSchema = z.object({
   baseUrl: baseUrlSchema,
@@ -182,6 +187,11 @@ const commonMutationShapes = {
     operation: z.literal('windchill_update_document'),
     documentOid: oidSchema,
     attributes: patchAttributesSchema,
+  }),
+  updateCommonProperties: credentialsSchema.extend({
+    operation: z.literal('windchill_update_common_properties'),
+    documentOid: oidSchema,
+    commonProperties: commonPropertiesSchema,
   }),
   updateDocuments: credentialsSchema.extend({
     operation: z.literal('windchill_update_documents'),
@@ -298,6 +308,7 @@ export const windchillOperationBodySchema = z.discriminatedUnion('operation', [
   commonMutationShapes.createDocument,
   commonMutationShapes.createDocuments,
   commonMutationShapes.updateDocument,
+  commonMutationShapes.updateCommonProperties,
   commonMutationShapes.updateDocuments,
   commonMutationShapes.deleteDocument,
   commonMutationShapes.deleteDocuments,
@@ -346,6 +357,7 @@ const affectedIdsSchema = z.array(returnedOidSchema)
 const singleMutationOperationSchema = z.enum([
   'windchill_create_document',
   'windchill_update_document',
+  'windchill_update_common_properties',
   'windchill_check_out_document',
   'windchill_check_in_document',
   'windchill_undo_check_out_document',
