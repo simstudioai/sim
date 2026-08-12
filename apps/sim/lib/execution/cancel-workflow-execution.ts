@@ -287,6 +287,27 @@ export async function cancelWorkflowExecution(
     )
   }
 
+  const success =
+    (isPausedCancellationPath
+      ? pausedCancelled && pausedCancellationPublished
+      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
+
+  /**
+   * Frees the plan concurrency reservation once the stop-the-work effects above
+   * have actually taken. The paused path keeps its reservation because a paused
+   * run never held an in-flight slot to give back, and an unsuccessful ordinary
+   * cancel keeps it because the run may still be executing.
+   */
+  const releaseSlotForStoppedExecution = async (): Promise<void> => {
+    if (!success || isPausedCancellationPath) return
+    await releaseExecutionSlot(executionId).catch((error) => {
+      logger.warn('Failed to release reservation after execution cancellation', {
+        executionId,
+        error,
+      })
+    })
+  }
+
   const groupCancellation = workflowGroupWorkspaceId
     ? await cancelWorkflowGroupExecution({
         workspaceId: workflowGroupWorkspaceId,
@@ -295,11 +316,20 @@ export async function cancelWorkflowExecution(
       })
     : null
 
+  /**
+   * Both refusals mean the cell claim was lost, never that the run is still
+   * going: the sidecar conflicts only on a terminal workflow log or a terminal
+   * cell, and `not_workflow_group` means the log is not a group run at all. The
+   * Redis abort record, queue-job cancel, and in-process abort above already
+   * fired and cannot be taken back, so the reservation is released before the
+   * 409 rather than left to expire.
+   */
   if (groupCancellation?.kind === 'conflict') {
     logger.warn('Workflow group execution could not be cancelled', {
       executionId,
       status: groupCancellation.status,
     })
+    await releaseSlotForStoppedExecution()
     throw new OrchestrationError(
       'conflict',
       `Workflow group execution cannot be cancelled while ${groupCancellation.status}`
@@ -307,6 +337,7 @@ export async function cancelWorkflowExecution(
   }
   if (groupCancellation?.kind === 'not_workflow_group') {
     logger.warn('Workflow group execution is no longer the active table execution', { executionId })
+    await releaseSlotForStoppedExecution()
     throw new OrchestrationError(
       'conflict',
       'Workflow group execution is no longer the active table execution'
@@ -341,23 +372,11 @@ export async function cancelWorkflowExecution(
     }
   }
 
-  const success =
-    (isPausedCancellationPath
-      ? pausedCancelled && pausedCancellationPublished
-      : cancellation.durablyRecorded || queuedJobCancelled) || locallyAborted
-
   if (groupCancellationToPublish && success) {
     await publishWorkflowGroupCancellationEvent(groupCancellationToPublish, executionId)
   }
 
-  if (success && !isPausedCancellationPath) {
-    await releaseExecutionSlot(executionId).catch((error) => {
-      logger.warn('Failed to release reservation after execution cancellation', {
-        executionId,
-        error,
-      })
-    })
-  }
+  await releaseSlotForStoppedExecution()
 
   if (success && input.captureAnalytics !== false) {
     captureServerEvent(
