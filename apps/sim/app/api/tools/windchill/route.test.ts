@@ -1,26 +1,28 @@
 /**
  * @vitest-environment node
  */
-import { createMockRequest } from '@sim/testing'
+import { createMockRequest as createTestingRequest, resetEnvMock } from '@sim/testing'
 import { NextResponse } from 'next/server'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { PayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
 
 const {
+  MockInvalidBindingError,
   MockWindchillProviderError,
-  mockAuthenticateWindchill,
   mockAssertToolFileAccess,
+  mockBindDelegation,
   mockCreateWindchillSession,
   mockDownloadServableFileFromStorage,
   mockDownloadWindchillContent,
+  mockGetSession,
   mockProcessFilesToUserFiles,
   mockUploadCopilotFile,
   mockUploadExecutionFile,
   mockUploadWindchillContent,
   mockWindchillMutationRequest,
 } = vi.hoisted(() => {
+  class MockInvalidBindingError extends Error {}
   class MockWindchillProviderError extends Error {
     constructor(
       message: string,
@@ -32,12 +34,14 @@ const {
   }
 
   return {
+    MockInvalidBindingError,
     MockWindchillProviderError,
-    mockAuthenticateWindchill: vi.fn(),
     mockAssertToolFileAccess: vi.fn(),
+    mockBindDelegation: vi.fn(),
     mockCreateWindchillSession: vi.fn(),
     mockDownloadServableFileFromStorage: vi.fn(),
     mockDownloadWindchillContent: vi.fn(),
+    mockGetSession: vi.fn(),
     mockProcessFilesToUserFiles: vi.fn(),
     mockUploadCopilotFile: vi.fn(),
     mockUploadExecutionFile: vi.fn(),
@@ -46,9 +50,12 @@ const {
   }
 })
 
-vi.mock('@/lib/windchill/api/route-policies', () => ({
-  internalWindchillExecutorAuth: { authenticate: mockAuthenticateWindchill },
+vi.mock('@/lib/auth', () => ({ getSession: mockGetSession }))
+vi.mock('@/lib/auth/internal-delegation', () => ({
+  bindInternalExecutorDelegation: mockBindDelegation,
+  InvalidInternalDelegationBindingError: MockInvalidBindingError,
 }))
+vi.unmock('@/lib/auth/internal')
 
 vi.mock('@/app/api/files/authorization', () => ({
   assertToolFileAccess: mockAssertToolFileAccess,
@@ -79,6 +86,7 @@ vi.mock('@/tools/windchill/utils.server', () => ({
   WindchillProviderError: MockWindchillProviderError,
 }))
 
+import { generateInternalDelegationToken, generateInternalToken } from '@/lib/auth/internal'
 import { POST } from '@/app/api/tools/windchill/route'
 
 const BASE_BODY = {
@@ -89,6 +97,15 @@ const BASE_BODY = {
 
 const DOCUMENT_OID = 'OR:wt.doc.WTDocument:1'
 const SECOND_DOCUMENT_OID = 'OR:wt.doc.WTDocument:2'
+let delegationToken = ''
+let legacyInternalToken = ''
+
+function createMockRequest(method: string, body: unknown, headers: Record<string, string> = {}) {
+  return createTestingRequest(method, body, {
+    authorization: `Bearer ${delegationToken}`,
+    ...headers,
+  })
+}
 
 const MUTATION_CASES = [
   {
@@ -237,22 +254,34 @@ const MUTATION_PAYLOAD_CASES = [
   },
 ] as const
 
+beforeAll(async () => {
+  delegationToken = await generateInternalDelegationToken({
+    subjectUserId: 'user-1',
+    workflowId: '550e8400-e29b-41d4-a716-446655440001',
+  })
+  legacyInternalToken = await generateInternalToken()
+})
+
+afterAll(resetEnvMock)
+
 beforeEach(() => {
   vi.clearAllMocks()
-  mockAuthenticateWindchill.mockResolvedValue({
+  mockGetSession.mockResolvedValue(null)
+  mockBindDelegation.mockImplementation(async (delegation, options) => ({
     kind: 'delegated',
     serviceId: 'executor',
-    subjectUserId: 'user-1',
+    subjectUserId: delegation.subjectUserId,
     workspaceId: '550e8400-e29b-41d4-a716-446655440000',
-    delegationId: 'delegation-1',
-    audience: 'sim:windchill',
-    issuedAt: new Date('2026-01-01T00:00:00.000Z'),
-    expiresAt: new Date('2027-01-01T00:00:00.000Z'),
+    delegationId: delegation.delegationId,
+    audience: options.audience,
+    issuedAt: delegation.issuedAt,
+    expiresAt: delegation.expiresAt,
     delegationContext: {
       kind: 'workflow_execution',
-      workflowId: '550e8400-e29b-41d4-a716-446655440001',
+      workflowId: delegation.workflowId,
+      executionId: delegation.executionId,
     },
-  })
+  }))
   mockCreateWindchillSession.mockResolvedValue({
     nonceHeader: 'CSRF_NONCE',
     nonceValue: 'nonce-value',
@@ -290,15 +319,46 @@ beforeEach(() => {
 
 describe('POST /api/tools/windchill', () => {
   it('authenticates before parsing the request body', async () => {
-    mockAuthenticateWindchill.mockRejectedValueOnce(
-      new InternalUnauthenticatedError('Authentication required')
-    )
-
-    const response = await POST(createMockRequest('POST', { operation: 'not-valid' }))
+    const response = await POST(createTestingRequest('POST', { operation: 'not-valid' }))
 
     expect(response.status).toBe(401)
-    expect(await response.json()).toEqual({ success: false, error: 'Authentication required' })
+    expect(await response.json()).toEqual({ success: false, error: 'Unauthorized' })
     expect(mockCreateWindchillSession).not.toHaveBeenCalled()
+  })
+
+  it('binds executor identity and scope through the canonical delegation path', async () => {
+    const response = await POST(
+      createMockRequest('POST', {
+        ...BASE_BODY,
+        operation: 'windchill_update_document',
+        documentOid: DOCUMENT_OID,
+        attributes: { Title: 'Updated' },
+      })
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockBindDelegation).toHaveBeenCalledWith(expect.any(Object), {
+      audience: 'sim:windchill',
+      resourceScope: undefined,
+    })
+  })
+
+  it('rejects browser sessions and legacy internal tokens', async () => {
+    mockGetSession.mockResolvedValueOnce({
+      user: { id: 'user-1' },
+      session: { id: 'session-1' },
+    })
+
+    const sessionResponse = await POST(createTestingRequest('POST', BASE_BODY))
+    const legacyResponse = await POST(
+      createTestingRequest('POST', BASE_BODY, {
+        authorization: `Bearer ${legacyInternalToken}`,
+      })
+    )
+
+    expect(sessionResponse.status).toBe(401)
+    expect(legacyResponse.status).toBe(401)
+    expect(mockBindDelegation).not.toHaveBeenCalled()
   })
 
   it('rejects malformed operation inputs at the shared contract boundary', async () => {
@@ -670,7 +730,7 @@ describe('POST /api/tools/windchill', () => {
   })
 
   it('uses execution storage derived from the bound delegation principal', async () => {
-    mockAuthenticateWindchill.mockResolvedValueOnce({
+    mockBindDelegation.mockResolvedValueOnce({
       kind: 'delegated',
       serviceId: 'executor',
       subjectUserId: 'user-1',
