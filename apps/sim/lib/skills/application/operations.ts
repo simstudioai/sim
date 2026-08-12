@@ -9,6 +9,22 @@ const HUMAN_PRINCIPAL_POLICY = {
   delegatedServices: ['copilot'],
 } as const
 
+/**
+ * Skill operations split on workspace API keys, and the split is structural
+ * rather than an oversight.
+ *
+ * `create` is gated on workspace `write`, which a workspace key can express, so
+ * it allows one. `update`, `upsert`, and `delete` are not gated on workspace
+ * role at all — their floor is `read` because the real authority is the
+ * per-skill editor row that `resolveEditableSkill` checks against the acting
+ * user. A workspace key has no user subject to check, so those operations deny
+ * it: `requirePrincipalSubjectUserId` would otherwise throw an unclassified
+ * error and surface as a caller-reachable `500` instead of a `403`.
+ *
+ * Widening them therefore is not a policy flip — it needs an authorization model
+ * for a keyless principal against per-skill editors, which does not exist.
+ * Pinned in `operations.test.ts`.
+ */
 export const skillOperations = {
   list: defineWorkspaceOperation({
     id: 'skills.list',
