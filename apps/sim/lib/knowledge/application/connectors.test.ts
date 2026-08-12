@@ -363,7 +363,11 @@ describe('knowledge connector application use cases', () => {
           resolveBillingAttribution: mocks.resolveBilling,
         },
       })
-    ).rejects.toMatchObject({ code: 'validation' })
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
+    })
 
     expect(mocks.getCredentialActorContext).toHaveBeenCalledWith('credential-1', 'shared-user')
     expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
@@ -423,9 +427,10 @@ describe('knowledge connector application use cases', () => {
         },
         { space: 'ENG' }
       )
-    ).resolves.toEqual({
-      message: 'Credential is no longer usable in this workspace. Please reconnect it.',
-      errorCode: 'validation',
+    ).rejects.toMatchObject({
+      code: 'validation',
+      message:
+        'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.',
     })
     expect(mocks.resolveTokenIdentity).not.toHaveBeenCalled()
     expect(mocks.refreshToken).not.toHaveBeenCalled()

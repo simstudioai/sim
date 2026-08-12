@@ -131,7 +131,10 @@ async function resolveAuthorizedConnectorCredentialIdentity(input: {
     access.credential.workspaceId !== input.workspaceId ||
     !canUseCredential(access)
   ) {
-    return null
+    throw new OrchestrationError(
+      'validation',
+      'Credential is not available to you in this workspace. Ask a credential administrator to grant access or select another credential.'
+    )
   }
   return resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
 }
