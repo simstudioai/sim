@@ -80,6 +80,7 @@ const SESSION = {
     method: 'put' as const,
     url: 'https://storage.example/upload',
     headers: { 'content-type': 'application/pdf' },
+    expiresAt: '2026-01-01T01:00:00.000Z',
   },
 }
 

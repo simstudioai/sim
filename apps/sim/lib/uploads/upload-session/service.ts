@@ -57,7 +57,7 @@ const cleanupDb = dbFor('cleanup')
 export type { UploadSessionPurpose, UploadSessionStatus, UploadTransferMethod }
 
 export type UploadSessionTransfer =
-  | { method: 'put'; url: string; headers: Record<string, string> }
+  | { method: 'put'; url: string; headers: Record<string, string>; expiresAt: string }
   | { method: 'multipart'; partSize: number; partCount: number }
 
 export interface UploadSessionRecord {

@@ -32,6 +32,9 @@ export const v2PutUploadTransferSchema = z
     headers: z
       .record(z.string(), z.string())
       .describe('Headers that must be included with the upload request.'),
+    expiresAt: v2TimestampSchema.describe(
+      "ISO 8601 expiration time for this signed URL. This is the URL's own expiry and is normally earlier than the upload session's expiresAt: the session stays open for later part, status, completion, and abort requests, but the bytes must be uploaded before this time. Once it passes, the storage provider rejects the upload and a new upload session must be created."
+    ),
   })
   .strict()
   .meta({

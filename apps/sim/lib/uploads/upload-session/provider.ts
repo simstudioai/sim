@@ -34,6 +34,27 @@ import { sanitizeFileKey } from '@/lib/uploads/utils/file-utils'
 
 export type { UploadStorageProvider } from '@/lib/uploads/upload-session/types'
 
+/**
+ * Bounded lifetime of every signed data-plane URL this module issues.
+ *
+ * A signed transfer URL is a bearer credential for writing the object's bytes,
+ * so it is deliberately decoupled from the upload session's own TTL. The
+ * session stays addressable through its control plane (part URLs, status,
+ * complete, abort) for as long as it lives; the credential that can write bytes
+ * expires an hour after it was signed, which is the lifetime the pre-session
+ * presign route used.
+ *
+ * Multipart parts are re-signed on demand by the per-surface `.../parts`
+ * endpoints, so a long-lived multipart session always outlives its part URLs
+ * and recovers by asking for new ones. A whole-object PUT has no such endpoint
+ * and needs none: it is size-capped by `UPLOAD_SESSION_PUT_MAX_BYTES`, is
+ * issued and used within one client call, and is not resumable — an expired PUT
+ * URL and an interrupted PUT have the identical recovery of starting a new
+ * session. Nothing durable is written in either case, because the transfer is
+ * signed with a create-only precondition.
+ */
+export const UPLOAD_URL_TTL_MS = 60 * 60 * 1000
+
 export interface CompletedUploadPart {
   partNumber: number
   etag?: string
@@ -130,6 +151,14 @@ export async function initiateMultipartProviderUpload(params: {
   return { provider, providerUploadId: null }
 }
 
+/**
+ * Signs the whole-object PUT data plane for an upload session.
+ *
+ * The returned `expiresAt` is the transfer URL's own expiry, which is not the
+ * session's: cloud providers get a signature bounded by {@link UPLOAD_URL_TTL_MS},
+ * while the local data plane carries no signature at all and its route admits
+ * the upload for as long as the session is live.
+ */
 export async function createPutProviderTransfer(params: {
   provider: UploadStorageProvider
   key: string
@@ -141,8 +170,15 @@ export async function createPutProviderTransfer(params: {
   localOrigin?: string
   expiresAt: Date
   metadata: Record<string, string>
-}): Promise<{ method: 'put'; url: string; headers: Record<string, string> }> {
-  const expiresIn = Math.floor((params.expiresAt.getTime() - Date.now()) / 1000)
+}): Promise<{
+  method: 'put'
+  url: string
+  headers: Record<string, string>
+  expiresAt: string
+}> {
+  const expiresIn = Math.floor(
+    Math.min(params.expiresAt.getTime() - Date.now(), UPLOAD_URL_TTL_MS) / 1000
+  )
   if (expiresIn < 1) throw new Error('Cannot sign an expired PUT upload session')
 
   if (params.provider === 'local') {
@@ -156,8 +192,11 @@ export async function createPutProviderTransfer(params: {
         'Content-Type': params.contentType,
         'upload-token': params.uploadToken,
       },
+      expiresAt: params.expiresAt.toISOString(),
     }
   }
+
+  const signedExpiresAt = new Date(Date.now() + expiresIn * 1000).toISOString()
 
   const config = getStorageConfig(params.context)
   const metadata = { ...params.metadata, uploadId: params.uploadId }
@@ -171,7 +210,7 @@ export async function createPutProviderTransfer(params: {
       customConfig: createS3Config(config),
       expiresIn,
     })
-    return { method: 'put', ...transfer }
+    return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
   if (params.provider === 'blob') {
     const { getBlobPresignedUploadUrl } = await import('@/lib/uploads/providers/blob/client')
@@ -182,7 +221,7 @@ export async function createPutProviderTransfer(params: {
       customConfig: createBlobConfig(config),
       expiresIn,
     })
-    return { method: 'put', ...transfer }
+    return { method: 'put', ...transfer, expiresAt: signedExpiresAt }
   }
   const { getGcsPresignedUploadUrl } = await import('@/lib/uploads/providers/gcs/client')
   const transfer = await getGcsPresignedUploadUrl(
@@ -192,7 +231,12 @@ export async function createPutProviderTransfer(params: {
     createGcsConfig(config),
     expiresIn
   )
-  return { method: 'put', url: transfer.url, headers: transfer.signedHeaders }
+  return {
+    method: 'put',
+    url: transfer.url,
+    headers: transfer.signedHeaders,
+    expiresAt: signedExpiresAt,
+  }
 }
 
 export async function getMultipartProviderPartUrls(params: {
@@ -203,7 +247,7 @@ export async function getMultipartProviderPartUrls(params: {
   partNumbers: number[]
   localUrl: (partNumber: number) => string
 }): Promise<UploadPartUrl[]> {
-  const expiresAt = new Date(Date.now() + 60 * 60 * 1000).toISOString()
+  const expiresAt = new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString()
   if (params.provider === 'local') {
     return params.partNumbers.map((partNumber) => ({
       partNumber,

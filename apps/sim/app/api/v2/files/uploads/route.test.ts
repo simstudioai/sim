@@ -62,6 +62,7 @@ const AUTH = {
   rateLimitSubscription: null,
   keyType: 'workspace' as const,
 }
+const URL_EXPIRES_AT = '2026-01-01T01:00:00.000Z'
 const UPLOAD_SESSION = {
   id: 'upload-1',
   uploadToken: 'signed-upload-token',
@@ -69,6 +70,7 @@ const UPLOAD_SESSION = {
     method: 'put' as const,
     url: 'https://storage.example/upload',
     headers: { 'content-type': 'text/csv' },
+    expiresAt: URL_EXPIRES_AT,
   },
 }
 
@@ -113,7 +115,11 @@ describe('POST /api/v2/files/uploads', () => {
       data: {
         session: { id: 'upload-1', status: 'uploading', file: null },
         uploadToken: 'signed-upload-token',
-        transfer: { method: 'put', url: 'https://storage.example/upload' },
+        transfer: {
+          method: 'put',
+          url: 'https://storage.example/upload',
+          expiresAt: URL_EXPIRES_AT,
+        },
       },
     })
     expect(mocks.createUpload).toHaveBeenCalledWith({

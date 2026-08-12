@@ -2,10 +2,12 @@
  * @vitest-environment node
  */
 import { mkdir, readdir, readFile, rm, stat } from 'node:fs/promises'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { testUploadDirectory } = vi.hoisted(() => ({
+const { testUploadDirectory, mockS3Presign, mockS3PartUrls } = vi.hoisted(() => ({
   testUploadDirectory: `/tmp/sim-upload-session-provider-${process.pid}`,
+  mockS3Presign: vi.fn(),
+  mockS3PartUrls: vi.fn(),
 }))
 
 vi.mock('@/lib/uploads/core/setup.server', () => ({
@@ -16,14 +18,22 @@ vi.mock('@/lib/uploads/config', () => ({
   USE_BLOB_STORAGE: false,
   USE_GCS_STORAGE: false,
   USE_S3_STORAGE: false,
-  getStorageConfig: vi.fn(() => ({})),
+  getStorageConfig: vi.fn(() => ({ bucket: 'test-bucket', region: 'us-east-1' })),
+}))
+
+vi.mock('@/lib/uploads/providers/s3/client', () => ({
+  getS3PresignedUploadUrl: mockS3Presign,
+  getS3MultipartPartUrls: mockS3PartUrls,
 }))
 
 import {
   completeMultipartProviderUpload,
+  createPutProviderTransfer,
+  getMultipartProviderPartUrls,
   headProviderObject,
   LocalUploadBodyError,
   listMultipartProviderParts,
+  UPLOAD_URL_TTL_MS,
   writeLocalMultipartPart,
   writeLocalPutObject,
 } from '@/lib/uploads/upload-session/provider'
@@ -201,6 +211,147 @@ describe('local upload-session provider', () => {
       'abcde'
     )
     await expect(stat(localPath('.multipart/upload-1'))).rejects.toMatchObject({ code: 'ENOENT' })
+  })
+})
+
+/** Mirrors `UPLOAD_SESSION_TTL_MS`, imported here as a literal so this suite
+ * does not pull the upload-session service's database and billing graph. */
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000
+
+describe('signed transfer URL lifetimes', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-01-01T00:00:00.000Z'))
+    mockS3Presign.mockResolvedValue({ url: 'https://s3.example/put', headers: {} })
+    mockS3PartUrls.mockImplementation(
+      async (_key: string, _uploadId: string, partNumbers: number[]) =>
+        partNumbers.map((partNumber) => ({ partNumber, url: `https://s3.example/${partNumber}` }))
+    )
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('signs a whole-object PUT for the bounded URL lifetime, not the session TTL', async () => {
+    await createPutProviderTransfer({
+      provider: 's3',
+      key: 'workspace/workspace-1/file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      context: CONTEXT,
+      uploadId: 'upload-1',
+      uploadToken: 'token-1',
+      expiresAt: new Date(Date.now() + SESSION_TTL_MS),
+      metadata: METADATA,
+    })
+
+    expect(UPLOAD_URL_TTL_MS).toBeLessThan(SESSION_TTL_MS)
+    expect(mockS3Presign).toHaveBeenCalledTimes(1)
+    expect(mockS3Presign.mock.calls[0][0]).toMatchObject({
+      expiresIn: UPLOAD_URL_TTL_MS / 1000,
+    })
+  })
+
+  it('advertises the clamped URL expiry on the transfer, not the session TTL', async () => {
+    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS)
+
+    const transfer = await createPutProviderTransfer({
+      provider: 's3',
+      key: 'workspace/workspace-1/file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      context: CONTEXT,
+      uploadId: 'upload-1',
+      uploadToken: 'token-1',
+      expiresAt: sessionExpiresAt,
+      metadata: METADATA,
+    })
+
+    expect(transfer.expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
+    expect(transfer.expiresAt).not.toBe(sessionExpiresAt.toISOString())
+    expect(new Date(transfer.expiresAt).getTime()).toBeLessThan(sessionExpiresAt.getTime())
+  })
+
+  it('advertises the full session lifetime for the unsigned local data plane', async () => {
+    const sessionExpiresAt = new Date(Date.now() + SESSION_TTL_MS)
+
+    const transfer = await createPutProviderTransfer({
+      provider: 'local',
+      key: 'workspace/workspace-1/file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      context: CONTEXT,
+      uploadId: 'upload-1',
+      uploadToken: 'token-1',
+      localOrigin: 'http://localhost:3000',
+      expiresAt: sessionExpiresAt,
+      metadata: METADATA,
+    })
+
+    expect(transfer.expiresAt).toBe(sessionExpiresAt.toISOString())
+  })
+
+  it('never signs a PUT past the end of its session', async () => {
+    await createPutProviderTransfer({
+      provider: 's3',
+      key: 'workspace/workspace-1/file.bin',
+      contentType: 'application/octet-stream',
+      fileSize: 4,
+      context: CONTEXT,
+      uploadId: 'upload-1',
+      uploadToken: 'token-1',
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
+      metadata: METADATA,
+    })
+
+    expect(mockS3Presign.mock.calls[0][0]).toMatchObject({ expiresIn: 5 * 60 })
+  })
+
+  it('refuses to sign a PUT for a session that has already expired', async () => {
+    await expect(
+      createPutProviderTransfer({
+        provider: 's3',
+        key: 'workspace/workspace-1/file.bin',
+        contentType: 'application/octet-stream',
+        fileSize: 4,
+        context: CONTEXT,
+        uploadId: 'upload-1',
+        uploadToken: 'token-1',
+        expiresAt: new Date(Date.now() - 1),
+        metadata: METADATA,
+      })
+    ).rejects.toThrow('Cannot sign an expired PUT upload session')
+    expect(mockS3Presign).not.toHaveBeenCalled()
+  })
+
+  it('keeps multipart part URLs on the same bounded lifetime, re-signed on demand', async () => {
+    const first = await getMultipartProviderPartUrls({
+      provider: 's3',
+      providerUploadId: 'provider-upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      context: CONTEXT,
+      partNumbers: [1],
+      localUrl: (partNumber) => `http://local/${partNumber}`,
+    })
+    expect(first[0].expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
+
+    // A multipart session that outlives its part URLs recovers by asking the
+    // per-surface `.../parts` endpoint for a freshly signed window.
+    vi.advanceTimersByTime(23 * 60 * 60 * 1000)
+    const second = await getMultipartProviderPartUrls({
+      provider: 's3',
+      providerUploadId: 'provider-upload-1',
+      key: 'workspace/workspace-1/file.bin',
+      context: CONTEXT,
+      partNumbers: [1],
+      localUrl: (partNumber) => `http://local/${partNumber}`,
+    })
+    expect(second[0].expiresAt).toBe(new Date(Date.now() + UPLOAD_URL_TTL_MS).toISOString())
+    expect(new Date(second[0].expiresAt).getTime()).toBeGreaterThan(
+      new Date(first[0].expiresAt).getTime()
+    )
   })
 })
 
