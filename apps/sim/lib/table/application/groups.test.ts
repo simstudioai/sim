@@ -378,6 +378,28 @@ describe('workflow and enrichment Table application commands', () => {
     )
   })
 
+  it('does not start auto-run when the generic update saves a legacy enabled group', async () => {
+    await updateTableGroupUseCase.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        autoRun: true,
+      },
+    })
+
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoRun: true,
+        suppressAutoRunDispatch: true,
+      }),
+      'request-1'
+    )
+    expect(mocks.runDetached).not.toHaveBeenCalled()
+    expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
+  })
+
   it('rejects an invalid output before constructing or mutating the group', async () => {
     await expect(
       createWorkflowTableGroup.execute({
@@ -511,6 +533,28 @@ describe('workflow and enrichment Table application commands', () => {
     expect(result.changed).toBe(false)
     expect(mocks.audit).not.toHaveBeenCalled()
     expect(mocks.signal).not.toHaveBeenCalled()
+  })
+
+  it('does not start auto-run when the workflow update saves a legacy enabled group', async () => {
+    await updateWorkflowTableGroup.execute({
+      principal,
+      input: {
+        tableId: table.id,
+        workspaceId: table.workspaceId,
+        groupId: group.id,
+        autoRun: true,
+      },
+    })
+
+    expect(mocks.updateGroup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        autoRun: true,
+        suppressAutoRunDispatch: true,
+      }),
+      'request-1'
+    )
+    expect(mocks.runDetached).not.toHaveBeenCalled()
+    expect(mocks.runWorkflowColumn).not.toHaveBeenCalled()
   })
 
   it('passes authorized output type and ordering to the add-output mutation', async () => {
