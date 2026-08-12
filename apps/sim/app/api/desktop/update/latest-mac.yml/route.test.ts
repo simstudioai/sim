@@ -77,26 +77,57 @@ describe('desktop update manifest route', () => {
     )
   })
 
-  it('uses the forwarded public hostname behind a reverse proxy', async () => {
+  it.each([
+    ['dev', 'www.dev.sim.ai:443', 'v1.2.0-dev.4', '1.2.0-dev.4'],
+    ['staging', 'www.staging.sim.ai:443', 'v1.2.0-staging.5', '1.2.0-staging.5'],
+    ['production', 'www.sim.ai:443', 'v1.1.0', '1.1.0'],
+  ])(
+    'uses the forwarded public hostname for %s behind a reverse proxy',
+    async (_, host, tag, version) => {
+      fetchMock.mockImplementation(async (input: string | URL | Request) => {
+        const url = String(input)
+        if (url === RELEASES_URL) {
+          return Response.json([
+            release('v1.2.0-dev.4'),
+            release('v1.2.0-staging.5'),
+            release('v1.1.0'),
+          ])
+        }
+        if (url === `https://downloads.example/${tag}/${MANIFEST_ASSET_NAME}`) {
+          return new Response(manifest(version))
+        }
+        return new Response(null, { status: 404 })
+      })
+
+      const response = await getFeed('internal.service.local', {
+        'x-forwarded-host': `${host}, internal.service.local`,
+      })
+      const body = await response.text()
+
+      expect(response.status).toBe(200)
+      expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
+      expect(body).toContain(`version: ${version}`)
+    }
+  )
+
+  it('falls back to the Host header when no forwarded host is present', async () => {
     fetchMock.mockImplementation(async (input: string | URL | Request) => {
       const url = String(input)
       if (url === RELEASES_URL) {
-        return Response.json([release('v1.2.0-staging.5'), release('v1.1.0')])
+        return Response.json([release('v1.2.0-dev.4'), release('v1.1.0')])
       }
-      if (url === `https://downloads.example/v1.2.0-staging.5/${MANIFEST_ASSET_NAME}`) {
-        return new Response(manifest('1.2.0-staging.5'))
+      if (url === `https://downloads.example/v1.2.0-dev.4/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.2.0-dev.4'))
       }
       return new Response(null, { status: 404 })
     })
 
     const response = await getFeed('internal.service.local', {
-      'x-forwarded-host': 'www.staging.sim.ai:443, internal.service.local',
+      host: 'www.dev.sim.ai:443',
     })
-    const body = await response.text()
 
     expect(response.status).toBe(200)
-    expect(response.headers.get(FEED_STATUS_HEADER)).toBe('release')
-    expect(body).toContain('version: 1.2.0-staging.5')
+    expect(await response.text()).toContain('version: 1.2.0-dev.4')
   })
 
   it('reports an authoritative no-release result for production with only prereleases', async () => {

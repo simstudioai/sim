@@ -748,7 +748,7 @@ export type V2ExecutionError = z.output<typeof v2ExecutionErrorSchema>
  * description cannot drift from each other.
  */
 export const EXECUTE_OPTION_CONSTRAINTS =
-  'Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.'
+  'Option constraints — each is a 400: (1) `async: true` requires an API key; anonymous public-workflow callers may only execute synchronously or as a stream. (2) `async` and `stream` cannot both be true. (3) `executionTimeoutSeconds` is accepted only when `async: true`. (4) `async: true` rejects every streaming and output-shaping option — `selectedOutputs`, `includeThinking`, `includeToolCalls`, `includeFileBase64`, and `base64MaxBytes`. (5) `includeThinking` and `includeToolCalls` require `stream: true`. (6) `includeThinking` and `includeToolCalls` require the `X-Sim-Stream-Protocol: agent-events-v1` request header, which declares that the client understands agent-event frames.'
 
 /**
  * Strict public execute body. Async is body-selected (`async: true`) — v2 has
@@ -756,7 +756,7 @@ export const EXECUTE_OPTION_CONSTRAINTS =
  * (triggerType, draft state, deployment pinning) are NEVER wire fields; they
  * are typed options on the execution service.
  *
- * The five rejected option combinations are enumerated in
+ * The six rejected option combinations are enumerated in
  * {@link EXECUTE_OPTION_CONSTRAINTS} and enforced by the route after parsing.
  */
 export const v2ExecuteWorkflowBodySchema = z
@@ -806,14 +806,14 @@ export const v2ExecuteWorkflowBodySchema = z
       .optional()
       .default(false)
       .describe(
-        'Include model reasoning events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
+        'Include model reasoning events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
       ),
     includeToolCalls: z
       .boolean()
       .optional()
       .default(false)
       .describe(
-        'Include tool-call events in an agent-event stream. Requires the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
+        'Include tool-call events in an agent-event stream. Requires `stream: true` and the `X-Sim-Stream-Protocol: agent-events-v1` request header, and is rejected when `async` is true.'
       ),
     includeFileBase64: z
       .boolean()
