@@ -7,6 +7,7 @@ import { checkInternalAuth } from '@/lib/auth/hybrid'
 import { secureFetchWithPinnedIP } from '@/lib/core/security/input-validation.server'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { resolveEffectiveMimeType } from '@/lib/uploads/utils/file-utils'
 import { isEwRestBody } from '@/tools/agiloft/ewrest'
 import {
   AGILOFT_MAX_ATTACHMENT_BYTES,
@@ -128,10 +129,17 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         )
       }
 
+      /**
+       * Agiloft labels most attachments application/octet-stream whatever they
+       * are, so downstream consumers keyed on the header mis-handle them. The
+       * filename Agiloft sends in Content-Disposition carries the real type.
+       */
+      const mimeType = resolveEffectiveMimeType(contentType, fileName)
+
       logger.info(`[${requestId}] Attachment downloaded successfully`, {
         name: fileName,
         size: fileBuffer.length,
-        mimeType: contentType,
+        mimeType,
       })
 
       const base64Data = fileBuffer.toString('base64')
@@ -141,7 +149,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
         output: {
           file: {
             name: fileName,
-            mimeType: contentType,
+            mimeType,
             data: base64Data,
             size: fileBuffer.length,
           },
