@@ -3,6 +3,7 @@ import { toError } from '@sim/utils/errors'
 import { omit } from '@sim/utils/object'
 import { isLargeValueRef } from '@/lib/execution/payloads/large-value-ref'
 import { materializeLargeValueRef, storeLargeValue } from '@/lib/execution/payloads/store'
+import { FunctionalOutputsUnavailableError } from '@/lib/logs/execution/functional-outputs'
 import { projectTraceSpansForSecrets } from '@/lib/logs/execution/trace-secret-projection'
 import type { TraceSpan } from '@/lib/logs/types'
 import {
@@ -70,6 +71,11 @@ export interface TraceStoreReadContext {
   workflowId: string | null
   executionId: string
   userId?: string
+}
+
+export interface DisplayExecutionDataWithBlockOutputs {
+  executionData: Record<string, unknown>
+  blockOutputs: Map<string, unknown>
 }
 
 /**
@@ -270,6 +276,100 @@ export async function materializeExecutionDataForDisplay(
 }
 
 /**
+ * Materializes one trusted row into its display envelope plus secret-safe functional outputs.
+ * Only requested execution-state outputs are projected and returned; trace spans remain display
+ * data and the raw execution state never crosses the display boundary.
+ */
+export async function materializeExecutionDataForDisplayWithBlockOutputs(
+  executionData: Record<string, unknown> | null | undefined,
+  context: TraceStoreReadContext,
+  blockIds: readonly string[]
+): Promise<DisplayExecutionDataWithBlockOutputs> {
+  const materialized = await materializeExecutionData(executionData, context)
+  const displayData = await projectExecutionDataForDisplay(materialized, context)
+  if (blockIds.length === 0) {
+    return { executionData: displayData, blockOutputs: new Map() }
+  }
+
+  const executionState = readRecord(materialized.executionState)
+  const blockStates = readRecord(executionState?.blockStates)
+  if (!blockStates) {
+    if (materialized.executionDataTruncated === true) {
+      throw new FunctionalOutputsUnavailableError()
+    }
+    return { executionData: displayData, blockOutputs: new Map() }
+  }
+
+  const runRegistry = await importResolvedSecretTraceRegistry(
+    materialized[RESOLVED_SECRET_PROVENANCE_KEY] ??
+      executionState?.[RESOLVED_SECRET_PROVENANCE_KEY],
+    'traceStore.blockOutputRunProvenance'
+  )
+  const blockOutputs = new Map<string, unknown>()
+  const projectionStore = createReadOnlyProjectionStore(context)
+
+  for (const blockId of new Set(blockIds)) {
+    const blockState = readRecord(blockStates[blockId])
+    if (!blockState || blockState.output === undefined) continue
+
+    const hasExactProvenance = Object.hasOwn(blockState, RESOLVED_SECRET_PROVENANCE_KEY)
+    const registry = hasExactProvenance
+      ? await importResolvedSecretTraceRegistry(
+          blockState[RESOLVED_SECRET_PROVENANCE_KEY],
+          'traceStore.blockOutputExactProvenance'
+        )
+      : runRegistry
+    const now = new Date().toISOString()
+    const [projected] = await projectTraceSpansForSecrets(
+      [
+        {
+          id: `${LOG_DISPLAY_PROJECTION_SPAN_ID}-block-output`,
+          name: 'Block Output Display Projection',
+          type: 'display',
+          duration: 0,
+          startTime: now,
+          endTime: now,
+          output: { value: blockState.output },
+        },
+      ],
+      { registry, allowLargeValueWrites: false, store: projectionStore }
+    )
+    if (projected?.output && Object.hasOwn(projected.output, 'value')) {
+      blockOutputs.set(blockId, projected.output.value)
+    }
+  }
+
+  return { executionData: displayData, blockOutputs }
+}
+
+function readRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : undefined
+}
+
+async function importResolvedSecretTraceRegistry(
+  provenance: unknown,
+  origin: string
+): Promise<ResolvedSecretTraceRegistry | undefined> {
+  if (!isResolvedSecretTraceProvenanceV1(provenance)) return undefined
+
+  const registry = new ResolvedSecretTraceRegistry([], provenance.scope)
+  await registry.importProvenance(provenance, { trusted: true, origin })
+  return registry
+}
+
+function createReadOnlyProjectionStore(context: TraceStoreReadContext) {
+  return {
+    workspaceId: context.workspaceId ?? undefined,
+    workflowId: context.workflowId ?? undefined,
+    executionId: context.executionId,
+    userId: context.userId,
+    trackReference: false,
+  }
+}
+
+/**
  * Projects execution-log content with the encrypted provenance saved by the
  * trusted executor. Current workflow input and final output values use their
  * exact sidecars; rows predating those fields retain the run-level fallback.
@@ -284,12 +384,7 @@ export async function projectExecutionDataForDisplay(
   executionData: Record<string, unknown>,
   context: TraceStoreReadContext
 ): Promise<Record<string, unknown>> {
-  const executionState =
-    executionData.executionState &&
-    typeof executionData.executionState === 'object' &&
-    !Array.isArray(executionData.executionState)
-      ? (executionData.executionState as Record<string, unknown>)
-      : undefined
+  const executionState = readRecord(executionData.executionState)
   const hasTopLevelProvenance = Object.hasOwn(executionData, RESOLVED_SECRET_PROVENANCE_KEY)
   const stateProvenance = executionState?.[RESOLVED_SECRET_PROVENANCE_KEY]
   const provenance = executionData[RESOLVED_SECRET_PROVENANCE_KEY] ?? stateProvenance
@@ -302,15 +397,7 @@ export async function projectExecutionDataForDisplay(
     return projectLegacyExecutionDataForDisplay(executionData)
   }
 
-  let registry: ResolvedSecretTraceRegistry | undefined
-
-  if (isResolvedSecretTraceProvenanceV1(provenance)) {
-    registry = new ResolvedSecretTraceRegistry([], provenance.scope)
-    await registry.importProvenance(provenance, {
-      trusted: true,
-      origin: 'traceStore.spanProvenance',
-    })
-  }
+  const registry = await importResolvedSecretTraceRegistry(provenance, 'traceStore.spanProvenance')
 
   /**
    * Compaction drops `executionState`, and with it the only copy of the
@@ -339,13 +426,7 @@ export async function projectExecutionDataForDisplay(
     })
   }
 
-  const projectionStore = {
-    workspaceId: context.workspaceId ?? undefined,
-    workflowId: context.workflowId ?? undefined,
-    executionId: context.executionId,
-    userId: context.userId,
-    trackReference: false,
-  }
+  const projectionStore = createReadOnlyProjectionStore(context)
 
   const exactValueProjections = new Map<string, unknown>()
   for (const [valueKey, provenanceKey] of Object.entries(EXACT_LOG_VALUE_PROVENANCE_KEYS)) {

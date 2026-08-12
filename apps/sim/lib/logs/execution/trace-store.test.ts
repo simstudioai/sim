@@ -21,6 +21,7 @@ vi.mock('@/lib/execution/payloads/store', () => ({
 import {
   externalizeExecutionData,
   materializeExecutionData,
+  materializeExecutionDataForDisplayWithBlockOutputs,
   projectExecutionDataForDisplay,
   RESOLVED_SECRET_PROVENANCE_KEY,
   SECRET_PROJECTION_VERSION,
@@ -92,6 +93,170 @@ describe('execution data storage', () => {
 })
 
 describe('projectExecutionDataForDisplay', () => {
+  it('projects authoritative state-only block outputs without mutating execution state', async () => {
+    const executionData = {
+      secretProjectionVersion: SECRET_PROJECTION_VERSION,
+      traceSpans: [],
+      executionState: {
+        resolvedSecretTraceProvenance: {
+          version: 1 as const,
+          complete: true,
+          entries: [{ name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' }],
+          scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+        },
+        blockStates: {
+          'function-1': {
+            output: { token: 12345678, derived: 12345683 },
+            resolvedSecretTraceProvenance: {
+              version: 1 as const,
+              complete: true,
+              entries: [{ name: 'OPENAI_API_KEY', encryptedValue: 'ciphertext' }],
+              scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+            },
+          },
+        },
+      },
+    }
+
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      executionData,
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.executionData).not.toHaveProperty('executionState')
+    expect(materialized.blockOutputs).toEqual(
+      new Map([['function-1', { token: '{{OPENAI_API_KEY}}', derived: 12345683 }]])
+    )
+    expect(executionData.executionState.blockStates['function-1'].output).toEqual({
+      token: 12345678,
+      derived: 12345683,
+    })
+    expect(JSON.stringify(materialized.executionData)).not.toContain('12345678')
+    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('12345678')
+  })
+
+  it('does not use trace output for a requested block missing from partial state', async () => {
+    const emptyProvenance = {
+      version: 1 as const,
+      complete: true,
+      entries: [],
+      scope: { userId: 'user-1', workspaceId: 'workspace-1' },
+    }
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { result: 'trace-output' },
+          },
+        ],
+        executionState: {
+          resolvedSecretTraceProvenance: emptyProvenance,
+          blockStates: {
+            'state-only': {
+              output: { result: 'state-output' },
+              resolvedSecretTraceProvenance: emptyProvenance,
+            },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map([['state-only', { result: 'state-output' }]]))
+  })
+
+  it('does not derive block outputs from legacy trace spans', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+      },
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+  })
+
+  it('does not mix legacy trace output into partial execution state', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'trace-only',
+            name: 'Trace-only block',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'raw-legacy-secret' },
+          },
+        ],
+        executionState: {
+          blockStates: {
+            'state-only': { output: { result: 'unproven-state-output' } },
+          },
+        },
+      },
+      CONTEXT,
+      ['state-only', 'trace-only']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+    expect(JSON.stringify([...materialized.blockOutputs])).not.toContain('raw-legacy-secret')
+  })
+
+  it('omits state-only block outputs that lack usable secret provenance', async () => {
+    const materialized = await materializeExecutionDataForDisplayWithBlockOutputs(
+      {
+        secretProjectionVersion: SECRET_PROJECTION_VERSION,
+        traceSpans: [
+          {
+            id: 'span-1',
+            blockId: 'function-1',
+            name: 'Function 1',
+            type: 'function',
+            duration: 1,
+            startTime: '2026-08-11T00:00:00.000Z',
+            endTime: '2026-08-11T00:00:00.001Z',
+            output: { token: 'trace-fallback' },
+          },
+        ],
+        executionState: {
+          blockStates: {
+            'function-1': { output: { token: 'unproven-secret' } },
+          },
+        },
+      },
+      CONTEXT,
+      ['function-1']
+    )
+
+    expect(materialized.blockOutputs).toEqual(new Map())
+    expect(JSON.stringify(materialized)).not.toContain('unproven-secret')
+  })
+
   it('retains run-global projection for legacy rows without exact value sidecars', async () => {
     const executionData = {
       finalOutput: { result: 12345678, derived: 12345683 },
