@@ -394,13 +394,13 @@
         }
       },
       "Retry-After": {
-        "description": "Seconds to wait before retrying a rate-limited request.",
+        "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.",
         "schema": {
           "type": "integer",
           "minimum": 0,
           "maximum": 9007199254740991,
           "title": "Retry after",
-          "description": "Seconds to wait before retrying a rate-limited request."
+          "description": "Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset."
         }
       },
       "X-Run-Id": {
@@ -565,7 +565,12 @@
         }
       },
       "ServiceUnavailable": {
-        "description": "A required service is temporarily unavailable.",
+        "description": "A required service is temporarily unavailable. The condition is transient, so the response carries `Retry-After` with the number of seconds to wait. Treat that value as a floor and add jitter before retrying.",
+        "headers": {
+          "Retry-After": {
+            "$ref": "#/components/headers/Retry-After"
+          }
+        },
         "content": {
           "application/json": {
             "schema": {

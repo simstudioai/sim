@@ -536,6 +536,39 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect((await res.json()).error.code).toBe('RATE_LIMITED')
   })
 
+  it('tells a client how long to wait when a dependency is briefly unavailable', async () => {
+    mockPreprocessExecution.mockResolvedValue({
+      success: false,
+      error: {
+        message: 'Workflow execution identity is temporarily unavailable',
+        statusCode: 503,
+      },
+    })
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(503)
+    expect(Number(res.headers.get('Retry-After'))).toBeGreaterThan(0)
+  })
+
+  it('never advises a retry when an enqueue may already have started a run', async () => {
+    mockPreprocessExecution.mockResolvedValue({
+      success: false,
+      error: {
+        message: 'Async execution queue acceptance could not be confirmed',
+        statusCode: 503,
+        code: 'ASYNC_ENQUEUE_AMBIGUOUS',
+      },
+    })
+
+    const res = await callExecute({ input: {} })
+
+    expect(res.status).toBe(503)
+    // Retrying without X-Run-Id would start, and bill, a second run of the same workflow.
+    expect(res.headers.get('Retry-After')).toBeNull()
+    expect((await res.json()).error.details.code).toBe('ASYNC_ENQUEUE_AMBIGUOUS')
+  })
+
   it('runs the anonymous public path sync but refuses async', async () => {
     dbChainMockFns.limit.mockReset()
     dbChainMockFns.limit.mockResolvedValueOnce([

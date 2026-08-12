@@ -104,6 +104,62 @@ Order matters because each layer is checked against the one before it.
 3. **Route** with `defineV2JsonRoute`, declaring `contract`, `auth: v2ApiKeyAuth`, `operation`, `rateLimit`, `errorPolicy`, `mapInput`, `useCase`, `present`. Auth and rate limiting run before parsing.
 4. **OpenAPI description** in `lib/api/contracts/v2/openapi/<domain>.ts`, then `bun run generate:openapi`. A description that claims behaviour the route does not have is the same class of bug as a wrong schema.
 
+## Rule 6 — a transient failure says when to come back
+
+A response the caller is *expected* to retry must say how long to wait. Two statuses qualify, and both are wired:
+
+| Status | Source of the value | Where |
+|---|---|---|
+| 429 | The caller's own token bucket (`retryAfterMs`, else `resetAt - now`) | `v2RateLimitError` |
+| 503 | A fixed floor, `RETRY_AFTER_SECONDS_BY_STATUS` | `v2Error`, applied automatically |
+
+The 503 default is applied by `v2Error` keyed on the response *status* — `Retry-After` is defined against the status, and the status is the only half of the code/status pair a client sees — so every 503 the surface can emit carries it — the three route builders' `unhandledErrorResponse`, the execute and resume routes, and `serviceFailureResponse`'s `infra` failures. A route with a better number passes `headers: { 'Retry-After': … }` and wins.
+
+Do not add a default for any other code. 400/403/404/409 are not fixed by waiting, and 402 (`USAGE_LIMIT_EXCEEDED`) is resolved by a billing change, not by time.
+
+**Where a policy already knows the wait, carry it — do not re-guess it at the transport.** The admission descriptors in `lib/core/admission/transient-failure` declare `retryAfterSeconds` per denial. That value used to be dropped when the descriptor was mapped onto a preprocess error, so a concurrency denial arrived as a bare 429 with no `Retry-After` even though the policy had named the wait. It now travels `descriptor.retryAfterSeconds → PreprocessExecutionError.retryAfterMs → ExecuteWorkflowServiceFailure.retryAfterMs → serviceFailureResponse`. The `v2Error` default is the floor for paths with *no* policy signal, not the source of truth.
+
+**A failure whose outcome is unknown must not advise a retry.** `ASYNC_ENQUEUE_AMBIGUOUS` is a 503 whose enqueue may have succeeded — it deliberately retains its execution-ID claim. Telling that caller to come back in 5 seconds invites a client with no `X-Run-Id` to start and bill a second run. It passes `omitRetryAfter: true` and returns the run id so the caller reconciles instead. Any future "we don't know if it happened" failure does the same.
+
+RFC 9110 §10.2.3 gives 503 this field's clearest meaning — "how long the service is expected to be unavailable to the client". Note the requirement level is only `MAY`, on 503 (§15.6.4) and, via RFC 6585 §4, on 429. It is `SHOULD` on exactly one status, 413, and only when the condition is temporary; Sim's 413 is a fixed byte ceiling, so it correctly sends none.
+
+## Deliberate non-adoptions
+
+Audited against the primary specs and against Stripe, GitHub, and Google's AIPs. Each is a considered "no", not an oversight. Re-open one only with new evidence.
+
+| Practice | Verdict | Why |
+|---|---|---|
+| **RFC 9457 `application/problem+json`** | No | 9457 §4 steers APIs with an existing format toward keeping it: "Problem details are intended to avoid the necessity of establishing new 'fault' or 'error' document formats, **not to replace existing domain-specific formats**." Nothing in it is a `MUST` to adopt, and none of Stripe, GitHub, or Google use it. Our envelope is load-bearing for every client. **The default error shape does not change.** |
+| **`RateLimit`/`RateLimit-Policy` (IETF draft)** | No | Still an unpublished draft (`-11`, May 2026), returned "Not ready" at HTTPDIR review, and on its **third mutually incompatible wire format** — anything built against `-07` or earlier is already broken. None of the three surveyed APIs emit it; GitHub uses `x-ratelimit-*`, as we do. |
+| **Renaming `X-RateLimit-*` per RFC 6648** | No | 6648 is a `SHOULD NOT` binding *creators of new* parameters, and §1 item 4 "**makes no recommendation as to whether existing 'X-' parameters ought to remain in use or be migrated**". Appendix B argues the migration is itself the interoperability harm. A rename is a client-visible break bought with nothing. |
+| **`X-RateLimit-Reset` as delta-seconds** | No | It is an absolute ISO 8601 timestamp, so it is clock-skew sensitive — but the response where timing actually decides behaviour (429) also carries `Retry-After`, which is skew-free. The absolute value stays useful for scheduling. |
+| **422 for semantic validation** | No | RFC 9110 §15.5.21 defines 422, but Appendix B.3 records that 9110 **deleted** RFC 4918's clause saying 400 was inappropriate. 400 covers "cannot or will not process… perceived to be a client error". The split is convention, not requirement — GitHub splits, Stripe and Google do not. Our machine-readable `error.code` already carries the distinction, and restatusing now breaks clients. |
+| **`Location` on 201** | No | §9.3.3 makes this a `SHOULD` **for POST**; the status code itself (§15.3.2) requires nothing and defines the fallback — absent `Location`, the target URI identifies the resource. Declined knowingly: several 201 responses (signed upload sessions, table exports, knowledge folders) have no canonical single-resource GET, so a `Location` would 404, and adopting it on some of the 19 is worse for a client than on none. Every 201 returns the full representation including its `id`. Revisit per-route if one gains a canonical GET. |
+| **ETag / `If-None-Match` / `If-Match`** | No | Every v2 response is `Cache-Control: private, no-store` per-caller data, so `If-None-Match` buys nothing. For writes, `If-Match` needs a **strong** validator: §8.8.3.2's strong comparison fails if *either* tag is weak, so a weak ETag silently makes every `If-Match` fail. None of the three surveyed APIs does HTTP optimistic concurrency — Google does the semantics via a resource `etag` **field** (AIP-154), deliberately not the header. If Sim needs optimistic concurrency, do it that way. |
+| **`Deprecation` / `Sunset` on v1** | Not yet | RFC 9745 (Standards Track) and RFC 8594 (Informational) both apply, and GitHub emits both. But `Sunset` is a timestamp and 9745 §4 makes `Sunset >= Deprecation` a `MUST`, so emitting either commits Sim to a v1 retirement date — a product decision, not an engineering one. When that date exists: `Deprecation` is an RFC 9651 Structured Field **Date** (`@1688169599`); `Sunset` is an **HTTP-date** (`Sat, 31 Dec 2033 23:59:59 GMT`). Two encodings in one response — the most common implementation error here. |
+| **`application/merge-patch+json`** | No | v2 PATCH bodies are merge-patch *shaped* — absent means unchanged, `null` clears — but they are `.strict()`, so unknown members are rejected where RFC 7396 §2 would merge them, and nested objects are replaced wholesale rather than merged. Advertising the media type would over-claim. Document the semantics per contract instead. |
+
+## Idempotency: at-most-once, not replay
+
+`POST /workflows/{id}/execute` accepts `X-Run-Id`, a caller-supplied run identifier claimed through the `idempotency_key` table (`execution-id-claim.ts`). It is a **uniqueness claim, not an idempotency key**, and the distinction is deliberate and already published in the operation description:
+
+- First use wins and runs.
+- Any reuse returns **409** with `error.details.code: "RUN_ID_CONFLICT"`, the run id in `error.details.runId`, and an `X-Run-Id` response header. It never replays the earlier run's result — the client recovers it by polling the runs resource.
+- Claims are durable tombstones, so deleting execution logs cannot make an id reusable.
+
+That makes the money path safe against double-execution **for callers that opt in**. What it is not: a Stripe-style `Idempotency-Key` that stores and replays the original status and body. Building that means a request fingerprint, a retention window, an in-flight-vs-completed distinction (the expired IETF draft would have these be 422 and 409 respectively), and somewhere to put a large synchronous execution body. It is a designed piece of work, not an increment — do not half-build it by aliasing the header name, which would invite clients written against Stripe semantics to treat our 409 as a hard failure.
+
+## Cursors are opaque, not trusted
+
+The base64-JSON cursor is **not signed**, and does not need to be. Tampering is bounded by construction, and that is a property to preserve:
+
+- Every key value is re-validated by its `KeysetKey.bind`, which returns `null` for a wrong-typed or unparseable value and becomes a 400. A forged cursor cannot reach SQL as `NaN` or an `Invalid Date`.
+- The sort is stamped into the cursor and re-checked (`decodeSortedCursor`), so a cursor from a differently-sorted query is a 400, not a silently skipped page.
+- The offset codec rejects anything that is not a non-negative integer.
+- Authorization is **never** carried in the cursor. Every list re-derives its workspace scope from the authenticated principal, so a cursor lifted from another query — or another tenant — can only move the caller within their own authorized result set.
+
+The consequence to keep true: **never put a resource id, filter, or scope into a cursor and then trust it on the way back.** A cursor is a position hint, never an input to an access decision.
+
 ## Checklist
 
 Run this against any new or changed v2 endpoint.
@@ -116,7 +172,8 @@ Run this against any new or changed v2 endpoint.
 - [ ] If the response carries `nextCursor`, the query accepts `limit` + `cursor` and the query actually applies them.
 - [ ] Keyset sorts end in a unique `id` key.
 - [ ] The list is classified in `list-pagination.test.ts`.
-- [ ] Cross-tenant access answers 404, never 403.
+- [ ] Cross-tenant access answers 404, never 403 — and carries `Cache-Control: private, no-store`, because RFC 9110 §15.5.5 makes 404 heuristically cacheable and an authorization-dependent 404 must never be stored. `v2Error` sets this unconditionally; do not build a v2 response any other way.
+- [ ] A retryable failure says when: 429 and 503 carry `Retry-After`. No other status invents one.
 - [ ] 403s carry a machine-readable `details.code`.
 - [ ] Validation messages name the field and echo the valid set.
 - [ ] Response schema matches every field the route actually emits.

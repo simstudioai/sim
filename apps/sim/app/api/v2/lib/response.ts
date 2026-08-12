@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import type { ZodError } from 'zod'
 import { type CursorKey, INVALID_CURSOR_MESSAGE } from '@/lib/api/list-query'
 import { getValidationErrorMessage, serializeZodIssues } from '@/lib/api/server'
+import { ADMISSION_RETRY_AFTER_SECONDS } from '@/lib/core/admission/transient-failure'
 import {
   asOrchestrationError,
   OrchestrationError,
@@ -59,6 +60,44 @@ const V2_CODE_BY_HTTP_STATUS: Partial<Record<number, V2ErrorCode>> = Object.from
  */
 const PRIVATE_NO_STORE = { 'Cache-Control': 'private, no-store' } as const
 
+/**
+ * Seconds a caller should wait before retrying a transient v2 failure, for the
+ * statuses whose response carries no other timing signal.
+ *
+ * Keyed on the response status rather than the v2 error code because
+ * `Retry-After` is defined against the status, and the status is the only half
+ * of the pair a client actually sees. `v2Error` lets a caller override the
+ * status independently of the code, so keying on the code would let the two
+ * disagree.
+ *
+ * RFC 9110 §10.2.3 singles out 503 as the status whose `Retry-After` means "how
+ * long the service is expected to be unavailable to the client", and §15.6.4
+ * permits one. Note the requirement level is `MAY`, so this is a deliberate
+ * improvement on the baseline rather than a conformance fix: without it a
+ * client's only defensible policy on a 503 is an immediate retry, which is
+ * exactly the traffic a degraded dependency cannot absorb. Sim raises 503 when
+ * the API-key store, the rollout gate, the rate-limit backend, or
+ * execution-identity allocation is briefly unavailable, and all four are made
+ * worse by an unthrottled retry storm.
+ *
+ * 429 is deliberately absent because every 429 already knows its own wait: the
+ * throttle path measures it from the caller's token bucket
+ * ({@link v2RateLimitError}), and an admission denial carries the descriptor's
+ * declared `retryAfterSeconds` through to the route. Defaulting it here would
+ * paper over a path that had simply dropped its value — which is exactly the
+ * bug that used to leave a concurrency denial with no `Retry-After` at all.
+ *
+ * The value is Sim's one transient-failure floor, shared with the admission
+ * descriptors so the execute route's capacity 429 and every other surface's 503
+ * cannot drift apart. It is a floor, not a schedule: a fleet that retries at
+ * exactly this offset re-converges into a single burst, so callers should still
+ * add jitter — `backoffWithJitter` from `@sim/utils/retry` is what Sim's own
+ * clients use.
+ */
+const RETRY_AFTER_SECONDS_BY_STATUS: Partial<Record<number, number>> = {
+  503: ADMISSION_RETRY_AFTER_SECONDS,
+}
+
 type RateLimitHeaderSource = Pick<RateLimitResult, 'limit' | 'remaining' | 'resetAt'>
 
 export function rateLimitHeaders(rateLimit?: RateLimitHeaderSource): Record<string, string> {
@@ -104,6 +143,19 @@ interface V2ErrorOptions {
   status?: number
   details?: unknown
   headers?: Record<string, string>
+  /**
+   * Suppresses the code's default `Retry-After` for a failure whose outcome is
+   * *unknown* rather than *absent*.
+   *
+   * A 503 normally means the work did not happen, so "come back in 5 seconds"
+   * is safe advice. The async enqueue that could not be confirmed
+   * (`ASYNC_ENQUEUE_AMBIGUOUS`) is the exception: it deliberately retains its
+   * execution-ID claim because a job may already exist. Telling that caller to
+   * retry invites a client with no `X-Run-Id` to start a second run of the same
+   * workflow, which bills twice. It must reconcile against the run id the
+   * response returns instead, so the response stays silent on retrying.
+   */
+  omitRetryAfter?: boolean
 }
 
 /** `{ error: { code, message, details? } }`. */
@@ -114,11 +166,19 @@ export function v2Error(
 ): NextResponse {
   const error: { code: V2ErrorCode; message: string; details?: unknown } = { code, message }
   if (options.details !== undefined) error.details = options.details
+  const status = options.status ?? STATUS_BY_CODE[code]
+  const retryAfterSeconds = options.omitRetryAfter
+    ? undefined
+    : RETRY_AFTER_SECONDS_BY_STATUS[status]
   return NextResponse.json(
     { error },
     {
-      status: options.status ?? STATUS_BY_CODE[code],
-      headers: { ...PRIVATE_NO_STORE, ...options.headers },
+      status,
+      headers: {
+        ...PRIVATE_NO_STORE,
+        ...(retryAfterSeconds === undefined ? {} : { 'Retry-After': retryAfterSeconds.toString() }),
+        ...options.headers,
+      },
     }
   )
 }
