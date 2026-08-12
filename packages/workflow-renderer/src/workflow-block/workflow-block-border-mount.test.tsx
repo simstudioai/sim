@@ -13,6 +13,7 @@ import {
 import { createRoot, type Root } from 'react-dom/client'
 import { ReactFlowProvider } from 'reactflow'
 import { afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
+import { CONTAINER_DIMENSIONS } from '../dimensions'
 import {
   ERROR_SOURCE_HANDLE_POSITION,
   getCursorBranchSourceHandleId,
@@ -959,7 +960,10 @@ describe('WorkflowBlockBorder mount', () => {
     )
 
     const header = host.querySelector('[data-subflow-header]')
-    expect(header).toHaveClass('h-[40px]')
+    /* Height comes from `CONTAINER_DIMENSIONS`, which the layout math also
+       measures against — asserting the rendered value rather than a utility
+       class keeps the two from drifting apart again. */
+    expect(header).toHaveStyle({ height: `${CONTAINER_DIMENSIONS.HEADER_HEIGHT}px` })
     expect(header).not.toHaveClass('border-b')
     expect(header).not.toHaveClass('bg-[var(--surface-2)]')
     expect(host.querySelector('[data-subflow-type-tag="loop"]')).toHaveTextContent('Loop')
