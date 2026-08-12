@@ -32,6 +32,7 @@ import {
   EditContent,
   Ffmpeg,
   FunctionExecute,
+  GenerateApiKey,
   GenerateAudio,
   GenerateImage,
   GenerateVideo,
@@ -809,6 +810,10 @@ async function executeToolAndReportInner(
 
     // Fire-and-forget: notify the copilot backend that the tool completed.
     // IMPORTANT: We must NOT await this — the Go backend may block on the
+    const clientEventOutput =
+      toolCall.name === GenerateApiKey.id && hasOutputValue(copilotResult)
+        ? copilotResult.output
+        : terminalData
     const resultEvent: StreamEvent = {
       type: MothershipStreamV1EventType.tool,
       payload: {
@@ -818,7 +823,7 @@ async function executeToolAndReportInner(
         mode: MothershipStreamV1ToolMode.async,
         phase: MothershipStreamV1ToolPhase.result,
         success: modelSucceeded,
-        output: terminalData,
+        output: clientEventOutput,
         ...(modelSucceeded
           ? { status: MothershipStreamV1ToolOutcome.success }
           : { status: MothershipStreamV1ToolOutcome.error, error: terminalMessage }),

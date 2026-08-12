@@ -565,6 +565,48 @@ describe('knowledge_base trusted application delegation', () => {
     })
   })
 
+  it('delegates per-document typed tag values by tag definition ID', async () => {
+    mockUpdateKnowledgeDocument.mockResolvedValueOnce({
+      document: {},
+      updatedFields: ['tag1', 'number1'],
+    })
+
+    const result = await knowledgeBaseServerTool.execute(
+      {
+        operation: 'update_document',
+        args: {
+          knowledgeBaseId: KNOWLEDGE_BASE.id,
+          documentId: 'document-1',
+          tagValues: [
+            { tagDefinitionId: 'category-tag', value: 'support' },
+            { tagDefinitionId: 'priority-tag', value: 2 },
+          ],
+        },
+      },
+      CONTEXT
+    )
+
+    expect(result).toMatchObject({
+      success: true,
+      data: {
+        documentId: 'document-1',
+        tagDefinitionIds: ['category-tag', 'priority-tag'],
+      },
+    })
+    const call = mockUpdateKnowledgeDocument.mock.calls[0][0]
+    expectDelegatedPrincipal(call)
+    expect(call.input).toEqual({
+      knowledgeBaseId: KNOWLEDGE_BASE.id,
+      documentId: 'document-1',
+      assertedWorkspaceId: 'workspace-paid',
+      tagValues: [
+        { tagDefinitionId: 'category-tag', value: 'support' },
+        { tagDefinitionId: 'priority-tag', value: 2 },
+      ],
+      source: 'agent',
+    })
+  })
+
   it('does not expose connector infrastructure errors to the model', async () => {
     mockUpdateKnowledgeConnector.mockRejectedValueOnce(new Error('sql host=private-db'))
 

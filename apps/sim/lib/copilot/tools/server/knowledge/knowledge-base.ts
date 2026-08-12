@@ -30,6 +30,7 @@ import {
 } from '@/lib/knowledge/application/connectors'
 import {
   bulkDeleteKnowledgeDocuments,
+  type KnowledgeDocumentTagValueAssignment,
   updateKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
 import {
@@ -46,7 +47,7 @@ import {
   readKnowledgeTagUsage,
   updateKnowledgeTag,
 } from '@/lib/knowledge/application/tags'
-import { KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
+import { ALL_TAG_SLOTS, KNOWLEDGE_TAG_DISPLAY_NAME_MAX_LENGTH } from '@/lib/knowledge/constants'
 import { captureServerEvent } from '@/lib/posthog/server'
 import { projectResolvedSecretModelContent } from '@/executor/utils/resolved-secret-content-projection'
 
@@ -228,6 +229,23 @@ type KnowledgeBaseResult = {
   success: boolean
   message: string
   data?: any
+}
+
+function isKnowledgeDocumentTagValueAssignment(
+  value: unknown
+): value is KnowledgeDocumentTagValueAssignment {
+  if (typeof value !== 'object' || value === null) return false
+  const assignment = value as Record<string, unknown>
+  if (typeof assignment.tagDefinitionId !== 'string' || !assignment.tagDefinitionId.trim()) {
+    return false
+  }
+  if (!Object.hasOwn(assignment, 'value')) return false
+  return (
+    assignment.value === null ||
+    typeof assignment.value === 'string' ||
+    typeof assignment.value === 'number' ||
+    typeof assignment.value === 'boolean'
+  )
 }
 
 /**
@@ -613,17 +631,42 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
           if (!args.documentId) {
             return { success: false, message: 'documentId is required for update_document' }
           }
-          const updateData: { filename?: string; enabled?: boolean } = {}
+          const updateData: {
+            filename?: string
+            enabled?: boolean
+            tagValues?: KnowledgeDocumentTagValueAssignment[]
+          } = {}
           if (args.filename !== undefined) {
             updateData.filename = args.filename
           }
           if (args.enabled !== undefined) {
             updateData.enabled = args.enabled
           }
+          if (args.tagValues !== undefined) {
+            if (
+              !Array.isArray(args.tagValues) ||
+              args.tagValues.length === 0 ||
+              !args.tagValues.every(isKnowledgeDocumentTagValueAssignment)
+            ) {
+              return {
+                success: false,
+                message:
+                  'tagValues must be a non-empty array of { tagDefinitionId, value } assignments',
+              }
+            }
+            if (args.tagValues.length > ALL_TAG_SLOTS.length) {
+              return {
+                success: false,
+                message: `Too many tag values (${args.tagValues.length}). Maximum is ${ALL_TAG_SLOTS.length}.`,
+              }
+            }
+            updateData.tagValues = args.tagValues
+          }
           if (Object.keys(updateData).length === 0) {
             return {
               success: false,
-              message: 'At least one of filename or enabled is required for update_document',
+              message:
+                'At least one of filename, enabled, or tagValues is required for update_document',
             }
           }
           assertNotAborted()
@@ -641,7 +684,17 @@ export const knowledgeBaseServerTool: BaseServerTool<KnowledgeBaseArgs, Knowledg
             data: {
               documentId: args.documentId,
               knowledgeBaseId: args.knowledgeBaseId,
-              ...updateData,
+              ...(updateData.filename !== undefined && {
+                filename: updateData.filename,
+              }),
+              ...(updateData.enabled !== undefined && {
+                enabled: updateData.enabled,
+              }),
+              ...(updateData.tagValues !== undefined && {
+                tagDefinitionIds: updateData.tagValues.map(
+                  (assignment) => assignment.tagDefinitionId
+                ),
+              }),
             },
           }
         }
