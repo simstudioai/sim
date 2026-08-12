@@ -11,7 +11,8 @@ import type { WorkflowState } from '@/stores/workflows/workflow/types'
  *
  * `preserveEnvVars` keeps `{{VAR}}` references, which name a workspace environment variable
  * rather than carrying its value — resolution happens at execution time — so the reference is
- * not a secret and is what keeps consecutive run snapshots diffable.
+ * not a secret and is what keeps consecutive run snapshots diffable. Tool parameters without
+ * authoritative codec metadata are withheld rather than guessed safe.
  *
  * A run with no retained snapshot projects as `null`, and so does a stored value that is not an
  * object: the sanitizer can make no guarantee about a shape it cannot walk, so it is withheld

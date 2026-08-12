@@ -21,7 +21,8 @@ function isWorkflowState(value: unknown): value is WorkflowState {
  * `preserveEnvVars` keeps `{{VAR}}` references: those name a workspace environment variable
  * rather than carrying its value — resolution happens at execution time — so the reference is
  * not a secret and is what keeps the pinned graph diffable. Literal inline secrets, opaque table
- * cells, and sensitive nested tool parameters are nulled.
+ * cells, sensitive nested tool parameters, and tool parameters without authoritative codec
+ * metadata are nulled.
  */
 function sanitizeVersionState(state: WorkflowState): WorkflowState {
   const sanitized = sanitizeWorkflowForSharing(state, {

@@ -2876,7 +2876,7 @@
             "format": "date-time"
           },
           "state": {
-            "description": "Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null, and sensitive nested tool parameters are null.",
+            "description": "Deployed workflow graph snapshot pinned by this version. Credential-bearing values are redacted: `oauth-input`, `password: true`, and table sub-block values are null; sensitive nested tool parameters and every parameter without authoritative codec metadata are null.",
             "$ref": "#/components/schemas/DeployedWorkflowState"
           }
         },

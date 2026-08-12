@@ -278,6 +278,11 @@ function isEnvironmentVariableReference(value: unknown): value is string {
   return typeof value === 'string' && value.startsWith('{{') && value.endsWith('}}')
 }
 
+/**
+ * Sanitizes nested tool parameters using the same codecs as workflow search and fork remapping.
+ * Only parameters resolved from a registered definition retain non-sensitive values. Custom, MCP,
+ * and unknown schemas lack reliable secret annotations, so their generic parameters are withheld.
+ */
 function sanitizeToolInputValue(value: unknown, options: WorkflowSanitizationOptions): unknown {
   const tools = parseStoredToolInputValue(value)
   if (!Array.isArray(value)) return null

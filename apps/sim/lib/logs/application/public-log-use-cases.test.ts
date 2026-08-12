@@ -44,10 +44,14 @@ vi.mock('@/lib/logs/execution/trace-store', () => ({
 }))
 
 vi.mock('@/lib/workflows/search-replace/indexer', () => ({
-  getToolInputParamConfigs: ({ tool }: { tool: { params?: Record<string, unknown> } }) =>
+  getToolInputParamConfigs: ({
+    tool,
+  }: {
+    tool: { type: string; params?: Record<string, unknown> }
+  }) =>
     Object.entries(tool.params ?? {}).map(([paramId, value]) => ({
       paramId,
-      authoritative: true,
+      authoritative: tool.type !== 'custom-tool' && tool.type !== 'mcp',
       value,
       config: {
         id: paramId,
@@ -211,7 +215,7 @@ describe('public log application use cases', () => {
     expect(subBlocks.tools.value).toEqual([
       {
         type: 'custom-tool',
-        params: { apiKey: null, query: 'safe input' },
+        params: { apiKey: null, query: null },
       },
     ])
     expect(subBlocks.headers.value).toBeNull()
