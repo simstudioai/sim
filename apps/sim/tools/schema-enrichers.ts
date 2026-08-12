@@ -149,7 +149,10 @@ async function fetchTagDefinitions(
 
     const response = await fetch(url.toString(), { headers })
     if (!response.ok) {
-      logger.warn(`Failed to fetch tag definitions for KB ${knowledgeBaseId}: ${response.status}`)
+      await response.text().catch(() => {})
+      // Error, not warn: enrichment degrades silently, so a credential break is only
+      // ever visible here. A 401 means the delegation stopped satisfying the route.
+      logger.error(`Failed to fetch tag definitions for KB ${knowledgeBaseId}: ${response.status}`)
       return []
     }
 
