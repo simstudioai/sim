@@ -111,6 +111,33 @@ export const v2RateLimits = {
 export const v2PayloadTooLargeResponse = () =>
   v2Error('PAYLOAD_TOO_LARGE', 'Request body is too large')
 
+/**
+ * Default `400` for a body that is absent or not valid JSON, for the same
+ * reason as {@link v2PayloadTooLargeResponse}: `parseRequest`'s fallback is a
+ * bare `{ "error": "Request body must be valid JSON" }` carrying no
+ * `error.code`, so a client reading `error.code` off every other v2 failure
+ * gets `undefined` exactly when its request was malformed.
+ *
+ * It is a default rather than a per-route opt-in because the opt-in *was* the
+ * bug: only 8 of the 77 v2 routes remembered to pass it, so the envelope held
+ * for validation errors and broke for transport-level ones. A route supplying
+ * its own `invalidJsonResponse` still wins.
+ */
+export const v2InvalidJsonResponse = () => v2Error('BAD_REQUEST', 'Request body must be valid JSON')
+
+/**
+ * The parse failures every v2 route renders the same way.
+ *
+ * The builders spread this, and so must the handful of raw `withRouteHandler`
+ * v2 routes that call `parseRequest` directly — they are exactly the routes a
+ * builder default cannot reach, and leaving them out is what kept the bare
+ * `{ "error": string }` body alive on two of the busiest v2 POSTs.
+ */
+export const V2_PARSE_DEFAULTS = {
+  payloadTooLargeResponse: v2PayloadTooLargeResponse,
+  invalidJsonResponse: v2InvalidJsonResponse,
+} as const
+
 export interface V2ErrorPolicy {
   render(error: unknown): NextResponse | null
 }
@@ -250,7 +277,7 @@ export function defineV2JsonRoute<
       }
 
       const parsed = await parseRequest(options.contract, request, context ?? {}, {
-        payloadTooLargeResponse: v2PayloadTooLargeResponse,
+        ...V2_PARSE_DEFAULTS,
         ...options.parseOptions,
         validationErrorResponse: v2ValidationError,
       })

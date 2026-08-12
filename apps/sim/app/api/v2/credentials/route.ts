@@ -8,6 +8,7 @@ import {
 import { listWorkspaceCredentials } from '@/lib/credentials/application/list-workspace-credentials'
 import { credentialOperations } from '@/lib/credentials/application/operations'
 import { toV2Credential } from '@/app/api/v2/credentials/utils'
+import { cursorSortKey, encodeSortedCursor, readSortedCursor } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -19,10 +20,15 @@ export const GET = defineV2JsonRoute({
   operation: credentialOperations.listConnections,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ query }) => query,
+  mapInput: ({ query }) => ({
+    ...query,
+    cursorKeys: readSortedCursor(query.cursor, query.sortBy, query.sortOrder),
+  }),
   useCase: listWorkspaceCredentials,
-  present: ({ credentials }) => ({
+  present: ({ credentials, nextCursorKeys, sortBy, sortOrder }) => ({
     data: credentials.map(toV2Credential),
-    nextCursor: null,
+    nextCursor: nextCursorKeys
+      ? encodeSortedCursor(cursorSortKey(sortBy, sortOrder), nextCursorKeys)
+      : null,
   }),
 })

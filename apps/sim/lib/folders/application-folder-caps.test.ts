@@ -27,7 +27,6 @@ vi.mock('@/lib/workflows/application/context', () => ({
   resolveActiveWorkspaceApplicationContext: mocks.resolveWorkflowWorkspace,
 }))
 vi.mock('@/lib/workflows/queries', () => ({
-  InvalidWorkflowListCursorError: class InvalidWorkflowListCursorError extends Error {},
   listWorkspaceWorkflows: mocks.listWorkflows,
 }))
 vi.mock('@/lib/table/application/context', () => ({

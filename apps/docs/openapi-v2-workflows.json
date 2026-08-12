@@ -78,11 +78,11 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum workflows to return per page.",
+            "description": "Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum workflows to return per page.",
-              "type": "number",
+              "description": "Maximum workflows to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
+              "type": "integer",
               "minimum": 1,
               "maximum": 100
             }
@@ -91,10 +91,11 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque pagination cursor returned by a previous request.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
-              "description": "Opaque pagination cursor returned by a previous request.",
-              "type": "string"
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           },
           {
@@ -496,10 +497,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum deployment versions to return per page.",
+            "description": "Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum deployment versions to return per page.",
+              "description": "Maximum deployment versions to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -509,10 +510,11 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque pagination cursor returned by a previous request.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
-              "description": "Opaque pagination cursor returned by a previous request.",
-              "type": "string"
+              "description": "Opaque cursor returned by the previous page.",
+              "type": "string",
+              "minLength": 1
             }
           }
         ],
@@ -1237,10 +1239,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum workflow runs to return per page.",
+            "description": "Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum workflow runs to return per page.",
+              "description": "Maximum workflow runs to return per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100
@@ -1250,9 +1252,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque pagination cursor returned by a previous request.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
-              "description": "Opaque pagination cursor returned by a previous request.",
+              "description": "Opaque cursor returned by the previous page.",
               "type": "string",
               "minLength": 1
             }

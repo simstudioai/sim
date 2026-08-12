@@ -126,7 +126,7 @@ const CASES: ListCase[] = [
     sort: {
       sortBy: 'name',
       sortOrder: 'asc',
-      columns: [schemaMock.knowledgeBase.name, schemaMock.knowledgeBase.createdAt],
+      columns: [schemaMock.knowledgeBase.name, schemaMock.knowledgeBase.id],
     },
   },
   {

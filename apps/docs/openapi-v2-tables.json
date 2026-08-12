@@ -100,9 +100,9 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.",
+            "description": "Maximum tables to return per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
             "schema": {
-              "description": "Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.",
+              "description": "Maximum tables to return per page. Values outside 1–1000 are truncated and clamped into that range rather than rejected. Defaults to 100.",
               "type": "integer",
               "minimum": 1,
               "maximum": 1000,
@@ -113,9 +113,9 @@
             "name": "cursor",
             "in": "query",
             "required": false,
-            "description": "Opaque cursor from the previous page.",
+            "description": "Opaque cursor returned by the previous page.",
             "schema": {
-              "description": "Opaque cursor from the previous page.",
+              "description": "Opaque cursor returned by the previous page.",
               "type": "string",
               "minLength": 1
             }

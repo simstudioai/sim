@@ -12,6 +12,7 @@ import {
   type SQLWrapper,
   sql,
 } from 'drizzle-orm'
+import { OrchestrationError } from '@/lib/core/orchestration/types'
 
 export const LIST_SORT_ORDERS = ['asc', 'desc'] as const
 export type ListSortOrder = (typeof LIST_SORT_ORDERS)[number]
@@ -145,6 +146,56 @@ export function keysetColumns<Row>(keys: readonly KeysetKey<Row>[]): SQLWrapper[
 /** The cursor values for `row`, in key order. */
 export function encodeKeyset<Row>(keys: readonly KeysetKey<Row>[], row: Row): CursorKey[] {
   return keys.map((key) => key.encode(row))
+}
+
+/**
+ * The `WHERE` fragment that resumes a page, or `undefined` for page one.
+ *
+ * Wraps {@link keysetAfter}'s `null` — a cursor that does not fit this sort — in
+ * the canonical validation failure, so every keyset list renders a bad cursor as
+ * the same 400 instead of each deciding for itself. A cursor is caller-supplied,
+ * so the one outcome that must never happen is it reaching the query and
+ * surfacing as a 500.
+ */
+export function resumeKeyset<Row>(
+  keys: readonly KeysetKey<Row>[],
+  cursorKeys: CursorKey[] | undefined,
+  order: ListSortOrder
+): SQL | undefined {
+  if (!cursorKeys) return undefined
+  const after = keysetAfter(keys, cursorKeys, order)
+  if (after === null) throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+  return after
+}
+
+/** One page of a keyset list, plus the keys that resume it. */
+export interface KeysetPage<Row> {
+  data: Row[]
+  nextCursorKeys: CursorKey[] | null
+}
+
+/**
+ * Cuts an over-fetched row set down to the requested page.
+ *
+ * Pair with `.limit(limit + 1)`: the extra row is how "is there a next page"
+ * is answered without a second count query. Writing the `rows.length > limit`
+ * comparison out per resource is how an off-by-one becomes a page that repeats
+ * its last row, so it lives here once.
+ *
+ * `limit` is optional because several of these readers are also called by
+ * unpaged internal surfaces that want the whole set; an absent `limit` means no
+ * `LIMIT` clause was applied, and such a read can never carry a cursor.
+ */
+export function keysetPage<Row>(
+  keys: readonly KeysetKey<Row>[],
+  rows: Row[],
+  limit: number | undefined
+): KeysetPage<Row> {
+  if (limit === undefined) return { data: rows, nextCursorKeys: null }
+  const hasMore = rows.length > limit
+  const data = rows.slice(0, limit)
+  const last = data.at(-1)
+  return { data, nextCursorKeys: hasMore && last ? encodeKeyset(keys, last) : null }
 }
 
 /**

@@ -6,7 +6,7 @@ import {
 } from '@sim/auth/principal'
 import type { customTools } from '@sim/db/schema'
 import { getErrorMessage, getPostgresErrorCode } from '@sim/utils/errors'
-import type { ListSortOrder } from '@/lib/api/list-query'
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { customToolDelegationPolicy } from '@/lib/custom-tools/application/authorization'
@@ -92,6 +92,8 @@ export interface ListWorkspaceCustomToolsInput {
   search?: string
   sortBy?: CustomToolSortBy
   sortOrder?: ListSortOrder
+  limit: number
+  cursorKeys?: CursorKey[]
 }
 
 export const listWorkspaceCustomToolsUseCase = defineAuthorizedWorkspaceUseCase({
@@ -100,8 +102,13 @@ export const listWorkspaceCustomToolsUseCase = defineAuthorizedWorkspaceUseCase(
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ input, context }) {
-    const tools = await listWorkspaceCustomTools({ ...input, workspaceId: context.workspaceId })
-    return { tools }
+    const page = await listWorkspaceCustomTools({ ...input, workspaceId: context.workspaceId })
+    return {
+      tools: page.data,
+      nextCursorKeys: page.nextCursorKeys,
+      sortBy: input.sortBy ?? 'createdAt',
+      sortOrder: input.sortOrder ?? 'desc',
+    }
   },
 })
 

@@ -97,7 +97,7 @@ describe('/api/v2/skills', () => {
     mocks.preauthRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.operationRate.mockResolvedValue(RATE_LIMIT_OK)
     mocks.gate.mockResolvedValue(null)
-    mocks.list.mockResolvedValue({ skills: [skill] })
+    mocks.list.mockResolvedValue({ skills: [skill], hasMore: false, offset: 0, limit: 50 })
     mocks.create.mockResolvedValue({ skill })
   })
 
@@ -105,7 +105,9 @@ describe('/api/v2/skills', () => {
     const response = await GET(request('GET', `/api/v2/skills?workspaceId=${WORKSPACE_ID}`))
 
     expect(response.status).toBe(200)
-    expect((await response.json()).data[0]).not.toHaveProperty('content')
+    const body = await response.json()
+    expect(body.data[0]).not.toHaveProperty('content')
+    expect(body.nextCursor).toBeNull()
     expect(mocks.list).toHaveBeenCalledWith({
       principal: PRINCIPAL,
       input: {
@@ -113,9 +115,41 @@ describe('/api/v2/skills', () => {
         search: undefined,
         sortBy: 'createdAt',
         sortOrder: 'desc',
+        limit: 50,
+        cursor: undefined,
+        offset: 0,
       },
       request: expect.anything(),
     })
+  })
+
+  it('resumes from the offset cursor and mints the next one while pages remain', async () => {
+    mocks.list.mockResolvedValueOnce({ skills: [skill], hasMore: true, offset: 2, limit: 2 })
+    const cursor = Buffer.from(JSON.stringify({ offset: 2 })).toString('base64')
+
+    const response = await GET(
+      request(
+        'GET',
+        `/api/v2/skills?workspaceId=${WORKSPACE_ID}&limit=2&cursor=${encodeURIComponent(cursor)}`
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect((await response.json()).nextCursor).toBe(
+      Buffer.from(JSON.stringify({ offset: 4 })).toString('base64')
+    )
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.objectContaining({ input: expect.objectContaining({ limit: 2, offset: 2 }) })
+    )
+  })
+
+  it('rejects a malformed cursor rather than silently restarting at page one', async () => {
+    const response = await GET(
+      request('GET', `/api/v2/skills?workspaceId=${WORKSPACE_ID}&cursor=not-a-cursor`)
+    )
+
+    expect(response.status).toBe(400)
+    expect(mocks.list).not.toHaveBeenCalled()
   })
 
   it('creates a skill with the v2 source and status', async () => {

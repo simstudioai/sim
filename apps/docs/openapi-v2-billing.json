@@ -174,10 +174,10 @@
             "name": "limit",
             "in": "query",
             "required": false,
-            "description": "Maximum usage events per page, from 1 to 100.",
+            "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
             "schema": {
               "default": 50,
-              "description": "Maximum usage events per page, from 1 to 100.",
+              "description": "Maximum usage events per page. Must be a whole number from 1 to 100. Defaults to 50.",
               "type": "integer",
               "minimum": 1,
               "maximum": 100

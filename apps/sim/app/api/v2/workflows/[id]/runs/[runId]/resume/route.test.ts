@@ -45,6 +45,7 @@ vi.mock('@/lib/api/server/routes', () => {
     V2RouteInfrastructureError,
     v2ApiKeyAuth: { kind: 'v2-api-key' },
     v2RateLimits: { publicApi: { kind: 'public-api' } },
+    V2_PARSE_DEFAULTS: {},
     v2OrchestrationErrorPolicy: { render: renderOrchestrationError },
   }
 })

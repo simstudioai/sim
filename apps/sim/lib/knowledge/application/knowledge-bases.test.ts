@@ -143,7 +143,7 @@ describe('knowledge base application use cases', () => {
     })
     mocks.loadFolderIndex.mockResolvedValue({ pathById: new Map() })
     mocks.createRecord.mockResolvedValue(knowledgeBase)
-    mocks.listRecords.mockResolvedValue([])
+    mocks.listRecords.mockResolvedValue({ data: [], nextCursorKeys: null })
     mocks.listInternalRecords.mockResolvedValue([knowledgeBase])
     mocks.getRecord.mockResolvedValue(knowledgeBase)
     mocks.getRestorableRecord.mockResolvedValue(knowledgeBase)
@@ -188,7 +188,7 @@ describe('knowledge base application use cases', () => {
   })
 
   it('loads the active knowledge catalog and tag metadata only after workspace authorization', async () => {
-    mocks.listRecords.mockResolvedValueOnce([knowledgeBase])
+    mocks.listRecords.mockResolvedValueOnce({ data: [knowledgeBase], nextCursorKeys: null })
     dbChainMockFns.orderBy.mockResolvedValueOnce([
       {
         knowledgeBaseId: 'knowledge-1',

@@ -8,6 +8,7 @@ import {
 import { captureServerEvent } from '@/lib/posthog/server'
 import { skillOperations } from '@/lib/skills/application/operations'
 import { createSkillUseCase, listSkillsUseCase } from '@/lib/skills/application/use-cases'
+import { decodeOffsetCursor, encodeCursor } from '@/app/api/v2/lib/response'
 import { toV2Skill, toV2SkillSummary } from '@/app/api/v2/skills/utils'
 
 export const dynamic = 'force-dynamic'
@@ -20,9 +21,12 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2OrchestrationErrorPolicy,
-  mapInput: ({ query }) => query,
+  mapInput: ({ query }) => ({ ...query, offset: decodeOffsetCursor(query.cursor) }),
   useCase: listSkillsUseCase,
-  present: ({ skills }) => ({ data: skills.map(toV2SkillSummary), nextCursor: null }),
+  present: ({ skills, hasMore, offset, limit }) => ({
+    data: skills.map(toV2SkillSummary),
+    nextCursor: hasMore ? encodeCursor({ offset: offset + limit }) : null,
+  }),
 })
 
 /** POST /api/v2/skills — Create a skill. */

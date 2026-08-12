@@ -241,9 +241,25 @@ export function decodeSortedCursor(cursor: string | undefined, sort: string): De
   return { status: 'ok', keys: decoded.keys }
 }
 
-/** The 400 for a cursor that cannot be resumed under the request's sort. */
-export function v2CursorSortError(): NextResponse {
-  return v2Error('BAD_REQUEST', INVALID_CURSOR_MESSAGE)
+/**
+ * The keyset a paged list should resume from, or `undefined` for page one.
+ *
+ * This is the `mapInput` half of every keyset list: it stamps the request's
+ * sort, reads the cursor back under it, and turns a cursor that was minted
+ * under a different sort into the canonical 400 rather than letting mismatched
+ * keys reach `keysetAfter`. Sharing it is what keeps "a bad cursor is a 400"
+ * from being re-decided per route.
+ */
+export function readSortedCursor(
+  cursor: string | undefined,
+  sortBy: string,
+  sortOrder: string
+): CursorKey[] | undefined {
+  const decoded = decodeSortedCursor(cursor, cursorSortKey(sortBy, sortOrder))
+  if (decoded.status === 'invalid') {
+    throw new OrchestrationError('validation', INVALID_CURSOR_MESSAGE)
+  }
+  return decoded.status === 'ok' ? decoded.keys : undefined
 }
 
 const V2_CODE_BY_ORCHESTRATION_ERROR: Record<OrchestrationErrorCode, V2ErrorCode> = {

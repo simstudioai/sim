@@ -82,7 +82,7 @@ describe('secret application use cases', () => {
     mocks.workspaceAccess.mockResolvedValue({ hasAccess: true, canWrite: true, canAdmin: false })
     mocks.keyAccess.mockResolvedValue({ knownKeys: new Set(), adminKeys: new Set() })
     mocks.setWorkspace.mockResolvedValue({ created: true })
-    mocks.listCredentials.mockResolvedValue([secret])
+    mocks.listCredentials.mockResolvedValue({ data: [secret], nextCursorKeys: null })
   })
 
   it('rejects workspace keys before resolving or reading secret state', async () => {

@@ -4,6 +4,7 @@ import { workspaceIdSchema } from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -47,22 +48,29 @@ export type V2Credential = z.output<typeof v2CredentialSchema>
 export const v2CredentialSortFields = ['displayName', 'createdAt', 'updatedAt'] as const
 export type V2CredentialSortBy = (typeof v2CredentialSortFields)[number]
 
-export const v2ListCredentialsQuerySchema = z.object({
-  workspaceId: workspaceIdSchema.describe('Workspace whose credentials should be listed.'),
-  type: v2CredentialTypeSchema.optional().describe('Restrict results to this credential type.'),
-  providerId: z
-    .string()
-    .min(1, 'providerId cannot be empty')
-    .optional()
-    .describe('Restrict results to credentials for this integration provider.'),
-  search: v2SearchSchema.describe(
-    'Case-insensitive substring match against the credential display name.'
-  ),
-  ...v2SortFields(v2CredentialSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListCredentialsQuerySchema = z
+  .object({
+    workspaceId: workspaceIdSchema.describe('Workspace whose credentials should be listed.'),
+    type: v2CredentialTypeSchema.optional().describe('Restrict results to this credential type.'),
+    providerId: z
+      .string()
+      .min(1, 'providerId cannot be empty')
+      .optional()
+      .describe('Restrict results to credentials for this integration provider.'),
+    search: v2SearchSchema.describe(
+      'Case-insensitive substring match against the credential display name.'
+    ),
+    ...v2SortFields(v2CredentialSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum credentials to return per page.' }),
+  })
+  .strict()
 export type V2ListCredentialsQuery = z.output<typeof v2ListCredentialsQuerySchema>
 
-/** Lists OAuth and service-account connections. Credential mutations are intentionally absent. */
+/**
+ * Lists OAuth and service-account connections, keyset-paginated over the active
+ * sort. Credential mutations are intentionally absent. Nothing capped the
+ * per-workspace set before pagination, so the response grew without bound.
+ */
 export const v2ListCredentialsContract = defineRouteContract({
   method: 'GET',
   path: '/api/v2/credentials',

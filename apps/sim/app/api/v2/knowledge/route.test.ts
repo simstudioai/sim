@@ -59,6 +59,7 @@ vi.mock('@/lib/users/queries', () => ({
   requireResolvedUserEmail: (emails: Map<string, string>, userId: string) => emails.get(userId)!,
 }))
 
+import { V2_DEFAULT_PAGE_SIZE } from '@/lib/api/contracts/v2/shared'
 import { GET, POST } from '@/app/api/v2/knowledge/route'
 
 const WORKSPACE_ID = 'workspace-1'
@@ -104,6 +105,9 @@ describe('/api/v2/knowledge route composition', () => {
     mockGetUserEmailsByIds.mockResolvedValue(new Map([['user-1', 'owner@example.com']]))
     mockList.mockResolvedValue({
       knowledgeBases: [{ knowledgeBase: buildKnowledgeBase(), folderPath: '/' }],
+      nextCursorKeys: null,
+      sortBy: 'name',
+      sortOrder: 'desc',
     })
     mockCreate.mockResolvedValue({ knowledgeBase: buildKnowledgeBase(), folderPath: '/' })
   })
@@ -125,6 +129,8 @@ describe('/api/v2/knowledge route composition', () => {
         search: 'support',
         sortBy: 'name',
         sortOrder: 'desc',
+        limit: V2_DEFAULT_PAGE_SIZE,
+        cursorKeys: undefined,
       },
       request,
     })

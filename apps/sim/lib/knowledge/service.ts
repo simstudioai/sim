@@ -10,22 +10,18 @@ import {
 import { createLogger } from '@sim/logger'
 import { getPostgresErrorCode } from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
-import {
-  and,
-  type Column,
-  count,
-  eq,
-  exists,
-  inArray,
-  isNotNull,
-  isNull,
-  ne,
-  or,
-  sql,
-} from 'drizzle-orm'
+import { and, count, eq, exists, inArray, isNotNull, isNull, ne, or, sql } from 'drizzle-orm'
 import type { V2KnowledgeBaseSortBy } from '@/lib/api/contracts/v2/knowledge'
-import type { ListSortOrder } from '@/lib/api/list-query'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import type { CursorKey, KeysetKey, ListSortOrder } from '@/lib/api/list-query'
+import {
+  keysetColumns,
+  keysetPage,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import type { HighestPrioritySubscription } from '@/lib/billing/core/plan'
 import { getHighestPrioritySubscription } from '@/lib/billing/core/subscription'
 import { ensureUserStatsExists } from '@/lib/billing/core/usage'
@@ -126,16 +122,36 @@ type KnowledgeBaseStorageMove =
       ownerUserId: string
     }
 
+/** The columns a knowledge-base keyset orders and resumes on. */
+interface KnowledgeBaseSortRow {
+  id: string
+  name: string
+  createdAt: Date
+  updatedAt: Date
+}
+
+const knowledgeBaseIdKey = textKey<KnowledgeBaseSortRow>(knowledgeBase.id, (row) => row.id)
+
 /**
- * Orderings for the public list's sortable fields, made total over the contract
- * enum by `satisfies`. Each ends in `createdAt` so knowledge bases sharing a
- * name still come back in a stable order.
+ * Keyset orderings for the public list's sortable fields, made total over the
+ * contract enum by `satisfies`.
+ *
+ * Each ends in `id` rather than `createdAt`. `createdAt` is not unique, so it
+ * could not separate two knowledge bases created in the same millisecond — which
+ * left ties in an order the planner chose, and would let a cursor repeat or skip
+ * a row at a page boundary now that the list pages.
  */
 const KNOWLEDGE_BASE_SORTS = {
-  name: [knowledgeBase.name, knowledgeBase.createdAt],
-  createdAt: [knowledgeBase.createdAt],
-  updatedAt: [knowledgeBase.updatedAt, knowledgeBase.createdAt],
-} satisfies Record<V2KnowledgeBaseSortBy, readonly Column[]>
+  name: [textKey<KnowledgeBaseSortRow>(knowledgeBase.name, (row) => row.name), knowledgeBaseIdKey],
+  createdAt: [
+    timestampKey<KnowledgeBaseSortRow>(knowledgeBase.createdAt, (row) => row.createdAt),
+    knowledgeBaseIdKey,
+  ],
+  updatedAt: [
+    timestampKey<KnowledgeBaseSortRow>(knowledgeBase.updatedAt, (row) => row.updatedAt),
+    knowledgeBaseIdKey,
+  ],
+} satisfies Record<V2KnowledgeBaseSortBy, readonly KeysetKey<KnowledgeBaseSortRow>[]>
 
 export interface GetKnowledgeBasesOptions {
   /** Restrict to one knowledge-base folder; `undefined` lists all and `null` lists the root. */
@@ -144,6 +160,14 @@ export interface GetKnowledgeBasesOptions {
   search?: string
   sortBy?: V2KnowledgeBaseSortBy
   sortOrder?: ListSortOrder
+  /**
+   * Page size. Omitted reads the whole workspace set as one page, capped by
+   * {@link MAX_KNOWLEDGE_BASES_PER_WORKSPACE} — what the internal callers that
+   * need every row still do.
+   */
+  limit?: number
+  /** Keyset to resume after, from the previous page's `nextCursorKeys`. */
+  cursorKeys?: CursorKey[]
 }
 
 async function attachConnectorTypes(
@@ -195,8 +219,23 @@ export async function getWorkspaceKnowledgeBases(
   workspaceId: string,
   scope: KnowledgeBaseScope = 'active',
   options?: GetKnowledgeBasesOptions
-): Promise<KnowledgeBaseWithCounts[]> {
-  const { folderId, search, sortBy = 'createdAt', sortOrder = 'asc' } = options ?? {}
+): Promise<{ data: KnowledgeBaseWithCounts[]; nextCursorKeys: CursorKey[] | null }> {
+  const {
+    folderId,
+    search,
+    sortBy = 'createdAt',
+    sortOrder = 'asc',
+    limit,
+    cursorKeys,
+  } = options ?? {}
+  const keys = KNOWLEDGE_BASE_SORTS[sortBy]
+  const resumeAfter = resumeKeyset(keys, cursorKeys, sortOrder)
+
+  /**
+   * An unpaged read still reads one row past the cap so an oversized workspace
+   * is a hard failure rather than a silently truncated list.
+   */
+  const readLimit = (limit ?? MAX_KNOWLEDGE_BASES_PER_WORKSPACE) + 1
   const scopeCondition =
     scope === 'all'
       ? undefined
@@ -240,26 +279,32 @@ export async function getWorkspaceKnowledgeBases(
           : folderId === null
             ? isNull(knowledgeBase.folderId)
             : eq(knowledgeBase.folderId, folderId),
-        searchFilter(knowledgeBase.name, search)
+        searchFilter(knowledgeBase.name, search),
+        resumeAfter
       )
     )
     .groupBy(knowledgeBase.id)
-    .orderBy(...listOrderBy(KNOWLEDGE_BASE_SORTS[sortBy], sortOrder))
-    .limit(MAX_KNOWLEDGE_BASES_PER_WORKSPACE + 1)
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
+    .limit(readLimit)
 
-  if (rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
+  if (limit === undefined && rows.length > MAX_KNOWLEDGE_BASES_PER_WORKSPACE) {
     throw new Error(
       `Knowledge base list exceeds the ${MAX_KNOWLEDGE_BASES_PER_WORKSPACE} row limit`
     )
   }
 
-  return attachConnectorTypes(
-    rows.map((kb) => ({
-      ...kb,
-      chunkingConfig: kb.chunkingConfig as ChunkingConfig,
-      docCount: Number(kb.docCount),
-    }))
-  )
+  const page = keysetPage(keys, rows, limit)
+
+  return {
+    data: await attachConnectorTypes(
+      page.data.map((kb) => ({
+        ...kb,
+        chunkingConfig: kb.chunkingConfig as ChunkingConfig,
+        docCount: Number(kb.docCount),
+      }))
+    ),
+    nextCursorKeys: page.nextCursorKeys,
+  }
 }
 
 /**
@@ -352,7 +397,7 @@ export async function getKnowledgeBases(
       )
     )
     .groupBy(knowledgeBase.id)
-    .orderBy(...listOrderBy(KNOWLEDGE_BASE_SORTS[sortBy], sortOrder))
+    .orderBy(...listOrderBy(keysetColumns(KNOWLEDGE_BASE_SORTS[sortBy]), sortOrder))
 
   const kbIds = knowledgeBasesWithCounts.map((kb) => kb.id)
 

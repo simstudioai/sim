@@ -1,3 +1,4 @@
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { credentialOperations } from '@/lib/credentials/application/operations'
@@ -15,11 +16,20 @@ export interface ListWorkspaceCredentialsInput {
   providerId?: string
   search?: string
   sortBy: 'displayName' | 'createdAt' | 'updatedAt'
-  sortOrder: 'asc' | 'desc'
+  sortOrder: ListSortOrder
+  limit: number
+  cursorKeys?: CursorKey[]
 }
 
 export interface ListWorkspaceCredentialsResult {
   credentials: VisibleWorkspaceCredential[]
+  nextCursorKeys: CursorKey[] | null
+  /**
+   * Echoed back because the route's presenter receives only this result, and the
+   * cursor it hands out has to be stamped with the sort that produced it.
+   */
+  sortBy: ListWorkspaceCredentialsInput['sortBy']
+  sortOrder: ListSortOrder
 }
 
 export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
@@ -34,34 +44,36 @@ export const listWorkspaceCredentials = defineAuthorizedWorkspaceUseCase({
     const types: Array<'oauth' | 'service_account'> = input.type
       ? [input.type]
       : ['oauth', 'service_account']
+    const sort = { sortBy: input.sortBy, sortOrder: input.sortOrder }
+
     if (principal.kind === 'workspace_api_key') {
-      return {
-        credentials: await listWorkspacePrincipalCredentials({
-          workspaceId: context.workspaceId,
-          types,
-          providerId: input.providerId,
-          search: input.search,
-          sortBy: input.sortBy,
-          sortOrder: input.sortOrder,
-        }),
-      }
+      const page = await listWorkspacePrincipalCredentials({
+        workspaceId: context.workspaceId,
+        types,
+        providerId: input.providerId,
+        search: input.search,
+        ...sort,
+        limit: input.limit,
+        cursorKeys: input.cursorKeys,
+      })
+      return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
     }
 
     const workspaceAccess = await checkWorkspaceAccess(context.workspaceId, principal.userId)
     if (!workspaceAccess.hasAccess) {
       throw new OrchestrationError('forbidden', 'Access denied')
     }
-    return {
-      credentials: await listVisibleWorkspaceCredentials({
-        workspaceId: context.workspaceId,
-        userId: principal.userId,
-        workspaceAccess,
-        types,
-        providerId: input.providerId,
-        search: input.search,
-        sortBy: input.sortBy,
-        sortOrder: input.sortOrder,
-      }),
-    }
+    const page = await listVisibleWorkspaceCredentials({
+      workspaceId: context.workspaceId,
+      userId: principal.userId,
+      workspaceAccess,
+      types,
+      providerId: input.providerId,
+      search: input.search,
+      ...sort,
+      limit: input.limit,
+      cursorKeys: input.cursorKeys,
+    })
+    return { credentials: page.data, nextCursorKeys: page.nextCursorKeys, ...sort }
   },
 })

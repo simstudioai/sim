@@ -3,7 +3,6 @@ import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import { knowledgeOperations } from '@/lib/knowledge/application/operations'
 import { searchKnowledge } from '@/lib/knowledge/application/search'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const revalidate = 0
@@ -24,7 +23,6 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseUsageAuthorization,
   parseOptions: {
     maxBodyBytes: V2_KNOWLEDGE_SEARCH_MAX_BODY_BYTES,
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
   mapInput: ({ body }) => ({
     workspaceId: body.workspaceId,

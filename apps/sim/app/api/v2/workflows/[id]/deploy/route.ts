@@ -8,7 +8,6 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { v2WorkflowErrorPolicies } from '@/lib/workflows/api'
 import { deployWorkflow, undeployWorkflow } from '@/lib/workflows/application/deployments'
 import { workflowOperations } from '@/lib/workflows/application/operations'
-import { v2Error } from '@/app/api/v2/lib/response'
 
 export const dynamic = 'force-dynamic'
 export const runtime = 'nodejs'
@@ -22,7 +21,6 @@ export const POST = defineV2JsonRoute({
   errorPolicy: v2WorkflowErrorPolicies.concealWorkflowAuthorization,
   parseOptions: {
     optionalJsonBody: true,
-    invalidJsonResponse: () => v2Error('BAD_REQUEST', 'Request body must be valid JSON'),
   },
   mapInput: ({ params, body }) => ({
     workflowId: params.id,

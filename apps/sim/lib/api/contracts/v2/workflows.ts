@@ -25,6 +25,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -135,17 +136,7 @@ export const v2ListWorkflowsQuerySchema = z
       .optional()
       .default(false)
       .describe('Return only workflows with an active deployment when true.'),
-    limit: z.coerce
-      .number()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum workflows to return per page.'),
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    ...v2PaginationFields({ description: 'Maximum workflows to return per page.' }),
     search: v2SearchSchema,
     ...v2SortFields(v2WorkflowSortFields, { sortBy: 'position', sortOrder: 'asc' }),
   })
@@ -574,19 +565,9 @@ export type V2WorkflowVersion = z.output<typeof v2WorkflowVersionSchema>
  */
 export const v2ListWorkflowVersionsQuerySchema = z
   .object({
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum deployment versions to return per page.'),
-    cursor: z
-      .string()
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    ...v2PaginationFields({ description: 'Maximum deployment versions to return per page.' }),
   })
+  .strict()
   .meta({
     id: 'ListWorkflowVersionsQuery',
     title: 'List workflow versions query',
@@ -1038,19 +1019,7 @@ export const v2ListWorkflowRunsQuerySchema = z
       .datetime()
       .optional()
       .describe('Include runs started at or before this ISO 8601 timestamp.'),
-    limit: z.coerce
-      .number()
-      .int()
-      .min(1)
-      .max(100)
-      .optional()
-      .default(50)
-      .describe('Maximum workflow runs to return per page.'),
-    cursor: z
-      .string()
-      .min(1, 'cursor cannot be empty')
-      .optional()
-      .describe('Opaque pagination cursor returned by a previous request.'),
+    ...v2PaginationFields({ description: 'Maximum workflow runs to return per page.' }),
     /**
      * Deliberate deviation from the v2 `sortBy` + `sortOrder` convention. Runs
      * have exactly one sortable column (start time), so there is no `sortBy` to

@@ -25,6 +25,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -504,6 +505,7 @@ export const v2ListKnowledgeBasesQuerySchema = z
       .describe('Restrict results to knowledge bases in this folder.'),
     search: v2SearchSchema,
     ...v2SortFields(v2KnowledgeBaseSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
+    ...v2PaginationFields({ description: 'Maximum knowledge bases to return per page.' }),
   })
   .strict()
 
@@ -578,11 +580,12 @@ export const v2UpdateKnowledgeBaseBodySchema = z
   })
 
 /**
- * KB list. `getKnowledgeBases` returns the full workspace set (a small, bounded
- * per-workspace list), so today the cursor list is a single full page
- * (`nextCursor` always `null`). The canonical cursor envelope keeps the v2 list
- * surface uniform; real pagination can be added later behind the opaque cursor.
- * Search, folder filter, and sort all run in that query, not over its result.
+ * KB list, keyset-paginated over the active sort. Search, folder filter, and
+ * sort all run in the query, not over its result.
+ *
+ * Before pagination this list returned `nextCursor` while rejecting `limit` and
+ * `cursor` outright, so it advertised a pagination scheme no caller could
+ * drive.
  */
 export const v2ListKnowledgeBasesContract = defineRouteContract({
   method: 'GET',
@@ -782,6 +785,7 @@ export const v2ListKnowledgeDocumentsQuerySchema = v1ListKnowledgeDocumentsQuery
     sortOrder: v1ListKnowledgeDocumentsQuerySchema.shape.sortOrder.describe('Sort direction.'),
     cursor: z.string().min(1).optional().describe('Opaque cursor returned by the previous page.'),
   })
+  .strict()
 export type V2ListKnowledgeDocumentsQuery = z.output<typeof v2ListKnowledgeDocumentsQuerySchema>
 
 export const v2ListKnowledgeDocumentsContract = defineRouteContract({

@@ -51,6 +51,7 @@ import {
   v2FolderPathSchema,
   v2FolderSchema,
   v2ListFoldersQuerySchema,
+  v2PaginationFields,
   v2RelocateFolderBodySchema,
   v2SearchSchema,
   v2SortFields,
@@ -339,31 +340,24 @@ export const v2ListTablesQuerySchema = z
       .describe('Restrict results to tables in this folder.'),
     search: v2SearchSchema,
     ...v2SortFields(v2TableSortFields, { sortBy: 'createdAt', sortOrder: 'asc' }),
-    /**
-     * The `.transform()` clamp erases every bound from `z.toJSONSchema`, which
-     * published a bare `type: number` while the description promised a 1–1000
-     * range. `.meta()` restores the JSON Schema keywords without touching the
-     * runtime pipeline: the published schema states the supported domain, and
-     * the server stays deliberately lenient about inputs outside it.
-     */
-    limit: z.coerce
-      .number()
-      .optional()
-      .default(100)
-      .transform((v) => Math.min(Math.max(1, Math.trunc(v)), 1000))
-      .describe(
-        'Maximum tables to return (1-1000). Fractional or out-of-range values are truncated and clamped into that range rather than rejected.'
-      )
-      .meta({ type: 'integer', minimum: 1, maximum: 1000 }),
-    cursor: z.string().min(1).optional().describe('Opaque cursor from the previous page.'),
+    ...v2PaginationFields({
+      max: 1000,
+      fallback: 100,
+      outOfRange: 'clamp',
+      description: 'Maximum tables to return per page.',
+    }),
   })
   .strict()
 
 export type V2ListTablesQuery = z.output<typeof v2ListTablesQuerySchema>
 
-export const v2TableWorkspaceQuerySchema = v1ListTablesQuerySchema.extend({
-  workspaceId: v1ListTablesQuerySchema.shape.workspaceId.describe('Workspace that owns the table.'),
-})
+export const v2TableWorkspaceQuerySchema = v1ListTablesQuerySchema
+  .extend({
+    workspaceId: v1ListTablesQuerySchema.shape.workspaceId.describe(
+      'Workspace that owns the table.'
+    ),
+  })
+  .strict()
 export type V2TableWorkspaceQuery = z.output<typeof v2TableWorkspaceQuerySchema>
 
 const v2TableColumnInputShape = {
@@ -671,6 +665,7 @@ export const v2TableRowsQuerySchema = tableRowsQueryBaseSchema
       .optional()
       .describe('Opaque cursor returned by the previous page.'),
   })
+  .strict()
 export type V2TableRowsQuery = z.output<typeof v2TableRowsQuerySchema>
 
 /** Cursor-paginated row list. */

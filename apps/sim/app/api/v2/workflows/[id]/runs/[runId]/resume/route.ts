@@ -8,6 +8,7 @@ import {
 import { parseRequest } from '@/lib/api/server'
 import {
   admitV2Request,
+  V2_PARSE_DEFAULTS,
   V2RouteInfrastructureError,
   v2ApiKeyAuth,
   v2RateLimits,
@@ -52,6 +53,7 @@ export const POST = withRouteHandler(
     if (!admission.success) return admission.response
 
     const parsed = await parseRequest(v2ResumeWorkflowContract, request, context, {
+      ...V2_PARSE_DEFAULTS,
       maxBodyBytes: 10 * 1024 * 1024,
       validationErrorResponse: v2ValidationError,
     })

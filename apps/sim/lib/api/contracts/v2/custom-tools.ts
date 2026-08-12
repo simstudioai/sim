@@ -8,6 +8,7 @@ import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   v2CursorListResponse,
   v2DataResponse,
+  v2PaginationFields,
   v2SearchSchema,
   v2SortFields,
   v2TimestampSchema,
@@ -119,10 +120,13 @@ export const v2CustomToolSortFields = ['title', 'createdAt', 'updatedAt'] as con
 
 export type V2CustomToolSortBy = (typeof v2CustomToolSortFields)[number]
 
-export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema.extend({
-  search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
-  ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListCustomToolsQuerySchema = v2CustomToolWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the tool title.'),
+    ...v2SortFields(v2CustomToolSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+    ...v2PaginationFields({ description: 'Maximum custom tools to return per page.' }),
+  })
+  .strict()
 
 export type V2ListCustomToolsQuery = z.output<typeof v2ListCustomToolsQuerySchema>
 
@@ -159,9 +163,9 @@ export const v2UpdateCustomToolBodySchema = z
 export type V2UpdateCustomToolBody = z.input<typeof v2UpdateCustomToolBodySchema>
 
 /**
- * Custom tool list. The per-workspace set is small and bounded, so the full set
- * is returned as a single page (`nextCursor` is always `null`); the canonical
- * cursor envelope keeps the v2 list surface uniform.
+ * Custom tool list, keyset-paginated over the active sort. Nothing capped the
+ * per-workspace set, and each row carries its full `code` and `schema`, so the
+ * response grew without bound before pagination.
  */
 export const v2ListCustomToolsContract = defineRouteContract({
   method: 'GET',

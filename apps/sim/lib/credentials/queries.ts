@@ -1,9 +1,20 @@
 import { db } from '@sim/db'
 import { credential, credentialMember } from '@sim/db/schema'
-import { and, type Column, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, or, sql } from 'drizzle-orm'
 import type { V2CredentialSortBy } from '@/lib/api/contracts/v2/credentials'
-import type { ListSortOrder } from '@/lib/api/list-query'
-import { listOrderBy, searchFilter } from '@/lib/api/list-query'
+import {
+  type CursorKey,
+  type KeysetKey,
+  type KeysetPage,
+  keysetColumns,
+  keysetPage,
+  type ListSortOrder,
+  listOrderBy,
+  resumeKeyset,
+  searchFilter,
+  textKey,
+  timestampKey,
+} from '@/lib/api/list-query'
 import { isSharedCredentialType, SHARED_CREDENTIAL_TYPES } from '@/lib/credentials/access'
 import type { WorkspaceAccess } from '@/lib/workspaces/permissions/utils'
 
@@ -31,6 +42,38 @@ export interface VisibleWorkspaceCredential {
   role: 'admin' | 'member'
 }
 
+const credentialIdKey = textKey<VisibleWorkspaceCredential>(credential.id, (row) => row.id)
+
+/**
+ * Keyset orderings for the public list's sortable fields, made total over the
+ * contract enum by `satisfies`. Each ends in `id` so credentials sharing a
+ * display name or a timestamp still come back in a stable order — which is also
+ * what makes the cursor resumable, since a non-unique final key can repeat or
+ * skip a row at a page boundary.
+ *
+ * The keys encode from {@link VisibleWorkspaceCredential} — the mapped row, not
+ * the raw select — because both readers below derive their projection before
+ * the page is cut, so the cursor is always stamped from the row the caller
+ * actually received.
+ */
+const CREDENTIAL_SORTS = {
+  displayName: [
+    textKey<VisibleWorkspaceCredential>(credential.displayName, (row) => row.displayName),
+    credentialIdKey,
+  ],
+  createdAt: [
+    timestampKey<VisibleWorkspaceCredential>(credential.createdAt, (row) => row.createdAt),
+    credentialIdKey,
+  ],
+  updatedAt: [
+    timestampKey<VisibleWorkspaceCredential>(credential.updatedAt, (row) => row.updatedAt),
+    credentialIdKey,
+  ],
+} satisfies Record<V2CredentialSortBy, readonly KeysetKey<VisibleWorkspaceCredential>[]>
+
+/** One page of workspace credentials plus the keys that resume it. */
+export type WorkspaceCredentialPage = KeysetPage<VisibleWorkspaceCredential>
+
 /**
  * The credentials a user may see in a workspace.
  *
@@ -38,17 +81,6 @@ export interface VisibleWorkspaceCredential {
  * admins — every shared-type credential, plus the caller's own personal env
  * credentials. Encrypted secret material is never selected.
  */
-/**
- * Orderings for the public list's sortable fields, made total over the contract
- * enum by `satisfies`. Each ends in `id` so credentials sharing a display name
- * or a timestamp still come back in a stable order.
- */
-const CREDENTIAL_SORTS = {
-  displayName: [credential.displayName, credential.id],
-  createdAt: [credential.createdAt, credential.id],
-  updatedAt: [credential.updatedAt, credential.id],
-} satisfies Record<V2CredentialSortBy, readonly Column[]>
-
 export async function listVisibleWorkspaceCredentials(params: {
   workspaceId: string
   userId: string
@@ -59,7 +91,22 @@ export async function listVisibleWorkspaceCredentials(params: {
   search?: string
   sortBy?: V2CredentialSortBy
   sortOrder?: ListSortOrder
-}): Promise<VisibleWorkspaceCredential[]> {
+  /** Page size. Omitted by the unpaged session surface — see {@link keysetPage}. */
+  limit?: number
+  cursorKeys?: CursorKey[]
+  /**
+   * Restricts personal env credentials to the caller's own, in SQL.
+   *
+   * The secrets surface used to apply this as a JS filter over the query's
+   * result. That is invisible on an unpaged read but a correctness bug once the
+   * query is paged: a page of `limit` rows trimmed afterwards hands the caller
+   * fewer rows than it asked for while `nextCursor` still claims more. It is a
+   * pure page-size fix — the predicate drops exactly the rows the JS filter
+   * dropped (another user's `env_personal` row, reachable only via an explicit
+   * `credential_member` grant), and never widens what a caller can see.
+   */
+  ownedEnvSecretsOnly?: boolean
+}): Promise<WorkspaceCredentialPage> {
   const {
     workspaceId,
     userId,
@@ -69,11 +116,21 @@ export async function listVisibleWorkspaceCredentials(params: {
     search,
     sortBy = 'createdAt',
     sortOrder = 'desc',
+    limit,
   } = params
 
   const whereClauses = [eq(credential.workspaceId, workspaceId)]
   if (types?.length) whereClauses.push(inArray(credential.type, types))
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
+  const ownedEnvSecretsClause = params.ownedEnvSecretsOnly
+    ? or(
+        eq(credential.type, 'env_workspace'),
+        and(eq(credential.type, 'env_personal'), eq(credential.envOwnerUserId, userId))
+      )
+    : undefined
+
+  const keys = CREDENTIAL_SORTS[sortBy]
+  const after = resumeKeyset(keys, params.cursorKeys, sortOrder)
 
   const isWorkspaceAdmin = workspaceAccess.canAdmin
   const accessClause = isWorkspaceAdmin
@@ -84,7 +141,7 @@ export async function listVisibleWorkspaceCredentials(params: {
       )
     : or(isNotNull(credentialMember.id), eq(credential.envOwnerUserId, userId))
 
-  const rows = await db
+  const query = db
     .select({
       id: credential.id,
       workspaceId: credential.workspaceId,
@@ -110,20 +167,34 @@ export async function listVisibleWorkspaceCredentials(params: {
         eq(credentialMember.status, 'active')
       )
     )
-    .where(and(...whereClauses, accessClause, searchFilter(credential.displayName, search)))
-    .orderBy(...listOrderBy(CREDENTIAL_SORTS[sortBy], sortOrder))
+    .where(
+      and(
+        ...whereClauses,
+        accessClause,
+        ownedEnvSecretsClause,
+        searchFilter(credential.displayName, search),
+        after
+      )
+    )
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
 
-  return rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => ({
+  const rows = await (limit === undefined ? query : query.limit(limit + 1))
+
+  const mapped = rows.map(({ memberRole, encryptedServiceAccountKey, ...rest }) => ({
     ...rest,
     hasServiceAccountKey: Boolean(encryptedServiceAccountKey),
+    /**
+     * An `env_personal` credential's own env owner administers it regardless of
+     * workspace role — otherwise the owner of a personal secret can't manage it.
+     */
     role:
-      // An `env_personal` credential's own env owner administers it regardless of
-      // workspace role — otherwise the owner of a personal secret can't manage it.
       (rest.type === 'env_personal' && rest.envOwnerUserId === userId) ||
       (isWorkspaceAdmin && isSharedCredentialType(rest.type))
-        ? 'admin'
-        : (memberRole ?? 'member'),
+        ? ('admin' as const)
+        : (memberRole ?? ('member' as const)),
   }))
+
+  return keysetPage(keys, mapped, limit)
 }
 
 /**
@@ -141,7 +212,9 @@ export async function listWorkspacePrincipalCredentials(params: {
   search?: string
   sortBy?: V2CredentialSortBy
   sortOrder?: ListSortOrder
-}): Promise<VisibleWorkspaceCredential[]> {
+  limit: number
+  cursorKeys?: CursorKey[]
+}): Promise<WorkspaceCredentialPage> {
   const {
     workspaceId,
     types,
@@ -149,13 +222,17 @@ export async function listWorkspacePrincipalCredentials(params: {
     search,
     sortBy = 'createdAt',
     sortOrder = 'desc',
+    limit,
   } = params
   if (types.length === 0) throw new Error('Workspace credential types cannot be empty')
 
   const whereClauses = [eq(credential.workspaceId, workspaceId), inArray(credential.type, types)]
   if (providerId) whereClauses.push(eq(credential.providerId, providerId))
 
-  const rows = await db
+  const keys = CREDENTIAL_SORTS[sortBy]
+  const after = resumeKeyset(keys, params.cursorKeys, sortOrder)
+
+  const query = db
     .select({
       id: credential.id,
       workspaceId: credential.workspaceId,
@@ -170,15 +247,19 @@ export async function listWorkspacePrincipalCredentials(params: {
       hasServiceAccountKey: sql<boolean>`${credential.encryptedServiceAccountKey} IS NOT NULL`,
     })
     .from(credential)
-    .where(and(...whereClauses, searchFilter(credential.displayName, search)))
-    .orderBy(...listOrderBy(CREDENTIAL_SORTS[sortBy], sortOrder))
+    .where(and(...whereClauses, searchFilter(credential.displayName, search), after))
+    .orderBy(...listOrderBy(keysetColumns(keys), sortOrder))
 
-  return rows.map((row) => ({
+  const rows = await query.limit(limit + 1)
+
+  const mapped = rows.map((row) => ({
     ...row,
     envKey: null,
     envOwnerUserId: null,
-    role: 'member',
+    role: 'member' as const,
   }))
+
+  return keysetPage(keys, mapped, limit)
 }
 
 /**

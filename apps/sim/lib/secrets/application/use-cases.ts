@@ -1,6 +1,6 @@
 import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
-import type { ListSortOrder } from '@/lib/api/list-query'
+import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
@@ -46,6 +46,18 @@ function credentialTypes(scope?: SecretScope) {
   return ['env_workspace', 'env_personal'] as const
 }
 
+/**
+ * Reads secret metadata for the caller.
+ *
+ * `ownedEnvSecretsOnly` is what keeps another user's personal secret out of the
+ * result. It used to be a JS filter applied after the query; it lives in SQL now
+ * because trimming rows after the page is cut would hand the caller fewer than
+ * `limit` rows while `nextCursor` still promised more.
+ *
+ * The secret's public `name` is stored as the credential `displayName`, so the
+ * caller-facing `name` sort aliases to that column here. The alias must not
+ * escape into the cursor's sort stamp — see {@link listSecretsUseCase}.
+ */
 async function listSecretMetadata(params: {
   workspaceId: string
   userId: string
@@ -53,9 +65,11 @@ async function listSecretMetadata(params: {
   search?: string
   sortBy: SecretSortBy
   sortOrder: ListSortOrder
-}): Promise<VisibleWorkspaceCredential[]> {
+  limit?: number
+  cursorKeys?: CursorKey[]
+}): Promise<{ data: VisibleWorkspaceCredential[]; nextCursorKeys: CursorKey[] | null }> {
   const workspaceAccess = await checkWorkspaceAccess(params.workspaceId, params.userId)
-  const rows = await listVisibleWorkspaceCredentials({
+  return listVisibleWorkspaceCredentials({
     workspaceId: params.workspaceId,
     userId: params.userId,
     workspaceAccess,
@@ -63,8 +77,10 @@ async function listSecretMetadata(params: {
     search: params.search,
     sortBy: params.sortBy === 'name' ? 'displayName' : params.sortBy,
     sortOrder: params.sortOrder,
+    limit: params.limit,
+    cursorKeys: params.cursorKeys,
+    ownedEnvSecretsOnly: true,
   })
-  return rows.filter((row) => row.type === 'env_workspace' || row.envOwnerUserId === params.userId)
 }
 
 async function requireWorkspaceSecretMutationAccess(params: {
@@ -101,13 +117,13 @@ async function getSecretMetadata(params: {
   scope: SecretScope
   name: string
 }): Promise<VisibleWorkspaceCredential> {
-  const rows = await listSecretMetadata({
+  const { data } = await listSecretMetadata({
     ...params,
     search: params.name,
     sortBy: 'name',
     sortOrder: 'asc',
   })
-  const row = rows.find(
+  const row = data.find(
     (candidate) =>
       candidate.envKey === params.name &&
       (params.scope === 'workspace'
@@ -126,8 +142,19 @@ export interface ListSecretsInput {
   search?: string
   sortBy: SecretSortBy
   sortOrder: ListSortOrder
+  limit: number
+  cursorKeys?: CursorKey[]
 }
 
+/**
+ * Lists secret metadata as one keyset page.
+ *
+ * `sortBy`/`sortOrder` are echoed back in the caller's own vocabulary — `name`,
+ * not the `displayName` column it aliases to — because the presenter stamps the
+ * cursor with them and the route re-checks that stamp on replay. Stamping the
+ * aliased column name would make every cursor minted under `name` fail to
+ * validate on the next request.
+ */
 export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: secretOperations.list,
   resolveContext: ({ input }: { input: ListSecretsInput }) =>
@@ -135,12 +162,18 @@ export const listSecretsUseCase = defineAuthorizedWorkspaceUseCase({
   authorizationOptions,
   async execute({ principal, input, context }) {
     const userId = principalUserId(principal)
-    const secrets = await listSecretMetadata({
+    const page = await listSecretMetadata({
       ...input,
       workspaceId: context.workspaceId,
       userId,
     })
-    return { secrets, userId }
+    return {
+      secrets: page.data,
+      nextCursorKeys: page.nextCursorKeys,
+      userId,
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+    }
   },
 })
 

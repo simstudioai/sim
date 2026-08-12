@@ -19,7 +19,7 @@ import {
 import { loadActiveWorkspaceContext } from '@/lib/uploads/contexts/workspace'
 import {
   getSkillById,
-  listSkills,
+  listSkillSummariesPage,
   listSkillsForUser,
   type SkillSortBy,
 } from '@/lib/workflows/skills/operations'
@@ -58,20 +58,36 @@ export interface ListSkillsInput {
   search?: string
   sortBy: SkillSortBy
   sortOrder: ListSortOrder
+  limit: number
+  /** Position in the merged built-in + workspace list, read from the cursor. */
+  offset: number
 }
 
+/**
+ * The public skill list. Returns one page plus the window it was taken from,
+ * because the surface presenter sees only this result and needs both to mint
+ * the next cursor.
+ */
 export const listSkillsUseCase = defineAuthorizedWorkspaceUseCase({
   operation: skillOperations.list,
   resolveContext: ({ input }: { input: ListSkillsInput }) =>
     resolveWorkspaceContext(input.workspaceId),
   authorizationOptions,
   async execute({ input, context }) {
-    const skills = await listSkills({
+    const page = await listSkillSummariesPage({
       workspaceId: context.workspaceId,
       search: input.search,
-      sort: { sortBy: input.sortBy, sortOrder: input.sortOrder },
+      sortBy: input.sortBy,
+      sortOrder: input.sortOrder,
+      limit: input.limit,
+      offset: input.offset,
     })
-    return { skills }
+    return {
+      skills: page.skills,
+      hasMore: page.hasMore,
+      offset: page.offset,
+      limit: page.limit,
+    }
   },
 })
 

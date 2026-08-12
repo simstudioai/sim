@@ -176,10 +176,12 @@ export const v2McpServerSortFields = ['name', 'createdAt', 'updatedAt'] as const
 
 export type V2McpServerSortBy = (typeof v2McpServerSortFields)[number]
 
-export const v2ListMcpServersQuerySchema = v2McpServerWorkspaceQuerySchema.extend({
-  search: v2SearchSchema.describe('Case-insensitive substring match against the server name.'),
-  ...v2SortFields(v2McpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
-})
+export const v2ListMcpServersQuerySchema = v2McpServerWorkspaceQuerySchema
+  .extend({
+    search: v2SearchSchema.describe('Case-insensitive substring match against the server name.'),
+    ...v2SortFields(v2McpServerSortFields, { sortBy: 'createdAt', sortOrder: 'desc' }),
+  })
+  .strict()
 
 export type V2ListMcpServersQuery = z.output<typeof v2ListMcpServersQuerySchema>
 
