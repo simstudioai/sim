@@ -408,6 +408,27 @@ describe('POST /api/v2/workflows/[id]/execute', () => {
     expect(mockPreprocessExecution).not.toHaveBeenCalled()
   })
 
+  it.each(['includeThinking', 'includeToolCalls'])(
+    'rejects %s unless stream is true before checking the protocol header',
+    async (option) => {
+      const withProtocol = await callExecute(
+        { [option]: true },
+        { 'X-Sim-Stream-Protocol': 'agent-events-v1' }
+      )
+      const withoutProtocol = await callExecute({ [option]: true })
+
+      expect(withProtocol.status).toBe(400)
+      expect((await withProtocol.json()).error.message).toBe(
+        'includeThinking and includeToolCalls require stream: true'
+      )
+      expect(withoutProtocol.status).toBe(400)
+      expect((await withoutProtocol.json()).error.message).toBe(
+        'includeThinking and includeToolCalls require stream: true'
+      )
+      expect(mockPreprocessExecution).not.toHaveBeenCalled()
+    }
+  )
+
   it('conceals a workspace-key/workflow mismatch as not found', async () => {
     mockAuthenticateV2ApiKey.mockResolvedValue({
       principal: {
