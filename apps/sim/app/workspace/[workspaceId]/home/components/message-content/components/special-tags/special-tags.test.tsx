@@ -1176,6 +1176,69 @@ describe('CredentialDisplay link tag', () => {
     act(() => root.unmount())
   })
 
+  it('recaps an abandoned card as skipped instead of leaving a live form', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+      { type: 'secret_input', name: 'BED_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).not.toContain('Add secrets')
+    expect(container.textContent).toContain('ABC_API_KEYSkipped')
+    expect(container.textContent).toContain('BED_API_KEYSkipped')
+    expect(container.querySelector('input')).toBeNull()
+    act(() => root.unmount())
+  })
+
+  it('restores a finished connect into an abandoned recap on a fresh mount', () => {
+    const attempt = createOAuthChatAttempt({
+      workspaceId: 'workspace-1',
+      providerId: 'google-email',
+      baseProviderId: 'google',
+      displayName: 'Gmail',
+      controlId: 'credential-card:0',
+      baselineCredentialIds: [],
+    })
+    setOAuthChatAttemptStatus(attempt.id, 'connected')
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [
+      {
+        type: 'link',
+        provider: 'google-email',
+        value: 'https://sim.test/api/auth/oauth2/authorize?providerId=google-email',
+      },
+      { type: 'secret_input', name: 'ABC_API_KEY' },
+    ]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).toContain('GmailConnected')
+    expect(container.textContent).toContain('ABC_API_KEYSkipped')
+    act(() => root.unmount())
+  })
+
+  it('leaves a sim_key-only card alone when the turn moves on', () => {
+    const container = document.createElement('div')
+    const root: Root = createRoot(container)
+    const data: CredentialItemData[] = [{ type: 'sim_key', name: 'Sim API key', value: 'sim-key' }]
+
+    act(() => {
+      root.render(<SpecialTags segment={{ type: 'credential', data }} credentialAbandoned />)
+    })
+
+    expect(container.textContent).toContain('API key')
+    expect(container.textContent).not.toContain('Skipped')
+    act(() => root.unmount())
+  })
+
   it('keeps a typed secret while a sibling row runs its OAuth connect', async () => {
     // The card's secret drafts live in component state until its Submit, so a
     // connect that navigates this tab away discards whatever the user already
