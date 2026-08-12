@@ -8,7 +8,10 @@ import type {
 } from '@/lib/api/contracts/tools/windchill'
 import { windchillOperationContract } from '@/lib/api/contracts/tools/windchill'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
-import { InternalUnauthenticatedError } from '@/lib/api/server/routes'
+import {
+  createInternalSessionOrExecutorAuth,
+  InternalUnauthenticatedError,
+} from '@/lib/api/server/routes'
 import { generateRequestId } from '@/lib/core/utils/request'
 import { isPayloadSizeLimitError } from '@/lib/core/utils/stream-limits'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
@@ -19,7 +22,6 @@ import { processFilesToUserFiles } from '@/lib/uploads/utils/file-utils'
 import { downloadServableFileFromStorage } from '@/lib/uploads/utils/file-utils.server'
 import { docNotReadyResponse } from '@/lib/uploads/utils/servable-file-response'
 import { MAX_FILE_SIZE } from '@/lib/uploads/utils/validation'
-import { internalWindchillExecutorAuth } from '@/lib/windchill/api/route-policies'
 import { assertToolFileAccess } from '@/app/api/files/authorization'
 import { sanitizeFileName } from '@/executor/constants'
 import type { UserFile } from '@/executor/types'
@@ -44,6 +46,23 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 900
 
 const logger = createLogger('WindchillAPI')
+const windchillSessionOrExecutorAuth = createInternalSessionOrExecutorAuth({
+  audience: 'sim:windchill',
+})
+
+async function authenticateWindchillExecutor(
+  request: NextRequest
+): Promise<WorkflowExecutionDelegatedPrincipal> {
+  const principal = await windchillSessionOrExecutorAuth.authenticate(request, {})
+  if (
+    principal.kind !== 'delegated' ||
+    principal.serviceId !== 'executor' ||
+    !('delegationContext' in principal)
+  ) {
+    throw new InternalUnauthenticatedError('Authentication required')
+  }
+  return principal
+}
 
 type WindchillRouteOutput = Extract<WindchillOperationResponse, { success: true }>['output']
 type MutationOperation = Exclude<
@@ -522,7 +541,7 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
   const requestId = generateRequestId()
   let principal: WorkflowExecutionDelegatedPrincipal
   try {
-    principal = await internalWindchillExecutorAuth.authenticate(request, {})
+    principal = await authenticateWindchillExecutor(request)
   } catch (error) {
     if (error instanceof InternalUnauthenticatedError) {
       return failureResponse(error.message, 401)
