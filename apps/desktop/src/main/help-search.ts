@@ -1,11 +1,9 @@
 import { join } from 'node:path'
 import { createLogger } from '@sim/logger'
 import { getErrorMessage } from '@sim/utils/errors'
+import { DOCS_SEARCH_ENDPOINT } from '@/main/external-links'
 
 const logger = createLogger('DesktopHelpSearch')
-
-export const DOCS_URL = 'https://docs.sim.ai'
-const DOCS_SEARCH_ENDPOINT = `${DOCS_URL}/api/search`
 
 interface NativeHelpSearchBridge {
   install: (endpoint: string) => boolean

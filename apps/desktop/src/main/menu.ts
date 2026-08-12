@@ -1,14 +1,13 @@
 import type { MenuItemConstructorOptions } from 'electron'
 import { app, BrowserWindow, Menu } from 'electron'
 import type { ConfigStore } from '@/main/config'
-import { DOCS_URL } from '@/main/help-search'
+import { DOCS_URL, STATUS_URL } from '@/main/external-links'
 import { openExternalSafe } from '@/main/navigation'
 import type {
   FocusedResourceShortcut,
   ResourceTabSelectionShortcut,
 } from '@/main/resource-shortcuts'
 
-const STATUS_URL = 'https://status.sim.ai'
 const ZOOM_STEP = 0.5
 
 export interface MenuDeps {

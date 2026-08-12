@@ -52,6 +52,7 @@ function compileNativeHelpSearch(): void {
     [
       'clang++',
       '-std=c++17',
+      '-DNAPI_VERSION=8',
       '-fobjc-arc',
       '-fblocks',
       '-bundle',
