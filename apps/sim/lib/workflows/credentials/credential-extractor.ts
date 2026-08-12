@@ -84,11 +84,17 @@ const WORKSPACE_SPECIFIC_FIELDS = new Set([
 ])
 
 /**
- * Sub-block values whose interior cannot be projected safely for a read-only snapshot API.
+ * Sub-block values whose interior cannot be projected safely once the payload leaves the
+ * workspace.
  *
  * Tables are arbitrary key/value rows used for authorization headers and sandbox environment
- * variables. Their cells carry no password metadata, so public snapshots must withhold the whole
- * value. Tool inputs are handled separately through the search-replace parameter codecs.
+ * variables. Their cells carry no password metadata — nothing distinguishes
+ * `Authorization: Bearer sk-…` from `Content-Type: application/json` — so the whole value is
+ * withheld. Tool inputs are handled separately through the search-replace parameter codecs.
+ *
+ * Which surfaces withhold these values, what that costs, and the shape a future relaxation must
+ * take are recorded on {@link WorkflowSanitizationOptions.redactOpaqueCredentialInputs}, the flag
+ * that governs both this set and the tool-input branch.
  */
 const OPAQUE_CREDENTIAL_BEARING_TYPES: ReadonlySet<string> = new Set(['table'])
 
@@ -269,6 +275,26 @@ interface SanitizedWorkflowState {
 
 interface WorkflowSanitizationOptions {
   preserveEnvVars?: boolean
+  /**
+   * Withhold values whose interior cannot be projected safely once the payload leaves the
+   * workspace — whole `table` values (see {@link OPAQUE_CREDENTIAL_BEARING_TYPES}) and every
+   * `tool-input` parameter with no authoritative codec metadata.
+   *
+   * Governed surfaces are every caller that passes this flag: the public execution-snapshot
+   * projection, the pinned deployment-version read, and — since #6591 — workflow export, which
+   * reaches the in-app Export as JSON button, the folder and multi-select ZIPs, and the v1/v2
+   * export APIs.
+   *
+   * The accepted cost on the export surface is that an export is lossy for tables and does not
+   * round-trip: non-secret configuration (api `params`, cloudwatch dimensions, response `headers`,
+   * sts `tags`) is withheld alongside the secrets, and a whole-`{{ENV_VAR}}` reference inside a
+   * cell is withheld too, unlike the same reference in a `password: true` field. Withholding was
+   * chosen over per-cell heuristics because the sub-blocks that motivate the loss — every header
+   * table and the `browser_use`/`stagehand`/`daytona` variable tables — are exactly the ones a
+   * pasted bearer token lands in, and an export file leaves the trust boundary. Relaxing this
+   * needs a per-sub-block opt-in that fails closed for tables added later, not a wider default;
+   * `import-export-roundtrip` pins the current loss so the trade cannot be reversed silently.
+   */
   redactOpaqueCredentialInputs?: boolean
 }
 
@@ -435,14 +461,4 @@ export function sanitizeCredentials(
   state: Partial<WorkflowState> | null | undefined
 ): SanitizedWorkflowState {
   return sanitizeWorkflowForSharing(state, { preserveEnvVars: false })
-}
-
-/**
- * Sanitize workflow state for export (preserves env vars)
- * Convenience wrapper for workflow export
- */
-export function sanitizeForExport(
-  state: Partial<WorkflowState> | null | undefined
-): SanitizedWorkflowState {
-  return sanitizeWorkflowForSharing(state, { preserveEnvVars: true })
 }
