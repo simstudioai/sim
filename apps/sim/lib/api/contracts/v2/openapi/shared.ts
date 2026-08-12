@@ -68,7 +68,7 @@ export const ERROR_RESPONSES = {
   ServiceUnavailable: {
     status: 503,
     description:
-      'A required service is temporarily unavailable. The condition is transient, so the response carries `Retry-After` with the number of seconds to wait. Treat that value as a floor and add jitter before retrying.',
+      'A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.',
     headers: ['Retry-After'],
   },
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
