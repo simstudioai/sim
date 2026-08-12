@@ -15,6 +15,8 @@ export interface CorsPolicy {
   credentials: boolean
   methods: string
   headers: string
+  /** Response headers a browser client may read; omitted leaves the CORS default. */
+  exposeHeaders?: string
 }
 
 /**
@@ -32,6 +34,19 @@ export interface CorsPolicy {
  * which the route builders permit via `methodMatchesContract`.
  */
 const DEFAULT_API_ALLOWED_METHODS = 'GET,HEAD,POST,PUT,PATCH,DELETE,OPTIONS'
+
+/**
+ * Response headers the `/api` surface sets that a browser client must be able to read.
+ *
+ * Without `Access-Control-Expose-Headers` a browser can read only the six
+ * CORS-safelisted response headers, so everything here is on the wire but
+ * invisible to `fetch()` — the rate-limit budget, the retry delay a 429 or 503
+ * asks the caller to observe, and the ids needed to correlate a run or a support
+ * report. Server-to-server callers are unaffected, which is why the gap is easy
+ * to miss.
+ */
+const DEFAULT_API_EXPOSED_HEADERS =
+  'Retry-After, X-RateLimit-Limit, X-RateLimit-Remaining, X-RateLimit-Reset, X-Request-Id, X-Run-Id'
 
 const DEFAULT_API_ALLOWED_HEADERS =
   'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version, X-API-Key, Authorization'
@@ -127,6 +142,7 @@ export function resolveApiCorsPolicy(request: NextRequest): CorsPolicy {
     credentials: true,
     methods: DEFAULT_API_ALLOWED_METHODS,
     headers: DEFAULT_API_ALLOWED_HEADERS,
+    exposeHeaders: DEFAULT_API_EXPOSED_HEADERS,
   }
 }
 
@@ -137,6 +153,9 @@ function applyCorsHeaders(response: NextResponse, policy: CorsPolicy): void {
   response.headers.set('Access-Control-Allow-Credentials', String(policy.credentials))
   response.headers.set('Access-Control-Allow-Methods', policy.methods)
   response.headers.set('Access-Control-Allow-Headers', policy.headers)
+  if (policy.exposeHeaders) {
+    response.headers.set('Access-Control-Expose-Headers', policy.exposeHeaders)
+  }
   if (policy.origin !== '*') {
     response.headers.set('Vary', 'Origin')
   }
