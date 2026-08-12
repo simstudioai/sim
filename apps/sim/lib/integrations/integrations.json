@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-11",
+  "updatedAt": "2026-08-12",
   "integrations": [
     {
       "type": "onepassword",
@@ -21939,6 +21939,133 @@
       "category": "tools",
       "integrationType": "search",
       "tags": ["knowledge-base"]
+    },
+    {
+      "type": "windchill",
+      "slug": "windchill",
+      "name": "Windchill",
+      "description": "Manage documents, revisions, and content in PTC Windchill",
+      "longDescription": "Integrate PTC Windchill REST Services 2.7 document management into your workflow using Basic authentication. Read and update document metadata, perform version and lifecycle actions, and transfer primary content and attachments. Windchill OAuth deployments are not currently supported.",
+      "bgColor": "#FFFFFF",
+      "iconName": "WindchillIcon",
+      "docsUrl": "https://docs.sim.ai/integrations/windchill",
+      "operations": [
+        {
+          "name": "List Documents",
+          "description": "List documents with an OData query, sorting, and pagination"
+        },
+        {
+          "name": "Get Document",
+          "description": "Get a WT.Document by OID"
+        },
+        {
+          "name": "Get Document Structure",
+          "description": "Retrieve recursive document usage links and their parent and child documents"
+        },
+        {
+          "name": "Get Valid State Transitions",
+          "description": "Get lifecycle states a document can transition to from its current state"
+        },
+        {
+          "name": "Get Primary Content",
+          "description": "Get primary-content metadata for a document"
+        },
+        {
+          "name": "List Attachments",
+          "description": "List attachment metadata for a document"
+        },
+        {
+          "name": "Create Document",
+          "description": "Create one WT.Document"
+        },
+        {
+          "name": "Create Documents",
+          "description": "Create several documents in one atomic Windchill request"
+        },
+        {
+          "name": "Update Document",
+          "description": "Update one document's editable attributes"
+        },
+        {
+          "name": "Update Common Properties",
+          "description": "Update a document's Name, Number, and other common properties"
+        },
+        {
+          "name": "Update Documents",
+          "description": "Update several documents' editable attributes in one atomic request"
+        },
+        {
+          "name": "Delete Document",
+          "description": "Delete one document"
+        },
+        {
+          "name": "Delete Documents",
+          "description": "Delete multiple documents atomically"
+        },
+        {
+          "name": "Check Out Document",
+          "description": "Check out one document"
+        },
+        {
+          "name": "Check Out Documents",
+          "description": "Check out multiple documents atomically"
+        },
+        {
+          "name": "Check In Document",
+          "description": "Check in one document"
+        },
+        {
+          "name": "Check In Documents",
+          "description": "Check in multiple documents atomically"
+        },
+        {
+          "name": "Undo Check Out Document",
+          "description": "Undo checkout for one document"
+        },
+        {
+          "name": "Undo Check Out Documents",
+          "description": "Undo checkout for multiple documents atomically"
+        },
+        {
+          "name": "Revise Document",
+          "description": "Create a new revision of one document"
+        },
+        {
+          "name": "Revise Documents",
+          "description": "Create new revisions of multiple documents atomically"
+        },
+        {
+          "name": "Set Lifecycle State",
+          "description": "Transition a document to a valid lifecycle state"
+        },
+        {
+          "name": "Update Document Security Labels",
+          "description": "Update installed security-label attributes for one or more documents"
+        },
+        {
+          "name": "Download Primary Content",
+          "description": "Download primary content into a canonical UserFile"
+        },
+        {
+          "name": "Upload Primary Content",
+          "description": "Upload a primary-content file to a document that has none"
+        },
+        {
+          "name": "Download Attachment",
+          "description": "Download a document attachment into a canonical UserFile"
+        },
+        {
+          "name": "Upload Attachments",
+          "description": "Upload one or more files as document attachments"
+        }
+      ],
+      "operationCount": 27,
+      "triggers": [],
+      "triggerCount": 0,
+      "authType": "api-key",
+      "category": "tools",
+      "integrationType": "documents",
+      "tags": ["content-management", "document-processing"]
     },
     {
       "type": "wiza",
