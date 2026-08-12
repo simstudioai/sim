@@ -63,6 +63,7 @@ export const AgiloftBlock: BlockConfig = {
           { text: 'Search', field: 'knowledgeBase', core: true },
           { text: 'for', field: 'nlpQuery' },
           { text: ', returning', field: 'fields' },
+          { text: ', up to', field: 'limit', after: 'records' },
         ],
         select_records: [
           { text: 'Select record IDs from', field: 'table', core: true },
@@ -517,7 +518,7 @@ export const AgiloftBlock: BlockConfig = {
       placeholder: '0',
       description: 'Zero-based page number',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'search_records' },
+      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
     },
     {
       id: 'limit',
@@ -526,7 +527,12 @@ export const AgiloftBlock: BlockConfig = {
       placeholder: '25',
       description: 'Records per page. 0 means every record, returned on page 0.',
       mode: 'advanced',
-      condition: { field: 'operation', value: 'search_records' },
+      /**
+       * Natural Language Search has no table to narrow it: it runs across the
+       * whole knowledge base, so pagination is the caller's only bound on how
+       * much comes back.
+       */
+      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
     },
   ],
 
@@ -686,7 +692,7 @@ export const AgiloftBlock: BlockConfig = {
     limit: {
       type: 'number',
       description: 'Page size that was requested; 0 when Agiloft chose the page size',
-      condition: { field: 'operation', value: ['search_records', 'nlp_search'] },
+      condition: { field: 'operation', value: 'search_records' },
     },
     truncated: {
       type: 'boolean',

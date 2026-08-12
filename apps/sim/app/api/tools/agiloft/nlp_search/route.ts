@@ -1,6 +1,5 @@
 import { createLogger } from '@sim/logger'
 import { toError } from '@sim/utils/errors'
-import { filterUndefined } from '@sim/utils/object'
 import { type NextRequest, NextResponse } from 'next/server'
 import { agiloftNlpSearchContract } from '@/lib/api/contracts/tools/agiloft'
 import { getValidationErrorMessage, parseRequest } from '@/lib/api/server'
@@ -9,10 +8,9 @@ import { generateRequestId } from '@/lib/core/utils/request'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import type { AgiloftNlpSearchResponse } from '@/tools/agiloft/types'
 import {
-  AGILOFT_LANG,
   AGILOFT_MAX_SEARCH_RECORDS,
+  buildNlpSearchBody,
   buildNlpSearchUrl,
-  parseFieldList,
 } from '@/tools/agiloft/utils'
 import { executeEwRequest, readAlrestJson } from '@/tools/agiloft/utils.server'
 
@@ -60,23 +58,8 @@ export const POST = withRouteHandler(async (request: NextRequest) => {
       (base) => ({
         url: buildNlpSearchUrl(base),
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
-        /**
-         * EWNLPSearch accepts application/json, so credentials travel in the
-         * body rather than the query string.
-         */
-        body: JSON.stringify(
-          filterUndefined({
-            $KB: params.knowledgeBase,
-            $login: params.login,
-            $password: params.password,
-            $lang: AGILOFT_LANG,
-            field: parseFieldList(params.fields),
-            nlp_query: params.nlpQuery.trim(),
-            page: params.page ? Number(params.page) : undefined,
-            limit: params.limit ? Number(params.limit) : undefined,
-          })
-        ),
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: buildNlpSearchBody(params),
       }),
       async (response) => {
         const returned = (await readAlrestJson<Record<string, unknown>[]>(response)) ?? []
