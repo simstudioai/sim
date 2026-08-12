@@ -67,13 +67,15 @@ const PAGED_LISTS = [
  * Lists that accept neither param and always return `nextCursor: null`, because
  * the set is small and bounded per workspace or per table.
  *
- * Every remaining entry but the MCP server list is a *folder* list, and a folder
- * tree is already capped where it is loaded
+ * Every remaining entry but the MCP server list and the knowledge tag list is a
+ * *folder* list, and a folder tree is already capped where it is loaded
  * (`MAX_*_FOLDERS_PER_WORKSPACE`) — bounded by construction rather than by a
- * caller's `limit`.
+ * caller's `limit`. The knowledge tag list is bounded the same way: a knowledge
+ * base has a fixed number of tag slots, so its vocabulary cannot grow past them.
  */
 const FULL_SET_LISTS = [
   'GET /api/v2/files/folders',
+  'GET /api/v2/knowledge/[id]/tags',
   'GET /api/v2/knowledge/folders',
   'GET /api/v2/mcp-servers',
   'GET /api/v2/tables/[tableId]/groups',

@@ -1,5 +1,7 @@
 import {
+  parseV2KnowledgeTagFiltersParam,
   type V2KnowledgeDocumentSummary,
+  v2BulkUpdateKnowledgeDocumentsContract,
   v2ListKnowledgeDocumentsContract,
   v2UploadKnowledgeDocumentContract,
 } from '@/lib/api/contracts/v2/knowledge'
@@ -20,6 +22,7 @@ import {
 import { v2KnowledgeErrorPolicies } from '@/lib/knowledge/api/route-policies'
 import {
   admitKnowledgeDocumentUpload,
+  bulkUpdateKnowledgeDocuments,
   listKnowledgeDocuments,
   uploadKnowledgeDocument,
 } from '@/lib/knowledge/application/documents'
@@ -29,6 +32,7 @@ import { captureServerEvent } from '@/lib/posthog/server'
 import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 import { serializeDate } from '@/app/api/v1/knowledge/utils'
+import { toV2TaggedDocument } from '@/app/api/v2/knowledge/utils'
 import {
   decodeOffsetCursor,
   encodeOffsetCursor,
@@ -76,6 +80,10 @@ export const GET = defineV2JsonRoute({
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
   mapInput: ({ params, query }) => {
+    const tagFilters = parseV2KnowledgeTagFiltersParam(query.tagFilters)
+    if (!tagFilters.success) {
+      throw new OrchestrationError('validation', tagFilters.message)
+    }
     /**
      * The offset counts positions in the filtered, sorted document sequence, so
      * every param that changes that sequence is stamped into the cursor and
@@ -88,6 +96,7 @@ export const GET = defineV2JsonRoute({
       search: query.search,
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      tagFilters: query.tagFilters,
     })
     return {
       knowledgeBaseId: params.id,
@@ -98,16 +107,54 @@ export const GET = defineV2JsonRoute({
       offset: decodeOffsetCursor(query.cursor, cursorScope),
       sortBy: query.sortBy,
       sortOrder: query.sortOrder,
+      tagNameFilters: tagFilters.filters,
       cursorScope,
     }
   },
   useCase: listKnowledgeDocuments,
-  present: ({ documents, pagination, cursorScope }) => ({
-    data: documents.map(toV2DocumentSummary),
+  present: ({ documents, tagDefinitions, pagination, cursorScope }) => ({
+    data: documents.map((document) => toV2TaggedDocument(document, tagDefinitions)),
     nextCursor: pagination.hasMore
       ? encodeOffsetCursor(cursorScope ?? '', pagination.offset + pagination.limit)
       : null,
   }),
+})
+
+/**
+ * PATCH /api/v2/knowledge/[id]/documents — Enable or disable many documents.
+ *
+ * Enable and disable only. Bulk delete is deliberately not offered: the bulk
+ * operation records no semantic audit, so a public bulk delete would empty a
+ * knowledge base leaving no `DOCUMENT_DELETED` entries, while the per-document
+ * DELETE audits every one.
+ */
+export const PATCH = defineV2JsonRoute({
+  contract: v2BulkUpdateKnowledgeDocumentsContract,
+  auth: v2ApiKeyAuth,
+  operation: knowledgeOperations.bulkDocuments,
+  rateLimit: v2RateLimits.publicApi,
+  errorPolicy: v2KnowledgeErrorPolicies.concealKnowledgeBaseAuthorization,
+  mapInput: ({ params, body }) => ({
+    knowledgeBaseId: params.id,
+    assertedWorkspaceId: body.workspaceId,
+    operation: body.operation,
+    documentIds: body.documentIds,
+    selectAll: body.selectAll,
+    enabledFilter: body.enabledFilter,
+  }),
+  useCase: bulkUpdateKnowledgeDocuments,
+  present: (result) => {
+    if (result.operation === 'delete') {
+      throw new Error('Bulk knowledge document delete is not exposed on the public API')
+    }
+    return {
+      data: {
+        operation: result.operation,
+        updatedCount: result.successCount,
+        documentIds: result.updatedDocuments.map((document) => document.id),
+      },
+    }
+  },
 })
 
 /** POST /api/v2/knowledge/[id]/documents — Upload a document to a knowledge base. */

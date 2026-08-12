@@ -53,13 +53,16 @@ describe('POST /api/v2/knowledge/search', () => {
     mockSearch.mockResolvedValue({
       results: [
         {
+          embeddingId: 'embedding-1',
+          knowledgeBaseId: 'kb-1',
           documentId: 'doc-1',
           documentName: 'support.txt',
           sourceUrl: null,
           content: 'hello',
           chunkIndex: 0,
-          metadata: {},
+          metadata: { category: 'billing' },
           similarity: 0.9,
+          rerankerScore: 0.42,
         },
       ],
       query: 'hello',
@@ -92,6 +95,9 @@ describe('POST /api/v2/knowledge/search', () => {
         topK: 10,
         tagFilters: undefined,
         searchMode: 'hybrid',
+        rerankerEnabled: undefined,
+        rerankerModel: undefined,
+        rerankerInputCount: undefined,
       },
       request,
     })
@@ -100,6 +106,121 @@ describe('POST /api/v2/knowledge/search', () => {
     })
     expect(response.headers.get('cache-control')).toBe('private, no-store')
     expect(response.headers.get('x-ratelimit-limit')).toBe('100')
+  })
+
+  it('names the source knowledge base and the reranker score on every result', async () => {
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1', 'kb-2'],
+          query: 'hello',
+          topK: 10,
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.data.results[0]).toEqual({
+      knowledgeBaseId: 'kb-1',
+      documentId: 'doc-1',
+      documentName: 'support.txt',
+      sourceUrl: null,
+      content: 'hello',
+      chunkIndex: 0,
+      metadata: { category: 'billing' },
+      similarity: 0.9,
+      rerankerScore: 0.42,
+    })
+  })
+
+  it('forwards reranker options and never a caller-supplied reranker key', async () => {
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+          rerankerInputCount: 40,
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    expect(mockSearch).toHaveBeenCalledWith(
+      expect.objectContaining({
+        input: expect.objectContaining({
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+          rerankerInputCount: 40,
+        }),
+      })
+    )
+    const [{ input }] = mockSearch.mock.calls[0]
+    expect(input).not.toHaveProperty('rerankerApiKey')
+    expect(input).not.toHaveProperty('skipUsageBilling')
+  })
+
+  it('rejects an unsupported reranker model and an out-of-range candidate pool', async () => {
+    const unsupportedModel = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-does-not-exist',
+        })
+      )
+    )
+    const oversizedPool = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+          rerankerInputCount: 101,
+        })
+      )
+    )
+
+    expect(unsupportedModel.status).toBe(400)
+    expect(oversizedPool.status).toBe(400)
+    expect(await oversizedPool.json()).toEqual({
+      error: expect.objectContaining({
+        code: 'BAD_REQUEST',
+        message: expect.stringContaining('rerankerInputCount cannot exceed 100'),
+      }),
+    })
+    expect(mockSearch).not.toHaveBeenCalled()
+  })
+
+  it('drops a caller-supplied reranker key instead of forwarding it', async () => {
+    const response = await POST(
+      buildRequest(
+        JSON.stringify({
+          workspaceId: WORKSPACE_ID,
+          knowledgeBaseIds: ['kb-1'],
+          query: 'hello',
+          topK: 5,
+          rerankerEnabled: true,
+          rerankerModel: 'rerank-v4.0-fast',
+          rerankerApiKey: 'secret-byok-key',
+        })
+      )
+    )
+
+    expect(response.status).toBe(200)
+    const [{ input }] = mockSearch.mock.calls[0]
+    expect(input).not.toHaveProperty('rerankerApiKey')
   })
 
   it('forwards an opted-in hybrid search mode to the application use case', async () => {
