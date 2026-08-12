@@ -121,6 +121,38 @@ describe('workspace file folder operations', () => {
     expect(mockNotify).toHaveBeenCalledOnce()
   })
 
+  it.each([
+    ['leaves the sort unset so the repository keeps its position ordering', {}, undefined],
+    ['delegates an explicit sort', { sortBy: 'name', sortOrder: 'desc' } as const, 'name'],
+  ])('%s', async (_label, sortInput, expectedSortBy) => {
+    mockList.mockResolvedValue([folder])
+
+    await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1', ...sortInput },
+    })
+
+    expect(mockList).toHaveBeenCalledWith(
+      'ws-1',
+      expect.objectContaining({ sortBy: expectedSortBy })
+    )
+  })
+
+  it('preserves the order the repository returned rather than re-sorting in memory', async () => {
+    mockList.mockResolvedValue([
+      { ...folder, id: 'newest', name: 'zeta' },
+      { ...folder, id: 'middle', name: 'Alpha' },
+      { ...folder, id: 'oldest', name: 'beta' },
+    ])
+
+    const result = await listWorkspaceFileFoldersOperation.execute({
+      principal: { kind: 'session', userId: 'user-1', sessionId: 'session-1' },
+      input: { workspaceId: 'ws-1' },
+    })
+
+    expect(result.folders.map((item) => item.id)).toEqual(['newest', 'middle', 'oldest'])
+  })
+
   it('matches a canonical encoded parent path against decoded stored folder paths', async () => {
     mockList.mockResolvedValue([
       { ...folder, id: 'child-1', name: 'Q1', path: 'Reports & Plans/Q1' },

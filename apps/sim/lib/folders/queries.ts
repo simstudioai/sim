@@ -149,7 +149,7 @@ export async function resolveRestoredFolderId(
  * enum by `satisfies`. Each ends in `createdAt` so folders sharing a name or a
  * `sortOrder` still come back in a stable order.
  */
-const FOLDER_SORTS = {
+export const FOLDER_SORTS = {
   position: [folder.sortOrder, folder.createdAt],
   name: [folder.name, folder.createdAt],
   createdAt: [folder.createdAt],

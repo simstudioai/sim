@@ -72,9 +72,9 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  *
  * Every one of these is pushed into SQL, except on `GET /skills` (which merges
  * the static builtin registry into the DB rows, then re-filters and re-sorts the
- * merged array) and `GET /files/folders` (which applies `parentPath`, `search`,
- * and the sort in JS). Both read a full result set to produce a page; neither is
- * a pattern to copy.
+ * merged array) and `GET /files/folders` (which applies `parentPath` and `search`
+ * in JS; its sort is pushed into SQL like every other folder list). Both read a
+ * full result set to produce a page; neither is a pattern to copy.
  *
  * ## Which lists are paged
  *
