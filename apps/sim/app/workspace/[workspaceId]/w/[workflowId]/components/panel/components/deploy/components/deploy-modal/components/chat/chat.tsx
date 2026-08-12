@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   ButtonGroup,
   ButtonGroupItem,
@@ -120,7 +120,20 @@ export function ChatDeploy({
   const setShowDeleteConfirmation =
     externalSetShowDeleteConfirmation || setInternalShowDeleteConfirmation
 
-  const [formData, setFormData] = useState<ChatFormData>(initialFormData)
+  const { canAdmin } = useUserPermissionsContext()
+  /**
+   * A public chat is admin-only, so seeding a non-admin into the `public`
+   * default would land them on an option they cannot submit. The selector
+   * disables that option and explains why, but the form still has to open on a
+   * mode they can actually deploy — the reset below runs after the selector's
+   * own fallback effect and would otherwise clobber it straight back to public.
+   */
+  const newChatFormData = useMemo<ChatFormData>(
+    () => (canAdmin ? initialFormData : { ...initialFormData, authType: 'password' }),
+    [canAdmin]
+  )
+
+  const [formData, setFormData] = useState<ChatFormData>(newChatFormData)
   const [errors, setErrors] = useState<FormErrors>({})
   const formRef = useRef<HTMLFormElement>(null)
   const [formInitCounter, setFormInitCounter] = useState(0)
@@ -182,7 +195,6 @@ export function ChatDeploy({
    * REST routes and the copilot use case), so a non-admin selecting it must not
    * be able to submit into a 403. An already-public chat stays editable.
    */
-  const { canAdmin } = useUserPermissionsContext()
   const publicAuthBlocked =
     formData.authType === 'public' && !canAdmin && existingChat?.authType !== 'public'
 
@@ -225,7 +237,7 @@ export function ChatDeploy({
 
       hasInitializedFormRef.current = true
     } else if (!existingChat && !isLoadingChat) {
-      setFormData(initialFormData)
+      setFormData(newChatFormData)
       setImageUrl(null)
       hasInitializedFormRef.current = false
     }

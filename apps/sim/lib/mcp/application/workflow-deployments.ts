@@ -8,7 +8,7 @@ import { db, workflow, workflowMcpServer, workflowMcpTool } from '@sim/db'
 import { and, asc, eq, inArray, isNull } from 'drizzle-orm'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
-import { canExposePublicly } from '@/lib/deployments/public-exposure'
+import { canExposePublicly, increasesPublicExposure } from '@/lib/deployments/public-exposure'
 import { mcpServerDelegationPolicy } from '@/lib/mcp/application/authorization'
 import { mcpServerOperations } from '@/lib/mcp/application/operations'
 import {
@@ -160,15 +160,15 @@ export interface CreateWorkflowMcpDeploymentServerInput {
  * workflow API and public chats — creating or updating the server itself needs
  * only `write`, but flipping it public needs `admin`.
  *
- * Only a transition *to* public is gated; `isPublic: false` and omitted values
- * pass through, since neither increases exposure.
+ * Only a transition *to* public is gated — see `increasesPublicExposure`.
  */
 async function assertCanSetPublicExposure(
   principal: Principal,
   workspaceId: string,
-  isPublic: boolean | undefined
+  isPublic: boolean | undefined,
+  currentIsPublic?: boolean
 ): Promise<void> {
-  if (isPublic !== true) return
+  if (!increasesPublicExposure(isPublic, currentIsPublic)) return
   const subjectUserId = requirePrincipalSubjectUserId(principal)
   if (!(await canExposePublicly(subjectUserId, workspaceId))) {
     throw new OrchestrationError('forbidden', 'Only admins can make an MCP server public')
@@ -231,7 +231,12 @@ export const updateWorkflowMcpDeploymentServer = defineAuthorizedWorkspaceUseCas
     resolveServerContext(input.serverId),
   authorizationOptions,
   async execute({ principal, input, context }) {
-    await assertCanSetPublicExposure(principal, context.workspaceId, input.isPublic)
+    await assertCanSetPublicExposure(
+      principal,
+      context.workspaceId,
+      input.isPublic,
+      context.server.isPublic
+    )
 
     const result = await performUpdateWorkflowMcpServer({
       ...input,

@@ -6,6 +6,7 @@ import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { NextRequest } from 'next/server'
 import { createWorkflowMcpServerBodySchema } from '@/lib/api/contracts/workflow-mcp-servers'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
+import { canExposePublicly, increasesPublicExposure } from '@/lib/deployments/public-exposure'
 import {
   mcpBodyReadErrorResponse,
   readMcpJsonBodyWithLimit,
@@ -114,6 +115,24 @@ export const POST = withRouteHandler(
           workspaceId,
           workflowIds: body.workflowIds,
         })
+
+        /**
+         * `withMcpAuth('write')` covers managing the server, but a public
+         * server skips authentication on the serve path, so publishing one is
+         * admin-only. This route calls the orchestration layer directly rather
+         * than the application use case, so the use case's gate does not apply
+         * here — see the TODO about migrating both MCP server routes.
+         */
+        if (
+          increasesPublicExposure(body.isPublic, false) &&
+          !(await canExposePublicly(userId, workspaceId))
+        ) {
+          return createMcpErrorResponse(
+            new Error('Only admins can make an MCP server public'),
+            'Only admins can make an MCP server public',
+            403
+          )
+        }
 
         const result = await performCreateWorkflowMcpServer({
           workspaceId,

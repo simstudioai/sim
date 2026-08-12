@@ -22,3 +22,20 @@ export async function canExposePublicly(userId: string, workspaceId: string): Pr
   const permission = await getUserEntityPermissions(userId, 'workspace', workspaceId)
   return permission === 'admin'
 }
+
+/**
+ * Whether a requested visibility raises exposure and therefore needs `admin`.
+ *
+ * Edit forms submit every field, not just the dirty one, so an unchanged
+ * `true` arrives on a rename exactly like a deliberate flip to public. Gating
+ * the *value* would stop a `write` member from renaming an already-public
+ * deployment; only the *transition* is a privilege escalation.
+ *
+ * `undefined` means the caller left visibility alone, which never escalates.
+ */
+export function increasesPublicExposure(
+  requested: boolean | undefined,
+  current: boolean | undefined
+): boolean {
+  return requested === true && current !== true
+}
