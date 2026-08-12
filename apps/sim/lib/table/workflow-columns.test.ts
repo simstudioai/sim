@@ -349,6 +349,15 @@ describe('cancelWorkflowGroupRuns deletion races', () => {
     expect(mockUpdateRow).toHaveBeenCalledOnce()
   })
 
+  it('ignores a transaction-wrapped row deletion', async () => {
+    queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])
+    mockUpdateRow.mockRejectedValueOnce(
+      new Error('Failed query', { cause: new TableRowNotFoundError() })
+    )
+
+    await expect(cancelWorkflowGroupRuns(table.id)).resolves.toBe(1)
+  })
+
   it('rethrows unrelated cancellation write failures', async () => {
     const error = new Error('database unavailable')
     queueTableRows(schemaMock.tableRowExecutions, [inFlightExecution])

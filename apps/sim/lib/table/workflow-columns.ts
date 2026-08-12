@@ -12,7 +12,12 @@ import {
   userTableRows as userTableRowsTable,
 } from '@sim/db/schema'
 import { createLogger } from '@sim/logger'
-import { getPostgresConstraintName, getPostgresErrorCode, toError } from '@sim/utils/errors'
+import {
+  findCause,
+  getPostgresConstraintName,
+  getPostgresErrorCode,
+  toError,
+} from '@sim/utils/errors'
 import { generateId } from '@sim/utils/id'
 import { and, asc, eq, gt, inArray, notInArray, or, sql } from 'drizzle-orm'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
@@ -733,7 +738,11 @@ export async function cancelWorkflowGroupRuns(
         )
         if (!updated) throw new Error('Authoritative cancellation write was rejected')
       } catch (error) {
-        if (error instanceof TableRowNotFoundError) return
+        const rowNotFound = findCause(
+          error,
+          (cause): cause is TableRowNotFoundError => cause instanceof TableRowNotFoundError
+        )
+        if (rowNotFound) return
         throw error
       }
     })
