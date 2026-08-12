@@ -1041,11 +1041,11 @@ export const auth = betterAuth({
     }),
     after: createAuthMiddleware(async (ctx) => {
       if (!isBillingEnabled || ctx.path !== '/subscription/upgrade') return
-      const context = ctx.context as typeof ctx.context & {
+      const checkoutContext = ctx as typeof ctx & {
         billingCheckoutAdmissionClaim?: CheckoutAdmissionClaim
       }
-      if (context.billingCheckoutAdmissionClaim) {
-        await releaseCheckoutAdmission(context.billingCheckoutAdmissionClaim)
+      if (checkoutContext.billingCheckoutAdmissionClaim) {
+        await releaseCheckoutAdmission(checkoutContext.billingCheckoutAdmissionClaim)
       }
     }),
   },
