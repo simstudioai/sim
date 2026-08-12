@@ -538,6 +538,7 @@ export const blockTypeToIconMap: Record<string, IconComponent> = {
   webflow: WebflowIcon,
   whatsapp: WhatsAppIcon,
   wikipedia: WikipediaIcon,
+  windchill: DocumentIcon,
   wiza: WizaIcon,
   wordpress: WordpressIcon,
   workday: WorkdayIcon,
