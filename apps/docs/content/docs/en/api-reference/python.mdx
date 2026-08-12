@@ -275,7 +275,10 @@ class WorkflowExecutionResult:
     metadata: Optional[Dict[str, Any]] = None
     trace_spans: Optional[List[Any]] = None
     total_duration: Optional[float] = None
+    status: Optional[str] = None
 ```
+
+`success` is `True` only for the `completed` and `paused` statuses. `status` carries the server's terminal status verbatim, so a cancelled run (`success=False`, `error=None`) is distinguishable from a failed one.
 
 ### AsyncExecutionResult
 

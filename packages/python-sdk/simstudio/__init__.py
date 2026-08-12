@@ -6,6 +6,7 @@ Official Python SDK for Sim, allowing you to execute workflows programmatically.
 
 from typing import Any, Dict, Optional, Union
 from dataclasses import dataclass
+from datetime import datetime
 import time
 import random
 import os
@@ -14,7 +15,12 @@ import requests
 
 MAX_EXECUTION_TIMEOUT_SECONDS = 604_800
 
-__version__ = "0.1.2"
+# Run statuses that count as a successful synchronous execution. Deliberately a
+# whitelist: a status later added to the API then defaults to "not successful"
+# rather than silently reporting True.
+_SUCCESSFUL_RUN_STATUSES = ('completed', 'paused')
+
+__version__ = "0.2.0"
 __all__ = [
     "SimStudioClient",
     "SimStudioError",
@@ -28,7 +34,14 @@ __all__ = [
 
 @dataclass
 class WorkflowExecutionResult:
-    """Result of a workflow execution."""
+    """
+    Result of a workflow execution.
+
+    ``success`` is True only for the 'completed' and 'paused' statuses, so a
+    run the server cancels and a run that fails both report False. Read
+    ``status`` to tell those apart -- it carries the server's own terminal
+    status ('completed', 'failed', 'paused' or 'cancelled').
+    """
     success: bool
     output: Optional[Any] = None
     error: Optional[str] = None
@@ -36,6 +49,7 @@ class WorkflowExecutionResult:
     metadata: Optional[Dict[str, Any]] = None
     trace_spans: Optional[list] = None
     total_duration: Optional[float] = None
+    status: Optional[str] = None
 
 
 @dataclass
@@ -58,7 +72,13 @@ class AsyncExecutionResult:
 
 @dataclass
 class RateLimitInfo:
-    """Rate limit information from API response headers."""
+    """
+    Rate limit information from API response headers.
+
+    ``reset`` is epoch milliseconds when the server sends the ISO 8601
+    ``X-RateLimit-Reset`` the v2 API uses, and epoch seconds for the bare
+    integer older endpoints sent. ``retry_after`` is milliseconds.
+    """
     limit: int
     remaining: int
     reset: int
@@ -80,6 +100,23 @@ class SimStudioError(Exception):
         super().__init__(message)
         self.code = code
         self.status = status
+
+
+def _parse_reset_header(value: str) -> int:
+    """
+    Parse the ``X-RateLimit-Reset`` header, matching the TypeScript SDK.
+
+    The v2 API sends an ISO 8601 timestamp, which yields epoch milliseconds;
+    older endpoints sent an epoch integer, which is kept as-is. A quota hint
+    must never take down the call it rode in on, so an unrecognised value
+    degrades to 0 rather than raising.
+    """
+    if value.isdecimal():
+        return int(value)
+    try:
+        return int(datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp() * 1000)
+    except ValueError:
+        return 0
 
 
 class SimStudioClient:
@@ -166,9 +203,11 @@ class SimStudioClient:
 
         Args:
             workflow_id: The ID of the workflow to execute
-            input: Input data to pass to the workflow. Can be a dict (spread at root level),
-                   primitive value (string, number, bool), or list (wrapped in 'input' field).
-                   File-like objects within dicts are automatically converted to base64.
+            input: Input data to pass to the workflow, sent nested under the request
+                   body's 'input' field. A dict becomes the workflow input as-is; any
+                   other value (string, number, bool, list) is wrapped as
+                   {'input': value}. File-like objects within it are automatically
+                   converted to base64.
             timeout: Timeout in seconds (default: 30.0)
             stream: Enable streaming responses (default: None)
             selected_outputs: Block outputs to stream (e.g., ["agent1.content"])
@@ -270,15 +309,19 @@ class SimStudioClient:
                 )
 
             execution_error = result_data.get('error')
+            status = result_data.get('status')
             return WorkflowExecutionResult(
-                success=result_data.get('status') != 'failed',
+                success=status in _SUCCESSFUL_RUN_STATUSES,
                 output=result_data.get('output'),
                 error=execution_error.get('message') if execution_error else None,
                 metadata={
                     'duration': result_data.get('durationMs'),
-                    'runId': result_data['runId']
+                    'runId': result_data['runId'],
+                    'startTime': result_data.get('startedAt'),
+                    'endTime': result_data.get('endedAt')
                 },
-                total_duration=result_data.get('durationMs')
+                total_duration=result_data.get('durationMs'),
+                status=status
             )
 
         except requests.Timeout:
@@ -593,7 +636,7 @@ class SimStudioClient:
             self._rate_limit_info = RateLimitInfo(
                 limit=int(limit) if limit else 0,
                 remaining=int(remaining) if remaining else 0,
-                reset=int(reset) if reset else 0,
+                reset=_parse_reset_header(reset) if reset else 0,
                 retry_after=int(retry_after) * 1000 if retry_after else None
             )
 
