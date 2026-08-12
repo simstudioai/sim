@@ -1,6 +1,7 @@
 /**
  * @vitest-environment node
  */
+import { setEnv } from '@sim/testing'
 import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { MANIFEST_ASSET_NAME } from '@/lib/desktop/update-feed'
@@ -40,6 +41,7 @@ describe('desktop update manifest route', () => {
   beforeEach(() => {
     fetchMock.mockReset()
     vi.stubGlobal('fetch', fetchMock)
+    setEnv({ APPCONFIG_ENVIRONMENT: undefined })
   })
 
   afterEach(() => {
@@ -47,10 +49,11 @@ describe('desktop update manifest route', () => {
   })
 
   it.each([
-    ['www.dev.sim.ai', 'v1.2.0-dev.4', '1.2.0-dev.4'],
-    ['www.staging.sim.ai', 'v1.2.0-staging.5', '1.2.0-staging.5'],
-    ['www.sim.ai', 'v1.1.0', '1.1.0'],
-  ])('serves the newest release for %s', async (hostname, tag, version) => {
+    ['dev', 'v1.2.0-dev.4', '1.2.0-dev.4'],
+    ['staging', 'v1.2.0-staging.5', '1.2.0-staging.5'],
+    ['production', 'v1.1.0', '1.1.0'],
+  ])('serves the newest release for the %s deployment', async (environment, tag, version) => {
+    setEnv({ APPCONFIG_ENVIRONMENT: environment })
     fetchMock.mockImplementation(async (input: string | URL | Request) => {
       const url = String(input)
       if (url === RELEASES_URL) {
@@ -66,7 +69,7 @@ describe('desktop update manifest route', () => {
       return new Response(null, { status: 404 })
     })
 
-    const response = await getFeed(hostname)
+    const response = await getFeed('internal.service.local')
     const body = await response.text()
 
     expect(response.status).toBe(200)
@@ -78,12 +81,13 @@ describe('desktop update manifest route', () => {
   })
 
   it.each([
-    ['dev', 'www.dev.sim.ai:443', 'v1.2.0-dev.4', '1.2.0-dev.4'],
-    ['staging', 'www.staging.sim.ai:443', 'v1.2.0-staging.5', '1.2.0-staging.5'],
-    ['production', 'www.sim.ai:443', 'v1.1.0', '1.1.0'],
+    ['dev', 'www.staging.sim.ai:443', 'v1.2.0-dev.4', '1.2.0-dev.4'],
+    ['staging', 'www.sim.ai:443', 'v1.2.0-staging.5', '1.2.0-staging.5'],
+    ['production', 'www.dev.sim.ai:443', 'v1.1.0', '1.1.0'],
   ])(
-    'uses the forwarded public hostname for %s behind a reverse proxy',
-    async (_, host, tag, version) => {
+    'ignores request-controlled host headers for the %s deployment',
+    async (environment, spoofedHost, tag, version) => {
+      setEnv({ APPCONFIG_ENVIRONMENT: environment })
       fetchMock.mockImplementation(async (input: string | URL | Request) => {
         const url = String(input)
         if (url === RELEASES_URL) {
@@ -100,7 +104,8 @@ describe('desktop update manifest route', () => {
       })
 
       const response = await getFeed('internal.service.local', {
-        'x-forwarded-host': `${host}, internal.service.local`,
+        host: spoofedHost,
+        'x-forwarded-host': `attacker.example, ${spoofedHost}`,
       })
       const body = await response.text()
 
@@ -110,24 +115,25 @@ describe('desktop update manifest route', () => {
     }
   )
 
-  it('falls back to the Host header when no forwarded host is present', async () => {
+  it('defaults self-hosted deployments to the stable channel', async () => {
     fetchMock.mockImplementation(async (input: string | URL | Request) => {
       const url = String(input)
       if (url === RELEASES_URL) {
         return Response.json([release('v1.2.0-dev.4'), release('v1.1.0')])
       }
-      if (url === `https://downloads.example/v1.2.0-dev.4/${MANIFEST_ASSET_NAME}`) {
-        return new Response(manifest('1.2.0-dev.4'))
+      if (url === `https://downloads.example/v1.1.0/${MANIFEST_ASSET_NAME}`) {
+        return new Response(manifest('1.1.0'))
       }
       return new Response(null, { status: 404 })
     })
 
     const response = await getFeed('internal.service.local', {
       host: 'www.dev.sim.ai:443',
+      'x-forwarded-host': 'www.dev.sim.ai:443',
     })
 
     expect(response.status).toBe(200)
-    expect(await response.text()).toContain('version: 1.2.0-dev.4')
+    expect(await response.text()).toContain('version: 1.1.0')
   })
 
   it('reports an authoritative no-release result for production with only prereleases', async () => {
@@ -144,6 +150,7 @@ describe('desktop update manifest route', () => {
   })
 
   it('rejects a manifest whose version does not match its selected release', async () => {
+    setEnv({ APPCONFIG_ENVIRONMENT: 'dev' })
     fetchMock
       .mockResolvedValueOnce(Response.json([release('v1.2.0-dev.4')]))
       .mockResolvedValueOnce(new Response(manifest('1.2.0-staging.5')))

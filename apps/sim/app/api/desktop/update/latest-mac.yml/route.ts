@@ -1,8 +1,9 @@
 import { createLogger } from '@sim/logger'
 import { type NextRequest, NextResponse } from 'next/server'
+import { env } from '@/lib/core/config/env'
 import { withRouteHandler } from '@/lib/core/utils/with-route-handler'
 import {
-  channelForHostname,
+  channelForDeploymentEnvironment,
   DESKTOP_RELEASE_REPO,
   type DesktopReleaseCandidate,
   MANIFEST_ASSET_NAME,
@@ -21,19 +22,6 @@ const FEED_STATUS_HEADER = 'x-sim-desktop-update-feed'
 
 const RELEASES_API_URL = `https://api.github.com/repos/${DESKTOP_RELEASE_REPO}/releases?per_page=30`
 
-/** Resolves the public hostname when Next.js is running behind a reverse proxy. */
-function hostnameForRequest(request: NextRequest): string {
-  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
-  const host = forwardedHost || request.headers.get('host')
-  if (!host) return request.nextUrl.hostname
-
-  try {
-    return new URL(`http://${host}`).hostname
-  } catch {
-    return request.nextUrl.hostname
-  }
-}
-
 /**
  * The per-environment desktop update feed (see `lib/desktop/update-feed.ts`).
  *
@@ -42,14 +30,14 @@ function hostnameForRequest(request: NextRequest): string {
  * design: the updater's HTTP client carries no session, and the response
  * only describes public GitHub release artifacts.
  */
-export const GET = withRouteHandler(async (request: NextRequest): Promise<Response> => {
+export const GET = withRouteHandler(async (_request: NextRequest): Promise<Response> => {
   /**
-   * The same deployment configuration can be promoted across environments, so
-   * its baked NEXT_PUBLIC_APP_URL is not authoritative for this public feed.
-   * Reverse proxies replace the request URL's hostname with their internal
-   * origin, so use the forwarded public host to select the channel.
+   * Hosted deployments inject APPCONFIG_ENVIRONMENT independently at runtime,
+   * so it stays correct when the same image is promoted across environments.
+   * Request host headers are intentionally excluded: this public route must not
+   * let a caller choose which app-identity release the feed serves.
    */
-  const channel = channelForHostname(hostnameForRequest(request))
+  const channel = channelForDeploymentEnvironment(env.APPCONFIG_ENVIRONMENT)
 
   // A token raises the GitHub API quota from 60/h per NAT IP to 5000/h.
   // Optional: the repo is public, so the feed works without one.

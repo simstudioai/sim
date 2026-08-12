@@ -6,9 +6,9 @@
  * GitHub feed, so each environment independently controls which shell build
  * its clients are offered. The environment IS the channel:
  *
- * - dev.sim.ai      → `dev`      (per-push prerelease builds from `dev`)
- * - staging.sim.ai  → `staging`  (per-push prerelease builds from `staging`)
- * - sim.ai + self-hosted/unknown → `latest` (stable vX.Y.Z releases only)
+ * - hosted `dev` deployment     → `dev`     (per-push prerelease builds from `dev`)
+ * - hosted `staging` deployment → `staging` (per-push prerelease builds from `staging`)
+ * - production + self-hosted    → `latest`  (stable vX.Y.Z releases only)
  *
  * Artifacts stay on GitHub Releases (dumb storage); the feed route picks the
  * right release for its channel and serves that release's electron-updater
@@ -28,15 +28,12 @@ export const DESKTOP_RELEASE_REPO = 'simstudioai/sim'
 
 export type DesktopUpdateChannel = 'dev' | 'staging' | 'latest'
 
-/** Maps a deployment hostname to its desktop update channel. */
-export function channelForHostname(hostname: string): DesktopUpdateChannel {
-  const host = hostname.toLowerCase()
-  if (host === 'dev.sim.ai' || host.endsWith('.dev.sim.ai')) {
-    return 'dev'
-  }
-  if (host === 'staging.sim.ai' || host.endsWith('.staging.sim.ai')) {
-    return 'staging'
-  }
+/** Maps Sim's server-controlled deployment environment to its update channel. */
+export function channelForDeploymentEnvironment(
+  environment: string | undefined
+): DesktopUpdateChannel {
+  if (environment === 'dev') return 'dev'
+  if (environment === 'staging') return 'staging'
   return 'latest'
 }
 
