@@ -83,6 +83,8 @@ function serviceFailureResponse(failure: ExecuteWorkflowServiceFailure) {
   return v2Error(code, isRunIdConflict ? 'Run ID has already been used' : failure.message, {
     status: failure.statusCode,
     headers,
+    /** An unconfirmed enqueue may already have started a run — reconcile on `runId`, never retry blind. */
+    omitRetryAfter: failure.code === 'ASYNC_ENQUEUE_AMBIGUOUS',
     details:
       detailCode || failure.executionId
         ? {

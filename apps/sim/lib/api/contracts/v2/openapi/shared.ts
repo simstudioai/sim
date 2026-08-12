@@ -67,7 +67,9 @@ export const ERROR_RESPONSES = {
   InternalError: { status: 500, description: 'An unexpected server error occurred.' },
   ServiceUnavailable: {
     status: 503,
-    description: 'A required service is temporarily unavailable.',
+    description:
+      'A required service is temporarily unavailable. The condition is transient, so the response normally carries `Retry-After` with the number of seconds to wait; treat that value as a floor and add jitter before retrying. One case deliberately omits the header: when `error.details.code` is `ASYNC_ENQUEUE_AMBIGUOUS`, the run may already have started, so retrying could start and bill a second run. Reconcile against the returned run id instead of retrying.',
+    headers: ['Retry-After'],
   },
 } as const satisfies Readonly<Record<string, OpenApiErrorResponse>>
 
@@ -188,7 +190,8 @@ export const V2_COMMON_HEADERS = {
     schema: z.number().int().nonnegative().meta({
       id: 'RetryAfterHeader',
       title: 'Retry after',
-      description: 'Seconds to wait before retrying a rate-limited request.',
+      description:
+        'Seconds to wait before retrying. Sent on `429` (derived from the caller rate-limit window) and on `503` (a fixed transient-failure floor). Add jitter rather than retrying at exactly this offset.',
     }),
   },
   'X-Run-Id': {
