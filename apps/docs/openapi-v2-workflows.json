@@ -3929,7 +3929,7 @@
               "failed",
               "cancelled"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` is reported while the run is waiting at a human-in-the-loop pause point."
+            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` covers two states a client may need to tell apart: the run is waiting at a human-in-the-loop pause point, or a resume attempt did not run to completion and the run is waiting to be resumed again (automatically when a retry is scheduled). Read the `paused` object on the single-run response to distinguish them."
           },
           "trigger": {
             "type": "string",
@@ -4070,7 +4070,7 @@
               "cancelled",
               "queued"
             ],
-            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` is reported while the run is waiting at a human-in-the-loop pause point."
+            "description": "Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` covers two states a client may need to tell apart: the run is waiting at a human-in-the-loop pause point, or a resume attempt did not run to completion and the run is waiting to be resumed again (automatically when a retry is scheduled). Read the `paused` object on the single-run response to distinguish them."
           },
           "trigger": {
             "anyOf": [

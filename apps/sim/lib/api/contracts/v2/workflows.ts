@@ -983,12 +983,13 @@ export const v2ResumeWorkflowContract = defineRouteContract({
 })
 
 const RUN_STATUS_DESCRIPTION =
-  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` is reported while the run is waiting at a human-in-the-loop pause point.'
+  'Current or terminal run status. `redacting` is transient, reported while the output of a finished run is being scrubbed. `paused` covers two states a client may need to tell apart: the run is waiting at a human-in-the-loop pause point, or a resume attempt did not run to completion and the run is waiting to be resumed again (automatically when a retry is scheduled). Read the `paused` object on the single-run response to distinguish them.'
 
 /**
  * The list projection passes `workflow_execution_logs.status` through except where it
  * overlays `paused` for a run holding a `paused` or `partially_resumed` row in
- * `paused_executions`. Both branches land in the persisted set, so the reported enum is
+ * `paused_executions` — so a reported `paused` is either that overlay or the persisted
+ * value a failed resume attempt left behind. Both branches land in the persisted set, so the reported enum is
  * derived from it — a value missing here fails the response parse, and because list
  * validation is whole-page one such row turns an entire page into a 500. `queued` is not
  * reportable: a run still only in the job queue has no log row to list.
