@@ -4,7 +4,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   EXPORT_PRESERVED_RESOURCE_TYPES,
-  sanitizeForExport,
   sanitizeWorkflowForSharing,
 } from '@/lib/workflows/credentials/credential-extractor'
 import { WORKFLOW_SEARCH_SUBBLOCK_RESOURCE_TYPES } from '@/lib/workflows/search-replace/resources/registry'
@@ -46,6 +45,17 @@ function stateWithSubBlock(type: string, value: unknown): Partial<WorkflowState>
   } as unknown as Partial<WorkflowState>
 }
 
+/**
+ * The exact option set `json-sanitizer`'s `sanitizeForExport` passes, copied rather than imported
+ * so this suite keeps testing `credential-extractor` without pulling in its own consumer.
+ *
+ * The copy cannot drift unnoticed: `import-export-roundtrip` calls the real `sanitizeForExport`
+ * and asserts the same withholding, so dropping an option there turns that suite red. Every
+ * export-shaped assertion below must use this constant — one that quietly omitted
+ * `redactOpaqueCredentialInputs` would describe a configuration no export surface runs.
+ */
+const EXPORT_OPTIONS = { preserveEnvVars: true, redactOpaqueCredentialInputs: true } as const
+
 function sanitizedValue(type: string, value: unknown): unknown {
   vi.mocked(getBlock).mockReturnValue({
     name: 'Test',
@@ -53,7 +63,7 @@ function sanitizedValue(type: string, value: unknown): unknown {
     subBlocks: [{ id: 'field', title: 'Field', type }],
     outputs: {},
   } as never)
-  const sanitized = sanitizeForExport(stateWithSubBlock(type, value))
+  const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock(type, value), EXPORT_OPTIONS)
   return sanitized.blocks?.b1?.subBlocks?.field?.value
 }
 
@@ -98,19 +108,22 @@ describe('export sanitizer resource coverage', () => {
 
   it('clears tableId by key on a block with no registry config', () => {
     vi.mocked(getBlock).mockReturnValue(undefined as never)
-    const sanitized = sanitizeForExport({
-      blocks: {
-        b1: {
-          id: 'b1',
-          type: 'unknown-block',
-          name: 'Test',
-          position: { x: 0, y: 0 },
-          subBlocks: { tableId: { id: 'tableId', type: 'short-input', value: 'tbl_abc' } },
-          outputs: {},
-          enabled: true,
+    const sanitized = sanitizeWorkflowForSharing(
+      {
+        blocks: {
+          b1: {
+            id: 'b1',
+            type: 'unknown-block',
+            name: 'Test',
+            position: { x: 0, y: 0 },
+            subBlocks: { tableId: { id: 'tableId', type: 'short-input', value: 'tbl_abc' } },
+            outputs: {},
+            enabled: true,
+          },
         },
-      },
-    } as unknown as Partial<WorkflowState>)
+      } as unknown as Partial<WorkflowState>,
+      EXPORT_OPTIONS
+    )
     expect(sanitized.blocks?.b1?.subBlocks?.tableId?.value).toBeNull()
   })
 
@@ -133,10 +146,10 @@ describe('export sanitizer resource coverage', () => {
       outputs: {},
     } as never)
 
-    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('tool-input', value), {
-      preserveEnvVars: true,
-      redactOpaqueCredentialInputs: true,
-    })
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('tool-input', value),
+      EXPORT_OPTIONS
+    )
 
     expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
       {
@@ -167,10 +180,10 @@ describe('export sanitizer resource coverage', () => {
       outputs: {},
     } as never)
 
-    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('tool-input', value), {
-      preserveEnvVars: true,
-      redactOpaqueCredentialInputs: true,
-    })
+    const sanitized = sanitizeWorkflowForSharing(
+      stateWithSubBlock('tool-input', value),
+      EXPORT_OPTIONS
+    )
 
     expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toEqual([
       {
@@ -182,7 +195,7 @@ describe('export sanitizer resource coverage', () => {
     ])
   })
 
-  it('withholds opaque table values from public snapshots', () => {
+  it('withholds opaque table values from public snapshots and exports', () => {
     const value = [
       { Key: 'Authorization', Value: 'Bearer plaintext-secret' },
       { Key: 'API_TOKEN', Value: '{{API_TOKEN}}' },
@@ -194,10 +207,7 @@ describe('export sanitizer resource coverage', () => {
       outputs: {},
     } as never)
 
-    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('table', value), {
-      preserveEnvVars: true,
-      redactOpaqueCredentialInputs: true,
-    })
+    const sanitized = sanitizeWorkflowForSharing(stateWithSubBlock('table', value), EXPORT_OPTIONS)
 
     expect(sanitized.blocks?.b1?.subBlocks?.field?.value).toBeNull()
   })

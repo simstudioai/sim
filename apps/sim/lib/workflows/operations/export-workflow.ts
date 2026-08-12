@@ -6,33 +6,6 @@ import {
 } from '@/lib/workflows/sanitization/json-sanitizer'
 import { parseWorkflowVariables } from '@/lib/workflows/variables/parse'
 
-/**
- * Server-only assembly of the public workflow-export payload, shared by the v1
- * and v2 export routes so both surfaces emit byte-identical envelopes.
- *
- * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
- * the raw state for backup/restore, this runs the payload through
- * `sanitizeForExport`, which nulls five classes of sub-block value:
- * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
- *   reference, which is preserved so the import resolves it in the target
- *   workspace;
- * - `oauth-input` credentials;
- * - sensitive nested `tool-input` params and params without authoritative metadata;
- * - opaque credential-bearing values such as arbitrary table cells;
- * - **workspace-scoped bindings** — selector fields and id-keyed fields that
- *   point at rows that do not exist in another workspace, cleared rather than
- *   carried across as dangling ids.
- *
- * The last class means an export is **not** a byte-for-byte clone even when
- * re-imported into the same workspace: those bindings come back empty and must
- * be re-selected. This matches the in-app export.
- *
- * Workflow **variables** are emitted as stored: they are plaintext workflow
- * configuration readable by anyone with workspace read (the same permission the
- * export routes require); secrets belong in environment variables, which travel
- * as unresolved `{{ENV_VAR}}` references.
- */
-
 /** The subset of the workflow record the export payload reads. */
 export interface ExportableWorkflowRecord {
   id: string
@@ -111,6 +84,31 @@ function toExportedEdge(edge: Edge): WorkflowExportEdge {
  * Loads the workflow's normalized state, sanitizes it, and assembles the
  * portable export envelope. Returns `null` when the workflow has no persisted
  * normalized state (the caller renders its own 404).
+ *
+ * Server-only assembly of the public workflow-export payload, shared by the v1
+ * and v2 export routes so both surfaces emit byte-identical envelopes.
+ *
+ * Unlike the admin export (`/api/v1/admin/workflows/[id]/export`), which emits
+ * the raw state for backup/restore, this runs the payload through
+ * `sanitizeForExport`, which nulls five classes of sub-block value:
+ * - `password: true` fields, unless the value is a whole `{{ENV_VAR}}`
+ *   reference, which is preserved so the import resolves it in the target
+ *   workspace;
+ * - `oauth-input` credentials;
+ * - sensitive nested `tool-input` params and params without authoritative metadata;
+ * - opaque credential-bearing values such as arbitrary table cells;
+ * - **workspace-scoped bindings** — selector fields and id-keyed fields that
+ *   point at rows that do not exist in another workspace, cleared rather than
+ *   carried across as dangling ids.
+ *
+ * The last two classes mean an export is **not** a byte-for-byte clone even when
+ * re-imported into the same workspace: those bindings and every table come back
+ * empty and must be re-entered. This matches the in-app export.
+ *
+ * Workflow **variables** are emitted as stored: they are plaintext workflow
+ * configuration readable by anyone with workspace read (the same permission the
+ * export routes require); secrets belong in environment variables, which travel
+ * as unresolved `{{ENV_VAR}}` references.
  */
 export async function buildWorkflowExportPayload(
   workflowData: ExportableWorkflowRecord
