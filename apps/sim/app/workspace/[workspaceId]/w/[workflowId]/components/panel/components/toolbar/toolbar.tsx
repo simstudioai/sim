@@ -21,7 +21,6 @@ import {
   Info,
 } from '@sim/emcn'
 import { ChevronDown, Search } from '@sim/emcn/icons'
-import { hasWorkflowTypeRole, WorkflowTypeIcon } from '@sim/workflow-renderer'
 import clsx from 'clsx'
 import { useParams } from 'next/navigation'
 import { usePostHog } from 'posthog-js/react'
@@ -34,6 +33,7 @@ import {
 import { useToolbarItemInteractions } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/panel/components/toolbar/hooks'
 import { LoopTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/loop/loop-config'
 import { ParallelTool } from '@/app/workspace/[workspaceId]/w/[workflowId]/components/subflows/parallel/parallel-config'
+import { BlockTile } from '@/blocks/block-tile'
 import {
   buildCustomBlockConfig,
   CUSTOM_BLOCK_TILE_COLOR,
@@ -41,7 +41,6 @@ import {
 } from '@/blocks/custom/build-config'
 import { useCustomBlockOverlayVersion } from '@/blocks/custom/client-overlay'
 import { getCustomBlockIcon } from '@/blocks/custom/custom-block-icon'
-import { getTileIconColorClass } from '@/blocks/icon-color'
 import { getCanonicalBlocksByCategory } from '@/blocks/registry'
 import type { BlockConfig } from '@/blocks/types'
 import { useOrgBrandConfig } from '@/ee/whitelabeling/components/branding-provider'
@@ -57,7 +56,6 @@ interface BlockItem {
   config?: BlockConfig
   icon?: ComponentType<{ className?: string }>
   bgColor?: string
-  workflowType?: string
   docsLink?: string
 }
 
@@ -134,26 +132,12 @@ const ToolbarItem = memo(function ToolbarItem({
       )}
       onKeyDown={handleKeyDown}
     >
-      {item.workflowType && Icon ? (
-        <WorkflowTypeIcon type={item.workflowType} Icon={Icon} data-toolbar-item-icon='' />
-      ) : (
-        <div
-          data-toolbar-item-icon=''
-          className='relative flex size-[16px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm [&_img]:size-full'
-          style={{ background: item.bgColor }}
-        >
-          {Icon && (
-            <Icon
-              className={clsx(
-                'transition-transform duration-200',
-                getTileIconColorClass(item.bgColor),
-                'group-hover:scale-110',
-                'size-[10px]'
-              )}
-            />
-          )}
-        </div>
-      )}
+      <BlockTile
+        blockType={item.type}
+        icon={Icon}
+        bgColor={item.bgColor}
+        data-toolbar-item-icon=''
+      />
       <span className='min-w-0 flex-1 truncate text-[var(--text-body)]'>{item.name}</span>
     </div>
   )
@@ -210,7 +194,6 @@ function getTriggers(overlayVersion: number): BlockItem[] {
       config: trigger,
       icon: trigger.icon,
       bgColor: trigger.bgColor,
-      workflowType: hasWorkflowTypeRole(trigger.type) ? trigger.type : undefined,
       docsLink: trigger.docsLink,
     }))
   }
@@ -247,7 +230,6 @@ function ensureBlockCaches() {
     config: block,
     icon: block.icon,
     bgColor: block.bgColor,
-    workflowType: block.type,
   }))
 
   regularBlockItems.push({
@@ -255,7 +237,6 @@ function ensureBlockCaches() {
     type: LoopTool.type,
     icon: LoopTool.icon,
     bgColor: LoopTool.bgColor,
-    workflowType: LoopTool.type,
     docsLink: LoopTool.docsLink,
   })
 
@@ -264,7 +245,6 @@ function ensureBlockCaches() {
     type: ParallelTool.type,
     icon: ParallelTool.icon,
     bgColor: ParallelTool.bgColor,
-    workflowType: ParallelTool.type,
     docsLink: ParallelTool.docsLink,
   })
 
@@ -274,7 +254,6 @@ function ensureBlockCaches() {
     config: block,
     icon: block.icon,
     bgColor: block.bgColor,
-    workflowType: hasWorkflowTypeRole(block.type) ? block.type : undefined,
   }))
 
   regularBlockItems.sort((a, b) => a.name.localeCompare(b.name))

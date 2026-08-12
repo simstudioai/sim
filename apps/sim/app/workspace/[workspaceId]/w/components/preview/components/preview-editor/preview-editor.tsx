@@ -45,6 +45,7 @@ import { PreviewContextMenu } from '@/app/workspace/[workspaceId]/w/components/p
 import { PreviewWorkflow } from '@/app/workspace/[workspaceId]/w/components/preview/components/preview-workflow'
 import { useContextMenu } from '@/app/workspace/[workspaceId]/w/components/sidebar/hooks'
 import { getBlock } from '@/blocks'
+import { BlockTile } from '@/blocks/block-tile'
 import { getTileIconColorClass } from '@/blocks/icon-color'
 import type { BlockConfig, BlockIcon, SubBlockConfig, SubBlockType } from '@/blocks/types'
 import { normalizeName } from '@/executor/constants'
@@ -356,9 +357,6 @@ function ConnectionsSection({
       {/* Content - styled like ConnectionBlocks */}
       <div className='flex-1 space-y-0.5 overflow-y-auto overflow-x-hidden px-1.5 pb-2'>
         {connections.map((connection) => {
-          const blockConfig = getBlock(connection.blockType)
-          const Icon = blockConfig?.icon
-          const bgColor = blockConfig?.bgColor || '#6B7280'
           const isExpanded = expandedBlocks.has(connection.blockId)
           const hasFields = connection.fields.length > 0
 
@@ -379,21 +377,7 @@ function ConnectionsSection({
                   handleKeyboardActivation(event, () => toggleBlock(connection.blockId))
                 }}
               >
-                <div
-                  className='relative flex size-[14px] flex-shrink-0 items-center justify-center overflow-hidden rounded-sm'
-                  style={{ background: bgColor }}
-                >
-                  {Icon && (
-                    <Icon
-                      className={cn(
-                        'transition-transform duration-200',
-                        getTileIconColorClass(bgColor),
-                        hasFields && 'group-hover:scale-110',
-                        '!h-[9px] !w-[9px]'
-                      )}
-                    />
-                  )}
-                </div>
+                <BlockTile blockType={connection.blockType} size='sm' />
                 <span
                   className={cn(
                     'truncate',

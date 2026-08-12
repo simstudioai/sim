@@ -42,8 +42,7 @@ export const BlocksGroup = memo(function BlocksGroup({
           onSelect={() => onSelect(block)}
           icon={block.icon}
           bgColor={block.bgColor}
-          showColoredIcon
-          workflowType={block.type}
+          blockType={block.type}
           label={block.name}
         />
       ))}
@@ -69,7 +68,7 @@ export const ToolsGroup = memo(function ToolsGroup({
           onSelect={() => onSelect(tool)}
           icon={tool.icon}
           bgColor={tool.bgColor}
-          showColoredIcon
+          blockType={tool.type}
           label={tool.name}
         />
       ))}
@@ -108,8 +107,7 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectBlock(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
-          workflowType={entry.item.type}
+          blockType={entry.item.type}
           label={entry.item.name}
         />
       )
@@ -121,7 +119,7 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectTool(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
+          blockType={entry.item.type}
           label={entry.item.name}
         />
       )
@@ -133,7 +131,7 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectTrigger(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
+          blockType={entry.item.type}
           label={entry.item.name}
         />
       )
@@ -145,7 +143,7 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectToolOperation(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
+          blockType={entry.item.blockType}
           labelPrefix={entry.item.serviceName}
           label={entry.item.name}
         />
@@ -158,7 +156,6 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectConnectedAccount(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
           label={entry.item.name}
         />
       )
@@ -170,7 +167,6 @@ function renderSearchEntry(
           onSelect={() => handlers.onSelectIntegration(entry.item)}
           icon={entry.item.icon}
           bgColor={entry.item.bgColor}
-          showColoredIcon
           label={entry.item.name}
         />
       )
