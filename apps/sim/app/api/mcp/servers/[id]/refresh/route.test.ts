@@ -5,9 +5,10 @@ import { dbChainMockFns, resetDbChainMock } from '@sim/testing'
 import type { NextRequest } from 'next/server'
 import { afterAll, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { mockClearCache, mockDiscoverServerTools } = vi.hoisted(() => ({
+const { mockClearCache, mockDiscoverServerTools, requiredRoles } = vi.hoisted(() => ({
   mockClearCache: vi.fn(),
   mockDiscoverServerTools: vi.fn(),
+  requiredRoles: [] as string[],
 }))
 
 vi.mock('@/lib/core/utils/with-route-handler', () => ({
@@ -15,21 +16,22 @@ vi.mock('@/lib/core/utils/with-route-handler', () => ({
 }))
 
 vi.mock('@/lib/mcp/middleware', () => ({
-  withMcpAuth:
-    () =>
-    (
+  withMcpAuth: (requiredRole: string) => {
+    requiredRoles.push(requiredRole)
+    return (
       handler: (
         request: NextRequest,
         context: { userId: string; workspaceId: string; requestId: string },
         routeContext: { params: Promise<{ id: string }> }
       ) => Promise<Response>
     ) =>
-    (request: NextRequest, routeContext: { params: Promise<{ id: string }> }) =>
-      handler(
-        request,
-        { userId: 'user-1', workspaceId: 'workspace-1', requestId: 'request-1' },
-        routeContext
-      ),
+      (request: NextRequest, routeContext: { params: Promise<{ id: string }> }) =>
+        handler(
+          request,
+          { userId: 'user-1', workspaceId: 'workspace-1', requestId: 'request-1' },
+          routeContext
+        )
+  },
 }))
 
 vi.mock('@/lib/mcp/service', () => ({
@@ -70,6 +72,10 @@ describe('MCP server refresh route', () => {
 
   afterAll(() => {
     resetDbChainMock()
+  })
+
+  it('requires workspace write permission because refresh persists workflow changes', () => {
+    expect(requiredRoles).toEqual(['write'])
   })
 
   it('preserves the service-persisted OAuth pending status', async () => {

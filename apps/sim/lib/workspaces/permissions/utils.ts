@@ -25,6 +25,7 @@ export interface WorkspaceWithOwner {
   organizationId: string | null
   workspaceMode: WorkspaceMode
   billedAccountUserId: string
+  allowPersonalApiKeys: boolean
   archivedAt?: Date | null
 }
 
@@ -95,6 +96,7 @@ export async function getWorkspaceWithOwner(
       organizationId: workspace.organizationId,
       workspaceMode: workspace.workspaceMode,
       billedAccountUserId: workspace.billedAccountUserId,
+      allowPersonalApiKeys: workspace.allowPersonalApiKeys,
       archivedAt: workspace.archivedAt,
     })
     .from(workspace)

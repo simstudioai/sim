@@ -6,7 +6,11 @@ import { decryptApiKey } from '@/lib/api-key/crypto'
 import type { BillingAttributionSnapshot } from '@/lib/billing/core/billing-attribution'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { generateRequestId } from '@/lib/core/utils/request'
-import { resolveCredentialTokenIdentity } from '@/lib/credentials/access'
+import {
+  canUseCredential,
+  getCredentialActorContext,
+  resolveCredentialTokenIdentity,
+} from '@/lib/credentials/access'
 import { defineAuthorizedKnowledgeUseCase } from '@/lib/knowledge/application/authorized-knowledge-use-case'
 import { resolveKnowledgeAttributedUserId } from '@/lib/knowledge/application/billing'
 import {
@@ -116,13 +120,29 @@ function requireConnectorWorkspaceId(context: ActiveKnowledgeResourceBaseContext
   return context.workspaceId
 }
 
+async function resolveAuthorizedConnectorCredentialIdentity(input: {
+  credentialId: string
+  workspaceId: string
+  actingUserId: string
+}) {
+  const access = await getCredentialActorContext(input.credentialId, input.actingUserId)
+  if (
+    !access.credential ||
+    access.credential.workspaceId !== input.workspaceId ||
+    !canUseCredential(access)
+  ) {
+    return null
+  }
+  return resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+}
+
 async function resolveConnectorCredentialAccessToken(input: {
   credentialId: string
   workspaceId: string
   actingUserId: string
   requestId: string
 }): Promise<string | null> {
-  const identity = await resolveCredentialTokenIdentity(input.credentialId, input.workspaceId)
+  const identity = await resolveAuthorizedConnectorCredentialIdentity(input)
   if (!identity) return null
   return refreshAccessTokenIfNeeded(
     input.credentialId,
@@ -163,10 +183,11 @@ async function validateConnectorSourceConfig(input: {
         errorCode: 'validation',
       }
     }
-    const identity = await resolveCredentialTokenIdentity(
-      input.connector.credentialId,
-      input.workspaceId
-    )
+    const identity = await resolveAuthorizedConnectorCredentialIdentity({
+      credentialId: input.connector.credentialId,
+      workspaceId: input.workspaceId,
+      actingUserId: input.actingUserId,
+    })
     if (!identity) {
       return {
         message: 'Credential is no longer usable in this workspace. Please reconnect it.',

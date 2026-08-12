@@ -195,7 +195,7 @@ export async function createMcpServer(
       const oauthDisabled = existingServer.authType === 'oauth' && resolvedAuthType !== 'oauth'
       const shouldClearOauth = urlChanged || credsChanged || isRevival || oauthDisabled
 
-      if (shouldClearOauth) await revokeMcpOauthTokens(serverId)
+      if (shouldClearOauth) await revokeMcpOauthTokens(serverId, params.workspaceId)
 
       await db.transaction(async (tx) => {
         if (shouldClearOauth) {
@@ -354,7 +354,7 @@ export async function updateMcpServer(
       updateData.lastError = null
     }
 
-    if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId)
+    if (shouldClearOauth) await revokeMcpOauthTokens(params.serverId, params.workspaceId)
 
     const server = await db.transaction(async (tx) => {
       const [updated] = await tx
@@ -400,7 +400,7 @@ export async function deleteMcpServer(
   params: Omit<PerformDeleteMcpServerParams, keyof ActorMetadata | 'source'>
 ): Promise<PerformMcpServerResult> {
   try {
-    await revokeMcpOauthTokens(params.serverId)
+    await revokeMcpOauthTokens(params.serverId, params.workspaceId)
     const [server] = await db
       .delete(mcpServers)
       .where(
