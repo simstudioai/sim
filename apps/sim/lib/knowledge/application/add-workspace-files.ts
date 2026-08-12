@@ -35,7 +35,10 @@ import {
   type WorkspaceFileRecord,
 } from '@/lib/uploads/contexts/workspace/workspace-file-manager'
 import { getBoundWorkspaceFileSecretProvenance } from '@/lib/uploads/contexts/workspace/workspace-file-secret-provenance'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('AddWorkspaceFilesToKnowledgeBase')
@@ -93,6 +96,9 @@ async function prepareWorkspaceFile(
   })
   if (file.size < 0 || file.size > MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE) {
     throw new OrchestrationError('payload_too_large', 'Knowledge document exceeds the 100MB limit')
+  }
+  if (file.size === 0) {
+    throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
   }
   const fileTypeError = validateFileType(file.name, file.type)
   if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)

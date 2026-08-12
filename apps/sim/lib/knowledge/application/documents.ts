@@ -65,7 +65,10 @@ import { getDocumentTagDefinitions } from '@/lib/knowledge/tags/service'
 import { StorageService } from '@/lib/uploads'
 import { generateKnowledgeBaseFileKey } from '@/lib/uploads/contexts/knowledge-base/knowledge-base-file-manager'
 import { recordKnowledgeBaseFileOwnership } from '@/lib/uploads/server/metadata'
-import { MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE } from '@/lib/uploads/shared/types'
+import {
+  EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE,
+  MAX_KNOWLEDGE_DOCUMENT_FILE_SIZE,
+} from '@/lib/uploads/shared/types'
 import { validateFileType } from '@/lib/uploads/utils/validation'
 
 const logger = createLogger('KnowledgeDocumentApplication')
@@ -310,6 +313,9 @@ export const uploadKnowledgeDocument = defineAuthorizedKnowledgeUseCase({
     }
     if (input.file.fileSize !== input.file.buffer.byteLength) {
       throw new Error('Knowledge document upload size does not match its buffered bytes')
+    }
+    if (input.file.fileSize === 0) {
+      throw new OrchestrationError('validation', EMPTY_KNOWLEDGE_DOCUMENT_MESSAGE)
     }
     const fileTypeError = validateFileType(input.file.filename, input.file.mimeType)
     if (fileTypeError) throw new OrchestrationError('validation', fileTypeError.message)

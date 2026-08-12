@@ -205,4 +205,38 @@ describe('/api/v2/tables/[tableId]/rows', () => {
       },
     })
   })
+  /**
+   * A table cell is `z.unknown()` on the wire — its type is decided by the
+   * column, not the contract — so no string schema guards it. A `U+0000` in a
+   * cell value or a predicate value therefore travelled all the way to the
+   * driver and came back as `500 INTERNAL_ERROR`.
+   */
+  describe('NUL bytes in table values', () => {
+    const NUL = '\u0000'
+
+    it('rejects a NUL in a cell value before the row use case runs', async () => {
+      const response = await POST(
+        request('POST', { workspaceId: WORKSPACE_ID, data: { name: `a${NUL}b` } }),
+        CONTEXT
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.createRows).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL in a predicate value on the update-by-filter path', async () => {
+      const response = await PATCH(
+        request('PATCH', {
+          workspaceId: WORKSPACE_ID,
+          filter: { all: [{ field: 'name', op: 'contains', value: `a${NUL}b` }] },
+          data: { name: 'Grace' },
+        }),
+        CONTEXT
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.updateRows).not.toHaveBeenCalled()
+    })
+  })
 })

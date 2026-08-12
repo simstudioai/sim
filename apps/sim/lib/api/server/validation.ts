@@ -8,6 +8,7 @@ import type {
   ContractParams,
   ContractQuery,
 } from '@/lib/api/contracts'
+import { nulByteValidationError } from '@/lib/api/server/nul-bytes'
 import { env } from '@/lib/core/config/env'
 import {
   assertContentLengthWithinLimit,
@@ -294,6 +295,12 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
   const parsedBody = contract.body ? validateRequestSchema(contract.body, body, options) : undefined
   if (parsedBody && !parsedBody.success) return parsedBody
 
+  const nulBytes =
+    rejectNulBytes(params?.data, options) ??
+    rejectNulBytes(query?.data, options) ??
+    rejectNulBytes(parsedBody?.data, options)
+  if (nulBytes) return nulBytes
+
   return {
     success: true,
     data: {
@@ -302,6 +309,25 @@ export async function parseRequest<C extends AnyApiRouteContract, TContext>(
       headers: headers?.data as ContractHeaders<C>,
       body: parsedBody?.data as ContractBody<C>,
     },
+  }
+}
+
+/**
+ * Applies {@link nulByteValidationError} to one validated request slice and
+ * projects a hit through the same error renderer the schema failures use, so a
+ * NUL is a 400 in every surface's own envelope instead of a driver-level 500.
+ */
+function rejectNulBytes(
+  data: unknown,
+  options?: ParseRequestOptions
+): { success: false; response: NextResponse<unknown> } | null {
+  const error = nulByteValidationError(data)
+  if (!error) return null
+  return {
+    success: false,
+    response: options?.validationErrorResponse
+      ? options.validationErrorResponse(error)
+      : validationErrorResponse(error),
   }
 }
 

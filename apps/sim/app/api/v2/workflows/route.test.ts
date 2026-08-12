@@ -173,4 +173,58 @@ describe('/api/v2/workflows', () => {
     expect(response.status).toBe(401)
     expect((await response.json()).error.code).toBe('UNAUTHORIZED')
   })
+
+  /**
+   * A `U+0000` in caller text is a driver-level throw on the way to a `text`
+   * column, and an unclassified throw is a `500 INTERNAL_ERROR`. The read case
+   * needed no write at all — a search term was enough — so it is asserted here
+   * against the real route, not only against the parser.
+   */
+  describe('NUL bytes in caller text', () => {
+    const NUL = '\u0000'
+
+    it('rejects a NUL search term with the v2 validation envelope, not a 500', async () => {
+      const response = await GET(
+        new NextRequest(
+          `http://localhost/api/v2/workflows?workspaceId=${WORKSPACE_ID}&search=${encodeURIComponent(`a${NUL}b`)}`,
+          { headers: { 'x-api-key': 'secret' } }
+        )
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.listWorkflows).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL workflow name before the create use case runs', async () => {
+      const response = await POST(
+        new NextRequest('http://localhost/api/v2/workflows', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+          body: JSON.stringify({ name: `a${NUL}b`, workspaceId: WORKSPACE_ID }),
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect((await response.json()).error.code).toBe('BAD_REQUEST')
+      expect(mocks.createWorkflow).not.toHaveBeenCalled()
+    })
+
+    it('rejects a NUL description on the same body', async () => {
+      const response = await POST(
+        new NextRequest('http://localhost/api/v2/workflows', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', 'x-api-key': 'secret' },
+          body: JSON.stringify({
+            name: 'Daily digest',
+            description: `notes${NUL}`,
+            workspaceId: WORKSPACE_ID,
+          }),
+        })
+      )
+
+      expect(response.status).toBe(400)
+      expect(mocks.createWorkflow).not.toHaveBeenCalled()
+    })
+  })
 })
