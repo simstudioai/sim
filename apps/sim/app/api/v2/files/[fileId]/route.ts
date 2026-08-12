@@ -28,10 +28,19 @@ export const revalidate = 0
  * Lookups are workspace-scoped (IDOR-safe): a file in another workspace 404s.
  *
  * A generated doc whose artifact is still compiling renders `CONFLICT`; retry.
+ *
+ * Downloading is not a safe read: it records a `FILE_DOWNLOADED` audit event and
+ * pulls the bytes out of object storage. Next aliases `HEAD` onto `GET`, and RFC
+ * 9110 §9.2.1 defines `HEAD` as safe, so this route declares itself not
+ * head-safe — a `HEAD` is authenticated and rate-limited, then answered bodiless
+ * without auditing or fetching. Without that, an uptime monitor or link checker
+ * walking the documented URL list would fabricate a download event on every
+ * probe, for a download that never happened.
  */
 export const GET = defineV2BinaryRoute({
   contract: v2DownloadFileContract,
   auth: v2ApiKeyAuth,
+  headSafe: false,
   operation: fileOperations.download,
   rateLimit: v2RateLimits.publicApi,
   errorPolicy: v2FileErrorPolicies.concealResourceAuthorization,

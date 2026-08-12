@@ -2,6 +2,7 @@ import { AuditAction, AuditResourceType } from '@sim/audit'
 import type { Principal } from '@sim/auth/principal'
 import type { CursorKey, ListSortOrder } from '@/lib/api/list-query'
 import { defineAuthorizedWorkspaceUseCase } from '@/lib/core/application'
+import { ForbiddenOperationError } from '@/lib/core/application/forbidden'
 import { OrchestrationError } from '@/lib/core/orchestration/types'
 import { getWorkspaceEnvKeyAdminAccess } from '@/lib/credentials/environment'
 import {
@@ -99,15 +100,18 @@ async function requireWorkspaceSecretMutationAccess(params: {
 
   if (keyAccess.knownKeys.has(params.name)) {
     if (!workspaceAccess.canAdmin && !keyAccess.adminKeys.has(params.name)) {
-      throw new OrchestrationError(
-        'forbidden',
+      throw new ForbiddenOperationError(
+        'SECRET_ADMIN_ACCESS_REQUIRED',
         'Credential admin permission required for this secret'
       )
     }
     return
   }
   if (!workspaceAccess.canWrite) {
-    throw new OrchestrationError('forbidden', 'Write permission required to set this secret')
+    throw new ForbiddenOperationError(
+      'INSUFFICIENT_WORKSPACE_ROLE',
+      'Write permission required to set this secret'
+    )
   }
 }
 

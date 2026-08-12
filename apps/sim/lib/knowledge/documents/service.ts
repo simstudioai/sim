@@ -122,6 +122,13 @@ const logger = createLogger('DocumentService')
  * Thrown when a knowledge-base document's `fileUrl` references an internal
  * knowledge-base storage object not owned by the target knowledge base's workspace.
  * Routes map this to a 403.
+ *
+ * Deliberately carries no `details.code`. It belongs to the cross-tenant class
+ * the closed set in `lib/core/application/forbidden.ts` excludes: it fires
+ * identically for a key bound to another tenant and for a key bound to nothing
+ * at all, so the single fixed message is the whole of what a caller may learn,
+ * and a machine-readable name would only invite a client to read resource
+ * existence into it.
  */
 export class KnowledgeBaseFileOwnershipError extends OrchestrationError {
   constructor(public readonly storageKey: string) {

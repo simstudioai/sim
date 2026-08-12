@@ -27,6 +27,7 @@ import {
   v2ListFoldersQuerySchema,
   v2PaginationFields,
   v2RelocateFolderBodySchema,
+  v2RunOrderSchema,
   v2RunWindowBoundSchema,
   v2SearchSchema,
   v2SortFields,
@@ -1053,14 +1054,11 @@ export const v2ListWorkflowRunsQuerySchema = z
      * aliasing the param would require a route change and would introduce a
      * second spelling with undefined precedence when both are sent — so the
      * deviation is documented rather than papered over.
+     *
+     * Shared with `GET /logs` so the two spell the enum the same way in the
+     * generated specs.
      */
-    order: z
-      .enum(['asc', 'desc'])
-      .optional()
-      .default('desc')
-      .describe(
-        'Sort direction by run start time. This operation deviates from the v2 `sortBy` + `sortOrder` convention: runs are sortable only by start time, so the direction is carried by this single `order` param and `sortBy`/`sortOrder` are not accepted.'
-      ),
+    order: v2RunOrderSchema('run'),
   })
   .strict()
   .refine(

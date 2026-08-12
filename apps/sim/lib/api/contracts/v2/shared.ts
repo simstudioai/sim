@@ -83,9 +83,14 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * response — its OpenAPI description says so explicitly, so a caller never
  * writes a pagination loop that can only ever run once.
  *
- * Every list whose result set grows with workspace content is now paged. What
- * remains full-set is the folder lists, whose trees are already capped where
- * they load, plus `GET /mcp-servers`.
+ * Every list whose result set grows with workspace content is now paged —
+ * including `GET /mcp-servers`, since nothing caps how many servers a workspace
+ * registers. What remains full-set is bounded by construction rather than by a
+ * caller's `limit`: the four folder lists, whose trees are capped where they
+ * load; `GET /knowledge/{id}/tags`, capped by the fixed tag-slot table;
+ * `GET /mcp-servers/{id}/tools`, capped by tool discovery itself; and
+ * `GET /tables/{tableId}/views` and `GET /tables/{tableId}/groups`, capped per
+ * table.
  *
  * Adding `limit`/`cursor` to a full-set list is additive, but giving it a
  * *default* `limit` truncates callers reading the whole set today, so it is a
@@ -94,13 +99,24 @@ import { FolderPathError, parseFolderPath, requireNonRootFolderPath } from '@/li
  * costs nothing. Once v2 is generally available, moving a shipped full-set list
  * to a defaulted page size needs a version bump.
  *
- * Both cursor schemes are opaque base64-JSON from `app/api/v2/lib/response.ts`,
- * and which one a list uses is decided by what its read can express rather than
- * by preference: a keyset (`encodeSortedCursor`) wherever the page comes from
- * one ordered SQL read, and an offset (`encodeCursor({ offset })`) only where it
- * cannot — `GET /skills`, which merges the static builtin registry into the DB
- * rows and re-sorts in JS, and `GET /knowledge/{id}/documents`, whose underlying
- * query is limit/offset. Prefer the keyset; an offset needs that kind of reason.
+ * Three cursor schemes are in use. Two are shared codecs in
+ * `app/api/v2/lib/response.ts`, and which of them a list uses is decided by what
+ * its read can express rather than by preference: a keyset
+ * (`encodeSortedCursor`) wherever the page comes from one ordered SQL read, and
+ * an offset (`encodeOffsetCursor`) only where it cannot — `GET /skills`, which
+ * merges the static builtin registry into the DB rows and re-sorts in JS, and
+ * `GET /knowledge/{id}/documents`, whose underlying query is limit/offset.
+ * Prefer the keyset; an offset needs that kind of reason.
+ *
+ * The third is per-domain: a list whose read predates the shared codecs, or
+ * whose page boundary is not expressible as one, mints its own — a bare
+ * `encodeCursor({ version })` on `GET /workflows/{id}/versions` and
+ * `encodeCursor({ email })` on the workspace member list, the audit-log and run-log
+ * codecs in `lib/audit-logs/query.ts` and `lib/logs/list-logs.ts`, the table-row
+ * codec in `lib/table/rows/cursor.ts`, and a usage-event id passed straight
+ * through by `GET /billing/logs`. They are opaque to a caller in exactly the same
+ * way, but they do not get the shared codec's sort stamp, so a new list should
+ * reach for one of the two shared schemes rather than adding a fourth.
  *
  * ## Sort and the opaque cursor
  *
@@ -302,6 +318,31 @@ export function v2RunWindowBoundSchema(field: 'startDate' | 'endDate') {
       `Only include runs started ${boundary} this UTC ISO 8601 timestamp, e.g. \`2026-08-06T00:00:00Z\`. A date without a time, or a timestamp carrying a UTC offset instead of \`Z\`, is rejected.`
     )
     .meta({ format: 'date-time' })
+}
+
+/**
+ * The single `order` param the two run-window reads take in place of
+ * `sortBy` + `sortOrder`, for the same reason they share
+ * {@link v2RunWindowBoundSchema}: `GET /logs` and `GET /workflows/{id}/runs` are
+ * sibling reads over the same runs, so a value that works on one must work on
+ * the other.
+ *
+ * Sharing it also keeps the *published* member order identical. Two hand-written
+ * `z.enum([...])` literals spelled the same set in opposite orders, which the
+ * generated specs faithfully reproduced — harmless to a parser, but it reads as
+ * two APIs rather than one, and a caller comparing the two pages has no way to
+ * tell an ordering accident from a meaningful difference. The order is
+ * {@link LIST_SORT_ORDERS}, the same one `sortOrder` publishes everywhere else.
+ */
+export function v2RunOrderSchema(subject: 'execution' | 'run') {
+  const noun = subject === 'execution' ? 'logs' : 'runs'
+  return z
+    .enum(LIST_SORT_ORDERS)
+    .optional()
+    .default('desc')
+    .describe(
+      `Sort direction by ${subject} start time. This operation deviates from the v2 \`sortBy\` + \`sortOrder\` convention: ${noun} are sortable only by start time, so the direction is carried by this single \`order\` param and \`sortBy\`/\`sortOrder\` are not accepted.`
+    )
 }
 
 export const v2SearchSchema = z

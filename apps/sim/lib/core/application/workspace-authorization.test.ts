@@ -21,6 +21,8 @@ import {
   defineWorkspaceOperation,
   InsufficientWorkspacePermissionsError,
   NoWorkspaceAccessError,
+  PrincipalKindAuthorizationError,
+  WorkspaceApiKeyAuthorizationError,
   WorkspaceApiKeyScopeAuthorizationError,
 } from '@/lib/core/application'
 
@@ -89,5 +91,28 @@ describe('authorizeWorkspaceOperation', () => {
     await expect(
       authorizeWorkspaceOperation(workspaceKeyPrincipal, workspaceKeyOperation, context)
     ).rejects.toBeInstanceOf(WorkspaceApiKeyScopeAuthorizationError)
+  })
+
+  /**
+   * An operation that denies workspace keys necessarily omits
+   * `workspace_api_key` from `principalKinds`, so the kind guard is the only
+   * place this refusal can be raised. Reported as a generic kind refusal, the
+   * published `WORKSPACE_KEY_OPERATION_NOT_PERMITTED` code is unmatchable by any
+   * client.
+   */
+  it('names a workspace key refused by an operation that denies workspace keys', async () => {
+    await expect(
+      authorizeWorkspaceOperation(
+        { ...workspaceKeyPrincipal, workspaceId: context.workspaceId },
+        writeOperation,
+        context
+      )
+    ).rejects.toBeInstanceOf(WorkspaceApiKeyAuthorizationError)
+  })
+
+  it('still reports another disallowed principal kind as a kind refusal', async () => {
+    await expect(
+      authorizeWorkspaceOperation(principal, workspaceKeyOperation, context)
+    ).rejects.toBeInstanceOf(PrincipalKindAuthorizationError)
   })
 })

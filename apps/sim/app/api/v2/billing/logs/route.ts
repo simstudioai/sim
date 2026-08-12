@@ -1,10 +1,6 @@
 import { v2ListBillingLogsContract } from '@/lib/api/contracts/v2/billing'
-import {
-  defineV2JsonRoute,
-  v2ApiKeyAuth,
-  v2OrchestrationErrorPolicy,
-  v2RateLimits,
-} from '@/lib/api/server/routes'
+import { defineV2JsonRoute, v2ApiKeyAuth, v2RateLimits } from '@/lib/api/server/routes'
+import { v2BillingErrorPolicies } from '@/lib/billing/api/route-policies'
 import { listBillingLogs } from '@/lib/billing/application/list-billing-logs'
 import { billingOperations } from '@/lib/billing/application/operations'
 import { toBillingUsageLogSource, toInternalUsageLogSources } from '@/lib/billing/usage-sources'
@@ -19,7 +15,7 @@ export const GET = defineV2JsonRoute({
   auth: v2ApiKeyAuth,
   operation: billingOperations.listLogs,
   rateLimit: v2RateLimits.publicApi,
-  errorPolicy: v2OrchestrationErrorPolicy,
+  errorPolicy: v2BillingErrorPolicies.concealWorkspaceAuthorization,
   mapInput: ({ query }) => {
     const dateRange = resolveDateRange(query.period, query.startDate, query.endDate)
     return {

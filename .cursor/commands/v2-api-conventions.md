@@ -13,7 +13,7 @@ Nothing else at the top level. No `success: true`, no bare `{ "error": "string" 
 That promise is worth stating as a rule because it has been broken five separate ways, each time by a route or a builder taking a shortcut that looked local:
 
 - `GET /workflows?limit=1.5` returned **500**. The contract was copied from a sibling and lost its `.int()`, so a fractional limit passed validation and reached Postgres as `LIMIT 2.5`.
-- A malformed JSON body returned **`{"error":"Request body must be valid JSON"}`** — a bare string. The envelope was a per-route opt-in that only 8 of 77 routes remembered.
+- A malformed JSON body returned **`{"error":"Request body must be valid JSON"}`** — a bare string. The envelope was a per-route opt-in that only 8 routes remembered.
 - `GET /api/v2/nonexistent` returned a **full HTML 404 document**, because no route file matched and the request fell through to the app's global not-found page.
 - Four collections returned `nextCursor` while **silently discarding** any `limit` the caller sent, because Zod strips unknown keys unless the schema is `.strict()`.
 - Handing back a `nextCursor` from any timestamp-sorted list and passing it straight in returned **500**. The value was validated and bound — but bound with no SQL type, into `date_trunc`, which is overloaded, so Postgres could resolve no overload. Validation was never the missing half; the type was.
@@ -46,10 +46,10 @@ A route built with `defineV2JsonRoute` gets this for free: its `present` returns
 | 200 / 201 | — | Success. 201 only for a created resource. |
 | 400 | `BAD_REQUEST` | Contract validation. Carries field-level `details` from `serializeZodIssues`. |
 | 401 | `UNAUTHORIZED` | No/!valid API key. **Runs before the rollout gate.** |
-| 403 | `FORBIDDEN` | Authenticated, same tenant, insufficient rights. Carries a machine-readable `details.code` from the closed set in `lib/core/application/forbidden.ts` (e.g. `INSUFFICIENT_WORKSPACE_ROLE`, `PERSONAL_API_KEYS_DISABLED`). |
+| 403 | `FORBIDDEN` | Authenticated, same tenant, insufficient rights. Where the cause is one a caller can act on it is named in `details.code`, from the closed set in `lib/core/application/forbidden.ts` (e.g. `INSUFFICIENT_WORKSPACE_ROLE`, `PERSONAL_API_KEYS_DISABLED`). A few domain refusals still reach the wire without one. |
 | 404 | `NOT_FOUND` | Not found, **and** cross-tenant concealment, **and** the rollout gate, **and** an unknown path. |
 | 409 | `CONFLICT` | Uniqueness/state conflict, human-readable message. |
-| 413 | `PAYLOAD_TOO_LARGE` | Body over the route's `maxBodyBytes`. |
+| 413 | `PAYLOAD_TOO_LARGE` | Body over the route's `maxBodyBytes` — **and** a collection the response must materialize that is over *its* ceiling. Fourteen bodyless `GET`/`DELETE` operations publish it for the folder-tree cap (`FolderCollectionLimitExceededError`) or the rendered-artifact cap. |
 | 429 | `RATE_LIMITED` | With `Retry-After` and `X-RateLimit-*`. |
 | 500 | `INTERNAL_ERROR` | Genuine server fault only. Message is always generic. |
 
@@ -68,7 +68,7 @@ And this class survives a green test suite — `keysetAfter` returned well-forme
 - An operation whose `minimumRole` is `write` or `admin` can always 403 — a member with a lower role hits it. Document 403.
 - An operation whose `minimumRole` is `read` cannot 403 *that* way, because `read` is the floor of the `read < write < admin` ordering and anyone without access is concealed as 404 instead. It can still 403 through `PersonalApiKeysDisabledError` (a personal API key against a workspace whose organization disabled them) or `WorkspaceApiKeyAuthorizationError` (`workspaceApiKey: 'deny'`), and every v2 operation is reachable by a personal API key. **So in practice every workspace-scoped v2 operation documents 403**, and the reads that omitted it were wrong, not principled.
 
-**Every 403 names its cause in `error.details.code`.** One status covers four different remedies — raise a member's role, issue a personal key instead of a workspace-scoped one, re-point a workspace key, buy an enterprise plan — and prose is not branchable, so a client that must tell them apart was string-matching messages, which turns every reword into a silent break.
+**A 403 a caller can act on names its cause in `error.details.code` — but not every 403 does yet.** One status covers several different remedies — raise a member's role, issue a personal key instead of a workspace-scoped one, re-point a workspace key, buy an enterprise plan, delete a resource to get under a quota — and prose is not branchable, so a client that must tell them apart was string-matching messages, which turns every reword into a silent break. A handful of domain refusals still throw a bare `OrchestrationError('forbidden', …)` and reach the wire with no code, so **write client code that treats `details.code` as optional**, and read `openapi/shared.ts`'s `FORBIDDEN_DESCRIPTION` for the current position rather than assuming the sweep is finished. For code you are *writing*, the rule below is unconditional.
 
 The vocabulary is a closed set, `FORBIDDEN_DETAIL_CODES` in `lib/core/application/forbidden.ts`, with a `Record` of descriptions beside it that the generated OpenAPI 403 description is built from. Adding a member fails to compile until it is documented, so a code cannot reach the wire unpublished. Do not invent a code at a route: throw `ForbiddenOperationError(code, message)` from the domain and let `v2CaughtOrchestrationError` — the function every v2 error policy falls through to — attach it. `InsufficientWorkspacePermissionsError`, `PersonalApiKeysDisabledError`, `WorkspaceApiKeyAuthorizationError`, and `PrincipalKindAuthorizationError` already carry theirs.
 
@@ -77,6 +77,8 @@ The cross-tenant refusals (`NoWorkspaceAccessError`, `WorkspaceApiKeyScopeAuthor
 Use the shared sets in `contracts/v2/openapi/shared.ts` — `RESOURCE_ERRORS`, `RESOURCE_CONFLICT_ERRORS`, `RESOURCE_MUTATION_ERRORS` — rather than assembling a per-operation list; all three already include `Forbidden`, and hand-assembled lists are how three knowledge reads and three upload operations quietly lost it.
 
 **HEAD is answered by the `GET` handler, not rejected.** Next aliases a missing `HEAD` export onto `GET` and drops the body when sending, so a route's `GET` legitimately runs with `request.method === 'HEAD'`. The builders' method guard accepts that pairing via `methodMatchesContract`; any other mismatch stays a hard error. Never hand-write a `HEAD` export to "fix" this.
+
+**A `GET` with side effects must declare `headSafe: false`.** The aliasing above is only sound because RFC 9110 §9.2.1 defines `HEAD` as safe. A `GET` that writes a row or opens an outbound connection is not, and an uptime monitor or link checker walking the documented URL list would drive those effects on every probe — `GET /files/{fileId}` records a `FILE_DOWNLOADED` audit event, so a `HEAD` used to fabricate a download that never happened. Both the JSON and binary builders take `headSafe`: a route that sets it `false` still authenticates and rate-limits a `HEAD`, then answers `v2HeadNoEffect()` — a bodiless 200 — before parsing or executing. Nothing observable is lost, because `HEAD` carries no body either way. Audit this whenever a read acquires an audit projection or an outbound call.
 
 ## Rule 3 — a collection that returns `nextCursor` must accept `limit` + `cursor`, and must apply them
 
@@ -90,10 +92,12 @@ Build the query slice from the shared helper, never by hand:
 
 That gives `limit` (integer, 1..`V2_MAX_PAGE_SIZE`, defaulting to `V2_DEFAULT_PAGE_SIZE` = 50) and an opaque `cursor`. Re-declaring `limit: z.coerce.number()...` inline is how the 500 happened; there is one schema so the family cannot drift again.
 
-Two cursor schemes exist, both opaque base64-JSON from `response.ts`. Which one you use is decided by what the read can express, not by taste:
+Three cursor schemes exist. Two are the shared codecs in `response.ts`, both opaque base64-JSON, and which of them you use is decided by what the read can express, not by taste:
 
 - **Keyset** (`readSortedCursor` in, `encodeSortedCursor` out) — the default. Requires the page to come from one ordered SQL read. The sort is stamped into the cursor and re-checked on replay, so changing `sortBy` mid-pagination is a 400, not a silently skipped page.
 - **Offset** (`decodeOffsetCursor` / `encodeOffsetCursor`) — only when a keyset is impossible. Two lists qualify: `GET /skills` merges a static in-code registry with DB rows and re-sorts in JS, and `GET /knowledge/{id}/documents` sits on a limit/offset query. An offset cursor **must** be stamped with `offsetCursorScope(...)` covering every param that filters or orders the sequence (not `limit`, which only selects how much of it to return). A bare offset replayed against a re-sorted or re-filtered sequence names a different row, which skips or repeats results — the exact failure the keyset's sort stamp already prevents.
+
+The third is **per-domain**: a list whose read predates the shared codecs, or whose page boundary is not expressible as one, mints its own — a bare `encodeCursor({ version })` on `GET /workflows/{id}/versions` and `encodeCursor({ email })` on the workspace member list, the local codecs in `lib/audit-logs/query.ts`, `lib/logs/list-logs.ts`, and `lib/table/rows/cursor.ts`, and a usage-event id passed straight through by `GET /billing/logs`. They are opaque to a caller in exactly the same way, but they do not get the shared codec's sort stamp, so they cannot reject a cursor replayed under a changed sort. **A new list picks one of the two shared schemes.** Do not add a fourth.
 
 **A keyset's key list must end in a unique column (`id`).** A non-unique trailing key cannot separate tied rows, so the page boundary either repeats or drops them. `lib/api/list-keyset-paging.test.ts` demonstrates the failure.
 
@@ -147,7 +151,7 @@ Do not add a default for any other code. 400/403/404/409 are not fixed by waitin
 
 **A failure whose outcome is unknown must not advise a retry.** `ASYNC_ENQUEUE_AMBIGUOUS` is a 503 whose enqueue may have succeeded — it deliberately retains its execution-ID claim. Telling that caller to come back in 5 seconds invites a client with no `X-Run-Id` to start and bill a second run. It passes `omitRetryAfter: true` and returns the run id so the caller reconciles instead. Any future "we don't know if it happened" failure does the same.
 
-RFC 9110 §10.2.3 gives 503 this field's clearest meaning — "how long the service is expected to be unavailable to the client". Note the requirement level is only `MAY`, on 503 (§15.6.4) and, via RFC 6585 §4, on 429. It is `SHOULD` on exactly one status, 413, and only when the condition is temporary; Sim's 413 is a fixed byte ceiling, so it correctly sends none.
+RFC 9110 §10.2.3 gives 503 this field's clearest meaning — "how long the service is expected to be unavailable to the client". Note the requirement level is only `MAY`, on 503 (§15.6.4) and, via RFC 6585 §4, on 429. It is `SHOULD` on exactly one status, 413, and only when the condition is temporary; none of Sim's 413s are temporary — they are fixed ceilings, on the request body and on the collections a response must materialize — so it correctly sends none.
 
 ## Deliberate non-adoptions
 
