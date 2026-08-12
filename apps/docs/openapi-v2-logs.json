@@ -231,6 +231,8 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "Exact run identifier to match."
             }
           },
@@ -306,6 +308,8 @@
             "schema": {
               "type": "string",
               "minLength": 1,
+              "maxLength": 128,
+              "pattern": "^[A-Za-z0-9._:-]+$",
               "description": "The unique run identifier shared by lifecycle and diagnostic resources."
             }
           }

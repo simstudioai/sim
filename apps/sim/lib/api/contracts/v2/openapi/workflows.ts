@@ -6,11 +6,14 @@ import {
   FULL_SET_LIST,
   RATE_LIMIT_HEADERS,
   RESOURCE_CONFLICT_ERRORS,
+  RESOURCE_ERRORS,
+  RESOURCE_MUTATION_ERRORS,
   V2_API_KEY_SECURITY,
   V2_API_KEY_SECURITY_SCHEMES,
   V2_COMMON_HEADERS,
   V2_ERROR_SCHEMA,
-  WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND,
+  WORKSPACE_API_KEY_DENIED,
+  WORKSPACE_ERRORS,
 } from '@/lib/api/contracts/v2/openapi/shared'
 import {
   EXECUTE_OPTION_CONSTRAINTS,
@@ -104,25 +107,6 @@ const QUEUED_RUN_EXAMPLE = {
     statusUrl: `https://www.sim.ai/api/v2/workflows/${WORKFLOW_ID}/runs/${RUN_ID}`,
   },
 } as const
-
-const WORKSPACE_ERRORS = [
-  'BadRequest',
-  'Unauthorized',
-  'Forbidden',
-  'RateLimited',
-  'InternalError',
-  'ServiceUnavailable',
-] as const satisfies readonly ErrorResponseId[]
-
-const RESOURCE_ERRORS = [
-  ...WORKSPACE_ERRORS,
-  'NotFound',
-] as const satisfies readonly ErrorResponseId[]
-const RESOURCE_MUTATION_ERRORS = [
-  ...RESOURCE_ERRORS,
-  'Conflict',
-  'Locked',
-] as const satisfies readonly ErrorResponseId[]
 
 type WorkflowOperationInput = Omit<OpenApiOperationMetadata, 'tags' | 'errors'> & {
   errors: readonly ErrorResponseId[]
@@ -380,7 +364,7 @@ const routes = [
     workflowOperation({
       operationId: 'deployWorkflow',
       summary: 'Deploy Workflow',
-      description: `Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries \`latestDeploymentAttempt\` for the accepted attempt, but \`GET /workflows/{id}\` does not expose that field — poll activation with \`isDeployed\` and \`deployedAt\` on the workflow, or with \`isActive\` on \`GET /workflows/{id}/versions\`. Returns 409 when the deployment would conflict with an existing webhook path. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      description: `Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries \`latestDeploymentAttempt\` for the accepted attempt, but \`GET /workflows/{id}\` does not expose that field — poll activation with \`isDeployed\` and \`deployedAt\` on the workflow, or with \`isActive\` on \`GET /workflows/{id}/versions\`. Returns 409 when the deployment would conflict with an existing webhook path. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted deployment attempt.'),
     }),
@@ -424,7 +408,7 @@ const routes = [
     workflowOperation({
       operationId: 'undeployWorkflow',
       summary: 'Undeploy Workflow',
-      description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
+      description: `Deactivate the currently serving workflow version. ${WORKSPACE_API_KEY_DENIED}`,
       errors: [...RESOURCE_ERRORS, 'Locked'],
       success: jsonSuccess('The workflow was undeployed.'),
     }),
@@ -455,8 +439,8 @@ const routes = [
     workflowOperation({
       operationId: 'rollbackWorkflow',
       summary: 'Rollback Workflow',
-      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED_AS_NOT_FOUND}`,
-      errors: [...RESOURCE_ERRORS, 'PayloadTooLarge', 'Locked'],
+      description: `Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. ${WORKSPACE_API_KEY_DENIED}`,
+      errors: [...RESOURCE_ERRORS, 'Conflict', 'PayloadTooLarge', 'Locked'],
       success: jsonSuccess('The accepted rollback attempt.'),
     }),
     {
@@ -534,7 +518,7 @@ const routes = [
     workflowOperation({
       operationId: 'importWorkflow',
       summary: 'Import Workflow',
-      description: 'Create a workflow from a portable export object, bare state, or JSON string.',
+      description: `Create a workflow from a portable export object, bare state, or JSON string. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The imported workflow.'),
     }),
@@ -745,7 +729,7 @@ const routes = [
     workflowOperation({
       operationId: 'listWorkflowsFolders',
       summary: 'List Workflow Folders',
-      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST}`,
+      description: `List canonical workflow folders in a workspace. ${FULL_SET_LIST} ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...WORKSPACE_ERRORS, 'NotFound', 'PayloadTooLarge'],
       success: jsonSuccess('A list of workflow folders.'),
     }),
@@ -770,7 +754,7 @@ const routes = [
     workflowOperation({
       operationId: 'createWorkflowsFolder',
       summary: 'Create Workflow Folder',
-      description: 'Create a canonical workflow folder in a workspace.',
+      description: `Create a canonical workflow folder in a workspace. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The created workflow folder.'),
     }),
@@ -796,7 +780,7 @@ const routes = [
     workflowOperation({
       operationId: 'relocateWorkflowsFolder',
       summary: 'Rename or Move Workflow Folder',
-      description: 'Rename or move a workflow folder and its descendants to a canonical path.',
+      description: `Rename or move a workflow folder and its descendants to a canonical path. ${FOLDER_TREE_TOO_LARGE}`,
       errors: [...RESOURCE_MUTATION_ERRORS, 'PayloadTooLarge'],
       success: jsonSuccess('The relocated workflow folder.'),
     }),

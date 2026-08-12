@@ -3,10 +3,15 @@ import {
   activeDeploymentSummarySchema,
   deployedWorkflowStateSchema,
   deploymentOperationSummarySchema,
+  deploymentVersionNumberSchema,
   deploymentVersionParamsSchema,
   deploymentVersionSchema,
 } from '@/lib/api/contracts/deployments'
-import { booleanQueryFlagSchema, workspaceIdSchema } from '@/lib/api/contracts/primitives'
+import {
+  booleanQueryFlagSchema,
+  runIdSchema,
+  workspaceIdSchema,
+} from '@/lib/api/contracts/primitives'
 import { defineRouteContract } from '@/lib/api/contracts/types'
 import {
   V1_IMPORT_DESCRIPTION_MAX_LENGTH,
@@ -43,14 +48,7 @@ import { PERSISTED_WORKFLOW_EXECUTION_STATUSES } from '@/lib/logs/types'
 
 export const V2_WORKFLOW_RUN_ID_HEADER = 'X-Run-Id'
 
-export const v2WorkflowRunIdSchema = z
-  .string()
-  .min(1, 'Invalid run ID')
-  .max(128, 'Run ID too long')
-  .regex(
-    /^[A-Za-z0-9._:-]+$/,
-    'Run ID can only contain letters, numbers, dots, underscores, colons, and hyphens'
-  )
+export const v2WorkflowRunIdSchema = runIdSchema
   .describe('Unique workflow run identifier.')
   .meta({ examples: ['run_8f14e45f-ceea-467f-a'] })
 
@@ -601,6 +599,19 @@ export const v2ListWorkflowVersionsQuerySchema = z
 export type V2ListWorkflowVersionsQuery = z.output<typeof v2ListWorkflowVersionsQuerySchema>
 
 /**
+ * Payload of the opaque cursor this list mints. A cursor is caller-controlled
+ * bytes, so its decoded `version` is validated exactly like a request field —
+ * it is compared against the `integer` column, where an out-of-range value
+ * overflows the comparison rather than matching nothing.
+ */
+export const v2WorkflowVersionCursorSchema = z
+  .object({
+    version: deploymentVersionNumberSchema.describe('Version at which the next page begins.'),
+  })
+  .strict()
+export type V2WorkflowVersionCursor = z.output<typeof v2WorkflowVersionCursorSchema>
+
+/**
  * A single version plus the workflow state it pins. `state` is the deployed
  * graph snapshot — the same portable blob the internal deployment reader
  * serves — and is the thing a caller diffs before rolling back to it.
@@ -675,6 +686,7 @@ export const v2DeployWorkflowContract = defineRouteContract({
         'Optional release note for the deployment version.'
       ),
     })
+    .strict()
     .optional()
     .default({})
     .meta({
@@ -701,6 +713,14 @@ export const v2UndeployWorkflowContract = defineRouteContract({
   },
 })
 
+/**
+ * Rollback carries a single optional field, and omitting it is a legitimate
+ * request meaning "reactivate the version preceding the active one". A
+ * stripping body schema therefore cannot distinguish an intentional omission
+ * from a misspelled `version`, and silently performs the wrong rollback while
+ * answering `200`. `.strict()` is what makes the two distinguishable, so it is
+ * load-bearing here rather than hygiene.
+ */
 export const v2RollbackWorkflowContract = defineRouteContract({
   method: 'POST',
   path: '/api/v2/workflows/[id]/rollback',
@@ -711,6 +731,7 @@ export const v2RollbackWorkflowContract = defineRouteContract({
         'Deployment version to reactivate. Omit to select the previous active version.'
       ),
     })
+    .strict()
     .optional()
     .default({})
     .meta({
@@ -1199,6 +1220,7 @@ export const v2GetWorkflowRunContract = defineRouteContract({
         'Comma-separated block output references to include.'
       ),
     })
+    .strict()
     .meta({
       id: 'GetWorkflowRunQuery',
       title: 'Get workflow run query',

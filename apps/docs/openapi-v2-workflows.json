@@ -590,7 +590,7 @@
             "schema": {
               "type": "integer",
               "exclusiveMinimum": 0,
-              "maximum": 9007199254740991,
+              "maximum": 2147483647,
               "description": "Numeric deployment version.",
               "examples": [3]
             }
@@ -712,7 +712,7 @@
       "post": {
         "operationId": "deployWorkflow",
         "summary": "Deploy Workflow",
-        "description": "Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries `latestDeploymentAttempt` for the accepted attempt, but `GET /workflows/{id}` does not expose that field — poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`. Returns 409 when the deployment would conflict with an existing webhook path. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Create and asynchronously activate a deployment version. This request is not idempotent: it accepts no idempotency key and every call mints a new deployment version, so retrying after a timeout creates a second version rather than returning the first. The response carries `latestDeploymentAttempt` for the accepted attempt, but `GET /workflows/{id}` does not expose that field — poll activation with `isDeployed` and `deployedAt` on the workflow, or with `isActive` on `GET /workflows/{id}/versions`. Returns 409 when the deployment would conflict with an existing webhook path. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -796,7 +796,7 @@
       "delete": {
         "operationId": "undeployWorkflow",
         "summary": "Undeploy Workflow",
-        "description": "Deactivate the currently serving workflow version. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Deactivate the currently serving workflow version. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -865,7 +865,7 @@
       "post": {
         "operationId": "rollbackWorkflow",
         "summary": "Rollback Workflow",
-        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key cannot call this operation. Because unauthorized resources are concealed, the rejection is reported as `404` rather than `403`; use a personal API key.",
+        "description": "Asynchronously reactivate a previous deployment version, selecting the preceding active version when no version is supplied. A workspace API key cannot call this operation and is rejected with `403`; use a personal API key.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -925,6 +925,9 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "$ref": "#/components/responses/Conflict"
           },
           "413": {
             "$ref": "#/components/responses/PayloadTooLarge"
@@ -1017,7 +1020,7 @@
       "post": {
         "operationId": "importWorkflow",
         "summary": "Import Workflow",
-        "description": "Create a workflow from a portable export object, bare state, or JSON string.",
+        "description": "Create a workflow from a portable export object, bare state, or JSON string. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -1698,7 +1701,7 @@
       "get": {
         "operationId": "listWorkflowsFolders",
         "summary": "List Workflow Folders",
-        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch.",
+        "description": "List canonical workflow folders in a workspace. The bounded set is returned in one page with `nextCursor` always null; there is no second page to fetch. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "parameters": [
           {
@@ -1810,7 +1813,7 @@
       "post": {
         "operationId": "createWorkflowsFolder",
         "summary": "Create Workflow Folder",
-        "description": "Create a canonical workflow folder in a workspace.",
+        "description": "Create a canonical workflow folder in a workspace. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -1880,7 +1883,7 @@
       "patch": {
         "operationId": "relocateWorkflowsFolder",
         "summary": "Rename or Move Workflow Folder",
-        "description": "Rename or move a workflow folder and its descendants to a canonical path.",
+        "description": "Rename or move a workflow folder and its descendants to a canonical path. A workspace whose folder tree exceeds 10,000 folders is a 413, because the response needs the whole tree to render folder paths.",
         "tags": ["Workflows"],
         "requestBody": {
           "required": true,
@@ -3384,7 +3387,8 @@
               }
             ]
           }
-        }
+        },
+        "additionalProperties": false
       },
       "UndeployResult": {
         "type": "object",
@@ -3610,7 +3614,8 @@
             "minimum": 1,
             "maximum": 2147483647
           }
-        }
+        },
+        "additionalProperties": false
       },
       "WorkflowExportPayload": {
         "type": "object",
